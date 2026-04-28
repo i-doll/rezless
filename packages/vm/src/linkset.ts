@@ -31,8 +31,17 @@ export class Linkset {
   readonly prims: Prim[] = []
   /** Linkset-wide LSD store (was per-script before multi-script support). */
   readonly linksetData: Map<string, LinksetDataEntry> = new Map()
-  /** Cross-script capture of every llMessageLinked invocation. */
+  /**
+   * Cross-script capture of every `llMessageLinked` invocation in this
+   * linkset. Append-only; long-running tests should call
+   * `clearLinkedMessages()` between scenarios to keep memory bounded.
+   */
   readonly linkedMessages: LinkedMessageEntry[] = []
+
+  /** Drop every captured cross-script linked-message entry. */
+  clearLinkedMessages(): void {
+    this.linkedMessages.length = 0
+  }
   readonly owner: string
 
   constructor(opts: LinksetOptions = {}) {

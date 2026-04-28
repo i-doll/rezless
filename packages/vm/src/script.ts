@@ -244,6 +244,11 @@ export class Script {
     return this.state.linkedMessages
   }
 
+  /** Drop every captured outgoing linked-message entry for this script. */
+  clearLinkedMessages(): void {
+    this.state.linkedMessages.length = 0
+  }
+
   /** Captured pending dataserver requests (llRequestAgentData and friends). */
   get dataserverRequests(): ReadonlyArray<DataserverRequestEntry> {
     return this.state.dataserverRequests
