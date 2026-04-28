@@ -106,6 +106,29 @@ import {
   llResetScript,
 } from './object.js'
 import {
+  llGetLinkNumber,
+  llGetNumberOfPrims,
+  llGetLinkKey,
+  llGetLinkName,
+} from './link-info.js'
+import {
+  llGetInventoryNumber,
+  llGetInventoryName,
+  llGetInventoryType,
+  llGetInventoryKey,
+  llGetInventoryCreator,
+  llGetInventoryDesc,
+  llGetInventoryAcquireTime,
+  llGetInventoryPermMask,
+  llGetNotecardLine,
+  llGetNumberOfNotecardLines,
+} from './inventory.js'
+import {
+  llResetOtherScript,
+  llSetScriptState,
+  llGetScriptState,
+} from './script-control.js'
+import {
   llLinksetDataWrite,
   llLinksetDataWriteProtected,
   llLinksetDataRead,
@@ -234,6 +257,26 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetObjectDesc,
   llDie,
   llResetScript,
+  // link info
+  llGetLinkNumber,
+  llGetNumberOfPrims,
+  llGetLinkKey,
+  llGetLinkName,
+  // inventory
+  llGetInventoryNumber,
+  llGetInventoryName,
+  llGetInventoryType,
+  llGetInventoryKey,
+  llGetInventoryCreator,
+  llGetInventoryDesc,
+  llGetInventoryAcquireTime,
+  llGetInventoryPermMask,
+  llGetNotecardLine,
+  llGetNumberOfNotecardLines,
+  // script control
+  llResetOtherScript,
+  llSetScriptState,
+  llGetScriptState,
   // linkset data
   llLinksetDataWrite,
   llLinksetDataWriteProtected,

@@ -1,15 +1,20 @@
 import type { LslValue } from './values/types.js'
 import type { BuiltinSpec } from './generated/functions.js'
-import type { VirtualClock } from './clock.js'
+import type { ScriptClockView } from './clock.js'
 import type { Mulberry32 } from './random.js'
+import type { Prim } from './prim.js'
+import type { Linkset } from './linkset.js'
+import type { Script } from './script.js'
 
 /** Script-identity values exposed via llGetOwner / llGetKey / etc. */
 export interface ScriptIdentity {
-  /** Configured via loadScript({ owner }); defaults to NULL_KEY. */
+  /** Linkset owner key. */
   readonly owner: string
-  /** Prim key — defaults to a deterministic key derived from filename. */
+  /** Prim key (delegated to host prim). */
   readonly objectKey: string
+  /** Prim name; mutated by llSetObjectName. */
   objectName: string
+  /** Script's inventory name. */
   readonly scriptName: string
 }
 
@@ -33,13 +38,17 @@ export interface CallEntry {
  * Mutable state owned by a single Script instance. Built-ins and the
  * interpreter both read and write this; the public Script handle exposes
  * curated views.
+ *
+ * `linksetData` and `appearance` are aliased to the host linkset / prim's
+ * storage so existing builtins that read `ctx.state.linksetData` /
+ * `ctx.state.appearance` keep working unchanged across multi-script setups.
  */
 export interface ScriptState {
   /** Current LSL state name. Starts at "default". */
   currentState: string
   readonly chat: ChatEntry[]
   readonly calls: CallEntry[]
-  readonly clock: VirtualClock
+  readonly clock: ScriptClockView
   readonly httpRequests: import('./builtins/http.js').HttpRequestEntry[]
   /** Monotonic counter feeding deterministic HTTP request keys. */
   httpKeyCounter: number
@@ -48,6 +57,7 @@ export interface ScriptState {
   listenHandleCounter: number
   readonly random: Mulberry32
   identity: ScriptIdentity
+  /** Per-script capture of llMessageLinked invocations from this script. */
   readonly linkedMessages: import('./builtins/linked.js').LinkedMessageEntry[]
   readonly dataserverRequests: import('./builtins/dataserver.js').DataserverRequestEntry[]
   /** Monotonic counter for dataserver request keys. */
@@ -58,16 +68,15 @@ export interface ScriptState {
    */
   readonly detectedStack: import('./builtins/detected.js').DetectedContext[]
   /**
-   * Linkset Data store. Per-linkset key/value strings written via
-   * llLinksetDataWrite / llLinksetDataWriteProtected. Survives llResetScript
-   * (the LSD store is owned by the linkset, not the script). `password === ''`
+   * Linkset Data store — aliased to `linkset.linksetData`. Survives
+   * llResetScript (the LSD store is owned by the linkset). `password === ''`
    * means the entry is unprotected. Map insertion order matches the LSL
    * contract that llLinksetDataListKeys returns keys in write order.
    */
   readonly linksetData: Map<string, import('./builtins/linksetdata.js').LinksetDataEntry>
   /**
-   * Mutable prim appearance — set by llSetText / llSetObjectDesc / etc.
-   * and exposed as Script.text / Script.objectDesc.
+   * Prim appearance — aliased to `prim.appearance`. Set by llSetText /
+   * llSetObjectDesc / etc.
    */
   appearance: {
     text: { text: string; color: { x: number; y: number; z: number }; alpha: number } | null
@@ -84,4 +93,7 @@ export type BuiltinImpl = (ctx: CallContext, args: ReadonlyArray<LslValue>) => L
 export interface CallContext {
   readonly state: ScriptState
   readonly spec: BuiltinSpec | undefined
+  readonly script: Script
+  readonly prim: Prim
+  readonly linkset: Linkset
 }

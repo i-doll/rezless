@@ -22,6 +22,7 @@ import type {
   TypeName,
 } from '@lslvm/parser'
 import type { BuiltinImpl, ScriptState } from './runtime.js'
+import type { Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
 import { defaultEvalFor, isVector, isRotation } from './values/types.js'
@@ -47,6 +48,10 @@ export interface InterpreterContext {
   readonly globals: Env
   /** User-defined functions, indexed by name (LSL has a flat function namespace). */
   readonly userFunctions: ReadonlyMap<string, FunctionDeclaration>
+  /** Owning script — passed through to builtins via dispatch. */
+  readonly script: Script
+  readonly prim: import('./prim.js').Prim
+  readonly linkset: import('./linkset.js').Linkset
 }
 
 class ReturnSignal {
@@ -412,7 +417,7 @@ function evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Eval
   }
   // Builtin (real, generated stub, or user-mocked).
   const rawArgs: LslValue[] = evalArgs.map((r) => r.value)
-  const result = callBuiltin(ctx.state, ctx.mocks, call.callee, rawArgs)
+  const result = callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
   const spec = specFor(call.callee)
   const returnType = (spec?.returnType ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }

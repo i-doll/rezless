@@ -1,0 +1,349 @@
+import { describe, it, expect } from 'vitest'
+import { loadLinkset } from '../src/index.js'
+
+describe('multi-script linkset', () => {
+  describe('LSD broadcast', () => {
+    it('writer script publishes; reader script receives linkset_data event', async () => {
+      const writer = `
+        default {
+          state_entry() { llSetTimerEvent(0); }
+          touch_start(integer n) {
+            llLinksetDataWrite("greeting", "hello");
+          }
+        }
+      `
+      const reader = `
+        integer received = 0;
+        string lastKey = "";
+        default {
+          linkset_data(integer action, string name, string value) {
+            received = received + 1;
+            lastKey = name;
+          }
+        }
+      `
+      const { linkset, scripts } = await loadLinkset({
+        prims: [
+          {
+            name: 'P1',
+            scripts: [
+              { source: { source: writer, filename: 'writer.lsl' }, name: 'writer' },
+              { source: { source: reader, filename: 'reader.lsl' }, name: 'reader' },
+            ],
+          },
+        ],
+      })
+      scripts['writer']!.start()
+      scripts['reader']!.start()
+      scripts['writer']!.fire('touch_start', { num_detected: 1 })
+      // The writer also receives the event (LSL broadcasts to writer too).
+      expect(scripts['reader']!.global('received')).toBe(1)
+      expect(scripts['reader']!.global('lastKey')).toBe('greeting')
+      expect(linkset.linksetData.get('greeting')?.value).toBe('hello')
+    })
+  })
+
+  describe('link_message fan-out', () => {
+    it('LINK_ALL_OTHERS delivers to other prims with correct sender_num', async () => {
+      const sender = `
+        default {
+          state_entry() {}
+          touch_start(integer n) {
+            llMessageLinked(LINK_ALL_OTHERS, 42, "ping", "");
+          }
+        }
+      `
+      const receiver = `
+        integer gotNum = 0;
+        integer gotSender = 0;
+        string gotStr = "";
+        default {
+          link_message(integer sender, integer num, string str, key id) {
+            gotSender = sender;
+            gotNum = num;
+            gotStr = str;
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            name: 'Root',
+            scripts: [
+              { source: { source: receiver, filename: 'r1.lsl' }, name: 'r1' },
+            ],
+          },
+          {
+            name: 'Child',
+            scripts: [
+              { source: { source: sender, filename: 'sender.lsl' }, name: 'sender' },
+              { source: { source: receiver, filename: 'r2.lsl' }, name: 'r2' },
+            ],
+          },
+        ],
+      })
+      scripts['r1']!.start()
+      scripts['r2']!.start()
+      scripts['sender']!.start()
+      scripts['sender']!.fire('touch_start', { num_detected: 1 })
+      // r1 in prim 1 receives from prim 2.
+      expect(scripts['r1']!.global('gotSender')).toBe(2)
+      expect(scripts['r1']!.global('gotNum')).toBe(42)
+      expect(scripts['r1']!.global('gotStr')).toBe('ping')
+      // r2 in prim 2 (same prim as sender) does NOT receive — LINK_ALL_OTHERS excludes the calling prim.
+      expect(scripts['r2']!.global('gotNum')).toBe(0)
+    })
+
+    it('LINK_THIS delivers to siblings in the same prim including caller', async () => {
+      const sender = `
+        default {
+          state_entry() {}
+          touch_start(integer n) {
+            llMessageLinked(LINK_THIS, 7, "self", "");
+          }
+        }
+      `
+      const receiver = `
+        integer gotNum = 0;
+        default {
+          link_message(integer sender, integer num, string str, key id) {
+            gotNum = num;
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            name: 'P1',
+            scripts: [
+              { source: { source: sender, filename: 's.lsl' }, name: 's' },
+              { source: { source: receiver, filename: 'r.lsl' }, name: 'r' },
+            ],
+          },
+        ],
+      })
+      scripts['s']!.start()
+      scripts['r']!.start()
+      scripts['s']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['r']!.global('gotNum')).toBe(7)
+    })
+  })
+
+  describe('link addressing', () => {
+    it('llGetNumberOfPrims and llGetLinkNumber report linkset shape', async () => {
+      const probe = `
+        integer myLink = 0;
+        integer total = 0;
+        string root = "";
+        string second = "";
+        default {
+          state_entry() {
+            myLink = llGetLinkNumber();
+            total = llGetNumberOfPrims();
+            root = llGetLinkName(1);
+            second = llGetLinkName(2);
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          { name: 'Root', scripts: [{ source: { source: probe, filename: 'a.lsl' }, name: 'a' }] },
+          { name: 'Child', scripts: [{ source: { source: probe, filename: 'b.lsl' }, name: 'b' }] },
+        ],
+      })
+      scripts['a']!.start()
+      scripts['b']!.start()
+      expect(scripts['a']!.global('myLink')).toBe(1)
+      expect(scripts['a']!.global('total')).toBe(2)
+      expect(scripts['a']!.global('root')).toBe('Root')
+      expect(scripts['a']!.global('second')).toBe('Child')
+      expect(scripts['b']!.global('myLink')).toBe(2)
+    })
+
+    it('lone prim reports linkNumber 0 and 1 prim', async () => {
+      const probe = `
+        integer myLink = 9;
+        integer total = 0;
+        default { state_entry() { myLink = llGetLinkNumber(); total = llGetNumberOfPrims(); } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      scripts['p']!.start()
+      expect(scripts['p']!.global('myLink')).toBe(0)
+      expect(scripts['p']!.global('total')).toBe(1)
+    })
+  })
+
+  describe('inventory introspection', () => {
+    it('llGetInventoryNumber(INVENTORY_SCRIPT) matches scripts in prim', async () => {
+      const probe = `
+        integer count = 0;
+        string first = "";
+        default { state_entry() {
+          count = llGetInventoryNumber(INVENTORY_SCRIPT);
+          first = llGetInventoryName(INVENTORY_SCRIPT, 0);
+        } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: probe, filename: 'a.lsl' }, name: 'a' },
+              { source: { source: probe, filename: 'b.lsl' }, name: 'b' },
+            ],
+          },
+        ],
+      })
+      scripts['a']!.start()
+      expect(scripts['a']!.global('count')).toBe(2)
+      expect(scripts['a']!.global('first')).toBe('a')
+    })
+
+    it('llGetNotecardLine reads notecard inventory via dataserver', async () => {
+      const probe = `
+        string got = "";
+        key reqKey = NULL_KEY;
+        default {
+          state_entry() {
+            reqKey = llGetNotecardLine("memo", 1);
+          }
+          dataserver(key id, string data) {
+            if (id == reqKey) got = data;
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: [
+              {
+                name: 'memo',
+                type: 7,
+                key: '00000000-0000-0000-0000-000000000123',
+                creator: '00000000-0000-0000-0000-000000000000',
+                description: '',
+                acquireTimeMs: 0,
+                permMask: { base: 0, owner: 0, group: 0, everyone: 0, next: 0 },
+                notecardLines: ['line zero', 'line one', 'line two'],
+              },
+            ],
+            scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }],
+          },
+        ],
+      })
+      scripts['p']!.start()
+      expect(scripts['p']!.global('got')).toBe('line one')
+    })
+  })
+
+  describe('script control', () => {
+    it('llSetScriptState pauses event delivery to a sibling', async () => {
+      const writer = `
+        integer counter = 0;
+        default {
+          touch_start(integer n) {
+            counter = counter + 1;
+            llLinksetDataWrite("k", (string)counter);
+          }
+        }
+      `
+      const reader = `
+        integer received = 0;
+        default {
+          linkset_data(integer action, string name, string value) { received += 1; }
+        }
+      `
+      const controller = `
+        default {
+          touch_start(integer n) {
+            llSetScriptState("reader", FALSE);
+          }
+        }
+      `
+      const { scripts, linkset } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: writer, filename: 'w.lsl' }, name: 'writer' },
+              { source: { source: reader, filename: 'r.lsl' }, name: 'reader' },
+              { source: { source: controller, filename: 'c.lsl' }, name: 'controller' },
+            ],
+          },
+        ],
+      })
+      scripts['writer']!.start()
+      scripts['reader']!.start()
+      scripts['controller']!.start()
+      scripts['writer']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['reader']!.global('received')).toBe(1)
+      scripts['controller']!.fire('touch_start', { num_detected: 1 })
+      scripts['writer']!.fire('touch_start', { num_detected: 1 })
+      // Reader is paused, so it shouldn't have received the second event.
+      expect(scripts['reader']!.global('received')).toBe(1)
+      // Re-enable and the parked event should fire.
+      scripts['reader']!.running = true
+      scripts['reader']!.resumeParked()
+      linkset.drainQueue()
+      expect(scripts['reader']!.global('received')).toBe(2)
+    })
+
+    it('llGetScriptState reflects running flag', async () => {
+      const probe = `
+        integer beforeStop = 0;
+        integer afterStop = 0;
+        default {
+          state_entry() {
+            beforeStop = llGetScriptState("other");
+            llSetScriptState("other", FALSE);
+            afterStop = llGetScriptState("other");
+          }
+        }
+      `
+      const noop = `default { state_entry() { } }`
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: probe, filename: 'p.lsl' }, name: 'p' },
+              { source: { source: noop, filename: 'o.lsl' }, name: 'other' },
+            ],
+          },
+        ],
+      })
+      scripts['p']!.start()
+      scripts['other']!.start()
+      expect(scripts['p']!.global('beforeStop')).toBe(1)
+      expect(scripts['p']!.global('afterStop')).toBe(0)
+    })
+  })
+
+  describe('shared clock', () => {
+    it('llGetTime in two scripts agrees after advanceTime', async () => {
+      const src = `
+        float t = 0.0;
+        default {
+          state_entry() { llResetTime(); }
+          touch_start(integer n) { t = llGetTime(); }
+        }
+      `
+      const { scripts, linkset } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: src, filename: 'a.lsl' }, name: 'a' },
+              { source: { source: src, filename: 'b.lsl' }, name: 'b' },
+            ],
+          },
+        ],
+      })
+      scripts['a']!.start()
+      scripts['b']!.start()
+      linkset.advanceTime(2500)
+      scripts['a']!.fire('touch_start', { num_detected: 1 })
+      scripts['b']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['a']!.global('t')).toBeCloseTo(2.5)
+      expect(scripts['b']!.global('t')).toBeCloseTo(2.5)
+    })
+  })
+})

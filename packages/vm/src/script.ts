@@ -5,7 +5,7 @@ import type {
   GlobalVariable,
   TypeName,
 } from '@lslvm/parser'
-import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState } from './runtime.js'
+import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity } from './runtime.js'
 import type { HttpRequestEntry } from './builtins/http.js'
 import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
@@ -19,7 +19,9 @@ import { execHandler, StateChangeSignal } from './interpreter.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor } from './values/types.js'
 import { Env } from './env.js'
-import { VirtualClock } from './clock.js'
+import { ScriptClockView } from './clock.js'
+import { Linkset } from './linkset.js'
+import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
@@ -40,6 +42,11 @@ export interface ScriptOptions {
   readonly objectName?: string
   /** Script name returned by llGetScriptName. Defaults to filename basename or "script". */
   readonly scriptName?: string
+  /**
+   * Host prim. If omitted, a 1-prim default linkset is auto-allocated. Pass
+   * a prim that's already been added to a Linkset to opt into multi-script.
+   */
+  readonly host?: Prim
 }
 
 /**
@@ -54,38 +61,88 @@ export class Script {
   private readonly userFunctions: Map<string, FunctionDeclaration>
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
+  /** Per-script clock facade (timer state + time reference). */
+  readonly clockView: ScriptClockView
+  readonly host: Prim
+  readonly linkset: Linkset
+  readonly scriptName: string
+  /** When false, drainQueue parks events instead of delivering them. */
+  running = true
+  /** Events parked while `running === false`; replayed when re-enabled. */
+  readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
 
   constructor(private readonly ast: Ast, options: ScriptOptions = {}) {
+    // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
+    let host = options.host
+    if (!host) {
+      const linkset = new Linkset({ owner: options.owner ?? NULL_KEY })
+      const prim = new Prim({
+        key:
+          options.objectKey ??
+          deterministicKey(options.scriptName ?? options.filename ?? 'script'),
+        name: options.objectName ?? 'Object',
+      })
+      linkset.addPrim(prim)
+      host = prim
+    }
+    this.host = host
+    if (!host.linkset) {
+      throw new Error('Script host prim must belong to a Linkset')
+    }
+    this.linkset = host.linkset
+    this.scriptName = options.scriptName ?? deriveScriptName(options.filename)
+
+    this.clockView = new ScriptClockView(this.linkset.clock, () => this)
+
+    const linkset = this.linkset
+    const prim = host
+    const scriptName = this.scriptName
+
+    const identity: ScriptIdentity = {
+      get owner() {
+        return linkset.owner
+      },
+      get objectKey() {
+        return prim.key
+      },
+      get objectName() {
+        return prim.name
+      },
+      set objectName(v: string) {
+        prim.name = v
+      },
+      get scriptName() {
+        return scriptName
+      },
+    } as ScriptIdentity
+
     this.state = {
       currentState: 'default',
       chat: [],
       calls: [],
-      clock: new VirtualClock(),
+      clock: this.clockView,
       httpRequests: [],
       httpKeyCounter: 0,
       listens: [],
       listenHandleCounter: 0,
       random: new Mulberry32(options.randomSeed ?? 1),
-      identity: {
-        owner: options.owner ?? NULL_KEY,
-        objectKey:
-          options.objectKey ?? deterministicKey(options.scriptName ?? options.filename ?? 'script'),
-        objectName: options.objectName ?? 'Object',
-        scriptName: options.scriptName ?? deriveScriptName(options.filename),
-      },
+      identity,
       linkedMessages: [],
       dataserverRequests: [],
       dataserverKeyCounter: 0,
       detectedStack: [],
-      linksetData: new Map(),
-      appearance: {
-        text: null,
-        description: '',
-      },
+      linksetData: this.linkset.linksetData,
+      appearance: this.host.appearance,
       lifecycle: {
         dead: false,
       },
     }
+
+    // Register this script with the prim if it isn't already there.
+    if (!host.scripts.includes(this)) {
+      host.addScript(this)
+    }
+
     // Build a parent scope holding every kwdb constant (PI, TRUE, HTTP_METHOD,
     // …). Script globals get their own scope below so a user can shadow
     // constants if they really want to (LSL allows it).
@@ -99,19 +156,18 @@ export class Script {
     }
   }
 
-  /** Current virtual time in milliseconds since script construction. */
+  /** Current virtual time in milliseconds since linkset construction. */
   get now(): number {
-    return this.state.clock.now
+    return this.linkset.clock.now
   }
 
   /**
-   * Advance the virtual clock by `ms` and fire every queued event whose
-   * scheduled time is ≤ the new now (in chronological order). Use this
-   * to test timer-driven, sleep-driven, or future-callback behaviour.
+   * Advance the linkset clock by `ms` and fire every queued event whose
+   * scheduled time is ≤ the new now (across all scripts in the linkset).
+   * Convenience pass-through to `linkset.advanceTime`.
    */
   advanceTime(ms: number): void {
-    this.state.clock.advance(ms)
-    this.drainQueue()
+    this.linkset.advanceTime(ms)
   }
 
   /**
@@ -119,7 +175,7 @@ export class Script {
    * registered. Mirrors `llSetTimerEvent`'s most recent argument.
    */
   get timerInterval(): number {
-    return this.state.clock.timerIntervalMs / 1000
+    return this.clockView.timerIntervalMs / 1000
   }
 
   /** Current LSL state name. */
@@ -150,8 +206,6 @@ export class Script {
   /**
    * Feed a response to a previously captured HTTP request. Schedules an
    * `http_response` event for immediate delivery.
-   *
-   * Throws if `key` doesn't match a captured request.
    */
   respondToHttp(
     key: string,
@@ -160,13 +214,13 @@ export class Script {
     const req = this.state.httpRequests.find((r) => r.key === key)
     if (!req) throw new Error(`unknown HTTP request key: ${key}`)
     req.fulfilled = true
-    this.state.clock.schedule(this.state.clock.now, 'http_response', {
+    this.clockView.schedule(this.now, 'http_response', {
       request_id: key,
       status: response.status,
       metadata: response.metadata ?? [],
       body: response.body ?? '',
     })
-    this.drainQueue()
+    this.linkset.drainQueue()
   }
 
   /** Convenience: respond to the most recent HTTP request. */
@@ -185,7 +239,7 @@ export class Script {
     return this.state.listens
   }
 
-  /** Captured llMessageLinked invocations. */
+  /** Captured llMessageLinked invocations originating from this script. */
   get linkedMessages(): ReadonlyArray<LinkedMessageEntry> {
     return this.state.linkedMessages
   }
@@ -203,11 +257,11 @@ export class Script {
     const req = this.state.dataserverRequests.find((r) => r.key === key)
     if (!req) throw new Error(`unknown dataserver request key: ${key}`)
     req.fulfilled = true
-    this.state.clock.schedule(this.state.clock.now, 'dataserver', {
+    this.clockView.schedule(this.now, 'dataserver', {
       queryid: key,
       data: value,
     })
-    this.drainQueue()
+    this.linkset.drainQueue()
   }
 
   /** Convenience: respond to the most recent dataserver request. */
@@ -255,14 +309,11 @@ export class Script {
   }
 
   /**
-   * Deliver chat to the script. Fires the `listen` event once for every
-   * registered listen whose channel + name + key + message filters match
-   * (empty filter = wildcard). Inactive listens (`llListenControl(_, FALSE)`)
-   * don't deliver.
-   *
-   * Use this to simulate someone else speaking near the script under test.
+   * Match chat against this script's listens and queue `listen` events for
+   * every match. Does not drain — caller does that. Used by Linkset.deliverChat
+   * for cross-script delivery.
    */
-  deliverChat(opts: {
+  matchChatListens(opts: {
     channel: number
     name: string
     key: string
@@ -274,14 +325,27 @@ export class Script {
       if (l.name && l.name !== opts.name) continue
       if (l.key && l.key !== '00000000-0000-0000-0000-000000000000' && l.key !== opts.key) continue
       if (l.message && l.message !== opts.message) continue
-      this.state.clock.schedule(this.state.clock.now, 'listen', {
+      this.clockView.schedule(this.now, 'listen', {
         channel: opts.channel,
         name: opts.name,
         id: opts.key,
         message: opts.message,
       })
     }
-    this.drainQueue()
+  }
+
+  /**
+   * Deliver chat to this script only. Linkset-wide delivery (every listening
+   * script in the linkset) is `linkset.deliverChat`.
+   */
+  deliverChat(opts: {
+    channel: number
+    name: string
+    key: string
+    message: string
+  }): void {
+    this.matchChatListens(opts)
+    this.linkset.drainQueue()
   }
 
   /**
@@ -324,7 +388,7 @@ export class Script {
       const entry = this.handlersByState.get(this.state.currentState)?.get('state_entry')
       if (entry && eventName !== 'state_entry') {
         this.runHandler(entry, [])
-        this.drainQueue()
+        this.linkset.drainQueue()
       }
     }
     const handler = this.handlersByState.get(this.state.currentState)?.get(eventName)
@@ -332,10 +396,13 @@ export class Script {
       const args = bindPayload(eventName, payload)
       this.withDetected(payload, () => this.runHandler(handler, args))
     }
-    this.drainQueue()
+    this.linkset.drainQueue()
   }
 
-  /** Run state_entry of the default state. */
+  /**
+   * Run state_entry of the default state. If the script has been auto-started
+   * (e.g. by an earlier fire), this is a no-op.
+   */
   start(): void {
     if (this.state.lifecycle.dead) return
     if (this.started) return
@@ -344,52 +411,43 @@ export class Script {
     if (entry) {
       this.runHandler(entry, [])
     }
-    this.drainQueue()
+    this.linkset.drainQueue()
   }
 
   /**
    * Reset the script as if `llResetScript` had been called: clear globals,
    * reseed them from the AST initializers, return to the default state,
-   * and run state_entry. Used internally when llResetScript is invoked
-   * from inside a handler; tests can also call it directly to reset
-   * between scenarios.
+   * cancel timers, and run state_entry. Used internally when llResetScript
+   * is invoked from inside a handler; tests can also call it directly.
    */
   reset(): void {
-    // Re-build globals from the AST.
     this.globals.clear()
     initGlobals(this.globals, this.ast.globals)
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
+    this.clockView.cancelTimer()
+    this.linkset.clock.purgeTarget(this)
+    this.parkedEvents.length = 0
     this.started = false
     this.start()
   }
 
   /**
-   * Drain any events that became due as a result of the clock advancing
-   * (timer ticks, scheduled callbacks, queued handler invocations).
-   * Called automatically after fire() and advanceTime() — also reachable
-   * indirectly via deliverChat / respondToHttp / respondToDataserver.
-   *
-   * Stops if a dispatched handler calls llDie(): the script is dead, no
-   * further events should fire.
+   * Internal: invoked by `Linkset.drainQueue` to deliver one queued event.
+   * Throws ResetScriptSignal up to the caller to handle reset semantics.
    */
-  private drainQueue(): void {
-    while (!this.state.lifecycle.dead) {
-      const next = this.state.clock.takeNextDue()
-      if (!next) return
-      const handler = this.handlersByState.get(this.state.currentState)?.get(next.event)
-      if (!handler) continue
-      const args = bindPayload(next.event, next.payload)
-      this.withDetected(next.payload, () => this.runHandler(handler, args))
-    }
+  deliver(event: string, payload: Record<string, unknown>): void {
+    if (this.state.lifecycle.dead) return
+    const handler = this.handlersByState.get(this.state.currentState)?.get(event)
+    if (!handler) return
+    const args = bindPayload(event, payload)
+    this.withDetected(payload, () => this.runHandler(handler, args))
   }
 
   /**
    * Push a detected context (if the payload includes `detected`) for the
    * duration of `fn`, so llDetectedKey / Name / Pos / etc. inside the
-   * handler resolve to the right entries. State-change handlers spawned
-   * by runHandler don't see the context — that's correct, LSL clears
-   * detected info between handler invocations.
+   * handler resolve to the right entries.
    */
   private withDetected(payload: Record<string, unknown>, fn: () => void): void {
     const detected = payload['detected']
@@ -420,6 +478,9 @@ export class Script {
       mocks: this.mocks,
       globals: this.globals,
       userFunctions: this.userFunctions,
+      script: this,
+      prim: this.host,
+      linkset: this.linkset,
     }
     let pending: { handler: EventHandler; args: ReadonlyArray<EvalResult> } | null = {
       handler,
@@ -437,15 +498,13 @@ export class Script {
         }
         if (!(e instanceof StateChangeSignal)) throw e
         const target = e.target
-        // Run state_exit of current state.
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
           try {
             execHandler(ctx, exit, [])
           } catch (e2) {
             if (e2 instanceof StateChangeSignal) {
-              // Discard further changes inside state_exit per LSL convention;
-              // the original target wins.
+              // Discard further changes inside state_exit per LSL convention.
             } else {
               throw e2
             }
@@ -462,6 +521,20 @@ export class Script {
       }
     }
   }
+
+  /**
+   * Replay any events parked while this script was disabled. Caller is
+   * responsible for advancing the linkset clock if needed afterwards.
+   */
+  resumeParked(): void {
+    if (!this.running) return
+    if (this.parkedEvents.length === 0) return
+    const events = this.parkedEvents.splice(0, this.parkedEvents.length)
+    const at = this.now
+    for (const e of events) {
+      this.clockView.schedule(at, e.event, e.payload)
+    }
+  }
 }
 
 function bindPayload(
@@ -469,7 +542,7 @@ function bindPayload(
   payload: Record<string, unknown>,
 ): EvalResult[] {
   const spec = (EVENT_SPECS as Record<string, EventSpec>)[eventName]
-  if (!spec) return [] // unknown / custom event — let the handler bind however it wants
+  if (!spec) return []
   const args: EvalResult[] = []
   for (const p of spec.params) {
     const v = payload[p.name]
@@ -516,8 +589,6 @@ function literalToEval(
     case 'StringLiteral':
       return { type: 'string', value: expr.value }
     case 'Identifier': {
-      // LSL global initializers may reference predefined constants
-      // (TRUE, FALSE, PI, NULL_KEY, HTTP_METHOD, …).
       const c = CONSTANT_TABLE[expr.name]
       if (!c) return undefined
       return { type: c.type as LslType, value: c.value as LslValue }
@@ -579,7 +650,6 @@ function literalToNumber(expr: import('@lslvm/parser').Expression): number | nul
 
 /** A stable, UUID-shaped string derived from `seed`. */
 function deterministicKey(seed: string): string {
-  // Use a small FNV-1a hash → 16 bytes → UUID format.
   let h1 = 0x811c9dc5
   for (let i = 0; i < seed.length; i++) {
     h1 ^= seed.charCodeAt(i)

@@ -70,6 +70,16 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@types/node@22.19.17)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@22.19.17)(esbuild@0.27.7)(tsx@4.21.0))
 
+  examples/multi-script:
+    dependencies:
+      '@lslvm/vitest':
+        specifier: workspace:*
+        version: link:../../packages/vitest
+    devDependencies:
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@types/node@22.19.17)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@22.19.17)(esbuild@0.27.7)(tsx@4.21.0))
+
   examples/nametag:
     dependencies:
       '@lslvm/vitest':
