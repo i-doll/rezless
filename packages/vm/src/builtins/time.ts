@@ -13,16 +13,25 @@ export const llSetTimerEvent: BuiltinImpl = (ctx, args) => {
 }
 
 /**
+ * Minimum llSleep advance: one server frame at the LSL-canonical 45 Hz tick
+ * (~22.222 ms). Even `llSleep(0)` waits for the next frame in production.
+ */
+const FRAME_MS = 1000 / 45
+
+/**
  * llSleep(float sec) — synchronously advances the virtual clock.
  *
- * Per LSL: events that arrive while the script is sleeping queue up but
- * don't fire until the current handler returns. We model that by simply
- * advancing the clock; the queue drain happens at the handler boundary
- * (inside Script.runHandler).
+ * Per LSL: the calling script does nothing during this time; the wait is at
+ * least one server frame (~22.22 ms at 45 Hz) even for `sec == 0` or tiny
+ * positive values. Events that arrive while the script is sleeping queue up
+ * but don't fire on the calling script until the current handler returns.
+ * We model that by advancing the linkset clock; the queue drain happens at
+ * the handler boundary (inside Script.runHandler).
  */
 export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0
-  if (seconds > 0) ctx.state.clock.advance(seconds * 1000)
+  const ms = Math.max(FRAME_MS, seconds * 1000)
+  ctx.state.clock.advance(ms)
   return undefined
 }
 

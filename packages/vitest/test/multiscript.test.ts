@@ -489,6 +489,50 @@ describe('multi-script linkset', () => {
     })
   })
 
+  describe('llSleep frame quantum', () => {
+    it('llSleep(0) advances at least one server frame (~22.22ms)', async () => {
+      const src = `
+        float before = 0.0;
+        float after = 0.0;
+        default {
+          state_entry() { llResetTime(); }
+          touch_start(integer n) {
+            before = llGetTime();
+            llSleep(0.0);
+            after = llGetTime();
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: src, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      scripts['p']!.start()
+      scripts['p']!.fire('touch_start', { num_detected: 1 })
+      const advance = (scripts['p']!.global('after') as number) - (scripts['p']!.global('before') as number)
+      expect(advance).toBeGreaterThanOrEqual(1 / 45 - 1e-9)
+    })
+
+    it('llSleep(0.001) is rounded up to one server frame', async () => {
+      const src = `
+        float advance = 0.0;
+        default {
+          state_entry() { llResetTime(); }
+          touch_start(integer n) {
+            float t0 = llGetTime();
+            llSleep(0.001);
+            advance = llGetTime() - t0;
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: src, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      scripts['p']!.start()
+      scripts['p']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['p']!.global('advance') as number).toBeCloseTo(1 / 45, 5)
+    })
+  })
+
   describe('shared clock', () => {
     it('llGetTime in two scripts agrees after advanceTime', async () => {
       const src = `
