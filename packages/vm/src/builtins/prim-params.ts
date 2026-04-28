@@ -3,6 +3,7 @@ import type { LslValue } from '../values/types.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import { PRIM_LINK_TARGET } from '../generated/constants.js'
+import { writePrimParamSlots } from '../prim-params.js'
 
 /**
  * Walk a PRIM_* rules list, applying each rule to every prim in the
@@ -32,13 +33,13 @@ function walkSet(linkset: Linkset, caller: Prim, target: Prim[], rules: Readonly
       consumed = c
     }
     if (consumed === null) {
-      // Empty target (e.g. PRIM_LINK_TARGET to a nonexistent link).
-      // Without a target prim we can't ask the seam how many slots the
-      // rule consumes, so we stop walking. This matches the
-      // unknown-rule behavior and is acceptable because the alternative
-      // (probing a victim prim then rolling back) would either mutate
-      // or duplicate the rule-shape table.
-      return
+      // Empty target (PRIM_LINK_TARGET resolved to no prims). The rule
+      // is silently skipped, but we still advance past its slot width
+      // so a later PRIM_LINK_TARGET to a valid link picks up subsequent
+      // rules — matches real LSL behavior.
+      const slots = writePrimParamSlots(rule, rules, i + 1)
+      if (slots === null) return
+      consumed = slots
     }
     i += 1 + consumed
   }
@@ -90,6 +91,9 @@ function walkGet(linkset: Linkset, caller: Prim, startTarget: Prim[], rules: Rea
 export const llSetPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   walkSet(ctx.linkset, ctx.prim, [ctx.prim], rules)
+  // kwdb spec carries the 0.2s delay (matches real LSL).
+  const delay = ctx.spec?.delay ?? 0
+  if (delay > 0) ctx.state.clock.advance(delay * 1000)
   return undefined
 }
 

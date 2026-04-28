@@ -1,6 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { Vector } from '../values/types.js'
-import { PRIM_TEXT } from '../generated/constants.js'
+import { PRIM_DESC, PRIM_TEXT } from '../generated/constants.js'
 
 /**
  * Builtins that read or mutate the prim's appearance / lifecycle. We
@@ -22,12 +22,15 @@ export const llSetText: BuiltinImpl = (ctx, args) => {
 
 /** llSetObjectDesc(string desc) — sets the prim's description field. */
 export const llSetObjectDesc: BuiltinImpl = (ctx, args) => {
-  ctx.state.appearance.description = (args[0] as string | undefined) ?? ''
+  const desc = (args[0] as string | undefined) ?? ''
+  // Route through the PRIM_DESC seam so llGetPrimitiveParams sees the same
+  // value. The seam mirrors to ScriptState.appearance via prim.appearance.
+  ctx.prim.setPrimParam(PRIM_DESC, [desc], 0)
   return undefined
 }
 
 /** llGetObjectDesc() */
-export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.state.appearance.description
+export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.prim.description
 
 /**
  * llDie() — deletes the entire linked object. In real LSL this kills

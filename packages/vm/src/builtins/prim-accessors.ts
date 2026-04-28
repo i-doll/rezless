@@ -101,11 +101,13 @@ export const llGetMinScaleFactor: BuiltinImpl = () => 0.01
 export const llSetColor: BuiltinImpl = (ctx, args) => {
   const color = vecOf(args[0])
   const face = num(args[1], ALL_SIDES) | 0
-  // Preserve current alpha when only color is set.
+  // Preserve current alpha when only color is set. Clone per face so
+  // faces don't alias the same vector instance.
+  const clone = () => ({ x: color.x, y: color.y, z: color.z })
   if (face === ALL_SIDES) {
-    for (let f = 0; f < 6; f++) ctx.prim.params.faces[f]!.color = color
+    for (let f = 0; f < 6; f++) ctx.prim.params.faces[f]!.color = clone()
   } else if (face >= 0 && face <= 5) {
-    ctx.prim.params.faces[face]!.color = color
+    ctx.prim.params.faces[face]!.color = clone()
   }
   return undefined
 }
@@ -266,8 +268,13 @@ export const llSetLinkTextureAnim: BuiltinImpl = (ctx, args) => {
   }
   return undefined
 }
-/** Same as llSetLinkTextureAnim per the wiki — kept as a separate symbol. */
-export const llSetLinkTextureAnimOverrideMe = llSetLinkTextureAnim
+/**
+ * Same effect as llSetLinkTextureAnim per the wiki. Kept as a distinct
+ * function (not an alias) so call-log telemetry / mocks can key on
+ * function identity.
+ */
+export const llSetLinkTextureAnimOverrideMe: BuiltinImpl = (ctx, args) =>
+  llSetLinkTextureAnim(ctx, args)
 
 export const llSetRenderMaterial: BuiltinImpl = (ctx, args) => {
   const material = str(args[0])
@@ -316,9 +323,10 @@ export const llTargetOmega: BuiltinImpl = (ctx, args) => {
 export const llSetPhysicsMaterial: BuiltinImpl = (ctx, args) => {
   // mask bitfield selects which fields the call updates; the rest are
   // preserved. DENSITY=0x1, FRICTION=0x2, RESTITUTION=0x4, GRAVITY_MULTIPLIER=0x8.
+  // mask is a transient selector for *this* call, not a persistent
+  // property of the material — don't store it.
   const mask = num(args[0]) | 0
   const m = ctx.prim.params.physicsMaterial
-  m.flags = mask
   if (mask & GRAVITY_MULTIPLIER) m.gravityMultiplier = num(args[1], 1)
   if (mask & RESTITUTION) m.restitution = num(args[2])
   if (mask & FRICTION) m.friction = num(args[3])

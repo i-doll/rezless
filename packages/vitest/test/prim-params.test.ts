@@ -246,6 +246,53 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     expect(s.global('out')).toEqual([1.5, 0.3, 0.7, 1234])
   })
 
+  it('llSetObjectDesc syncs prim.description (visible to llGetPrimitiveParams)', async () => {
+    const src = `
+      list out = [];
+      default {
+        state_entry() {
+          llSetObjectDesc("hello-desc");
+          out = llGetPrimitiveParams([PRIM_DESC]);
+        }
+      }
+    `
+    const s = await loadScript({ source: src, filename: 'od.lsl' })
+    s.start()
+    expect(s.global('out')).toEqual(['hello-desc'])
+    expect(s.host.description).toBe('hello-desc')
+  })
+
+  it('llSetPrimitiveParams advances the clock by its 0.2s spec delay', async () => {
+    const src = `
+      default {
+        state_entry() {
+          llSetPrimitiveParams([PRIM_NAME, "x"]);
+        }
+      }
+    `
+    const s = await loadScript({ source: src, filename: 'sp.lsl' })
+    s.start()
+    expect(s.linkset.clock.now).toBe(200)
+  })
+
+  it('PRIM_LINK_TARGET to nonexistent link skips its rules but later valid PRIM_LINK_TARGET still applies', async () => {
+    const src = `
+      default {
+        state_entry() {
+          llSetPrimitiveParams([
+            PRIM_LINK_TARGET, 99,
+            PRIM_NAME, "lost",
+            PRIM_LINK_TARGET, LINK_THIS,
+            PRIM_NAME, "kept"
+          ]);
+        }
+      }
+    `
+    const s = await loadScript({ source: src, filename: 'rl.lsl' })
+    s.start()
+    expect(s.host.name).toBe('kept')
+  })
+
   it('unknown PRIM_* constant terminates llGetPrimitiveParams response', async () => {
     const src = `
       list out = [];

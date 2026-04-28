@@ -104,7 +104,7 @@ export interface PrimParams {
   damage: { amount: number; type: number }
   health: number
   reflectionProbe: { enabled: boolean; ambiance: number; clipDistance: number; flags: number }
-  physicsMaterial: { flags: number; gravityMultiplier: number; restitution: number; friction: number; density: number }
+  physicsMaterial: { gravityMultiplier: number; restitution: number; friction: number; density: number }
   textureAnim: { mode: number; face: number; sizex: number; sizey: number; start: number; length: number; rate: number }
   passCollisions: number
   passTouches: number
@@ -245,7 +245,7 @@ export function defaultPrimParams(): PrimParams {
     damage: { amount: 0, type: 0 },
     health: 1,
     reflectionProbe: { enabled: false, ambiance: 0, clipDistance: 0, flags: 0 },
-    physicsMaterial: { flags: 0, gravityMultiplier: 1, restitution: 0, friction: 0, density: 1000 },
+    physicsMaterial: { gravityMultiplier: 1, restitution: 0, friction: 0, density: 1000 },
     textureAnim: { mode: 0, face: 0, sizex: 0, sizey: 0, start: 0, length: 0, rate: 0 },
     passCollisions: 0,
     passTouches: 0,
@@ -281,6 +281,61 @@ function facesOf(faceArg: LslValue | undefined): number[] {
 
 function inRange(face: number): boolean {
   return face >= 0 && face <= 5
+}
+
+/**
+ * Slot count for a PRIM_* rule's *write* form, given the rule constant
+ * and (for variable-shape rules like PRIM_TYPE) the rules list + cursor
+ * to peek at the discriminator. Does NOT mutate the prim. Returns null
+ * for unsupported / unknown rule constants. Used by the walker to skip
+ * past rules that can't be applied (e.g. PRIM_LINK_TARGET resolved to
+ * an empty target set) without losing track of cursor position.
+ */
+export function writePrimParamSlots(
+  param: number,
+  rules: ReadonlyArray<LslValue>,
+  cursor: number,
+): number | null {
+  switch (param) {
+    case PRIM_NAME: case PRIM_DESC:
+    case PRIM_POSITION: case PRIM_POS_LOCAL:
+    case PRIM_ROTATION: case PRIM_ROT_LOCAL:
+    case PRIM_SIZE: case PRIM_SLICE:
+    case PRIM_MATERIAL: case PRIM_PHYSICS: case PRIM_PHANTOM:
+    case PRIM_TEMP_ON_REZ: case PRIM_PHYSICS_SHAPE_TYPE:
+    case PRIM_CAST_SHADOWS: case PRIM_ALLOW_UNSIT:
+    case PRIM_SCRIPTED_SIT_ONLY: case PRIM_SIT_FLAGS:
+    case PRIM_CLICK_ACTION: case PRIM_HEALTH:
+      return 1
+    case PRIM_DAMAGE:
+      return 2
+    case PRIM_TEXT: case PRIM_OMEGA: case PRIM_SIT_TARGET:
+      return 3
+    case PRIM_REFLECTION_PROBE: case PRIM_PROJECTOR:
+      return 4
+    case PRIM_POINT_LIGHT:
+      return 5
+    case PRIM_FLEXIBLE:
+      return 7
+    case PRIM_TYPE: {
+      const kind = num(rules[cursor]) | 0
+      if (kind === SHAPE_BOX || kind === SHAPE_CYLINDER || kind === SHAPE_PRISM) return 7
+      if (kind === SHAPE_SPHERE) return 6
+      if (kind === SHAPE_TORUS || kind === SHAPE_TUBE || kind === SHAPE_RING) return 12
+      if (kind === SHAPE_SCULPT) return 3
+      return null
+    }
+    case PRIM_COLOR: return 3
+    case PRIM_TEXTURE: case PRIM_NORMAL: case PRIM_GLTF_NORMAL: return 5
+    case PRIM_RENDER_MATERIAL: case PRIM_FULLBRIGHT: case PRIM_GLOW: case PRIM_TEXGEN: return 2
+    case PRIM_BUMP_SHINY: case PRIM_ALPHA_MODE: return 3
+    case PRIM_SPECULAR: return 8
+    case PRIM_GLTF_BASE_COLOR: return 10
+    case PRIM_GLTF_METALLIC_ROUGHNESS: return 7
+    case PRIM_GLTF_EMISSIVE: return 6
+    case PRIM_LINK_TARGET: return null // walker handles
+    default: return null
+  }
 }
 
 /**
