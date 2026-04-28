@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset } from '../src/index.js'
+import { EOF, NAK } from '@lslvm/vm'
 
 describe('multi-script linkset', () => {
   describe('LSD broadcast', () => {
@@ -299,8 +300,8 @@ describe('multi-script linkset', () => {
         ],
       })
       scripts['p']!.start()
-      expect(scripts['p']!.global('past')).toBe('\n\n\n') // EOF
-      expect(scripts['p']!.global('missing')).toBe('\n\n') // NAK
+      expect(scripts['p']!.global('past')).toBe(EOF)
+      expect(scripts['p']!.global('missing')).toBe(NAK)
     })
 
     it('llGetNotecardLine reads notecard inventory via dataserver', async () => {
