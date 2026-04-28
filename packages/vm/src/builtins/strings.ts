@@ -1,4 +1,5 @@
 import type { BuiltinImpl } from '../runtime.js'
+import { STRING_TRIM_HEAD, STRING_TRIM_TAIL } from '../generated/constants.js'
 
 /** llStringLength(string s) — Unicode code-point count, not byte count. */
 export const llStringLength: BuiltinImpl = (_ctx, args) => {
@@ -46,10 +47,9 @@ export const llInsertString: BuiltinImpl = (_ctx, args) => {
 export const llStringTrim: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''
   const flags = (args[1] as number | undefined) ?? 0
-  // STRING_TRIM_HEAD=1, STRING_TRIM_TAIL=2, STRING_TRIM=3
   let s = src
-  if (flags & 1) s = s.replace(/^\s+/, '')
-  if (flags & 2) s = s.replace(/\s+$/, '')
+  if (flags & STRING_TRIM_HEAD) s = s.replace(/^\s+/, '')
+  if (flags & STRING_TRIM_TAIL) s = s.replace(/\s+$/, '')
   return s
 }
 

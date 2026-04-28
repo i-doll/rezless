@@ -1,5 +1,5 @@
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './types.js'
-import { isVector, isRotation, toInt32, vec, rot } from './types.js'
+import { isVector, isRotation, toInt32, vec, rot, NULL_KEY } from './types.js'
 import { coerce, stringify } from './coerce.js'
 
 /**
@@ -70,7 +70,7 @@ export function truthy(r: EvalResult): boolean {
 function isValidUuid(k: string): boolean {
   return (
     /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(k) &&
-    k !== '00000000-0000-0000-0000-000000000000'
+    k !== NULL_KEY
   )
 }
 

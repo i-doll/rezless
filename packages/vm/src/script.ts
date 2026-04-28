@@ -328,7 +328,7 @@ export class Script {
       if (!l.active) continue
       if (l.channel !== opts.channel) continue
       if (l.name && l.name !== opts.name) continue
-      if (l.key && l.key !== '00000000-0000-0000-0000-000000000000' && l.key !== opts.key) continue
+      if (l.key && l.key !== NULL_KEY && l.key !== opts.key) continue
       if (l.message && l.message !== opts.message) continue
       this.clockView.schedule(this.now, 'listen', {
         channel: opts.channel,
