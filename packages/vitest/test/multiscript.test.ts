@@ -525,6 +525,40 @@ describe('multi-script linkset', () => {
     })
   })
 
+  describe('llDie', () => {
+    it('llDie marks every script in the linkset as dead', async () => {
+      const dier = `default { touch_start(integer n) { llDie(); } }`
+      const peer = `
+        integer ticks = 0;
+        default {
+          state_entry() { llSetTimerEvent(0.1); }
+          timer() { ticks = ticks + 1; }
+        }
+      `
+      const { scripts, linkset } = await loadLinkset({
+        prims: [
+          {
+            scripts: [{ source: { source: dier, filename: 'd.lsl' }, name: 'dier' }],
+          },
+          {
+            scripts: [{ source: { source: peer, filename: 'p.lsl' }, name: 'peer' }],
+          },
+        ],
+      })
+      scripts['dier']!.start()
+      scripts['peer']!.start()
+      linkset.advanceTime(250)
+      expect(scripts['peer']!.global('ticks')).toBeGreaterThan(0)
+      const ticksBefore = scripts['peer']!.global('ticks') as number
+      scripts['dier']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['dier']!.dead).toBe(true)
+      expect(scripts['peer']!.dead).toBe(true)
+      // No further timer fires after death.
+      linkset.advanceTime(5000)
+      expect(scripts['peer']!.global('ticks')).toBe(ticksBefore)
+    })
+  })
+
   describe('loadLinkset', () => {
     it('throws on duplicate inventory names across prims', async () => {
       const src = `default { state_entry() {} }`

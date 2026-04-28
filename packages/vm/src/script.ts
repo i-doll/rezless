@@ -536,6 +536,15 @@ export class Script {
   }
 
   /**
+   * Mark this script as dead and cancel its timer. Used by llDie to bring
+   * down every script in the linkset. Idempotent.
+   */
+  markDead(): void {
+    this.state.lifecycle.dead = true
+    this.clockView.cancelTimer()
+  }
+
+  /**
    * Replay any events parked while this script was disabled. Caller is
    * responsible for advancing the linkset clock if needed afterwards.
    */

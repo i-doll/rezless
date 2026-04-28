@@ -26,15 +26,16 @@ export const llSetObjectDesc: BuiltinImpl = (ctx, args) => {
 export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.state.appearance.description
 
 /**
- * llDie() — schedules the prim/script for deletion. Marks the script as
- * dead; subsequent events are dropped silently. (Real LSL takes a frame
- * to actually delete, but for tests we mark immediately.)
+ * llDie() — deletes the entire linked object. In real LSL this kills
+ * every prim and every script in the linkset, not just the calling one.
+ * We mark every script in the linkset as dead and cancel their timers;
+ * subsequent events on any of them are dropped silently. (Real LSL takes
+ * a frame to actually delete, but for tests we mark immediately.)
  */
 export const llDie: BuiltinImpl = (ctx) => {
-  ctx.state.lifecycle.dead = true
-  // Stop the timer so drainQueue doesn't iterate catch-up timer fires for a
-  // script that's never going to handle them.
-  ctx.state.clock.cancelTimer()
+  for (const s of ctx.linkset.allScripts()) {
+    s.markDead()
+  }
   return undefined
 }
 
