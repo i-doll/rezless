@@ -490,16 +490,19 @@ describe('multi-script linkset', () => {
   })
 
   describe('llSleep frame quantum', () => {
-    it('llSleep(0) advances at least one server frame (~22.22ms)', async () => {
+    it('llSleep(0) and negative values are no-ops', async () => {
       const src = `
-        float before = 0.0;
-        float after = 0.0;
+        float zeroAdvance = -1.0;
+        float negAdvance = -1.0;
         default {
           state_entry() { llResetTime(); }
           touch_start(integer n) {
-            before = llGetTime();
+            float t0 = llGetTime();
             llSleep(0.0);
-            after = llGetTime();
+            zeroAdvance = llGetTime() - t0;
+            float t1 = llGetTime();
+            llSleep(-1.0);
+            negAdvance = llGetTime() - t1;
           }
         }
       `
@@ -508,8 +511,8 @@ describe('multi-script linkset', () => {
       })
       scripts['p']!.start()
       scripts['p']!.fire('touch_start', { num_detected: 1 })
-      const advance = (scripts['p']!.global('after') as number) - (scripts['p']!.global('before') as number)
-      expect(advance).toBeGreaterThanOrEqual(1 / 45 - 1e-9)
+      expect(scripts['p']!.global('zeroAdvance') as number).toBe(0)
+      expect(scripts['p']!.global('negAdvance') as number).toBe(0)
     })
 
     it('llSleep(0.001) is rounded up to one server frame', async () => {
