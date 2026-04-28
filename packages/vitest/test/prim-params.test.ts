@@ -148,6 +148,104 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     expect(fast.linkset.clock.now).toBe(0)
   })
 
+  it('PRIM_LINK_TARGET LINK_SET applies remaining rules to every prim', async () => {
+    const driver = `
+      default {
+        state_entry() {
+          llSetLinkPrimitiveParamsFast(LINK_THIS, [
+            PRIM_LINK_TARGET, LINK_SET,
+            PRIM_NAME, "all"
+          ]);
+        }
+      }
+    `
+    const noop = `default { state_entry() {} }`
+    const { scripts, linkset } = await loadLinkset({
+      prims: [
+        { name: 'P1', scripts: [{ source: { source: driver, filename: 'd.lsl' }, name: 'd' }] },
+        { name: 'P2', scripts: [{ source: { source: noop, filename: 'n.lsl' }, name: 'n' }] },
+        { name: 'P3', scripts: [{ source: { source: noop, filename: 'n2.lsl' }, name: 'n2' }] },
+      ],
+    })
+    scripts['d']!.start()
+    scripts['n']!.start()
+    scripts['n2']!.start()
+    expect(linkset.prims.map((p) => p.name)).toEqual(['all', 'all', 'all'])
+  })
+
+  it('llGetLinkPrimitiveParams against multi-prim target concatenates per-prim results', async () => {
+    const probe = `
+      list out = [];
+      default {
+        state_entry() {
+          out = llGetLinkPrimitiveParams(LINK_SET, [PRIM_NAME]);
+        }
+      }
+    `
+    const noop = `default { state_entry() {} }`
+    const { scripts } = await loadLinkset({
+      prims: [
+        { name: 'Alpha', scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] },
+        { name: 'Bravo', scripts: [{ source: { source: noop, filename: 'n.lsl' }, name: 'n' }] },
+        { name: 'Charlie', scripts: [{ source: { source: noop, filename: 'n2.lsl' }, name: 'n2' }] },
+      ],
+    })
+    scripts['p']!.start()
+    scripts['n']!.start()
+    scripts['n2']!.start()
+    expect(scripts['p']!.global('out')).toEqual(['Alpha', 'Bravo', 'Charlie'])
+  })
+
+  it('unknown PRIM_* constant in llSetPrimitiveParams stops the rest of the walk', async () => {
+    const src = `
+      default {
+        state_entry() {
+          llSetPrimitiveParams([PRIM_NAME, "ok", 999999, "should-stop", PRIM_DESC, "never"]);
+        }
+      }
+    `
+    const s = await loadScript({ source: src, filename: 'us.lsl' })
+    s.start()
+    expect(s.host.name).toBe('ok')
+    expect(s.host.description).toBe('') // PRIM_DESC was unreachable
+  })
+
+  it('llSetLinkColor preserves per-face alpha (does not overwrite from face 0)', async () => {
+    const setup = `
+      default {
+        state_entry() {
+          // face 1 gets distinctive alpha 0.2; face 0 stays at 1.0
+          llSetPrimitiveParams([PRIM_COLOR, 1, <1,1,1>, 0.2]);
+          llSetLinkColor(LINK_THIS, <0,1,0>, ALL_SIDES);
+        }
+      }
+    `
+    const s = await loadScript({ source: setup, filename: 'lc.lsl' })
+    s.start()
+    expect(s.host.params.faces[0]!.alpha).toBe(1)
+    expect(s.host.params.faces[1]!.alpha).toBe(0.2) // preserved
+    expect(s.host.params.faces[0]!.color).toEqual({ x: 0, y: 1, z: 0 })
+    expect(s.host.params.faces[1]!.color).toEqual({ x: 0, y: 1, z: 0 })
+  })
+
+  it('llSetPhysicsMaterial mask: only flagged fields update', async () => {
+    const src = `
+      list out = [];
+      default {
+        state_entry() {
+          // First call: set everything (mask = DENSITY|FRICTION|RESTITUTION|GRAVITY_MULTIPLIER = 0xF)
+          llSetPhysicsMaterial(0xF, 1.5, 0.3, 0.7, 800.0);
+          // Second call: only update DENSITY (0x1) — gravity/friction/restitution should be unchanged
+          llSetPhysicsMaterial(0x1, 9.9, 9.9, 9.9, 1234.0);
+          out = llGetPhysicsMaterial();
+        }
+      }
+    `
+    const s = await loadScript({ source: src, filename: 'pm.lsl' })
+    s.start()
+    expect(s.global('out')).toEqual([1.5, 0.3, 0.7, 1234])
+  })
+
   it('unknown PRIM_* constant terminates llGetPrimitiveParams response', async () => {
     const src = `
       list out = [];

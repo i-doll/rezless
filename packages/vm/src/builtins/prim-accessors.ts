@@ -5,8 +5,10 @@ import type { Prim } from '../prim.js'
 import type { Linkset } from '../linkset.js'
 import {
   ALL_SIDES,
+  DENSITY,
+  FRICTION,
+  GRAVITY_MULTIPLIER,
   PRIM_CLICK_ACTION,
-  PRIM_COLOR,
   PRIM_OMEGA,
   PRIM_POSITION,
   PRIM_RENDER_MATERIAL,
@@ -15,6 +17,7 @@ import {
   PRIM_SIT_FLAGS,
   PRIM_SIT_TARGET,
   PRIM_SIZE,
+  RESTITUTION,
 } from '../generated/constants.js'
 
 /* ------------------------------------------------------------------ */
@@ -206,8 +209,10 @@ export const llSetLinkColor: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
   const color = vecOf(args[1])
   const face = num(args[2], ALL_SIDES) | 0
+  // Wiki: only color is set; per-face alpha is preserved.
+  const list = face === ALL_SIDES ? [0, 1, 2, 3, 4, 5] : face >= 0 && face <= 5 ? [face] : []
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
-    p.setPrimParam(PRIM_COLOR, [face, color, p.params.faces[Math.max(0, face === ALL_SIDES ? 0 : face)]!.alpha], 0)
+    for (const f of list) p.params.faces[f]!.color = { x: color.x, y: color.y, z: color.z }
   }
   return undefined
 }
@@ -309,13 +314,15 @@ export const llTargetOmega: BuiltinImpl = (ctx, args) => {
 }
 
 export const llSetPhysicsMaterial: BuiltinImpl = (ctx, args) => {
-  ctx.prim.params.physicsMaterial = {
-    flags: num(args[0]) | 0,
-    gravityMultiplier: num(args[1], 1),
-    restitution: num(args[2]),
-    friction: num(args[3]),
-    density: num(args[4], 1000),
-  }
+  // mask bitfield selects which fields the call updates; the rest are
+  // preserved. DENSITY=0x1, FRICTION=0x2, RESTITUTION=0x4, GRAVITY_MULTIPLIER=0x8.
+  const mask = num(args[0]) | 0
+  const m = ctx.prim.params.physicsMaterial
+  m.flags = mask
+  if (mask & GRAVITY_MULTIPLIER) m.gravityMultiplier = num(args[1], 1)
+  if (mask & RESTITUTION) m.restitution = num(args[2])
+  if (mask & FRICTION) m.friction = num(args[3])
+  if (mask & DENSITY) m.density = num(args[4], 1000)
   return undefined
 }
 export const llGetPhysicsMaterial: BuiltinImpl = (ctx) => {

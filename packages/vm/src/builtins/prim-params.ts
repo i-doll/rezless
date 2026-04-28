@@ -32,8 +32,12 @@ function walkSet(linkset: Linkset, caller: Prim, target: Prim[], rules: Readonly
       consumed = c
     }
     if (consumed === null) {
-      // empty target (e.g. unresolved link) — advance by 1 and stop, since
-      // we can't determine slot count for an unknown rule.
+      // Empty target (e.g. PRIM_LINK_TARGET to a nonexistent link).
+      // Without a target prim we can't ask the seam how many slots the
+      // rule consumes, so we stop walking. This matches the
+      // unknown-rule behavior and is acceptable because the alternative
+      // (probing a victim prim then rolling back) would either mutate
+      // or duplicate the rule-shape table.
       return
     }
     i += 1 + consumed

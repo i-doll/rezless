@@ -54,6 +54,7 @@ import {
   PRIM_TEXTURE,
   PRIM_TYPE,
   PRIM_TYPE_BOX,
+  PRIM_TYPE_CYLINDER,
   PRIM_TYPE_PRISM,
   PRIM_TYPE_RING,
   PRIM_TYPE_SCULPT,
@@ -139,16 +140,39 @@ export interface PrimFace {
   }
 }
 
+/**
+ * Typed-literal aliases for the kwdb PRIM_TYPE_* constants. The
+ * generated module exports them as `: number` so TS can't narrow on
+ * them; we re-pin them to their literal values here. The `as` assertions
+ * are runtime-asserted below so a future kwdb renumber would surface as
+ * a load-time failure rather than silent corruption.
+ */
+const SHAPE_BOX = PRIM_TYPE_BOX as 0
+const SHAPE_CYLINDER = PRIM_TYPE_CYLINDER as 1
+const SHAPE_PRISM = PRIM_TYPE_PRISM as 2
+const SHAPE_SPHERE = PRIM_TYPE_SPHERE as 3
+const SHAPE_TORUS = PRIM_TYPE_TORUS as 4
+const SHAPE_TUBE = PRIM_TYPE_TUBE as 5
+const SHAPE_RING = PRIM_TYPE_RING as 6
+const SHAPE_SCULPT = PRIM_TYPE_SCULPT as 7
+if (
+  SHAPE_BOX !== 0 || SHAPE_CYLINDER !== 1 || SHAPE_PRISM !== 2 ||
+  SHAPE_SPHERE !== 3 || SHAPE_TORUS !== 4 || SHAPE_TUBE !== 5 ||
+  SHAPE_RING !== 6 || SHAPE_SCULPT !== 7
+) {
+  throw new Error('kwdb PRIM_TYPE_* constants disagree with PrimShape literal aliases')
+}
+
 export type PrimShape =
-  | { kind: 0 | 1 | 2; hole: number; cut: Vector; hollow: number; twist: Vector; topSize: Vector; topShear: Vector }
-  | { kind: 3; hole: number; cut: Vector; hollow: number; twist: Vector; dimple: Vector }
+  | { kind: typeof SHAPE_BOX | typeof SHAPE_CYLINDER | typeof SHAPE_PRISM; hole: number; cut: Vector; hollow: number; twist: Vector; topSize: Vector; topShear: Vector }
+  | { kind: typeof SHAPE_SPHERE; hole: number; cut: Vector; hollow: number; twist: Vector; dimple: Vector }
   | {
-      kind: 4 | 5 | 6
+      kind: typeof SHAPE_TORUS | typeof SHAPE_TUBE | typeof SHAPE_RING
       hole: number; cut: Vector; hollow: number; twist: Vector
       holeSize: Vector; topShear: Vector; advancedCut: Vector; taper: Vector
       revolutions: number; radiusOffset: number; skew: number
     }
-  | { kind: 7; map: string; type: number }
+  | { kind: typeof SHAPE_SCULPT; map: string; type: number }
 
 const zero = (): Vector => ({ x: 0, y: 0, z: 0 })
 const one = (): Vector => ({ x: 1, y: 1, z: 1 })
@@ -185,7 +209,7 @@ export function defaultFace(): PrimFace {
 
 export function defaultShape(): PrimShape {
   return {
-    kind: PRIM_TYPE_BOX as 0,
+    kind: SHAPE_BOX,
     hole: PRIM_HOLE_DEFAULT,
     cut: { x: 0, y: 1, z: 0 },
     hollow: 0,
@@ -391,7 +415,8 @@ export function writePrimParam(
       const alpha = num(rules[cursor + 2], 1)
       for (const f of faces) {
         if (!inRange(f)) continue
-        p.faces[f]!.color = color
+        // Clone so faces don't alias the same vector instance.
+        p.faces[f]!.color = { x: color.x, y: color.y, z: color.z }
         p.faces[f]!.alpha = alpha
       }
       return 3
@@ -405,8 +430,8 @@ export function writePrimParam(
       for (const f of faces) {
         if (!inRange(f)) continue
         p.faces[f]!.texture = tex
-        p.faces[f]!.textureRepeats = repeats
-        p.faces[f]!.textureOffsets = offsets
+        p.faces[f]!.textureRepeats = { x: repeats.x, y: repeats.y, z: repeats.z }
+        p.faces[f]!.textureOffsets = { x: offsets.x, y: offsets.y, z: offsets.z }
         p.faces[f]!.textureRotation = rot
       }
       return 5
@@ -466,7 +491,12 @@ export function writePrimParam(
       const rot = num(rules[cursor + 4])
       for (const f of faces) {
         if (!inRange(f)) continue
-        p.faces[f]!.normal = { texture: tex, textureRepeats: repeats, textureOffsets: offsets, textureRotation: rot }
+        p.faces[f]!.normal = {
+          texture: tex,
+          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
+          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
+          textureRotation: rot,
+        }
       }
       return 5
     }
@@ -483,10 +513,10 @@ export function writePrimParam(
         if (!inRange(f)) continue
         p.faces[f]!.specular = {
           texture: tex,
-          textureRepeats: repeats,
-          textureOffsets: offsets,
+          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
+          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
           textureRotation: rot,
-          color,
+          color: { x: color.x, y: color.y, z: color.z },
           glossiness: gloss,
           environment: env,
         }
@@ -518,10 +548,10 @@ export function writePrimParam(
         if (!inRange(f)) continue
         p.faces[f]!.gltf.baseColor = {
           texture: tex,
-          textureRepeats: repeats,
-          textureOffsets: offsets,
+          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
+          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
           textureRotation: rot,
-          color,
+          color: { x: color.x, y: color.y, z: color.z },
           alpha,
           alphaMode: aMode,
           alphaCutoff: aCut,
@@ -538,7 +568,12 @@ export function writePrimParam(
       const rot = num(rules[cursor + 4])
       for (const f of faces) {
         if (!inRange(f)) continue
-        p.faces[f]!.gltf.normal = { texture: tex, textureRepeats: repeats, textureOffsets: offsets, textureRotation: rot }
+        p.faces[f]!.gltf.normal = {
+          texture: tex,
+          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
+          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
+          textureRotation: rot,
+        }
       }
       return 5
     }
@@ -554,8 +589,8 @@ export function writePrimParam(
         if (!inRange(f)) continue
         p.faces[f]!.gltf.metallicRoughness = {
           texture: tex,
-          textureRepeats: repeats,
-          textureOffsets: offsets,
+          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
+          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
           textureRotation: rot,
           metallic,
           roughness: rough,
@@ -574,10 +609,10 @@ export function writePrimParam(
         if (!inRange(f)) continue
         p.faces[f]!.gltf.emissive = {
           texture: tex,
-          textureRepeats: repeats,
-          textureOffsets: offsets,
+          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
+          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
           textureRotation: rot,
-          tint,
+          tint: { x: tint.x, y: tint.y, z: tint.z },
         }
       }
       return 6
@@ -592,9 +627,9 @@ export function writePrimParam(
 function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number): number {
   const kind = (num(rules[cursor]) | 0)
   switch (kind) {
-    case 0: // PRIM_TYPE_BOX
-    case 1: // cylinder
-    case PRIM_TYPE_PRISM:
+    case SHAPE_BOX:
+    case SHAPE_CYLINDER:
+    case SHAPE_PRISM:
       p.shape = {
         kind: kind as 0 | 1 | 2,
         hole: num(rules[cursor + 1]) | 0,
@@ -605,9 +640,9 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
         topShear: asVec(rules[cursor + 6]),
       }
       return 7
-    case PRIM_TYPE_SPHERE:
+    case SHAPE_SPHERE:
       p.shape = {
-        kind: PRIM_TYPE_SPHERE as 3,
+        kind: SHAPE_SPHERE,
         hole: num(rules[cursor + 1]) | 0,
         cut: asVec(rules[cursor + 2]),
         hollow: num(rules[cursor + 3]),
@@ -615,9 +650,9 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
         dimple: asVec(rules[cursor + 5]),
       }
       return 6
-    case PRIM_TYPE_TORUS:
-    case PRIM_TYPE_TUBE:
-    case PRIM_TYPE_RING:
+    case SHAPE_TORUS:
+    case SHAPE_TUBE:
+    case SHAPE_RING:
       p.shape = {
         kind: kind as 4 | 5 | 6,
         hole: num(rules[cursor + 1]) | 0,
@@ -633,9 +668,9 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
         skew: num(rules[cursor + 11]),
       }
       return 12
-    case PRIM_TYPE_SCULPT:
+    case SHAPE_SCULPT:
       p.shape = {
-        kind: PRIM_TYPE_SCULPT as 7,
+        kind: SHAPE_SCULPT,
         map: str(rules[cursor + 1]),
         type: num(rules[cursor + 2]) | 0,
       }
@@ -870,18 +905,17 @@ export function readPrimParam(
 
 function readPrimType(p: PrimParams): LslValue[] {
   const s = p.shape
-  switch (s.kind) {
-    case 0:
-    case 1:
-    case 2:
-      return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.topSize, s.topShear]
-    case 3:
-      return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.dimple]
-    case 4:
-    case 5:
-    case 6:
-      return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.holeSize, s.topShear, s.advancedCut, s.taper, s.revolutions, s.radiusOffset, s.skew]
-    case 7:
-      return [s.kind, s.map, s.type]
+  if (s.kind === SHAPE_SPHERE) {
+    return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.dimple]
   }
+  if (s.kind === SHAPE_TORUS || s.kind === SHAPE_TUBE || s.kind === SHAPE_RING) {
+    return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.holeSize, s.topShear, s.advancedCut, s.taper, s.revolutions, s.radiusOffset, s.skew]
+  }
+  if (s.kind === SHAPE_SCULPT) {
+    return [s.kind, s.map, s.type]
+  }
+  if (s.kind === SHAPE_BOX || s.kind === SHAPE_CYLINDER || s.kind === SHAPE_PRISM) {
+    return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.topSize, s.topShear]
+  }
+  return []
 }
