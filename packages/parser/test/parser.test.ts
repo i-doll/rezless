@@ -82,6 +82,32 @@ describe('lexer — number literals', () => {
     expect(tokens[0]).toMatchObject({ kind: 'integer', text: '0x', value: 0 })
   })
 
+  it('does not consume an incomplete exponent (1e / 1e+)', () => {
+    // `1e;` must lex as integer 1 + identifier `e`, not a malformed float
+    // with text "1e" and value 1 — that disagreement bit us when text was
+    // used to round-trip the literal.
+    const a = lex(`1e;`, 'inline.lsl')
+    expect(a.diagnostics).toEqual([])
+    expect(a.tokens.slice(0, 2)).toMatchObject([
+      { kind: 'integer', text: '1', value: 1 },
+      { kind: 'identifier', text: 'e' },
+    ])
+
+    // `1e+;` — the `+` only counts as part of the exponent if a digit
+    // follows. With none, all three lex separately.
+    const b = lex(`1e+;`, 'inline.lsl')
+    expect(b.diagnostics).toEqual([])
+    expect(b.tokens.slice(0, 3)).toMatchObject([
+      { kind: 'integer', text: '1', value: 1 },
+      { kind: 'identifier', text: 'e' },
+      { kind: 'op', text: '+' },
+    ])
+
+    // Sanity: a well-formed exponent still works.
+    const c = lex(`1e2`, 'inline.lsl')
+    expect(c.tokens[0]).toMatchObject({ kind: 'float', text: '1e2', value: 100 })
+  })
+
   it('parses scientific-notation floats', () => {
     const { tokens, diagnostics } = lex(`1e3 2.5E-2 1.0e+1`, 'inline.lsl')
     expect(diagnostics).toEqual([])

@@ -224,18 +224,25 @@ export function lex(
           advance()
         }
       }
-      // Exponent
+      // Exponent. Peek ahead before committing — only treat `e` as an
+      // exponent marker if at least one digit (with optional sign in
+      // between) actually follows. `1e;` → integer 1 + identifier `e`,
+      // not a malformed float with text/value disagreement.
       if (source[i] === 'e' || source[i] === 'E') {
-        isFloat = true
-        s += source[i]
-        advance()
-        if (source[i] === '+' || source[i] === '-') {
+        let j = i + 1
+        if (source[j] === '+' || source[j] === '-') j++
+        if (j < source.length && isDigit(source[j]!)) {
+          isFloat = true
           s += source[i]
           advance()
-        }
-        while (i < source.length && isDigit(source[i]!)) {
-          s += source[i]
-          advance()
+          if (source[i] === '+' || source[i] === '-') {
+            s += source[i]
+            advance()
+          }
+          while (i < source.length && isDigit(source[i]!)) {
+            s += source[i]
+            advance()
+          }
         }
       }
       // No `f`/`F` suffix support — the Linden Lab LSL compiler doesn't
