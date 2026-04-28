@@ -679,7 +679,7 @@ export function writePrimParam(
   }
 }
 
-function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number): number {
+function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number): number | null {
   const kind = (num(rules[cursor]) | 0)
   switch (kind) {
     case SHAPE_BOX:
@@ -731,7 +731,11 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
       }
       return 3
     default:
-      return 1
+      // Unknown PRIM_TYPE_* kind: terminate the walk rather than guessing
+      // a slot count. Matches writePrimParamSlots' default behavior so
+      // walkSet handles both target-bearing and empty-target cases the
+      // same way.
+      return null
   }
 }
 

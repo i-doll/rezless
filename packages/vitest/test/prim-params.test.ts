@@ -275,6 +275,24 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     expect(s.linkset.clock.now).toBe(200)
   })
 
+  it('PRIM_TYPE with unknown sub-shape kind terminates the walk', async () => {
+    const src = `
+      default {
+        state_entry() {
+          // 99 is not a valid PRIM_TYPE_* discriminator. The walk must
+          // stop there, leaving PRIM_NAME unchanged.
+          llSetPrimitiveParams([
+            PRIM_TYPE, 99, 0, <0,1,0>, 0.0, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR,
+            PRIM_NAME, "should-not-apply"
+          ]);
+        }
+      }
+    `
+    const s = await loadScript({ source: src, filename: 'pt.lsl' })
+    s.start()
+    expect(s.host.name).toBe('Object')
+  })
+
   it('PRIM_LINK_TARGET to nonexistent link skips its rules but later valid PRIM_LINK_TARGET still applies', async () => {
     const src = `
       default {
