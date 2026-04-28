@@ -3,13 +3,16 @@ import { Prim } from './prim.js'
 import type { Script } from './script.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
+import {
+  LINK_ROOT,
+  LINK_SET,
+  LINK_ALL_OTHERS,
+  LINK_ALL_CHILDREN,
+  LINK_THIS,
+} from './generated/constants.js'
 
-/** LSL link sentinels. */
-export const LINK_ROOT = 1
-export const LINK_SET = -1
-export const LINK_ALL_OTHERS = -2
-export const LINK_ALL_CHILDREN = -3
-export const LINK_THIS = -4
+// Re-export so `import { LINK_* } from '@lslvm/vm'` keeps working.
+export { LINK_ROOT, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_THIS }
 
 export interface LinksetOptions {
   /** Owner key applied to all scripts in this linkset. */
@@ -92,11 +95,12 @@ export class Linkset {
       return this.prims.filter((p) => p.linkNumber !== senderLink)
     }
     if (target === LINK_ALL_CHILDREN) {
-      // children = everything except root (link 1 in a real linkset; lone prim has linkNumber 0 → no children)
+      // children = everything except root (LINK_ROOT in a real linkset; a
+      // lone prim has linkNumber 0 → no children).
       if (this.prims.length <= 1) return []
-      return this.prims.filter((p) => p.linkNumber !== 1)
+      return this.prims.filter((p) => p.linkNumber !== LINK_ROOT)
     }
-    if (target >= 1) {
+    if (target >= LINK_ROOT) {
       const p = this.prims.find((pp) => pp.linkNumber === target)
       return p ? [p] : []
     }

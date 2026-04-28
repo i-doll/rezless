@@ -2,7 +2,17 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
-import { INVENTORY_ALL, INVENTORY_NONE, EOF, NAK } from '../generated/constants.js'
+import {
+  INVENTORY_ALL,
+  INVENTORY_NONE,
+  EOF,
+  NAK,
+  MASK_BASE,
+  MASK_OWNER,
+  MASK_GROUP,
+  MASK_EVERYONE,
+  MASK_NEXT,
+} from '../generated/constants.js'
 
 function itemsOfType(items: ReadonlyArray<InventoryItem>, type: number): InventoryItem[] {
   if (type === INVENTORY_ALL) return [...items]
@@ -71,15 +81,15 @@ export const llGetInventoryPermMask: BuiltinImpl = (ctx, args) => {
   const item = find(ctx.prim.inventory, name)
   if (!item) return 0
   switch (mask) {
-    case 0:
+    case MASK_BASE:
       return item.permMask.base
-    case 1:
+    case MASK_OWNER:
       return item.permMask.owner
-    case 2:
+    case MASK_GROUP:
       return item.permMask.group
-    case 3:
+    case MASK_EVERYONE:
       return item.permMask.everyone
-    case 4:
+    case MASK_NEXT:
       return item.permMask.next
     default:
       return 0
