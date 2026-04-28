@@ -95,6 +95,12 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
       const finalName = inventoryName ?? s.scriptName
       const item = prim.inventory.find((it) => it.script === s)
       if (item) item.name = finalName
+      if (finalName in scripts) {
+        throw new Error(
+          `loadLinkset: duplicate script name '${finalName}' across prims; ` +
+            `give each script a unique inventory name to avoid silent overwrites`,
+        )
+      }
       scripts[finalName] = s
     }
   }

@@ -489,6 +489,20 @@ describe('multi-script linkset', () => {
     })
   })
 
+  describe('loadLinkset', () => {
+    it('throws on duplicate inventory names across prims', async () => {
+      const src = `default { state_entry() {} }`
+      await expect(
+        loadLinkset({
+          prims: [
+            { scripts: [{ source: { source: src, filename: 'a.lsl' }, name: 'shared' }] },
+            { scripts: [{ source: { source: src, filename: 'b.lsl' }, name: 'shared' }] },
+          ],
+        }),
+      ).rejects.toThrow(/duplicate script name 'shared'/)
+    })
+  })
+
   describe('llSleep frame quantum', () => {
     it('llSleep(0) and negative values are no-ops', async () => {
       const src = `
