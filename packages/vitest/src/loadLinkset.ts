@@ -62,7 +62,9 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
   const linksetOpts: { -readonly [K in keyof LinksetOptions]: LinksetOptions[K] } = {}
   if (input.owner !== undefined) linksetOpts.owner = input.owner
   const linkset = new Linkset(linksetOpts)
-  const scripts: Record<string, Script> = {}
+  // Object.create(null) avoids prototype keys ('toString', 'constructor', …)
+  // false-positive-tripping the duplicate-name check below.
+  const scripts: Record<string, Script> = Object.create(null) as Record<string, Script>
   const prims: Prim[] = []
   for (const primInput of input.prims) {
     const primOpts: { -readonly [K in keyof PrimOptions]: PrimOptions[K] } = {}
