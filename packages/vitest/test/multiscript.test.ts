@@ -216,6 +216,34 @@ describe('multi-script linkset', () => {
       expect(scripts['a']!.global('first')).toBe('a')
     })
 
+    it('llGetInventoryAcquireTime returns ISO 8601 UTC string', async () => {
+      const probe = `
+        string ts = "";
+        default { state_entry() { ts = llGetInventoryAcquireTime("memo"); } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: [
+              {
+                name: 'memo',
+                type: 7,
+                key: '00000000-0000-0000-0000-000000000123',
+                creator: '00000000-0000-0000-0000-000000000000',
+                description: '',
+                acquireTimeMs: 1712668508000, // 2024-04-09T13:15:08Z
+                permMask: { base: 0, owner: 0, group: 0, everyone: 0, next: 0 },
+              },
+            ],
+            scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }],
+          },
+        ],
+      })
+      scripts['p']!.start()
+      expect(scripts['p']!.global('ts')).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
+      expect(scripts['p']!.global('ts')).toBe('2024-04-09T13:15:08Z')
+    })
+
     it('llGetNotecardLine reads notecard inventory via dataserver', async () => {
       const probe = `
         string got = "";

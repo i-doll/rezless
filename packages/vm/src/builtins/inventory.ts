@@ -52,17 +52,16 @@ export const llGetInventoryDesc: BuiltinImpl = (ctx, args) => {
 }
 
 /**
- * llGetInventoryAcquireTime(string name) — acquire timestamp.
- *
- * LSL returns a string (ISO 8601 in production). With only virtual time,
- * we serialise the acquire time as `seconds` (e.g. "0.000000") so it
- * round-trips through `(integer)`/`(float)` casts the way scripts expect.
+ * llGetInventoryAcquireTime(string name) — UTC acquire timestamp formatted
+ * as `YYYY-MM-DDThh:mm:ssZ` per the LSL spec. We treat the stored
+ * `acquireTimeMs` as ms since the Unix epoch so the default value of 0
+ * formats to `1970-01-01T00:00:00Z`.
  */
 export const llGetInventoryAcquireTime: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const item = find(ctx.prim.inventory, name)
   if (!item) return ''
-  return (item.acquireTimeMs / 1000).toFixed(6)
+  return new Date(item.acquireTimeMs).toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
 
 /** llGetInventoryPermMask(string name, integer mask) — selected mask, or 0. */
