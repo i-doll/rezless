@@ -209,6 +209,110 @@ describe('Phase 3 — string builtins', () => {
     expect(s.global('out')).toBe('a+b+c+d')
   })
 
+  it('llReplaceSubString with positive count replaces from the front', async () => {
+    const s = await run(`
+      string out = "";
+      default {
+        state_entry() {
+          out = llReplaceSubString("a-b-c-d", "-", "+", 2);
+        }
+      }
+    `)
+    expect(s.global('out')).toBe('a+b+c-d')
+  })
+
+  it('llReplaceSubString with negative count replaces from the end', async () => {
+    const s = await run(`
+      string out = "";
+      default {
+        state_entry() {
+          out = llReplaceSubString("a-b-c-d", "-", "+", -2);
+        }
+      }
+    `)
+    expect(s.global('out')).toBe('a-b+c+d')
+  })
+
+  it('llReplaceSubString returns the input unchanged when the pattern is empty', async () => {
+    const s = await run(`
+      string out = "";
+      default {
+        state_entry() {
+          out = llReplaceSubString("hello", "", "*", 0);
+        }
+      }
+    `)
+    expect(s.global('out')).toBe('hello')
+  })
+
+  it('llStringTrim — head-only and tail-only flags', async () => {
+    const s = await run(`
+      string h = "";
+      string t = "";
+      default {
+        state_entry() {
+          h = llStringTrim("  hi  ", STRING_TRIM_HEAD);
+          t = llStringTrim("  hi  ", STRING_TRIM_TAIL);
+        }
+      }
+    `)
+    expect(s.global('h')).toBe('hi  ')
+    expect(s.global('t')).toBe('  hi')
+  })
+
+  it('llUnescapeURL returns "" on malformed percent-escapes', async () => {
+    const s = await run(`
+      string out = "no-fallback";
+      default {
+        state_entry() {
+          out = llUnescapeURL("%E0%A4%A");
+        }
+      }
+    `)
+    expect(s.global('out')).toBe('')
+  })
+
+  it('llInsertString clamps negative and out-of-bounds positions', async () => {
+    const s = await run(`
+      string a = "";
+      string b = "";
+      default {
+        state_entry() {
+          a = llInsertString("xyz", -5, "[");
+          b = llInsertString("xyz", 99, "]");
+        }
+      }
+    `)
+    expect(s.global('a')).toBe('[xyz')
+    expect(s.global('b')).toBe('xyz]')
+  })
+
+  it('llDeleteSubString — wrap mode (start > end)', async () => {
+    const s = await run(`
+      string out = "";
+      default {
+        state_entry() {
+          // start=3, end=1 → keep just the middle slice between them.
+          out = llDeleteSubString("abcdef", 3, 1);
+        }
+      }
+    `)
+    expect(s.global('out')).toBe('c')
+  })
+
+  it('llGetSubString — wrap mode (start > end)', async () => {
+    const s = await run(`
+      string out = "";
+      default {
+        state_entry() {
+          out = llGetSubString("abcdef", 4, 1);
+        }
+      }
+    `)
+    // [0..1] + [4..end] → "ab" + "ef"
+    expect(s.global('out')).toBe('abef')
+  })
+
   it('llEscapeURL / llUnescapeURL roundtrip', async () => {
     const s = await run(`
       string a = "";
