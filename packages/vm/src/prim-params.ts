@@ -33,17 +33,17 @@ export interface PrimFace {
   glow: number
 }
 
-const ZERO: Vector = { x: 0, y: 0, z: 0 }
-const ONE: Vector = { x: 1, y: 1, z: 1 }
-const IDENTITY_ROT: Rotation = { x: 0, y: 0, z: 0, s: 1 }
+const zero = (): Vector => ({ x: 0, y: 0, z: 0 })
+const one = (): Vector => ({ x: 1, y: 1, z: 1 })
+const identityRot = (): Rotation => ({ x: 0, y: 0, z: 0, s: 1 })
 
 export function defaultFace(): PrimFace {
   return {
     texture: '',
     textureRepeats: { x: 1, y: 1, z: 0 },
-    textureOffsets: ZERO,
+    textureOffsets: zero(),
     textureRotation: 0,
-    color: ONE,
+    color: one(),
     alpha: 1,
     bumpShiny: { shiny: 0, bump: 0 },
     fullBright: false,
@@ -53,15 +53,15 @@ export function defaultFace(): PrimFace {
 
 export function defaultPrimParams(): PrimParams {
   return {
-    position: ZERO,
-    rotation: IDENTITY_ROT,
+    position: zero(),
+    rotation: identityRot(),
     size: { x: 0.5, y: 0.5, z: 0.5 },
     faces: Array.from({ length: 6 }, () => defaultFace()),
-    pointLight: { enabled: false, color: ONE, intensity: 1, radius: 10, falloff: 0.75 },
+    pointLight: { enabled: false, color: one(), intensity: 1, radius: 10, falloff: 0.75 },
     glow: [0, 0, 0, 0, 0, 0],
-    omega: { axis: ZERO, spinrate: 0, gain: 0 },
+    omega: { axis: zero(), spinrate: 0, gain: 0 },
     physicsShapeType: 0,
-    flexible: { enabled: false, softness: 0, gravity: 0, friction: 0, wind: 0, tension: 0, force: ZERO },
+    flexible: { enabled: false, softness: 0, gravity: 0, friction: 0, wind: 0, tension: 0, force: zero() },
     sculpt: { textureKey: '', type: 0 },
     slice: { x: 0, y: 1, z: 0 },
   }
