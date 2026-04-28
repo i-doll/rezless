@@ -112,10 +112,10 @@ export class Linkset {
    * caller is expected to have already mutated the shared LSD store before
    * broadcasting.
    */
-  broadcastLinksetData(action: number, keyname: string, value: string): void {
+  broadcastLinksetData(action: number, name: string, value: string): void {
     const at = this.clock.now
     for (const s of this.allScripts()) {
-      this.clock.schedule(s, at, 'linkset_data', { action, keyname, value })
+      this.clock.schedule(s, at, 'linkset_data', { action, name, value })
     }
   }
 
