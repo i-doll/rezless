@@ -86,9 +86,11 @@ describe('lexer — number literals', () => {
 
   it('parses floats with the trailing f suffix', () => {
     const { tokens } = lex(`3.14f 7F`, 'inline.lsl')
-    expect(tokens[0]).toMatchObject({ kind: 'float', value: 3.14 })
-    // `7F` has no decimal; suffix still flips it to float.
-    expect(tokens[1]).toMatchObject({ kind: 'float' })
+    // The lexer captures the parsed numeric value but does NOT include the
+    // `f`/`F` suffix in `text` — pin that down so the divergence between
+    // raw source and `text` doesn't drift unnoticed.
+    expect(tokens[0]).toMatchObject({ kind: 'float', text: '3.14', value: 3.14 })
+    expect(tokens[1]).toMatchObject({ kind: 'float', text: '7', value: 7 })
   })
 
   it('parses leading-dot floats (.5)', () => {

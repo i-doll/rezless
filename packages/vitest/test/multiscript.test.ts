@@ -319,9 +319,12 @@ describe('multi-script linkset', () => {
       `
       // Built via the public makeInventoryItem helper; exercises the
       // default-fill paths so users don't have to spell out every field.
+      // Pass `key` through to keep the refactor value-preserving with the
+      // earlier inline-object form of this test.
       const memo = makeInventoryItem({
         name: 'memo',
         type: InventoryType.NOTECARD,
+        key: '00000000-0000-0000-0000-000000000123',
         notecardLines: ['line zero', 'line one', 'line two'],
       })
       const { scripts } = await loadLinkset({
