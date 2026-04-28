@@ -434,10 +434,15 @@ export class Script {
 
   /**
    * Internal: invoked by `Linkset.drainQueue` to deliver one queued event.
-   * Throws ResetScriptSignal up to the caller to handle reset semantics.
+   * The synthetic `__reset` event triggers a sibling-initiated reset
+   * (scheduled by `llResetOtherScript`).
    */
   deliver(event: string, payload: Record<string, unknown>): void {
     if (this.state.lifecycle.dead) return
+    if (event === '__reset') {
+      this.reset()
+      return
+    }
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
     if (!handler) return
     const args = bindPayload(event, payload)

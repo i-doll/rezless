@@ -3,13 +3,6 @@ import { Prim } from './prim.js'
 import type { Script } from './script.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
-import {
-  LINKSETDATA_DELETE,
-  LINKSETDATA_RESET,
-  LINKSETDATA_UPDATE,
-  LINKSETDATA_MULTIDELETE,
-} from './generated/constants.js'
-import { ResetScriptSignal } from './builtins/object.js'
 
 /** LSL link sentinels. */
 export const LINK_ROOT = 1
@@ -106,8 +99,9 @@ export class Linkset {
   }
 
   /**
-   * Schedule `linkset_data` events on every script in the linkset, recording
-   * the writer in `state.linksetData` already happened in the caller.
+   * Schedule `linkset_data` events on every script in the linkset. The
+   * caller is expected to have already mutated the shared LSD store before
+   * broadcasting.
    */
   broadcastLinksetData(action: number, keyname: string, value: string): void {
     const at = this.clock.now
@@ -182,15 +176,9 @@ export class Linkset {
         target.parkedEvents.push({ at: next.at, event: next.event, payload: next.payload })
         continue
       }
-      try {
-        target.deliver(next.event, next.payload)
-      } catch (e) {
-        if (e instanceof ResetScriptSignal) {
-          target.reset()
-          continue
-        }
-        throw e
-      }
+      // ResetScriptSignal is caught inside `Script.runHandler`; it never
+      // bubbles up to here, so no try/catch is needed.
+      target.deliver(next.event, next.payload)
     }
   }
 }

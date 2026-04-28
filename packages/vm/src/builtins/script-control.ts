@@ -2,19 +2,15 @@ import type { BuiltinImpl } from '../runtime.js'
 
 /**
  * llResetOtherScript(string name) — reset a sibling script in the same prim.
- * No-op if no script of that name exists. Per LSL: the reset is queued, not
- * synchronous, so we schedule a `__reset` synthetic event on the target.
+ * No-op if no script of that name exists. The reset is scheduled via a
+ * synthetic `__reset` event so it runs on the next drain step rather than
+ * re-entering the target while the caller's handler is still on the stack.
  */
 export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const target = ctx.prim.findScript(name)
   if (!target) return undefined
-  // Reset on next drain step. We emit a synthetic event the script's deliver
-  // path doesn't handle, and use the linkset clock to schedule a reset.
-  // Simpler: do it synchronously after the current handler returns via a
-  // microtask-like flag. Here we just call reset() now — the calling script
-  // is mid-handler, so we re-enter the target only via drainQueue afterward.
-  target.reset()
+  ctx.linkset.clock.schedule(target, ctx.linkset.clock.now, '__reset', {})
   return undefined
 }
 

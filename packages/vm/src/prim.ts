@@ -65,7 +65,7 @@ export class Prim {
   addInventory(item: InventoryItem): void {
     this.inventory.push({
       ...item,
-      acquireTimeMs: item.acquireTimeMs || this.linkset?.clock.now || 0,
+      acquireTimeMs: item.acquireTimeMs ?? this.linkset?.clock.now ?? 0,
     })
   }
 

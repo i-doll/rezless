@@ -160,6 +160,22 @@ describe('multi-script linkset', () => {
       expect(scripts['b']!.global('myLink')).toBe(2)
     })
 
+    it('llGetLinkKey(0) on a multi-prim linkset returns NULL_KEY', async () => {
+      const probe = `
+        string k = "unset";
+        default { state_entry() { k = (string)llGetLinkKey(0); } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          { name: 'Root', scripts: [{ source: { source: probe, filename: 'a.lsl' }, name: 'a' }] },
+          { name: 'Child', scripts: [{ source: { source: 'default { state_entry() {} }', filename: 'b.lsl' }, name: 'b' }] },
+        ],
+      })
+      scripts['a']!.start()
+      scripts['b']!.start()
+      expect(scripts['a']!.global('k')).toBe('00000000-0000-0000-0000-000000000000')
+    })
+
     it('lone prim reports linkNumber 0 and 1 prim', async () => {
       const probe = `
         integer myLink = 9;
@@ -286,6 +302,41 @@ describe('multi-script linkset', () => {
       scripts['reader']!.resumeParked()
       linkset.drainQueue()
       expect(scripts['reader']!.global('received')).toBe(2)
+    })
+
+    it('llResetOtherScript reinitialises a sibling on the next drain', async () => {
+      const sibling = `
+        integer counter = 0;
+        default {
+          touch_start(integer n) { counter = counter + 1; }
+        }
+      `
+      const controller = `
+        default {
+          touch_start(integer n) {
+            llResetOtherScript("sibling");
+          }
+        }
+      `
+      const { scripts, linkset } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: sibling, filename: 's.lsl' }, name: 'sibling' },
+              { source: { source: controller, filename: 'c.lsl' }, name: 'controller' },
+            ],
+          },
+        ],
+      })
+      scripts['sibling']!.start()
+      scripts['controller']!.start()
+      scripts['sibling']!.fire('touch_start', { num_detected: 1 })
+      scripts['sibling']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['sibling']!.global('counter')).toBe(2)
+      scripts['controller']!.fire('touch_start', { num_detected: 1 })
+      // The reset is scheduled, not synchronous — drain to apply it.
+      linkset.drainQueue()
+      expect(scripts['sibling']!.global('counter')).toBe(0)
     })
 
     it('llGetScriptState reflects running flag', async () => {

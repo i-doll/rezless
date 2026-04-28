@@ -2,9 +2,7 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
-
-const INVENTORY_ALL = -1
-const INVENTORY_NONE = -1
+import { INVENTORY_ALL, INVENTORY_NONE } from '../generated/constants.js'
 
 function itemsOfType(items: ReadonlyArray<InventoryItem>, type: number): InventoryItem[] {
   if (type === INVENTORY_ALL) return [...items]
