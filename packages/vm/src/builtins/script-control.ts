@@ -23,6 +23,12 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   const wasRunning = target.running
   target.running = running
   if (running && !wasRunning) {
+    // Realign the timer cadence so the next fire is one interval from now,
+    // not a flood of catch-up events for every interval missed during pause.
+    const v = target.clockView
+    if (v.timerIntervalMs > 0) {
+      v.timerNextFireMs = ctx.linkset.clock.now + v.timerIntervalMs
+    }
     target.resumeParked()
   }
   return undefined

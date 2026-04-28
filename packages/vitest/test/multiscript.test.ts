@@ -427,6 +427,42 @@ describe('multi-script linkset', () => {
       expect(scripts['sibling']!.global('counter')).toBe(0)
     })
 
+    it('llSetScriptState resume realigns timer instead of flooding catch-up events', async () => {
+      const sibling = `
+        integer ticks = 0;
+        default {
+          state_entry() { llSetTimerEvent(1.0); }
+          timer() { ticks = ticks + 1; }
+        }
+      `
+      const driver = `default { touch_start(integer n) { llSetScriptState("sibling", TRUE); } }`
+      const { scripts, linkset } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: sibling, filename: 's.lsl' }, name: 'sibling' },
+              { source: { source: driver, filename: 'd.lsl' }, name: 'driver' },
+            ],
+          },
+        ],
+      })
+      scripts['sibling']!.start()
+      scripts['driver']!.start()
+      linkset.advanceTime(2500)
+      expect(scripts['sibling']!.global('ticks')).toBe(2)
+      // Pause and let a long stretch of virtual time pass — without the
+      // timer realignment, resume would replay one fire per missed interval.
+      scripts['sibling']!.running = false
+      linkset.advanceTime(100_000)
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
+      // Half an interval after resume → no new fires yet.
+      linkset.advanceTime(500)
+      expect(scripts['sibling']!.global('ticks')).toBe(2)
+      // Past the next interval → exactly one new fire.
+      linkset.advanceTime(700)
+      expect(scripts['sibling']!.global('ticks')).toBe(3)
+    })
+
     it('llResetOtherScript on a paused sibling clears its globals immediately', async () => {
       const sibling = `
         integer counter = 0;
