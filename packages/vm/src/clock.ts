@@ -63,6 +63,10 @@ export class LinksetClock {
     let bestTimerScript: Script | null = null
     let bestTimerAt = Infinity
     for (const s of scripts) {
+      // Per LSL: dead and stopped scripts don't generate timer events. Skip
+      // their timer state so we don't waste catch-up iterations or accumulate
+      // back-logged events that flood the script on resume.
+      if (s.dead || !s.running) continue
       const v = s.clockView
       if (v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now && v.timerNextFireMs < bestTimerAt) {
         bestTimerAt = v.timerNextFireMs
