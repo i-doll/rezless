@@ -1,6 +1,11 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
+import {
+  HTTP_METHOD,
+  HTTP_MIMETYPE,
+  HTTP_CUSTOM_HEADER,
+} from '../generated/constants.js'
 
 /**
  * Captured outgoing HTTP request, exposed via Script.httpRequests so tests
@@ -23,14 +28,6 @@ export interface HttpRequestEntry {
   /** Whether a response has been fed back to this request yet. */
   fulfilled: boolean
 }
-
-/**
- * LSL HTTP option codes. Sourced from kwdb (constants.ts) but inlined here
- * for clarity at the call site — the values are stable.
- */
-const HTTP_METHOD = 0
-const HTTP_MIMETYPE = 1
-const HTTP_CUSTOM_HEADER = 5
 
 /** Generate a deterministic request key. */
 function nextHttpKey(state: { httpKeyCounter: number }): string {

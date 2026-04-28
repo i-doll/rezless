@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { Vector, Rotation } from '../values/types.js'
 import { isVector } from '../values/types.js'
+import { PI_BY_TWO } from '../generated/constants.js'
 
 /** llAbs(integer val) — absolute value (integer). */
 export const llAbs: BuiltinImpl = (_ctx, args) => {
@@ -87,7 +88,7 @@ export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
   const cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y)
   const x = Math.atan2(sinr_cosp, cosr_cosp)
   const sinp = 2 * (q.s * q.y - q.z * q.x)
-  const y = Math.abs(sinp) >= 1 ? Math.sign(sinp) * (Math.PI / 2) : Math.asin(sinp)
+  const y = Math.abs(sinp) >= 1 ? Math.sign(sinp) * PI_BY_TWO : Math.asin(sinp)
   const siny_cosp = 2 * (q.s * q.z + q.x * q.y)
   const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
   const z = Math.atan2(siny_cosp, cosy_cosp)

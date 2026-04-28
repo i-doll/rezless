@@ -3,6 +3,7 @@ import type { InventoryItem } from './inventory.js'
 import { InventoryType } from './inventory.js'
 import { defaultPrimParams, type PrimParams } from './prim-params.js'
 import { NULL_KEY } from './values/types.js'
+import { PERM_ALL } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
 
 export interface PrimOptions {
@@ -51,11 +52,11 @@ export class Prim {
       description: '',
       acquireTimeMs: this.linkset?.clock.now ?? 0,
       permMask: {
-        base: 0x7fffffff,
-        owner: 0x7fffffff,
+        base: PERM_ALL,
+        owner: PERM_ALL,
         group: 0,
         everyone: 0,
-        next: 0x7fffffff,
+        next: PERM_ALL,
       },
       script,
     })

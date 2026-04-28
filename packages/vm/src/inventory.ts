@@ -1,23 +1,38 @@
 import { NULL_KEY } from './values/types.js'
+import {
+  INVENTORY_TEXTURE,
+  INVENTORY_SOUND,
+  INVENTORY_LANDMARK,
+  INVENTORY_CLOTHING,
+  INVENTORY_OBJECT,
+  INVENTORY_NOTECARD,
+  INVENTORY_SCRIPT,
+  INVENTORY_BODYPART,
+  INVENTORY_ANIMATION,
+  INVENTORY_GESTURE,
+  INVENTORY_SETTING,
+  INVENTORY_MATERIAL,
+  PERM_ALL,
+} from './generated/constants.js'
 
 /**
- * LSL inventory item types. Numeric values match the kwdb constants
- * (INVENTORY_TEXTURE = 0, INVENTORY_SOUND = 1, …).
+ * LSL inventory item types. Numeric values come straight from the kwdb
+ * INVENTORY_* constants. MESH (22) has no kwdb constant.
  */
 export const InventoryType = {
-  TEXTURE: 0,
-  SOUND: 1,
-  LANDMARK: 3,
-  CLOTHING: 5,
-  OBJECT: 6,
-  NOTECARD: 7,
-  SCRIPT: 10,
-  BODYPART: 13,
-  ANIMATION: 20,
-  GESTURE: 21,
+  TEXTURE: INVENTORY_TEXTURE,
+  SOUND: INVENTORY_SOUND,
+  LANDMARK: INVENTORY_LANDMARK,
+  CLOTHING: INVENTORY_CLOTHING,
+  OBJECT: INVENTORY_OBJECT,
+  NOTECARD: INVENTORY_NOTECARD,
+  SCRIPT: INVENTORY_SCRIPT,
+  BODYPART: INVENTORY_BODYPART,
+  ANIMATION: INVENTORY_ANIMATION,
+  GESTURE: INVENTORY_GESTURE,
   MESH: 22,
-  SETTING: 56,
-  MATERIAL: 57,
+  SETTING: INVENTORY_SETTING,
+  MATERIAL: INVENTORY_MATERIAL,
 } as const
 
 export type InventoryTypeValue = (typeof InventoryType)[keyof typeof InventoryType]
@@ -31,14 +46,12 @@ export interface PermMask {
   readonly next: number
 }
 
-const FULL_PERMS = 0x7fffffff
-
 const DEFAULT_PERMS: PermMask = {
-  base: FULL_PERMS,
-  owner: FULL_PERMS,
+  base: PERM_ALL,
+  owner: PERM_ALL,
   group: 0,
   everyone: 0,
-  next: FULL_PERMS,
+  next: PERM_ALL,
 }
 
 /**

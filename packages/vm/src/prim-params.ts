@@ -1,4 +1,5 @@
 import type { Vector, Rotation } from './values/types.js'
+import { PRIM_PHYSICS_SHAPE_PRIM } from './generated/constants.js'
 
 /**
  * Backing store for the PRIM_* family of llSetPrimitiveParams /
@@ -60,7 +61,7 @@ export function defaultPrimParams(): PrimParams {
     pointLight: { enabled: false, color: one(), intensity: 1, radius: 10, falloff: 0.75 },
     glow: [0, 0, 0, 0, 0, 0],
     omega: { axis: zero(), spinrate: 0, gain: 0 },
-    physicsShapeType: 0,
+    physicsShapeType: PRIM_PHYSICS_SHAPE_PRIM,
     flexible: { enabled: false, softness: 0, gravity: 0, friction: 0, wind: 0, tension: 0, force: zero() },
     sculpt: { textureKey: '', type: 0 },
     slice: { x: 0, y: 1, z: 0 },

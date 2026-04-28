@@ -3,6 +3,7 @@ import { Prim } from './prim.js'
 import type { Script } from './script.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
+import { NULL_KEY } from './values/types.js'
 import {
   LINK_ROOT,
   LINK_SET,
@@ -48,7 +49,7 @@ export class Linkset {
   readonly owner: string
 
   constructor(opts: LinksetOptions = {}) {
-    this.owner = opts.owner ?? '00000000-0000-0000-0000-000000000000'
+    this.owner = opts.owner ?? NULL_KEY
   }
 
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */

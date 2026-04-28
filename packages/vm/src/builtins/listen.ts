@@ -1,4 +1,5 @@
 import type { BuiltinImpl } from '../runtime.js'
+import { NULL_KEY } from '../values/types.js'
 
 /**
  * A registered listen filter. Tests inspect these via Script.listens
@@ -20,8 +21,6 @@ export interface ListenEntry {
   /** Toggled by llListenControl; off entries don't deliver. */
   active: boolean
 }
-
-const NULL_KEY = '00000000-0000-0000-0000-000000000000'
 
 function nextListenHandle(state: { listenHandleCounter: number }): number {
   state.listenHandleCounter += 1
