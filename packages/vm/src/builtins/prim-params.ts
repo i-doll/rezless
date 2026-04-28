@@ -91,21 +91,15 @@ function walkGet(linkset: Linkset, caller: Prim, startTarget: Prim[], rules: Rea
 export const llSetPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   walkSet(ctx.linkset, ctx.prim, [ctx.prim], rules)
-  // kwdb spec carries the 0.2s delay (matches real LSL).
-  const delay = ctx.spec?.delay ?? 0
-  if (delay > 0) ctx.state.clock.advance(delay * 1000)
   return undefined
 }
 
-/** llSetLinkPrimitiveParams(integer link, list rules) — kwdb spec carries the 0.2s delay. */
+/** llSetLinkPrimitiveParams(integer link, list rules) — spec delay applied by dispatcher. */
 export const llSetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const target = ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
   walkSet(ctx.linkset, ctx.prim, target, rules)
-  // Apply the spec delay so timing-sensitive tests see the 0.2s gap.
-  const delay = ctx.spec?.delay ?? 0
-  if (delay > 0) ctx.state.clock.advance(delay * 1000)
   return undefined
 }
 
