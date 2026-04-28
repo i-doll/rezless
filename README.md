@@ -185,6 +185,9 @@ linkset.advanceTime(1_000)              // shared clock; every script's timers a
 linkset.deliverChat({ channel: 0, name: 'Alice', key: 'k', message: 'hi' })
 linkset.linkedMessages                  // every llMessageLinked across the linkset
 linkset.clearLinkedMessages()
+linkset.clock.now                       // current virtual time in ms
+linkset.clock.pendingEvents()           // snapshot of queued one-shot events:
+                                        //   [{ at, target, event, payload }, ...]
 ```
 
 `scripts` is a flat name → `Script` lookup keyed by inventory name; duplicate

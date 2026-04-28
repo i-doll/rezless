@@ -339,6 +339,53 @@ describe('multi-script linkset', () => {
       scripts['p']!.start()
       expect(scripts['p']!.global('got')).toBe('line one')
     })
+
+    it.each([
+      ['llGetNotecardLine', 'llGetNotecardLine("memo", 0);'],
+      ['llGetNumberOfNotecardLines', 'llGetNumberOfNotecardLines("memo");'],
+    ])('%s schedules dataserver after the throttle delay (issue #32)', async (_name, call) => {
+      // Each builtin must schedule its dataserver event after the kwdb
+      // throttle delay, not at the pre-call clock — otherwise the queued
+      // event timestamp ends up earlier than the next instruction's clock,
+      // inverting LSL's wall-clock ordering.
+      const probe = `
+        default {
+          state_entry() {
+            ${call}
+            llOwnerSay("snapshot");
+          }
+        }
+      `
+      const { linkset, scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: [
+              {
+                name: 'memo',
+                type: 7,
+                key: '00000000-0000-0000-0000-000000000123',
+                creator: '00000000-0000-0000-0000-000000000000',
+                description: '',
+                acquireTimeMs: 0,
+                permMask: { base: 0, owner: 0, group: 0, everyone: 0, next: 0 },
+                notecardLines: ['only line'],
+              },
+            ],
+            scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }],
+          },
+        ],
+      })
+      let snapshotNow = -1
+      let dataserverAt = -1
+      scripts['p']!.mock('llOwnerSay', (ctx) => {
+        snapshotNow = ctx.state.clock.now
+        const ev = linkset.clock.pendingEvents().find((e) => e.event === 'dataserver')
+        dataserverAt = ev ? ev.at : -1
+        return undefined
+      })
+      scripts['p']!.start()
+      expect(dataserverAt).toBeGreaterThanOrEqual(snapshotNow)
+    })
   })
 
   describe('script control', () => {

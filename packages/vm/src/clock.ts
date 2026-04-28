@@ -87,6 +87,11 @@ export class LinksetClock {
     return ev
   }
 
+  /** Snapshot of the pending one-shot queue. Read-only; for inspection/tests. */
+  pendingEvents(): readonly QueuedEvent[] {
+    return this.queue.slice()
+  }
+
   /** Remove every queued event whose target is `script`. Used on reset. */
   purgeTarget(script: Script): void {
     for (let i = this.queue.length - 1; i >= 0; i--) {
