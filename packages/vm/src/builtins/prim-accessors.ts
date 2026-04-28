@@ -33,11 +33,6 @@ const vecOf = (v: LslValue | undefined): Vector =>
 const rotOf = (v: LslValue | undefined): Rotation =>
   v && typeof v === 'object' && !Array.isArray(v) && 's' in v ? (v as Rotation) : ZERO_ROTATION
 
-function applyDelay(spec: { delay: number } | undefined, advance: (ms: number) => void): void {
-  const d = spec?.delay ?? 0
-  if (d > 0) advance(d * 1000)
-}
-
 function targets(linkset: Linkset, sender: number, link: number): Prim[] {
   return linkset.resolveTargets(sender, link)
 }
@@ -48,7 +43,6 @@ function targets(linkset: Linkset, sender: number, link: number): Prim[] {
 
 export const llSetPos: BuiltinImpl = (ctx, args) => {
   ctx.prim.setPrimParam(PRIM_POSITION, [vecOf(args[0])], 0)
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 
@@ -61,12 +55,10 @@ export const llGetRootPosition: BuiltinImpl = (ctx) => {
 
 export const llSetRot: BuiltinImpl = (ctx, args) => {
   ctx.prim.setPrimParam(PRIM_ROTATION, [rotOf(args[0])], 0)
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 export const llSetLocalRot: BuiltinImpl = (ctx, args) => {
   ctx.prim.setPrimParam(PRIM_ROT_LOCAL, [rotOf(args[0])], 0)
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 export const llGetRot: BuiltinImpl = (ctx) => ctx.prim.params.rotation
@@ -152,7 +144,6 @@ export const llSetTexture: BuiltinImpl = (ctx, args) => {
   const face = num(args[1], ALL_SIDES) | 0
   const list = (face === ALL_SIDES ? [0, 1, 2, 3, 4, 5] : face >= 0 && face <= 5 ? [face] : [])
   for (const f of list) ctx.prim.params.faces[f]!.texture = tex
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 export const llGetTexture: BuiltinImpl = (ctx, args) => {
@@ -182,7 +173,6 @@ export const llScaleTexture: BuiltinImpl = (ctx, args) => {
   const face = num(args[2], ALL_SIDES) | 0
   const list = face === ALL_SIDES ? [0, 1, 2, 3, 4, 5] : face >= 0 && face <= 5 ? [face] : []
   for (const f of list) ctx.prim.params.faces[f]!.textureRepeats = { x: u, y: v, z: 0 }
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 export const llOffsetTexture: BuiltinImpl = (ctx, args) => {
@@ -191,7 +181,6 @@ export const llOffsetTexture: BuiltinImpl = (ctx, args) => {
   const face = num(args[2], ALL_SIDES) | 0
   const list = face === ALL_SIDES ? [0, 1, 2, 3, 4, 5] : face >= 0 && face <= 5 ? [face] : []
   for (const f of list) ctx.prim.params.faces[f]!.textureOffsets = { x: u, y: v, z: 0 }
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 export const llRotateTexture: BuiltinImpl = (ctx, args) => {
@@ -199,7 +188,6 @@ export const llRotateTexture: BuiltinImpl = (ctx, args) => {
   const face = num(args[1], ALL_SIDES) | 0
   const list = face === ALL_SIDES ? [0, 1, 2, 3, 4, 5] : face >= 0 && face <= 5 ? [face] : []
   for (const f of list) ctx.prim.params.faces[f]!.textureRotation = angle
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 
@@ -236,7 +224,6 @@ export const llSetLinkTexture: BuiltinImpl = (ctx, args) => {
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
     for (const f of list) p.params.faces[f]!.texture = tex
   }
-  applyDelay(ctx.spec, (ms) => ctx.state.clock.advance(ms))
   return undefined
 }
 

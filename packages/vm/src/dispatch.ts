@@ -39,6 +39,11 @@ export function callBuiltin(
   }
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
+  // Call log timestamps when the script invoked the function (pre-delay);
+  // advance the clock after the push so subsequent calls see the throttle.
+  if (spec && spec.delay > 0) {
+    dctx.state.clock.advance(spec.delay * 1000)
+  }
   return result
 }
 
