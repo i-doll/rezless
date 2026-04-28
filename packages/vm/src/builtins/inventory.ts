@@ -51,11 +51,18 @@ export const llGetInventoryDesc: BuiltinImpl = (ctx, args) => {
   return find(ctx.prim.inventory, name)?.description ?? ''
 }
 
-/** llGetInventoryAcquireTime(string name) — acquire time in virtual seconds. */
+/**
+ * llGetInventoryAcquireTime(string name) — acquire timestamp.
+ *
+ * LSL returns a string (ISO 8601 in production). With only virtual time,
+ * we serialise the acquire time as `seconds` (e.g. "0.000000") so it
+ * round-trips through `(integer)`/`(float)` casts the way scripts expect.
+ */
 export const llGetInventoryAcquireTime: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const item = find(ctx.prim.inventory, name)
-  return item ? item.acquireTimeMs / 1000 : 0
+  if (!item) return ''
+  return (item.acquireTimeMs / 1000).toFixed(6)
 }
 
 /** llGetInventoryPermMask(string name, integer mask) — selected mask, or 0. */

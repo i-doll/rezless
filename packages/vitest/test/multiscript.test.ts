@@ -339,6 +339,38 @@ describe('multi-script linkset', () => {
       expect(scripts['sibling']!.global('counter')).toBe(0)
     })
 
+    it('llResetOtherScript on a paused sibling clears its globals immediately', async () => {
+      const sibling = `
+        integer counter = 0;
+        default {
+          touch_start(integer n) { counter = counter + 1; }
+        }
+      `
+      const { scripts, linkset } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: sibling, filename: 's.lsl' }, name: 'sibling' },
+              { source: { source: 'default { state_entry() {} }', filename: 'd.lsl' }, name: 'driver' },
+            ],
+          },
+        ],
+      })
+      scripts['sibling']!.start()
+      scripts['driver']!.start()
+      scripts['sibling']!.fire('touch_start', { num_detected: 1 })
+      scripts['sibling']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['sibling']!.global('counter')).toBe(2)
+      // Pause the sibling.
+      scripts['sibling']!.running = false
+      // Schedule a reset; even though the target is paused, it must apply.
+      linkset.clock.schedule(scripts['sibling']!, linkset.clock.now, '__reset', {})
+      linkset.drainQueue()
+      expect(scripts['sibling']!.global('counter')).toBe(0)
+      // The script stays paused.
+      expect(scripts['sibling']!.running).toBe(false)
+    })
+
     it('llGetScriptState reflects running flag', async () => {
       const probe = `
         integer beforeStop = 0;

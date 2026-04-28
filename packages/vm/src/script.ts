@@ -434,7 +434,10 @@ export class Script {
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
     this.started = false
-    this.start()
+    // Per LSL: if the script is stopped, reset just clears state — no
+    // state_entry runs until it's restarted. If it's running, fire
+    // state_entry now via start().
+    if (this.running) this.start()
   }
 
   /**

@@ -177,11 +177,13 @@ export class Linkset {
       if (!next) return
       const target = next.target
       if (target.dead) continue
-      if (!target.running) {
-        // Re-queue for when the script is enabled, at the same `at`. We
-        // park it back on the queue and bail out of this loop iteration —
-        // but a paused script must not block other scripts' events, so we
-        // strip it out and stash on the script itself.
+      // `__reset` (from llResetOtherScript) must run regardless of the
+      // target's running flag — per LSL, a stopped script is still reset
+      // when commanded, it just stays stopped afterward.
+      if (!target.running && next.event !== '__reset') {
+        // Park for replay when the script is re-enabled. A paused script
+        // must not block other scripts' events, so we stash on the script
+        // itself rather than holding a slot in the linkset queue.
         target.parkedEvents.push({ at: next.at, event: next.event, payload: next.payload })
         continue
       }
