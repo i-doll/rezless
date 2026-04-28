@@ -13,8 +13,10 @@ export const llSetTimerEvent: BuiltinImpl = (ctx, args) => {
 }
 
 /**
- * Minimum llSleep advance: one server frame at the LSL-canonical 45 Hz tick
- * (~22.222 ms). Even `llSleep(0)` waits for the next frame in production.
+ * Minimum llSleep advance for positive durations: one server frame at the
+ * LSL-canonical 45 Hz tick (~22.222 ms). `llSleep(0)` and negative values
+ * are no-ops per the LSL wiki — they are early-returned before this floor
+ * is applied.
  */
 const FRAME_MS = 1000 / 45
 
