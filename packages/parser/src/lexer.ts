@@ -195,11 +195,19 @@ export function lex(
         s += source[i] // 0
         s += source[i + 1] // x
         advance(2)
+        const digitsStart = s.length
         while (i < source.length && /[0-9a-fA-F]/.test(source[i]!)) {
           s += source[i]
           advance()
         }
-        tokens.push({ kind: 'integer', text: s, loc: start, value: Number.parseInt(s, 16) })
+        // Bare `0x` with no hex digits is malformed. Emit a diagnostic and
+        // emit a zero-valued token so downstream code never sees NaN.
+        if (s.length === digitsStart) {
+          pushErr('malformed hex literal — expected at least one hex digit after 0x', start)
+          tokens.push({ kind: 'integer', text: s, loc: start, value: 0 })
+        } else {
+          tokens.push({ kind: 'integer', text: s, loc: start, value: Number.parseInt(s, 16) })
+        }
         continue
       }
       let isFloat = false

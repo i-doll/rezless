@@ -74,6 +74,14 @@ describe('lexer — number literals', () => {
     ])
   })
 
+  it('reports a diagnostic for bare 0x with no hex digits', () => {
+    const { tokens, diagnostics } = lex(`0x;`, 'inline.lsl')
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]!.message).toMatch(/malformed hex literal/)
+    // Token still emitted with value 0 so the parser can keep going.
+    expect(tokens[0]).toMatchObject({ kind: 'integer', text: '0x', value: 0 })
+  })
+
   it('parses scientific-notation floats', () => {
     const { tokens, diagnostics } = lex(`1e3 2.5E-2 1.0e+1`, 'inline.lsl')
     expect(diagnostics).toEqual([])
