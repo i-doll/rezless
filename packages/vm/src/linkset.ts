@@ -168,11 +168,17 @@ export class Linkset {
    * its target script via `script.deliver(event, payload)`. If a handler
    * triggers more events (timers, chained chats, …) they may become due
    * inside this loop and are picked up in the next iteration.
+   *
+   * The script roster is captured once per drain. Adding a script
+   * mid-drain is rare (and would require an explicit prim mutation by a
+   * builtin); when it happens, the new script's events are simply picked
+   * up on the next outer drain. Worth-the-trade for avoiding an O(scripts)
+   * allocation per event.
    */
   drainQueue(): void {
+    const scripts = this.allScripts()
+    if (scripts.length === 0) return
     while (true) {
-      const scripts = this.allScripts()
-      if (scripts.length === 0) return
       const next = this.clock.takeNextDue(scripts)
       if (!next) return
       const target = next.target
