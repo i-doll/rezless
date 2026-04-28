@@ -4,10 +4,17 @@ import { defaultValueFor } from './values/types.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { REAL_BUILTINS } from './builtins/index.js'
+import type { Script } from './script.js'
 
 /** Look up the kwdb-derived spec for a function name, if any. */
 export function specFor(name: string): BuiltinSpec | undefined {
   return (BUILTIN_SPECS as Record<string, BuiltinSpec>)[name]
+}
+
+export interface DispatchContext {
+  readonly state: ScriptState
+  readonly mocks: Readonly<Record<string, BuiltinImpl>>
+  readonly script: Script
 }
 
 /**
@@ -17,16 +24,21 @@ export function specFor(name: string): BuiltinSpec | undefined {
  * Every successful call (including stubs) is appended to ScriptState.calls.
  */
 export function callBuiltin(
-  state: ScriptState,
-  mocks: Readonly<Record<string, BuiltinImpl>>,
+  dctx: DispatchContext,
   name: string,
   args: ReadonlyArray<LslValue>,
 ): LslValue | undefined {
   const spec = specFor(name)
-  const impl = mocks[name] ?? REAL_BUILTINS[name] ?? makeStub(name)
-  const ctx: CallContext = { state, spec }
+  const impl = dctx.mocks[name] ?? REAL_BUILTINS[name] ?? makeStub(name)
+  const ctx: CallContext = {
+    state: dctx.state,
+    spec,
+    script: dctx.script,
+    prim: dctx.script.host,
+    linkset: dctx.script.linkset,
+  }
   const result = impl(ctx, args)
-  state.calls.push({ name, args, returned: result })
+  dctx.state.calls.push({ name, args, returned: result })
   return result
 }
 

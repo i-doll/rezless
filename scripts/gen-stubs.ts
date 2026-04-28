@@ -346,6 +346,16 @@ export type BuiltinName = keyof typeof BUILTIN_SPECS
   )
 }
 
+/**
+ * kwdb renames a few event params from their wiki-documented form to avoid
+ * clashing with reserved words ("key" → "keyname"). The wiki names are what
+ * users see in the LSL docs and in their own handler signatures, so we
+ * remap back here to keep our spec aligned with the wiki.
+ */
+const EVENT_PARAM_OVERRIDES: Record<string, Record<string, string>> = {
+  linkset_data: { keyname: 'name' },
+}
+
 function emitEvents(doc: RawDoc): string {
   const entries: Array<{ name: string; params: { name: string; type: string }[] }> = []
   const seen = new Set<string>()
@@ -354,10 +364,11 @@ function emitEvents(doc: RawDoc): string {
     const name = e['@_name']
     if (seen.has(name)) continue
     seen.add(name)
+    const overrides = EVENT_PARAM_OVERRIDES[name] ?? {}
     entries.push({
       name,
       params: asArray(e.param).map((p) => ({
-        name: p['@_name'],
+        name: overrides[p['@_name']] ?? p['@_name'],
         type: normType(p['@_type']),
       })),
     })

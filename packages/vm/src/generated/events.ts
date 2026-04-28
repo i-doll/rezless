@@ -35,7 +35,7 @@ export const EVENT_SPECS = {
   "land_collision_end": { name: "land_collision_end", params: [{ name: "pos", type: "vector" }] },
   "land_collision_start": { name: "land_collision_start", params: [{ name: "pos", type: "vector" }] },
   "link_message": { name: "link_message", params: [{ name: "sender_num", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }] },
-  "linkset_data": { name: "linkset_data", params: [{ name: "action", type: "integer" }, { name: "keyname", type: "string" }, { name: "value", type: "string" }] },
+  "linkset_data": { name: "linkset_data", params: [{ name: "action", type: "integer" }, { name: "name", type: "string" }, { name: "value", type: "string" }] },
   "listen": { name: "listen", params: [{ name: "channel", type: "integer" }, { name: "name", type: "string" }, { name: "id", type: "key" }, { name: "message", type: "string" }] },
   "money": { name: "money", params: [{ name: "id", type: "key" }, { name: "amount", type: "integer" }] },
   "moving_end": { name: "moving_end", params: [] },
@@ -148,7 +148,7 @@ export interface EventPayloads {
   }
   linkset_data: {
     readonly action: number
-    readonly keyname: string
+    readonly name: string
     readonly value: string
   }
   listen: {

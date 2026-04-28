@@ -2,75 +2,55 @@
  * Virtual clock + event queue.
  *
  * The clock is the only source of "time" in the VM. Tests advance it
- * explicitly (`vm.advanceTime`); LSL scripts advance it by calling `llSleep`
- * or `llSetTimerEvent`. Real wall-clock time is never read.
+ * explicitly (`vm.advanceTime` / `linkset.advanceTime`); LSL scripts advance
+ * it by calling `llSleep` or `llSetTimerEvent`. Real wall-clock time is
+ * never read.
  *
- * The queue holds three kinds of pending work, all keyed on a virtual ms
- * timestamp:
- *   * one-shot events scheduled by builtins (e.g. dataserver responses)
- *   * the next firing of a recurring `llSetTimerEvent`
- *   * delivered events that arrived while a handler was sleeping
- *
- * The queue is intentionally a flat array; we sort lazily on read. With
- * realistic LSL scripts the queue is tiny (single-digit entries), so the
- * cost is negligible compared to the simplicity of not maintaining a heap.
+ * The queue is **linkset-wide**: every script in the linkset shares one
+ * `now` and one event queue. Each queued event carries a `target: Script`
+ * — the script whose handler will run when the event fires. Per-script
+ * state (timer interval, llGetTime reference) lives on `ScriptClockView`,
+ * a thin facade exposed to builtins as `ctx.state.clock`.
  */
+import type { Script } from './script.js'
 
 export interface QueuedEvent {
   /** Virtual ms timestamp at which this event becomes ready to fire. */
   readonly at: number
+  /** Script whose handler is invoked when the event fires. */
+  readonly target: Script
   readonly event: string
   readonly payload: Record<string, unknown>
 }
 
-export class VirtualClock {
-  /** Virtual milliseconds since script construction. Strictly monotonic. */
+/** Linkset-wide clock. One instance per Linkset. */
+export class LinksetClock {
+  /** Virtual milliseconds since linkset construction. Strictly monotonic. */
   now = 0
-  /**
-   * Reference time for `llGetTime` / `llResetTime` (in ms). Defaults to 0
-   * (script construction); `llResetTime` updates it to `now`.
-   */
-  timeReferenceMs = 0
-  /**
-   * Recurring timer interval in ms; 0 means no timer is registered.
-   */
-  timerIntervalMs = 0
-  /**
-   * Virtual time at which the timer event fires next. Only meaningful when
-   * `timerIntervalMs > 0`.
-   */
-  timerNextFireMs = 0
 
   private readonly queue: QueuedEvent[] = []
 
-  /** Schedule a one-shot event to fire at `at`. */
-  schedule(at: number, event: string, payload: Record<string, unknown> = {}): void {
-    this.queue.push({ at, event, payload })
+  /** Schedule a one-shot event on `target`'s handler at virtual time `at`. */
+  schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}): void {
+    this.queue.push({ at, target, event, payload })
   }
 
-  /** Cancel the recurring timer. */
-  cancelTimer(): void {
-    this.timerIntervalMs = 0
-    this.timerNextFireMs = 0
-  }
-
-  /** (Re)arm the recurring timer. `intervalMs <= 0` cancels. */
-  setTimer(intervalMs: number): void {
-    if (intervalMs <= 0) {
-      this.cancelTimer()
-      return
-    }
-    this.timerIntervalMs = intervalMs
-    this.timerNextFireMs = this.now + intervalMs
+  /** Move the clock forward unconditionally; does not drain queues. */
+  advance(ms: number): void {
+    if (ms < 0) throw new Error('cannot advance time backwards')
+    this.now += ms
   }
 
   /**
-   * Pop and return the next event whose `at <= now`, or `null` if none are
-   * ready. Recurring timer entries are produced lazily — when the timer is
-   * the next ready event, this returns a synthetic `'timer'` event and
-   * advances `timerNextFireMs` to the following interval.
+   * Pop and return the next due event (`at <= now`) considering all queued
+   * one-shots and every script's recurring timer. Returns `null` when no
+   * event is ready.
+   *
+   * Recurring timers fire once per script per interval; their next fire
+   * timestamp is advanced by `at + interval` (not `now + interval`) so that
+   * long advances catch up on every missed fire.
    */
-  takeNextDue(): QueuedEvent | null {
+  takeNextDue(scripts: ReadonlyArray<Script>): QueuedEvent | null {
     let bestIdx = -1
     let bestAt = Infinity
     for (let i = 0; i < this.queue.length; i++) {
@@ -80,38 +60,96 @@ export class VirtualClock {
         bestIdx = i
       }
     }
-    const timerDue =
-      this.timerIntervalMs > 0 && this.timerNextFireMs <= this.now
-        ? this.timerNextFireMs
-        : Infinity
+    let bestTimerScript: Script | null = null
+    let bestTimerAt = Infinity
+    for (const s of scripts) {
+      // Per LSL: dead and stopped scripts don't generate timer events. Skip
+      // their timer state so we don't waste catch-up iterations or accumulate
+      // back-logged events that flood the script on resume.
+      if (s.dead || !s.running) continue
+      const v = s.clockView
+      if (v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now && v.timerNextFireMs < bestTimerAt) {
+        bestTimerAt = v.timerNextFireMs
+        bestTimerScript = s
+      }
+    }
 
-    if (bestIdx === -1 && !Number.isFinite(timerDue)) return null
+    if (bestIdx === -1 && bestTimerScript === null) return null
 
-    if (timerDue <= bestAt) {
-      // Synthesise a timer event; schedule the next one at `at + interval`,
-      // not `now + interval`, so that long advances catch up on every
-      // missed fire instead of collapsing them into one.
-      const at = this.timerNextFireMs
-      this.timerNextFireMs = at + this.timerIntervalMs
-      return { at, event: 'timer', payload: {} }
+    if (bestTimerScript && bestTimerAt <= bestAt) {
+      const at = bestTimerAt
+      const v = bestTimerScript.clockView
+      v.timerNextFireMs = at + v.timerIntervalMs
+      return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
     const ev = this.queue[bestIdx]!
     this.queue.splice(bestIdx, 1)
     return ev
   }
 
-  /** Move the clock forward unconditionally; does not drain queues. */
-  advance(ms: number): void {
-    if (ms < 0) throw new Error('cannot advance time backwards')
-    this.now += ms
+  /** Remove every queued event whose target is `script`. Used on reset. */
+  purgeTarget(script: Script): void {
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      if (this.queue[i]!.target === script) this.queue.splice(i, 1)
+    }
+  }
+}
+
+/**
+ * Per-script clock facade. Builtins read `ctx.state.clock` and call
+ * `.schedule()` / `.setTimer()` / `.elapsedSeconds()` against this view; it
+ * forwards shared state to the linkset and keeps per-script state local.
+ */
+export class ScriptClockView {
+  /** Reference time for `llGetTime`/`llResetTime` (virtual ms). */
+  timeReferenceMs = 0
+  /** Recurring timer interval in ms; 0 = no timer. */
+  timerIntervalMs = 0
+  /** Virtual time at which the next timer event fires. */
+  timerNextFireMs = 0
+
+  constructor(
+    private readonly linksetClock: LinksetClock,
+    private readonly self: () => Script,
+  ) {}
+
+  get now(): number {
+    return this.linksetClock.now
   }
 
-  /** Elapsed time (in seconds) since `timeReferenceMs`, per `llGetTime`. */
+  /** Schedule a one-shot event on this script. */
+  schedule(at: number, event: string, payload: Record<string, unknown> = {}): void {
+    this.linksetClock.schedule(this.self(), at, event, payload)
+  }
+
+  /** Schedule a one-shot event on a specific script. */
+  scheduleOn(target: Script, at: number, event: string, payload: Record<string, unknown> = {}): void {
+    this.linksetClock.schedule(target, at, event, payload)
+  }
+
+  cancelTimer(): void {
+    this.timerIntervalMs = 0
+    this.timerNextFireMs = 0
+  }
+
+  setTimer(intervalMs: number): void {
+    if (intervalMs <= 0) {
+      this.cancelTimer()
+      return
+    }
+    this.timerIntervalMs = intervalMs
+    this.timerNextFireMs = this.now + intervalMs
+  }
+
+  /** Advances the linkset clock — used by `llSleep`. */
+  advance(ms: number): void {
+    this.linksetClock.advance(ms)
+  }
+
   elapsedSeconds(): number {
     return (this.now - this.timeReferenceMs) / 1000
   }
 
-  /** Snapshot the current `now` as the reference point (per `llResetTime`). */
   resetReference(): void {
     this.timeReferenceMs = this.now
   }

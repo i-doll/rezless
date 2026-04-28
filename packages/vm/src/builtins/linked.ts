@@ -1,9 +1,10 @@
 import type { BuiltinImpl } from '../runtime.js'
+import { LINK_THIS } from '../linkset.js'
 
 /**
- * Captured llMessageLinked invocation. In our single-script-per-prim model
- * the link target only really controls self-delivery; we still record every
- * call so tests can assert on the full set.
+ * Captured llMessageLinked invocation. The per-script state.linkedMessages
+ * holds invocations originating from one script; the linkset.linkedMessages
+ * cross-script capture mirrors all invocations across the linkset.
  */
 export interface LinkedMessageEntry {
   readonly target: number
@@ -12,19 +13,14 @@ export interface LinkedMessageEntry {
   readonly id: string
 }
 
-/** LSL link target sentinels (subset). */
-const LINK_SET = -1
-const LINK_ALL_OTHERS = -2
-const LINK_ALL_CHILDREN = -3
-const LINK_THIS = -4
-
 /**
  * llMessageLinked(integer link, integer num, string str, key id)
  *
- * Captures every call into ScriptState.linkedMessages. In our single-prim
- * model the message also delivers to ourselves unless the target is
- * LINK_ALL_OTHERS or LINK_ALL_CHILDREN (since there are no others to
- * receive). All other targets — LINK_THIS, LINK_SET, link 1 — self-deliver.
+ * Resolves `link` (LINK_THIS / LINK_SET / LINK_ALL_OTHERS / LINK_ALL_CHILDREN /
+ * LINK_ROOT / specific link number) relative to the calling prim's link
+ * number, then schedules a `link_message` event on every targeted script
+ * with `sender_num` = caller's link number. Records the call on both the
+ * per-script and linkset-wide capture arrays.
  */
 export const llMessageLinked: BuiltinImpl = (ctx, args) => {
   const target = (args[0] as number | undefined) ?? LINK_THIS
@@ -32,14 +28,6 @@ export const llMessageLinked: BuiltinImpl = (ctx, args) => {
   const str = (args[2] as string | undefined) ?? ''
   const id = (args[3] as string | undefined) ?? ''
   ctx.state.linkedMessages.push({ target, num, str, id })
-  if (target === LINK_ALL_OTHERS || target === LINK_ALL_CHILDREN) {
-    return undefined
-  }
-  ctx.state.clock.schedule(ctx.state.clock.now, 'link_message', {
-    sender_num: 0,
-    num,
-    str,
-    id,
-  })
+  ctx.linkset.deliverLinkMessage(ctx.prim.linkNumber, target, num, str, id)
   return undefined
 }
