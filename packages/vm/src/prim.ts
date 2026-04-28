@@ -1,7 +1,8 @@
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
 import { InventoryType } from './inventory.js'
-import { defaultPrimParams, type PrimParams } from './prim-params.js'
+import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
+import type { LslValue } from './values/types.js'
 import { NULL_KEY } from './values/types.js'
 import { PERM_ALL } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
@@ -26,6 +27,13 @@ export class Prim {
   readonly scripts: Script[] = []
   readonly inventory: InventoryItem[] = []
   readonly params: PrimParams = defaultPrimParams()
+  /**
+   * llSetStatus / PRIM_PHYSICS / PRIM_PHANTOM bitfield. Stored on the prim
+   * (not in `params`) so `STATUS_*` flags without a PRIM_* counterpart
+   * (BLOCK_GRAB, DIE_AT_EDGE, ROTATE_*, etc.) live alongside the
+   * PRIM_PHYSICS / PRIM_PHANTOM bits in one place.
+   */
+  statusFlags = 0
   appearance: {
     text: { text: string; color: { x: number; y: number; z: number }; alpha: number } | null
     description: string
@@ -81,18 +89,34 @@ export class Prim {
   }
 
   /**
-   * Read a single PRIM_* parameter. Stub seam for llGetPrimitiveParams /
-   * llGetLinkPrimitiveParams; only a few values are wired today.
+   * Read one PRIM_* rule starting at `cursor` in `rules`. Returns the flat
+   * value list and the number of slots consumed past the rule constant
+   * (face index, etc.), or `null` for unknown / unsupported constants.
    */
-  getPrimParam(_param: number): unknown {
-    return undefined
+  getPrimParam(
+    param: number,
+    rules: ReadonlyArray<LslValue>,
+    cursor: number,
+  ): { values: LslValue[]; consumed: number } | null {
+    return readPrimParam(this, param, rules, cursor)
   }
 
   /**
-   * Write a single PRIM_* parameter. Stub seam for llSetPrimitiveParams /
-   * llSetLinkPrimitiveParams; no-op for parameters that aren't wired yet.
+   * Apply one PRIM_* rule starting at `cursor` in `rules`. Returns the
+   * number of slots consumed past the rule constant, or `null` for
+   * unknown / unsupported constants (caller stops walking).
    */
-  setPrimParam(_param: number, _value: unknown): void {
-    /* intentionally empty — see prim-params.ts for the data shape */
+  setPrimParam(
+    param: number,
+    rules: ReadonlyArray<LslValue>,
+    cursor: number,
+  ): number | null {
+    return writePrimParam(this, param, rules, cursor)
+  }
+
+  /** llSetStatus seam. STATUS_* is a bit value; sets or clears it. */
+  setStatus(flag: number, value: boolean): void {
+    if (value) this.statusFlags |= flag
+    else this.statusFlags &= ~flag
   }
 }
