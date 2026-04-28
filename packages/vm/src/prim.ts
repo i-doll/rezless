@@ -61,12 +61,14 @@ export class Prim {
     })
   }
 
-  /** Add a non-script inventory item (notecard, texture, etc.). */
+  /**
+   * Add a non-script inventory item (notecard, texture, etc.). The caller
+   * is responsible for setting `acquireTimeMs`; if you want it to default
+   * to the current linkset clock, build the item with `makeInventoryItem`
+   * and pass `acquireTimeMs: this.linkset?.clock.now ?? 0`.
+   */
   addInventory(item: InventoryItem): void {
-    this.inventory.push({
-      ...item,
-      acquireTimeMs: item.acquireTimeMs ?? this.linkset?.clock.now ?? 0,
-    })
+    this.inventory.push({ ...item })
   }
 
   /** Find a script by inventory name. */

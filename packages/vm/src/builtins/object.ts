@@ -32,6 +32,9 @@ export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.state.appearance.descri
  */
 export const llDie: BuiltinImpl = (ctx) => {
   ctx.state.lifecycle.dead = true
+  // Stop the timer so drainQueue doesn't iterate catch-up timer fires for a
+  // script that's never going to handle them.
+  ctx.state.clock.cancelTimer()
   return undefined
 }
 

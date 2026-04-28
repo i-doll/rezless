@@ -80,14 +80,22 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
       const { script: ast, diagnostics } = parse(source, filename)
       const errors = diagnostics.filter((d) => d.severity === 'error')
       if (errors.length > 0) throw new LslParseError(errors)
-      const opts: ScriptOptions = { ...sInput, filename, host: prim }
+      // Build options without the loadLinkset-only fields. The inventory
+      // `name` is also surfaced as `scriptName` so llGetScriptName /
+      // llSetScriptState / llResetOtherScript all agree on the script's
+      // identity.
+      const { source: _src, name: invName, ...rest } = sInput
+      const opts: ScriptOptions = { ...rest, filename, host: prim }
+      const inventoryName = invName ?? rest.scriptName
+      if (inventoryName !== undefined) {
+        ;(opts as { -readonly [K in keyof ScriptOptions]: ScriptOptions[K] }).scriptName =
+          inventoryName
+      }
       const s = new Script(ast, opts)
-      const inventoryName = sInput.name ?? s.scriptName
-      // addScript was already called in Script's constructor; rename the
-      // inventory entry if a custom name was requested.
+      const finalName = inventoryName ?? s.scriptName
       const item = prim.inventory.find((it) => it.script === s)
-      if (item) item.name = inventoryName
-      scripts[inventoryName] = s
+      if (item) item.name = finalName
+      scripts[finalName] = s
     }
   }
   return { linkset, prims, scripts }

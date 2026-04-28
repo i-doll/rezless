@@ -192,6 +192,24 @@ describe('multi-script linkset', () => {
   })
 
   describe('inventory introspection', () => {
+    it('loadLinkset propagates inventory name as scriptName so llGetScriptName matches', async () => {
+      const probe = `
+        string mine = "";
+        default { state_entry() { mine = llGetScriptName(); } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: probe, filename: 'inline.lsl' }, name: 'CustomName' },
+            ],
+          },
+        ],
+      })
+      scripts['CustomName']!.start()
+      expect(scripts['CustomName']!.global('mine')).toBe('CustomName')
+    })
+
     it('llGetInventoryNumber(INVENTORY_SCRIPT) matches scripts in prim', async () => {
       const probe = `
         integer count = 0;
@@ -242,6 +260,47 @@ describe('multi-script linkset', () => {
       scripts['p']!.start()
       expect(scripts['p']!.global('ts')).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
       expect(scripts['p']!.global('ts')).toBe('2024-04-09T13:15:08Z')
+    })
+
+    it('llGetNotecardLine returns EOF past the end and NAK for missing notecard', async () => {
+      const probe = `
+        string past = "";
+        string missing = "";
+        key kPast;
+        key kMissing;
+        default {
+          state_entry() {
+            kPast = llGetNotecardLine("memo", 99);
+            kMissing = llGetNotecardLine("nope", 0);
+          }
+          dataserver(key id, string data) {
+            if (id == kPast) past = data;
+            if (id == kMissing) missing = data;
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: [
+              {
+                name: 'memo',
+                type: 7,
+                key: '00000000-0000-0000-0000-000000000123',
+                creator: '00000000-0000-0000-0000-000000000000',
+                description: '',
+                acquireTimeMs: 0,
+                permMask: { base: 0, owner: 0, group: 0, everyone: 0, next: 0 },
+                notecardLines: ['only line'],
+              },
+            ],
+            scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }],
+          },
+        ],
+      })
+      scripts['p']!.start()
+      expect(scripts['p']!.global('past')).toBe('\n\n\n') // EOF
+      expect(scripts['p']!.global('missing')).toBe('\n\n') // NAK
     })
 
     it('llGetNotecardLine reads notecard inventory via dataserver', async () => {

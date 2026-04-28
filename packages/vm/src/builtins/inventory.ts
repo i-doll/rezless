@@ -2,7 +2,7 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
-import { INVENTORY_ALL, INVENTORY_NONE } from '../generated/constants.js'
+import { INVENTORY_ALL, INVENTORY_NONE, EOF, NAK } from '../generated/constants.js'
 
 function itemsOfType(items: ReadonlyArray<InventoryItem>, type: number): InventoryItem[] {
   if (type === INVENTORY_ALL) return [...items]
@@ -102,15 +102,15 @@ export const llGetNotecardLine: BuiltinImpl = (ctx, args) => {
     args: [name, line],
     fulfilled: false,
   })
+  // Per LSL spec: out-of-range line on an existing notecard yields EOF;
+  // a missing notecard yields NAK.
+  let text = NAK
   if (item && item.type === InventoryType.NOTECARD && item.notecardLines) {
-    const text =
-      line >= 0 && line < item.notecardLines.length
-        ? item.notecardLines[line]!
-        : 'NAK'
-    ctx.state.clock.schedule(ctx.state.clock.now, 'dataserver', { queryid: key, data: text })
-    const req = ctx.state.dataserverRequests[ctx.state.dataserverRequests.length - 1]!
-    req.fulfilled = true
+    text = line >= 0 && line < item.notecardLines.length ? item.notecardLines[line]! : EOF
   }
+  ctx.state.clock.schedule(ctx.state.clock.now, 'dataserver', { queryid: key, data: text })
+  const req = ctx.state.dataserverRequests[ctx.state.dataserverRequests.length - 1]!
+  req.fulfilled = true
   return key
 }
 
@@ -129,13 +129,13 @@ export const llGetNumberOfNotecardLines: BuiltinImpl = (ctx, args) => {
     args: [name],
     fulfilled: false,
   })
-  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) {
-    ctx.state.clock.schedule(ctx.state.clock.now, 'dataserver', {
-      queryid: key,
-      data: String(item.notecardLines.length),
-    })
-    const req = ctx.state.dataserverRequests[ctx.state.dataserverRequests.length - 1]!
-    req.fulfilled = true
-  }
+  // Missing notecard yields NAK; a present notecard yields its line count.
+  const data =
+    item && item.type === InventoryType.NOTECARD && item.notecardLines
+      ? String(item.notecardLines.length)
+      : NAK
+  ctx.state.clock.schedule(ctx.state.clock.now, 'dataserver', { queryid: key, data })
+  const req = ctx.state.dataserverRequests[ctx.state.dataserverRequests.length - 1]!
+  req.fulfilled = true
   return key
 }
