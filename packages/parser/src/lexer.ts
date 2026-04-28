@@ -230,11 +230,10 @@ export function lex(
           advance()
         }
       }
-      // Optional trailing `f` (LSL accepts `3.14f`)
-      if (source[i] === 'f' || source[i] === 'F') {
-        isFloat = true
-        advance()
-      }
+      // No `f`/`F` suffix support — the Linden Lab LSL compiler doesn't
+      // accept it. A trailing `f` after a number is left for the next pass
+      // to lex as an identifier (or a diagnostic if it's invalid in
+      // context), matching official LSL behaviour.
       tokens.push({
         kind: isFloat ? 'float' : 'integer',
         text: s,

@@ -84,13 +84,17 @@ describe('lexer — number literals', () => {
     ])
   })
 
-  it('parses floats with the trailing f suffix', () => {
+  it('does not accept the C-style f/F suffix on numeric literals', () => {
+    // The official LSL compiler rejects `3.14f`. We match that: the number
+    // ends at `3.14`, and the trailing `f` lexes as a separate identifier
+    // (which the parser will then reject as invalid syntax in context).
     const { tokens } = lex(`3.14f 7F`, 'inline.lsl')
-    // The lexer captures the parsed numeric value but does NOT include the
-    // `f`/`F` suffix in `text` — pin that down so the divergence between
-    // raw source and `text` doesn't drift unnoticed.
-    expect(tokens[0]).toMatchObject({ kind: 'float', text: '3.14', value: 3.14 })
-    expect(tokens[1]).toMatchObject({ kind: 'float', text: '7', value: 7 })
+    expect(tokens.slice(0, 4)).toMatchObject([
+      { kind: 'float', text: '3.14', value: 3.14 },
+      { kind: 'identifier', text: 'f' },
+      { kind: 'integer', text: '7', value: 7 },
+      { kind: 'identifier', text: 'F' },
+    ])
   })
 
   it('parses leading-dot floats (.5)', () => {
