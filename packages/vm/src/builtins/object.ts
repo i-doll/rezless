@@ -1,5 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { Vector } from '../values/types.js'
+import { PRIM_TEXT } from '../generated/constants.js'
 
 /**
  * Builtins that read or mutate the prim's appearance / lifecycle. We
@@ -12,6 +13,9 @@ export const llSetText: BuiltinImpl = (ctx, args) => {
   const text = (args[0] as string | undefined) ?? ''
   const color = (args[1] as Vector | undefined) ?? { x: 1, y: 1, z: 1 }
   const alpha = (args[2] as number | undefined) ?? 1
+  // Route through the PRIM_TEXT seam so llGetPrimitiveParams sees the same value.
+  ctx.prim.setPrimParam(PRIM_TEXT, [text, color, alpha], 0)
+  // Mirror onto ScriptState.appearance for legacy `s.text` reads.
   ctx.state.appearance.text = { text, color, alpha }
   return undefined
 }
