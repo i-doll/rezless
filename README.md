@@ -125,6 +125,7 @@ s.reset()                                       // re-init globals + return to d
 s.currentState                                  // current LSL state name
 s.now                                           // virtual time in ms
 s.timerInterval                                 // configured llSetTimerEvent interval (sec, 0 = unset)
+s.running                                       // false while paused via llSetScriptState
 s.global(name)                                  // read a script global
 s.setGlobal(name, value)                        // seed a script global
 s.chat                                          // [{ channel, text, type, to? }, ...]
@@ -133,13 +134,66 @@ s.callsOf(name)                                 // filter call log by ll* name
 s.httpRequests                                  // [{ key, url, method, body, headers, mimetype, ... }]
 s.dataserverRequests                            // [{ key, source, args, fulfilled }]
 s.listens                                       // [{ handle, channel, name, key, message, active }]
-s.linkedMessages                                // [{ target, num, str, id }]
-s.linksetData                                   // ReadonlyMap<string, { value, password }> (LSD store)
+s.linkedMessages                                // [{ target, num, str, id }] sent by THIS script
+s.clearLinkedMessages()                         // drop captured llMessageLinked entries
+s.linksetData                                   // ReadonlyMap<string, { value, password }> (shared LSD store)
 s.seedLinksetData(entries)                      // pre-populate LSD without firing events
 s.text                                          // current llSetText: { text, color, alpha } or null
 s.objectDesc                                    // current llSetObjectDesc value
 s.dead                                          // true once llDie has run
+
+// Multi-script context (auto-allocated for single-script tests)
+s.host                                          // the Prim instance hosting this script
+s.linkset                                       // the Linkset (shared clock, LSD, link_message bus)
+s.scriptName                                    // inventory name; backs llGetScriptName
 ```
+
+### `loadLinkset(input)` → `Promise<LoadedLinkset>`
+
+For tests that exercise more than one script — sibling scripts in the same
+prim, or scripts spread across a multi-prim linkset — use `loadLinkset`.
+Every script shares one virtual clock, one Linkset Data store, and one
+`link_message` bus, so `llMessageLinked`, `linkset_data`, `llGetTime`,
+`llResetOtherScript`, and `llSetScriptState` all behave as they do in-world.
+
+```ts
+import { loadLinkset } from '@lslvm/vitest'
+
+const { linkset, prims, scripts } = await loadLinkset({
+  prims: [
+    {
+      name: 'Root',
+      scripts: [
+        { source: './counter.lsl', name: 'counter' },
+        { source: { source: peekerSource, filename: 'peeker.lsl' }, name: 'peeker' },
+      ],
+      inventory: [
+        // notecards, textures, … addressable via llGetInventory* / llGetNotecardLine
+      ],
+    },
+    { name: 'Display', scripts: [{ source: './display.lsl', name: 'display' }] },
+  ],
+})
+
+scripts['counter'].start()
+scripts['display'].start()
+scripts['counter'].fire('touch_start', { num_detected: 1 })
+expect(scripts['display'].text?.text).toBe('count: 1')
+
+// Linkset-wide helpers
+linkset.advanceTime(1_000)              // shared clock; every script's timers advance together
+linkset.deliverChat({ channel: 0, name: 'Alice', key: 'k', message: 'hi' })
+linkset.linkedMessages                  // every llMessageLinked across the linkset
+linkset.clearLinkedMessages()
+```
+
+`scripts` is a flat name → `Script` lookup keyed by inventory name; duplicate
+names across prims throw to prevent silent overwrites. Each `Script` is the
+same handle described above, so all matchers, mocks, and inspectors keep
+working — they're just scoped to one script in a larger system.
+
+`loadScript` continues to work for single-script tests; under the hood it
+auto-allocates a 1-prim/1-script linkset, so existing tests are unaffected.
 
 ### Custom matchers
 
@@ -153,16 +207,19 @@ expect(s).toHaveListened(7, { key: ownerKey })
 
 ### Implemented `ll*` functions
 
-The current real-impl set covers the most common use cases (~100 of
-LSL's ~520 SL functions). Anything outside this set falls through to
-a typed stub. Use `s.mock(name, fn)` to provide your own behaviour
-for any function the script under test calls.
+The real-impl set covers the most common use cases. Anything outside it
+falls through to a typed stub that returns the kwdb-documented default
+and records the call. Use `s.mock(name, fn)` to provide your own
+behaviour for any function the script under test calls. Builtin
+function delays (e.g. the 0.2s delay on `llSetLinkPrimitiveParams`) are
+honored centrally in the dispatcher.
 
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
 * **time**: `llSetTimerEvent`, `llSleep`, `llGetTime`, `llGetAndResetTime`, `llResetTime`
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`
-* **linked**: `llMessageLinked`
+* **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
+* **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
 * **dataserver**: `llRequestAgentData`, `llRequestInventoryData`, `llRequestSimulatorData`, `llRequestUsername`, `llRequestDisplayName`
 * **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`
 * **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`
@@ -171,12 +228,21 @@ for any function the script under test calls.
 * **identity**: `llGetOwner`, `llGetCreator`, `llGetKey`, `llGetObjectName`, `llSetObjectName`, `llGetScriptName`
 * **hash**: `llMD5String`, `llSHA1String`, `llSHA256String`, `llHMAC`
 * **base64**: `llStringToBase64`/`Base64ToString`, `llIntegerToBase64`/`Base64ToInteger`
-* **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llDie`, `llResetScript`
-* **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
+* **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llDie` (kills every script in the linkset), `llResetScript`
+* **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings)
+* **script control**: `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
+* **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
+* **primitive params**: `llSetPrimitiveParams`, `llSetLinkPrimitiveParams`, `llSetLinkPrimitiveParamsFast`, `llGetPrimitiveParams`, `llGetLinkPrimitiveParams` — full `PRIM_*` rule surface (position / rotation / size / colour / alpha / texture / glow / fullbright / material / physics / flexible / point light / projector / sculpt / GLTF PBR / sit target / click action / text / name / desc / omega / damage / temp-on-rez / cast shadows / …). Honors `PRIM_LINK_TARGET` mid-rule redirects, `ALL_SIDES` expansion, multi-prim get concatenation, unknown-rule termination on get, and the 0.2 s delay on the slow link variant.
+* **prim accessors** (alternative single-rule shortcuts that read/write the same backing store): `llSetPos`/`llGetPos`/`llGetLocalPos`/`llGetRootPosition`, `llSetRot`/`llSetLocalRot`/`llGetRot`/`llGetLocalRot`/`llGetRootRotation`, `llSetScale`/`llGetScale`/`llScaleByFactor`/`llGetMaxScaleFactor`/`llGetMinScaleFactor`, `llSetColor`/`llGetColor`/`llSetAlpha`/`llGetAlpha`, `llSetTexture`/`llGetTexture`/`llGetTextureOffset`/`llGetTextureScale`/`llGetTextureRot`/`llScaleTexture`/`llOffsetTexture`/`llRotateTexture`, `llSetLinkColor`/`llSetLinkAlpha`/`llSetLinkTexture`, `llSetTextureAnim`/`llSetLinkTextureAnim`/`llSetLinkTextureAnimOverrideMe`, `llSetRenderMaterial`/`llGetRenderMaterial`, `llSetStatus`/`llGetStatus`/`llSetLinkStatus`, `llSetClickAction`, `llTargetOmega`, `llSetPhysicsMaterial`/`llGetPhysicsMaterial`, `llPassCollisions`/`llPassTouches`, `llSitTarget`/`llLinkSitTarget`/`llAvatarOnSitTarget`/`llAvatarOnLinkSitTarget`/`llSetLinkSitFlags`/`llGetLinkSitFlags`.
+
+The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
+`INVENTORY_*`, `MASK_*`, `LINKSETDATA_*`, …) is re-exported from
+`@lslvm/vitest`, so tests can compare numeric returns against named
+constants instead of magic numbers.
 
 ## Examples
 
-`examples/` ships seven working scripts with tests:
+`examples/` ships eight working scripts with tests:
 
 * **hello** — minimal `state_entry { llSay(...) }` + matchers.
 * **greeter** — touch + name greeting + state transition + reminder timer.
@@ -190,6 +256,11 @@ for any function the script under test calls.
 * **scoreboard** — Linkset Data: per-name counters, regex key lookup
   via `llLinksetDataFindKeys`, `linkset_data` event handling, and
   state that survives `llResetScript`.
+* **multi-script** — two scripts in different prims of the same linkset:
+  a counter in the root prim drives a display in a child prim via
+  `llMessageLinked`, and a third script writing the same LSD key
+  refreshes the display via the broadcast `linkset_data` event.
+  Wired up with `loadLinkset({ prims: [...] })`.
 
 ## License
 
