@@ -118,7 +118,10 @@ export const llGetNotecardLine: BuiltinImpl = (ctx, args) => {
   if (item && item.type === InventoryType.NOTECARD && item.notecardLines) {
     text = line >= 0 && line < item.notecardLines.length ? item.notecardLines[line]! : EOF
   }
-  ctx.state.clock.schedule(ctx.state.clock.now, 'dataserver', { queryid: key, data: text })
+  // Schedule after the dispatcher's post-call throttle advance so the event
+  // fires after the call returns (matches real LSL).
+  const delayMs = (ctx.spec?.delay ?? 0) * 1000
+  ctx.state.clock.schedule(ctx.state.clock.now + delayMs, 'dataserver', { queryid: key, data: text })
   const req = ctx.state.dataserverRequests[ctx.state.dataserverRequests.length - 1]!
   req.fulfilled = true
   return key
@@ -144,7 +147,8 @@ export const llGetNumberOfNotecardLines: BuiltinImpl = (ctx, args) => {
     item && item.type === InventoryType.NOTECARD && item.notecardLines
       ? String(item.notecardLines.length)
       : NAK
-  ctx.state.clock.schedule(ctx.state.clock.now, 'dataserver', { queryid: key, data })
+  const delayMs = (ctx.spec?.delay ?? 0) * 1000
+  ctx.state.clock.schedule(ctx.state.clock.now + delayMs, 'dataserver', { queryid: key, data })
   const req = ctx.state.dataserverRequests[ctx.state.dataserverRequests.length - 1]!
   req.fulfilled = true
   return key
