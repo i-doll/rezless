@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset } from '../src/index.js'
-import { EOF, NAK } from '@lslvm/vm'
+import { EOF, NAK, InventoryType, makeInventoryItem } from '@lslvm/vm'
 
 describe('multi-script linkset', () => {
   describe('LSD broadcast', () => {
@@ -317,21 +317,20 @@ describe('multi-script linkset', () => {
           }
         }
       `
+      // Built via the public makeInventoryItem helper; exercises the
+      // default-fill paths so users don't have to spell out every field.
+      // Pass `key` through to keep the refactor value-preserving with the
+      // earlier inline-object form of this test.
+      const memo = makeInventoryItem({
+        name: 'memo',
+        type: InventoryType.NOTECARD,
+        key: '00000000-0000-0000-0000-000000000123',
+        notecardLines: ['line zero', 'line one', 'line two'],
+      })
       const { scripts } = await loadLinkset({
         prims: [
           {
-            inventory: [
-              {
-                name: 'memo',
-                type: 7,
-                key: '00000000-0000-0000-0000-000000000123',
-                creator: '00000000-0000-0000-0000-000000000000',
-                description: '',
-                acquireTimeMs: 0,
-                permMask: { base: 0, owner: 0, group: 0, everyone: 0, next: 0 },
-                notecardLines: ['line zero', 'line one', 'line two'],
-              },
-            ],
+            inventory: [memo],
             scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }],
           },
         ],

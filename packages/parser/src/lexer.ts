@@ -195,11 +195,19 @@ export function lex(
         s += source[i] // 0
         s += source[i + 1] // x
         advance(2)
+        const digitsStart = s.length
         while (i < source.length && /[0-9a-fA-F]/.test(source[i]!)) {
           s += source[i]
           advance()
         }
-        tokens.push({ kind: 'integer', text: s, loc: start, value: Number.parseInt(s, 16) })
+        // Bare `0x` with no hex digits is malformed. Emit a diagnostic and
+        // emit a zero-valued token so downstream code never sees NaN.
+        if (s.length === digitsStart) {
+          pushErr('malformed hex literal — expected at least one hex digit after 0x', start)
+          tokens.push({ kind: 'integer', text: s, loc: start, value: 0 })
+        } else {
+          tokens.push({ kind: 'integer', text: s, loc: start, value: Number.parseInt(s, 16) })
+        }
         continue
       }
       let isFloat = false
@@ -216,25 +224,31 @@ export function lex(
           advance()
         }
       }
-      // Exponent
+      // Exponent. Peek ahead before committing — only treat `e` as an
+      // exponent marker if at least one digit (with optional sign in
+      // between) actually follows. `1e;` → integer 1 + identifier `e`,
+      // not a malformed float with text/value disagreement.
       if (source[i] === 'e' || source[i] === 'E') {
-        isFloat = true
-        s += source[i]
-        advance()
-        if (source[i] === '+' || source[i] === '-') {
+        let j = i + 1
+        if (source[j] === '+' || source[j] === '-') j++
+        if (j < source.length && isDigit(source[j]!)) {
+          isFloat = true
           s += source[i]
           advance()
-        }
-        while (i < source.length && isDigit(source[i]!)) {
-          s += source[i]
-          advance()
+          if (source[i] === '+' || source[i] === '-') {
+            s += source[i]
+            advance()
+          }
+          while (i < source.length && isDigit(source[i]!)) {
+            s += source[i]
+            advance()
+          }
         }
       }
-      // Optional trailing `f` (LSL accepts `3.14f`)
-      if (source[i] === 'f' || source[i] === 'F') {
-        isFloat = true
-        advance()
-      }
+      // No `f`/`F` suffix support — the Linden Lab LSL compiler doesn't
+      // accept it. A trailing `f` after a number is left for the next pass
+      // to lex as an identifier (or a diagnostic if it's invalid in
+      // context), matching official LSL behaviour.
       tokens.push({
         kind: isFloat ? 'float' : 'integer',
         text: s,
