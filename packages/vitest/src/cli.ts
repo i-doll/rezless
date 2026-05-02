@@ -25,11 +25,23 @@ function parseArgs(argv: ReadonlyArray<string>): Options {
     silent: false,
     includeFixtures: false,
   }
+  const requireValue = (flag: string, i: number): string => {
+    const v = argv[i + 1]
+    if (v === undefined) {
+      process.stderr.write(`lslvm-coverage: ${flag} requires a value\n${USAGE}`)
+      process.exit(2)
+    }
+    return v
+  }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!
-    if (a === '--output' || a === '-o') opts.outputDir = argv[++i]!
-    else if (a === '--dump-dir') opts.dumpDir = argv[++i]!
-    else if (a === '--keep-dumps') opts.keepDumps = true
+    if (a === '--output' || a === '-o') {
+      opts.outputDir = requireValue(a, i)
+      i++
+    } else if (a === '--dump-dir') {
+      opts.dumpDir = requireValue(a, i)
+      i++
+    } else if (a === '--keep-dumps') opts.keepDumps = true
     else if (a === '--silent') opts.silent = true
     else if (a === '--include-fixtures' || a === '--include-inline') opts.includeFixtures = true
     else if (a === '-h' || a === '--help') {

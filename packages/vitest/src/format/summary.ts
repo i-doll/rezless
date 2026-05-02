@@ -70,13 +70,17 @@ export function renderSummary(reports: ReadonlyArray<CoverageReport>): CoverageS
     stT += s.states.total
     stC += s.states.covered
   }
+  // `total` is spread after `out` so a per-file entry whose filename
+  // happens to be "total" (e.g. an inline fixture loaded with that name)
+  // can't shadow the aggregate. Mirrors istanbul-lib-coverage's own
+  // ordering — last-writer-wins puts the aggregate on top.
   return {
+    ...out,
     total: {
       statements: metric(stmtC, stmtT),
       branches: metric(brC, brT),
       functions: metric(fnC, fnT),
       states: metric(stC, stT),
     },
-    ...out,
   }
 }

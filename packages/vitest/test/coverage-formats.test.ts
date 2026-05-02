@@ -5,6 +5,7 @@ import { renderLcov } from '../src/format/lcov.js'
 import { renderIstanbul } from '../src/format/istanbul.js'
 import { renderConsoleSummary } from '../src/format/console.js'
 import { renderHtml } from '../src/format/html.js'
+import { renderSummary } from '../src/format/summary.js'
 
 function load(source: string, filename = '/tmp/x.lsl'): Script {
   const { script: ast } = parse(source, filename)
@@ -161,6 +162,22 @@ describe('HTML writer', () => {
     // Original `(string)doubled(2)` should be escaped, not raw.
     expect(detail).toContain('(string)doubled(2)')
     expect(detail).not.toContain('<script>')
+  })
+
+  it('a per-file entry named "total" cannot shadow the aggregate', () => {
+    // The summary uses 'total' as a magic key for the aggregate row. If a
+    // user ever loads a fixture with filename 'total' and includeFixtures
+    // is on, the aggregate must still survive (last-writer-wins puts
+    // total after the spread).
+    const a = load('default { state_entry() { llSay(0, "a"); } }', 'total')
+    a.start()
+    const b = load('default { state_entry() {} }', '/real.lsl')
+    b.start()
+    const summary = renderSummary([a.coverage!, b.coverage!])
+    // Aggregate covers BOTH scripts: a has 2 statements (block + ExprStmt)
+    // both hit, b has 1 (block) hit. So total.statements.covered === 3.
+    expect(summary.total.statements.covered).toBe(3)
+    expect(summary.total.statements.total).toBe(3)
   })
 
   it('disambiguates filenames that slug to the same string', () => {

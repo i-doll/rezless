@@ -11,6 +11,15 @@
  *
  * The reporter wires this file in via `vitest.config.setupFiles` when it
  * activates; users don't have to import it themselves.
+ *
+ * Caveat — `test: { isolate: false }`: with isolation off, Vitest reuses
+ * the same module graph across test files in a worker, so this setup
+ * file is evaluated once and the `afterAll` registers exactly once — for
+ * the first file's root suite only. Later files' coverage then has to
+ * fall back to the `process.on('exit')` handler in
+ * `coverage-registry.ts`, which under the thread pool fires after
+ * `onTestRunEnd` and may be missing from the rendered report. If full
+ * LSL coverage matters with `isolate: false`, prefer `pool: 'forks'`.
  */
 
 import { afterAll } from 'vitest'
