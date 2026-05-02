@@ -12,8 +12,16 @@ export function renderHtml(reports: ReadonlyArray<CoverageReport>): Map<string, 
   const out = new Map<string, string>()
   const summary: SummaryRow[] = []
 
+  // Two filenames can produce the same slug after `slugFor` collapses path
+  // separators (e.g. `/a/b/x.lsl` and `/a_b/x.lsl` both become `a_b_x.lsl`).
+  // Append a `-<n>` suffix on collision so each file gets its own page and
+  // each index link resolves correctly.
+  const slugCounts = new Map<string, number>()
   for (const r of reports) {
-    const slug = slugFor(r.filename)
+    const base = slugFor(r.filename)
+    const n = slugCounts.get(base) ?? 0
+    slugCounts.set(base, n + 1)
+    const slug = n === 0 ? base : `${base}-${n}`
     const detail = renderFile(r)
     out.set(`${slug}.html`, detail)
     summary.push({ filename: r.filename, slug, ...summarize(r) })
@@ -149,12 +157,12 @@ function renderIndex(rows: ReadonlyArray<SummaryRow>): string {
 
 function renderFile(r: CoverageReport): string {
   const lines = r.source.split('\n')
-  // Build per-line max hit-count from statements.
+  // Build per-line max hit-count from statements. A line with only
+  // hits=0 statements still gets recorded as 0, which renders as a miss.
   const lineHits = new Map<number, number>()
   for (const s of r.statements) {
-    const prev = lineHits.get(s.line) ?? -1
-    if (s.hits > prev) lineHits.set(s.line, s.hits)
-    else if (prev === -1) lineHits.set(s.line, s.hits)
+    const prev = lineHits.get(s.line) ?? 0
+    lineHits.set(s.line, Math.max(prev, s.hits))
   }
   // Per-line branch state: 'partial' if any branch on the line is missed.
   const lineBranchPartial = new Set<number>()

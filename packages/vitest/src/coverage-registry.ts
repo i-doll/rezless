@@ -7,9 +7,23 @@ import type { Script, CoverageReport } from '@lslvm/vm'
  * test run. The Vitest reporter walks it at end-of-run to assemble the
  * aggregate report.
  *
- * Vitest workers run in a separate process/thread from the reporter, so we
- * dump snapshots to a temp directory at process exit; the main-process
- * reporter then merges every dump file at end-of-run.
+ * Workers run in a separate context from the reporter, so we have two
+ * independent paths that drain snapshots to disk:
+ *
+ *   1. **Primary**: `coverage-setup.ts` registers a Vitest `afterAll` hook
+ *      in every worker. Fires after each test file completes — works
+ *      reliably under both `pool: 'threads'` (where this is the only
+ *      pre-`onTestRunEnd` opportunity to flush, since worker threads
+ *      share `process` with main and `process.on('exit')` only fires when
+ *      main exits) and `pool: 'forks'` (where the worker process exits
+ *      between files, but afterAll still runs first).
+ *
+ *   2. **Fallback**: `process.on('exit')` below. Catches any reports that
+ *      slip past afterAll — e.g. if the setup file failed to load or the
+ *      reporter wasn't installed at all (LSL_COVERAGE=1 + CLI render flow).
+ *
+ * `drainSnapshots()` clears the registry, so whichever path runs first
+ * wins; the other becomes a no-op.
  */
 
 const liveScripts = new Set<Script>()

@@ -162,4 +162,28 @@ describe('HTML writer', () => {
     expect(detail).toContain('(string)doubled(2)')
     expect(detail).not.toContain('<script>')
   })
+
+  it('disambiguates filenames that slug to the same string', () => {
+    const a = load('default { state_entry() { llSay(0, "a"); } }', '/a/b/x.lsl')
+    a.start()
+    const b = load('default { state_entry() { llSay(0, "b"); } }', '/a_b/x.lsl')
+    b.start()
+    // Both filenames produce base slug `a_b_x.lsl` — without the
+    // disambiguator, the second detail page would silently overwrite the
+    // first. The fix appends `-1` to the second.
+    const out = renderHtml([a.coverage!, b.coverage!])
+    const detailKeys = [...out.keys()].filter(
+      (k) => k.endsWith('.html') && k !== 'index.html',
+    )
+    expect(detailKeys.length).toBe(2)
+    expect(new Set(detailKeys).size).toBe(2)
+    // Both files have content distinct to their source.
+    const [first, second] = detailKeys.map((k) => out.get(k)!)
+    expect(first).not.toBe(second)
+    // Index links both filenames, each to a different page.
+    const index = out.get('index.html')!
+    expect(index).toContain('/a/b/x.lsl')
+    expect(index).toContain('/a_b/x.lsl')
+    for (const k of detailKeys) expect(index).toContain(`href="${k}"`)
+  })
 })
