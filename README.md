@@ -248,49 +248,52 @@ constants instead of magic numbers.
 `@lslvm/vitest` ships an LSL coverage collector that tracks four kinds of
 coverage per script: **statement**, **branch** (if / while / for / do-while
 arms), **function** (user functions and event handlers), and **state**
-("did we ever enter `state idle`?"). Off by default — three switches turn
-it on:
+("did we ever enter `state idle`?"). Off by default; opt in once in your
+`vitest.config.ts`:
 
 ```ts
-// 1. Per-test, programmatic — useful for in-test assertions.
-const s = await loadScript({ source, filename, coverage: true })
-s.start()
-const r = s.coverage  // CoverageReport | null
-expect(r!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
-```
-
-```ts
-// 2. Vitest reporter — collects across the whole run, emits LCOV +
-//    Istanbul JSON + a console table at end-of-run.
-//
-// vitest.config.ts
 import { defineConfig } from 'vitest/config'
 import { LslCoverageReporter } from '@lslvm/vitest/reporter'
 
 export default defineConfig({
   test: {
     reporters: ['default', new LslCoverageReporter()],
+    coverage: {
+      // your @vitest/coverage-v8 config (provider, include, exclude, ...)
+    },
   },
 })
 ```
 
+The reporter is dormant during plain `vitest run`. When you invoke
+`vitest run --coverage`, both pipelines fire:
+
+- JS coverage from `@vitest/coverage-v8` lands at `coverage/`.
+- LSL coverage lands at `coverage/lsl/`:
+  - `lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
+  - `coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
+  - `html/index.html` — browseable per-file source view with line annotations
+  - per-file pass/total table on stdout
+
+Two alternative activation paths:
+
+```ts
+// Per-test, programmatic — useful for in-test assertions.
+const s = await loadScript({ source, filename, coverage: true })
+s.start()
+expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
+```
+
 ```sh
-# 3. Environment variable + CLI render — handy for one-off CLI runs
-#    without touching vitest.config.ts. The env var enables collection
-#    and writes per-worker JSON dumps; the CLI merges them into artifacts.
+# Without the reporter installed — env var collects, CLI renders.
 LSL_COVERAGE=1 pnpm test
 pnpm exec lslvm-coverage
 ```
 
-In all three cases you'll get:
-
-- `coverage/lsl/lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
-- `coverage/lsl/coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
-- A per-file pass/total table on stdout
-
-By default, reports for inline-source scripts (filename `<inline>`) are
-omitted — they're usually throwaway test fixtures. Pass `--include-inline`
-to the CLI, or `{ includeInline: true }` to the reporter, to keep them.
+By default, reports for synthetic filenames (`<inline>`, names without a
+path separator, paths that don't exist on disk) are omitted — they're
+almost always throwaway test fixtures. Pass `--include-fixtures` to the
+CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 
 `examples/coverage/` has a runnable demo.
 

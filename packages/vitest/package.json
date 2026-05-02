@@ -13,6 +13,10 @@
     "./reporter": {
       "types": "./dist/reporter.d.ts",
       "import": "./dist/reporter.js"
+    },
+    "./coverage-setup": {
+      "types": "./dist/coverage-setup.d.ts",
+      "import": "./dist/coverage-setup.js"
     }
   },
   "bin": {

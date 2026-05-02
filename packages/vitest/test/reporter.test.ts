@@ -10,18 +10,21 @@ function tmpdir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
 }
 
-function freshReport(filename = '/tmp/x.lsl') {
-  const source = `
-    integer doubled(integer x) { return x * 2; }
-    default {
-      state_entry() {
-        if (1) llSay(0, "yes"); else llSay(0, "no");
-        llSay(0, (string)doubled(2));
-      }
+const SAMPLE = `
+  integer doubled(integer x) { return x * 2; }
+  default {
+    state_entry() {
+      if (1) llSay(0, "yes"); else llSay(0, "no");
+      llSay(0, (string)doubled(2));
     }
-  `
-  const { script: ast } = parse(source, filename)
-  const s = new Script(ast, { filename, source, coverage: true })
+  }
+`
+
+let sampleFile: string
+
+function freshReport(filename = sampleFile) {
+  const { script: ast } = parse(SAMPLE, filename)
+  const s = new Script(ast, { filename, source: SAMPLE, coverage: true })
   s.start()
   return s.coverage!
 }
@@ -29,6 +32,9 @@ function freshReport(filename = '/tmp/x.lsl') {
 describe('LslCoverageReporter', () => {
   const dumpDir = tmpdir('lslcov-dump-')
   const outputDir = tmpdir('lslcov-out-')
+  const sampleDir = tmpdir('lslcov-sample-')
+  sampleFile = path.join(sampleDir, 'x.lsl')
+  fs.writeFileSync(sampleFile, SAMPLE)
   const previousDumpEnv = process.env['LSL_COVERAGE_DIR']
 
   beforeEach(() => {
@@ -44,58 +50,98 @@ describe('LslCoverageReporter', () => {
   })
 
   it('reads worker dumps, writes lcov + istanbul, prints summary', () => {
+    const reporter = new LslCoverageReporter({ mode: 'always', outputDir, disableConsole: true })
+    reporter.onInit()
     fs.writeFileSync(path.join(dumpDir, 'pid-1.json'), JSON.stringify([freshReport()]))
-
-    const reporter = new LslCoverageReporter({ outputDir, disableConsole: true })
     reporter.onTestRunEnd()
 
     const lcov = fs.readFileSync(path.join(outputDir, 'lcov.info'), 'utf8')
-    expect(lcov).toMatch(/SF:\/tmp\/x\.lsl/)
+    expect(lcov).toContain(`SF:${sampleFile}`)
     expect(lcov).toMatch(/FNDA:1,doubled/)
     expect(lcov).toMatch(/end_of_record/)
 
     const istanbul = JSON.parse(
       fs.readFileSync(path.join(outputDir, 'coverage-final.json'), 'utf8'),
     )
-    expect(istanbul['/tmp/x.lsl']).toBeDefined()
-    expect(istanbul['/tmp/x.lsl'].path).toBe('/tmp/x.lsl')
+    expect(istanbul[sampleFile]).toBeDefined()
+    expect(istanbul[sampleFile].path).toBe(sampleFile)
   })
 
   it('merges multiple worker dumps for the same file', () => {
+    const reporter = new LslCoverageReporter({ mode: 'always', outputDir, disableConsole: true })
+    reporter.onInit()
     fs.writeFileSync(path.join(dumpDir, 'a.json'), JSON.stringify([freshReport()]))
     fs.writeFileSync(path.join(dumpDir, 'b.json'), JSON.stringify([freshReport()]))
-
-    const reporter = new LslCoverageReporter({ outputDir, disableConsole: true })
     reporter.onTestRunEnd()
 
     const lcov = fs.readFileSync(path.join(outputDir, 'lcov.info'), 'utf8')
-    // Both runs hit doubled() once → merged FNDA should be 2.
     expect(lcov).toMatch(/FNDA:2,doubled/)
   })
 
   it('reports "no coverage" when the dump dir is empty', () => {
     const reporter = new LslCoverageReporter({
+      mode: 'always',
       outputDir,
       disableConsole: true,
       disableLcov: true,
       disableIstanbul: true,
     })
+    reporter.onInit()
     expect(() => reporter.onTestRunEnd()).not.toThrow()
     expect(fs.existsSync(path.join(outputDir, 'lcov.info'))).toBe(false)
   })
 
-  it('clears stale dumps on init', () => {
+  it('clears stale dumps on init when active', () => {
     fs.writeFileSync(path.join(dumpDir, 'old.json'), '[]')
-    const reporter = new LslCoverageReporter({ outputDir })
+    const reporter = new LslCoverageReporter({ mode: 'always', outputDir })
     reporter.onInit()
     expect(fs.readdirSync(dumpDir).length).toBe(0)
   })
 
-  it('sets process.env.LSL_COVERAGE on construction', () => {
+  it('sets LSL_COVERAGE on init only when activated', () => {
     const before = process.env['LSL_COVERAGE']
     delete process.env['LSL_COVERAGE']
-    new LslCoverageReporter({ outputDir })
+
+    // mode: 'never' stays dormant.
+    const dormant = new LslCoverageReporter({ mode: 'never', outputDir })
+    dormant.onInit()
+    expect(process.env['LSL_COVERAGE']).toBeUndefined()
+
+    // mode: 'always' flips it on.
+    const active = new LslCoverageReporter({ mode: 'always', outputDir })
+    active.onInit()
     expect(process.env['LSL_COVERAGE']).toBe('1')
+
+    if (before === undefined) delete process.env['LSL_COVERAGE']
+    else process.env['LSL_COVERAGE'] = before
+  })
+
+  it('auto mode activates from vitest.config.coverage.enabled', () => {
+    const before = process.env['LSL_COVERAGE']
+    delete process.env['LSL_COVERAGE']
+
+    const off = new LslCoverageReporter({ outputDir })
+    off.onInit({ config: { coverage: { enabled: false } } })
+    expect(process.env['LSL_COVERAGE']).toBeUndefined()
+
+    const on = new LslCoverageReporter({ outputDir })
+    on.onInit({ config: { coverage: { enabled: true } } })
+    expect(process.env['LSL_COVERAGE']).toBe('1')
+
+    if (before === undefined) delete process.env['LSL_COVERAGE']
+    else process.env['LSL_COVERAGE'] = before
+  })
+
+  it('auto mode also activates from LSL_COVERAGE=1 when vitest coverage is off', () => {
+    const before = process.env['LSL_COVERAGE']
+    process.env['LSL_COVERAGE'] = '1'
+
+    const r = new LslCoverageReporter({ outputDir, disableConsole: true })
+    r.onInit({ config: { coverage: { enabled: false } } })
+    fs.writeFileSync(path.join(dumpDir, 'd.json'), JSON.stringify([freshReport()]))
+    r.onTestRunEnd()
+    expect(fs.existsSync(path.join(outputDir, 'lcov.info'))).toBe(true)
+
     if (before === undefined) delete process.env['LSL_COVERAGE']
     else process.env['LSL_COVERAGE'] = before
   })

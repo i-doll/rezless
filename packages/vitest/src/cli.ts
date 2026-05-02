@@ -5,6 +5,7 @@ import type { CoverageReport } from '@lslvm/vm'
 import { renderLcov } from './format/lcov.js'
 import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
+import { renderHtml } from './format/html.js'
 import { aggregateReports } from './coverage-aggregate.js'
 
 interface Options {
@@ -12,7 +13,7 @@ interface Options {
   dumpDir: string
   keepDumps: boolean
   silent: boolean
-  includeInline: boolean
+  includeFixtures: boolean
 }
 
 function parseArgs(argv: ReadonlyArray<string>): Options {
@@ -21,7 +22,7 @@ function parseArgs(argv: ReadonlyArray<string>): Options {
     dumpDir: process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.lslvm-coverage'),
     keepDumps: false,
     silent: false,
-    includeInline: false,
+    includeFixtures: false,
   }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!
@@ -29,7 +30,7 @@ function parseArgs(argv: ReadonlyArray<string>): Options {
     else if (a === '--dump-dir') opts.dumpDir = argv[++i]!
     else if (a === '--keep-dumps') opts.keepDumps = true
     else if (a === '--silent') opts.silent = true
-    else if (a === '--include-inline') opts.includeInline = true
+    else if (a === '--include-fixtures' || a === '--include-inline') opts.includeFixtures = true
     else if (a === '-h' || a === '--help') {
       process.stdout.write(USAGE)
       process.exit(0)
@@ -51,9 +52,10 @@ Options:
       --dump-dir <dir>    Where to look for *.json dumps
                           (default: $LSL_COVERAGE_DIR or .lslvm-coverage)
       --keep-dumps        Don't delete dumps after rendering
-      --include-inline    Include reports for inline-source scripts
-                          (filename "<inline>"); off by default since these
-                          are usually throwaway test fixtures
+      --include-fixtures  Include reports for synthetic filenames
+                          ("<inline>", names without a path, or paths that
+                          don't exist on disk). Off by default — fixtures
+                          are usually throwaway test scripts.
       --silent            Suppress the console summary
   -h, --help              Show this help
 
@@ -90,12 +92,12 @@ function main(): void {
     process.exit(1)
   }
 
-  const merged = aggregateReports(dumps, { includeInline: opts.includeInline })
+  const merged = aggregateReports(dumps, { includeFixtures: opts.includeFixtures })
   if (merged.length === 0) {
-    const hint = opts.includeInline
+    const hint = opts.includeFixtures
       ? '\n'
-      : '\n  All collected reports were inline-source fixtures.\n' +
-        '  Re-run with --include-inline to keep them.\n'
+      : '\n  All collected reports look like test fixtures (no real on-disk path).\n' +
+        '  Re-run with --include-fixtures to keep them.\n'
     process.stderr.write(`lslvm-coverage: no coverable scripts after filtering.${hint}`)
     process.exit(1)
   }
@@ -103,12 +105,17 @@ function main(): void {
   fs.mkdirSync(opts.outputDir, { recursive: true })
   const lcovPath = path.join(opts.outputDir, 'lcov.info')
   const istanbulPath = path.join(opts.outputDir, 'coverage-final.json')
+  const htmlDir = path.join(opts.outputDir, 'html')
   fs.writeFileSync(lcovPath, renderLcov(merged))
   fs.writeFileSync(istanbulPath, JSON.stringify(renderIstanbul(merged), null, 2))
+  fs.mkdirSync(htmlDir, { recursive: true })
+  for (const [name, content] of renderHtml(merged)) {
+    fs.writeFileSync(path.join(htmlDir, name), content)
+  }
 
   if (!opts.silent) {
     process.stdout.write('\n' + renderConsoleSummary(merged))
-    process.stdout.write(`\nWrote ${lcovPath}\nWrote ${istanbulPath}\n`)
+    process.stdout.write(`\nWrote ${lcovPath}\nWrote ${istanbulPath}\nWrote ${path.join(htmlDir, 'index.html')}\n`)
   }
 
   if (!opts.keepDumps) {

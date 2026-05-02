@@ -4,6 +4,7 @@ import { Script } from '@lslvm/vm'
 import { renderLcov } from '../src/format/lcov.js'
 import { renderIstanbul } from '../src/format/istanbul.js'
 import { renderConsoleSummary } from '../src/format/console.js'
+import { renderHtml } from '../src/format/html.js'
 
 function load(source: string, filename = '/tmp/x.lsl'): Script {
   const { script: ast } = parse(source, filename)
@@ -107,5 +108,47 @@ describe('Console summary writer', () => {
 
   it('handles the empty case', () => {
     expect(renderConsoleSummary([])).toContain('No LSL coverage')
+  })
+})
+
+describe('HTML writer', () => {
+  it('emits index.html, style.css, and one page per file', () => {
+    const r = fixtureReport()
+    const out = renderHtml([r])
+    expect(out.has('index.html')).toBe(true)
+    expect(out.has('style.css')).toBe(true)
+    // Slug derives from the filename — `/tmp/x.lsl` becomes underscores.
+    const fileEntry = [...out.keys()].find((k) => k.endsWith('.lsl.html'))
+    expect(fileEntry).toBeDefined()
+    expect(out.size).toBe(3)
+  })
+
+  it('marks hit lines with class="hit" and miss lines with class="miss"', () => {
+    const r = fixtureReport()
+    const out = renderHtml([r])
+    const detail = [...out.entries()].find(([k]) => k.endsWith('.lsl.html'))![1]
+    expect(detail).toMatch(/<tr class="hit">/)
+    // Fixture has `else llSay(0, "no")` which never runs (test=1 always true)
+    // — so at least one row should be a miss.
+    expect(detail).toMatch(/<tr class="miss">/)
+  })
+
+  it('index links to per-file detail pages', () => {
+    const r = fixtureReport()
+    const out = renderHtml([r])
+    const index = out.get('index.html')!
+    const detailKey = [...out.keys()].find((k) => k.endsWith('.lsl.html'))!
+    expect(index).toContain(`href="${detailKey}"`)
+    expect(index).toContain('/tmp/x.lsl')
+    expect(index).toContain('All files')
+  })
+
+  it('escapes HTML in source content', () => {
+    const r = fixtureReport()
+    const out = renderHtml([r])
+    const detail = [...out.entries()].find(([k]) => k.endsWith('.lsl.html'))![1]
+    // Original `(string)doubled(2)` should be escaped, not raw.
+    expect(detail).toContain('(string)doubled(2)')
+    expect(detail).not.toContain('<script>')
   })
 })

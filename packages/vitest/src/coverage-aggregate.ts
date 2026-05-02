@@ -1,16 +1,34 @@
+import * as fs from 'node:fs'
 import { mergeReports, type CoverageReport } from '@lslvm/vm'
 
 export interface AggregateOptions {
-  /** Include reports whose filename is "<inline>" (test-fixture scripts).
-   *  Defaults to false — real `.lsl` files are usually what you want. */
-  readonly includeInline?: boolean
+  /**
+   * Include coverage reports for synthetic filenames — `<inline>`, names
+   * that don't contain a path separator, or paths that don't exist on
+   * disk. Off by default since these are almost always throwaway test
+   * fixtures, not the LSL scripts the user actually wants reports for.
+   */
+  readonly includeFixtures?: boolean
+}
+
+/** A filename refers to an actual `.lsl` file we can render meaningfully. */
+function isRealFile(filename: string): boolean {
+  if (filename === '<inline>') return false
+  // No path separator → almost certainly an inline test fixture with a
+  // hand-rolled filename like 'a.lsl'.
+  if (!filename.includes('/') && !filename.includes('\\')) return false
+  try {
+    return fs.statSync(filename).isFile()
+  } catch {
+    return false
+  }
 }
 
 /**
  * Group a flat list of coverage reports by (filename, source) so identical
  * scripts loaded across multiple tests get their hits summed, while
- * distinct scripts that happen to share a filename (typically `<inline>`)
- * stay as separate entries.
+ * distinct scripts that happen to share a filename stay as separate
+ * entries.
  *
  * When two groups end up sharing a filename — for example, two inline
  * fixtures both reporting as `<inline>` — the second through Nth get a
@@ -20,8 +38,8 @@ export function aggregateReports(
   dumps: ReadonlyArray<CoverageReport>,
   opts: AggregateOptions = {},
 ): CoverageReport[] {
-  const includeInline = opts.includeInline ?? false
-  const filtered = includeInline ? dumps : dumps.filter((r) => r.filename !== '<inline>')
+  const includeFixtures = opts.includeFixtures ?? false
+  const filtered = includeFixtures ? dumps : dumps.filter((r) => isRealFile(r.filename))
 
   const byKey = new Map<string, CoverageReport[]>()
   for (const r of filtered) {

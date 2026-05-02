@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import * as os from 'node:os'
 import { parse } from '@lslvm/parser'
 import { Script } from '@lslvm/vm'
 import { aggregateReports } from '../src/coverage-aggregate.js'
@@ -10,39 +13,62 @@ function reportFor(source: string, filename: string) {
   return s.coverage!
 }
 
+/** Materialize a real .lsl file on disk so the existence check passes. */
+function materialize(name: string, body: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lslcov-agg-'))
+  const full = path.join(dir, name)
+  fs.writeFileSync(full, body)
+  return full
+}
+
 describe('aggregateReports', () => {
-  it('merges identical sources sharing a filename', () => {
+  it('merges identical sources at the same on-disk filename', () => {
     const src = 'default { state_entry() { llSay(0, "hi"); } }'
-    const a = reportFor(src, '/x.lsl')
-    const b = reportFor(src, '/x.lsl')
+    const file = materialize('x.lsl', src)
+    const a = reportFor(src, file)
+    const b = reportFor(src, file)
     const out = aggregateReports([a, b])
     expect(out).toHaveLength(1)
     expect(out[0]!.functions.find((f) => f.name === 'state_entry')!.hits).toBe(2)
   })
 
-  it('keeps distinct sources separate even when filename matches', () => {
-    const a = reportFor('default { state_entry() { llSay(0, "a"); } }', '<inline>')
-    const b = reportFor('default { state_entry() { llSay(0, "b"); } }', '<inline>')
-    // Includes inline so both survive; otherwise default filter skips them.
-    const out = aggregateReports([a, b], { includeInline: true })
+  it('keeps distinct sources at the same path as separate entries', () => {
+    const fileA = materialize('x.lsl', 'default { state_entry() { llSay(0, "a"); } }')
+    const fileB = materialize('x.lsl', 'default { state_entry() { llSay(0, "b"); } }')
+    const a = reportFor('default { state_entry() { llSay(0, "a"); } }', fileA)
+    const b = reportFor('default { state_entry() { llSay(0, "b"); } }', fileB)
+    const out = aggregateReports([a, b])
     expect(out).toHaveLength(2)
-    // First keeps the original filename; second gets a #1 suffix.
-    expect(out[0]!.filename).toBe('<inline>')
-    expect(out[1]!.filename).toBe('<inline>#1')
   })
 
-  it('filters <inline> by default', () => {
+  it('filters synthetic filenames by default', () => {
     const inline = reportFor('default { state_entry() {} }', '<inline>')
-    const real = reportFor('default { state_entry() {} }', '/r.lsl')
-    const out = aggregateReports([inline, real])
-    expect(out.map((r) => r.filename)).toEqual(['/r.lsl'])
+    const noPath = reportFor('default { state_entry() {} }', 'a.lsl')
+    const missing = reportFor('default { state_entry() {} }', '/nope/missing.lsl')
+    const realFile = materialize('r.lsl', 'default { state_entry() {} }')
+    const real = reportFor('default { state_entry() {} }', realFile)
+    const out = aggregateReports([inline, noPath, missing, real])
+    expect(out.map((r) => r.filename)).toEqual([realFile])
+  })
+
+  it('keeps fixtures when includeFixtures is set', () => {
+    const a = reportFor('default { state_entry() {} }', '<inline>')
+    const b = reportFor('default { state_entry() {} }', 'a.lsl')
+    const out = aggregateReports([a, b], { includeFixtures: true })
+    expect(out.map((r) => r.filename).sort()).toEqual(['<inline>', 'a.lsl'])
   })
 
   it('returns sorted output', () => {
-    const a = reportFor('default { state_entry() {} }', '/b.lsl')
-    const b = reportFor('default { state_entry() {} }', '/a.lsl')
+    // Use one shared dir so a.lsl < b.lsl in the resulting paths.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lslcov-sort-'))
+    const fa = path.join(dir, 'a.lsl')
+    const fb = path.join(dir, 'b.lsl')
+    fs.writeFileSync(fa, 'default { state_entry() {} }')
+    fs.writeFileSync(fb, 'default { state_entry() {} }')
+    const a = reportFor('default { state_entry() {} }', fb)
+    const b = reportFor('default { state_entry() {} }', fa)
     const out = aggregateReports([a, b])
-    expect(out.map((r) => r.filename)).toEqual(['/a.lsl', '/b.lsl'])
+    expect(out.map((r) => r.filename)).toEqual([fa, fb])
   })
 
   it('accepts an empty input', () => {
