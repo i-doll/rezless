@@ -275,15 +275,22 @@ export default defineConfig({
 ```
 
 ```sh
-# 3. Environment variable — handy for one-off CLI runs.
+# 3. Environment variable + CLI render — handy for one-off CLI runs
+#    without touching vitest.config.ts. The env var enables collection
+#    and writes per-worker JSON dumps; the CLI merges them into artifacts.
 LSL_COVERAGE=1 pnpm test
+pnpm exec lslvm-coverage
 ```
 
-When the reporter runs, you'll get:
+In all three cases you'll get:
 
 - `coverage/lsl/lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
 - `coverage/lsl/coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
 - A per-file pass/total table on stdout
+
+By default, reports for inline-source scripts (filename `<inline>`) are
+omitted — they're usually throwaway test fixtures. Pass `--include-inline`
+to the CLI, or `{ includeInline: true }` to the reporter, to keep them.
 
 `examples/coverage/` has a runnable demo.
 

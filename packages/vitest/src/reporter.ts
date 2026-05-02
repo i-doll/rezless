@@ -1,10 +1,10 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { mergeReports, type CoverageReport } from '@lslvm/vm'
 import { renderLcov } from './format/lcov.js'
 import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
 import { readWorkerDumps, clearWorkerDumps } from './coverage-registry.js'
+import { aggregateReports } from './coverage-aggregate.js'
 
 export interface LslCoverageReporterOptions {
   /** Output directory; defaults to `coverage/lsl`. */
@@ -15,6 +15,9 @@ export interface LslCoverageReporterOptions {
   readonly disableIstanbul?: boolean
   /** Skip the end-of-run console table. */
   readonly disableConsole?: boolean
+  /** Include reports for inline-source scripts (filename `<inline>`).
+   *  Defaults to false — these are usually throwaway test fixtures. */
+  readonly includeInline?: boolean
 }
 
 /**
@@ -62,18 +65,18 @@ export class LslCoverageReporter {
       return
     }
 
-    // Group by filename and merge.
-    const byFile = new Map<string, CoverageReport[]>()
-    for (const r of dumps) {
-      const list = byFile.get(r.filename)
-      if (list) list.push(r)
-      else byFile.set(r.filename, [r])
+    const aggregateOpts =
+      this.opts.includeInline !== undefined ? { includeInline: this.opts.includeInline } : {}
+    const merged = aggregateReports(dumps, aggregateOpts)
+    if (merged.length === 0) {
+      if (!this.opts.disableConsole) {
+        process.stdout.write(
+          'No coverable LSL scripts after filtering — pass `includeInline: true` to keep inline fixtures.\n',
+        )
+      }
+      clearWorkerDumps()
+      return
     }
-    const merged: CoverageReport[] = []
-    for (const list of byFile.values()) {
-      merged.push(list.length === 1 ? list[0]! : mergeReports(list))
-    }
-    merged.sort((a, b) => a.filename.localeCompare(b.filename))
 
     fs.mkdirSync(this.outputDir, { recursive: true })
 
