@@ -12,6 +12,9 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -58,20 +61,59 @@ jobs:
           path: coverage/
           if-no-files-found: warn
 
-      - name: Coverage summary in job log
+      - name: Build coverage summary markdown
         if: always()
         run: |
-          if [ -f coverage/coverage-summary.json ]; then
-            node -e "
-              const s = require('./coverage/coverage-summary.json').total;
-              const fmt = (m) => \`\${m.pct.toFixed(2)}% (\${m.covered}/\${m.total})\`;
-              console.log('| metric | coverage |');
-              console.log('|---|---|');
+          node -e "
+            const fs = require('fs');
+            const lines = [];
+            const fmt = (m) => m ? \`\${m.pct.toFixed(2)}% (\${m.covered}/\${m.total})\` : '—';
+
+            lines.push('## Coverage');
+            lines.push('');
+
+            const jsPath = 'coverage/coverage-summary.json';
+            lines.push('### TS / JS coverage');
+            lines.push('');
+            if (fs.existsSync(jsPath)) {
+              const s = JSON.parse(fs.readFileSync(jsPath, 'utf8')).total;
+              lines.push('| metric | coverage |');
+              lines.push('|---|---|');
               for (const k of ['lines','statements','functions','branches']) {
-                console.log(\`| \${k} | \${fmt(s[k])} |\`);
+                lines.push(\`| \${k} | \${fmt(s[k])} |\`);
               }
-            " >> $GITHUB_STEP_SUMMARY
-          fi
+            } else {
+              lines.push('_no \`coverage/coverage-summary.json\` produced — did test:coverage run?_');
+            }
+            lines.push('');
+
+            const lslPath = 'coverage/lsl/coverage-summary.json';
+            lines.push('### LSL coverage');
+            lines.push('');
+            if (fs.existsSync(lslPath)) {
+              const s = JSON.parse(fs.readFileSync(lslPath, 'utf8')).total;
+              lines.push('| metric | coverage |');
+              lines.push('|---|---|');
+              for (const k of ['statements','branches','functions','states']) {
+                lines.push(\`| \${k} | \${fmt(s[k])} |\`);
+              }
+            } else {
+              lines.push('_no \`coverage/lsl/coverage-summary.json\` produced — LSL reporter may not have activated._');
+            }
+            lines.push('');
+
+            const md = lines.join('\n');
+            fs.mkdirSync('coverage', { recursive: true });
+            fs.writeFileSync('coverage/summary.md', md);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + '\n');
+          "
+
+      - name: Comment coverage on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage/summary.md
 
   # Verifies the currently-published `release` branch still installs cleanly
   # for a fresh consumer (cold pnpm store, no `approve-builds` granted).

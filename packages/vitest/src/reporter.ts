@@ -4,6 +4,7 @@ import { renderLcov } from './format/lcov.js'
 import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
 import { renderHtml } from './format/html.js'
+import { renderSummary } from './format/summary.js'
 import { readWorkerDumps, clearWorkerDumps } from './coverage-registry.js'
 import { aggregateReports } from './coverage-aggregate.js'
 
@@ -175,6 +176,10 @@ export class LslCoverageReporter {
     if (!this.opts.disableIstanbul) {
       const istanbulPath = path.join(outputDir, 'coverage-final.json')
       fs.writeFileSync(istanbulPath, JSON.stringify(renderIstanbul(merged), null, 2))
+      // Always write the summary alongside the istanbul detail — CI tooling
+      // typically wants the summary, not the per-file detail.
+      const summaryPath = path.join(outputDir, 'coverage-summary.json')
+      fs.writeFileSync(summaryPath, JSON.stringify(renderSummary(merged), null, 2))
     }
 
     if (!this.opts.disableHtml) {

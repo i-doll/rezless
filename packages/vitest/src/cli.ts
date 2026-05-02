@@ -6,6 +6,7 @@ import { renderLcov } from './format/lcov.js'
 import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
 import { renderHtml } from './format/html.js'
+import { renderSummary } from './format/summary.js'
 import { aggregateReports } from './coverage-aggregate.js'
 
 interface Options {
@@ -105,9 +106,11 @@ function main(): void {
   fs.mkdirSync(opts.outputDir, { recursive: true })
   const lcovPath = path.join(opts.outputDir, 'lcov.info')
   const istanbulPath = path.join(opts.outputDir, 'coverage-final.json')
+  const summaryPath = path.join(opts.outputDir, 'coverage-summary.json')
   const htmlDir = path.join(opts.outputDir, 'html')
   fs.writeFileSync(lcovPath, renderLcov(merged))
   fs.writeFileSync(istanbulPath, JSON.stringify(renderIstanbul(merged), null, 2))
+  fs.writeFileSync(summaryPath, JSON.stringify(renderSummary(merged), null, 2))
   fs.mkdirSync(htmlDir, { recursive: true })
   for (const [name, content] of renderHtml(merged)) {
     fs.writeFileSync(path.join(htmlDir, name), content)
@@ -115,7 +118,9 @@ function main(): void {
 
   if (!opts.silent) {
     process.stdout.write('\n' + renderConsoleSummary(merged))
-    process.stdout.write(`\nWrote ${lcovPath}\nWrote ${istanbulPath}\nWrote ${path.join(htmlDir, 'index.html')}\n`)
+    process.stdout.write(
+      `\nWrote ${lcovPath}\nWrote ${istanbulPath}\nWrote ${summaryPath}\nWrote ${path.join(htmlDir, 'index.html')}\n`,
+    )
   }
 
   if (!opts.keepDumps) {
