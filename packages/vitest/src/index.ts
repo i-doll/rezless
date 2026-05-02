@@ -12,3 +12,5 @@ export type {
   InlineSource,
   LoadedLinkset,
 } from './loadLinkset.js'
+export { LslCoverageReporter } from './reporter.js'
+export type { LslCoverageReporterOptions } from './reporter.js'

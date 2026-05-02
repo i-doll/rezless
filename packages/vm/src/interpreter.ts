@@ -71,6 +71,12 @@ export function execHandler(
   handler: EventHandler,
   args: ReadonlyArray<EvalResult> = [],
 ): void {
+  if (ctx.state.coverage) {
+    ctx.state.coverage.hitFunction(handler.loc)
+    // execBlock bypasses execStatement for the outermost body, so credit
+    // the body BlockStatement here.
+    ctx.state.coverage.hitStatement(handler.body.loc)
+  }
   const env = ctx.globals.push()
   // Bind handler params (each carries declared LSL type).
   handler.params.forEach((p, i) => {
@@ -95,6 +101,10 @@ export function callUserFunction(
   fn: FunctionDeclaration,
   args: ReadonlyArray<EvalResult>,
 ): EvalResult {
+  if (ctx.state.coverage) {
+    ctx.state.coverage.hitFunction(fn.loc)
+    ctx.state.coverage.hitStatement(fn.body.loc)
+  }
   const env = ctx.globals.push()
   fn.params.forEach((p, i) => {
     const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
@@ -160,6 +170,7 @@ function execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): vo
 }
 
 function execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): void {
+  if (ctx.state.coverage) ctx.state.coverage.hitStatement(stmt.loc)
   switch (stmt.kind) {
     case 'BlockStatement':
       execBlock(ctx, env, stmt)
@@ -209,31 +220,48 @@ function execVariableDeclaration(
 }
 
 function execIf(ctx: InterpreterContext, env: Env, stmt: IfStatement): void {
+  const cov = ctx.state.coverage
   if (truthy(evalExpression(ctx, env, stmt.test))) {
+    if (cov) cov.hitBranch(stmt.loc, true)
     execStatement(ctx, env, stmt.consequent)
-  } else if (stmt.alternate) {
-    execStatement(ctx, env, stmt.alternate)
+  } else {
+    if (cov) cov.hitBranch(stmt.loc, false)
+    if (stmt.alternate) execStatement(ctx, env, stmt.alternate)
   }
 }
 
 function execWhile(ctx: InterpreterContext, env: Env, stmt: WhileStatement): void {
-  while (truthy(evalExpression(ctx, env, stmt.test))) {
+  const cov = ctx.state.coverage
+  while (true) {
+    const t = truthy(evalExpression(ctx, env, stmt.test))
+    if (cov) cov.hitBranch(stmt.loc, t)
+    if (!t) break
     execStatement(ctx, env, stmt.body)
   }
 }
 
 function execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement): void {
-  do {
+  const cov = ctx.state.coverage
+  while (true) {
     execStatement(ctx, env, stmt.body)
-  } while (truthy(evalExpression(ctx, env, stmt.test)))
+    const t = truthy(evalExpression(ctx, env, stmt.test))
+    if (cov) cov.hitBranch(stmt.loc, t)
+    if (!t) break
+  }
 }
 
 function execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): void {
   const child = env.push()
+  const cov = ctx.state.coverage
   for (const e of stmt.init) evalExpression(ctx, child, e)
   while (true) {
     if (stmt.test) {
-      if (!truthy(evalExpression(ctx, child, stmt.test))) break
+      const t = truthy(evalExpression(ctx, child, stmt.test))
+      if (cov) cov.hitBranch(stmt.loc, t)
+      if (!t) break
+    } else if (cov) {
+      // Infinite loop: still useful to record "body entered".
+      cov.hitBranch(stmt.loc, true)
     }
     execStatement(ctx, child, stmt.body)
     for (const e of stmt.update) evalExpression(ctx, child, e)

@@ -1,5 +1,21 @@
 export { Script } from './script.js'
 export type { ScriptOptions } from './script.js'
+export { CoverageCollector, buildCoveragePlan, mergeReports } from './coverage.js'
+export type {
+  CoveragePlan,
+  CoverageReport,
+  StatementInfo,
+  StatementHit,
+  StatementKind,
+  BranchInfo,
+  BranchHit,
+  BranchKind,
+  FunctionInfo,
+  FunctionHit,
+  FunctionKind,
+  StateInfo,
+  StateHit,
+} from './coverage.js'
 export { Linkset, LINK_THIS, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_ROOT } from './linkset.js'
 export type { LinksetOptions } from './linkset.js'
 export { Prim } from './prim.js'

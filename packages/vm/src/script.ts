@@ -16,6 +16,8 @@ import { ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { NULL_KEY } from './values/types.js'
 import { execHandler, StateChangeSignal } from './interpreter.js'
+import { buildCoveragePlan, CoverageCollector } from './coverage.js'
+import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor } from './values/types.js'
 import { Env } from './env.js'
@@ -47,6 +49,16 @@ export interface ScriptOptions {
    * a prim that's already been added to a Linkset to opt into multi-script.
    */
   readonly host?: Prim
+  /**
+   * Original LSL source — kept on the script for LCOV / Istanbul line maps
+   * when coverage is enabled. loadScript() supplies this automatically.
+   */
+  readonly source?: string
+  /**
+   * Enable coverage collection on this script. When true, `script.coverage`
+   * returns a snapshot after each test; default false (zero overhead).
+   */
+  readonly coverage?: boolean
 }
 
 /**
@@ -116,6 +128,12 @@ export class Script {
       },
     } as ScriptIdentity
 
+    const filename = options.filename ?? '<inline>'
+    const source = options.source ?? ''
+    const coverage = options.coverage
+      ? new CoverageCollector(buildCoveragePlan(ast, filename, source))
+      : null
+
     this.state = {
       currentState: 'default',
       chat: [],
@@ -136,7 +154,11 @@ export class Script {
       lifecycle: {
         dead: false,
       },
+      filename,
+      source,
+      coverage,
     }
+    if (coverage) coverage.hitState('default')
 
     // Register this script with the prim if it isn't already there.
     if (!host.scripts.includes(this)) {
@@ -181,6 +203,15 @@ export class Script {
   /** Current LSL state name. */
   get currentState(): string {
     return this.state.currentState
+  }
+
+  /**
+   * Coverage report snapshot, or null when coverage is disabled. Each call
+   * returns a fresh frozen object — safe to retain across further fire()s
+   * without seeing later mutations.
+   */
+  get coverage(): CoverageReport | null {
+    return this.state.coverage?.snapshot() ?? null
   }
 
   /** Captured chat output (llSay/llShout/llWhisper/llOwnerSay/...). */
@@ -527,6 +558,7 @@ export class Script {
           throw new Error(`unknown state '${target}' in state change`)
         }
         this.state.currentState = target
+        if (this.state.coverage) this.state.coverage.hitState(target)
         const entry = this.handlersByState.get(target)?.get('state_entry')
         if (entry) {
           pending = { handler: entry, args: [] }

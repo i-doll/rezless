@@ -243,9 +243,53 @@ The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
 `@lslvm/vitest`, so tests can compare numeric returns against named
 constants instead of magic numbers.
 
+## Coverage
+
+`@lslvm/vitest` ships an LSL coverage collector that tracks four kinds of
+coverage per script: **statement**, **branch** (if / while / for / do-while
+arms), **function** (user functions and event handlers), and **state**
+("did we ever enter `state idle`?"). Off by default — three switches turn
+it on:
+
+```ts
+// 1. Per-test, programmatic — useful for in-test assertions.
+const s = await loadScript({ source, filename, coverage: true })
+s.start()
+const r = s.coverage  // CoverageReport | null
+expect(r!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
+```
+
+```ts
+// 2. Vitest reporter — collects across the whole run, emits LCOV +
+//    Istanbul JSON + a console table at end-of-run.
+//
+// vitest.config.ts
+import { defineConfig } from 'vitest/config'
+import { LslCoverageReporter } from '@lslvm/vitest/reporter'
+
+export default defineConfig({
+  test: {
+    reporters: ['default', new LslCoverageReporter()],
+  },
+})
+```
+
+```sh
+# 3. Environment variable — handy for one-off CLI runs.
+LSL_COVERAGE=1 pnpm test
+```
+
+When the reporter runs, you'll get:
+
+- `coverage/lsl/lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
+- `coverage/lsl/coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
+- A per-file pass/total table on stdout
+
+`examples/coverage/` has a runnable demo.
+
 ## Examples
 
-`examples/` ships eight working scripts with tests:
+`examples/` ships working scripts with tests:
 
 * **hello** — minimal `state_entry { llSay(...) }` + matchers.
 * **greeter** — touch + name greeting + state transition + reminder timer.
@@ -264,6 +308,9 @@ constants instead of magic numbers.
   `llMessageLinked`, and a third script writing the same LSD key
   refreshes the display via the broadcast `linkset_data` event.
   Wired up with `loadLinkset({ prims: [...] })`.
+* **coverage** — opt-in coverage tracking: a small voter script
+  exercising statement / branch / function / state coverage with
+  in-test assertions on `script.coverage`.
 
 ## License
 

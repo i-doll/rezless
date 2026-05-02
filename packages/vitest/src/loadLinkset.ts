@@ -9,6 +9,8 @@ import {
   type PrimOptions,
   type InventoryItem,
 } from '@lslvm/vm'
+import { isCoverageEnabled } from './coverage-config.js'
+import { registerScript } from './coverage-registry.js'
 
 export interface InlineSource {
   /** LSL source code as a string. */
@@ -19,7 +21,7 @@ export interface InlineSource {
 
 export type ScriptSource = string | InlineSource
 
-export interface ScriptInput extends ScriptOptions {
+export interface ScriptInput extends Omit<ScriptOptions, 'source'> {
   /** Path or inline source. */
   readonly source: ScriptSource
   /** Inventory name override (defaults to scriptName / filename basename). */
@@ -87,13 +89,15 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
       // llSetScriptState / llResetOtherScript all agree on the script's
       // identity.
       const { source: _src, name: invName, ...rest } = sInput
-      const opts: ScriptOptions = { ...rest, filename, host: prim }
+      const coverage = rest.coverage ?? isCoverageEnabled()
+      const opts: ScriptOptions = { ...rest, filename, host: prim, source, coverage }
       const inventoryName = invName ?? rest.scriptName
       if (inventoryName !== undefined) {
         ;(opts as { -readonly [K in keyof ScriptOptions]: ScriptOptions[K] }).scriptName =
           inventoryName
       }
       const s = new Script(ast, opts)
+      if (coverage) registerScript(s)
       const finalName = inventoryName ?? s.scriptName
       const item = prim.inventory.find((it) => it.script === s)
       if (item) item.name = finalName

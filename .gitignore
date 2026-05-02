@@ -1,6 +1,10 @@
 node_modules/
 dist/
 coverage/
+!examples/coverage/
+!examples/coverage/**
+examples/coverage/node_modules/
+.lslvm-coverage/
 *.lcov
 .turbo/
 *.tsbuildinfo
