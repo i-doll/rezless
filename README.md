@@ -228,6 +228,7 @@ honored centrally in the dispatcher.
 * **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`
 * **string**: `llStringLength`, `llSubStringIndex`, `llGetSubString`, `llDeleteSubString`, `llInsertString`, `llStringTrim`, `llToLower`/`Upper`, `llReplaceSubString`, `llEscapeURL`/`UnescapeURL`
 * **list**: `llGetListLength`, `llList2Integer`/`Float`/`String`/`Key`/`Vector`/`Rot`, `llList2List`, `llDeleteSubList`, `llListInsertList`, `llListReplaceList`, `llListFindList`, `llDumpList2String`, `llCSV2List`, `llParseString2List`
+* **json**: `llJson2List`, `llJsonGetValue`, `llJsonSetValue`, `llJsonValueType`, `llList2Json` — full LSL JSON semantics including the FDDx-range type-tag sentinels (`JSON_OBJECT`/`ARRAY`/`NUMBER`/`STRING`/`NULL`/`TRUE`/`FALSE`/`INVALID`/`DELETE`), `JSON_APPEND`, the empty-value short-circuit (`{"k":,}` → `JSON_NULL`) on `Get`/`Type`, duplicate-key collapse on `Set`, force-fit auto-creation of nested objects/arrays through deep specifier paths, and the kept-as-is rule for nested JSON-shaped strings in `llList2Json`.
 * **identity**: `llGetOwner`, `llGetCreator`, `llGetKey`, `llGetObjectName`, `llSetObjectName`, `llGetScriptName`
 * **hash**: `llMD5String`, `llSHA1String`, `llSHA256String`, `llHMAC`
 * **base64**: `llStringToBase64`/`Base64ToString`, `llIntegerToBase64`/`Base64ToInteger`
@@ -321,6 +322,11 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 * **coverage** — opt-in coverage tracking: a small voter script
   exercising statement / branch / function / state coverage with
   in-test assertions on `script.coverage`.
+* **json** — JSON config blob with nested paths: `set theme.color red`
+  / `get theme.color` / `keys` commands, persisted to Linkset Data so
+  the document survives `llResetScript`. Exercises all five JSON
+  builtins, nested-object force-fit on `llJsonSetValue`, and the
+  bare-word/sentinel round-trip on `llJsonGetValue`.
 
 ## License
 

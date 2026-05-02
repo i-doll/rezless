@@ -63,6 +63,13 @@ import {
   llParseString2List,
 } from './lists.js'
 import {
+  llJson2List,
+  llJsonGetValue,
+  llJsonSetValue,
+  llJsonValueType,
+  llList2Json,
+} from './json.js'
+import {
   llGetOwner,
   llGetCreator,
   llGetKey,
@@ -272,6 +279,12 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llDumpList2String,
   llCSV2List,
   llParseString2List,
+  // json
+  llJson2List,
+  llJsonGetValue,
+  llJsonSetValue,
+  llJsonValueType,
+  llList2Json,
   // identity
   llGetOwner,
   llGetCreator,
