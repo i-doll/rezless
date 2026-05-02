@@ -38,12 +38,12 @@ export function renderLcov(reports: ReadonlyArray<CoverageReport>): string {
 
     // Aggregate statement hits per line: a line is "hit" if any statement on
     // it was hit; the count is the max hit count on the line (preserves
-    // tool semantics of "executed at least once").
+    // tool semantics of "executed at least once"). Lines that only ever
+    // see hits=0 are still recorded so they appear as `DA:<line>,0`.
     const lineHits = new Map<number, number>()
     for (const s of r.statements) {
       const prev = lineHits.get(s.line) ?? 0
-      if (s.hits > prev) lineHits.set(s.line, s.hits)
-      else if (!lineHits.has(s.line)) lineHits.set(s.line, s.hits)
+      lineHits.set(s.line, Math.max(prev, s.hits))
     }
     let lf = 0
     let lh = 0

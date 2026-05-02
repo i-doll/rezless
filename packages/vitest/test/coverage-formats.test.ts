@@ -109,6 +109,17 @@ describe('Console summary writer', () => {
   it('handles the empty case', () => {
     expect(renderConsoleSummary([])).toContain('No LSL coverage')
   })
+
+  it('header, separator, and data rows are all the same width', () => {
+    const text = renderConsoleSummary([fixtureReport()])
+    // Drop the title line and any blank trailing line; everything else is
+    // either a separator or a row of the table and must be the same width.
+    const lines = text
+      .split('\n')
+      .filter((l) => l.length > 0 && l !== 'LSL coverage')
+    const widths = new Set(lines.map((l) => l.length))
+    expect(widths.size).toBe(1)
+  })
 })
 
 describe('HTML writer', () => {

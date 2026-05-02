@@ -1,5 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { renderLcov } from './format/lcov.js'
 import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
@@ -54,9 +55,9 @@ interface VitestLike {
 /** Resolves to the absolute file path of `coverage-setup.js` next to this file. */
 function coverageSetupFilePath(): string {
   // import.meta.url points to dist/reporter.js once compiled; the setup
-  // file lives next to it.
-  const here = new URL('./coverage-setup.js', import.meta.url)
-  return new URL(here).pathname
+  // file lives next to it. fileURLToPath handles cross-platform quirks
+  // (Windows drive letters, percent-encoded paths) that URL.pathname mangles.
+  return fileURLToPath(new URL('./coverage-setup.js', import.meta.url))
 }
 
 /**
@@ -147,6 +148,9 @@ export class LslCoverageReporter {
       if (!this.opts.disableConsole) {
         process.stdout.write('No LSL coverage collected.\n')
       }
+      // Clear any malformed dump files so a future run with valid data
+      // starts from a clean slate without manual intervention.
+      clearWorkerDumps()
       return
     }
 

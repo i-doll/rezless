@@ -465,6 +465,11 @@ export class Script {
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
     this.started = false
+    // Returning to default counts as a state entry. The constructor records
+    // the first one; runHandler records each `state foo;` transition. A
+    // reset never goes through runHandler's StateChangeSignal path (default
+    // → default raises no signal), so credit it explicitly here.
+    if (this.state.coverage) this.state.coverage.hitState('default')
     // Per LSL: if the script is stopped, reset just clears state — no
     // state_entry runs until it's restarted. If it's running, fire
     // state_entry now via start().

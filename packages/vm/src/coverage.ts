@@ -54,9 +54,17 @@ export interface StatementHit extends StatementInfo {
 }
 
 export interface BranchHit extends BranchInfo {
-  /** `[trueHits, falseHits]` — for `if`, true means consequent taken, false
-   *  means alternate (or implicit-else) taken. For loops: true = body entered,
-   *  false = exit. */
+  /**
+   * `[trueHits, falseHits]` — count of times the conditional expression
+   * evaluated truthy / falsy, respectively. For `if`, true means consequent
+   * taken, false means alternate (or implicit-else) taken. For `while` /
+   * `for`, true means another iteration started, false means the loop
+   * exited. **For `do-while`, the body always runs at least once before
+   * the test is evaluated**, so a single-pass do-while produces `[0, 1]`
+   * (zero true outcomes, one false outcome that ended the loop) even
+   * though the body executed once — body-entered counts live in statement
+   * coverage on the body, not branch coverage on the loop.
+   */
   readonly hits: readonly [number, number]
 }
 

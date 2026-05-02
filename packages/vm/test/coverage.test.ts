@@ -156,6 +156,37 @@ describe('coverage / runtime hit counts', () => {
     expect(r.states.find((st) => st.name === 'default')!.hits).toBe(1)
   })
 
+  it('reset() records another default-state entry', () => {
+    const s = load(`default { state_entry() {} }`)
+    s.start()
+    s.reset()
+    s.reset()
+    const r = s.coverage!
+    // Initial construction + two resets = three entries to default.
+    expect(r.states.find((st) => st.name === 'default')!.hits).toBe(3)
+  })
+
+  it('reset from a non-default state credits the default re-entry', () => {
+    const s = load(`
+      default {
+        state_entry() {}
+        touch_start(integer n) { state idle; }
+      }
+      state idle {
+        state_entry() {}
+      }
+    `)
+    s.start()
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.currentState).toBe('idle')
+    s.reset()
+    expect(s.currentState).toBe('default')
+    const r = s.coverage!
+    // default: construction + reset = 2; idle: one state-change transition.
+    expect(r.states.find((st) => st.name === 'default')!.hits).toBe(2)
+    expect(r.states.find((st) => st.name === 'idle')!.hits).toBe(1)
+  })
+
   it('snapshot is independent — later fire()s do not mutate it', () => {
     const s = load(`
       default {

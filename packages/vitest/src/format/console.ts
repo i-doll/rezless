@@ -8,10 +8,11 @@ interface FilePct {
   states: { hit: number; total: number }
 }
 
+/** Right-aligned 7-char field — matches the `pad(name, 7)` headers below. */
 function pct(hit: number, total: number): string {
-  if (total === 0) return ' n/a '
+  if (total === 0) return '  n/a  '
   const v = (hit / total) * 100
-  return `${v.toFixed(1).padStart(5)}%`
+  return `${v.toFixed(1)}%`.padStart(7)
 }
 
 function summarize(r: CoverageReport): FilePct {
