@@ -1,0 +1,32 @@
+lslvm
+Copyright 2026 The lslvm contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+================================================================================
+
+Third-party content
+-------------------
+
+This repository vendors and uses content from the Sei-Lisa/kwdb project
+(https://github.com/Sei-Lisa/kwdb), which is licensed under the GNU Lesser
+General Public License (LGPL) version 3 or later.
+
+Copyright (C) 2012      Linden Research, Inc.
+Copyright (C) 2013-2025 Sei Lisa.
+Copyright (C) 2017-2023 Mako Nozaki.
+Copyright (C) 2023-2023 Alex Carpenter.
+
+The vendored data file and any output mechanically derived from it remain
+under their original LGPL-3.0-or-later license:
+
+  vendor/kwdb.xml                                    (the data file)
+  packages/vm/src/generated/constants.ts             (derived)
+  packages/vm/src/generated/constants_table.ts       (derived)
+  packages/vm/src/generated/functions.ts             (derived)
+  packages/vm/src/generated/events.ts                (derived)
+
+Full LGPL-3.0 text: https://www.gnu.org/licenses/lgpl-3.0.html
+Attribution detail: vendor/LICENSE-kwdb
+
+Second Life is a registered trademark of Linden Research, Inc.

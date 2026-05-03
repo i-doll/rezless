@@ -1,0 +1,24 @@
+The file `kwdb.xml` in this directory is vendored from the Sei-Lisa/kwdb
+project (https://github.com/Sei-Lisa/kwdb), used here as a source of truth
+for LSL function, event, constant, and type definitions.
+
+Copyright and license, as declared in the file header:
+
+    (C) Copyright 2012 Linden Research, Inc.
+    (C) Copyright 2013-2025 Sei Lisa.
+    (C) Copyright 2017-2023 Mako Nozaki.
+    (C) Copyright 2023-2023 Alex Carpenter.
+
+    LSL2 Keywords Database is free software: you can redistribute it
+    and/or modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation, either
+    version 3 of the License, or (at your option) any later version.
+
+    LSL2 Keywords Database is distributed in the hope that it will be
+    useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+    of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+Full LGPL-3.0 license text: https://www.gnu.org/licenses/lgpl-3.0.html
+
+Second Life is a registered trademark of Linden Research, Inc.

@@ -1,0 +1,29 @@
+{
+  "name": "lslvm",
+  "version": "0.0.0",
+  "description": "LSL test framework — Vitest-style DSL for Linden Scripting Language",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "vendor/kwdb.xml",
+    "vendor/LICENSE-kwdb",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
