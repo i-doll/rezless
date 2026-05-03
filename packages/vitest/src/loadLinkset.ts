@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { parse, LslParseError } from '@lslvm/parser'
+import { parse, LslParseError } from '@rezless/parser'
 import {
   Script,
   Linkset,
@@ -8,7 +8,7 @@ import {
   type LinksetOptions,
   type PrimOptions,
   type InventoryItem,
-} from '@lslvm/vm'
+} from '@rezless/vm'
 import { isCoverageEnabled } from './coverage-config.js'
 import { registerScript } from './coverage-registry.js'
 

@@ -1,45 +1,34 @@
 {
-  "name": "lslvm",
-  "version": "0.0.0",
+  "name": "rezless",
+  "version": "0.1.0",
   "private": true,
-  "description": "LSL test framework — Vitest-style DSL for Linden Scripting Language",
+  "description": "Workspace coordinator for the rezless LSL test framework (publishes @rezless/parser, @rezless/vm, @rezless/vitest).",
   "license": "Apache-2.0",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+  "author": "i-doll",
+  "homepage": "https://github.com/i-doll/rezless#readme",
+  "bugs": {
+    "url": "https://github.com/i-doll/rezless/issues"
   },
-  "files": [
-    "dist",
-    "vendor/kwdb.xml",
-    "vendor/LICENSE-kwdb",
-    "LICENSE",
-    "NOTICE",
-    "README.md"
-  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/i-doll/rezless.git"
+  },
+  "type": "module",
   "scripts": {
     "gen": "tsx scripts/gen-stubs.ts",
+    "bump": "node scripts/bump.mjs",
     "build": "pnpm -r build",
-    "bundle": "tsup",
-    "prepare": "pnpm gen && pnpm build && pnpm bundle",
+    "prepare": "pnpm gen && pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint"
   },
-  "peerDependencies": {
-    "vitest": "^4.1.5"
-  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@vitest/coverage-v8": "^4.1.5",
     "fast-xml-parser": "^5.7.0",
-    "tsup": "^8.3.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.0",
     "vitest": "^4.1.5"

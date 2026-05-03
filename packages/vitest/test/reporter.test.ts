@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { parse } from '@lslvm/parser'
-import { Script } from '@lslvm/vm'
+import { parse } from '@rezless/parser'
+import { Script } from '@rezless/vm'
 import { LslCoverageReporter } from '../src/reporter.js'
 
 function tmpdir(prefix: string): string {

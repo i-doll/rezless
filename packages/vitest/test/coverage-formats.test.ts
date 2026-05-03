@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parse } from '@lslvm/parser'
-import { Script } from '@lslvm/vm'
+import { parse } from '@rezless/parser'
+import { Script } from '@rezless/vm'
 import { renderLcov } from '../src/format/lcov.js'
 import { renderIstanbul } from '../src/format/istanbul.js'
 import { renderConsoleSummary } from '../src/format/console.js'

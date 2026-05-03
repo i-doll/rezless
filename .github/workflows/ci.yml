@@ -41,9 +41,10 @@ jobs:
           fi
 
       # Build before typecheck so the per-package `tsc --noEmit` can resolve
-      # `@lf/parser` / `@lf/vm` via their dist/*.d.ts. (Workspace packages use
-      # the package `exports` map, which only exposes dist; without a prior
-      # build, downstream packages can't see their dependencies' types.)
+      # @rezless/parser / @rezless/vm via their dist/*.d.ts. (Workspace
+      # packages use the package `exports` map, which only exposes dist;
+      # without a prior build, downstream packages can't see their
+      # dependencies' types.)
       - name: Build
         run: pnpm build
 
@@ -114,70 +115,3 @@ jobs:
         with:
           header: coverage
           path: coverage/summary.md
-
-  # Verifies the currently-published `release` branch still installs cleanly
-  # for a fresh consumer (cold pnpm store, no `approve-builds` granted).
-  # Runs on every PR/push so that "release branch is broken" surfaces before
-  # we rely on it for the next merge.
-  git-install-smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.28.2
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      # Skip cleanly if `release` doesn't exist yet — happens until `release.yml`
-      # has run for the first time. Once bootstrapped, this is a hard check.
-      - name: Check release branch exists
-        id: check
-        run: |
-          if git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" release >/dev/null; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::release branch does not exist yet — skipping smoke test (bootstrap)"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Install lslvm from github:#release into a throwaway consumer
-        if: steps.check.outputs.exists == 'true'
-        run: |
-          mkdir /tmp/consumer && cd /tmp/consumer
-          cat > package.json <<JSON
-          {
-            "name": "consumer-smoke",
-            "private": true,
-            "type": "module",
-            "devDependencies": {
-              "@lslvm/vitest": "github:${GITHUB_REPOSITORY}#release",
-              "vitest": "^4.1.5"
-            }
-          }
-          JSON
-          pnpm install --ignore-workspace --ignore-scripts
-
-      - name: Assert dist artefacts are present
-        if: steps.check.outputs.exists == 'true'
-        run: |
-          cd /tmp/consumer
-          test -f node_modules/@lslvm/vitest/dist/index.js \
-            || { echo "::error::dist/index.js missing — release branch is not shipping a built tree"; exit 1; }
-          test -f node_modules/@lslvm/vitest/dist/index.d.ts \
-            || { echo "::error::dist/index.d.ts missing in release tree"; exit 1; }
-
-      - name: Assert the bundle imports and exposes the public API
-        if: steps.check.outputs.exists == 'true'
-        run: |
-          cd /tmp/consumer
-          node --input-type=module -e "
-            import('@lslvm/vitest').then(m => {
-              if (typeof m.loadScript !== 'function') {
-                console.error('loadScript not exported as function; got:', typeof m.loadScript);
-                process.exit(1);
-              }
-              console.log('ok: exports =', Object.keys(m).sort().join(', '));
-            }).catch(e => { console.error(e); process.exit(1); });
-          "

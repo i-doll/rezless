@@ -11,9 +11,9 @@ export default defineConfig({
     // real source files. Production consumers still go through `dist/` via
     // the package `exports` map.
     alias: {
-      '@lslvm/parser': here('./packages/parser/src/index.ts'),
-      '@lslvm/vm': here('./packages/vm/src/index.ts'),
-      '@lslvm/vitest': here('./packages/vitest/src/index.ts'),
+      '@rezless/parser': here('./packages/parser/src/index.ts'),
+      '@rezless/vm': here('./packages/vm/src/index.ts'),
+      '@rezless/vitest': here('./packages/vitest/src/index.ts'),
     },
   },
   test: {

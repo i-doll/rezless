@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import type { CoverageReport } from '@lslvm/vm'
+import type { CoverageReport } from '@rezless/vm'
 import { renderLcov } from './format/lcov.js'
 import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
@@ -20,7 +20,7 @@ interface Options {
 function parseArgs(argv: ReadonlyArray<string>): Options {
   const opts: Options = {
     outputDir: path.join(process.cwd(), 'coverage', 'lsl'),
-    dumpDir: process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.lslvm-coverage'),
+    dumpDir: process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.rezless-coverage'),
     keepDumps: false,
     silent: false,
     includeFixtures: false,
@@ -28,7 +28,7 @@ function parseArgs(argv: ReadonlyArray<string>): Options {
   const requireValue = (flag: string, i: number): string => {
     const v = argv[i + 1]
     if (v === undefined) {
-      process.stderr.write(`lslvm-coverage: ${flag} requires a value\n${USAGE}`)
+      process.stderr.write(`rezless-coverage: ${flag} requires a value\n${USAGE}`)
       process.exit(2)
     }
     return v
@@ -55,7 +55,7 @@ function parseArgs(argv: ReadonlyArray<string>): Options {
   return opts
 }
 
-const USAGE = `Usage: lslvm-coverage [options]
+const USAGE = `Usage: rezless-coverage [options]
 
   Render LSL coverage artifacts from per-worker JSON dumps left behind by
   a test run that ran under LSL_COVERAGE=1.
@@ -63,7 +63,7 @@ const USAGE = `Usage: lslvm-coverage [options]
 Options:
   -o, --output <dir>      Output directory (default: coverage/lsl)
       --dump-dir <dir>    Where to look for *.json dumps
-                          (default: $LSL_COVERAGE_DIR or .lslvm-coverage)
+                          (default: $LSL_COVERAGE_DIR or .rezless-coverage)
       --keep-dumps        Don't delete dumps after rendering
       --include-fixtures  Include reports for synthetic filenames
                           ("<inline>", names without a path, or paths that
@@ -74,7 +74,7 @@ Options:
 
 Workflow:
   LSL_COVERAGE=1 pnpm test
-  pnpm exec lslvm-coverage
+  pnpm exec rezless-coverage
 `
 
 function readDumps(dumpDir: string): CoverageReport[] {
@@ -87,7 +87,7 @@ function readDumps(dumpDir: string): CoverageReport[] {
       const parsed = JSON.parse(fs.readFileSync(full, 'utf8')) as CoverageReport[]
       for (const r of parsed) out.push(r)
     } catch (e) {
-      process.stderr.write(`lslvm-coverage: skipping malformed dump ${full}: ${(e as Error).message}\n`)
+      process.stderr.write(`rezless-coverage: skipping malformed dump ${full}: ${(e as Error).message}\n`)
     }
   }
   return out
@@ -99,7 +99,7 @@ function main(): void {
   const dumps = readDumps(opts.dumpDir)
   if (dumps.length === 0) {
     process.stderr.write(
-      `lslvm-coverage: no dumps found in ${opts.dumpDir}.\n` +
+      `rezless-coverage: no dumps found in ${opts.dumpDir}.\n` +
         '  Did you run your tests with LSL_COVERAGE=1?\n',
     )
     process.exit(1)
@@ -111,7 +111,7 @@ function main(): void {
       ? '\n'
       : '\n  All collected reports look like test fixtures (no real on-disk path).\n' +
         '  Re-run with --include-fixtures to keep them.\n'
-    process.stderr.write(`lslvm-coverage: no coverable scripts after filtering.${hint}`)
+    process.stderr.write(`rezless-coverage: no coverable scripts after filtering.${hint}`)
     process.exit(1)
   }
 

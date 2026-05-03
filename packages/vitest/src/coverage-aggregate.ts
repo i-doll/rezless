@@ -1,5 +1,5 @@
 import * as fs from 'node:fs'
-import { mergeReports, type CoverageReport } from '@lslvm/vm'
+import { mergeReports, type CoverageReport } from '@rezless/vm'
 
 export interface AggregateOptions {
   /**

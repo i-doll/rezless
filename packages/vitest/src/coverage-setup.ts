@@ -31,7 +31,7 @@ afterAll(() => {
   const reports = drainSnapshots()
   if (reports.length === 0) return
   try {
-    const dir = process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.lslvm-coverage')
+    const dir = process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.rezless-coverage')
     fs.mkdirSync(dir, { recursive: true })
     const file = path.join(
       dir,

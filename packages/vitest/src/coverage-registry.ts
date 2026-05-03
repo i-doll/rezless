@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import type { Script, CoverageReport } from '@lslvm/vm'
+import type { Script, CoverageReport } from '@rezless/vm'
 
 /**
  * Process-wide registry of every coverage-enabled Script created during a
@@ -30,7 +30,7 @@ const liveScripts = new Set<Script>()
 let exitHookInstalled = false
 
 function dumpDir(): string {
-  return process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.lslvm-coverage')
+  return process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.rezless-coverage')
 }
 
 function installExitHook(): void {

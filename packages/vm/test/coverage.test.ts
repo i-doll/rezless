@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parse } from '@lslvm/parser'
+import { parse } from '@rezless/parser'
 import { Script } from '../src/script.js'
 import { buildCoveragePlan, mergeReports } from '../src/coverage.js'
 

@@ -1,19 +1,60 @@
 name: Release
 
+# Triggered by every push to main; the `check` job decides whether the
+# version in package.json has actually moved. If it has, `publish` runs.
+# Otherwise the workflow exits cheap and clean.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: release-branch
+  group: release
   cancel-in-progress: false
 
 jobs:
-  publish-release-branch:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.detect.outputs.version }}
+      should_release: ${{ steps.detect.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full tag history for the existence check
+
+      - id: detect
+        name: Read version + verify lockstep + check tag
+        run: |
+          # Single source of truth: packages/vitest/package.json. The bump
+          # script (`pnpm bump <version>`) keeps the root and the other
+          # publishables in sync; this guard catches manual edits that drift.
+          VERSION=$(node -p "require('./packages/vitest/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          for pkg in package.json packages/parser/package.json packages/vm/package.json; do
+            v=$(node -p "require('./$pkg').version")
+            if [ "$v" != "$VERSION" ]; then
+              echo "::error::$pkg is at version $v but packages/vitest is at $VERSION. Run \`pnpm bump $VERSION\`."
+              exit 1
+            fi
+          done
+
+          if git rev-parse --quiet --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "Tag v${VERSION} already exists — version was not bumped, nothing to release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Will release v${VERSION}."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write   # push the new tag + create the GitHub Release
+      id-token: write   # OIDC for npm Trusted Publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -25,64 +66,100 @@ jobs:
         with:
           node-version: '20'
           cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Pack
-        run: pnpm pack --pack-destination /tmp/release
+      - name: Regenerate kwdb tables
+        run: pnpm gen
 
-      - name: Expand tarball into _release/
-        run: |
-          mkdir _release
-          tar -xzf /tmp/release/*.tgz -C _release --strip-components=1
+      - name: Build
+        run: pnpm build
 
-      - name: Sanitize package.json (strip lifecycle scripts and dev fields)
-        run: |
-          node -e "
-            const fs = require('fs');
-            const p = JSON.parse(fs.readFileSync('_release/package.json', 'utf8'));
-            delete p.scripts;
-            delete p.devDependencies;
-            delete p.private;
-            fs.writeFileSync('_release/package.json', JSON.stringify(p, null, 2) + '\n');
-          "
+      - name: Typecheck
+        run: pnpm typecheck
 
-      - name: Force-push release branch
+      - name: Test
+        run: pnpm test
+
+      # Authentication is via npm Trusted Publishing (OIDC) — the workflow's
+      # GITHUB_TOKEN is exchanged for a short-lived npm token. No NPM_TOKEN
+      # secret is needed. Each @rezless/* package must have this repo +
+      # workflow pre-registered as a trusted publisher on npmjs.com before
+      # the first publish.
+      #
+      # Per-package + idempotent: a transient registry failure mid-publish
+      # (or a manual rerun after the tag-creation step failed downstream)
+      # would otherwise leave us with parser@x already on npm and vitest@x
+      # not yet — and `pnpm -r publish` would refuse to re-attempt because
+      # parser@x exists. Loop, skip what's already there, publish the rest.
+      - name: Publish @rezless/* to npm with provenance (idempotent)
         run: |
-          cd _release
-          git init -b release
-          git config user.name  'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m "release: ${GITHUB_SHA}"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push -f origin release
+          set -euo pipefail
+          for pkg_dir in packages/parser packages/vm packages/vitest; do
+            name=$(node -p "require('./$pkg_dir/package.json').name")
+            version=$(node -p "require('./$pkg_dir/package.json').version")
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "${name}@${version} already on npm — skipping."
+            else
+              echo "Publishing ${name}@${version}..."
+              pnpm --filter "$name" publish --access public --no-git-checks --provenance
+            fi
+          done
+
+      - name: Tag the release commit and create a GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-
-      - name: Smoke-test the just-published release
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --generate-notes
+
+      - name: Smoke-test installed package from npm
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          # @rezless/vitest depends on parser+vm at the exact same version,
+          # so the consumer install only succeeds once all three are
+          # propagated. Poll each. Per-package budget: 30 × 10s = 5 min;
+          # since `pnpm publish` ships in topological order, parser+vm
+          # almost always land before we even start polling for them.
+          for pkg in @rezless/parser @rezless/vm @rezless/vitest; do
+            echo "Waiting for ${pkg}@${VERSION} on npm..."
+            for i in $(seq 1 30); do
+              if npm view "${pkg}@${VERSION}" version >/dev/null 2>&1; then
+                echo "  available after $((i * 10))s."
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "::error::${pkg}@${VERSION} did not appear on npm within 5 minutes."
+                exit 1
+              fi
+              sleep 10
+            done
+          done
           mkdir /tmp/consumer && cd /tmp/consumer
-          cat > package.json <<JSON
+          cat > package.json <<'JSON'
           {
             "name": "consumer-smoke",
             "private": true,
-            "type": "module",
-            "devDependencies": {
-              "@lslvm/vitest": "github:${GITHUB_REPOSITORY}#release",
-              "vitest": "^4.1.5"
-            }
+            "type": "module"
           }
           JSON
-          pnpm install --ignore-workspace --ignore-scripts
-          f=node_modules/@lslvm/vitest/dist/index.js
-          test -f "$f" || { echo "::error::missing $f — release branch did not ship dist"; exit 1; }
-          test -f node_modules/@lslvm/vitest/dist/index.d.ts \
-            || { echo "::error::missing dist/index.d.ts in release tree"; exit 1; }
+          pnpm add -D @rezless/vitest vitest@^4.1.5 --ignore-workspace --ignore-scripts
+          test -f node_modules/@rezless/vitest/dist/index.js \
+            || { echo "::error::missing dist/index.js — npm tarball is incomplete"; exit 1; }
+          test -f node_modules/@rezless/vitest/dist/index.d.ts \
+            || { echo "::error::missing dist/index.d.ts in npm tarball"; exit 1; }
           node --input-type=module -e "
-            import('@lslvm/vitest').then(m => {
+            import('@rezless/vitest').then(m => {
               if (typeof m.loadScript !== 'function') {
-                console.error('loadScript not exported as function; got:', typeof m.loadScript);
+                console.error('loadScript not exported; got:', typeof m.loadScript);
                 process.exit(1);
               }
               console.log('ok: exports =', Object.keys(m).sort().join(', '));

@@ -4,7 +4,7 @@ import type {
   FunctionDeclaration,
   GlobalVariable,
   TypeName,
-} from '@lslvm/parser'
+} from '@rezless/parser'
 import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity } from './runtime.js'
 import type { HttpRequestEntry } from './builtins/http.js'
 import type { ListenEntry } from './builtins/listen.js'
@@ -637,7 +637,7 @@ function initGlobals(env: Env, globals: ReadonlyArray<GlobalVariable>): void {
 }
 
 function literalToEval(
-  expr: import('@lslvm/parser').Expression,
+  expr: import('@rezless/parser').Expression,
   declared: TypeName,
 ): EvalResult | undefined {
   switch (expr.kind) {
@@ -689,7 +689,7 @@ function literalToEval(
   }
 }
 
-function literalToNumber(expr: import('@lslvm/parser').Expression): number | null {
+function literalToNumber(expr: import('@rezless/parser').Expression): number | null {
   if (expr.kind === 'IntegerLiteral') return expr.value | 0
   if (expr.kind === 'FloatLiteral') return expr.value
   if (expr.kind === 'Identifier') {
