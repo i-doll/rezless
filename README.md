@@ -243,9 +243,63 @@ The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
 `@lslvm/vitest`, so tests can compare numeric returns against named
 constants instead of magic numbers.
 
+## Coverage
+
+`@lslvm/vitest` ships an LSL coverage collector that tracks four kinds of
+coverage per script: **statement**, **branch** (if / while / for / do-while
+arms), **function** (user functions and event handlers), and **state**
+("did we ever enter `state idle`?"). Off by default; opt in once in your
+`vitest.config.ts`:
+
+```ts
+import { defineConfig } from 'vitest/config'
+import { LslCoverageReporter } from '@lslvm/vitest/reporter'
+
+export default defineConfig({
+  test: {
+    reporters: ['default', new LslCoverageReporter()],
+    coverage: {
+      // your @vitest/coverage-v8 config (provider, include, exclude, ...)
+    },
+  },
+})
+```
+
+The reporter is dormant during plain `vitest run`. When you invoke
+`vitest run --coverage`, both pipelines fire:
+
+- JS coverage from `@vitest/coverage-v8` lands at `coverage/`.
+- LSL coverage lands at `coverage/lsl/`:
+  - `lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
+  - `coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
+  - `html/index.html` — browseable per-file source view with line annotations
+  - per-file pass/total table on stdout
+
+Two alternative activation paths:
+
+```ts
+// Per-test, programmatic — useful for in-test assertions.
+const s = await loadScript({ source, filename, coverage: true })
+s.start()
+expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
+```
+
+```sh
+# Without the reporter installed — env var collects, CLI renders.
+LSL_COVERAGE=1 pnpm test
+pnpm exec lslvm-coverage
+```
+
+By default, reports for synthetic filenames (`<inline>`, names without a
+path separator, paths that don't exist on disk) are omitted — they're
+almost always throwaway test fixtures. Pass `--include-fixtures` to the
+CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
+
+`examples/coverage/` has a runnable demo.
+
 ## Examples
 
-`examples/` ships eight working scripts with tests:
+`examples/` ships working scripts with tests:
 
 * **hello** — minimal `state_entry { llSay(...) }` + matchers.
 * **greeter** — touch + name greeting + state transition + reminder timer.
@@ -264,6 +318,9 @@ constants instead of magic numbers.
   `llMessageLinked`, and a third script writing the same LSD key
   refreshes the display via the broadcast `linkset_data` event.
   Wired up with `loadLinkset({ prims: [...] })`.
+* **coverage** — opt-in coverage tracking: a small voter script
+  exercising statement / branch / function / state coverage with
+  in-test assertions on `script.coverage`.
 
 ## License
 

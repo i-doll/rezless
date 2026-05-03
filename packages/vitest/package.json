@@ -9,7 +9,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./reporter": {
+      "types": "./dist/reporter.d.ts",
+      "import": "./dist/reporter.js"
+    },
+    "./coverage-setup": {
+      "types": "./dist/coverage-setup.d.ts",
+      "import": "./dist/coverage-setup.js"
     }
+  },
+  "bin": {
+    "lslvm-coverage": "./dist/cli.js"
   },
   "files": ["dist"],
   "scripts": {

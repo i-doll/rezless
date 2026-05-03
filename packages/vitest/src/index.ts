@@ -12,3 +12,9 @@ export type {
   InlineSource,
   LoadedLinkset,
 } from './loadLinkset.js'
+
+// LslCoverageReporter is intentionally NOT re-exported here — importing it
+// pulls in every format module (lcov / istanbul / html / summary / console),
+// `node:fs`, and `node:path`. Test files don't need any of that. Import it
+// from the dedicated subpath in vitest.config.ts only:
+//   import { LslCoverageReporter } from '@lslvm/vitest/reporter'

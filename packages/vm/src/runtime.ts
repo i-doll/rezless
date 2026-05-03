@@ -5,6 +5,7 @@ import type { Mulberry32 } from './random.js'
 import type { Prim } from './prim.js'
 import type { Linkset } from './linkset.js'
 import type { Script } from './script.js'
+import type { CoverageCollector } from './coverage.js'
 
 /** Script-identity values exposed via llGetOwner / llGetKey / etc. */
 export interface ScriptIdentity {
@@ -86,6 +87,12 @@ export interface ScriptState {
   lifecycle: {
     dead: boolean
   }
+  /** Source filename used for coverage attribution. "<inline>" for inline-source loads. */
+  readonly filename: string
+  /** Original LSL source — kept for LCOV / Istanbul line maps. Empty when caller didn't supply it. */
+  readonly source: string
+  /** Coverage collector when enabled, otherwise null. Hooks short-circuit on null. */
+  coverage: CoverageCollector | null
 }
 
 export type BuiltinImpl = (ctx: CallContext, args: ReadonlyArray<LslValue>) => LslValue | undefined
