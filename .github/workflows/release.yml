@@ -1,8 +1,11 @@
 name: Release
 
+# Triggered by every push to main; the `check` job decides whether the
+# version in package.json has actually moved. If it has, `publish` runs.
+# Otherwise the workflow exits cheap and clean.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -10,11 +13,48 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.detect.outputs.version }}
+      should_release: ${{ steps.detect.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full tag history for the existence check
+
+      - id: detect
+        name: Read version + verify lockstep + check tag
+        run: |
+          # Single source of truth: packages/vitest/package.json. The bump
+          # script (`pnpm bump <version>`) keeps the root and the other
+          # publishables in sync; this guard catches manual edits that drift.
+          VERSION=$(node -p "require('./packages/vitest/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          for pkg in package.json packages/parser/package.json packages/vm/package.json; do
+            v=$(node -p "require('./$pkg').version")
+            if [ "$v" != "$VERSION" ]; then
+              echo "::error::$pkg is at version $v but packages/vitest is at $VERSION. Run \`pnpm bump $VERSION\`."
+              exit 1
+            fi
+          done
+
+          if git rev-parse --quiet --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "Tag v${VERSION} already exists — version was not bumped, nothing to release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Will release v${VERSION}."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
+      contents: write   # push the new tag + create the GitHub Release
+      id-token: write   # OIDC for npm Trusted Publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -50,12 +90,26 @@ jobs:
       - name: Publish @rezless/* to npm with provenance
         run: pnpm -r publish --access public --no-git-checks --provenance
 
+      - name: Tag the release commit and create a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --generate-notes
+
       - name: Smoke-test installed package from npm
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
           # Poll the registry until the just-published version is visible
           # (npm propagation can take anywhere from seconds to minutes).
           # Total budget: 30 attempts × 10s = 5 minutes.
-          VERSION=$(node -p "require('./packages/vitest/package.json').version")
           echo "Waiting for @rezless/vitest@${VERSION} to appear on npm..."
           for i in $(seq 1 30); do
             if npm view "@rezless/vitest@${VERSION}" version >/dev/null 2>&1; then

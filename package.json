@@ -16,6 +16,7 @@
   "type": "module",
   "scripts": {
     "gen": "tsx scripts/gen-stubs.ts",
+    "bump": "node scripts/bump.mjs",
     "build": "pnpm -r build",
     "prepare": "pnpm gen && pnpm build",
     "test": "vitest run",
