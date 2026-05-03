@@ -52,8 +52,22 @@ jobs:
 
       - name: Smoke-test installed package from npm
         run: |
-          # Wait for the registry to propagate the just-published version.
-          sleep 30
+          # Poll the registry until the just-published version is visible
+          # (npm propagation can take anywhere from seconds to minutes).
+          # Total budget: 30 attempts × 10s = 5 minutes.
+          VERSION=$(node -p "require('./packages/vitest/package.json').version")
+          echo "Waiting for @rezless/vitest@${VERSION} to appear on npm..."
+          for i in $(seq 1 30); do
+            if npm view "@rezless/vitest@${VERSION}" version >/dev/null 2>&1; then
+              echo "Available after $((i * 10))s."
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::@rezless/vitest@${VERSION} did not appear on npm within 5 minutes."
+              exit 1
+            fi
+            sleep 10
+          done
           mkdir /tmp/consumer && cd /tmp/consumer
           cat > package.json <<'JSON'
           {
