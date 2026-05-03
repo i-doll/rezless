@@ -42,10 +42,13 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Publish @rezless/* to npm
-        run: pnpm -r publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Authentication is via npm Trusted Publishing (OIDC) — the workflow's
+      # GITHUB_TOKEN is exchanged for a short-lived npm token. No NPM_TOKEN
+      # secret is needed. Each @rezless/* package must have this repo +
+      # workflow pre-registered as a trusted publisher on npmjs.com before
+      # the first publish.
+      - name: Publish @rezless/* to npm with provenance
+        run: pnpm -r publish --access public --no-git-checks --provenance
 
       - name: Smoke-test installed package from npm
         run: |
