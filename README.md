@@ -1,4 +1,4 @@
-# lslvm
+# rezless
 
 A **Vitest-style test framework for LSL** (Linden Scripting Language).
 
@@ -7,8 +7,8 @@ Tests run in milliseconds, in-process, with a virtual clock and mockable
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest'
-import { loadScript, vm } from '@lslvm/vitest'
-import type { Script } from '@lslvm/vitest'
+import { loadScript, vm } from '@rezless/vitest'
+import type { Script } from '@rezless/vitest'
 
 describe('greeter.lsl', () => {
   let s: Script
@@ -38,7 +38,7 @@ describe('greeter.lsl', () => {
 ## Why
 
 Up to now, the only way to test an LSL script has been to rez it
-in-world and exercise it by hand. lslvm gives you a real type-checked
+in-world and exercise it by hand. rezless gives you a real type-checked
 TypeScript / Vitest experience with deterministic time, mockable `ll*`
 calls, and rich assertions over chat output, state transitions, HTTP
 requests, and script globals.
@@ -47,43 +47,32 @@ requests, and script globals.
 
 | Package | Purpose |
 |---|---|
-| `@lslvm/parser` | Hand-written recursive-descent LSL parser |
-| `@lslvm/vm` | Tree-walking interpreter, virtual clock, dispatch |
-| `@lslvm/vitest` | `loadScript()` + custom matchers |
+| `@rezless/parser` | Hand-written recursive-descent LSL parser |
+| `@rezless/vm` | Tree-walking interpreter, virtual clock, dispatch |
+| `@rezless/vitest` | `loadScript()` + custom matchers |
 
 ## Install
 
 ### Use it from another project
 
-Not on npm yet. Install directly from git, aliasing the package name so
-your `import` lines stay clean:
-
-```json
-{
-  "devDependencies": {
-    "@lslvm/vitest": "github:i-doll/lslvm#release",
-    "vitest": "^4.1.5"
-  }
-}
+```sh
+pnpm add -D @rezless/vitest vitest
+# or: npm i -D @rezless/vitest vitest
 ```
 
-The `release` branch is auto-published by CI and ships a prebuilt
-`dist/index.js` — `pnpm install` just clones it and links the bundle
-into your `node_modules`. No build runs at install time, so you don't
-need `pnpm approve-builds`. `vitest` is a peer dependency.
+`vitest` is a peer dependency. Then in your test file:
 
 ```ts
-import { loadScript } from '@lslvm/vitest'
+import { loadScript } from '@rezless/vitest'
 ```
 
-### Develop on lslvm itself
+### Develop on rezless itself
 
 ```sh
 pnpm install
 pnpm gen          # regenerate ll* stub tables from vendor/kwdb.xml
 pnpm typecheck
 pnpm build        # per-package tsc emit
-pnpm bundle       # produce the consumer-facing dist/index.js
 pnpm test
 ```
 
@@ -157,7 +146,7 @@ Every script shares one virtual clock, one Linkset Data store, and one
 `llResetOtherScript`, and `llSetScriptState` all behave as they do in-world.
 
 ```ts
-import { loadLinkset } from '@lslvm/vitest'
+import { loadLinkset } from '@rezless/vitest'
 
 const { linkset, prims, scripts } = await loadLinkset({
   prims: [
@@ -241,12 +230,12 @@ honored centrally in the dispatcher.
 
 The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
 `INVENTORY_*`, `MASK_*`, `LINKSETDATA_*`, …) is re-exported from
-`@lslvm/vitest`, so tests can compare numeric returns against named
+`@rezless/vitest`, so tests can compare numeric returns against named
 constants instead of magic numbers.
 
 ## Coverage
 
-`@lslvm/vitest` ships an LSL coverage collector that tracks four kinds of
+`@rezless/vitest` ships an LSL coverage collector that tracks four kinds of
 coverage per script: **statement**, **branch** (if / while / for / do-while
 arms), **function** (user functions and event handlers), and **state**
 ("did we ever enter `state idle`?"). Off by default; opt in once in your
@@ -254,7 +243,7 @@ arms), **function** (user functions and event handlers), and **state**
 
 ```ts
 import { defineConfig } from 'vitest/config'
-import { LslCoverageReporter } from '@lslvm/vitest/reporter'
+import { LslCoverageReporter } from '@rezless/vitest/reporter'
 
 export default defineConfig({
   test: {
@@ -288,7 +277,7 @@ expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterTh
 ```sh
 # Without the reporter installed — env var collects, CLI renders.
 LSL_COVERAGE=1 pnpm test
-pnpm exec lslvm-coverage
+pnpm exec rezless-coverage
 ```
 
 By default, reports for synthetic filenames (`<inline>`, names without a
@@ -330,7 +319,7 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 
 ## License
 
-The lslvm project is licensed under the **Apache License, Version 2.0** —
+The rezless project is licensed under the **Apache License, Version 2.0** —
 see [`LICENSE`](LICENSE).
 
 LSL function/event/constant signatures come from
@@ -341,4 +330,4 @@ under that licence; see [`NOTICE`](NOTICE) for the full attribution.
 
 Apache 2.0 is one-way compatible with LGPL-3 (per the FSF), so a
 combined work that includes both can be redistributed under LGPL-3
-terms — which is what consumers receive when they use lslvm.
+terms — which is what consumers receive when they use rezless.

@@ -1,4 +1,4 @@
-import type { Script as Ast, Statement, SourceLocation } from '@lslvm/parser'
+import type { Script as Ast, Statement, SourceLocation } from '@rezless/parser'
 
 export type StatementKind = Statement['kind']
 

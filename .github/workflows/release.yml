@@ -2,18 +2,19 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 concurrency:
-  group: release-branch
+  group: release
   cancel-in-progress: false
 
 jobs:
-  publish-release-branch:
+  publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -25,64 +26,48 @@ jobs:
         with:
           node-version: '20'
           cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Pack
-        run: pnpm pack --pack-destination /tmp/release
+      - name: Regenerate kwdb tables
+        run: pnpm gen
 
-      - name: Expand tarball into _release/
-        run: |
-          mkdir _release
-          tar -xzf /tmp/release/*.tgz -C _release --strip-components=1
+      - name: Build
+        run: pnpm build
 
-      - name: Sanitize package.json (strip lifecycle scripts and dev fields)
-        run: |
-          node -e "
-            const fs = require('fs');
-            const p = JSON.parse(fs.readFileSync('_release/package.json', 'utf8'));
-            delete p.scripts;
-            delete p.devDependencies;
-            delete p.private;
-            fs.writeFileSync('_release/package.json', JSON.stringify(p, null, 2) + '\n');
-          "
+      - name: Typecheck
+        run: pnpm typecheck
 
-      - name: Force-push release branch
-        run: |
-          cd _release
-          git init -b release
-          git config user.name  'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m "release: ${GITHUB_SHA}"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push -f origin release
+      - name: Test
+        run: pnpm test
+
+      - name: Publish @rezless/* to npm
+        run: pnpm -r publish --access public --no-git-checks
         env:
-          GH_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Smoke-test the just-published release
+      - name: Smoke-test installed package from npm
         run: |
+          # Wait for the registry to propagate the just-published version.
+          sleep 30
           mkdir /tmp/consumer && cd /tmp/consumer
-          cat > package.json <<JSON
+          cat > package.json <<'JSON'
           {
             "name": "consumer-smoke",
             "private": true,
-            "type": "module",
-            "devDependencies": {
-              "@lslvm/vitest": "github:${GITHUB_REPOSITORY}#release",
-              "vitest": "^4.1.5"
-            }
+            "type": "module"
           }
           JSON
-          pnpm install --ignore-workspace --ignore-scripts
-          f=node_modules/@lslvm/vitest/dist/index.js
-          test -f "$f" || { echo "::error::missing $f — release branch did not ship dist"; exit 1; }
-          test -f node_modules/@lslvm/vitest/dist/index.d.ts \
-            || { echo "::error::missing dist/index.d.ts in release tree"; exit 1; }
+          pnpm add -D @rezless/vitest vitest@^4.1.5 --ignore-workspace --ignore-scripts
+          test -f node_modules/@rezless/vitest/dist/index.js \
+            || { echo "::error::missing dist/index.js — npm tarball is incomplete"; exit 1; }
+          test -f node_modules/@rezless/vitest/dist/index.d.ts \
+            || { echo "::error::missing dist/index.d.ts in npm tarball"; exit 1; }
           node --input-type=module -e "
-            import('@lslvm/vitest').then(m => {
+            import('@rezless/vitest').then(m => {
               if (typeof m.loadScript !== 'function') {
-                console.error('loadScript not exported as function; got:', typeof m.loadScript);
+                console.error('loadScript not exported; got:', typeof m.loadScript);
                 process.exit(1);
               }
               console.log('ok: exports =', Object.keys(m).sort().join(', '));

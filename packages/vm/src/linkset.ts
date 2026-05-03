@@ -12,7 +12,7 @@ import {
   LINK_THIS,
 } from './generated/constants.js'
 
-// Re-export so `import { LINK_* } from '@lslvm/vm'` keeps working.
+// Re-export so `import { LINK_* } from '@rezless/vm'` keeps working.
 export { LINK_ROOT, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_THIS }
 
 export interface LinksetOptions {

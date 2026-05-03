@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset } from '../src/index.js'
-import { EOF, NAK, InventoryType, makeInventoryItem } from '@lslvm/vm'
+import { EOF, NAK, InventoryType, makeInventoryItem } from '@rezless/vm'
 
 describe('multi-script linkset', () => {
   describe('LSD broadcast', () => {

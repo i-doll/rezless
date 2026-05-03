@@ -75,7 +75,7 @@ function coverageSetupFilePath(): string {
  *
  * Wire it up once in your `vitest.config.ts`:
  *
- *   import { LslCoverageReporter } from '@lslvm/vitest/reporter'
+ *   import { LslCoverageReporter } from '@rezless/vitest/reporter'
  *   export default defineConfig({
  *     test: {
  *       reporters: ['default', new LslCoverageReporter()],

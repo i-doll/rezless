@@ -20,7 +20,7 @@ import type {
   VariableDeclaration,
   FunctionDeclaration,
   TypeName,
-} from '@lslvm/parser'
+} from '@rezless/parser'
 import type { BuiltinImpl, ScriptState } from './runtime.js'
 import type { Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'

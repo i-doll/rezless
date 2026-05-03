@@ -1,4 +1,4 @@
-import type { CoverageReport } from '@lslvm/vm'
+import type { CoverageReport } from '@rezless/vm'
 
 interface FilePct {
   filename: string

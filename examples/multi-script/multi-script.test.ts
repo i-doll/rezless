@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadLinkset } from '@lslvm/vitest'
+import { loadLinkset } from '@rezless/vitest'
 import { fileURLToPath } from 'node:url'
 
 const COUNTER = fileURLToPath(new URL('./counter.lsl', import.meta.url))

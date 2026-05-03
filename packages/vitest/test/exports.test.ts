@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import * as lslvm from '../src/index.js'
+import * as rezless from '../src/index.js'
 import {
   TRUE,
   FALSE,
@@ -46,7 +46,7 @@ describe('public LSL constant surface', () => {
   })
 
   it('exports a large constant surface and the reflection table', () => {
-    const exportedNames = Object.keys(lslvm)
+    const exportedNames = Object.keys(rezless)
     expect(exportedNames.length).toBeGreaterThan(900)
     expect(exportedNames).toContain('STATUS_PHYSICS')
     expect(exportedNames).toContain('JSON_ARRAY')

@@ -1,4 +1,4 @@
-import type { CoverageReport } from '@lslvm/vm'
+import type { CoverageReport } from '@rezless/vm'
 
 /**
  * Render a self-contained HTML coverage report — `index.html` summary plus

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
-import { parse, LslParseError } from '@lslvm/parser'
-import { Script } from '@lslvm/vm'
-import type { ScriptOptions } from '@lslvm/vm'
+import { parse, LslParseError } from '@rezless/parser'
+import { Script } from '@rezless/vm'
+import type { ScriptOptions } from '@rezless/vm'
 import { isCoverageEnabled } from './coverage-config.js'
 import { registerScript } from './coverage-registry.js'
 

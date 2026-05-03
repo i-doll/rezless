@@ -1,7 +1,27 @@
 {
-  "name": "@lslvm/vitest",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@rezless/vitest",
+  "version": "0.1.0",
+  "description": "Vitest-style DSL for testing Linden Scripting Language (LSL) scripts.",
+  "license": "Apache-2.0",
+  "author": "i-doll",
+  "homepage": "https://github.com/i-doll/rezless#readme",
+  "bugs": {
+    "url": "https://github.com/i-doll/rezless/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/i-doll/rezless.git",
+    "directory": "packages/vitest"
+  },
+  "keywords": [
+    "lsl",
+    "linden-scripting-language",
+    "second-life",
+    "vitest",
+    "testing",
+    "test-framework",
+    "rezless"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,16 +40,20 @@
     }
   },
   "bin": {
-    "lslvm-coverage": "./dist/cli.js"
+    "rezless-coverage": "./dist/cli.js"
   },
-  "files": ["dist"],
+  "files": ["dist", "LICENSE", "NOTICE", "README.md"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
-    "@lslvm/parser": "workspace:*",
-    "@lslvm/vm": "workspace:*"
+    "@rezless/parser": "workspace:*",
+    "@rezless/vm": "workspace:*"
   },
   "peerDependencies": {
     "vitest": "^4.1.5"
