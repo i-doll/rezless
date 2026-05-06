@@ -659,4 +659,14 @@ describe('llList2Json', () => {
     `)
     expect(s.global('out')).toBe('["12abc"]')
   })
+
+  it('string that looks like a number stays quoted', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llList2Json(JSON_OBJECT, ["val", "42"]);
+      } }
+    `)
+    expect(s.global('out')).toBe('{"val":"42"}')
+  });
 })
