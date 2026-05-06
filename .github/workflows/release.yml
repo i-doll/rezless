@@ -156,8 +156,9 @@ jobs:
           # @rezless/vitest depends on parser+vm at the exact same version,
           # so the consumer install only succeeds once all three are
           # propagated. Poll each. Per-package budget: 30 × 10s = 5 min;
-          # since `pnpm publish` ships in topological order, parser+vm
-          # almost always land before we even start polling for them.
+          # the publish loop above runs in topological order
+          # (parser → vm → vitest), so parser+vm almost always land
+          # before we even start polling for them.
           for pkg in @rezless/parser @rezless/vm @rezless/vitest; do
             echo "Waiting for ${pkg}@${VERSION} on npm..."
             for i in $(seq 1 30); do
