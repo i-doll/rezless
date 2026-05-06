@@ -590,12 +590,9 @@ function lslStringToJsonElement(raw: string): string {
   if (trimmed === 'true' || trimmed === 'false' || trimmed === 'null') {
     return trimmed
   }
-  if (trimmed.length > 0) {
-    const ch = trimmed[0]!
-    if (ch === '{' || ch === '[' || ch === '-' || (ch >= '0' && ch <= '9')) {
-      const parsed = parseJson(trimmed)
-      if (parsed !== null) return trimmed
-    }
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    const parsed = parseJson(trimmed)
+    if (parsed !== null) return trimmed
   }
   return '"' + escapeJsonString(trimmed) + '"'
 }

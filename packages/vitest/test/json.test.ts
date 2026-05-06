@@ -630,24 +630,24 @@ describe('llList2Json', () => {
     expect(s.global('out')).toBe('[true,false,null]')
   })
 
-  it('LSL string holding a JSON number ("42", "-3.14", "1e3") embeds as bare number', async () => {
+  it('LSL strings holding JSON numbers stay quoted (BUG-6284)', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() {
         out = llList2Json(JSON_ARRAY, ["42", "-3.14", "1e3"]);
       } }
     `)
-    expect(s.global('out')).toBe('[42,-3.14,1e3]')
+    expect(s.global('out')).toBe('["42","-3.14","1e3"]')
   })
 
-  it('LSL string holding a JSON number works as object value too', async () => {
+  it('numeric LSL string as object value stays quoted (BUG-6284)', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() {
         out = llList2Json(JSON_OBJECT, ["k", "42"]);
       } }
     `)
-    expect(s.global('out')).toBe('{"k":42}')
+    expect(s.global('out')).toBe('{"k":"42"}')
   })
 
   it('numeric-looking but invalid JSON string ("12abc") stays a quoted string', async () => {
