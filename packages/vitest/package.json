@@ -1,6 +1,6 @@
 {
   "name": "@rezless/vitest",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Vitest-style DSL for testing Linden Scripting Language (LSL) scripts.",
   "license": "Apache-2.0",
   "author": "i-doll",
@@ -42,7 +42,12 @@
   "bin": {
     "rezless-coverage": "./dist/cli.js"
   },
-  "files": ["dist", "LICENSE", "NOTICE", "README.md"],
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -1,6 +1,6 @@
 {
   "name": "@rezless/vm",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Tree-walking interpreter and virtual clock for the Linden Scripting Language (LSL).",
   "license": "Apache-2.0",
   "author": "i-doll",
@@ -30,7 +30,12 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "LICENSE", "NOTICE", "README.md"],
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
