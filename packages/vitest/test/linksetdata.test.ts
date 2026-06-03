@@ -334,4 +334,45 @@ describe('Linkset Data', () => {
     s.start()
     expect(s.global('n')).toBe(2)
   })
+
+  it('linkset_data UPDATE event for an unprotected write carries the value (SL parity)', async () => {
+    const s = await load(`
+      integer act = -1;
+      string seenName = "?";
+      string seenValue = "?";
+      default {
+        state_entry() {
+          llLinksetDataWrite("k", "the-value");
+        }
+        linkset_data(integer action, string name, string value) {
+          act = action;
+          seenName = name;
+          seenValue = value;
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('act')).toBe(1) // LINKSETDATA_UPDATE
+    expect(s.global('seenName')).toBe('k')
+    expect(s.global('seenValue')).toBe('the-value')
+  })
+
+  it('linkset_data UPDATE event for a protected write blanks the value (SL parity, regression guard)', async () => {
+    const s = await load(`
+      integer act = -1;
+      string seenValue = "?";
+      default {
+        state_entry() {
+          llLinksetDataWriteProtected("k", "the-value", "pw");
+        }
+        linkset_data(integer action, string name, string value) {
+          act = action;
+          seenValue = value;
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('act')).toBe(1) // LINKSETDATA_UPDATE
+    expect(s.global('seenValue')).toBe('')
+  })
 })

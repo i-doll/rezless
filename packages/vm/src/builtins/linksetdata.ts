@@ -63,7 +63,7 @@ export const llLinksetDataWrite: BuiltinImpl = (ctx, args) => {
   }
   if (existing && existing.value === value) return LINKSETDATA_NOUPDATE
   store.set(name, { value, password: '' })
-  fireEvent(ctx, LINKSETDATA_UPDATE, name, '')
+  fireEvent(ctx, LINKSETDATA_UPDATE, name, value)
   return LINKSETDATA_OK
 }
 
