@@ -375,4 +375,31 @@ describe('Linkset Data', () => {
     expect(s.global('act')).toBe(1) // LINKSETDATA_UPDATE
     expect(s.global('seenValue')).toBe('')
   })
+
+  it('linkset_data MULTIDELETE event delivers a CSV of deleted keys in name and empty value (SL parity)', async () => {
+    const s = await load(`
+      integer act = -1;
+      string seenName = "?";
+      string seenValue = "?";
+      default {
+        state_entry() {
+          llLinksetDataWrite("k1", "v1");
+          llLinksetDataWrite("k2", "v2");
+          llLinksetDataWrite("k3", "v3");
+          llLinksetDataDeleteFound("^k", "");
+        }
+        linkset_data(integer action, string name, string value) {
+          if (action == 3) { // LINKSETDATA_MULTIDELETE
+            act = action;
+            seenName = name;
+            seenValue = value;
+          }
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('act')).toBe(3) // LINKSETDATA_MULTIDELETE
+    expect(s.global('seenName')).toBe('k1,k2,k3')
+    expect(s.global('seenValue')).toBe('')
+  })
 })

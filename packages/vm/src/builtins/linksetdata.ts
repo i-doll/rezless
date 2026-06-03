@@ -139,7 +139,7 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
   const re = compilePattern(pattern)
   if (!re) return [0, 0]
   const store = ctx.state.linksetData
-  let deleted = 0
+  const deletedKeys: string[] = []
   let notDeleted = 0
   for (const [name, entry] of [...store.entries()]) {
     if (!re.test(name)) continue
@@ -148,12 +148,12 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
       continue
     }
     store.delete(name)
-    deleted += 1
+    deletedKeys.push(name)
   }
-  if (deleted > 0) {
-    fireEvent(ctx, LINKSETDATA_MULTIDELETE, String(deleted), String(notDeleted))
+  if (deletedKeys.length > 0) {
+    fireEvent(ctx, LINKSETDATA_MULTIDELETE, deletedKeys.join(','), '')
   }
-  return [deleted, notDeleted]
+  return [deletedKeys.length, notDeleted]
 }
 
 export const llLinksetDataReset: BuiltinImpl = (ctx) => {
