@@ -1,6 +1,6 @@
 {
   "name": "rezless",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "Workspace coordinator for the rezless LSL test framework (publishes @rezless/parser, @rezless/vm, @rezless/vitest).",
   "license": "Apache-2.0",
