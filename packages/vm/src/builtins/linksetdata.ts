@@ -63,7 +63,7 @@ export const llLinksetDataWrite: BuiltinImpl = (ctx, args) => {
   }
   if (existing && existing.value === value) return LINKSETDATA_NOUPDATE
   store.set(name, { value, password: '' })
-  fireEvent(ctx, LINKSETDATA_UPDATE, name, '')
+  fireEvent(ctx, LINKSETDATA_UPDATE, name, value)
   return LINKSETDATA_OK
 }
 
@@ -74,7 +74,7 @@ export const llLinksetDataWriteProtected: BuiltinImpl = (ctx, args) => {
   if (name === '') return LINKSETDATA_ENOKEY
   const store = ctx.state.linksetData
   const existing = store.get(name)
-  if (existing && existing.password !== '' && existing.password !== password) {
+  if (existing && existing.password !== password) {
     return LINKSETDATA_EPROTECTED
   }
   if (value === '') {
@@ -87,7 +87,11 @@ export const llLinksetDataWriteProtected: BuiltinImpl = (ctx, args) => {
     return LINKSETDATA_NOUPDATE
   }
   store.set(name, { value, password })
-  fireEvent(ctx, LINKSETDATA_UPDATE, name, '')
+  // The resulting entry's protection state — not the function name — decides
+  // whether the UPDATE event blanks the value. WriteProtected with an empty
+  // password creates an unprotected entry and so must carry the value, same
+  // as llLinksetDataWrite.
+  fireEvent(ctx, LINKSETDATA_UPDATE, name, password === '' ? value : '')
   return LINKSETDATA_OK
 }
 
@@ -104,7 +108,7 @@ export const llLinksetDataReadProtected: BuiltinImpl = (ctx, args) => {
   const password = (args[1] as string | undefined) ?? ''
   const entry = ctx.state.linksetData.get(name)
   if (!entry) return ''
-  if (entry.password !== '' && entry.password !== password) return ''
+  if (entry.password !== password) return ''
   return entry.value
 }
 
@@ -127,7 +131,7 @@ export const llLinksetDataDeleteProtected: BuiltinImpl = (ctx, args) => {
   const store = ctx.state.linksetData
   const entry = store.get(name)
   if (!entry) return LINKSETDATA_NOTFOUND
-  if (entry.password !== '' && entry.password !== password) return LINKSETDATA_EPROTECTED
+  if (entry.password !== password) return LINKSETDATA_EPROTECTED
   store.delete(name)
   fireEvent(ctx, LINKSETDATA_DELETE, name, '')
   return LINKSETDATA_OK
@@ -139,21 +143,23 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
   const re = compilePattern(pattern)
   if (!re) return [0, 0]
   const store = ctx.state.linksetData
-  let deleted = 0
+  const deletedKeys: string[] = []
   let notDeleted = 0
   for (const [name, entry] of [...store.entries()]) {
     if (!re.test(name)) continue
-    if (entry.password !== '' && entry.password !== password) {
+    if (entry.password !== password) {
       notDeleted += 1
       continue
     }
     store.delete(name)
-    deleted += 1
+    deletedKeys.push(name)
   }
-  if (deleted > 0) {
-    fireEvent(ctx, LINKSETDATA_MULTIDELETE, String(deleted), String(notDeleted))
+  if (deletedKeys.length > 0) {
+    // SL emits MULTIDELETE.name in ASCII-lex order, not insertion order.
+    deletedKeys.sort()
+    fireEvent(ctx, LINKSETDATA_MULTIDELETE, deletedKeys.join(','), '')
   }
-  return [deleted, notDeleted]
+  return [deletedKeys.length, notDeleted]
 }
 
 export const llLinksetDataReset: BuiltinImpl = (ctx) => {
