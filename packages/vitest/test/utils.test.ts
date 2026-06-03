@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { loadScript } from '../src/index.js'
 
-async function run(source: string, options?: { owner?: string; objectName?: string; scriptName?: string; randomSeed?: number }) {
+async function run(source: string, options?: { owner?: string; objectName?: string; objectKey?: string; scriptName?: string; randomSeed?: number }) {
   const s = await loadScript({ source, ...options })
   s.start()
   return s
@@ -472,5 +472,44 @@ describe('Phase 3 — identity builtins', () => {
       { scriptName: 'greeter' },
     )
     expect(s.global('n')).toBe('greeter')
+  })
+
+  it('llGetOwnerKey resolves the host prim to its owner', async () => {
+    const s = await run(
+      `
+      key k = "";
+      default { state_entry() { k = llGetOwnerKey(llGetKey()); } }
+      `,
+      {
+        owner: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        objectKey: '11111111-2222-3333-4444-555555555555',
+      },
+    )
+    expect(s.global('k')).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
+  })
+
+  it('llGetOwnerKey echoes id for unknown well-formed keys', async () => {
+    const s = await run(
+      `
+      key k = "";
+      default {
+        state_entry() {
+          k = llGetOwnerKey("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        }
+      }
+      `,
+      { owner: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' },
+    )
+    expect(s.global('k')).toBe('ffffffff-ffff-ffff-ffff-ffffffffffff')
+  })
+
+  it('llGetOwnerKey returns NULL_KEY for malformed keys', async () => {
+    const s = await run(
+      `
+      key k = "untouched";
+      default { state_entry() { k = llGetOwnerKey("not-a-uuid"); } }
+      `,
+    )
+    expect(s.global('k')).toBe('00000000-0000-0000-0000-000000000000')
   })
 })

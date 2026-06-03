@@ -71,6 +71,7 @@ import {
 } from './json.js'
 import {
   llGetOwner,
+  llGetOwnerKey,
   llGetCreator,
   llGetKey,
   llGetObjectName,
@@ -287,6 +288,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llList2Json,
   // identity
   llGetOwner,
+  llGetOwnerKey,
   llGetCreator,
   llGetKey,
   llGetObjectName,
