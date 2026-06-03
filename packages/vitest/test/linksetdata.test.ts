@@ -101,21 +101,92 @@ describe('Linkset Data', () => {
     expect(s.global('c')).toBe('')
   })
 
-  it('ReadProtected returns unprotected entry value regardless of password', async () => {
+  it('ReadProtected on an unprotected entry returns "" when called with a non-empty password (SL parity)', async () => {
     const s = await load(`
-      string a = "x";
-      string b = "x";
+      string got = "?";
       default {
         state_entry() {
           llLinksetDataWrite("k", "v");
-          a = llLinksetDataReadProtected("k", "");
-          b = llLinksetDataReadProtected("k", "ignored");
+          got = llLinksetDataReadProtected("k", "any-password");
         }
       }
     `)
     s.start()
-    expect(s.global('a')).toBe('v')
-    expect(s.global('b')).toBe('v')
+    // Strict partition: a non-empty-password Protected accessor only sees
+    // protected entries, so an unprotected entry is invisible and returns "".
+    expect(s.global('got')).toBe('')
+  })
+
+  it('WriteProtected onto an unprotected entry returns EPROTECTED and preserves the value (SL parity)', async () => {
+    const s = await load(`
+      integer rc = -1;
+      string after = "?";
+      default {
+        state_entry() {
+          llLinksetDataWrite("k", "unprot-val");
+          rc = llLinksetDataWriteProtected("k", "overwrite", "pw");
+          after = llLinksetDataRead("k");
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('rc')).toBe(3) // LINKSETDATA_EPROTECTED
+    expect(s.global('after')).toBe('unprot-val')
+    expect(s.linksetData.get('k')).toMatchObject({ value: 'unprot-val', password: '' })
+  })
+
+  it('DeleteProtected of an unprotected entry returns EPROTECTED and preserves it (SL parity)', async () => {
+    const s = await load(`
+      integer rc = -1;
+      string after = "?";
+      default {
+        state_entry() {
+          llLinksetDataWrite("k", "unprot-val");
+          rc = llLinksetDataDeleteProtected("k", "pw");
+          after = llLinksetDataRead("k");
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('rc')).toBe(3) // LINKSETDATA_EPROTECTED
+    expect(s.global('after')).toBe('unprot-val')
+  })
+
+  it('DeleteFound with a password against an unprotected entry returns [0, 1] and preserves it (SL parity)', async () => {
+    const s = await load(`
+      list result = [];
+      string after = "?";
+      default {
+        state_entry() {
+          llLinksetDataWrite("k", "unprot-val");
+          result = llLinksetDataDeleteFound("^k$", "pw");
+          after = llLinksetDataRead("k");
+        }
+      }
+    `)
+    s.start()
+    // Probe row [4]: cross-partition entries land in the notDeleted bucket.
+    expect(s.global('result')).toEqual([0, 1])
+    expect(s.global('after')).toBe('unprot-val')
+  })
+
+  it('DeleteFound with no password against a protected entry returns [0, 1] and preserves it (SL parity)', async () => {
+    const s = await load(`
+      list result = [];
+      string after = "?";
+      default {
+        state_entry() {
+          llLinksetDataWriteProtected("k", "prot-val", "pw");
+          result = llLinksetDataDeleteFound("^k$", "");
+          after = llLinksetDataReadProtected("k", "pw");
+        }
+      }
+    `)
+    s.start()
+    // Probe row [5]: symmetric — unprotected accessor on a protected entry
+    // also lands in notDeleted.
+    expect(s.global('result')).toEqual([0, 1])
+    expect(s.global('after')).toBe('prot-val')
   })
 
   it('Delete on missing key returns NOTFOUND; on empty name returns ENOKEY', async () => {

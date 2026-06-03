@@ -74,7 +74,7 @@ export const llLinksetDataWriteProtected: BuiltinImpl = (ctx, args) => {
   if (name === '') return LINKSETDATA_ENOKEY
   const store = ctx.state.linksetData
   const existing = store.get(name)
-  if (existing && existing.password !== '' && existing.password !== password) {
+  if (existing && existing.password !== password) {
     return LINKSETDATA_EPROTECTED
   }
   if (value === '') {
@@ -104,7 +104,7 @@ export const llLinksetDataReadProtected: BuiltinImpl = (ctx, args) => {
   const password = (args[1] as string | undefined) ?? ''
   const entry = ctx.state.linksetData.get(name)
   if (!entry) return ''
-  if (entry.password !== '' && entry.password !== password) return ''
+  if (entry.password !== password) return ''
   return entry.value
 }
 
@@ -127,7 +127,7 @@ export const llLinksetDataDeleteProtected: BuiltinImpl = (ctx, args) => {
   const store = ctx.state.linksetData
   const entry = store.get(name)
   if (!entry) return LINKSETDATA_NOTFOUND
-  if (entry.password !== '' && entry.password !== password) return LINKSETDATA_EPROTECTED
+  if (entry.password !== password) return LINKSETDATA_EPROTECTED
   store.delete(name)
   fireEvent(ctx, LINKSETDATA_DELETE, name, '')
   return LINKSETDATA_OK
@@ -143,7 +143,7 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
   let notDeleted = 0
   for (const [name, entry] of [...store.entries()]) {
     if (!re.test(name)) continue
-    if (entry.password !== '' && entry.password !== password) {
+    if (entry.password !== password) {
       notDeleted += 1
       continue
     }
