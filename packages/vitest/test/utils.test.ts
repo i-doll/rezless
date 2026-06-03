@@ -512,4 +512,21 @@ describe('Phase 3 — identity builtins', () => {
     )
     expect(s.global('k')).toBe('00000000-0000-0000-0000-000000000000')
   })
+
+  it('llGetOwnerKey returns NULL_KEY when called with NULL_KEY (sentinel never resolves)', async () => {
+    // If a fixture pins prim.key = NULL_KEY, an unguarded .some() match would
+    // treat NULL_KEY as a real prim and return the owner. NULL_KEY is SL's
+    // sentinel for "invalid / missing key" and must never resolve to anything.
+    const s = await run(
+      `
+      key k = "untouched";
+      default { state_entry() { k = llGetOwnerKey("00000000-0000-0000-0000-000000000000"); } }
+      `,
+      {
+        owner: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        objectKey: '00000000-0000-0000-0000-000000000000',
+      },
+    )
+    expect(s.global('k')).toBe('00000000-0000-0000-0000-000000000000')
+  })
 })

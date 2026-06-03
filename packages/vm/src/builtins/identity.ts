@@ -15,6 +15,7 @@ export const llGetObjectName: BuiltinImpl = (ctx) => ctx.state.identity.objectNa
 /** llGetOwnerKey(key id) — owner of the prim with that key in the linkset, else `id`. */
 export const llGetOwnerKey: BuiltinImpl = (ctx, args) => {
   const id = (args[0] as string | undefined) ?? ''
+  if (id === NULL_KEY) return NULL_KEY
   if (!KEY_PATTERN.test(id)) return NULL_KEY
   if (ctx.linkset.prims.some((p) => p.key === id)) return ctx.linkset.owner
   return id
