@@ -529,4 +529,41 @@ describe('Phase 3 — identity builtins', () => {
     )
     expect(s.global('k')).toBe('00000000-0000-0000-0000-000000000000')
   })
+
+  it('llGetOwnerKey resolves an uppercase UUID to the host prim (case-insensitive lookup)', async () => {
+    const s = await run(
+      `
+      key k = "";
+      default {
+        state_entry() {
+          // KEY_PATTERN already accepts uppercase; the lookup must too.
+          k = llGetOwnerKey("AABBCCDD-1122-3344-5566-778899AABBCC");
+        }
+      }
+      `,
+      {
+        owner: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        objectKey: 'AABBCCDD-1122-3344-5566-778899AABBCC'.toLowerCase(),
+      },
+    )
+    expect(s.global('k')).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
+  })
+
+  it('llGetOwnerKey resolves a lowercase UUID against an uppercase prim key', async () => {
+    const s = await run(
+      `
+      key k = "";
+      default {
+        state_entry() {
+          k = llGetOwnerKey("aabbccdd-1122-3344-5566-778899aabbcc");
+        }
+      }
+      `,
+      {
+        owner: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        objectKey: 'aabbccdd-1122-3344-5566-778899aabbcc'.toUpperCase(),
+      },
+    )
+    expect(s.global('k')).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
+  })
 })

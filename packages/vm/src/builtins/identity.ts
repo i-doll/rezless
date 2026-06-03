@@ -17,7 +17,8 @@ export const llGetOwnerKey: BuiltinImpl = (ctx, args) => {
   const id = (args[0] as string | undefined) ?? ''
   if (id === NULL_KEY) return NULL_KEY
   if (!KEY_PATTERN.test(id)) return NULL_KEY
-  if (ctx.linkset.prims.some((p) => p.key === id)) return ctx.linkset.owner
+  const idLower = id.toLowerCase()
+  if (ctx.linkset.prims.some((p) => p.key.toLowerCase() === idLower)) return ctx.linkset.owner
   return id
 }
 
