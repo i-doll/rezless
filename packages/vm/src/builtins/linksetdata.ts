@@ -87,7 +87,11 @@ export const llLinksetDataWriteProtected: BuiltinImpl = (ctx, args) => {
     return LINKSETDATA_NOUPDATE
   }
   store.set(name, { value, password })
-  fireEvent(ctx, LINKSETDATA_UPDATE, name, '')
+  // The resulting entry's protection state — not the function name — decides
+  // whether the UPDATE event blanks the value. WriteProtected with an empty
+  // password creates an unprotected entry and so must carry the value, same
+  // as llLinksetDataWrite.
+  fireEvent(ctx, LINKSETDATA_UPDATE, name, password === '' ? value : '')
   return LINKSETDATA_OK
 }
 

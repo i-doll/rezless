@@ -376,6 +376,32 @@ describe('Linkset Data', () => {
     expect(s.global('seenValue')).toBe('')
   })
 
+  it('linkset_data UPDATE event for an empty-password WriteProtected call carries the value (SL parity)', async () => {
+    const s = await load(`
+      integer act = -1;
+      string seenName = "?";
+      string seenValue = "?";
+      default {
+        state_entry() {
+          // In real SL, WriteProtected with an empty password is effectively
+          // an unprotected write: it creates an unprotected entry and fires
+          // an UPDATE event that carries the value (probe-verified, PR #45).
+          llLinksetDataWriteProtected("k", "the-value", "");
+        }
+        linkset_data(integer action, string name, string value) {
+          act = action;
+          seenName = name;
+          seenValue = value;
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('act')).toBe(1) // LINKSETDATA_UPDATE
+    expect(s.global('seenName')).toBe('k')
+    expect(s.global('seenValue')).toBe('the-value')
+    expect(s.linksetData.get('k')).toMatchObject({ value: 'the-value', password: '' })
+  })
+
   it('linkset_data MULTIDELETE event delivers a CSV of deleted keys in name and empty value (SL parity)', async () => {
     const s = await load(`
       integer act = -1;
