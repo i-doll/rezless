@@ -1,6 +1,6 @@
 {
   "name": "@rezless/vitest",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Vitest-style DSL for testing Linden Scripting Language (LSL) scripts.",
   "license": "Apache-2.0",
   "author": "i-doll",
