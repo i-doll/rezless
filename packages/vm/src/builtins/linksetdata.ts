@@ -155,6 +155,8 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
     deletedKeys.push(name)
   }
   if (deletedKeys.length > 0) {
+    // SL emits MULTIDELETE.name in ASCII-lex order, not insertion order.
+    deletedKeys.sort()
     fireEvent(ctx, LINKSETDATA_MULTIDELETE, deletedKeys.join(','), '')
   }
   return [deletedKeys.length, notDeleted]

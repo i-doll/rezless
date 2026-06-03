@@ -402,16 +402,18 @@ describe('Linkset Data', () => {
     expect(s.linksetData.get('k')).toMatchObject({ value: 'the-value', password: '' })
   })
 
-  it('linkset_data MULTIDELETE event delivers a CSV of deleted keys in name and empty value (SL parity)', async () => {
+  it('linkset_data MULTIDELETE event delivers deleted keys lex-sorted in name with empty value (SL parity)', async () => {
     const s = await load(`
       integer act = -1;
       string seenName = "?";
       string seenValue = "?";
       default {
         state_entry() {
-          llLinksetDataWrite("k1", "v1");
-          llLinksetDataWrite("k2", "v2");
-          llLinksetDataWrite("k3", "v3");
+          // Deliberately insert out of lex order — SL emits MULTIDELETE.name
+          // in ASCII-lex order, not insertion order (probe-confirmed for PR #45).
+          llLinksetDataWrite("kc", "v1");
+          llLinksetDataWrite("ka", "v2");
+          llLinksetDataWrite("kb", "v3");
           llLinksetDataDeleteFound("^k", "");
         }
         linkset_data(integer action, string name, string value) {
@@ -425,7 +427,7 @@ describe('Linkset Data', () => {
     `)
     s.start()
     expect(s.global('act')).toBe(3) // LINKSETDATA_MULTIDELETE
-    expect(s.global('seenName')).toBe('k1,k2,k3')
+    expect(s.global('seenName')).toBe('ka,kb,kc')
     expect(s.global('seenValue')).toBe('')
   })
 })
