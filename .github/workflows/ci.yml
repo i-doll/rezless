@@ -18,6 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -76,6 +77,7 @@ jobs:
           repository: i-doll/huginn
           ref: v1
           token: ${{ secrets.HUGINN_ACTION_READ_PAT }}
+          persist-credentials: false
           path: .huginn
           sparse-checkout: action
 
