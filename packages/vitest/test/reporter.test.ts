@@ -56,7 +56,9 @@ describe('LslCoverageReporter', () => {
     reporter.onTestRunEnd()
 
     const lcov = fs.readFileSync(path.join(outputDir, 'lcov.info'), 'utf8')
-    expect(lcov).toContain(`SF:${sampleFile}`)
+    // The reporter renders absolute filenames relative to cwd as POSIX paths.
+    const relSample = path.relative(process.cwd(), sampleFile).split(path.sep).join('/')
+    expect(lcov).toContain(`SF:${relSample}`)
     expect(lcov).toMatch(/FNDA:1,doubled/)
     expect(lcov).toMatch(/end_of_record/)
 

@@ -1,4 +1,18 @@
+import * as path from 'node:path'
+
 import type { CoverageReport } from '@rezless/vm'
+
+/**
+ * Render an absolute report filename as a repo-relative POSIX path so the
+ * `SF:` records intersect `git diff` output (e.g. for patch-coverage tools)
+ * and stay portable across machines. Synthetic names — `<inline>` and
+ * slash-free hand-rolled names like `a.lsl` — are passed through untouched
+ * (mirrors `isRealFile` in coverage-aggregate.ts).
+ */
+function sourcePath(filename: string, rootDir: string): string {
+  if (!path.isAbsolute(filename)) return filename
+  return path.relative(rootDir, filename).split(path.sep).join('/')
+}
 
 /**
  * Render an LCOV `lcov.info` file body for one or more coverage reports.
@@ -15,11 +29,18 @@ import type { CoverageReport } from '@rezless/vm'
  *   BRF:<total>           BRH:<hit>
  *   LF:<lines>            LH:<lines hit>
  *   end_of_record
+ *
+ * `rootDir` is the base that absolute filenames are made relative to; it
+ * defaults to the current working directory (the repo root under
+ * `pnpm test:coverage`).
  */
-export function renderLcov(reports: ReadonlyArray<CoverageReport>): string {
+export function renderLcov(
+  reports: ReadonlyArray<CoverageReport>,
+  rootDir: string = process.cwd(),
+): string {
   const out: string[] = []
   for (const r of reports) {
-    out.push(`SF:${r.filename}`)
+    out.push(`SF:${sourcePath(r.filename, rootDir)}`)
 
     let fnTotal = 0
     let fnHit = 0

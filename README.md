@@ -287,6 +287,10 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 
 `examples/coverage/` has a runnable demo.
 
+CI records both pipelines to Huginn — a coverage-memory service — as separate
+components (`js`, `lsl`): each PR gets a sticky comment with patch coverage (of
+the lines it changed) and project coverage vs the `main` baseline.
+
 ## Examples
 
 `examples/` ships working scripts with tests:
