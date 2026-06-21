@@ -35,8 +35,8 @@ function fixtureReport() {
 
 describe('LCOV writer', () => {
   it('emits SF / FN / FNDA / DA / BRDA / end_of_record records', () => {
-    const lcov = renderLcov([fixtureReport()])
-    expect(lcov).toMatch(/^SF:\/tmp\/x\.lsl/m)
+    const lcov = renderLcov([fixtureReport()], '/tmp')
+    expect(lcov).toMatch(/^SF:x\.lsl/m)
     expect(lcov).toMatch(/FN:\d+,doubled/)
     expect(lcov).toMatch(/FNDA:1,doubled/)
     expect(lcov).toMatch(/FNDA:0,untouched/)
@@ -65,6 +65,24 @@ describe('LCOV writer', () => {
     const lcov = renderLcov([fixtureReport()])
     expect(lcov).toMatch(/FN:\d+,default::state_entry/)
     expect(lcov).toMatch(/FN:\d+,idle::state_entry/)
+  })
+
+  it('renders absolute filenames relative to rootDir as POSIX paths', () => {
+    const s = load(SAMPLE, '/repo/examples/coverage/voter.lsl')
+    s.start()
+    const lcov = renderLcov([s.coverage!], '/repo')
+    expect(lcov).toMatch(/^SF:examples\/coverage\/voter\.lsl$/m)
+    expect(lcov).not.toMatch(/^SF:\//m)
+  })
+
+  it('passes synthetic / slash-free filenames through unchanged', () => {
+    const inline = load(SAMPLE, '<inline>')
+    inline.start()
+    const handRolled = load(SAMPLE, 'a.lsl')
+    handRolled.start()
+    const lcov = renderLcov([inline.coverage!, handRolled.coverage!], '/repo')
+    expect(lcov).toMatch(/^SF:<inline>$/m)
+    expect(lcov).toMatch(/^SF:a\.lsl$/m)
   })
 })
 
