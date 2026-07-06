@@ -171,4 +171,11 @@ declare module 'vitest' {
     toHaveSentHTTP(expected: { url?: string; method?: string; body?: string }): T
     toHaveListened(channel: number, filter?: { name?: string; key?: string; message?: string }): T
   }
+  interface AsymmetricMatchersContaining {
+    toHaveSaid(channel: number, text: string): unknown
+    toBeInState(name: string): unknown
+    toHaveCalledFunction(name: string, ...args: unknown[]): unknown
+    toHaveSentHTTP(expected: { url?: string; method?: string; body?: string }): unknown
+    toHaveListened(channel: number, filter?: { name?: string; key?: string; message?: string }): unknown
+  }
 }
