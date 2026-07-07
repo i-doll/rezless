@@ -163,19 +163,15 @@ expect.extend({
   },
 })
 
+interface CustomMatchers<R = unknown> {
+  toHaveSaid(channel: number, text: string): R
+  toBeInState(name: string): R
+  toHaveCalledFunction(name: string, ...args: unknown[]): R
+  toHaveSentHTTP(expected: { url?: string; method?: string; body?: string }): R
+  toHaveListened(channel: number, filter?: { name?: string; key?: string; message?: string }): R
+}
+
 declare module 'vitest' {
-  interface Assertion<T = any> {
-    toHaveSaid(channel: number, text: string): T
-    toBeInState(name: string): T
-    toHaveCalledFunction(name: string, ...args: unknown[]): T
-    toHaveSentHTTP(expected: { url?: string; method?: string; body?: string }): T
-    toHaveListened(channel: number, filter?: { name?: string; key?: string; message?: string }): T
-  }
-  interface AsymmetricMatchersContaining {
-    toHaveSaid(channel: number, text: string): unknown
-    toBeInState(name: string): unknown
-    toHaveCalledFunction(name: string, ...args: unknown[]): unknown
-    toHaveSentHTTP(expected: { url?: string; method?: string; body?: string }): unknown
-    toHaveListened(channel: number, filter?: { name?: string; key?: string; message?: string }): unknown
-  }
+  interface Matchers<T = any> extends CustomMatchers<T> {}
+  interface AsymmetricMatchersContaining extends CustomMatchers {}
 }
