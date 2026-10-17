@@ -58,3 +58,21 @@ export const llResetTime: BuiltinImpl = (ctx) => {
   ctx.state.clock.resetReference()
   return undefined
 }
+
+/** llGetUnixTime() — whole seconds since the Unix epoch. */
+export const llGetUnixTime: BuiltinImpl = (ctx) => {
+  return Math.floor(ctx.state.clock.unixMicros() / 1e6)
+}
+
+/** llGetTimestamp() — UTC time as `YYYY-MM-DDThh:mm:ss.ffffffZ`. */
+export const llGetTimestamp: BuiltinImpl = (ctx) => {
+  const micros = ctx.state.clock.unixMicros()
+  const ms = Math.floor(micros / 1000)
+  const fraction = String(micros - Math.floor(micros / 1e6) * 1e6).padStart(6, '0')
+  return `${new Date(ms).toISOString().slice(0, 19)}.${fraction}Z`
+}
+
+/** llGetDate() — UTC date as `YYYY-MM-DD`. */
+export const llGetDate: BuiltinImpl = (ctx) => {
+  return new Date(Math.floor(ctx.state.clock.unixMicros() / 1000)).toISOString().slice(0, 10)
+}

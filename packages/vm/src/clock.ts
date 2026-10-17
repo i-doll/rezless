@@ -28,6 +28,14 @@ export class LinksetClock {
   /** Virtual milliseconds since linkset construction. Strictly monotonic. */
   now = 0
 
+  /** @param startUnixTime Unix time in seconds when `now` is 0. */
+  constructor(readonly startUnixTime = 0) {}
+
+  /** Wall-clock time in microseconds since the Unix epoch, floored. */
+  unixMicros(): number {
+    return Math.floor(this.startUnixTime * 1e6 + this.now * 1000)
+  }
+
   private readonly queue: QueuedEvent[] = []
 
   /** Schedule a one-shot event on `target`'s handler at virtual time `at`. */
@@ -149,6 +157,11 @@ export class ScriptClockView {
   /** Advances the linkset clock — used by `llSleep`. */
   advance(ms: number): void {
     this.linksetClock.advance(ms)
+  }
+
+  /** Wall-clock time in microseconds since the Unix epoch, floored. */
+  unixMicros(): number {
+    return this.linksetClock.unixMicros()
   }
 
   elapsedSeconds(): number {

@@ -133,3 +133,96 @@ describe('Phase 3 — virtual clock + timers', () => {
     expect(s.global('count')).toBe(5)
   })
 })
+
+describe('wall-clock time from the virtual clock', () => {
+  const SOURCE = `
+    integer unix;
+    string stamp;
+    string date;
+    default {
+      state_entry() { llSetTimerEvent(1); }
+      timer() {
+        unix = llGetUnixTime();
+        stamp = llGetTimestamp();
+        date = llGetDate();
+      }
+    }
+  `
+
+  it('starts at the Unix epoch by default', async () => {
+    const s = await loadScript({
+      source: `
+        integer unix = -1;
+        string stamp;
+        string date;
+        default {
+          state_entry() {
+            unix = llGetUnixTime();
+            stamp = llGetTimestamp();
+            date = llGetDate();
+          }
+        }
+      `,
+    })
+    s.start()
+    expect(s.global('unix')).toBe(0)
+    expect(s.global('stamp')).toBe('1970-01-01T00:00:00.000000Z')
+    expect(s.global('date')).toBe('1970-01-01')
+  })
+
+  it('reads startUnixTime plus the virtual time', async () => {
+    const s = await loadScript({ source: SOURCE, startUnixTime: 1_700_000_000 })
+    s.start()
+    s.advanceTime(1_000)
+    expect(s.global('unix')).toBe(1_700_000_001)
+    expect(s.global('stamp')).toBe('2023-11-14T22:13:21.000000Z')
+    expect(s.global('date')).toBe('2023-11-14')
+  })
+
+  it('moves with advanceTime across midnight', async () => {
+    // 2024-02-29T23:59:59Z
+    const s = await loadScript({ source: SOURCE, startUnixTime: 1_709_251_199 })
+    s.start()
+    s.advanceTime(1_000)
+    expect(s.global('date')).toBe('2024-03-01')
+    expect(s.global('stamp')).toBe('2024-03-01T00:00:00.000000Z')
+  })
+
+  it('llGetTimestamp keeps sub-second precision and llGetUnixTime truncates it', async () => {
+    const s = await loadScript({
+      source: `
+        integer unix;
+        string stamp;
+        default {
+          state_entry() {
+            llSleep(1.25);
+            unix = llGetUnixTime();
+            stamp = llGetTimestamp();
+          }
+        }
+      `,
+      startUnixTime: 1_700_000_000.5,
+    })
+    s.start()
+    expect(s.global('unix')).toBe(1_700_000_001)
+    expect(s.global('stamp')).toBe('2023-11-14T22:13:21.750000Z')
+  })
+
+  it('llResetTime does not move wall-clock time', async () => {
+    const s = await loadScript({
+      source: `
+        integer unix;
+        default {
+          state_entry() {
+            llSleep(5);
+            llResetTime();
+            unix = llGetUnixTime();
+          }
+        }
+      `,
+      startUnixTime: 100,
+    })
+    s.start()
+    expect(s.global('unix')).toBe(105)
+  })
+})

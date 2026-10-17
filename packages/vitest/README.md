@@ -87,6 +87,7 @@ await loadScript({
   filename: 'inline.lsl',         // optional, used in diagnostics
   randomSeed: 42,                 // optional, default 1
   owner: 'aaaa-bbbb-...',         // optional, NULL_KEY default
+  startUnixTime: 1700000000,      // optional, Unix time when the virtual clock starts, default 0
   objectKey: 'cccc-dddd-...',     // optional, derived from filename
   objectName: 'StarterCube',      // optional, "Object" default
   scriptName: 'greeter',          // optional, derived from filename
@@ -208,7 +209,7 @@ honored centrally in the dispatcher.
 
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
-* **time**: `llSetTimerEvent`, `llSleep`, `llGetTime`, `llGetAndResetTime`, `llResetTime`
+* **time**: `llSetTimerEvent`, `llSleep`, `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate` (start at `startUnixTime` and move with the virtual clock)
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
 * **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
