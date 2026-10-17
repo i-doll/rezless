@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
-import type { LslValue, Vector, Rotation } from '../values/types.js'
+import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation } from '../values/types.js'
+import { typedList } from '../values/list-types.js'
 import {
   JSON_INVALID,
   JSON_OBJECT,
@@ -502,13 +503,7 @@ function jsonNodeToLslListItem(n: JNode): LslValue {
     case 'false':
       return JSON_FALSE
     case 'num':
-      // Integer literal → LSL integer; otherwise → LSL float (which the
-      // LSL list type will canonicalize to 6 decimals when stringified).
-      if (/^-?\d+$/.test(n.raw)) {
-        const x = Number(n.raw)
-        if (Number.isFinite(x)) return x | 0
-      }
-      return Number(n.raw)
+      return isJsonInteger(n.raw) ? Number(n.raw) | 0 : Number(n.raw)
     case 'str':
       return n.v
     case 'empty':
@@ -516,20 +511,36 @@ function jsonNodeToLslListItem(n: JNode): LslValue {
   }
 }
 
+/** A JSON integer becomes an LSL integer; any other number becomes a float. */
+function isJsonInteger(raw: string): boolean {
+  return /^-?\d+$/.test(raw) && Number.isFinite(Number(raw))
+}
+
+function jsonNodeListType(n: JNode): LslType {
+  if (n.t !== 'num') return 'string'
+  return isJsonInteger(n.raw) ? 'integer' : 'float'
+}
+
 export const llJson2List: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''
   if (src === '') return []
   const root = parseJson(src)
-  if (root === null) return [src]
-  if (root.t === 'arr') return root.items.map(jsonNodeToLslListItem)
-  if (root.t === 'obj') {
-    const out: LslValue[] = []
-    for (const [k, v] of root.entries) {
-      out.push(k, jsonNodeToLslListItem(v))
-    }
-    return out
+  if (root === null) return typedList([src], ['string'])
+  const values: LslValue[] = []
+  const types: LslType[] = []
+  const add = (n: JNode) => {
+    values.push(jsonNodeToLslListItem(n))
+    types.push(jsonNodeListType(n))
   }
-  return [jsonNodeToLslListItem(root)]
+  if (root.t === 'arr') root.items.forEach(add)
+  else if (root.t === 'obj') {
+    for (const [k, v] of root.entries) {
+      values.push(k)
+      types.push('string')
+      add(v)
+    }
+  } else add(root)
+  return typedList(values, types)
 }
 
 export const llJsonGetValue: BuiltinImpl = (_ctx, args) => {

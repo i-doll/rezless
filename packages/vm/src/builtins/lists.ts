@@ -2,7 +2,7 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, toInt32 } from '../values/types.js'
 import { formatFloat, formatList, formatRotation, formatVector } from '../values/format.js'
-import { concatLists, listElementType, sliceList, typedList } from '../values/list-types.js'
+import { concatLists, listElementType, sliceList, typedList, uniformList } from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
 export const llGetListLength: BuiltinImpl = (_ctx, args) => {
@@ -233,7 +233,7 @@ export const llCSV2List: BuiltinImpl = (_ctx, args) => {
     afterComma = false
   }
   out.push(s.slice(start))
-  return out
+  return uniformList(out, 'string')
 }
 
 export const llParseString2List: BuiltinImpl = (_ctx, args) => parseString(args, false)
@@ -268,7 +268,7 @@ function parseString(args: ReadonlyArray<LslValue>, keepNulls: boolean): Readonl
     }
   }
   if (buffer || keepNulls) out.push(buffer)
-  return typedList(out, out.map(() => 'string'))
+  return uniformList(out, 'string')
 }
 
 /** The non-empty strings among the first eight entries of a delimiter list. */

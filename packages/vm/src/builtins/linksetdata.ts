@@ -10,6 +10,7 @@ import {
   LINKSETDATA_DELETE,
   LINKSETDATA_MULTIDELETE,
 } from '../generated/constants.js'
+import { uniformList } from '../values/list-types.js'
 
 export interface LinksetDataEntry {
   value: string
@@ -141,7 +142,7 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
   const pattern = (args[0] as string | undefined) ?? ''
   const password = (args[1] as string | undefined) ?? ''
   const re = compilePattern(pattern)
-  if (!re) return [0, 0]
+  if (!re) return uniformList([0, 0], 'integer')
   const store = ctx.state.linksetData
   const deletedKeys: string[] = []
   let notDeleted = 0
@@ -159,7 +160,7 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
     deletedKeys.sort()
     fireEvent(ctx, LINKSETDATA_MULTIDELETE, deletedKeys.join(','), '')
   }
-  return [deletedKeys.length, notDeleted]
+  return uniformList([deletedKeys.length, notDeleted], 'integer')
 }
 
 export const llLinksetDataReset: BuiltinImpl = (ctx) => {
@@ -186,7 +187,7 @@ export const llLinksetDataCountKeys: BuiltinImpl = (ctx) => {
 export const llLinksetDataListKeys: BuiltinImpl = (ctx, args) => {
   const start = (args[0] as number | undefined) ?? 0
   const count = (args[1] as number | undefined) ?? -1
-  return slice([...ctx.state.linksetData.keys()], start, count)
+  return uniformList(slice([...ctx.state.linksetData.keys()], start, count), 'string')
 }
 
 export const llLinksetDataFindKeys: BuiltinImpl = (ctx, args) => {
@@ -196,7 +197,7 @@ export const llLinksetDataFindKeys: BuiltinImpl = (ctx, args) => {
   const re = compilePattern(pattern)
   if (!re) return []
   const matches = [...ctx.state.linksetData.keys()].filter((k) => re.test(k))
-  return slice(matches, start, count)
+  return uniformList(slice(matches, start, count), 'string')
 }
 
 export const llLinksetDataCountFound: BuiltinImpl = (ctx, args) => {

@@ -65,7 +65,7 @@ import {
   STATUS_PHYSICS,
   TEXTURE_DEFAULT,
 } from './generated/constants.js'
-import type { LslValue, Rotation, Vector } from './values/types.js'
+import type { LslType, LslValue, Rotation, Vector } from './values/types.js'
 import { NULL_KEY } from './values/types.js'
 import type { Prim } from './prim.js'
 
@@ -979,4 +979,71 @@ function readPrimType(p: PrimParams): LslValue[] {
     return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.topSize, s.topShear]
   }
   return []
+}
+
+const MATERIAL_TYPES: ReadonlyArray<LslType> = ['string', 'vector', 'vector', 'float']
+
+/**
+ * LSL types of the values each PRIM_* rule reads. Per-face rules list one
+ * face's values; the pattern repeats for each face.
+ */
+const PRIM_PARAM_TYPES: Readonly<Record<number, ReadonlyArray<LslType>>> = {
+  [PRIM_NAME]: ['string'],
+  [PRIM_DESC]: ['string'],
+  [PRIM_TEXT]: ['string', 'vector', 'float'],
+  [PRIM_POSITION]: ['vector'],
+  [PRIM_POS_LOCAL]: ['vector'],
+  [PRIM_ROTATION]: ['rotation'],
+  [PRIM_ROT_LOCAL]: ['rotation'],
+  [PRIM_SIZE]: ['vector'],
+  [PRIM_SLICE]: ['vector'],
+  [PRIM_MATERIAL]: ['integer'],
+  [PRIM_PHYSICS]: ['integer'],
+  [PRIM_PHANTOM]: ['integer'],
+  [PRIM_TEMP_ON_REZ]: ['integer'],
+  [PRIM_PHYSICS_SHAPE_TYPE]: ['integer'],
+  [PRIM_CAST_SHADOWS]: ['integer'],
+  [PRIM_ALLOW_UNSIT]: ['integer'],
+  [PRIM_SCRIPTED_SIT_ONLY]: ['integer'],
+  [PRIM_SIT_FLAGS]: ['integer'],
+  [PRIM_CLICK_ACTION]: ['integer'],
+  [PRIM_HEALTH]: ['float'],
+  [PRIM_DAMAGE]: ['float', 'integer'],
+  [PRIM_OMEGA]: ['vector', 'float', 'float'],
+  [PRIM_POINT_LIGHT]: ['integer', 'vector', 'float', 'float', 'float'],
+  [PRIM_REFLECTION_PROBE]: ['integer', 'float', 'float', 'integer'],
+  [PRIM_PROJECTOR]: ['string', 'float', 'float', 'float'],
+  [PRIM_FLEXIBLE]: ['integer', 'integer', 'float', 'float', 'float', 'float', 'vector'],
+  [PRIM_SIT_TARGET]: ['integer', 'vector', 'rotation'],
+  [PRIM_COLOR]: ['vector', 'float'],
+  [PRIM_TEXTURE]: MATERIAL_TYPES,
+  [PRIM_RENDER_MATERIAL]: ['string'],
+  [PRIM_FULLBRIGHT]: ['integer'],
+  [PRIM_GLOW]: ['float'],
+  [PRIM_BUMP_SHINY]: ['integer', 'integer'],
+  [PRIM_TEXGEN]: ['integer'],
+  [PRIM_NORMAL]: MATERIAL_TYPES,
+  [PRIM_SPECULAR]: [...MATERIAL_TYPES, 'vector', 'integer', 'integer'],
+  [PRIM_ALPHA_MODE]: ['integer', 'integer'],
+  [PRIM_GLTF_BASE_COLOR]: [...MATERIAL_TYPES, 'vector', 'float', 'integer', 'float', 'integer'],
+  [PRIM_GLTF_NORMAL]: MATERIAL_TYPES,
+  [PRIM_GLTF_METALLIC_ROUGHNESS]: [...MATERIAL_TYPES, 'float', 'float'],
+  [PRIM_GLTF_EMISSIVE]: [...MATERIAL_TYPES, 'vector'],
+}
+
+/** LSL types of PRIM_TYPE's values, which depend on the shape. */
+function primTypeTypes(kind: LslValue | undefined): ReadonlyArray<LslType> {
+  if (kind === SHAPE_SCULPT) return ['integer', 'string', 'integer']
+  const common: LslType[] = ['integer', 'integer', 'vector', 'float', 'vector']
+  if (kind === SHAPE_SPHERE) return [...common, 'vector']
+  if (kind === SHAPE_TORUS || kind === SHAPE_TUBE || kind === SHAPE_RING) {
+    return [...common, 'vector', 'vector', 'vector', 'vector', 'float', 'float', 'float']
+  }
+  return [...common, 'vector', 'vector']
+}
+
+/** LSL types of the values `readPrimParam` returns for `param`. */
+export function primParamTypes(param: number, values: ReadonlyArray<LslValue>): Array<LslType | undefined> {
+  const pattern = param === PRIM_TYPE ? primTypeTypes(values[0]) : (PRIM_PARAM_TYPES[param] ?? [])
+  return values.map((_, i) => pattern[i % pattern.length])
 }
