@@ -403,6 +403,46 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('none')).toBe(-1)
   })
 
+  it('llListFindList does not match a key against a string', async () => {
+    const s = await run(`
+      integer keyInSrc = 0;
+      integer keyInTest = 0;
+      integer keyBoth = 0;
+      integer viaConcat = 0;
+      integer viaSlice = 0;
+      default {
+        state_entry() {
+          key k = "a";
+          keyInSrc = llListFindList([(key)"a"], ["a"]);
+          keyInTest = llListFindList(["a"], [(key)"a"]);
+          keyBoth = llListFindList(["x", k], [(key)"a"]);
+          viaConcat = llListFindList([] + k, ["a"]);
+          viaSlice = llListFindList(llList2List(["x", k], 1, 1), ["a"]);
+        }
+      }
+    `)
+    expect(s.global('keyInSrc')).toBe(-1)
+    expect(s.global('keyInTest')).toBe(-1)
+    expect(s.global('keyBoth')).toBe(1)
+    expect(s.global('viaConcat')).toBe(-1)
+    expect(s.global('viaSlice')).toBe(-1)
+  })
+
+  it('llListFindList does not match an integer against a float', async () => {
+    const s = await run(`
+      integer mixed = 0;
+      integer same = 0;
+      default {
+        state_entry() {
+          mixed = llListFindList([1], [1.0]);
+          same = llListFindList([1.0], [1.0]);
+        }
+      }
+    `)
+    expect(s.global('mixed')).toBe(-1)
+    expect(s.global('same')).toBe(0)
+  })
+
   it('llDumpList2String joins with separator', async () => {
     const s = await run(`
       string out = "";

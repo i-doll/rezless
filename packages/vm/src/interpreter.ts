@@ -27,6 +27,7 @@ import { callBuiltin, specFor } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
 import { defaultEvalFor, isVector, isRotation } from './values/types.js'
 import { coerce } from './values/coerce.js'
+import { typedList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
 import { Env } from './env.js'
 
@@ -319,8 +320,14 @@ function evalRotationLiteral(ctx: InterpreterContext, env: Env, e: RotationLiter
 }
 
 function evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): EvalResult {
-  const elements = e.elements.map((el) => evalExpression(ctx, env, el).value)
-  return { type: 'list', value: elements }
+  const elements = e.elements.map((el) => evalExpression(ctx, env, el))
+  return {
+    type: 'list',
+    value: typedList(
+      elements.map((r) => r.value),
+      elements.map((r) => r.type),
+    ),
+  }
 }
 
 function evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): EvalResult {

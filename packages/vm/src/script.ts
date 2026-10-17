@@ -20,6 +20,7 @@ import { buildCoveragePlan, CoverageCollector } from './coverage.js'
 import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor } from './values/types.js'
+import { typedList } from './values/list-types.js'
 import { Env } from './env.js'
 import { ScriptClockView } from './clock.js'
 import { Linkset } from './linkset.js'
@@ -669,12 +670,14 @@ function literalToEval(
     }
     case 'ListLiteral': {
       const elems: LslValue[] = []
+      const types: LslType[] = []
       for (const el of expr.elements) {
         const r = literalToEval(el, 'integer')
         if (!r) return undefined
         elems.push(r.value)
+        types.push(r.type)
       }
-      return { type: 'list', value: elems }
+      return { type: 'list', value: typedList(elems, types) }
     }
     case 'UnaryExpression': {
       const inner = literalToEval(expr.argument, declared)
