@@ -455,9 +455,12 @@ function evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Eval
     return callUserFunction(ctx, userFn, evalArgs)
   }
   // Builtin (real, generated stub, or user-mocked).
-  const rawArgs: LslValue[] = evalArgs.map((r) => r.value)
-  const result = callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
   const spec = specFor(call.callee)
+  // An integer passed for a float parameter becomes a 32-bit float before the call.
+  const rawArgs: LslValue[] = evalArgs.map((r, i) =>
+    r.type === 'integer' && spec?.params[i]?.type === 'float' ? coerce(r, 'float').value : r.value,
+  )
+  const result = callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
   const returnType = (spec?.returnType ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }
   return { type: returnType, value: toFloat32Components(result ?? defaultEvalFor(returnType).value, returnType) }

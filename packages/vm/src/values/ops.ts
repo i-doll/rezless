@@ -294,11 +294,11 @@ function opMul(a: EvalResult, b: EvalResult): EvalResult {
   }
   // vector * float / float * vector → scale
   if (isVector(a.value) && (b.type === 'integer' || b.type === 'float')) {
-    const k = b.value as number
+    const k = toFloat32(b.value as number)
     return { type: 'vector', value: vec(a.value.x * k, a.value.y * k, a.value.z * k) }
   }
   if ((a.type === 'integer' || a.type === 'float') && isVector(b.value)) {
-    const k = a.value as number
+    const k = toFloat32(a.value as number)
     return { type: 'vector', value: vec(b.value.x * k, b.value.y * k, b.value.z * k) }
   }
   // vector * rotation → rotate vector
@@ -323,7 +323,7 @@ function opMul(a: EvalResult, b: EvalResult): EvalResult {
 function opDiv(a: EvalResult, b: EvalResult): EvalResult {
   // vector / float
   if (isVector(a.value) && (b.type === 'integer' || b.type === 'float')) {
-    const k = b.value as number
+    const k = toFloat32(b.value as number)
     if (k === 0) throw new Error('Math Error: divide by zero')
     return { type: 'vector', value: vec(a.value.x / k, a.value.y / k, a.value.z / k) }
   }

@@ -138,8 +138,9 @@ function parseLslFloat(s: string): number {
     while (i < s.length && /[0-9]/.test(s[i]!)) i++
   }
   if (i === start) return 0
-  const n = toFloat32(Number.parseFloat(s.slice(start, i)))
-  return Number.isFinite(n) ? n : 0
+  const n = Number.parseFloat(s.slice(start, i))
+  // A value too large for a 32-bit float rounds to infinity, as in Mono.
+  return Number.isFinite(n) ? toFloat32(n) : 0
 }
 
 function parseLslVector(s: string): { x: number; y: number; z: number } {

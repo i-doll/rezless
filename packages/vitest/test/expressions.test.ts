@@ -500,6 +500,32 @@ describe('32-bit floats', () => {
     expect(s.global('fromList')).toBe(Math.fround(0.1))
     expect(s.global('root')).toBe(Math.fround(Math.SQRT2))
   })
+
+  it('promotes integer arguments and vector scalars to 32-bit floats first', async () => {
+    const s = await run(`
+      float sine = 0;
+      vector scaled = ZERO_VECTOR;
+      vector divided = ZERO_VECTOR;
+      default {
+        state_entry() {
+          sine = llSin(16777217);
+          scaled = <0.1, 0, 0> * 16777217;
+          divided = <1, 0, 0> / 16777217;
+        }
+      }
+    `)
+    expect(s.global('sine')).toBe(Math.fround(Math.sin(16777216)))
+    expect((s.global('scaled') as { x: number }).x).toBe(Math.fround(Math.fround(0.1) * 16777216))
+    expect((s.global('divided') as { x: number }).x).toBe(Math.fround(1 / 16777216))
+  })
+
+  it('keeps a parsed float too large for 32 bits as infinity', async () => {
+    const s = await run(`
+      float f = 0;
+      default { state_entry() { f = (float)"3.403e38"; } }
+    `)
+    expect(s.global('f')).toBe(Infinity)
+  })
 })
 
 describe('print', () => {
