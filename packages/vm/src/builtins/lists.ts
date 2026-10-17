@@ -311,7 +311,20 @@ export const llListSort: BuiltinImpl = (_ctx, args) => {
 function sortsAfter(a: LslValue, ta: LslType | undefined, b: LslValue, tb: LslType | undefined): boolean {
   if (ta && tb && ta !== tb) return false
   if (typeof a === 'number' && typeof b === 'number') return !(a <= b)
-  if (typeof a === 'string' && typeof b === 'string') return !(a <= b)
+  if (typeof a === 'string' && typeof b === 'string') return compareCodePoints(a, b) > 0
   if (isVector(a) && isVector(b)) return !(a.x * a.x + a.y * a.y + a.z * a.z <= b.x * b.x + b.y * b.y + b.z * b.z)
   return false
+}
+
+/** Orders strings by Unicode code point, not UTF-16 code unit. */
+function compareCodePoints(a: string, b: string): number {
+  const ia = a[Symbol.iterator]()
+  const ib = b[Symbol.iterator]()
+  for (;;) {
+    const ca = ia.next()
+    const cb = ib.next()
+    if (ca.done || cb.done) return (ca.done ? 0 : 1) - (cb.done ? 0 : 1)
+    const d = ca.value.codePointAt(0)! - cb.value.codePointAt(0)!
+    if (d !== 0) return d
+  }
 }
