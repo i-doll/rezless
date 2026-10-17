@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, toInt32 } from '../values/types.js'
-import { formatList } from '../values/format.js'
+import { formatFloat, formatList, formatRotation, formatVector } from '../values/format.js'
 import { concatLists, listElementType, sliceList } from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
@@ -195,16 +195,10 @@ function lslElementsEqual(a: LslValue | undefined, b: LslValue | undefined): boo
 
 function dumpElement(v: LslValue, type: LslType | undefined): string {
   if (typeof v === 'string') return v
-  if (typeof v === 'number') return type !== 'float' && Number.isInteger(v) ? String(v | 0) : v.toFixed(6)
+  if (typeof v === 'number') return type !== 'float' && Number.isInteger(v) ? String(v | 0) : formatFloat(v)
   if (Array.isArray(v)) return formatList(v)
-  if (isVector(v as Vector)) {
-    const u = v as Vector
-    return `<${u.x.toFixed(6)}, ${u.y.toFixed(6)}, ${u.z.toFixed(6)}>`
-  }
-  if (isRotation(v as Rotation)) {
-    const r = v as Rotation
-    return `<${r.x.toFixed(6)}, ${r.y.toFixed(6)}, ${r.z.toFixed(6)}, ${r.s.toFixed(6)}>`
-  }
+  if (isVector(v as Vector)) return formatVector(v as Vector)
+  if (isRotation(v as Rotation)) return formatRotation(v as Rotation)
   return ''
 }
 
