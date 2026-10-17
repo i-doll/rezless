@@ -62,6 +62,8 @@ import {
   llList2CSV,
   llCSV2List,
   llParseString2List,
+  llParseStringKeepNulls,
+  llListSort,
 } from './lists.js'
 import {
   llJson2List,
@@ -283,6 +285,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llList2CSV,
   llCSV2List,
   llParseString2List,
+  llParseStringKeepNulls,
+  llListSort,
   // json
   llJson2List,
   llJsonGetValue,
