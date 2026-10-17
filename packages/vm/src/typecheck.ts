@@ -274,6 +274,8 @@ class Checker {
         if (s.init) this.expectAssignable(s, s.typeName, this.expr(s.init))
         this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, s.typeName)
         return []
+      case 'EmptyStatement':
+        return []
       case 'ExpressionStatement':
         this.expr(s.expression)
         return []
@@ -344,6 +346,11 @@ class Checker {
       if (t) return t !== 'label'
     }
     return this.globals.has(name)
+  }
+
+  /** A constant not hidden by a variable of the same name. */
+  private isConstant(name: string): boolean {
+    return !this.isVariable(name) && own(CONSTANT_TABLE, name) !== undefined
   }
 
   /** Type of a variable or constant; a label in scope hides outer names. */
@@ -444,6 +451,8 @@ class Checker {
   private member(e: Expression & { kind: 'MemberExpression' }): Ty {
     if (e.object.kind !== 'Identifier') {
       this.error(e, `Syntax error: .${e.property} only works on a variable`)
+    } else if (this.isConstant(e.object.name)) {
+      this.error(e, `Syntax error: can't read a component of constant ${e.object.name}`)
     }
     const t = this.expr(e.object)
     if (t === 'unknown') return 'float'
@@ -456,9 +465,9 @@ class Checker {
 
   private lvalue(e: Expression): Ty {
     const base = e.kind === 'MemberExpression' ? e.object : e
-    if (base.kind === 'Identifier' && !this.isVariable(base.name) && own(CONSTANT_TABLE, base.name)) {
+    if (base.kind === 'Identifier' && this.isConstant(base.name)) {
       this.error(e, `Syntax error: can't assign to constant ${base.name}`)
-      return this.expr(e)
+      return e.kind === 'MemberExpression' ? 'float' : this.expr(e)
     }
     if (e.kind === 'Identifier' || e.kind === 'MemberExpression') return this.expr(e)
     this.expr(e)

@@ -2,7 +2,7 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, toInt32 } from '../values/types.js'
 import { formatFloat, formatList, formatRotation, formatVector } from '../values/format.js'
-import { concatLists, listElementType, sliceList } from '../values/list-types.js'
+import { concatLists, listElementType, sliceList, typedList } from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
 export const llGetListLength: BuiltinImpl = (_ctx, args) => {
@@ -236,29 +236,95 @@ export const llCSV2List: BuiltinImpl = (_ctx, args) => {
   return out
 }
 
-export const llParseString2List: BuiltinImpl = (_ctx, args) => {
+export const llParseString2List: BuiltinImpl = (_ctx, args) => parseString(args, false)
+
+/** llParseStringKeepNulls(string src, list separators, list spacers) — like llParseString2List, but keeps empty entries. */
+export const llParseStringKeepNulls: BuiltinImpl = (_ctx, args) => parseString(args, true)
+
+/**
+ * Splits `src` on the first eight string entries of each delimiter list.
+ * At each position, separators are tried before spacers, each in the order
+ * given, and the first match wins.
+ */
+function parseString(args: ReadonlyArray<LslValue>, keepNulls: boolean): ReadonlyArray<LslValue> {
   const src = (args[0] as string | undefined) ?? ''
-  const seps = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  const keep = (args[2] as ReadonlyArray<LslValue> | undefined) ?? []
-  const allTokens = [...seps.filter((x): x is string => typeof x === 'string'), ...keep.filter((x): x is string => typeof x === 'string')]
-  if (allTokens.length === 0) return src ? [src] : []
+  const seps = delimiters((args[1] as ReadonlyArray<LslValue> | undefined) ?? [])
+  const spacers = delimiters((args[2] as ReadonlyArray<LslValue> | undefined) ?? [])
   const out: string[] = []
   let buffer = ''
   let i = 0
   while (i < src.length) {
-    const matched = allTokens
-      .filter((t) => t.length > 0 && src.startsWith(t, i))
-      .sort((a, b) => b.length - a.length)[0]
-    if (matched) {
-      if (buffer) out.push(buffer)
+    const sep = seps.find((t) => src.startsWith(t, i))
+    const spacer = sep === undefined ? spacers.find((t) => src.startsWith(t, i)) : undefined
+    const matched = sep ?? spacer
+    if (matched !== undefined) {
+      if (buffer || keepNulls) out.push(buffer)
       buffer = ''
-      if (keep.includes(matched)) out.push(matched)
+      if (spacer !== undefined) out.push(spacer)
       i += matched.length
     } else {
       buffer += src[i]
       i++
     }
   }
-  if (buffer) out.push(buffer)
-  return out
+  if (buffer || keepNulls) out.push(buffer)
+  return typedList(out, out.map(() => 'string'))
+}
+
+/** The non-empty strings among the first eight entries of a delimiter list. */
+function delimiters(list: ReadonlyArray<LslValue>): string[] {
+  return list
+    .slice(0, 8)
+    .filter((x, i): x is string => typeof x === 'string' && x !== '' && listElementType(list, i) !== 'key')
+}
+
+/**
+ * llListSort(list src, integer stride, integer ascending) — sorts strides by
+ * their first element, using the same selection sort as Second Life, so
+ * elements of different types are never reordered against each other.
+ * Vectors compare by magnitude and rotations never compare. A list whose
+ * length isn't a multiple of stride comes back unsorted.
+ */
+export const llListSort: BuiltinImpl = (_ctx, args) => {
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const stride = Math.max(1, (args[1] as number | undefined) ?? 1)
+  const descending = ((args[2] as number | undefined) ?? 0) !== 1
+  const len = src.length
+  if (len % stride !== 0) return src
+  const values = [...src]
+  const types = values.map((_, i) => listElementType(src, i))
+  const swap = (i: number, j: number) => {
+    for (let k = 0; k < stride; k++) {
+      ;[values[i + k], values[j + k]] = [values[j + k]!, values[i + k]!]
+      ;[types[i + k], types[j + k]] = [types[j + k], types[i + k]]
+    }
+  }
+  for (let i = 0; i < len - stride; i += stride) {
+    for (let j = i + stride; j < len; j += stride) {
+      if (sortsAfter(values[i]!, types[i], values[j]!, types[j]) !== descending) swap(i, j)
+    }
+  }
+  return typedList(values, types)
+}
+
+/** Whether `a` sorts after `b`. A NaN sorts after everything. */
+function sortsAfter(a: LslValue, ta: LslType | undefined, b: LslValue, tb: LslType | undefined): boolean {
+  if (ta && tb && ta !== tb) return false
+  if (typeof a === 'number' && typeof b === 'number') return !(a <= b)
+  if (typeof a === 'string' && typeof b === 'string') return compareCodePoints(a, b) > 0
+  if (isVector(a) && isVector(b)) return !(a.x * a.x + a.y * a.y + a.z * a.z <= b.x * b.x + b.y * b.y + b.z * b.z)
+  return false
+}
+
+/** Orders strings by Unicode code point, not UTF-16 code unit. */
+function compareCodePoints(a: string, b: string): number {
+  const ia = a[Symbol.iterator]()
+  const ib = b[Symbol.iterator]()
+  for (;;) {
+    const ca = ia.next()
+    const cb = ib.next()
+    if (ca.done || cb.done) return (ca.done ? 0 : 1) - (cb.done ? 0 : 1)
+    const d = ca.value.codePointAt(0)! - cb.value.codePointAt(0)!
+    if (d !== 0) return d
+  }
 }

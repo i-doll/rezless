@@ -109,4 +109,29 @@ describe('Phase 2 — control flow', () => {
     `)
     expect(s.global('label')).toBe(3)
   })
+
+  it('runs empty statements as no-ops', async () => {
+    const s = await run(`
+      integer i;
+      integer hits = 0;
+      default {
+        state_entry() {
+          ;
+          for (i = 0; i < 5; i++) ;
+          if (i == 5) ; else hits = 100;
+          while (FALSE) ;
+          do ; while (FALSE);
+          hits += 1;
+        }
+      }
+    `)
+    expect(s.global('i')).toBe(5)
+    expect(s.global('hits')).toBe(1)
+  })
+
+  it('refuses to load a declaration as an unbraced body', async () => {
+    await expect(
+      loadScript({ source: `default { state_entry() { if (TRUE) integer y; } }` }),
+    ).rejects.toThrow(/Declaration requires a new scope -- use \{ and \}/)
+  })
 })

@@ -62,6 +62,7 @@ export type TypeName =
 
 export type Statement =
   | BlockStatement
+  | EmptyStatement
   | VariableDeclaration
   | ExpressionStatement
   | IfStatement
@@ -76,6 +77,11 @@ export type Statement =
 export interface BlockStatement extends Node {
   readonly kind: 'BlockStatement'
   readonly body: ReadonlyArray<Statement>
+}
+
+/** A lone `;`. */
+export interface EmptyStatement extends Node {
+  readonly kind: 'EmptyStatement'
 }
 
 export interface VariableDeclaration extends Node {
