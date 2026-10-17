@@ -175,6 +175,15 @@ describe('wall-clock time from the virtual clock', () => {
     expect(s.global('stamp')).toBe('1970-01-02T00:00:00.123456Z')
   })
 
+  it('wraps llGetUnixTime to a 32-bit integer after 2038', async () => {
+    const s = await loadScript({
+      source: `integer positive; default { state_entry() { positive = llGetUnixTime() > 0; } }`,
+      startTime: 2_147_483_648,
+    })
+    s.start()
+    expect(s.global('positive')).toBe(0)
+  })
+
   it('rejects a start time that is not a finite number', async () => {
     await expect(loadScript({ source, startTime: Number.NaN })).rejects.toThrow(/startTime/)
   })
