@@ -16,22 +16,30 @@ import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
 import { own } from './own.js'
+import type { FunctionSignature } from './script.js'
 
 /**
  * Static type checker mirroring SL's compiler, so scripts that wouldn't
  * compile in-world fail at load time instead of passing tests.
  *
- * `unknown` is the type of a call to a function that's neither user-defined
- * nor in kwdb (tests can supply those through `script.mock`); anything that
- * touches it is left unchecked.
+ * `unknown` is the type of an undeclared name, already reported; anything
+ * that touches it is left unchecked so one mistake gives one error.
  */
 type Ty = TypeName | 'void' | 'unknown'
 
 /** Labels share the lexical namespace with variables from where they appear. */
 type Scope = Map<string, Ty | 'label'>
 
-export function typecheck(ast: Ast, filename: string): Diagnostic[] {
-  return new Checker(ast, filename).run()
+/**
+ * `functions` declares names outside kwdb that tests provide through
+ * `script.mock`; calls to any other undeclared name are rejected, as in SL.
+ */
+export function typecheck(
+  ast: Ast,
+  filename: string,
+  functions: Readonly<Record<string, FunctionSignature>> = {},
+): Diagnostic[] {
+  return new Checker(ast, filename, functions).run()
 }
 
 const CASTS: Record<TypeName, ReadonlyArray<TypeName>> = {
@@ -140,6 +148,7 @@ class Checker {
   constructor(
     private readonly ast: Ast,
     private readonly filename: string,
+    private readonly declared: Readonly<Record<string, FunctionSignature>>,
   ) {
     this.states = new Set(ast.states.map((s) => s.name))
     for (const f of ast.functions) {
@@ -164,10 +173,13 @@ class Checker {
       }
     }
     // Globals, functions and states share one namespace with the built-in
-    // functions and constants.
+    // functions and constants, and with functions declared for script.mock.
     const topLevel = new Set<string>()
     for (const d of [...decls, ...states].sort((a, b) => a.loc.offset - b.loc.offset)) {
-      const builtin = Object.hasOwn(BUILTIN_SPECS, d.name) || Object.hasOwn(CONSTANT_TABLE, d.name)
+      const builtin =
+        Object.hasOwn(BUILTIN_SPECS, d.name) ||
+        Object.hasOwn(CONSTANT_TABLE, d.name) ||
+        Object.hasOwn(this.declared, d.name)
       if (builtin || topLevel.has(d.name)) this.alreadyDeclared(d, d.name)
       topLevel.add(d.name)
     }
@@ -478,14 +490,15 @@ class Checker {
   private call(e: CallExpression): Ty {
     const args = e.args.map((a) => this.expr(a))
     const builtin = own(BUILTIN_SPECS as Record<string, BuiltinSpec>, e.callee)
+    const declared = own(CONSTANT_TABLE, e.callee) ? undefined : own(this.declared, e.callee)
     const sig: Signature | undefined =
       this.functions.get(e.callee) ??
-      (builtin && { returnType: builtin.returnType, params: builtin.params.map((p) => p.type) })
+      (builtin && { returnType: builtin.returnType, params: builtin.params.map((p) => p.type) }) ??
+      (declared && { returnType: declared.returns ?? 'void', params: declared.params ?? [] })
     if (!sig) {
-      // Calls resolve in the global namespace; only undeclared names are left for script.mock.
-      if (this.globals.has(e.callee) || own(CONSTANT_TABLE, e.callee) || this.states.has(e.callee)) {
-        this.error(e, `Name not defined within scope: ${e.callee} is not a function`)
-      }
+      // Calls resolve in the global namespace, so locals and events don't count.
+      const named = this.globals.has(e.callee) || own(CONSTANT_TABLE, e.callee) || this.states.has(e.callee)
+      this.error(e, `Name not defined within scope: ${e.callee}${named ? ' is not a function' : ''}`)
       return 'unknown'
     }
     if (sig.params.length !== args.length || sig.params.some((p, i) => !assignable(p, args[i]!))) {

@@ -1,9 +1,10 @@
 import type { BuiltinImpl } from '../runtime.js'
-import type { LslValue } from '../values/types.js'
+import type { LslType, LslValue } from '../values/types.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import { PRIM_LINK_TARGET } from '../generated/constants.js'
-import { writePrimParamSlots } from '../prim-params.js'
+import { primParamTypes, writePrimParamSlots } from '../prim-params.js'
+import { typedList } from '../values/list-types.js'
 
 /**
  * Walk a PRIM_* rules list, applying each rule to every prim in the
@@ -45,13 +46,19 @@ function walkSet(linkset: Linkset, caller: Prim, target: Prim[], rules: Readonly
   }
 }
 
-function walkGet(linkset: Linkset, caller: Prim, startTarget: Prim[], rules: ReadonlyArray<LslValue>): LslValue[] {
+function walkGet(
+  linkset: Linkset,
+  caller: Prim,
+  startTarget: Prim[],
+  rules: ReadonlyArray<LslValue>,
+): ReadonlyArray<LslValue> {
   const out: LslValue[] = []
+  const types: Array<LslType | undefined> = []
   let cur = startTarget
   let i = 0
   while (i < rules.length) {
     const rule = rules[i] as number
-    if (typeof rule !== 'number') return out
+    if (typeof rule !== 'number') break
     if (rule === PRIM_LINK_TARGET) {
       const link = (rules[i + 1] as number) | 0
       cur = linkset.resolveTargets(caller.linkNumber, link)
@@ -65,7 +72,7 @@ function walkGet(linkset: Linkset, caller: Prim, startTarget: Prim[], rules: Rea
     let consumed: number
     if (cur.length === 0) {
       const probe = caller.getPrimParam(rule, rules, i + 1)
-      if (probe === null) return out
+      if (probe === null) break
       consumed = probe.consumed
     } else {
       let unknown = false
@@ -77,14 +84,15 @@ function walkGet(linkset: Linkset, caller: Prim, startTarget: Prim[], rules: Rea
           break
         }
         out.push(...r.values)
+        types.push(...primParamTypes(rule, r.values))
         c = r.consumed
       }
-      if (unknown) return out
+      if (unknown) break
       consumed = c
     }
     i += 1 + consumed
   }
-  return out
+  return typedList(out, types)
 }
 
 /** llSetPrimitiveParams(list rules) — caller's prim only (until PRIM_LINK_TARGET redirects). */

@@ -30,6 +30,14 @@ import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
 import { own } from './own.js'
 
+/** Signature of a function outside kwdb that a test provides through `script.mock`. */
+export interface FunctionSignature {
+  /** Return type; omit for a void function. */
+  readonly returns?: TypeName
+  /** Parameter types, in order; omit for no parameters. */
+  readonly params?: ReadonlyArray<TypeName>
+}
+
 export interface ScriptOptions {
   /** Filename used in diagnostics; defaults to "<inline>". */
   readonly filename?: string
@@ -67,6 +75,12 @@ export interface ScriptOptions {
    * returns a snapshot after each test; default false (zero overhead).
    */
   readonly coverage?: boolean
+  /**
+   * Functions outside kwdb the script may call, keyed by name. Second Life
+   * rejects calls to undeclared names, so the type checker only accepts these
+   * ones; give each an implementation with `script.mock`.
+   */
+  readonly functions?: Readonly<Record<string, FunctionSignature>>
 }
 
 /**
@@ -79,6 +93,7 @@ export class Script {
   private readonly mocks: Record<string, BuiltinImpl> = Object.create(null)
   private readonly globals: Env
   private readonly userFunctions: Map<string, FunctionDeclaration>
+  private readonly functions: Readonly<Record<string, FunctionSignature>>
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
   /** Per-script clock facade (timer state + time reference). */
@@ -183,6 +198,7 @@ export class Script {
     this.globals = constants.push()
     initGlobals(this.globals, ast.globals)
     this.userFunctions = new Map(ast.functions.map((f) => [f.name, f]))
+    this.functions = options.functions ?? {}
     this.handlersByState = indexHandlers(ast)
     if (!this.handlersByState.has('default')) {
       throw new Error('LSL script has no default state')
@@ -538,6 +554,7 @@ export class Script {
       mocks: this.mocks,
       globals: this.globals,
       userFunctions: this.userFunctions,
+      functions: this.functions,
       script: this,
       prim: this.host,
       linkset: this.linkset,

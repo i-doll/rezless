@@ -22,7 +22,7 @@ import type {
   TypeName,
 } from '@rezless/parser'
 import type { BuiltinImpl, ScriptState } from './runtime.js'
-import type { Script } from './script.js'
+import type { FunctionSignature, Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
 import { defaultEvalFor, isVector, isRotation, toFloat32, vec, rot } from './values/types.js'
@@ -30,6 +30,7 @@ import { coerce } from './values/coerce.js'
 import { typedList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
 import { Env } from './env.js'
+import { own } from './own.js'
 
 /**
  * Tree-walking interpreter for the language subset shipped in Phase 2.
@@ -49,6 +50,8 @@ export interface InterpreterContext {
   readonly globals: Env
   /** User-defined functions, indexed by name (LSL has a flat function namespace). */
   readonly userFunctions: ReadonlyMap<string, FunctionDeclaration>
+  /** Functions outside kwdb declared through `ScriptOptions.functions`. */
+  readonly functions: Readonly<Record<string, FunctionSignature>>
   /** Owning script — passed through to builtins via dispatch. */
   readonly script: Script
   readonly prim: import('./prim.js').Prim
@@ -456,12 +459,15 @@ function evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Eval
   }
   // Builtin (real, generated stub, or user-mocked).
   const spec = specFor(call.callee)
+  const declared = own(ctx.functions, call.callee)
   // An integer passed for a float parameter becomes a 32-bit float before the call.
   const rawArgs: LslValue[] = evalArgs.map((r, i) =>
-    r.type === 'integer' && spec?.params[i]?.type === 'float' ? coerce(r, 'float').value : r.value,
+    r.type === 'integer' && (spec?.params[i]?.type ?? declared?.params?.[i]) === 'float'
+      ? coerce(r, 'float').value
+      : r.value,
   )
   const result = callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
-  const returnType = (spec?.returnType ?? 'void') as LslType
+  const returnType = (spec?.returnType ?? declared?.returns ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }
   return { type: returnType, value: toFloat32Components(result ?? defaultEvalFor(returnType).value, returnType) }
 }
