@@ -47,7 +47,7 @@ interface VitestLike {
     coverage?: { enabled?: boolean; reportsDirectory?: string }
     setupFiles?: string[] | string
   }
-  /** Vitest 4 exposes per-project resolved configs here. */
+  /** Vitest 4+ exposes per-project resolved configs here. */
   projects?: ReadonlyArray<{
     config?: { setupFiles?: string[] | string }
     vitenode?: unknown

@@ -61,10 +61,10 @@
     "@rezless/vm": "workspace:*"
   },
   "peerDependencies": {
-    "vitest": "^4.1.5"
+    "vitest": "^5.0.5"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
-    "vitest": "^4.1.5"
+    "vitest": "^5.0.5"
   }
 }

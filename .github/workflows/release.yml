@@ -181,7 +181,7 @@ jobs:
             "type": "module"
           }
           JSON
-          pnpm add -D @rezless/vitest vitest@^4.1.5 --ignore-workspace --ignore-scripts
+          pnpm add -D @rezless/vitest vitest@^5.0.5 --ignore-workspace --ignore-scripts
           test -f node_modules/@rezless/vitest/dist/index.js \
             || { echo "::error::missing dist/index.js — npm tarball is incomplete"; exit 1; }
           test -f node_modules/@rezless/vitest/dist/index.d.ts \
