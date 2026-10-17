@@ -86,6 +86,40 @@ describe('Phase 3 — base64 builtins', () => {
     `)
     expect(s.global('x')).toBe(0)
   })
+
+  // Every case was checked in Second Life.
+  it.each([
+    ['AAAA', 'AQID', 'AQID'],
+    ['AAAAAAAA', 'AQID', 'AQIDAQID'],
+    ['AAAA', 'AQIDBAUG', 'AQID'],
+    ['AQID', '', 'AQID'],
+    ['', 'AQID', ''],
+    ['AAAAAAAA', 'AQIDB', 'AQIDAQID'],
+    ['AAAAAAAA', 'AQID=', 'AQIDAQID'],
+    ['AAAAAAAA', 'AQ ID', 'AQEBAQEB'],
+    ['AAAAAAAA', 'my secret!', 'm5ubm5ub'],
+    ['AAAAAAAA', '-_-_', 'AAAAAAAA'],
+    ['AAAAAAAA', '+/+/', '+/+/+/+/'],
+    ['AAAAA', 'AQID', 'AQID'],
+    ['AA AA', 'AQID', 'AQ=='],
+    ['AQ==', 'AQID', 'AA=='],
+    [
+      'bGVmdF9iZWx0wqRyaWdodF9iZWx0LC0xMDAsMCwxNzAwMDAwMDAw',
+      'yourSecretKey123',
+      'pu7NPbhJH77qCfnFo+zDPbhJH77q53CG+ruHecsaTeKu+22H+rub',
+    ],
+    [
+      'bGVmdF9iZWx0wqRyaWdodF9iZWx0LC0xMDAsMCwxNzAwMDAwMDAw',
+      'changeThis3421',
+      'HnPB9buD76GMGdZkzuaMldWvnbcGOoqw1NGm/dTqRSaXsdTRuv3I',
+    ],
+  ])('llXorBase64(%j, %j) is %j', async (a, b, expected) => {
+    const s = await run(`
+      string out = "unset";
+      default { state_entry() { out = llXorBase64("${a}", "${b}"); } }
+    `)
+    expect(s.global('out')).toBe(expected)
+  })
 })
 
 describe('Phase 3 — object lifecycle and appearance', () => {

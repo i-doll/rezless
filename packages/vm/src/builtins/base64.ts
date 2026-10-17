@@ -35,6 +35,45 @@ export const llIntegerToBase64: BuiltinImpl = (_ctx, args) => {
   return buf.toString('base64')
 }
 
+const BASE64_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+/**
+ * Decodes base64 the way Second Life does for llXorBase64: reading stops at
+ * the first character outside `A-Z a-z 0-9 + /` (so `=` ends it too), and
+ * bits left over after the last whole byte are dropped. `Buffer.from(s,
+ * 'base64')` is more lenient (skips spaces, accepts `-` `_`), so it can't be
+ * used here.
+ */
+function decodeBase64Strict(s: string): Uint8Array {
+  const bytes: number[] = []
+  let bits = 0
+  let nbits = 0
+  for (const ch of s) {
+    const v = BASE64_ALPHABET.indexOf(ch)
+    if (v < 0) break
+    bits = ((bits << 6) | v) & 0xffff
+    nbits += 6
+    if (nbits >= 8) {
+      nbits -= 8
+      bytes.push((bits >> nbits) & 0xff)
+    }
+  }
+  return Uint8Array.from(bytes)
+}
+
+/**
+ * llXorBase64(string str1, string str2) — xors the bytes of str1 with the
+ * bytes of str2, repeating str2 as needed. An empty key leaves str1 as is.
+ */
+export const llXorBase64: BuiltinImpl = (_ctx, args) => {
+  const data = decodeBase64Strict((args[0] as string | undefined) ?? '')
+  const key = decodeBase64Strict((args[1] as string | undefined) ?? '')
+  const out =
+    key.length === 0 ? data : data.map((byte, i) => byte ^ key[i % key.length]!)
+  return Buffer.from(out).toString('base64')
+}
+
 /**
  * llBase64ToInteger(string s) — inverse of llIntegerToBase64.
  * Returns 0 if the input doesn't decode to at least 4 bytes.
