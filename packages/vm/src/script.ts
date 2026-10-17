@@ -706,8 +706,9 @@ function literalToNumber(env: Env, expr: import('@rezless/parser').Expression): 
     return v && typeof v.value === 'number' ? v.value : null
   }
   if (expr.kind === 'UnaryExpression' && expr.operator === '-') {
-    const n = literalToNumber(env, expr.argument)
-    return n === null ? null : -n
+    // literalToEval knows whether the operand is an integer, so -2147483648 wraps.
+    const r = literalToEval(env, expr, 'float')
+    return r && typeof r.value === 'number' ? r.value : null
   }
   if (expr.kind === 'UnaryExpression' && expr.operator === '+') {
     return literalToNumber(env, expr.argument)

@@ -195,6 +195,22 @@ describe('Phase 2 — variables & operators', () => {
     expect(s.global('hex')).toBe(-2147483648)
     expect(s.global('local')).toBe(-2147483648)
   })
+
+  it('keeps -2147483648 in a global vector or rotation component', async () => {
+    const s = await run(`
+      vector v = <-2147483648, -0x80000000, -1.5>;
+      rotation r = <-2147483648, 0, 0, 1>;
+      vector local = ZERO_VECTOR;
+      default {
+        state_entry() {
+          local = <-2147483648, -0x80000000, -1.5>;
+        }
+      }
+    `)
+    expect(s.global('v')).toEqual({ x: -2147483648, y: -2147483648, z: -1.5 })
+    expect(s.global('r')).toMatchObject({ x: -2147483648 })
+    expect(s.global('local')).toEqual({ x: -2147483648, y: -2147483648, z: -1.5 })
+  })
 })
 
 describe('Phase 2 — type coercions', () => {
