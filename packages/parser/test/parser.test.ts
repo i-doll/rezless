@@ -392,3 +392,68 @@ describe('parser — event names are reserved', () => {
     expect(diagnostics).toEqual([])
   })
 })
+
+describe('parser — > inside vector and rotation literals', () => {
+  const parseBody = (body: string) =>
+    parse(
+      `default { state_entry() { integer a = 1; integer b = 2; vector v; ${body} } }`,
+      'inline.lsl',
+    )
+  const init = (body: string) => {
+    const { script, diagnostics } = parseBody(body)
+    expect(diagnostics).toEqual([])
+    const stmt = script.states[0]!.handlers[0]!.body.body[3]!
+    if (stmt.kind !== 'VariableDeclaration') throw new Error(stmt.kind)
+    return stmt.init
+  }
+  const gt = { kind: 'BinaryExpression', operator: '>' }
+
+  it('reads > in the last vector component as greater-than', () => {
+    expect(init('vector w = <2, 2, 2 > 1>;')).toMatchObject({
+      kind: 'VectorLiteral',
+      z: { ...gt, left: { value: 2 }, right: { value: 1 } },
+    })
+  })
+
+  it('reads > in the last rotation component as greater-than', () => {
+    expect(init('rotation r = <1, 2, 3, a > b>;')).toMatchObject({ kind: 'RotationLiteral', s: gt })
+  })
+
+  it('takes full expressions before a comma', () => {
+    expect(init('vector w = <2, 2 == 2, 2>;')).toMatchObject({
+      kind: 'VectorLiteral',
+      y: { kind: 'BinaryExpression', operator: '==' },
+    })
+    expect(init('rotation r = <a < b, a > b, a == b, 1>;')).toMatchObject({
+      kind: 'RotationLiteral',
+      x: { operator: '<' },
+      y: gt,
+      z: { operator: '==' },
+    })
+    expect(init('rotation r = <1, 2, a > b && b, 1>;')).toMatchObject({
+      kind: 'RotationLiteral',
+      z: { operator: '&&', left: gt },
+    })
+  })
+
+  it('closes the literal at a > that no operand follows', () => {
+    expect(init('vector w = <1, 2, 3> * 2;')).toMatchObject({ kind: 'BinaryExpression', operator: '*' })
+    expect(init('vector w = <1, 2, 3> - v;')).toMatchObject({ kind: 'BinaryExpression', operator: '-' })
+    expect(init('integer c = <1, 2, 3> == v;')).toMatchObject({ kind: 'BinaryExpression', operator: '==' })
+  })
+
+  it('closes a vector at > followed by - even where a comma comes later', () => {
+    expect(init('list l = [<1, 2, 3> - v, 1];')).toMatchObject({
+      kind: 'ListLiteral',
+      elements: [{ kind: 'BinaryExpression', operator: '-', left: { kind: 'VectorLiteral' } }, { value: 1 }],
+    })
+  })
+
+  it.each([
+    ['== in the last vector component', 'vector w = <1, 1, 2 == 2>;'],
+    ['== in the last rotation component', 'rotation r = <1, 1, 1, 2 == 2>;'],
+    ['a comparison chain ending in ==', 'vector w = <1, 2, 3 > 4 == 5>;'],
+  ])('rejects %s', (_, body) => {
+    expect(parseBody(body).diagnostics.length).toBeGreaterThan(0)
+  })
+})

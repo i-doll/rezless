@@ -705,29 +705,55 @@ class Parser {
   }
 
   /**
-   * Vector `<x, y, z>` or rotation `<x, y, z, s>`.
-   * Components parse at additive precedence so relational `<`/`>` inside
-   * components must be parenthesised — matches LSL convention.
+   * Vector `<x, y, z>` or rotation `<x, y, z, s>`. As in SL, a component
+   * followed by a comma is a full expression, and the last component is a
+   * comparison chain closed by the first `>` that no operand follows.
    */
   private parseVectorOrRotationLiteral(): VectorLiteral | RotationLiteral | null {
     const start = this.advance() // <
-    const x = this.parseAdditive()
+    const x = this.parseExpression()
     if (!x) return null
     if (!this.expect('comma', "expected ',' in vector/rotation literal")) return null
-    const y = this.parseAdditive()
+    const y = this.parseExpression()
     if (!y) return null
     if (!this.expect('comma', "expected ',' in vector/rotation literal")) return null
-    const z = this.parseAdditive()
+    const zStart = this.pos
+    const last = this.parseLastComponent()
+    if (!last) return null
+    if (last.closed) return { kind: 'VectorLiteral', loc: start.loc, x, y, z: last.value }
+    // Not closed, so this is a rotation's z, which may be a full expression.
+    this.pos = zStart
+    const z = this.parseExpression()
     if (!z) return null
-    if (this.check('comma')) {
-      this.advance()
-      const s = this.parseAdditive()
-      if (!s) return null
-      if (!this.expectOp('>', "expected '>' to close rotation literal")) return null
-      return { kind: 'RotationLiteral', loc: start.loc, x, y, z, s }
+    if (!this.expect('comma', "expected '>' to close vector literal")) return null
+    const s = this.parseLastComponent()
+    if (!s) return null
+    if (!s.closed) {
+      this.diag(`expected '>' to close rotation literal (got '${this.peek().text}')`, this.peek().loc)
+      return null
     }
-    if (!this.expectOp('>', "expected '>' to close vector literal")) return null
-    return { kind: 'VectorLiteral', loc: start.loc, x, y, z }
+    return { kind: 'RotationLiteral', loc: start.loc, x, y, z, s: s.value }
+  }
+
+  /** Comparison chain that ends at a `>` with no operand after it, consuming that `>`. */
+  private parseLastComponent(): { value: Expression; closed: boolean } | null {
+    let left = this.parseShift()
+    if (!left) return null
+    while (this.peek().kind === 'op' && ['<', '>', '<=', '>='].includes(this.peek().text)) {
+      const op = this.advance()
+      if (op.text === '>' && !this.atComparisonOperand()) return { value: left, closed: true }
+      const right = this.parseShift()
+      if (!right) return null
+      left = { kind: 'BinaryExpression', loc: left.loc, operator: op.text as BinaryOp, left, right }
+    }
+    return { value: left, closed: false }
+  }
+
+  /** Tokens SL's grammar reads as the right operand of `>` rather than the end of a literal. */
+  private atComparisonOperand(): boolean {
+    const t = this.peek()
+    if (t.kind === 'op') return ['++', '--', '!', '~'].includes(t.text)
+    return ['identifier', 'integer', 'float', 'string', 'lparen', 'lbracket'].includes(t.kind)
   }
 
   // ---- token helpers ----
