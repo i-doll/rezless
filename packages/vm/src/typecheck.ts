@@ -206,6 +206,10 @@ class Checker {
         return this.stmt(s.body)
       case 'ReturnStatement': {
         const got: Ty = s.argument ? this.expr(s.argument) : 'void'
+        if (got === 'void' && this.returnType !== 'void') {
+          this.error(s, "Function returns a value but return statement doesn't")
+          return
+        }
         const ok = this.returnType === 'void' ? got === 'void' : assignable(this.returnType, got)
         if (!ok) {
           this.error(

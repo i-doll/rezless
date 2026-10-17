@@ -63,7 +63,7 @@ describe('load-time type checking (SL compiler parity)', () => {
     [
       'bare return in a typed function',
       `integer f() { return; } ${inEntry('f();')}`,
-      /Return statement type/,
+      /Function returns a value but return statement doesn't/,
     ],
     [
       'returning the wrong type',
