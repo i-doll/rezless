@@ -27,6 +27,9 @@ import { own } from './own.js'
  */
 type Ty = TypeName | 'void' | 'unknown'
 
+/** Labels share the lexical namespace with variables from where they appear. */
+type Scope = Map<string, Ty | 'label'>
+
 export function typecheck(ast: Ast, filename: string): Diagnostic[] {
   return new Checker(ast, filename).run()
 }
@@ -125,7 +128,7 @@ class Checker {
   private readonly globals = new Map<string, Ty>()
   private readonly functions = new Map<string, Signature>()
   private readonly states: Set<string>
-  private scopes: Array<Map<string, Ty>> = []
+  private scopes: Scope[] = []
   /** Return type of the function being checked; 'void' inside event handlers. */
   private returnType: Ty = 'void'
   private inFunction = false
@@ -151,6 +154,7 @@ class Checker {
     const decls = [...this.ast.globals, ...this.ast.functions]
     const states = [...this.ast.states].sort((a, b) => a.loc.offset - b.loc.offset)
     const firstState = states[0]
+    if (!firstState) this.error(this.ast, 'Syntax error: the script has no default state')
     if (firstState && firstState.name !== 'default') {
       this.error(firstState, 'Syntax error: the default state must come first')
     }
@@ -221,7 +225,7 @@ class Checker {
 
   /** Check a function or handler body against its parameters. */
   private body(params: ReadonlyArray<Param>, body: BlockStatement): void {
-    const scope = new Map<string, Ty>()
+    const scope: Scope = new Map()
     for (const p of params) {
       this.declare(scope, p, p.name, p.typeName)
     }
@@ -231,7 +235,7 @@ class Checker {
     this.block(body, 'denied')
   }
 
-  private declare(scope: Map<string, Ty>, node: Node, name: string, type: Ty): void {
+  private declare(scope: Scope, node: Node, name: string, type: Ty | 'label'): void {
     if (Object.hasOwn(CONSTANT_TABLE, name)) this.error(node, `Syntax error: ${name} is a constant`)
     else if (scope.has(name)) this.alreadyDeclared(node, name)
     scope.set(name, type)
@@ -323,6 +327,7 @@ class Checker {
       case 'LabelStatement':
         if (this.labels.has(s.name)) this.error(s, `Duplicate label name: ${s.name}`)
         this.labels.add(s.name)
+        this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, 'label')
         return []
     }
   }
@@ -334,13 +339,18 @@ class Checker {
   // ---- Expressions ----
 
   private isVariable(name: string): boolean {
-    return this.scopes.some((scope) => scope.has(name)) || this.globals.has(name)
+    for (let i = this.scopes.length - 1; i >= 0; i--) {
+      const t = this.scopes[i]!.get(name)
+      if (t) return t !== 'label'
+    }
+    return this.globals.has(name)
   }
 
+  /** Type of a variable or constant; a label in scope hides outer names. */
   private lookup(name: string): Ty | undefined {
     for (let i = this.scopes.length - 1; i >= 0; i--) {
       const t = this.scopes[i]!.get(name)
-      if (t) return t
+      if (t) return t === 'label' ? undefined : t
     }
     return this.globals.get(name) ?? (own(CONSTANT_TABLE, name)?.type as TypeName | undefined)
   }
@@ -460,7 +470,13 @@ class Checker {
     const sig: Signature | undefined =
       this.functions.get(e.callee) ??
       (builtin && { returnType: builtin.returnType, params: builtin.params.map((p) => p.type) })
-    if (!sig) return 'unknown'
+    if (!sig) {
+      // Calls resolve in the global namespace; only undeclared names are left for script.mock.
+      if (this.globals.has(e.callee) || own(CONSTANT_TABLE, e.callee) || this.states.has(e.callee)) {
+        this.error(e, `Name not defined within scope: ${e.callee} is not a function`)
+      }
+      return 'unknown'
+    }
     if (sig.params.length !== args.length || sig.params.some((p, i) => !assignable(p, args[i]!))) {
       const want = sig.params.join(', ')
       this.error(e, `Function call mismatches type or number of arguments: ${e.callee}(${want})`)
