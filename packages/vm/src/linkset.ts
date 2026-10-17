@@ -18,6 +18,8 @@ export { LINK_ROOT, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_THIS }
 export interface LinksetOptions {
   /** Owner key applied to all scripts in this linkset. */
   readonly owner?: string
+  /** Unix time in seconds at virtual time 0, read by llGetUnixTime and friends. Default 0. */
+  readonly startUnixTime?: number
 }
 
 /**
@@ -31,7 +33,7 @@ export interface LinksetOptions {
  * see no behavioral change.
  */
 export class Linkset {
-  readonly clock = new LinksetClock()
+  readonly clock: LinksetClock
   readonly prims: Prim[] = []
   /** Linkset-wide LSD store (was per-script before multi-script support). */
   readonly linksetData: Map<string, LinksetDataEntry> = new Map()
@@ -50,6 +52,7 @@ export class Linkset {
 
   constructor(opts: LinksetOptions = {}) {
     this.owner = opts.owner ?? NULL_KEY
+    this.clock = new LinksetClock(opts.startUnixTime)
   }
 
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */
