@@ -530,6 +530,27 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('out')).toEqual(['a', 'b', 'c'])
   })
 
+  it('llCSV2List keeps <> together, drops one space after a comma, and keeps "" as one item', async () => {
+    const s = await run(`
+      list nested = [];
+      list vec = [];
+      list empty = [];
+      list spaces = [];
+      default {
+        state_entry() {
+          nested = llCSV2List("<<>,>,a");
+          vec = llCSV2List("a, <1.000000, 2.000000, 3.000000>, b");
+          empty = llCSV2List("");
+          spaces = llCSV2List("a,  b");
+        }
+      }
+    `)
+    expect(s.global('nested')).toEqual(['<<>,>', 'a'])
+    expect(s.global('vec')).toEqual(['a', '<1.000000, 2.000000, 3.000000>', 'b'])
+    expect(s.global('empty')).toEqual([''])
+    expect(s.global('spaces')).toEqual(['a', ' b'])
+  })
+
   it('llParseString2List splits on separators, keeps tokens', async () => {
     const s = await run(`
       list out = [];
