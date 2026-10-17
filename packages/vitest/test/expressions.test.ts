@@ -519,6 +519,31 @@ describe('32-bit floats', () => {
     expect((s.global('divided') as { x: number }).x).toBe(Math.fround(1 / 16777216))
   })
 
+  it('rounds float constants, global vector literals and mixed equality to 32 bits', async () => {
+    const s = await run(`
+      vector gv = <16777217, 0.1, 0>;
+      rotation gr = <16777217, 0, 0, 1>;
+      float pi = 0;
+      integer same = 0;
+      integer differ = 1;
+      integer localSame = 0;
+      default {
+        state_entry() {
+          pi = PI;
+          same = 16777217 == 16777216.0;
+          differ = 16777217 != 16777216.0;
+          localSame = gv == <16777217, 0.1, 0>;
+        }
+      }
+    `)
+    expect(s.global('gv')).toEqual({ x: 16777216, y: Math.fround(0.1), z: 0 })
+    expect(s.global('gr')).toMatchObject({ x: 16777216 })
+    expect(s.global('pi')).toBe(Math.fround(3.14159265))
+    expect(s.global('same')).toBe(1)
+    expect(s.global('differ')).toBe(0)
+    expect(s.global('localSame')).toBe(1)
+  })
+
   it('keeps a parsed float too large for 32 bits as infinity', async () => {
     const s = await run(`
       float f = 0;

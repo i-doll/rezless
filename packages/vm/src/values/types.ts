@@ -114,3 +114,21 @@ export function vec(x: number, y: number, z: number): Vector {
 export function rot(x: number, y: number, z: number, s: number): Rotation {
   return Object.freeze({ x: toFloat32(x), y: toFloat32(y), z: toFloat32(z), s: toFloat32(s) })
 }
+
+/** Round a float, vector or rotation that was computed in doubles to 32-bit components. */
+export function toFloat32Value(value: LslValue, type: LslType): LslValue {
+  switch (type) {
+    case 'float':
+      return toFloat32(value as number)
+    case 'vector': {
+      const v = value as Vector
+      return vec(v.x, v.y, v.z)
+    }
+    case 'rotation': {
+      const r = value as Rotation
+      return rot(r.x, r.y, r.z, r.s)
+    }
+    default:
+      return value
+  }
+}

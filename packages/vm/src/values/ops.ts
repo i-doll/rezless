@@ -191,9 +191,8 @@ function lslEquals(a: EvalResult, b: EvalResult): boolean {
   if ((a.type === 'string' || a.type === 'key') && (b.type === 'string' || b.type === 'key')) {
     return a.value === b.value
   }
-  if ((a.type === 'integer' || a.type === 'float') && (b.type === 'integer' || b.type === 'float')) {
-    return (a.value as number) === (b.value as number)
-  }
+  const numeric = promoteNumeric(a, b)
+  if (numeric) return numeric[0].value === numeric[1].value
   if (isVector(a.value) && isVector(b.value)) {
     return a.value.x === b.value.x && a.value.y === b.value.y && a.value.z === b.value.z
   }
