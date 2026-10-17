@@ -272,6 +272,7 @@ const asRot = (v: LslValue | undefined): Rotation => {
   }
   return identityRot()
 }
+const toByteChannel = (c: number): number => Math.floor(Math.min(1, Math.max(0, c)) * 255) / 255
 
 function facesOf(faceArg: LslValue | undefined): number[] {
   const f = num(faceArg, 0) | 0
@@ -570,8 +571,9 @@ export function writePrimParam(
           texture: tex,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
           textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
-          textureRotation: rot,
-          color: { x: color.x, y: color.y, z: color.z },
+          // Second Life stores a negative rotation as 0 and the colour in 8 bits per channel
+          textureRotation: Math.max(0, rot),
+          color: { x: toByteChannel(color.x), y: toByteChannel(color.y), z: toByteChannel(color.z) },
           glossiness: gloss,
           environment: env,
         }
