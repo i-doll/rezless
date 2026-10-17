@@ -59,6 +59,7 @@ import {
   llListReplaceList,
   llListFindList,
   llDumpList2String,
+  llList2CSV,
   llCSV2List,
   llParseString2List,
 } from './lists.js'
@@ -279,6 +280,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llListReplaceList,
   llListFindList,
   llDumpList2String,
+  llList2CSV,
   llCSV2List,
   llParseString2List,
   // json
