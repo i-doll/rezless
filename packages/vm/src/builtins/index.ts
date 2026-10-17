@@ -6,6 +6,9 @@ import {
   llGetTime,
   llGetAndResetTime,
   llResetTime,
+  llGetUnixTime,
+  llGetTimestamp,
+  llGetDate,
 } from './time.js'
 import { llHTTPRequest, llHTTPResponse } from './http.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
@@ -227,6 +230,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetTime,
   llGetAndResetTime,
   llResetTime,
+  llGetUnixTime,
+  llGetTimestamp,
+  llGetDate,
   llHTTPRequest,
   llHTTPResponse,
   llListen,

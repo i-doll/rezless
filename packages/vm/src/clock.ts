@@ -28,6 +28,14 @@ export class LinksetClock {
   /** Virtual milliseconds since linkset construction. Strictly monotonic. */
   now = 0
 
+  /** @param startTime Unix time in seconds when `now` is 0. */
+  constructor(private readonly startTime = 0) {}
+
+  /** Unix time in milliseconds at the current virtual time. */
+  get unixMs(): number {
+    return this.startTime * 1000 + this.now
+  }
+
   private readonly queue: QueuedEvent[] = []
 
   /** Schedule a one-shot event on `target`'s handler at virtual time `at`. */
@@ -120,6 +128,11 @@ export class ScriptClockView {
 
   get now(): number {
     return this.linksetClock.now
+  }
+
+  /** Unix time in milliseconds at the current virtual time. */
+  get unixMs(): number {
+    return this.linksetClock.unixMs
   }
 
   /** Schedule a one-shot event on this script. */

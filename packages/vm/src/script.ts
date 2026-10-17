@@ -23,7 +23,7 @@ import { defaultEvalFor } from './values/types.js'
 import { typedList } from './values/list-types.js'
 import { Env } from './env.js'
 import { ScriptClockView } from './clock.js'
-import { Linkset } from './linkset.js'
+import { Linkset, type LinksetOptions } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
@@ -40,6 +40,12 @@ export interface ScriptOptions {
   readonly randomSeed?: number
   /** Owner key returned by llGetOwner. Defaults to NULL_KEY. */
   readonly owner?: string
+  /**
+   * Unix time in seconds when the virtual clock reads 0. Backs llGetUnixTime,
+   * llGetTimestamp and llGetDate. Defaults to 0. Ignored when `host` is given;
+   * the host's linkset sets it instead.
+   */
+  readonly startTime?: number
   /** Prim key returned by llGetKey. Defaults to a deterministic per-script key. */
   readonly objectKey?: string
   /** Prim name returned by llGetObjectName. Defaults to "Object". */
@@ -89,7 +95,11 @@ export class Script {
     // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
     let host = options.host
     if (!host) {
-      const linkset = new Linkset({ owner: options.owner ?? NULL_KEY })
+      const linksetOpts: { -readonly [K in keyof LinksetOptions]: LinksetOptions[K] } = {
+        owner: options.owner ?? NULL_KEY,
+      }
+      if (options.startTime !== undefined) linksetOpts.startTime = options.startTime
+      const linkset = new Linkset(linksetOpts)
       const prim = new Prim({
         key:
           options.objectKey ??

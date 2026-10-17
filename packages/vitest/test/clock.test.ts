@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript } from '../src/index.js'
+import { loadScript, loadLinkset } from '../src/index.js'
 
 async function load(source: string) {
   return loadScript({ source })
@@ -131,5 +131,77 @@ describe('Phase 3 — virtual clock + timers', () => {
     s.start()
     s.advanceTime(2_750) // expects 5 fires at 0.5, 1.0, 1.5, 2.0, 2.5
     expect(s.global('count')).toBe(5)
+  })
+})
+
+describe('wall-clock time from the virtual clock', () => {
+  const source = `
+    integer unix;
+    string stamp;
+    string date;
+    default {
+      state_entry() { unix = llGetUnixTime(); stamp = llGetTimestamp(); date = llGetDate(); }
+      touch_start(integer n) { unix = llGetUnixTime(); stamp = llGetTimestamp(); date = llGetDate(); }
+    }
+  `
+
+  it('starts at the Unix epoch by default', async () => {
+    const s = await loadScript({ source })
+    s.start()
+    expect(s.global('unix')).toBe(0)
+    expect(s.global('stamp')).toBe('1970-01-01T00:00:00.000000Z')
+    expect(s.global('date')).toBe('1970-01-01')
+  })
+
+  it('reads the configured start time plus virtual time', async () => {
+    // 2026-03-31T23:59:59Z
+    const s = await loadScript({ source, startTime: 1_775_001_599 })
+    s.start()
+    expect(s.global('unix')).toBe(1_775_001_599)
+    expect(s.global('stamp')).toBe('2026-03-31T23:59:59.000000Z')
+    expect(s.global('date')).toBe('2026-03-31')
+
+    s.advanceTime(1_250.5)
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.global('unix')).toBe(1_775_001_600)
+    expect(s.global('stamp')).toBe('2026-04-01T00:00:00.250500Z')
+    expect(s.global('date')).toBe('2026-04-01')
+  })
+
+  it('keeps fractional start times in the timestamp', async () => {
+    const s = await loadScript({ source, startTime: 86_400.123456 })
+    s.start()
+    expect(s.global('unix')).toBe(86_400)
+    expect(s.global('stamp')).toBe('1970-01-02T00:00:00.123456Z')
+  })
+
+  it('rejects a start time that is not a finite number', async () => {
+    await expect(loadScript({ source, startTime: Number.NaN })).rejects.toThrow(/startTime/)
+  })
+
+  it('moves with llSleep', async () => {
+    const s = await loadScript({
+      source: `
+        integer before;
+        integer after;
+        default { state_entry() { before = llGetUnixTime(); llSleep(90); after = llGetUnixTime(); } }
+      `,
+      startTime: 1_000,
+    })
+    s.start()
+    expect(s.global('before')).toBe(1_000)
+    expect(s.global('after')).toBe(1_090)
+  })
+
+  it('shares one start time across a linkset', async () => {
+    const { scripts } = await loadLinkset({
+      startTime: 1_000,
+      prims: [{ scripts: [{ source: { source }, name: 'a' }] }, { scripts: [{ source: { source }, name: 'b' }] }],
+    })
+    scripts.a!.start()
+    scripts.a!.advanceTime(5_000)
+    scripts.b!.start()
+    expect(scripts.a!.global('unix')).toBe(1_000)
+    expect(scripts.b!.global('unix')).toBe(1_005)
   })
 })

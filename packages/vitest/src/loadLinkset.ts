@@ -64,6 +64,7 @@ async function readScriptSource(src: ScriptSource): Promise<{ source: string; fi
 export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
   const linksetOpts: { -readonly [K in keyof LinksetOptions]: LinksetOptions[K] } = {}
   if (input.owner !== undefined) linksetOpts.owner = input.owner
+  if (input.startTime !== undefined) linksetOpts.startTime = input.startTime
   const linkset = new Linkset(linksetOpts)
   // Object.create(null) avoids prototype keys ('toString', 'constructor', …)
   // false-positive-tripping the duplicate-name check below.

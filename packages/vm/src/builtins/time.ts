@@ -58,3 +58,23 @@ export const llResetTime: BuiltinImpl = (ctx) => {
   ctx.state.clock.resetReference()
   return undefined
 }
+
+/** llGetUnixTime() — whole seconds since 1970-01-01T00:00:00Z, UTC. */
+export const llGetUnixTime: BuiltinImpl = (ctx) => {
+  return Math.floor(ctx.state.clock.unixMs / 1000)
+}
+
+/** llGetTimestamp() — UTC time as `YYYY-MM-DDThh:mm:ss.ffffffZ`. */
+export const llGetTimestamp: BuiltinImpl = (ctx) => {
+  // Round to whole microseconds first so float noise in the virtual ms
+  // (llSleep's 1000/45 frame) can't knock a value down by one.
+  const micros = Math.round(ctx.state.clock.unixMs * 1000)
+  const seconds = Math.floor(micros / 1_000_000)
+  const fraction = String(micros - seconds * 1_000_000).padStart(6, '0')
+  return `${new Date(seconds * 1000).toISOString().slice(0, 19)}.${fraction}Z`
+}
+
+/** llGetDate() — UTC date as `YYYY-MM-DD`. */
+export const llGetDate: BuiltinImpl = (ctx) => {
+  return new Date(Math.floor(ctx.state.clock.unixMs)).toISOString().slice(0, 10)
+}
