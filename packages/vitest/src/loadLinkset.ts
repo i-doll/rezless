@@ -85,7 +85,7 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
       const { source, filename } = await readScriptSource(sInput.source)
       const { script: ast, diagnostics } = parse(source, filename)
       const errors = diagnostics.filter((d) => d.severity === 'error')
-      if (errors.length === 0) errors.push(...typecheck(ast, filename))
+      if (errors.length === 0) errors.push(...typecheck(ast, filename, sInput.functions))
       if (errors.length > 0) throw new LslParseError(errors)
       // Build options without the loadLinkset-only fields. The inventory
       // `name` is also surfaced as `scriptName` so llGetScriptName /

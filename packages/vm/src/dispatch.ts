@@ -52,7 +52,7 @@ function makeStub(name: string): BuiltinImpl {
   const spec = specFor(name)
   if (!spec) {
     return () => {
-      throw new Error(`unknown LSL function '${name}' (not in kwdb; use script.mock to provide it)`)
+      throw new Error(`LSL function '${name}' has no implementation (not in kwdb; use script.mock to provide it)`)
     }
   }
   return () => defaultValueFor(spec.returnType)

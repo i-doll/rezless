@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript } from '../src/index.js'
+import { loadLinkset, loadScript } from '../src/index.js'
 
 /** Wraps statements in a state_entry so each case is a whole script. */
 const inEntry = (body: string) => `default { state_entry() { ${body} } }`
@@ -126,6 +126,10 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['calling a global variable', `integer f; ${inEntry('f();')}`, /Name not defined within scope: f/],
     ['calling a constant', inEntry('PI();'), /Name not defined within scope: PI/],
     ['calling a state', `default { state_entry() { two(); } } state two { state_entry() {} }`, /Name not defined within scope: two/],
+    ['calling an undeclared function', inEntry('llNotAFunction();'), /Name not defined within scope: llNotAFunction/],
+    ['calling a local variable', inEntry('integer x; x();'), /Name not defined within scope: x/],
+    ['calling an event', inEntry('state_entry();'), /'state_entry' is an event name/],
+    ['calling names like Object.prototype keys', inEntry('toString(); constructor(1);'), /Name not defined within scope: toString/],
     ['print of a string assigned to an integer', inEntry('integer i = print("a");'), /Type mismatch/],
     ['global initialised from print', `integer g = print(1); ${inEntry('')}`, /Syntax error/],
     ['statement after the return', `integer f() { return 1; f(); } ${inEntry('')}`, /Not all code paths/],
@@ -162,10 +166,7 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['calling a function declared later', `g() { f(1); } f(float x) {} ${inEntry('g();')}`],
     ['globals used in functions', `integer n; f() { n++; } ${inEntry('f();')}`],
     ['parameter shadowing a global', `integer n; f(string n) { n += "a"; } ${inEntry('f("");')}`],
-    ['unknown function left to script.mock', inEntry('integer i = llNotARealFunction(1) + 1;')],
-    ['unknown functions named like Object.prototype keys', inEntry('toString(); constructor(1); hasOwnProperty("a");')],
     ['script names matching Object.prototype keys', `integer constructor; toString(integer valueOf) { integer hasOwnProperty; } ${inEntry('toString(constructor);')}`],
-    ['returning an unknown function inside an if', inEntry('if (TRUE) return llCustomVoid();')],
     ['state change to a declared state', `default { state_entry() { state two; } } state two { state_entry() {} }`],
     ['event parameters matching the spec', `default { listen(integer c, string n, key id, string m) {} }`],
     ['bare return from an event', inEntry('return;')],
@@ -194,8 +195,59 @@ describe('load-time type checking (SL compiler parity)', () => {
     await expect(loadScript({ source })).resolves.toBeDefined()
   })
 
-  it('treats an unmocked toString() as an unknown LSL function at runtime', async () => {
-    const s = await loadScript({ source: `default { state_entry() { toString(); } }` })
-    expect(() => s.start()).toThrow(/unknown LSL function 'toString'/)
+})
+
+describe('functions declared for script.mock', () => {
+  const functions = {
+    llCustomThing: { returns: 'integer', params: ['integer'] },
+    llCustomFloat: { returns: 'float' },
+    llCustomVoid: {},
+    toString: {},
+  } as const
+
+  it('rejects calling a constant declared as a function', async () => {
+    await expect(loadScript({ source: inEntry('PI();'), functions: { PI: {} } })).rejects.toThrow(
+      /Name not defined within scope: PI is not a function/,
+    )
+  })
+
+  it('accepts calls that match the declared signature', async () => {
+    const source = inEntry('integer i = llCustomThing(1) + 1; float f = llCustomFloat(); if (TRUE) return llCustomVoid(); toString();')
+    await expect(loadScript({ source, functions })).resolves.toBeDefined()
+  })
+
+  it.each([
+    ['wrong arguments', inEntry('llCustomThing("a");'), /Function call mismatches type or number of arguments: llCustomThing\(integer\)/],
+    ['too many arguments', inEntry('llCustomVoid(1);'), /Function call mismatches type or number of arguments: llCustomVoid\(\)/],
+    ['using a void result', inEntry('integer i = llCustomVoid();'), /Type mismatch/],
+    ['using the result as the wrong type', inEntry('string s = llCustomFloat();'), /Type mismatch/],
+    ['a global with a declared name', `integer llCustomVoid; ${inEntry('llCustomVoid();')}`, /previously declared within scope: llCustomVoid/],
+    ['a script function with a declared name', `llCustomVoid() {} ${inEntry('llCustomVoid();')}`, /previously declared within scope: llCustomVoid/],
+    ['a state with a declared name', `${inEntry('llCustomVoid();')} state llCustomVoid { state_entry() {} }`, /previously declared within scope: llCustomVoid/],
+  ])('rejects %s', async (_name, source, message) => {
+    await expect(loadScript({ source, functions })).rejects.toThrow(message)
+  })
+
+  it('passes the mock\'s return value to the script', async () => {
+    const source = `integer r; float f; default { state_entry() { r = llCustomThing(1); f = llCustomFloat(); } }`
+    const s = await loadScript({ source, functions })
+    s.mock('llCustomThing', () => 42)
+    s.mock('llCustomFloat', () => 2)
+    s.start()
+    expect(s.global('r')).toBe(42)
+    expect(s.global('f')).toBe(2)
+  })
+
+  it('fails at runtime when a declared function has no mock', async () => {
+    const s = await loadScript({ source: inEntry('toString();'), functions })
+    expect(() => s.start()).toThrow(/'toString' has no implementation/)
+  })
+
+  it('declares functions for scripts in a linkset', async () => {
+    const source = `integer r; ${inEntry('r = llCustomThing(1);')}`
+    const { scripts } = await loadLinkset({ prims: [{ scripts: [{ source: { source }, name: 's', functions }] }] })
+    scripts.s!.mock('llCustomThing', () => 7)
+    scripts.s!.start()
+    expect(scripts.s!.global('r')).toBe(7)
   })
 })
