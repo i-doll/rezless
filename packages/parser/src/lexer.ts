@@ -206,7 +206,7 @@ export function lex(
           pushErr('malformed hex literal — expected at least one hex digit after 0x', start)
           tokens.push({ kind: 'integer', text: s, loc: start, value: 0 })
         } else {
-          tokens.push({ kind: 'integer', text: s, loc: start, value: Number.parseInt(s, 16) })
+          tokens.push({ kind: 'integer', text: s, loc: start, value: integerValue(s) })
         }
         continue
       }
@@ -245,15 +245,18 @@ export function lex(
           }
         }
       }
-      // No `f`/`F` suffix support — the Linden Lab LSL compiler doesn't
-      // accept it. A trailing `f` after a number is left for the next pass
-      // to lex as an identifier (or a diagnostic if it's invalid in
-      // context), matching official LSL behaviour.
+      // Second Life takes an `f`/`F` suffix, but only on a float with a
+      // decimal point. On `1e5f` or `7f` the `f` lexes as an identifier.
+      let text = s
+      if (s.includes('.') && (source[i] === 'f' || source[i] === 'F')) {
+        text += source[i]
+        advance()
+      }
       tokens.push({
         kind: isFloat ? 'float' : 'integer',
-        text: s,
+        text,
         loc: start,
-        value: isFloat ? Number.parseFloat(s) : Number.parseInt(s, 10),
+        value: isFloat ? Number.parseFloat(s) : integerValue(s),
       })
       continue
     }
@@ -300,6 +303,13 @@ export function lex(
 
   tokens.push({ kind: 'eof', text: '', loc: loc() })
   return { tokens, diagnostics }
+}
+
+// Second Life reads an integer literal above 0xFFFFFFFF as -1 and wraps
+// smaller ones to a signed 32-bit value. `digits` is decimal or `0x` hex.
+function integerValue(digits: string): number {
+  const n = BigInt(digits)
+  return n > 0xffffffffn ? -1 : Number(BigInt.asIntN(32, n))
 }
 
 function isDigit(ch: string): boolean {

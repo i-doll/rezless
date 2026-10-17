@@ -156,6 +156,29 @@ describe('Phase 2 — variables & operators', () => {
     expect(s.global('post')).toBe(6)
     expect(s.global('x')).toBe(5)
   })
+
+  it('reads number literals like Second Life', async () => {
+    const s = await run(`
+      integer hex = 0x123456789;
+      integer big = 99999999999;
+      integer wrapped = 3000000000;
+      float f = 1.5f;
+      integer local = 0;
+      float localF = 0;
+      default {
+        state_entry() {
+          local = 4294967296;
+          localF = 2.F;
+        }
+      }
+    `)
+    expect(s.global('hex')).toBe(-1)
+    expect(s.global('big')).toBe(-1)
+    expect(s.global('wrapped')).toBe(-1294967296)
+    expect(s.global('f')).toBe(1.5)
+    expect(s.global('local')).toBe(-1)
+    expect(s.global('localF')).toBe(2)
+  })
 })
 
 describe('Phase 2 — type coercions', () => {
