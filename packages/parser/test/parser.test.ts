@@ -118,16 +118,29 @@ describe('lexer — number literals', () => {
     ])
   })
 
-  it('does not accept the C-style f/F suffix on numeric literals', () => {
-    // The official LSL compiler rejects `3.14f`. We match that: the number
-    // ends at `3.14`, and the trailing `f` lexes as a separate identifier
-    // (which the parser will then reject as invalid syntax in context).
-    const { tokens } = lex(`3.14f 7F`, 'inline.lsl')
-    expect(tokens.slice(0, 4)).toMatchObject([
-      { kind: 'float', text: '3.14', value: 3.14 },
+  it('accepts an f/F suffix only on floats with a decimal point', () => {
+    const { tokens, diagnostics } = lex(`3.14f 2.F .5f 1e5f 7F`, 'inline.lsl')
+    expect(diagnostics).toEqual([])
+    expect(tokens.slice(0, 7)).toMatchObject([
+      { kind: 'float', text: '3.14f', value: 3.14 },
+      { kind: 'float', text: '2.F', value: 2 },
+      { kind: 'float', text: '.5f', value: 0.5 },
+      // Without a decimal point the suffix isn't part of the number.
+      { kind: 'float', text: '1e5', value: 100000 },
       { kind: 'identifier', text: 'f' },
       { kind: 'integer', text: '7', value: 7 },
       { kind: 'identifier', text: 'F' },
+    ])
+  })
+
+  it('wraps integer literals to 32 bits and makes ones above 0xFFFFFFFF -1', () => {
+    const { tokens, diagnostics } = lex(
+      `3000000000 4294967295 4294967296 99999999999 0xFFFFFFFF 0x80000000 0x123456789 0x000000001`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+    expect(tokens.slice(0, 8).map((t) => t.value)).toEqual([
+      -1294967296, -1, -1, -1, -1, -2147483648, -1, 1,
     ])
   })
 

@@ -156,6 +156,61 @@ describe('Phase 2 — variables & operators', () => {
     expect(s.global('post')).toBe(6)
     expect(s.global('x')).toBe(5)
   })
+
+  it('reads number literals like Second Life', async () => {
+    const s = await run(`
+      integer hex = 0x123456789;
+      integer big = 99999999999;
+      integer wrapped = 3000000000;
+      float f = 1.5f;
+      integer local = 0;
+      float localF = 0;
+      default {
+        state_entry() {
+          local = 4294967296;
+          localF = 2.F;
+        }
+      }
+    `)
+    expect(s.global('hex')).toBe(-1)
+    expect(s.global('big')).toBe(-1)
+    expect(s.global('wrapped')).toBe(-1294967296)
+    expect(s.global('f')).toBe(1.5)
+    expect(s.global('local')).toBe(-1)
+    expect(s.global('localF')).toBe(2)
+  })
+
+  it('keeps -2147483648 in a global initialiser', async () => {
+    const s = await run(`
+      integer dec = -2147483648;
+      integer hex = -0x80000000;
+      integer local = 0;
+      default {
+        state_entry() {
+          local = -2147483648;
+        }
+      }
+    `)
+    expect(s.global('dec')).toBe(-2147483648)
+    expect(s.global('hex')).toBe(-2147483648)
+    expect(s.global('local')).toBe(-2147483648)
+  })
+
+  it('keeps -2147483648 in a global vector or rotation component', async () => {
+    const s = await run(`
+      vector v = <-2147483648, -0x80000000, -1.5>;
+      rotation r = <-2147483648, 0, 0, 1>;
+      vector local = ZERO_VECTOR;
+      default {
+        state_entry() {
+          local = <-2147483648, -0x80000000, -1.5>;
+        }
+      }
+    `)
+    expect(s.global('v')).toEqual({ x: -2147483648, y: -2147483648, z: -1.5 })
+    expect(s.global('r')).toMatchObject({ x: -2147483648 })
+    expect(s.global('local')).toEqual({ x: -2147483648, y: -2147483648, z: -1.5 })
+  })
 })
 
 describe('Phase 2 — type coercions', () => {
