@@ -98,40 +98,39 @@ export const llList2Rot: BuiltinImpl = (_ctx, args) => {
 }
 
 /**
+ * Whether `start..end` is an exclusion range: after counting negative indexes
+ * from the end once, start comes after end. LSL then keeps or drops both
+ * ends of the list instead of the middle. Indexes outside the list are not
+ * clamped first, so a range past the end selects nothing.
+ */
+function isExclusionRange(start: number, end: number, len: number): boolean {
+  return (start < 0 ? start + len : start) > (end < 0 ? end + len : end)
+}
+
+/**
  * llList2List(list src, integer start, integer end) — inclusive slice.
- * Same wrap rules as llGetSubString.
+ * When start comes after end, returns the elements outside end..start.
  */
 export const llList2List: BuiltinImpl = (_ctx, args) => {
-  const src = args[0] as ReadonlyArray<LslValue> | undefined
-  if (!src) return []
-  const len = src.length
-  if (len === 0) return []
-  let start = (args[1] as number | undefined) ?? 0
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const start = (args[1] as number | undefined) ?? 0
   let end = (args[2] as number | undefined) ?? 0
-  if (start < 0) start = Math.max(0, len + start)
-  else start = Math.min(len - 1, start)
-  if (end < 0) end = Math.max(0, len + end)
-  else end = Math.min(len - 1, end)
-  if (start <= end) return sliceList(src, start, end + 1)
-  return concatLists(sliceList(src, 0, end + 1), sliceList(src, start))
+  if (end === -1) end += src.length
+  if (isExclusionRange(start, end, src.length)) return concatLists(sliceList(src, 0, end + 1), sliceList(src, start))
+  return sliceList(src, start, end + 1)
 }
 
 /**
  * llDeleteSubList(list src, integer start, integer end) — inverse of
- * llList2List. Same wrap rules.
+ * llList2List. Same range rules.
  */
 export const llDeleteSubList: BuiltinImpl = (_ctx, args) => {
-  const src = args[0] as ReadonlyArray<LslValue> | undefined
-  if (!src) return []
-  const len = src.length
-  let start = (args[1] as number | undefined) ?? 0
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const start = (args[1] as number | undefined) ?? 0
   let end = (args[2] as number | undefined) ?? 0
-  if (start < 0) start = Math.max(0, len + start)
-  else start = Math.min(len - 1, start)
-  if (end < 0) end = Math.max(0, len + end)
-  else end = Math.min(len - 1, end)
-  if (start <= end) return concatLists(sliceList(src, 0, start), sliceList(src, end + 1))
-  return sliceList(src, end + 1, start)
+  if (end === -1) end += src.length
+  if (isExclusionRange(start, end, src.length)) return sliceList(src, end + 1, start)
+  return concatLists(sliceList(src, 0, start), sliceList(src, end + 1))
 }
 
 /** llListInsertList(list dst, list src, integer pos) — inserts src at pos. */
@@ -146,21 +145,22 @@ export const llListInsertList: BuiltinImpl = (_ctx, args) => {
 
 /**
  * llListReplaceList(list dst, list src, integer start, integer end)
- * — replaces dst[start..end] (inclusive) with src.
+ * — replaces dst[start..end] (inclusive) with src. A range past the end
+ * appends src. When start comes after end, both ends of dst are dropped and
+ * src is appended to what is left.
  */
 export const llListReplaceList: BuiltinImpl = (_ctx, args) => {
   const dst = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
-  const src = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
+  let src = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const len = dst.length
-  let start = (args[2] as number | undefined) ?? 0
+  const start = (args[2] as number | undefined) ?? 0
   let end = (args[3] as number | undefined) ?? 0
-  if (start < 0) start = Math.max(0, len + start)
-  else start = Math.min(len, start)
-  if (end < 0) end = Math.max(0, len + end)
-  else end = Math.min(len - 1, end)
-  if (start <= end) return concatLists(sliceList(dst, 0, start), src, sliceList(dst, end + 1))
-  // wrapped — match LSL: replaces [0..end] and [start..end-of-list] both
-  return concatLists(src, sliceList(dst, end + 1, start))
+  // A start before the beginning of the list replaces with nothing.
+  if (start < -len) src = []
+  const exclusion = isExclusionRange(start, end, len)
+  if (end === -1) end += len
+  if (exclusion) return concatLists(sliceList(dst, end + 1, start), src)
+  return concatLists(sliceList(dst, 0, start), src, sliceList(dst, end + 1))
 }
 
 /**
