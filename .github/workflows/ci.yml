@@ -37,9 +37,9 @@ jobs:
 
       - name: Verify generated files are in sync with vendor/kwdb.xml
         run: |
-          if ! git diff --quiet packages/vm/src/generated/; then
+          if ! git diff --quiet packages/vm/src/generated/ packages/parser/src/generated/; then
             echo '::error::Generated files differ from a fresh `pnpm gen`. Re-run locally and commit.'
-            git --no-pager diff packages/vm/src/generated/
+            git --no-pager diff packages/vm/src/generated/ packages/parser/src/generated/
             exit 1
           fi
 
