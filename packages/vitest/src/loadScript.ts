@@ -42,7 +42,7 @@ export async function loadScript(input: LoadScriptInput): Promise<Script> {
   }
   const { script: ast, diagnostics } = parse(source, filename)
   const errors = diagnostics.filter((d) => d.severity === 'error')
-  if (errors.length === 0) errors.push(...typecheck(ast, filename))
+  if (errors.length === 0) errors.push(...typecheck(ast, filename, baseOptions.functions))
   if (errors.length > 0) {
     throw new LslParseError(errors)
   }

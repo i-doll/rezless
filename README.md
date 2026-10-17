@@ -90,10 +90,15 @@ await loadScript({
   objectKey: 'cccc-dddd-...',     // optional, derived from filename
   objectName: 'StarterCube',      // optional, "Object" default
   scriptName: 'greeter',          // optional, derived from filename
+  functions: {                    // optional, functions outside kwdb you'll mock
+    llNewThing: { returns: 'integer', params: ['string'] },
+  },
 })
 ```
 
 Parse errors and type errors SL would refuse to compile (such as `!` on a key) throw `LslParseError` with `file:line:col` location info.
+
+Calls to functions that aren't built in or defined by the script fail to load, as they do in Second Life. If the script calls a function that kwdb doesn't list yet, declare it in `functions` and give it an implementation with `s.mock`.
 
 ### `Script` handle
 
