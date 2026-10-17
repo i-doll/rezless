@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, toInt32 } from '../values/types.js'
-import { formatList } from '../values/format.js'
+import { formatFloat, formatList, formatRotation, formatVector } from '../values/format.js'
 import { concatLists, listElementType, sliceList, typedList } from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
@@ -193,29 +193,47 @@ function lslElementsEqual(a: LslValue | undefined, b: LslValue | undefined): boo
   return false
 }
 
+function dumpElement(v: LslValue, type: LslType | undefined): string {
+  if (typeof v === 'string') return v
+  if (typeof v === 'number') return type !== 'float' && Number.isInteger(v) ? String(v | 0) : formatFloat(v)
+  if (Array.isArray(v)) return formatList(v)
+  if (isVector(v as Vector)) return formatVector(v as Vector)
+  if (isRotation(v as Rotation)) return formatRotation(v as Rotation)
+  return ''
+}
+
 export const llDumpList2String: BuiltinImpl = (_ctx, args) => {
   const list = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const sep = (args[1] as string | undefined) ?? ''
-  return list.map((v) => {
-    if (typeof v === 'string') return v
-    if (typeof v === 'number') return Number.isInteger(v) ? String(v | 0) : v.toFixed(6)
-    if (Array.isArray(v)) return formatList(v)
-    if (isVector(v as Vector)) {
-      const u = v as Vector
-      return `<${u.x.toFixed(6)}, ${u.y.toFixed(6)}, ${u.z.toFixed(6)}>`
-    }
-    if (isRotation(v as Rotation)) {
-      const r = v as Rotation
-      return `<${r.x.toFixed(6)}, ${r.y.toFixed(6)}, ${r.z.toFixed(6)}, ${r.s.toFixed(6)}>`
-    }
-    return ''
-  }).join(sep)
+  return list.map((v, i) => dumpElement(v, listElementType(list, i))).join(sep)
+}
+
+export const llList2CSV: BuiltinImpl = (_ctx, args) => {
+  const list = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  return list.map((v, i) => dumpElement(v, listElementType(list, i))).join(', ')
 }
 
 export const llCSV2List: BuiltinImpl = (_ctx, args) => {
   const s = (args[0] as string | undefined) ?? ''
-  if (s === '') return []
-  return s.split(/,\s*/)
+  const out: string[] = []
+  let depth = 0
+  let start = 0
+  let afterComma = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (c === ',' && depth === 0) {
+      out.push(s.slice(start, i))
+      start = i + 1
+      afterComma = true
+      continue
+    }
+    if (c === '<') depth++
+    else if (c === '>' && depth > 0) depth--
+    else if (c === ' ' && afterComma) start++
+    afterComma = false
+  }
+  out.push(s.slice(start))
+  return out
 }
 
 export const llParseString2List: BuiltinImpl = (_ctx, args) => parseString(args, false)
@@ -223,23 +241,26 @@ export const llParseString2List: BuiltinImpl = (_ctx, args) => parseString(args,
 /** llParseStringKeepNulls(string src, list separators, list spacers) — like llParseString2List, but keeps empty entries. */
 export const llParseStringKeepNulls: BuiltinImpl = (_ctx, args) => parseString(args, true)
 
-function parseString(args: ReadonlyArray<LslValue>, keepNulls: boolean): string[] {
+/**
+ * Splits `src` on the first eight string entries of each delimiter list.
+ * At each position, separators are tried before spacers, each in the order
+ * given, and the first match wins.
+ */
+function parseString(args: ReadonlyArray<LslValue>, keepNulls: boolean): ReadonlyArray<LslValue> {
   const src = (args[0] as string | undefined) ?? ''
-  const seps = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  const keep = (args[2] as ReadonlyArray<LslValue> | undefined) ?? []
-  const allTokens = [...seps.filter((x): x is string => typeof x === 'string'), ...keep.filter((x): x is string => typeof x === 'string')]
-  if (allTokens.length === 0) return src || keepNulls ? [src] : []
+  const seps = delimiters((args[1] as ReadonlyArray<LslValue> | undefined) ?? [])
+  const spacers = delimiters((args[2] as ReadonlyArray<LslValue> | undefined) ?? [])
   const out: string[] = []
   let buffer = ''
   let i = 0
   while (i < src.length) {
-    const matched = allTokens
-      .filter((t) => t.length > 0 && src.startsWith(t, i))
-      .sort((a, b) => b.length - a.length)[0]
-    if (matched) {
+    const sep = seps.find((t) => src.startsWith(t, i))
+    const spacer = sep === undefined ? spacers.find((t) => src.startsWith(t, i)) : undefined
+    const matched = sep ?? spacer
+    if (matched !== undefined) {
       if (buffer || keepNulls) out.push(buffer)
       buffer = ''
-      if (keep.includes(matched)) out.push(matched)
+      if (spacer !== undefined) out.push(spacer)
       i += matched.length
     } else {
       buffer += src[i]
@@ -247,7 +268,14 @@ function parseString(args: ReadonlyArray<LslValue>, keepNulls: boolean): string[
     }
   }
   if (buffer || keepNulls) out.push(buffer)
-  return out
+  return typedList(out, out.map(() => 'string'))
+}
+
+/** The non-empty strings among the first eight entries of a delimiter list. */
+function delimiters(list: ReadonlyArray<LslValue>): string[] {
+  return list
+    .slice(0, 8)
+    .filter((x, i): x is string => typeof x === 'string' && x !== '' && listElementType(list, i) !== 'key')
 }
 
 /**

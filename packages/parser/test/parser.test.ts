@@ -113,7 +113,7 @@ describe('lexer — number literals', () => {
     expect(diagnostics).toEqual([])
     expect(tokens.slice(0, 3)).toMatchObject([
       { kind: 'float', value: 1000 },
-      { kind: 'float', value: 0.025 },
+      { kind: 'float', value: Math.fround(0.025) },
       { kind: 'float', value: 10 },
     ])
   })
@@ -122,7 +122,7 @@ describe('lexer — number literals', () => {
     const { tokens, diagnostics } = lex(`3.14f 2.F .5f 1e5f 7F`, 'inline.lsl')
     expect(diagnostics).toEqual([])
     expect(tokens.slice(0, 7)).toMatchObject([
-      { kind: 'float', text: '3.14f', value: 3.14 },
+      { kind: 'float', text: '3.14f', value: Math.fround(3.14) },
       { kind: 'float', text: '2.F', value: 2 },
       { kind: 'float', text: '.5f', value: 0.5 },
       // Without a decimal point the suffix isn't part of the number.
@@ -141,6 +141,15 @@ describe('lexer — number literals', () => {
     expect(diagnostics).toEqual([])
     expect(tokens.slice(0, 8).map((t) => t.value)).toEqual([
       -1294967296, -1, -1, -1, -1, -2147483648, -1, 1,
+    ])
+  })
+
+  it('rounds float literals to 32 bits', () => {
+    const { tokens, diagnostics } = lex(`16777217.0 0.1`, 'inline.lsl')
+    expect(diagnostics).toEqual([])
+    expect(tokens.slice(0, 2).map((t) => t.value)).toEqual([
+      16777216,
+      Math.fround(0.1),
     ])
   })
 
@@ -164,7 +173,14 @@ describe('lexer — number literals', () => {
 describe('lexer — strings & comments', () => {
   it('decodes \\n, \\t, \\\\, \\" escape sequences', () => {
     const { tokens } = lex(`"a\\nb\\tc\\\\d\\"e"`, 'inline.lsl')
-    expect(tokens[0]).toMatchObject({ kind: 'string', value: 'a\nb\tc\\d"e' })
+    expect(tokens[0]).toMatchObject({ kind: 'string', value: 'a\nb    c\\d"e' })
+  })
+
+  it('reads L"..." as a string that starts with a quote', () => {
+    const { tokens, diagnostics } = lex(`L"abc" Lx`, 'inline.lsl')
+    expect(diagnostics).toEqual([])
+    expect(tokens[0]).toMatchObject({ kind: 'string', text: 'L"abc"', value: '"abc' })
+    expect(tokens[1]).toMatchObject({ kind: 'identifier', text: 'Lx' })
   })
 
   it('passes unknown escapes through verbatim', () => {

@@ -186,6 +186,20 @@ describe('prim-params helpers', () => {
       expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values).toEqual(['s-tex', v(1, 1, 0), v(0, 0, 0), 0, v(1, 1, 1), 51, 0])
       expect(readPrimParam(p, PRIM_ALPHA_MODE, [0], 0)?.values).toEqual([PRIM_ALPHA_MODE_BLEND, 0])
     })
+    it('PRIM_SPECULAR stores a negative rotation as 0', () => {
+      const p = freshPrim()
+      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0.5, v(1, 1, 1), 51, 0], 0)
+      expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[3]).toBe(0.5)
+      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), -1.5, v(1, 1, 1), 51, 0], 0)
+      expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[3]).toBe(0)
+    })
+    it('PRIM_SPECULAR keeps the colour in 8 bits per channel', () => {
+      const p = freshPrim()
+      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0, v(0.5, 0.5, 0.5), 51, 0], 0)
+      expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[4]).toEqual(v(127 / 255, 127 / 255, 127 / 255))
+      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0, v(-0.5, 2, 1), 51, 0], 0)
+      expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[4]).toEqual(v(0, 1, 1))
+    })
     it('PRIM_GLTF_* round-trips', () => {
       const p = freshPrim()
       writePrimParam(p, PRIM_GLTF_BASE_COLOR, [

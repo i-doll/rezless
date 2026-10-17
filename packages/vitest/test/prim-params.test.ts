@@ -223,7 +223,7 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     const s = await loadScript({ source: setup, filename: 'lc.lsl' })
     s.start()
     expect(s.host.params.faces[0]!.alpha).toBe(1)
-    expect(s.host.params.faces[1]!.alpha).toBe(0.2) // preserved
+    expect(s.host.params.faces[1]!.alpha).toBe(Math.fround(0.2)) // preserved
     expect(s.host.params.faces[0]!.color).toEqual({ x: 0, y: 1, z: 0 })
     expect(s.host.params.faces[1]!.color).toEqual({ x: 0, y: 1, z: 0 })
   })
@@ -243,7 +243,7 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     `
     const s = await loadScript({ source: src, filename: 'pm.lsl' })
     s.start()
-    expect(s.global('out')).toEqual([1.5, 0.3, 0.7, 1234])
+    expect(s.global('out')).toEqual([1.5, Math.fround(0.3), Math.fround(0.7), 1234])
   })
 
   it('llSetObjectDesc syncs prim.description (visible to llGetPrimitiveParams)', async () => {

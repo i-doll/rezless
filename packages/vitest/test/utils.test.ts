@@ -477,12 +477,78 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('out')).toBe('a,b,c')
   })
 
+  it('llList2CSV joins values with a comma and a space, unquoted', async () => {
+    const s = await run(`
+      string empty = "x";
+      string strings = "";
+      string blank = "";
+      string comma = "";
+      string ints = "";
+      string floats = "";
+      string whole = "";
+      string nonfinite = "";
+      string vec = "";
+      string rot = "";
+      string mixed = "";
+      string latin = "";
+      default {
+        state_entry() {
+          empty = llList2CSV([]);
+          strings = llList2CSV(["a", "b", "c"]);
+          blank = llList2CSV(["a", "", "b"]);
+          comma = llList2CSV(["a,b", "c"]);
+          ints = llList2CSV([1, -2, 0]);
+          floats = llList2CSV([0.5, -2.25, 3.14159265]);
+          whole = llList2CSV([1.0, 0.0, -3.0]);
+          nonfinite = llList2CSV([llSqrt(-1.0), llLog(0.0)]);
+          vec = llList2CSV([<1.0, 2.5, -3.0>]);
+          rot = llList2CSV([<0.0, 0.0, 0.0, 1.0>]);
+          mixed = llList2CSV(["x", 1, 2.5, <1.0, 2.0, 3.0>, <0.0, 0.0, 0.0, 1.0>, (key)"11111111-2222-3333-4444-555555555555"]);
+          latin = llList2CSV(["a¤b", "c£d"]);
+        }
+      }
+    `)
+    expect(s.global('empty')).toBe('')
+    expect(s.global('strings')).toBe('a, b, c')
+    expect(s.global('blank')).toBe('a, , b')
+    expect(s.global('comma')).toBe('a,b, c')
+    expect(s.global('ints')).toBe('1, -2, 0')
+    expect(s.global('floats')).toBe('0.500000, -2.250000, 3.141593')
+    expect(s.global('whole')).toBe('1.000000, 0.000000, -3.000000')
+    expect(s.global('nonfinite')).toBe('nan, -inf')
+    expect(s.global('vec')).toBe('<1.000000, 2.500000, -3.000000>')
+    expect(s.global('rot')).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
+    expect(s.global('mixed')).toBe('x, 1, 2.500000, <1.000000, 2.000000, 3.000000>, <0.000000, 0.000000, 0.000000, 1.000000>, 11111111-2222-3333-4444-555555555555')
+    expect(s.global('latin')).toBe('a¤b, c£d')
+  })
+
   it('llCSV2List splits commas with optional whitespace', async () => {
     const s = await run(`
       list out = [];
       default { state_entry() { out = llCSV2List("a, b,c"); } }
     `)
     expect(s.global('out')).toEqual(['a', 'b', 'c'])
+  })
+
+  it('llCSV2List keeps <> together, drops one space after a comma, and keeps "" as one item', async () => {
+    const s = await run(`
+      list nested = [];
+      list vec = [];
+      list empty = [];
+      list spaces = [];
+      default {
+        state_entry() {
+          nested = llCSV2List("<<>,>,a");
+          vec = llCSV2List("a, <1.000000, 2.000000, 3.000000>, b");
+          empty = llCSV2List("");
+          spaces = llCSV2List("a,  b");
+        }
+      }
+    `)
+    expect(s.global('nested')).toEqual(['<<>,>', 'a'])
+    expect(s.global('vec')).toEqual(['a', '<1.000000, 2.000000, 3.000000>', 'b'])
+    expect(s.global('empty')).toEqual([''])
+    expect(s.global('spaces')).toEqual(['a', ' b'])
   })
 
   it('llParseString2List splits on separators, keeps tokens', async () => {
@@ -509,6 +575,37 @@ describe('Phase 3 — list builtins', () => {
       default { state_entry() { out = llParseStringKeepNulls(${args}); } }
     `)
     expect(s.global('out')).toEqual(expected)
+  })
+
+  it.each([
+    ['"ABx", ["A", "AB"], []', ['Bx']],
+    ['"a|b", [], ["|"]', ['a', '|', 'b']],
+    ['"a|b", ["|"], ["|"]', ['a', 'b']],
+    ['"a,b", ["", ","], []', ['a', 'b']],
+    ['"a9b", ["1", "2", "3", "4", "5", "6", "7", "8", "9"], []', ['a9b']],
+    ['"a9b", [], ["1", "2", "3", "4", "5", "6", "7", "8", "9"]', ['a9b']],
+  ])('llParseString2List(%s) picks delimiters like Second Life', async (args, expected) => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llParseString2List(${args}); } }
+    `)
+    expect(s.global('out')).toEqual(expected)
+  })
+
+  it('llParseString2List ignores key delimiters', async () => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { key sep = "|"; out = llParseString2List("a|b", [sep], []); } }
+    `)
+    expect(s.global('out')).toEqual(['a|b'])
+  })
+
+  it('llParseStringKeepNulls returns strings, not keys', async () => {
+    const s = await run(`
+      integer found = 0;
+      default { state_entry() { found = llListFindList(llParseStringKeepNulls("a", [], []), [(key)"a"]); } }
+    `)
+    expect(s.global('found')).toBe(-1)
   })
 
   it.each([
