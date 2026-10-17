@@ -113,17 +113,18 @@ describe('Phase 2 — jump and labels', () => {
   })
 
   it('genuine duplicate declarations in the same block are still rejected', async () => {
-    const s = await loadScript({
-      source: `
-        default {
-          state_entry() {
-            integer x = 1;
-            integer x = 2;
+    await expect(
+      loadScript({
+        source: `
+          default {
+            state_entry() {
+              integer x = 1;
+              integer x = 2;
+            }
           }
-        }
-      `,
-    })
-    expect(() => s.start()).toThrow(/duplicate declaration of 'x' in block/)
+        `,
+      }),
+    ).rejects.toThrow(/Name previously declared within scope: x/)
   })
 
   it('jump to a label that does not exist in the function throws clearly', async () => {

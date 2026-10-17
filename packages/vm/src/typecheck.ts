@@ -6,6 +6,7 @@ import type {
   Diagnostic,
   Expression,
   Node,
+  Param,
   Statement,
   TypeName,
 } from '@rezless/parser'
@@ -128,14 +129,33 @@ class Checker {
   }
 
   run(): Diagnostic[] {
+    // Globals and functions share one namespace.
+    const topLevel = new Set<string>()
+    for (const d of [...this.ast.globals, ...this.ast.functions].sort(
+      (a, b) => a.loc.offset - b.loc.offset,
+    )) {
+      if (topLevel.has(d.name)) this.alreadyDeclared(d, d.name)
+      topLevel.add(d.name)
+    }
     for (const g of this.ast.globals) {
-      if (g.init) this.expectAssignable(g, g.typeName, this.expr(g.init))
+      if (g.init) {
+        if (!isSimpleGlobalInit(g.init, true)) {
+          this.error(
+            g.init,
+            'Syntax error: a global can only be initialised with a literal, a constant or an earlier global',
+          )
+        }
+        this.expectAssignable(g, g.typeName, this.expr(g.init))
+      }
       this.globals.set(g.name, g.typeName)
     }
     for (const f of this.ast.functions) {
       this.returnType = f.returnType ?? 'void'
-      this.scopes = [new Map(f.params.map((p) => [p.name, p.typeName]))]
+      this.scopes = [this.paramScope(f.params)]
       this.block(f.body)
+      if (f.returnType && !alwaysReturns(f.body)) {
+        this.error(f, `Not all code paths return a value in ${f.name}`)
+      }
     }
     for (const s of this.ast.states) {
       for (const h of s.handlers) {
@@ -150,7 +170,7 @@ class Checker {
           this.error(h, `Event '${h.name}' takes (${want})`)
         }
         this.returnType = 'void'
-        this.scopes = [new Map(h.params.map((p) => [p.name, p.typeName]))]
+        this.scopes = [this.paramScope(h.params)]
         this.block(h.body)
       }
     }
@@ -159,6 +179,19 @@ class Checker {
 
   private error(node: Node, message: string): void {
     this.diagnostics.push({ severity: 'error', message, filename: this.filename, loc: node.loc })
+  }
+
+  private alreadyDeclared(node: Node, name: string): void {
+    this.error(node, `Name previously declared within scope: ${name}`)
+  }
+
+  private paramScope(params: ReadonlyArray<Param>): Map<string, Ty> {
+    const scope = new Map<string, Ty>()
+    for (const p of params) {
+      if (scope.has(p.name)) this.alreadyDeclared(p, p.name)
+      scope.set(p.name, p.typeName)
+    }
+    return scope
   }
 
   private mismatch(node: Node, detail: string): void {
@@ -181,10 +214,13 @@ class Checker {
     switch (s.kind) {
       case 'BlockStatement':
         return this.block(s)
-      case 'VariableDeclaration':
+      case 'VariableDeclaration': {
         if (s.init) this.expectAssignable(s, s.typeName, this.expr(s.init))
-        this.scopes[this.scopes.length - 1]!.set(s.name, s.typeName)
+        const scope = this.scopes[this.scopes.length - 1]!
+        if (scope.has(s.name)) this.alreadyDeclared(s, s.name)
+        scope.set(s.name, s.typeName)
         return
+      }
       case 'ExpressionStatement':
         this.expr(s.expression)
         return
@@ -234,6 +270,10 @@ class Checker {
 
   // ---- Expressions ----
 
+  private isVariable(name: string): boolean {
+    return this.scopes.some((scope) => scope.has(name)) || this.globals.has(name)
+  }
+
   private lookup(name: string): Ty | undefined {
     for (let i = this.scopes.length - 1; i >= 0; i--) {
       const t = this.scopes[i]!.get(name)
@@ -257,10 +297,8 @@ class Checker {
         for (const c of [e.x, e.y, e.z, e.s]) this.component(c)
         return 'rotation'
       case 'ListLiteral':
-        for (const el of e.elements) {
-          const t = this.expr(el)
-          if (t === 'list' || t === 'void') this.mismatch(el, `a list can't contain a ${t}`)
-        }
+        // SL compiles any element type; a list or void element only fails at runtime.
+        for (const el of e.elements) this.expr(el)
         return 'list'
       case 'Identifier': {
         const t = this.lookup(e.name)
@@ -339,6 +377,11 @@ class Checker {
   }
 
   private lvalue(e: Expression): Ty {
+    const base = e.kind === 'MemberExpression' ? e.object : e
+    if (base.kind === 'Identifier' && !this.isVariable(base.name) && CONSTANT_TABLE[base.name]) {
+      this.error(e, `Syntax error: can't assign to constant ${base.name}`)
+      return this.expr(e)
+    }
     if (e.kind === 'Identifier' || e.kind === 'MemberExpression') return this.expr(e)
     this.expr(e)
     this.error(e, 'Assignment target must be a variable')
@@ -357,5 +400,52 @@ class Checker {
       this.error(e, `Function call mismatches type or number of arguments: ${e.callee}(${want})`)
     }
     return sig.returnType
+  }
+}
+
+/**
+ * SL only allows literals, constants and earlier globals in a global
+ * initialiser, optionally negated (numbers) or wrapped in a vector, rotation
+ * or (one level of) list literal.
+ */
+function isSimpleGlobalInit(e: Expression, allowList: boolean): boolean {
+  switch (e.kind) {
+    case 'IntegerLiteral':
+    case 'FloatLiteral':
+    case 'StringLiteral':
+    case 'Identifier':
+      return true
+    case 'UnaryExpression':
+      return (
+        e.operator === '-' &&
+        (e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral')
+      )
+    case 'VectorLiteral':
+      return [e.x, e.y, e.z].every((c) => isSimpleGlobalInit(c, false))
+    case 'RotationLiteral':
+      return [e.x, e.y, e.z, e.s].every((c) => isSimpleGlobalInit(c, false))
+    case 'ListLiteral':
+      return allowList && e.elements.every((el) => isSimpleGlobalInit(el, false))
+    default:
+      return false
+  }
+}
+
+/**
+ * SL's return-path rule: a block returns if its last statement does, and an
+ * `if` returns only when both branches do. Loops never count.
+ */
+function alwaysReturns(s: Statement): boolean {
+  switch (s.kind) {
+    case 'ReturnStatement':
+      return true
+    case 'BlockStatement': {
+      const last = s.body[s.body.length - 1]
+      return last !== undefined && alwaysReturns(last)
+    }
+    case 'IfStatement':
+      return s.alternate !== null && alwaysReturns(s.consequent) && alwaysReturns(s.alternate)
+    default:
+      return false
   }
 }

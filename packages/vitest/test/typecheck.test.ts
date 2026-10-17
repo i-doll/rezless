@@ -50,7 +50,6 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['++ on a string', inEntry('string s; s++;'), /Type mismatch/],
     ['cast key to integer', inEntry('integer i = (integer)llGetOwner();'), /Type mismatch/],
     ['cast vector to rotation', inEntry('rotation r = (rotation)<1,2,3>;'), /Type mismatch/],
-    ['list inside a list', inEntry('list l = [[1]];'), /Type mismatch/],
     ['string vector component', inEntry('vector v = <1, "a", 3>;'), /Type mismatch/],
     ['.s on a vector', inEntry('vector v; float f = v.s;'), /incorrect type/],
     ['member access on a float', inEntry('float f; float g = f.x;'), /incorrect type/],
@@ -83,6 +82,23 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['unknown event', `default { not_an_event() {} }`, /Unknown event 'not_an_event'/],
     ['wrong event parameters', `default { listen(integer c) {} }`, /Event 'listen' takes/],
     ['global initialiser of the wrong type', `integer g = "a"; ${inEntry('')}`, /Type mismatch/],
+    ['global initialised from a call', `integer g = llGetUnixTime(); ${inEntry('')}`, /Syntax error/],
+    ['global initialised from an operator', `integer g = 1 + 2; ${inEntry('')}`, /Syntax error/],
+    ['global initialised from a cast', `string g = (string)1; ${inEntry('')}`, /Syntax error/],
+    ['global negating a constant', `float g = -PI; ${inEntry('')}`, /Syntax error/],
+    ['global list nested in a list', `list g = [[1]]; ${inEntry('')}`, /Syntax error/],
+    ['global initialised from a later global', `integer a = b; integer b; ${inEntry('')}`, /Name not defined/],
+    ['assignment to a constant', inEntry('PI = 0.0;'), /can't assign to constant PI/],
+    ['compound assignment to a constant', inEntry('TRUE += 1;'), /can't assign to constant TRUE/],
+    ['++ on a constant', inEntry('ZERO_VECTOR.x++;'), /can't assign to constant ZERO_VECTOR/],
+    ['duplicate local', inEntry('integer x; string x;'), /Name previously declared within scope: x/],
+    ['duplicate parameter', `f(integer a, string a) {} ${inEntry('')}`, /previously declared/],
+    ['duplicate global', `integer g; float g; ${inEntry('')}`, /previously declared within scope: g/],
+    ['global and function with one name', `integer g; g() {} ${inEntry('')}`, /previously declared/],
+    ['typed function with no return', `integer f() {} ${inEntry('')}`, /Not all code paths return a value/],
+    ['if without else', `integer f(integer a) { if (a) return 1; } ${inEntry('')}`, /Not all code paths/],
+    ['return only inside a loop', `integer f() { while (TRUE) return 1; } ${inEntry('')}`, /Not all code paths/],
+    ['statement after the return', `integer f() { return 1; f(); } ${inEntry('')}`, /Not all code paths/],
   ]
 
   it.each(rejected)('rejects %s', async (_name, source, message) => {
@@ -120,6 +136,13 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['state change to a declared state', `default { state_entry() { state two; } } state two { state_entry() {} }`],
     ['event parameters matching the spec', `default { listen(integer c, string n, key id, string m) {} }`],
     ['bare return from an event', inEntry('return;')],
+    ['list and void elements (SL fails these at runtime)', inEntry('list x; list y = [x, llSay(0, "")];')],
+    ['globals from literals, constants and earlier globals', `integer a = -1; float b = a; vector v = <a, -2.5, PI>; list l = [a, "s", v, NULL_KEY]; ${inEntry('')}`],
+    ['a local shadowing a global', `integer n; ${inEntry('n = 1; { integer n = 2; }')}`],
+    ['a local shadowing an outer local', inEntry('integer x; { string x; }')],
+    ['a local reusing a parameter name', `f(integer a) { integer a; } ${inEntry('f(1);')}`],
+    ['if/else that returns on both branches', `integer f(integer a) { if (a) return 1; else { return 2; } } ${inEntry('f(1);')}`],
+    ['a typed function ending in a nested block return', `integer f() { { return 1; } } ${inEntry('f();')}`],
   ]
 
   it.each(accepted)('accepts %s', async (_name, source) => {
