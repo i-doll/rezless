@@ -25,6 +25,7 @@ under their original LGPL-3.0-or-later license:
   packages/vm/src/generated/constants_table.ts       (derived)
   packages/vm/src/generated/functions.ts             (derived)
   packages/vm/src/generated/events.ts                (derived)
+  packages/parser/src/generated/event-names.ts       (derived)
 
 Full LGPL-3.0 text: https://www.gnu.org/licenses/lgpl-3.0.html
 Attribution detail: vendor/LICENSE-kwdb
