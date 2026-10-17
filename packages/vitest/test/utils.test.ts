@@ -388,6 +388,32 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('out')).toEqual([1, 99, 5])
   })
 
+  it('list ranges outside the list match Second Life', async () => {
+    const s = await run(`
+      list L = [10, 20, 30, 40, 50];
+      list get = [];
+      list wrapped = [];
+      list deleted = [];
+      list replaced = [];
+      list replacedFar = [];
+      list replacedFarWrap = [];
+      default { state_entry() {
+        get = llList2List(L, 5, 10);
+        wrapped = llList2List(["a", "b"], 2, -1);
+        deleted = llDeleteSubList(L, 5, 9);
+        replaced = llListReplaceList(L, [99], 5, 5);
+        replacedFar = llListReplaceList([0, 1, 2, 3], [5], -5, -4);
+        replacedFarWrap = llListReplaceList([0, 1, 2, 3], [5], -5, -7);
+      } }
+    `)
+    expect(s.global('get')).toEqual([])
+    expect(s.global('wrapped')).toEqual(['a', 'b'])
+    expect(s.global('deleted')).toEqual([10, 20, 30, 40, 50])
+    expect(s.global('replaced')).toEqual([10, 20, 30, 40, 50, 99])
+    expect(s.global('replacedFar')).toEqual([1, 2, 3])
+    expect(s.global('replacedFarWrap')).toEqual([])
+  })
+
   it('llListFindList returns subsequence index', async () => {
     const s = await run(`
       integer idx = 0;
