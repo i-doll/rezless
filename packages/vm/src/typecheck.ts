@@ -101,6 +101,19 @@ function binaryType(op: BinaryOp, l: Ty, r: Ty): Ty | null {
   }
 }
 
+/**
+ * Where SL allows a state change (inside global functions) or a
+ * `return voidFn();` (anywhere void). These follow LL's compiler, bugs
+ * included: allowed in loop bodies, deferred in an `if` branch (an error
+ * only once the `if` gets an `else`), denied directly in the body.
+ */
+type Mode = 'allowed' | 'deferred' | 'denied'
+
+interface Pending {
+  readonly node: Node
+  readonly message: string
+}
+
 interface Signature {
   readonly returnType: Ty
   readonly params: ReadonlyArray<Ty>
@@ -114,6 +127,11 @@ class Checker {
   private scopes: Array<Map<string, Ty>> = []
   /** Return type of the function being checked; 'void' inside event handlers. */
   private returnType: Ty = 'void'
+  private inFunction = false
+  /** Labels visible from the current block: its own and every enclosing block's. */
+  private labelScopes: Array<Set<string>> = []
+  /** Every label in the current function or handler; Mono rejects duplicates. */
+  private labels = new Set<string>()
 
   constructor(
     private readonly ast: Ast,
@@ -129,12 +147,23 @@ class Checker {
   }
 
   run(): Diagnostic[] {
-    // Globals and functions share one namespace.
+    const decls = [...this.ast.globals, ...this.ast.functions]
+    const states = [...this.ast.states].sort((a, b) => a.loc.offset - b.loc.offset)
+    const firstState = states[0]
+    if (firstState && firstState.name !== 'default') {
+      this.error(firstState, 'Syntax error: the default state must come first')
+    }
+    for (const d of decls) {
+      if (firstState && d.loc.offset > firstState.loc.offset) {
+        this.error(d, `Syntax error: ${d.name} must be declared before the states`)
+      }
+    }
+    // Globals, functions and states share one namespace with the built-in
+    // functions and constants.
     const topLevel = new Set<string>()
-    for (const d of [...this.ast.globals, ...this.ast.functions].sort(
-      (a, b) => a.loc.offset - b.loc.offset,
-    )) {
-      if (topLevel.has(d.name)) this.alreadyDeclared(d, d.name)
+    for (const d of [...decls, ...states].sort((a, b) => a.loc.offset - b.loc.offset)) {
+      const builtin = d.name in BUILTIN_SPECS || d.name in CONSTANT_TABLE
+      if (builtin || topLevel.has(d.name)) this.alreadyDeclared(d, d.name)
       topLevel.add(d.name)
     }
     for (const g of this.ast.globals) {
@@ -151,14 +180,19 @@ class Checker {
     }
     for (const f of this.ast.functions) {
       this.returnType = f.returnType ?? 'void'
-      this.scopes = [this.paramScope(f.params)]
-      this.block(f.body)
+      this.inFunction = true
+      this.body(f.params, f.body)
       if (f.returnType && !alwaysReturns(f.body)) {
         this.error(f, `Not all code paths return a value in ${f.name}`)
       }
     }
+    this.inFunction = false
     for (const s of this.ast.states) {
+      if (s.handlers.length === 0) this.error(s, `Syntax error: state ${s.name} has no event handlers`)
+      const events = new Set<string>()
       for (const h of s.handlers) {
+        if (events.has(h.name)) this.alreadyDeclared(h, h.name)
+        events.add(h.name)
         const spec = (EVENT_SPECS as Record<string, EventSpec>)[h.name]
         if (!spec) {
           this.error(h, `Unknown event '${h.name}'`)
@@ -170,8 +204,7 @@ class Checker {
           this.error(h, `Event '${h.name}' takes (${want})`)
         }
         this.returnType = 'void'
-        this.scopes = [this.paramScope(h.params)]
-        this.block(h.body)
+        this.body(h.params, h.body)
       }
     }
     return this.diagnostics
@@ -185,13 +218,22 @@ class Checker {
     this.error(node, `Name previously declared within scope: ${name}`)
   }
 
-  private paramScope(params: ReadonlyArray<Param>): Map<string, Ty> {
+  /** Check a function or handler body against its parameters. */
+  private body(params: ReadonlyArray<Param>, body: BlockStatement): void {
     const scope = new Map<string, Ty>()
     for (const p of params) {
-      if (scope.has(p.name)) this.alreadyDeclared(p, p.name)
-      scope.set(p.name, p.typeName)
+      this.declare(scope, p, p.name, p.typeName)
     }
-    return scope
+    this.scopes = [scope]
+    this.labelScopes = []
+    this.labels = new Set()
+    this.block(body, 'denied')
+  }
+
+  private declare(scope: Map<string, Ty>, node: Node, name: string, type: Ty): void {
+    if (name in CONSTANT_TABLE) this.error(node, `Syntax error: ${name} is a constant`)
+    else if (scope.has(name)) this.alreadyDeclared(node, name)
+    scope.set(name, type)
   }
 
   private mismatch(node: Node, detail: string): void {
@@ -204,63 +246,82 @@ class Checker {
 
   // ---- Statements ----
 
-  private block(b: BlockStatement): void {
+  private block(b: BlockStatement, mode: Mode): Pending[] {
     this.scopes.push(new Map())
-    for (const s of b.body) this.stmt(s)
+    this.labelScopes.push(labelsIn(b.body))
+    const pending = b.body.flatMap((s) => this.stmt(s, mode))
+    this.labelScopes.pop()
     this.scopes.pop()
+    return pending
   }
 
-  private stmt(s: Statement): void {
+  /** Returns deferred errors that only count if an enclosing `if` gets an `else`. */
+  private restricted(node: Node, message: string, mode: Mode): Pending[] {
+    if (mode === 'denied') this.error(node, message)
+    return mode === 'deferred' ? [{ node, message }] : []
+  }
+
+  private stmt(s: Statement, mode: Mode): Pending[] {
     switch (s.kind) {
       case 'BlockStatement':
-        return this.block(s)
-      case 'VariableDeclaration': {
+        return this.block(s, mode)
+      case 'VariableDeclaration':
         if (s.init) this.expectAssignable(s, s.typeName, this.expr(s.init))
-        const scope = this.scopes[this.scopes.length - 1]!
-        if (scope.has(s.name)) this.alreadyDeclared(s, s.name)
-        scope.set(s.name, s.typeName)
-        return
-      }
+        this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, s.typeName)
+        return []
       case 'ExpressionStatement':
         this.expr(s.expression)
-        return
-      case 'IfStatement':
+        return []
+      case 'IfStatement': {
         this.condition(s.test)
-        this.stmt(s.consequent)
-        if (s.alternate) this.stmt(s.alternate)
-        return
+        const then = this.stmt(s.consequent, 'deferred')
+        if (!s.alternate) return []
+        if (mode === 'denied') for (const p of then) this.error(p.node, p.message)
+        const otherwise = this.stmt(s.alternate, mode)
+        return mode === 'deferred' ? [...then, ...otherwise] : []
+      }
       case 'WhileStatement':
         this.condition(s.test)
-        return this.stmt(s.body)
+        this.stmt(s.body, 'allowed')
+        return []
       case 'DoWhileStatement':
-        this.stmt(s.body)
-        return this.condition(s.test)
+        this.stmt(s.body, 'allowed')
+        this.condition(s.test)
+        return []
       case 'ForStatement':
         for (const e of s.init) this.expr(e)
         if (s.test) this.condition(s.test)
         for (const e of s.update) this.expr(e)
-        return this.stmt(s.body)
+        this.stmt(s.body, 'allowed')
+        return []
       case 'ReturnStatement': {
         const got: Ty = s.argument ? this.expr(s.argument) : 'void'
         if (got === 'void' && this.returnType !== 'void') {
           this.error(s, "Function returns a value but return statement doesn't")
-          return
+          return []
         }
-        const ok = this.returnType === 'void' ? got === 'void' : assignable(this.returnType, got)
-        if (!ok) {
-          this.error(
-            s,
-            `Return statement type doesn't match function return type (${got} vs ${this.returnType})`,
-          )
+        const message = `Return statement type doesn't match function return type (${got} vs ${this.returnType})`
+        if (this.returnType === 'void') {
+          if (got !== 'void') this.error(s, message)
+          // `return voidFn();` compiles in some positions (an LL compiler quirk).
+          else if (s.argument) return this.restricted(s, message, mode)
+        } else if (!assignable(this.returnType, got)) {
+          this.error(s, message)
         }
-        return
+        return []
       }
       case 'StateChangeStatement':
         if (!this.states.has(s.target)) this.error(s, `Name not defined within scope: state ${s.target}`)
-        return
+        return this.inFunction ? this.restricted(s, "Global functions can't change state", mode) : []
       case 'JumpStatement':
+        if (!this.labelScopes.some((scope) => scope.has(s.label))) {
+          this.error(s, `Name not defined within scope: label ${s.label}`)
+        }
+        return []
       case 'LabelStatement':
-        return
+        if (this.labels.has(s.name)) this.error(s, `Duplicate label name: ${s.name}`)
+        this.labels.add(s.name)
+        return []
     }
   }
 
@@ -367,6 +428,9 @@ class Checker {
   }
 
   private member(e: Expression & { kind: 'MemberExpression' }): Ty {
+    if (e.object.kind !== 'Identifier') {
+      this.error(e, `Syntax error: .${e.property} only works on a variable`)
+    }
     const t = this.expr(e.object)
     if (t === 'unknown') return 'float'
     const ok =
@@ -448,4 +512,33 @@ function alwaysReturns(s: Statement): boolean {
     default:
       return false
   }
+}
+
+/**
+ * Labels declared in a block, including inside unbraced if/loop bodies,
+ * which share the block's scope. Jumps can reach these from the block and
+ * anything nested in it, before or after the label.
+ */
+function labelsIn(stmts: ReadonlyArray<Statement>): Set<string> {
+  const out = new Set<string>()
+  const visit = (s: Statement): void => {
+    switch (s.kind) {
+      case 'LabelStatement':
+        out.add(s.name)
+        return
+      case 'IfStatement':
+        visit(s.consequent)
+        if (s.alternate) visit(s.alternate)
+        return
+      case 'WhileStatement':
+      case 'DoWhileStatement':
+      case 'ForStatement':
+        visit(s.body)
+        return
+      default:
+        return
+    }
+  }
+  stmts.forEach(visit)
+  return out
 }

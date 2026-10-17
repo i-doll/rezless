@@ -159,6 +159,24 @@ describe('Phase 2 — variables & operators', () => {
 })
 
 describe('Phase 2 — type coercions', () => {
+  it('initialises a global from earlier globals, and again after llResetScript', async () => {
+    const s = await run(`
+      integer a = 7;
+      float b = a;
+      vector v = <a, b, -1>;
+      list l = [a, v];
+      default { state_entry() {} }
+    `)
+    const check = () => {
+      expect(s.global('b')).toBe(7)
+      expect(s.global('v')).toEqual({ x: 7, y: 7, z: -1 })
+      expect(s.global('l')).toEqual([7, { x: 7, y: 7, z: -1 }])
+    }
+    check()
+    s.reset()
+    check()
+  })
+
   it('(integer)"3.7" parses leading digits', async () => {
     const s = await run(`
       integer n = 0;

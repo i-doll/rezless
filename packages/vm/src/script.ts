@@ -167,8 +167,8 @@ export class Script {
     }
 
     // Build a parent scope holding every kwdb constant (PI, TRUE, HTTP_METHOD,
-    // …). Script globals get their own scope below so a user can shadow
-    // constants if they really want to (LSL allows it).
+    // …). Script globals get their own scope below; typecheck() rejects
+    // globals named after constants, as SL does.
     const constants = buildConstantsEnv()
     this.globals = constants.push()
     initGlobals(this.globals, ast.globals)
@@ -631,13 +631,18 @@ function initGlobals(env: Env, globals: ReadonlyArray<GlobalVariable>): void {
   for (const g of globals) {
     let init: EvalResult | undefined
     if (g.init) {
-      init = literalToEval(g.init, g.typeName)
+      init = literalToEval(env, g.init, g.typeName)
     }
     env.declare(g.name, g.typeName as LslType, init)
   }
 }
 
+/**
+ * Evaluate a global initialiser. Identifiers resolve against `env`, which
+ * holds the constants and every global declared so far.
+ */
 function literalToEval(
+  env: Env,
   expr: import('@rezless/parser').Expression,
   declared: TypeName,
 ): EvalResult | undefined {
@@ -648,23 +653,20 @@ function literalToEval(
       return { type: 'float', value: expr.value }
     case 'StringLiteral':
       return { type: 'string', value: expr.value }
-    case 'Identifier': {
-      const c = CONSTANT_TABLE[expr.name]
-      if (!c) return undefined
-      return { type: c.type as LslType, value: c.value as LslValue }
-    }
+    case 'Identifier':
+      return lookupGlobal(env, expr.name)
     case 'VectorLiteral': {
-      const x = literalToNumber(expr.x)
-      const y = literalToNumber(expr.y)
-      const z = literalToNumber(expr.z)
+      const x = literalToNumber(env, expr.x)
+      const y = literalToNumber(env, expr.y)
+      const z = literalToNumber(env, expr.z)
       if (x === null || y === null || z === null) return undefined
       return { type: 'vector', value: { x, y, z } }
     }
     case 'RotationLiteral': {
-      const x = literalToNumber(expr.x)
-      const y = literalToNumber(expr.y)
-      const z = literalToNumber(expr.z)
-      const s = literalToNumber(expr.s)
+      const x = literalToNumber(env, expr.x)
+      const y = literalToNumber(env, expr.y)
+      const z = literalToNumber(env, expr.z)
+      const s = literalToNumber(env, expr.s)
       if (x === null || y === null || z === null || s === null) return undefined
       return { type: 'rotation', value: { x, y, z, s } }
     }
@@ -672,7 +674,7 @@ function literalToEval(
       const elems: LslValue[] = []
       const types: LslType[] = []
       for (const el of expr.elements) {
-        const r = literalToEval(el, 'integer')
+        const r = literalToEval(env, el, 'integer')
         if (!r) return undefined
         elems.push(r.value)
         types.push(r.type)
@@ -680,7 +682,7 @@ function literalToEval(
       return { type: 'list', value: typedList(elems, types) }
     }
     case 'UnaryExpression': {
-      const inner = literalToEval(expr.argument, declared)
+      const inner = literalToEval(env, expr.argument, declared)
       if (!inner) return undefined
       if (expr.operator === '-' && (inner.type === 'integer' || inner.type === 'float')) {
         return { ...inner, value: -(inner.value as number) }
@@ -692,22 +694,29 @@ function literalToEval(
   }
 }
 
-function literalToNumber(expr: import('@rezless/parser').Expression): number | null {
+function literalToNumber(env: Env, expr: import('@rezless/parser').Expression): number | null {
   if (expr.kind === 'IntegerLiteral') return expr.value | 0
   if (expr.kind === 'FloatLiteral') return expr.value
   if (expr.kind === 'Identifier') {
-    const c = CONSTANT_TABLE[expr.name]
-    if (c && typeof c.value === 'number') return c.value
-    return null
+    const v = lookupGlobal(env, expr.name)
+    return v && typeof v.value === 'number' ? v.value : null
   }
   if (expr.kind === 'UnaryExpression' && expr.operator === '-') {
-    const n = literalToNumber(expr.argument)
+    const n = literalToNumber(env, expr.argument)
     return n === null ? null : -n
   }
   if (expr.kind === 'UnaryExpression' && expr.operator === '+') {
-    return literalToNumber(expr.argument)
+    return literalToNumber(env, expr.argument)
   }
   return null
+}
+
+function lookupGlobal(env: Env, name: string): EvalResult | undefined {
+  try {
+    return env.get(name)
+  } catch {
+    return undefined
+  }
 }
 
 /** A stable, UUID-shaped string derived from `seed`. */
