@@ -79,6 +79,35 @@ export const llList2Key: BuiltinImpl = (_ctx, args) => {
   return typeof v === 'string' ? v : NULL_KEY
 }
 
+const ENTRY_TYPES: Partial<Record<LslType, number>> = {
+  integer: 1,
+  float: 2,
+  string: 3,
+  key: 4,
+  vector: 5,
+  rotation: 6,
+}
+
+/**
+ * llGetListEntryType(list src, integer index) — the TYPE_* constant of an
+ * element, or TYPE_INVALID (0) out of range. Elements with no recorded type
+ * are judged by their value, so a whole number reads as an integer.
+ */
+export const llGetListEntryType: BuiltinImpl = (_ctx, args) => {
+  const l = args[0] as ReadonlyArray<LslValue> | undefined
+  if (!l) return 0
+  const i = resolveIndex((args[1] as number | undefined) ?? 0, l.length)
+  if (i < 0) return 0
+  const recorded = listElementType(l, i)
+  if (recorded) return ENTRY_TYPES[recorded] ?? 0
+  const v = l[i]
+  if (typeof v === 'string') return 3
+  if (typeof v === 'number') return Number.isInteger(v) ? 1 : 2
+  if (isRotation(v as Rotation)) return 6
+  if (isVector(v as Vector)) return 5
+  return 0
+}
+
 export const llList2Vector: BuiltinImpl = (_ctx, args) => {
   const l = args[0] as ReadonlyArray<LslValue> | undefined
   if (!l) return ZERO_VECTOR
