@@ -100,6 +100,8 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['return only inside a loop', `integer f() { while (TRUE) return 1; } ${inEntry('')}`, /Not all code paths/],
     ['member access on a call result', inEntry('float x = llGetPos().x;'), /only works on a variable/],
     ['member access on a literal', inEntry('float x = <1,2,3>.x;'), /only works on a variable/],
+    ['reading a component of a vector constant', inEntry('float f = ZERO_VECTOR.x;'), /Syntax error: can't read a component of constant ZERO_VECTOR/],
+    ['reading a component of a rotation constant', inEntry('float f = ZERO_ROTATION.s;'), /Syntax error: can't read a component of constant ZERO_ROTATION/],
     ['state change directly in a function', `f() { state two; } default { state_entry() {} } state two { state_entry() {} }`, /Global functions can't change state/],
     ['state change in an if with an else, in a function', `f(integer a) { if (a) state two; else a = 1; } default { state_entry() {} } state two { state_entry() {} }`, /Global functions can't change state/],
     ['return of a void call directly in an event', inEntry('return llSay(0, "");'), /Return statement type/],
