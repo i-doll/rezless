@@ -4,8 +4,9 @@ import type { LslType, LslValue } from './types.js'
  * LSL list elements keep their own type, but list values here are plain JS
  * arrays, so a key and a string with the same text (or an integer and a
  * float with the same value) look identical. This side table records the
- * element types of lists the script builds itself. Lists from elsewhere
- * (builtins, test inputs) have no entry, and their element types are unknown.
+ * element types of lists the script and the builtins build. Lists from
+ * elsewhere (test inputs, mocks) have no entry, and their element types are
+ * unknown.
  */
 const elementTypes = new WeakMap<ReadonlyArray<LslValue>, ReadonlyArray<LslType | undefined>>()
 
@@ -16,6 +17,11 @@ export function typedList(
 ): ReadonlyArray<LslValue> {
   if (types.some((t) => t !== undefined)) elementTypes.set(values, types)
   return values
+}
+
+/** Build a list whose elements all have the same LSL type. */
+export function uniformList(values: LslValue[], type: LslType): ReadonlyArray<LslValue> {
+  return typedList(values, values.map(() => type))
 }
 
 /** The recorded LSL type of `list[index]`, or undefined if unknown. */

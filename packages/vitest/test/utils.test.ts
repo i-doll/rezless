@@ -652,6 +652,49 @@ describe('Phase 3 — list builtins', () => {
     `)
     expect(s.global('found')).toBe(1)
   })
+
+  it('lists from llJson2List and llCSV2List keep their element types', async () => {
+    const s = await run(`
+      list sorted;
+      integer csvFound;
+      integer jsonFound;
+      integer jsonKeyFound;
+      string floats;
+      default {
+        state_entry() {
+          sorted = llListSort(llJson2List("[2,0.5,1]"), 1, TRUE);
+          csvFound = llListFindList(llCSV2List("a"), [(key)"a"]);
+          jsonFound = llListFindList(llJson2List("[1]"), [1.0]);
+          jsonKeyFound = llListFindList(llJson2List("{\\"a\\":\\"b\\"}"), [(key)"b"]);
+          floats = llDumpList2String(llJson2List("[1.0,2]"), ",");
+        }
+      }
+    `)
+    expect(s.global('sorted')).toEqual([1, 0.5, 2])
+    expect(s.global('csvFound')).toBe(-1)
+    expect(s.global('jsonFound')).toBe(-1)
+    expect(s.global('jsonKeyFound')).toBe(-1)
+    expect(s.global('floats')).toBe('1.000000,2')
+  })
+
+  it('lists from linkset data and physics material keep their element types', async () => {
+    const s = await run(`
+      integer keyFound;
+      integer countFound;
+      string material;
+      default {
+        state_entry() {
+          llLinksetDataWrite("a", "1");
+          keyFound = llListFindList(llLinksetDataListKeys(0, 0), [(key)"a"]);
+          countFound = llListFindList(llLinksetDataDeleteFound("zzz", ""), [0.0]);
+          material = llDumpList2String(llGetPhysicsMaterial(), ",");
+        }
+      }
+    `)
+    expect(s.global('keyFound')).toBe(-1)
+    expect(s.global('countFound')).toBe(-1)
+    expect(s.global('material')).toBe('1.000000,0.000000,0.000000,1000.000000')
+  })
 })
 
 describe('Phase 3 — identity builtins', () => {
