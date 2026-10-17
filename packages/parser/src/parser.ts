@@ -559,7 +559,7 @@ class Parser {
   private parseUnary(): Expression | null {
     const t = this.peek()
     if (t.kind === 'op') {
-      if (t.text === '-' || t.text === '+' || t.text === '!' || t.text === '~') {
+      if (t.text === '-' || t.text === '!' || t.text === '~') {
         this.advance()
         // Operand may be a cast: `!(integer)s`, `-(float)x`.
         const arg = this.parseCast()

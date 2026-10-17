@@ -251,6 +251,14 @@ describe('parser — unary operators before casts', () => {
     })
   })
 
+  it.each(['+1', '+(integer)s', 'integer i = +1'])('rejects unary + in %s', (expr) => {
+    const { diagnostics } = parse(
+      `default { state_entry() { string s = "0"; ${expr}; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics.length).toBeGreaterThan(0)
+  })
+
   it('parses !(float)s', () => {
     expect(firstExpr('!(float)s')).toMatchObject({
       kind: 'UnaryExpression',

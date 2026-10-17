@@ -706,9 +706,6 @@ function literalToNumber(env: Env, expr: import('@rezless/parser').Expression): 
     const n = literalToNumber(env, expr.argument)
     return n === null ? null : -n
   }
-  if (expr.kind === 'UnaryExpression' && expr.operator === '+') {
-    return literalToNumber(env, expr.argument)
-  }
   return null
 }
 
