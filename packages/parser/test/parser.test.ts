@@ -475,6 +475,20 @@ describe('parser — print and reserved words', () => {
     })
   })
 
+  it('reads print after > in the last vector component as greater-than', () => {
+    const { script, diagnostics } = parse(
+      `default { state_entry() { vector v = <1, 2, 3 > print(2)>; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+    expect(script.states[0]!.handlers[0]!.body.body[0]).toMatchObject({
+      init: {
+        kind: 'VectorLiteral',
+        z: { kind: 'BinaryExpression', operator: '>', right: { kind: 'PrintExpression' } },
+      },
+    })
+  })
+
   it.each([
     ['print with no argument', `default { state_entry() { print(); } }`],
     ['print with two arguments', `default { state_entry() { print(1, 2); } }`],

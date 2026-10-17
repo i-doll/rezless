@@ -761,6 +761,7 @@ class Parser {
   private atComparisonOperand(): boolean {
     const t = this.peek()
     if (t.kind === 'op') return ['++', '--', '!', '~'].includes(t.text)
+    if (t.kind === 'keyword') return t.text === 'print'
     return ['identifier', 'integer', 'float', 'string', 'lparen', 'lbracket'].includes(t.kind)
   }
 
