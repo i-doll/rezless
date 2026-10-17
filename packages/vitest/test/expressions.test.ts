@@ -216,6 +216,29 @@ describe('Phase 2 — type coercions', () => {
     expect(s.global('b')).toBe('3.500000')
     expect(s.global('c')).toBe('<1.000000, 2.000000, 3.000000>')
   })
+
+  it('applies a unary operator to a cast: !(integer)s, -(integer)s, ~(integer)s', async () => {
+    const s = await run(`
+      integer notInt = 0;
+      integer notFloat = 0;
+      integer neg = 0;
+      integer inv = 0;
+      default {
+        state_entry() {
+          string zero = "0";
+          string five = "5";
+          notInt = !(integer)zero;
+          notFloat = !(float)zero;
+          neg = -(integer)five;
+          inv = ~(integer)five;
+        }
+      }
+    `)
+    expect(s.global('notInt')).toBe(1)
+    expect(s.global('notFloat')).toBe(1)
+    expect(s.global('neg')).toBe(-5)
+    expect(s.global('inv')).toBe(-6)
+  })
 })
 
 describe('Phase 2 — vectors and rotations', () => {

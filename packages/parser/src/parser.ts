@@ -560,7 +560,8 @@ class Parser {
     if (t.kind === 'op') {
       if (t.text === '-' || t.text === '+' || t.text === '!' || t.text === '~') {
         this.advance()
-        const arg = this.parseUnary()
+        // Operand may be a cast: `!(integer)s`, `-(float)x`.
+        const arg = this.parseCast()
         if (!arg) return null
         return {
           kind: 'UnaryExpression',
