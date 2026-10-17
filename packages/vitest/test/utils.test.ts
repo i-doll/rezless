@@ -496,6 +496,63 @@ describe('Phase 3 — list builtins', () => {
     `)
     expect(s.global('out')).toEqual(['a', 'b', 'c'])
   })
+
+  it.each([
+    ['"a||b", ["|"], []', ['a', '', 'b']],
+    ['"|a|", ["|"], []', ['', 'a', '']],
+    ['"a,,b", [], [","]', ['a', ',', '', ',', 'b']],
+    ['"", ["|"], []', ['']],
+    ['"abc", [], []', ['abc']],
+  ])('llParseStringKeepNulls(%s) keeps empty entries', async (args, expected) => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llParseStringKeepNulls(${args}); } }
+    `)
+    expect(s.global('out')).toEqual(expected)
+  })
+
+  it.each([
+    ['[3, 1, 2], 1, TRUE', [1, 2, 3]],
+    ['[3, 1, 2], 1, FALSE', [3, 2, 1]],
+    ['[3, 1, 2], 0, TRUE', [1, 2, 3]],
+    ['["b", 1, "a", 2], 2, TRUE', ['a', 2, 'b', 1]],
+    ['[3, 1, 2], 2, TRUE', [3, 1, 2]],
+    ['["b", "B", "a"], 1, TRUE', ['B', 'a', 'b']],
+    ['[2.5, -1.0, 0.5], 1, TRUE', [-1, 0.5, 2.5]],
+    [
+      '[<3, 0, 0>, <0, 1, 0>, <0, 0, 2>], 1, TRUE',
+      [{ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 2 }, { x: 3, y: 0, z: 0 }],
+    ],
+  ])('llListSort(%s)', async (args, expected) => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llListSort(${args}); } }
+    `)
+    expect(s.global('out')).toEqual(expected)
+  })
+
+  it('llListSort only compares elements of the same type', async () => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llListSort([2, "a", 1.0, 1], 1, TRUE); } }
+    `)
+    expect(s.global('out')).toEqual([1, 'a', 1, 2])
+  })
+
+  it('llListSort keeps key elements as keys', async () => {
+    const s = await run(`
+      integer found = -1;
+      default {
+        state_entry() {
+          key a = "a";
+          key b = "b";
+          list sorted = llListSort([b, a], 1, TRUE);
+          if (llListFindList(sorted, ["b"]) == -1) found = llListFindList(sorted, [b]);
+        }
+      }
+    `)
+    expect(s.global('found')).toBe(1)
+  })
 })
 
 describe('Phase 3 — identity builtins', () => {

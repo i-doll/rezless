@@ -1,8 +1,8 @@
 import type { BuiltinImpl } from '../runtime.js'
-import type { LslValue, Vector, Rotation } from '../values/types.js'
+import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, toInt32 } from '../values/types.js'
 import { formatList } from '../values/format.js'
-import { concatLists, listElementType, sliceList } from '../values/list-types.js'
+import { concatLists, listElementType, sliceList, typedList } from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
 export const llGetListLength: BuiltinImpl = (_ctx, args) => {
@@ -218,12 +218,17 @@ export const llCSV2List: BuiltinImpl = (_ctx, args) => {
   return s.split(/,\s*/)
 }
 
-export const llParseString2List: BuiltinImpl = (_ctx, args) => {
+export const llParseString2List: BuiltinImpl = (_ctx, args) => parseString(args, false)
+
+/** llParseStringKeepNulls(string src, list separators, list spacers) — like llParseString2List, but keeps empty entries. */
+export const llParseStringKeepNulls: BuiltinImpl = (_ctx, args) => parseString(args, true)
+
+function parseString(args: ReadonlyArray<LslValue>, keepNulls: boolean): string[] {
   const src = (args[0] as string | undefined) ?? ''
   const seps = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const keep = (args[2] as ReadonlyArray<LslValue> | undefined) ?? []
   const allTokens = [...seps.filter((x): x is string => typeof x === 'string'), ...keep.filter((x): x is string => typeof x === 'string')]
-  if (allTokens.length === 0) return src ? [src] : []
+  if (allTokens.length === 0) return src || keepNulls ? [src] : []
   const out: string[] = []
   let buffer = ''
   let i = 0
@@ -232,7 +237,7 @@ export const llParseString2List: BuiltinImpl = (_ctx, args) => {
       .filter((t) => t.length > 0 && src.startsWith(t, i))
       .sort((a, b) => b.length - a.length)[0]
     if (matched) {
-      if (buffer) out.push(buffer)
+      if (buffer || keepNulls) out.push(buffer)
       buffer = ''
       if (keep.includes(matched)) out.push(matched)
       i += matched.length
@@ -241,6 +246,44 @@ export const llParseString2List: BuiltinImpl = (_ctx, args) => {
       i++
     }
   }
-  if (buffer) out.push(buffer)
+  if (buffer || keepNulls) out.push(buffer)
   return out
+}
+
+/**
+ * llListSort(list src, integer stride, integer ascending) — sorts strides by
+ * their first element, using the same selection sort as Second Life, so
+ * elements of different types are never reordered against each other.
+ * Vectors compare by magnitude and rotations never compare. A list whose
+ * length isn't a multiple of stride comes back unsorted.
+ */
+export const llListSort: BuiltinImpl = (_ctx, args) => {
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const stride = Math.max(1, (args[1] as number | undefined) ?? 1)
+  const descending = ((args[2] as number | undefined) ?? 0) !== 1
+  const len = src.length
+  if (len % stride !== 0) return src
+  const values = [...src]
+  const types = values.map((_, i) => listElementType(src, i))
+  const swap = (i: number, j: number) => {
+    for (let k = 0; k < stride; k++) {
+      ;[values[i + k], values[j + k]] = [values[j + k]!, values[i + k]!]
+      ;[types[i + k], types[j + k]] = [types[j + k], types[i + k]]
+    }
+  }
+  for (let i = 0; i < len - stride; i += stride) {
+    for (let j = i + stride; j < len; j += stride) {
+      if (sortsAfter(values[i]!, types[i], values[j]!, types[j]) !== descending) swap(i, j)
+    }
+  }
+  return typedList(values, types)
+}
+
+/** Whether `a` sorts after `b`. A NaN sorts after everything. */
+function sortsAfter(a: LslValue, ta: LslType | undefined, b: LslValue, tb: LslType | undefined): boolean {
+  if (ta && tb && ta !== tb) return false
+  if (typeof a === 'number' && typeof b === 'number') return !(a <= b)
+  if (typeof a === 'string' && typeof b === 'string') return !(a <= b)
+  if (isVector(a) && isVector(b)) return !(a.x * a.x + a.y * a.y + a.z * a.z <= b.x * b.x + b.y * b.y + b.z * b.z)
+  return false
 }
