@@ -1,5 +1,5 @@
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './types.js'
-import { isVector, isRotation, toInt32, vec, rot, NULL_KEY } from './types.js'
+import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './types.js'
 import { coerce, stringify } from './coerce.js'
 import { concatLists, typedList } from './list-types.js'
 
@@ -251,7 +251,7 @@ function opAdd(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32((x.value as number) + (y.value as number)) }
-    return { type: 'float', value: (x.value as number) + (y.value as number) }
+    return { type: 'float', value: toFloat32((x.value as number) + (y.value as number)) }
   }
   throw new Error(`cannot add ${a.type} and ${b.type}`)
 }
@@ -279,7 +279,7 @@ function opSub(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32((x.value as number) - (y.value as number)) }
-    return { type: 'float', value: (x.value as number) - (y.value as number) }
+    return { type: 'float', value: toFloat32((x.value as number) - (y.value as number)) }
   }
   throw new Error(`cannot subtract ${b.type} from ${a.type}`)
 }
@@ -289,7 +289,7 @@ function opMul(a: EvalResult, b: EvalResult): EvalResult {
   if (isVector(a.value) && isVector(b.value)) {
     return {
       type: 'float',
-      value: a.value.x * b.value.x + a.value.y * b.value.y + a.value.z * b.value.z,
+      value: toFloat32(a.value.x * b.value.x + a.value.y * b.value.y + a.value.z * b.value.z),
     }
   }
   // vector * float / float * vector → scale
@@ -315,7 +315,7 @@ function opMul(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32(Math.imul(x.value as number, y.value as number)) }
-    return { type: 'float', value: (x.value as number) * (y.value as number) }
+    return { type: 'float', value: toFloat32((x.value as number) * (y.value as number)) }
   }
   throw new Error(`cannot multiply ${a.type} and ${b.type}`)
 }
@@ -347,7 +347,7 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
       }
     }
     if ((y.value as number) === 0) throw new Error('Math Error: divide by zero')
-    return { type: 'float', value: (x.value as number) / (y.value as number) }
+    return { type: 'float', value: toFloat32((x.value as number) / (y.value as number)) }
   }
   throw new Error(`cannot divide ${a.type} by ${b.type}`)
 }

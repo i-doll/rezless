@@ -85,7 +85,7 @@ describe('Phase 3 — math builtins', () => {
       }
     `)
     expect(s.global('m')).toBe(5)
-    expect(s.global('n')).toEqual({ x: 0.6, y: 0.8, z: 0 })
+    expect(s.global('n')).toEqual({ x: Math.fround(0.6), y: Math.fround(0.8), z: 0 })
     expect(s.global('d')).toBe(5)
   })
 

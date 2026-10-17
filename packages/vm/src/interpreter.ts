@@ -25,7 +25,7 @@ import type { BuiltinImpl, ScriptState } from './runtime.js'
 import type { Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
-import { defaultEvalFor, isVector, isRotation } from './values/types.js'
+import { defaultEvalFor, isVector, isRotation, toFloat32, vec, rot } from './values/types.js'
 import { coerce } from './values/coerce.js'
 import { typedList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
@@ -458,5 +458,23 @@ function evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Eval
   const spec = specFor(call.callee)
   const returnType = (spec?.returnType ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }
-  return { type: returnType, value: result ?? defaultEvalFor(returnType).value }
+  return { type: returnType, value: toFloat32Components(result ?? defaultEvalFor(returnType).value, returnType) }
+}
+
+/** Builtins and mocks compute in doubles; LSL floats, vectors and rotations are 32-bit. */
+function toFloat32Components(value: LslValue, type: LslType): LslValue {
+  switch (type) {
+    case 'float':
+      return toFloat32(value as number)
+    case 'vector': {
+      const v = value as Vector
+      return vec(v.x, v.y, v.z)
+    }
+    case 'rotation': {
+      const r = value as Rotation
+      return rot(r.x, r.y, r.z, r.s)
+    }
+    default:
+      return value
+  }
 }

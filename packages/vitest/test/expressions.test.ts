@@ -435,3 +435,69 @@ describe('Phase 2 — lists', () => {
     expect(s.global('r')).toEqual([1, 2, 3, 4])
   })
 })
+
+describe('32-bit floats', () => {
+  it('rounds float arithmetic and int → float promotion to 32 bits', async () => {
+    const s = await run(`
+      integer bigSum = 0;
+      integer promoted = 0;
+      integer tenths = 0;
+      integer mixed = 0;
+      default {
+        state_entry() {
+          float a = 16777216.0;
+          float b = a + 1.0;
+          integer i = 16777217;
+          float c = i;
+          bigSum = b == a;
+          promoted = c == a;
+          tenths = 0.1 + 0.2 == 0.3;
+          mixed = 16777217 * 1.0 == a;
+        }
+      }
+    `)
+    expect(s.global('bigSum')).toBe(1)
+    expect(s.global('promoted')).toBe(1)
+    expect(s.global('tenths')).toBe(1)
+    expect(s.global('mixed')).toBe(1)
+  })
+
+  it('rounds vector and rotation arithmetic to 32 bits', async () => {
+    const s = await run(`
+      vector v = ZERO_VECTOR;
+      rotation r = ZERO_ROTATION;
+      float dot = 0;
+      default {
+        state_entry() {
+          v = <0.1, 0.2, 16777216.0> + <0.2, 0.1, 1.0>;
+          r = <0.1, 0.2, 0.3, 0.4> + <0.2, 0.1, 0.0, 0.0>;
+          dot = <0.1, 0.2, 0.3> * <0.3, 0.2, 0.1>;
+        }
+      }
+    `)
+    expect(s.global('v')).toEqual({ x: Math.fround(0.3), y: Math.fround(0.3), z: 16777216 })
+    expect(s.global('r')).toMatchObject({ x: Math.fround(0.3), y: Math.fround(0.3) })
+    expect(Math.fround(s.global('dot') as number)).toBe(s.global('dot'))
+  })
+
+  it('rounds floats parsed from strings and returned by builtins to 32 bits', async () => {
+    const s = await run(`
+      float parsed = 0;
+      vector pv = ZERO_VECTOR;
+      float fromList = 0;
+      float root = 0;
+      default {
+        state_entry() {
+          parsed = (float)"0.1";
+          pv = (vector)"<0.1, 0.2, 0.3>";
+          fromList = llList2Float(["0.1"], 0);
+          root = llSqrt(2.0);
+        }
+      }
+    `)
+    expect(s.global('parsed')).toBe(Math.fround(0.1))
+    expect(s.global('pv')).toEqual({ x: Math.fround(0.1), y: Math.fround(0.2), z: Math.fround(0.3) })
+    expect(s.global('fromList')).toBe(Math.fround(0.1))
+    expect(s.global('root')).toBe(Math.fround(Math.SQRT2))
+  })
+})
