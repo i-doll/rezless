@@ -21,8 +21,8 @@ export default defineConfig({
     environment: 'node',
     // Test files in a worker share one module graph, so parser/vm source is
     // evaluated once per worker rather than once per file. Safe because no
-    // test mocks modules or stubs globals, and the coverage registry is
-    // drained after every file by coverage-setup.ts.
+    // test mocks modules, tests restore any process.env they change, and
+    // the coverage registry is drained after every file by coverage-setup.ts.
     isolate: false,
     // The LSL reporter is dormant during plain `vitest run`. When invoked
     // with `--coverage` (or `coverage.enabled: true`) it enables the LSL
