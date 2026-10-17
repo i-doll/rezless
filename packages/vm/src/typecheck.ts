@@ -15,6 +15,7 @@ import type { BuiltinSpec } from './generated/functions.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
+import { own } from './own.js'
 
 /**
  * Static type checker mirroring SL's compiler, so scripts that wouldn't
@@ -162,7 +163,7 @@ class Checker {
     // functions and constants.
     const topLevel = new Set<string>()
     for (const d of [...decls, ...states].sort((a, b) => a.loc.offset - b.loc.offset)) {
-      const builtin = d.name in BUILTIN_SPECS || d.name in CONSTANT_TABLE
+      const builtin = Object.hasOwn(BUILTIN_SPECS, d.name) || Object.hasOwn(CONSTANT_TABLE, d.name)
       if (builtin || topLevel.has(d.name)) this.alreadyDeclared(d, d.name)
       topLevel.add(d.name)
     }
@@ -193,7 +194,7 @@ class Checker {
       for (const h of s.handlers) {
         if (events.has(h.name)) this.alreadyDeclared(h, h.name)
         events.add(h.name)
-        const spec = (EVENT_SPECS as Record<string, EventSpec>)[h.name]
+        const spec = own(EVENT_SPECS as Record<string, EventSpec>, h.name)
         if (!spec) {
           this.error(h, `Unknown event '${h.name}'`)
         } else if (
@@ -231,7 +232,7 @@ class Checker {
   }
 
   private declare(scope: Map<string, Ty>, node: Node, name: string, type: Ty): void {
-    if (name in CONSTANT_TABLE) this.error(node, `Syntax error: ${name} is a constant`)
+    if (Object.hasOwn(CONSTANT_TABLE, name)) this.error(node, `Syntax error: ${name} is a constant`)
     else if (scope.has(name)) this.alreadyDeclared(node, name)
     scope.set(name, type)
   }
@@ -302,6 +303,7 @@ class Checker {
         }
         const message = `Return statement type doesn't match function return type (${got} vs ${this.returnType})`
         if (this.returnType === 'void') {
+          if (got === 'unknown') return []
           if (got !== 'void') this.error(s, message)
           // `return voidFn();` compiles in some positions (an LL compiler quirk).
           else if (s.argument) return this.restricted(s, message, mode)
@@ -340,7 +342,7 @@ class Checker {
       const t = this.scopes[i]!.get(name)
       if (t) return t
     }
-    return this.globals.get(name) ?? (CONSTANT_TABLE[name]?.type as TypeName | undefined)
+    return this.globals.get(name) ?? (own(CONSTANT_TABLE, name)?.type as TypeName | undefined)
   }
 
   private expr(e: Expression): Ty {
@@ -442,7 +444,7 @@ class Checker {
 
   private lvalue(e: Expression): Ty {
     const base = e.kind === 'MemberExpression' ? e.object : e
-    if (base.kind === 'Identifier' && !this.isVariable(base.name) && CONSTANT_TABLE[base.name]) {
+    if (base.kind === 'Identifier' && !this.isVariable(base.name) && own(CONSTANT_TABLE, base.name)) {
       this.error(e, `Syntax error: can't assign to constant ${base.name}`)
       return this.expr(e)
     }
@@ -454,7 +456,7 @@ class Checker {
 
   private call(e: CallExpression): Ty {
     const args = e.args.map((a) => this.expr(a))
-    const builtin = (BUILTIN_SPECS as Record<string, BuiltinSpec>)[e.callee]
+    const builtin = own(BUILTIN_SPECS as Record<string, BuiltinSpec>, e.callee)
     const sig: Signature | undefined =
       this.functions.get(e.callee) ??
       (builtin && { returnType: builtin.returnType, params: builtin.params.map((p) => p.type) })

@@ -5,10 +5,11 @@ import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { REAL_BUILTINS } from './builtins/index.js'
 import type { Script } from './script.js'
+import { own } from './own.js'
 
 /** Look up the kwdb-derived spec for a function name, if any. */
 export function specFor(name: string): BuiltinSpec | undefined {
-  return (BUILTIN_SPECS as Record<string, BuiltinSpec>)[name]
+  return own(BUILTIN_SPECS as Record<string, BuiltinSpec>, name)
 }
 
 export interface DispatchContext {
@@ -29,7 +30,7 @@ export function callBuiltin(
   args: ReadonlyArray<LslValue>,
 ): LslValue | undefined {
   const spec = specFor(name)
-  const impl = dctx.mocks[name] ?? REAL_BUILTINS[name] ?? makeStub(name)
+  const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(name)
   const ctx: CallContext = {
     state: dctx.state,
     spec,

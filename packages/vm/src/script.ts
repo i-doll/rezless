@@ -28,6 +28,7 @@ import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
+import { own } from './own.js'
 
 export interface ScriptOptions {
   /** Filename used in diagnostics; defaults to "<inline>". */
@@ -601,7 +602,7 @@ function bindPayload(
   eventName: string,
   payload: Record<string, unknown>,
 ): EvalResult[] {
-  const spec = (EVENT_SPECS as Record<string, EventSpec>)[eventName]
+  const spec = own(EVENT_SPECS as Record<string, EventSpec>, eventName)
   if (!spec) return []
   const args: EvalResult[] = []
   for (const p of spec.params) {

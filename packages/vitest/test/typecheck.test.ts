@@ -150,6 +150,9 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['globals used in functions', `integer n; f() { n++; } ${inEntry('f();')}`],
     ['parameter shadowing a global', `integer n; f(string n) { n += "a"; } ${inEntry('f("");')}`],
     ['unknown function left to script.mock', inEntry('integer i = llNotARealFunction(1) + 1;')],
+    ['unknown functions named like Object.prototype keys', inEntry('toString(); constructor(1); hasOwnProperty("a");')],
+    ['script names matching Object.prototype keys', `integer constructor; toString(integer valueOf) { integer hasOwnProperty; } ${inEntry('toString(constructor);')}`],
+    ['returning an unknown function inside an if', inEntry('if (TRUE) return llCustomVoid();')],
     ['state change to a declared state', `default { state_entry() { state two; } } state two { state_entry() {} }`],
     ['event parameters matching the spec', `default { listen(integer c, string n, key id, string m) {} }`],
     ['bare return from an event', inEntry('return;')],
@@ -172,5 +175,10 @@ describe('load-time type checking (SL compiler parity)', () => {
 
   it.each(accepted)('accepts %s', async (_name, source) => {
     await expect(loadScript({ source })).resolves.toBeDefined()
+  })
+
+  it('treats an unmocked toString() as an unknown LSL function at runtime', async () => {
+    const s = await loadScript({ source: `default { state_entry() { toString(); } }` })
+    expect(() => s.start()).toThrow(/unknown LSL function 'toString'/)
   })
 })
