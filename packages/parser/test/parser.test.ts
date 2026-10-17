@@ -457,3 +457,43 @@ describe('parser — > inside vector and rotation literals', () => {
     expect(parseBody(body).diagnostics.length).toBeGreaterThan(0)
   })
 })
+
+describe('parser — empty statements and unbraced declarations', () => {
+  const parseBody = (body: string) =>
+    parse(`default { state_entry() { integer i; ${body} } }`, 'inline.lsl')
+
+  it.each([
+    ['on its own', ';'],
+    ['as an if body', 'if (TRUE) ;'],
+    ['as both if and else bodies', 'if (TRUE) ; else ;'],
+    ['as a while body', 'while (FALSE) ;'],
+    ['as a do body', 'do ; while (FALSE);'],
+    ['as a for body', 'for (i = 0; i < 3; i++) ;'],
+  ])('accepts an empty statement %s', (_, body) => {
+    expect(parseBody(body).diagnostics).toEqual([])
+  })
+
+  it('parses ; as an EmptyStatement', () => {
+    const { script } = parseBody('if (TRUE) ;')
+    expect(script.states[0]!.handlers[0]!.body.body[1]).toMatchObject({
+      kind: 'IfStatement',
+      consequent: { kind: 'EmptyStatement' },
+    })
+  })
+
+  it.each([
+    ['an if body', 'if (TRUE) integer y;'],
+    ['an else body', 'if (TRUE) ; else integer y = 1;'],
+    ['a while body', 'while (FALSE) integer y;'],
+    ['a do body', 'do integer y; while (FALSE);'],
+    ['a for body', 'for (i = 0; i < 3; i++) list y;'],
+  ])('rejects a declaration as %s', (_, body) => {
+    const { diagnostics } = parseBody(body)
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]!.message).toBe('Declaration requires a new scope -- use { and }')
+  })
+
+  it('accepts a declaration inside braces', () => {
+    expect(parseBody('if (TRUE) { integer y; } else { integer y; }').diagnostics).toEqual([])
+  })
+})

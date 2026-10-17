@@ -277,6 +277,11 @@ class Parser {
     // Block
     if (t.kind === 'lbrace') return this.parseBlock()
 
+    if (t.kind === 'semi') {
+      this.advance()
+      return { kind: 'EmptyStatement', loc: t.loc }
+    }
+
     if (t.kind === 'keyword') {
       switch (t.text) {
         case 'if':
@@ -310,6 +315,12 @@ class Parser {
     return stmt
   }
 
+  /** The body of an if, else or loop, which can't be a bare declaration. */
+  private parseBody(): Statement | null {
+    if (this.atTypeKeyword()) this.diag('Declaration requires a new scope -- use { and }', this.peek().loc)
+    return this.parseStatement()
+  }
+
   private parseVariableDeclaration(): VariableDeclaration | null {
     const t = this.advance() // type keyword
     const name = this.expectName('expected variable name')
@@ -337,12 +348,12 @@ class Parser {
     const test = this.parseExpression()
     if (!test) return null
     if (!this.expect('rparen', "expected ')' after if condition")) return null
-    const consequent = this.parseStatement()
+    const consequent = this.parseBody()
     if (!consequent) return null
     let alternate: Statement | null = null
     if (this.peek().kind === 'keyword' && this.peek().text === 'else') {
       this.advance()
-      alternate = this.parseStatement()
+      alternate = this.parseBody()
       if (!alternate) return null
     }
     return { kind: 'IfStatement', loc: start.loc, test, consequent, alternate }
@@ -354,14 +365,14 @@ class Parser {
     const test = this.parseExpression()
     if (!test) return null
     if (!this.expect('rparen', "expected ')' after while condition")) return null
-    const body = this.parseStatement()
+    const body = this.parseBody()
     if (!body) return null
     return { kind: 'WhileStatement', loc: start.loc, test, body }
   }
 
   private parseDoWhile(): DoWhileStatement | null {
     const start = this.advance() // 'do'
-    const body = this.parseStatement()
+    const body = this.parseBody()
     if (!body) return null
     if (!(this.peek().kind === 'keyword' && this.peek().text === 'while')) {
       this.diag(`expected 'while' after 'do' body`, this.peek().loc)
@@ -389,7 +400,7 @@ class Parser {
     if (!this.expect('semi', "expected ';' after for-test")) return null
     const update = this.parseExpressionList('rparen')
     if (!this.expect('rparen', "expected ')' to close for-header")) return null
-    const body = this.parseStatement()
+    const body = this.parseBody()
     if (!body) return null
     return { kind: 'ForStatement', loc: start.loc, init, test, update, body }
   }

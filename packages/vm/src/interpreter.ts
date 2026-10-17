@@ -176,6 +176,8 @@ function execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): void
     case 'BlockStatement':
       execBlock(ctx, env, stmt)
       return
+    case 'EmptyStatement':
+      return
     case 'VariableDeclaration':
       execVariableDeclaration(ctx, env, stmt)
       return

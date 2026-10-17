@@ -274,6 +274,8 @@ class Checker {
         if (s.init) this.expectAssignable(s, s.typeName, this.expr(s.init))
         this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, s.typeName)
         return []
+      case 'EmptyStatement':
+        return []
       case 'ExpressionStatement':
         this.expr(s.expression)
         return []
