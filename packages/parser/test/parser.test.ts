@@ -251,11 +251,64 @@ describe('parser — unary operators before casts', () => {
     })
   })
 
+  it.each(['+1', '+(integer)s', 'integer i = +1'])('rejects unary + in %s', (expr) => {
+    const { diagnostics } = parse(
+      `default { state_entry() { string s = "0"; ${expr}; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics.length).toBeGreaterThan(0)
+  })
+
   it('parses !(float)s', () => {
     expect(firstExpr('!(float)s')).toMatchObject({
       kind: 'UnaryExpression',
       operator: '!',
       argument: { kind: 'CastExpression', targetType: 'float' },
+    })
+  })
+})
+
+describe('parser — cast operands', () => {
+  const parseBody = (body: string) =>
+    parse(
+      `default { state_entry() { integer x = 1; vector v; ${body} } }`,
+      'inline.lsl',
+    )
+
+  it.each([
+    ['a unary minus', 'string a = (string)-x;'],
+    ['a logical not', 'integer b = (integer)!x;'],
+    ['a bitwise not', 'integer b = (integer)~x;'],
+    ['a prefix increment', 'string a = (string)++x;'],
+    ['another cast', 'string c = (string)(integer)"1";'],
+    ['a minus before a non-literal', 'string a = (string)-v.x;'],
+  ])('rejects %s after a cast', (_, body) => {
+    expect(parseBody(body).diagnostics.length).toBeGreaterThan(0)
+  })
+
+  it.each([
+    ['a negative integer literal', 'integer d = (integer)-1;'],
+    ['a negative float literal', 'integer d = (integer)-3.7;'],
+    ['a member access', 'string e = (string)v.x;'],
+    ['a postfix increment', 'string e = (string)x++;'],
+    ['a parenthesised unary', 'string a = (string)(-x);'],
+    ['a parenthesised cast', 'string c = (string)((integer)"1");'],
+    ['a call', 'string e = (string)llGetUnixTime();'],
+    ['a list literal', 'string e = (string)[1, 2];'],
+    ['a vector literal', 'string e = (string)<1, 2, 3>;'],
+  ])('accepts %s after a cast', (_, body) => {
+    expect(parseBody(body).diagnostics).toEqual([])
+  })
+
+  it('parses (integer)-1 as a cast of a negated literal', () => {
+    const stmt = parseBody('integer d = (integer)-1;').script.states[0]!.handlers[0]!.body.body[2]!
+    expect(stmt).toMatchObject({
+      kind: 'VariableDeclaration',
+      init: {
+        kind: 'CastExpression',
+        targetType: 'integer',
+        argument: { kind: 'UnaryExpression', operator: '-', argument: { kind: 'IntegerLiteral', value: 1 } },
+      },
     })
   })
 })

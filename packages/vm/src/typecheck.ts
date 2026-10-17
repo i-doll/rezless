@@ -385,7 +385,7 @@ class Checker {
         const t = this.expr(e.argument)
         if (t === 'unknown') return t
         const ok =
-          e.operator === '-' || e.operator === '+'
+          e.operator === '-'
             ? isNum(t) || t === 'vector' || t === 'rotation'
             : t === 'integer'
         if (ok) return t

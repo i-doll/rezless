@@ -14,12 +14,8 @@ import { concatLists, typedList } from './list-types.js'
  *   - Mixed-type arithmetic promotes int → float when the other side is float.
  */
 
-export function applyUnary(op: '+' | '-' | '!' | '~', arg: EvalResult): EvalResult {
+export function applyUnary(op: '-' | '!' | '~', arg: EvalResult): EvalResult {
   switch (op) {
-    case '+':
-      if (arg.type === 'integer' || arg.type === 'float') return arg
-      if (isVector(arg.value) || isRotation(arg.value)) return arg
-      throw new Error(`unary '+' not defined for ${arg.type}`)
     case '-':
       if (arg.type === 'integer')
         return { type: 'integer', value: toInt32(-(arg.value as number)) }

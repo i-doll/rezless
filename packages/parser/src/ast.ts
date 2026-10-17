@@ -202,7 +202,7 @@ export interface CallExpression extends Node {
   readonly args: ReadonlyArray<Expression>
 }
 
-export type UnaryOp = '+' | '-' | '!' | '~'
+export type UnaryOp = '-' | '!' | '~'
 
 export interface UnaryExpression extends Node {
   readonly kind: 'UnaryExpression'

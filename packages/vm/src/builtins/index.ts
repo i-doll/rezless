@@ -105,6 +105,7 @@ import {
   llBase64ToString,
   llIntegerToBase64,
   llBase64ToInteger,
+  llXorBase64,
 } from './base64.js'
 import {
   llSetText,
@@ -324,6 +325,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llBase64ToString,
   llIntegerToBase64,
   llBase64ToInteger,
+  llXorBase64,
   // object
   llSetText,
   llSetObjectDesc,
