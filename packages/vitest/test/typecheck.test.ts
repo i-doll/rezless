@@ -200,6 +200,12 @@ describe('functions declared for script.mock', () => {
     toString: {},
   } as const
 
+  it('rejects calling a constant declared as a function', async () => {
+    await expect(loadScript({ source: inEntry('PI();'), functions: { PI: {} } })).rejects.toThrow(
+      /Name not defined within scope: PI is not a function/,
+    )
+  })
+
   it('accepts calls that match the declared signature', async () => {
     const source = inEntry('integer i = llCustomThing(1) + 1; float f = llCustomFloat(); if (TRUE) return llCustomVoid(); toString();')
     await expect(loadScript({ source, functions })).resolves.toBeDefined()
@@ -210,6 +216,9 @@ describe('functions declared for script.mock', () => {
     ['too many arguments', inEntry('llCustomVoid(1);'), /Function call mismatches type or number of arguments: llCustomVoid\(\)/],
     ['using a void result', inEntry('integer i = llCustomVoid();'), /Type mismatch/],
     ['using the result as the wrong type', inEntry('string s = llCustomFloat();'), /Type mismatch/],
+    ['a global with a declared name', `integer llCustomVoid; ${inEntry('llCustomVoid();')}`, /previously declared within scope: llCustomVoid/],
+    ['a script function with a declared name', `llCustomVoid() {} ${inEntry('llCustomVoid();')}`, /previously declared within scope: llCustomVoid/],
+    ['a state with a declared name', `${inEntry('llCustomVoid();')} state llCustomVoid { state_entry() {} }`, /previously declared within scope: llCustomVoid/],
   ])('rejects %s', async (_name, source, message) => {
     await expect(loadScript({ source, functions })).rejects.toThrow(message)
   })

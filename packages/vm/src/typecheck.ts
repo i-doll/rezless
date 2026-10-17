@@ -173,10 +173,13 @@ class Checker {
       }
     }
     // Globals, functions and states share one namespace with the built-in
-    // functions and constants.
+    // functions and constants, and with functions declared for script.mock.
     const topLevel = new Set<string>()
     for (const d of [...decls, ...states].sort((a, b) => a.loc.offset - b.loc.offset)) {
-      const builtin = Object.hasOwn(BUILTIN_SPECS, d.name) || Object.hasOwn(CONSTANT_TABLE, d.name)
+      const builtin =
+        Object.hasOwn(BUILTIN_SPECS, d.name) ||
+        Object.hasOwn(CONSTANT_TABLE, d.name) ||
+        Object.hasOwn(this.declared, d.name)
       if (builtin || topLevel.has(d.name)) this.alreadyDeclared(d, d.name)
       topLevel.add(d.name)
     }
@@ -476,7 +479,7 @@ class Checker {
   private call(e: CallExpression): Ty {
     const args = e.args.map((a) => this.expr(a))
     const builtin = own(BUILTIN_SPECS as Record<string, BuiltinSpec>, e.callee)
-    const declared = own(this.declared, e.callee)
+    const declared = own(CONSTANT_TABLE, e.callee) ? undefined : own(this.declared, e.callee)
     const sig: Signature | undefined =
       this.functions.get(e.callee) ??
       (builtin && { returnType: builtin.returnType, params: builtin.params.map((p) => p.type) }) ??
