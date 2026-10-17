@@ -458,6 +458,57 @@ describe('parser — > inside vector and rotation literals', () => {
   })
 })
 
+describe('parser — print and reserved words', () => {
+  it('parses print(expr) as a print expression', () => {
+    const { script, diagnostics } = parse(
+      `default { state_entry() { print("hello"); integer x = print(1) + 2; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+    const body = script.states[0]!.handlers[0]!.body.body
+    expect(body[0]).toMatchObject({
+      kind: 'ExpressionStatement',
+      expression: { kind: 'PrintExpression', argument: { kind: 'StringLiteral', value: 'hello' } },
+    })
+    expect(body[1]).toMatchObject({
+      init: { kind: 'BinaryExpression', operator: '+', left: { kind: 'PrintExpression' } },
+    })
+  })
+
+  it('reads print after > in the last vector component as greater-than', () => {
+    const { script, diagnostics } = parse(
+      `default { state_entry() { vector v = <1, 2, 3 > print(2)>; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+    expect(script.states[0]!.handlers[0]!.body.body[0]).toMatchObject({
+      init: {
+        kind: 'VectorLiteral',
+        z: { kind: 'BinaryExpression', operator: '>', right: { kind: 'PrintExpression' } },
+      },
+    })
+  })
+
+  it.each([
+    ['print with no argument', `default { state_entry() { print(); } }`],
+    ['print with two arguments', `default { state_entry() { print(1, 2); } }`],
+    ['print without parentheses', `default { state_entry() { print 1; } }`],
+  ])('rejects %s', (_what, source) => {
+    expect(parse(source, 'inline.lsl').diagnostics.length).toBeGreaterThan(0)
+  })
+
+  it.each([
+    ['event as a local variable', `default { state_entry() { integer event; } }`],
+    ['print as a local variable', `default { state_entry() { integer print; } }`],
+    ['event as a global variable', `integer event = 1; default { state_entry() {} }`],
+    ['print as a function', `print() {} default { state_entry() {} }`],
+    ['event as a parameter', `f(integer event) {} default { state_entry() {} }`],
+    ['print as a state', `default { state_entry() {} } state print { state_entry() {} }`],
+  ])('rejects %s name', (_what, source) => {
+    expect(parse(source, 'inline.lsl').diagnostics.length).toBeGreaterThan(0)
+  })
+})
+
 describe('parser — empty statements and unbraced declarations', () => {
   const parseBody = (body: string) =>
     parse(`default { state_entry() { integer i; ${body} } }`, 'inline.lsl')

@@ -501,3 +501,23 @@ describe('32-bit floats', () => {
     expect(s.global('root')).toBe(Math.fround(Math.SQRT2))
   })
 })
+
+describe('print', () => {
+  it('evaluates its argument and takes its value', async () => {
+    const s = await run(`
+      integer n = 0;
+      integer r;
+      string t;
+      default {
+        state_entry() {
+          print(n++);
+          r = print(n) + 10;
+          t = print("a") + "b";
+        }
+      }
+    `)
+    expect(s.global('n')).toBe(1)
+    expect(s.global('r')).toBe(11)
+    expect(s.global('t')).toBe('ab')
+  })
+})
