@@ -19,6 +19,11 @@ export default defineConfig({
   test: {
     include: ['packages/*/test/**/*.test.ts', 'examples/*/**/*.test.ts'],
     environment: 'node',
+    // Test files in a worker share one module graph, so parser/vm source is
+    // evaluated once per worker rather than once per file. Safe because no
+    // test mocks modules or stubs globals, and the coverage registry is
+    // drained after every file by coverage-setup.ts.
+    isolate: false,
     // The LSL reporter is dormant during plain `vitest run`. When invoked
     // with `--coverage` (or `coverage.enabled: true`) it enables the LSL
     // coverage path alongside @vitest/coverage-v8 and writes its artifacts
