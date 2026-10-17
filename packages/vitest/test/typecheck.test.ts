@@ -100,6 +100,8 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['return only inside a loop', `integer f() { while (TRUE) return 1; } ${inEntry('')}`, /Not all code paths/],
     ['member access on a call result', inEntry('float x = llGetPos().x;'), /only works on a variable/],
     ['member access on a literal', inEntry('float x = <1,2,3>.x;'), /only works on a variable/],
+    ['reading a component of a vector constant', inEntry('float f = ZERO_VECTOR.x;'), /Syntax error: can't read a component of constant ZERO_VECTOR/],
+    ['reading a component of a rotation constant', inEntry('float f = ZERO_ROTATION.s;'), /Syntax error: can't read a component of constant ZERO_ROTATION/],
     ['state change directly in a function', `f() { state two; } default { state_entry() {} } state two { state_entry() {} }`, /Global functions can't change state/],
     ['state change in an if with an else, in a function', `f(integer a) { if (a) state two; else a = 1; } default { state_entry() {} } state two { state_entry() {} }`, /Global functions can't change state/],
     ['return of a void call directly in an event', inEntry('return llSay(0, "");'), /Return statement type/],
@@ -128,6 +130,8 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['calling a local variable', inEntry('integer x; x();'), /Name not defined within scope: x/],
     ['calling an event', inEntry('state_entry();'), /'state_entry' is an event name/],
     ['calling names like Object.prototype keys', inEntry('toString(); constructor(1);'), /Name not defined within scope: toString/],
+    ['print of a string assigned to an integer', inEntry('integer i = print("a");'), /Type mismatch/],
+    ['global initialised from print', `integer g = print(1); ${inEntry('')}`, /Syntax error/],
     ['statement after the return', `integer f() { return 1; f(); } ${inEntry('')}`, /Not all code paths/],
   ]
 
@@ -183,6 +187,7 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['a local shadowing an outer local', inEntry('integer x; { string x; }')],
     ['a local reusing a parameter name', `f(integer a) { integer a; } ${inEntry('f(1);')}`],
     ['if/else that returns on both branches', `integer f(integer a) { if (a) return 1; else { return 2; } } ${inEntry('f(1);')}`],
+    ['print of any type, used as its value', inEntry('integer i = print(1) + 1; list l = print([i]); print(llSay(0, ""));')],
     ['a typed function ending in a nested block return', `integer f() { { return 1; } } ${inEntry('f();')}`],
   ]
 

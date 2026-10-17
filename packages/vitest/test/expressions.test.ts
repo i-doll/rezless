@@ -435,3 +435,23 @@ describe('Phase 2 — lists', () => {
     expect(s.global('r')).toEqual([1, 2, 3, 4])
   })
 })
+
+describe('print', () => {
+  it('evaluates its argument and takes its value', async () => {
+    const s = await run(`
+      integer n = 0;
+      integer r;
+      string t;
+      default {
+        state_entry() {
+          print(n++);
+          r = print(n) + 10;
+          t = print("a") + "b";
+        }
+      }
+    `)
+    expect(s.global('n')).toBe(1)
+    expect(s.global('r')).toBe(11)
+    expect(s.global('t')).toBe('ab')
+  })
+})

@@ -196,6 +196,50 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     expect(scripts['p']!.global('out')).toEqual(['Alpha', 'Bravo', 'Charlie'])
   })
 
+  it('llGetPrimitiveParams results keep their element types', async () => {
+    const src = `
+      string out;
+      integer glowFound;
+      integer nameFound;
+      default {
+        state_entry() {
+          llSetObjectName("a");
+          out = llDumpList2String(llGetPrimitiveParams([PRIM_GLOW, 0, PRIM_FULLBRIGHT, 0, PRIM_TYPE, PRIM_TEXT]), "|");
+          glowFound = llListFindList(llGetPrimitiveParams([PRIM_GLOW, ALL_SIDES]), [0]);
+          nameFound = llListFindList(llGetPrimitiveParams([PRIM_NAME]), [(key)"a"]);
+        }
+      }
+    `
+    const s = await loadScript({ source: src, filename: 'types.lsl' })
+    s.start()
+    expect(s.global('out')).toBe(
+      '0.000000|0|0|0|<0.000000, 1.000000, 0.000000>|0.000000|<0.000000, 0.000000, 0.000000>' +
+        '|<1.000000, 1.000000, 0.000000>|<0.000000, 0.000000, 0.000000>||<0.000000, 0.000000, 0.000000>|0.000000',
+    )
+    expect(s.global('glowFound')).toBe(-1)
+    expect(s.global('nameFound')).toBe(-1)
+  })
+
+  it('llGetLinkPrimitiveParams keeps element types across prims', async () => {
+    const probe = `
+      string out;
+      default {
+        state_entry() {
+          out = llDumpList2String(llGetLinkPrimitiveParams(LINK_SET, [PRIM_GLOW, 0, PRIM_FULLBRIGHT, 0]), "|");
+        }
+      }
+    `
+    const noop = `default { state_entry() {} }`
+    const { scripts } = await loadLinkset({
+      prims: [
+        { name: 'Alpha', scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] },
+        { name: 'Bravo', scripts: [{ source: { source: noop, filename: 'n.lsl' }, name: 'n' }] },
+      ],
+    })
+    scripts['p']!.start()
+    expect(scripts['p']!.global('out')).toBe('0.000000|0.000000|0|0')
+  })
+
   it('unknown PRIM_* constant in llSetPrimitiveParams stops the rest of the walk', async () => {
     const src = `
       default {

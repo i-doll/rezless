@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
+import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
 import type { Linkset } from '../linkset.js'
 import {
@@ -322,7 +323,7 @@ export const llSetPhysicsMaterial: BuiltinImpl = (ctx, args) => {
 }
 export const llGetPhysicsMaterial: BuiltinImpl = (ctx) => {
   const m = ctx.prim.params.physicsMaterial
-  return [m.gravityMultiplier, m.restitution, m.friction, m.density] as ReadonlyArray<LslValue>
+  return uniformList([m.gravityMultiplier, m.restitution, m.friction, m.density], 'float')
 }
 
 export const llPassCollisions: BuiltinImpl = (ctx, args) => {

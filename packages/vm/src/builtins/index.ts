@@ -6,6 +6,9 @@ import {
   llGetTime,
   llGetAndResetTime,
   llResetTime,
+  llGetUnixTime,
+  llGetTimestamp,
+  llGetDate,
 } from './time.js'
 import { llHTTPRequest, llHTTPResponse } from './http.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
@@ -62,6 +65,8 @@ import {
   llList2CSV,
   llCSV2List,
   llParseString2List,
+  llParseStringKeepNulls,
+  llListSort,
 } from './lists.js'
 import {
   llJson2List,
@@ -227,6 +232,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetTime,
   llGetAndResetTime,
   llResetTime,
+  llGetUnixTime,
+  llGetTimestamp,
+  llGetDate,
   llHTTPRequest,
   llHTTPResponse,
   llListen,
@@ -283,6 +291,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llList2CSV,
   llCSV2List,
   llParseString2List,
+  llParseStringKeepNulls,
+  llListSort,
   // json
   llJson2List,
   llJsonGetValue,

@@ -179,6 +179,8 @@ function execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): void
     case 'BlockStatement':
       execBlock(ctx, env, stmt)
       return
+    case 'EmptyStatement':
+      return
     case 'VariableDeclaration':
       execVariableDeclaration(ctx, env, stmt)
       return
@@ -304,6 +306,8 @@ function evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): Ev
       return evalMember(ctx, env, expr)
     case 'UpdateExpression':
       return evalUpdate(ctx, env, expr)
+    case 'PrintExpression':
+      return evalExpression(ctx, env, expr.argument)
   }
 }
 

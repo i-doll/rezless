@@ -48,6 +48,12 @@ export interface ScriptOptions {
   readonly randomSeed?: number
   /** Owner key returned by llGetOwner. Defaults to NULL_KEY. */
   readonly owner?: string
+  /**
+   * Unix time in seconds at virtual time 0, read by llGetUnixTime,
+   * llGetTimestamp and llGetDate. Defaults to 0. Ignored when `host` is given;
+   * set it on the Linkset instead.
+   */
+  readonly startUnixTime?: number
   /** Prim key returned by llGetKey. Defaults to a deterministic per-script key. */
   readonly objectKey?: string
   /** Prim name returned by llGetObjectName. Defaults to "Object". */
@@ -104,7 +110,10 @@ export class Script {
     // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
     let host = options.host
     if (!host) {
-      const linkset = new Linkset({ owner: options.owner ?? NULL_KEY })
+      const linkset = new Linkset({
+        owner: options.owner ?? NULL_KEY,
+        startUnixTime: options.startUnixTime ?? 0,
+      })
       const prim = new Prim({
         key:
           options.objectKey ??

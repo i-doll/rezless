@@ -62,6 +62,7 @@ export type TypeName =
 
 export type Statement =
   | BlockStatement
+  | EmptyStatement
   | VariableDeclaration
   | ExpressionStatement
   | IfStatement
@@ -76,6 +77,11 @@ export type Statement =
 export interface BlockStatement extends Node {
   readonly kind: 'BlockStatement'
   readonly body: ReadonlyArray<Statement>
+}
+
+/** A lone `;`. */
+export interface EmptyStatement extends Node {
+  readonly kind: 'EmptyStatement'
 }
 
 export interface VariableDeclaration extends Node {
@@ -155,6 +161,7 @@ export type Expression =
   | CastExpression
   | MemberExpression
   | UpdateExpression
+  | PrintExpression
 
 export interface IntegerLiteral extends Node {
   readonly kind: 'IntegerLiteral'
@@ -266,5 +273,11 @@ export interface UpdateExpression extends Node {
   readonly kind: 'UpdateExpression'
   readonly operator: UpdateOp
   readonly prefix: boolean
+  readonly argument: Expression
+}
+
+/** `print(expr)`: evaluates `expr` and takes its value. */
+export interface PrintExpression extends Node {
+  readonly kind: 'PrintExpression'
   readonly argument: Expression
 }
