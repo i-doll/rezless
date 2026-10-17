@@ -126,6 +126,8 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['calling a global variable', `integer f; ${inEntry('f();')}`, /Name not defined within scope: f/],
     ['calling a constant', inEntry('PI();'), /Name not defined within scope: PI/],
     ['calling a state', `default { state_entry() { two(); } } state two { state_entry() {} }`, /Name not defined within scope: two/],
+    ['print of a string assigned to an integer', inEntry('integer i = print("a");'), /Type mismatch/],
+    ['global initialised from print', `integer g = print(1); ${inEntry('')}`, /Syntax error/],
     ['statement after the return', `integer f() { return 1; f(); } ${inEntry('')}`, /Not all code paths/],
   ]
 
@@ -184,6 +186,7 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['a local shadowing an outer local', inEntry('integer x; { string x; }')],
     ['a local reusing a parameter name', `f(integer a) { integer a; } ${inEntry('f(1);')}`],
     ['if/else that returns on both branches', `integer f(integer a) { if (a) return 1; else { return 2; } } ${inEntry('f(1);')}`],
+    ['print of any type, used as its value', inEntry('integer i = print(1) + 1; list l = print([i]); print(llSay(0, ""));')],
     ['a typed function ending in a nested block return', `integer f() { { return 1; } } ${inEntry('f();')}`],
   ]
 

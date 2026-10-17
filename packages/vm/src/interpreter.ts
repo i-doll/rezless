@@ -303,6 +303,8 @@ function evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): Ev
       return evalMember(ctx, env, expr)
     case 'UpdateExpression':
       return evalUpdate(ctx, env, expr)
+    case 'PrintExpression':
+      return evalExpression(ctx, env, expr.argument)
   }
 }
 
