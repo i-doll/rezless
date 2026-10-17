@@ -529,31 +529,52 @@ class Parser {
   }
 
   private parseCast(): Expression | null {
-    // Cast vs paren-expr: `(type) expr` is a cast; otherwise it's a paren-expr.
-    if (this.check('lparen')) {
-      const next = this.tokens[this.pos + 1]
-      const after = this.tokens[this.pos + 2]
-      if (
-        next &&
-        next.kind === 'keyword' &&
-        TYPE_KEYWORDS.has(next.text as TypeName) &&
-        after &&
-        after.kind === 'rparen'
-      ) {
-        const start = this.advance() // (
-        const ty = this.advance() // type
-        this.advance() // )
-        const arg = this.parseCast()
-        if (!arg) return null
-        return {
-          kind: 'CastExpression',
-          loc: start.loc,
-          targetType: ty.text as TypeName,
-          argument: arg,
-        }
+    if (this.atCast()) {
+      const start = this.advance() // (
+      const ty = this.advance() // type
+      this.advance() // )
+      const arg = this.parseCastOperand()
+      if (!arg) return null
+      return {
+        kind: 'CastExpression',
+        loc: start.loc,
+        targetType: ty.text as TypeName,
+        argument: arg,
       }
     }
     return this.parseUnary()
+  }
+
+  /** Cast vs paren-expr: `(type) expr` is a cast; otherwise it's a paren-expr. */
+  private atCast(): boolean {
+    const next = this.tokens[this.pos + 1]
+    return (
+      this.check('lparen') &&
+      next?.kind === 'keyword' &&
+      TYPE_KEYWORDS.has(next.text as TypeName) &&
+      this.tokens[this.pos + 2]?.kind === 'rparen'
+    )
+  }
+
+  /**
+   * SL casts a postfix expression or a negative number literal. Any other
+   * unary operand, including another cast, needs parentheses: `(string)(-x)`.
+   */
+  private parseCastOperand(): Expression | null {
+    const t = this.peek()
+    const next = this.tokens[this.pos + 1]
+    if (t.kind === 'op' && t.text === '-' && next && (next.kind === 'integer' || next.kind === 'float')) {
+      this.advance()
+      const arg = this.parsePrimary()
+      if (!arg) return null
+      return { kind: 'UnaryExpression', loc: t.loc, operator: '-', argument: arg }
+    }
+    const isUnaryOp = t.kind === 'op' && ['-', '+', '!', '~', '++', '--'].includes(t.text)
+    if (isUnaryOp || this.atCast()) {
+      this.diag('put parentheses around the expression being cast', t.loc)
+      return null
+    }
+    return this.parsePostfix()
   }
 
   private parseUnary(): Expression | null {
