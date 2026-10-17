@@ -74,10 +74,9 @@ describe('Phase 2 — LSL quirks', () => {
 
   it('logical ! is integer-only (SL rejects !key with "Type mismatch")', async () => {
     for (const decl of ['key v = NULL_KEY;', 'float v = 1.0;', 'string v = "";']) {
-      const s = await loadScript({
-        source: `default { state_entry() { ${decl} integer r = !v; } }`,
-      })
-      expect(() => s.start()).toThrow(/Type mismatch/)
+      await expect(
+        loadScript({ source: `default { state_entry() { ${decl} integer r = !v; } }` }),
+      ).rejects.toThrow(/Type mismatch/)
     }
   })
 

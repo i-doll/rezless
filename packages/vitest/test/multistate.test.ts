@@ -54,11 +54,10 @@ describe('Phase 2 — multi-state and state transitions', () => {
     expect(s).toBeInState('default')
   })
 
-  it('throws on transition to unknown state', async () => {
-    const s = await loadScript({
-      source: `default { state_entry() { state nope; } }`,
-    })
-    expect(() => s.start()).toThrow(/unknown state 'nope'/)
+  it('rejects a transition to an unknown state at load time', async () => {
+    await expect(
+      loadScript({ source: `default { state_entry() { state nope; } }` }),
+    ).rejects.toThrow(/Name not defined within scope: state nope/)
   })
 })
 

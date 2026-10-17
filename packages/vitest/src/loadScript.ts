@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { parse, LslParseError } from '@rezless/parser'
-import { Script } from '@rezless/vm'
+import { Script, typecheck } from '@rezless/vm'
 import type { ScriptOptions } from '@rezless/vm'
 import { isCoverageEnabled } from './coverage-config.js'
 import { registerScript } from './coverage-registry.js'
@@ -24,7 +24,7 @@ export type LoadScriptInput = string | InlineScriptInput
  * Coverage activates when any of: `coverage: true` in options, the Vitest
  * coverage reporter has been installed, or `LSL_COVERAGE=1` in the env.
  *
- * Parse errors throw `LslParseError`, which Vitest renders with the
+ * Parse and type errors throw `LslParseError`, which Vitest renders with the
  * offending `file:line:col`.
  */
 export async function loadScript(input: LoadScriptInput): Promise<Script> {
@@ -42,6 +42,7 @@ export async function loadScript(input: LoadScriptInput): Promise<Script> {
   }
   const { script: ast, diagnostics } = parse(source, filename)
   const errors = diagnostics.filter((d) => d.severity === 'error')
+  if (errors.length === 0) errors.push(...typecheck(ast, filename))
   if (errors.length > 0) {
     throw new LslParseError(errors)
   }
