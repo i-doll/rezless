@@ -1,4 +1,5 @@
 import type { BuiltinImpl } from '../runtime.js'
+import { toInt32 } from '../values/types.js'
 
 /**
  * Time and timer built-ins. All operate on the virtual clock; no real
@@ -59,9 +60,9 @@ export const llResetTime: BuiltinImpl = (ctx) => {
   return undefined
 }
 
-/** llGetUnixTime() — whole seconds since the Unix epoch. */
+/** llGetUnixTime() — whole seconds since the Unix epoch, wrapped to 32 bits. */
 export const llGetUnixTime: BuiltinImpl = (ctx) => {
-  return Math.floor(ctx.state.clock.unixMicros() / 1e6)
+  return toInt32(Math.floor(ctx.state.clock.unixMicros() / 1e6))
 }
 
 /** llGetTimestamp() — UTC time as `YYYY-MM-DDThh:mm:ss.ffffffZ`. */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript } from '../src/index.js'
+import { loadLinkset, loadScript } from '../src/index.js'
 
 async function load(source: string) {
   return loadScript({ source })
@@ -224,5 +224,33 @@ describe('wall-clock time from the virtual clock', () => {
     })
     s.start()
     expect(s.global('unix')).toBe(105)
+  })
+
+  it('llGetUnixTime wraps to a 32-bit integer after 2038', async () => {
+    const s = await loadScript({
+      source: `integer unix; default { state_entry() { unix = llGetUnixTime(); } }`,
+      startUnixTime: 2_147_483_648,
+    })
+    s.start()
+    expect(s.global('unix')).toBe(-2_147_483_648)
+  })
+
+  it('loadLinkset passes startUnixTime to every script', async () => {
+    const { scripts } = await loadLinkset({
+      startUnixTime: 1_700_000_000,
+      prims: [
+        {
+          name: 'P1',
+          scripts: [
+            {
+              source: { source: `integer unix; default { state_entry() { unix = llGetUnixTime(); } }` },
+              name: 'clock',
+            },
+          ],
+        },
+      ],
+    })
+    scripts['clock']!.start()
+    expect(scripts['clock']!.global('unix')).toBe(1_700_000_000)
   })
 })
