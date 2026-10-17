@@ -256,7 +256,8 @@ export function lex(
         kind: isFloat ? 'float' : 'integer',
         text,
         loc: start,
-        value: isFloat ? Number.parseFloat(s) : integerValue(s),
+        // LSL floats are 32-bit.
+        value: isFloat ? Math.fround(Number.parseFloat(s)) : integerValue(s),
       })
       continue
     }
