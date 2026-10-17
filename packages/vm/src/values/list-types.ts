@@ -9,11 +9,15 @@ import type { LslType, LslValue } from './types.js'
  */
 const elementTypes = new WeakMap<ReadonlyArray<LslValue>, ReadonlyArray<LslType | undefined>>()
 
-/** Build a list whose elements have the given LSL types. */
+/**
+ * Build a list whose elements have the given LSL types. A list element is a
+ * runtime error, as in SL, where `[x]` with a list `x` compiles but halts.
+ */
 export function typedList(
   values: LslValue[],
   types: ReadonlyArray<LslType | undefined>,
 ): ReadonlyArray<LslValue> {
+  if (types.includes('list')) throw new Error('Lists may not contain lists')
   if (types.some((t) => t !== undefined)) elementTypes.set(values, types)
   return values
 }
