@@ -179,6 +179,22 @@ describe('Phase 2 — variables & operators', () => {
     expect(s.global('local')).toBe(-1)
     expect(s.global('localF')).toBe(2)
   })
+
+  it('keeps -2147483648 in a global initialiser', async () => {
+    const s = await run(`
+      integer dec = -2147483648;
+      integer hex = -0x80000000;
+      integer local = 0;
+      default {
+        state_entry() {
+          local = -2147483648;
+        }
+      }
+    `)
+    expect(s.global('dec')).toBe(-2147483648)
+    expect(s.global('hex')).toBe(-2147483648)
+    expect(s.global('local')).toBe(-2147483648)
+  })
 })
 
 describe('Phase 2 — type coercions', () => {

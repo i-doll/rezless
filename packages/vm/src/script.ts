@@ -685,7 +685,10 @@ function literalToEval(
     case 'UnaryExpression': {
       const inner = literalToEval(env, expr.argument, declared)
       if (!inner) return undefined
-      if (expr.operator === '-' && (inner.type === 'integer' || inner.type === 'float')) {
+      if (expr.operator === '-' && inner.type === 'integer') {
+        return { ...inner, value: -(inner.value as number) | 0 }
+      }
+      if (expr.operator === '-' && inner.type === 'float') {
         return { ...inner, value: -(inner.value as number) }
       }
       return inner
