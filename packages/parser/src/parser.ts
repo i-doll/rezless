@@ -405,7 +405,7 @@ class Parser {
     const t = this.peek()
     let target: string
     if (t.kind === 'identifier') {
-      this.advance()
+      if (!this.expectName("expected state name after 'state'")) return null
       target = t.text
     } else if (t.kind === 'keyword' && t.text === 'default') {
       this.advance()
@@ -638,7 +638,7 @@ class Parser {
       return { kind: 'StringLiteral', loc: t.loc, value: t.value as string }
     }
     if (t.kind === 'identifier') {
-      this.advance()
+      if (!this.expectName('expected name')) return null
       if (this.check('lparen')) {
         this.advance()
         const args: Expression[] = this.parseExpressionList('rparen')

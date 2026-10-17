@@ -269,6 +269,9 @@ describe('parser — event names are reserved', () => {
     ['state', `default { state_entry() {} } state link_message { state_entry() {} }`],
     ['label', `default { state_entry() { @state_entry; } }`],
     ['jump target', `default { state_entry() { jump touch_start; } }`],
+    ['state change target', `default { state_entry() { state attach; } }`],
+    ['variable reference', `integer x = attach; default { state_entry() {} }`],
+    ['function call', `default { state_entry() { timer(); } }`],
   ]
 
   it.each(cases)('rejects an event name as a %s name', (_what, source) => {
