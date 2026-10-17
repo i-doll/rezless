@@ -164,7 +164,14 @@ describe('lexer — number literals', () => {
 describe('lexer — strings & comments', () => {
   it('decodes \\n, \\t, \\\\, \\" escape sequences', () => {
     const { tokens } = lex(`"a\\nb\\tc\\\\d\\"e"`, 'inline.lsl')
-    expect(tokens[0]).toMatchObject({ kind: 'string', value: 'a\nb\tc\\d"e' })
+    expect(tokens[0]).toMatchObject({ kind: 'string', value: 'a\nb    c\\d"e' })
+  })
+
+  it('reads L"..." as a string that starts with a quote', () => {
+    const { tokens, diagnostics } = lex(`L"abc" Lx`, 'inline.lsl')
+    expect(diagnostics).toEqual([])
+    expect(tokens[0]).toMatchObject({ kind: 'string', text: 'L"abc"', value: '"abc' })
+    expect(tokens[1]).toMatchObject({ kind: 'identifier', text: 'Lx' })
   })
 
   it('passes unknown escapes through verbatim', () => {
