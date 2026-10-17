@@ -259,3 +259,29 @@ describe('parser — unary operators before casts', () => {
     })
   })
 })
+
+describe('parser — event names are reserved', () => {
+  const cases: Array<[string, string]> = [
+    ['global variable', `integer attach = 2; default { state_entry() {} }`],
+    ['parameter', `f(integer changed) {} default { state_entry() {} }`],
+    ['local variable', `default { state_entry() { integer timer = 1; } }`],
+    ['function', `listen() {} default { state_entry() {} }`],
+    ['state', `default { state_entry() {} } state link_message { state_entry() {} }`],
+    ['label', `default { state_entry() { @state_entry; } }`],
+    ['jump target', `default { state_entry() { jump touch_start; } }`],
+  ]
+
+  it.each(cases)('rejects an event name as a %s name', (_what, source) => {
+    const { diagnostics } = parse(source, 'inline.lsl')
+    expect(diagnostics.length).toBeGreaterThan(0)
+    expect(diagnostics[0]!.message).toMatch(/is an event name/)
+  })
+
+  it('still accepts names that merely contain an event name', () => {
+    const { diagnostics } = parse(
+      `integer attached = 2; default { state_entry() { integer timers = attached; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+  })
+})

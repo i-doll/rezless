@@ -1,4 +1,5 @@
 import { lex } from './lexer.js'
+import { EVENT_NAMES } from './generated/event-names.js'
 import type { Token, TokenKind } from './lexer.js'
 import type { Diagnostic, SourceLocation } from './diagnostics.js'
 import type {
@@ -116,7 +117,7 @@ class Parser {
     } else {
       startLoc = this.peek().loc
     }
-    const name = this.expect('identifier', 'expected function name')
+    const name = this.expectName('expected function name')
     if (!name) return null
     if (!this.expect('lparen', "expected '(' after function name")) return null
     const params: Param[] = []
@@ -150,7 +151,7 @@ class Parser {
   private parseGlobalVariable(): GlobalVariable | null {
     const t = this.expectKeyword(TYPE_KEYWORDS as Set<string>, 'expected global variable type')
     if (!t) return null
-    const name = this.expect('identifier', 'expected global variable name')
+    const name = this.expectName('expected global variable name')
     if (!name) return null
     let init: Expression | null = null
     if (this.checkOp('=')) {
@@ -179,7 +180,7 @@ class Parser {
       this.advance()
     } else if (tok.kind === 'keyword' && tok.text === 'state') {
       this.advance()
-      const id = this.expect('identifier', 'expected state name after `state`')
+      const id = this.expectName('expected state name after `state`')
       if (!id) return null
       name = id.text
       nameLoc = id.loc
@@ -239,7 +240,7 @@ class Parser {
       return null
     }
     this.advance()
-    const name = this.expect('identifier', 'expected parameter name')
+    const name = this.expectName('expected parameter name')
     if (!name) return null
     return { kind: 'Param', loc: t.loc, typeName: t.text as TypeName, name: name.text }
   }
@@ -305,7 +306,7 @@ class Parser {
 
   private parseVariableDeclaration(): VariableDeclaration | null {
     const t = this.advance() // type keyword
-    const name = this.expect('identifier', 'expected variable name')
+    const name = this.expectName('expected variable name')
     if (!name) return null
     let init: Expression | null = null
     if (this.checkOp('=')) {
@@ -419,7 +420,7 @@ class Parser {
 
   private parseJump(): JumpStatement | null {
     const start = this.advance() // 'jump'
-    const id = this.expect('identifier', "expected label name after 'jump'")
+    const id = this.expectName("expected label name after 'jump'")
     if (!id) return null
     if (!this.expect('semi', "expected ';' after jump statement")) return null
     return { kind: 'JumpStatement', loc: start.loc, label: id.text }
@@ -427,7 +428,7 @@ class Parser {
 
   private parseLabel(): LabelStatement | null {
     const start = this.advance() // '@'
-    const id = this.expect('identifier', "expected label name after '@'")
+    const id = this.expectName("expected label name after '@'")
     if (!id) return null
     if (!this.expect('semi', "expected ';' after label declaration")) return null
     return { kind: 'LabelStatement', loc: start.loc, name: id.text }
@@ -739,6 +740,16 @@ class Parser {
     }
     this.diag(`${message} (got '${t.text}')`, t.loc)
     return null
+  }
+
+  /** Expect an identifier used as a name. LSL reserves event names, so they are rejected. */
+  private expectName(message: string): Token | null {
+    const t = this.expect('identifier', message)
+    if (t && EVENT_NAMES.has(t.text)) {
+      this.diag(`'${t.text}' is an event name and cannot be used as a name`, t.loc)
+      return null
+    }
+    return t
   }
 
   private expectOp(text: string, message: string): Token | null {
