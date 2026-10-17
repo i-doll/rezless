@@ -53,6 +53,9 @@ const KEYWORDS = new Set([
   'for',
   'return',
   'jump',
+  'print',
+  // reserved, never valid as a name
+  'event',
 ])
 
 const PUNCT_MAP: Record<string, TokenKind> = {

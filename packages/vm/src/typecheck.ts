@@ -431,6 +431,8 @@ class Checker {
         if (t !== 'unknown' && !isNum(t)) this.mismatch(e, `'${e.operator}' not defined for ${t}`)
         return t
       }
+      case 'PrintExpression':
+        return this.expr(e.argument)
     }
   }
 

@@ -155,6 +155,7 @@ export type Expression =
   | CastExpression
   | MemberExpression
   | UpdateExpression
+  | PrintExpression
 
 export interface IntegerLiteral extends Node {
   readonly kind: 'IntegerLiteral'
@@ -266,5 +267,11 @@ export interface UpdateExpression extends Node {
   readonly kind: 'UpdateExpression'
   readonly operator: UpdateOp
   readonly prefix: boolean
+  readonly argument: Expression
+}
+
+/** `print(expr)`: evaluates `expr` and takes its value. */
+export interface PrintExpression extends Node {
+  readonly kind: 'PrintExpression'
   readonly argument: Expression
 }

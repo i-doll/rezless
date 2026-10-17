@@ -680,6 +680,14 @@ class Parser {
       }
       return { kind: 'Identifier', loc: t.loc, name: t.text }
     }
+    if (t.kind === 'keyword' && t.text === 'print') {
+      this.advance()
+      if (!this.expect('lparen', "expected '(' after 'print'")) return null
+      const argument = this.parseExpression()
+      if (!argument) return null
+      if (!this.expect('rparen', "expected ')' after print argument")) return null
+      return { kind: 'PrintExpression', loc: t.loc, argument }
+    }
     if (t.kind === 'lparen') {
       this.advance()
       const inner = this.parseExpression()
