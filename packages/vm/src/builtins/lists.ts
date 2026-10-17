@@ -2,6 +2,7 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, toInt32 } from '../values/types.js'
 import { formatList } from '../values/format.js'
+import { concatLists, listElementType, sliceList } from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
 export const llGetListLength: BuiltinImpl = (_ctx, args) => {
@@ -111,8 +112,8 @@ export const llList2List: BuiltinImpl = (_ctx, args) => {
   else start = Math.min(len - 1, start)
   if (end < 0) end = Math.max(0, len + end)
   else end = Math.min(len - 1, end)
-  if (start <= end) return src.slice(start, end + 1)
-  return [...src.slice(0, end + 1), ...src.slice(start)]
+  if (start <= end) return sliceList(src, start, end + 1)
+  return concatLists(sliceList(src, 0, end + 1), sliceList(src, start))
 }
 
 /**
@@ -129,8 +130,8 @@ export const llDeleteSubList: BuiltinImpl = (_ctx, args) => {
   else start = Math.min(len - 1, start)
   if (end < 0) end = Math.max(0, len + end)
   else end = Math.min(len - 1, end)
-  if (start <= end) return [...src.slice(0, start), ...src.slice(end + 1)]
-  return src.slice(end + 1, start)
+  if (start <= end) return concatLists(sliceList(src, 0, start), sliceList(src, end + 1))
+  return sliceList(src, end + 1, start)
 }
 
 /** llListInsertList(list dst, list src, integer pos) — inserts src at pos. */
@@ -140,7 +141,7 @@ export const llListInsertList: BuiltinImpl = (_ctx, args) => {
   let pos = (args[2] as number | undefined) ?? 0
   if (pos < 0) pos = Math.max(0, dst.length + pos)
   pos = Math.min(dst.length, pos)
-  return [...dst.slice(0, pos), ...src, ...dst.slice(pos)]
+  return concatLists(sliceList(dst, 0, pos), src, sliceList(dst, pos))
 }
 
 /**
@@ -157,15 +158,16 @@ export const llListReplaceList: BuiltinImpl = (_ctx, args) => {
   else start = Math.min(len, start)
   if (end < 0) end = Math.max(0, len + end)
   else end = Math.min(len - 1, end)
-  if (start <= end) return [...dst.slice(0, start), ...src, ...dst.slice(end + 1)]
+  if (start <= end) return concatLists(sliceList(dst, 0, start), src, sliceList(dst, end + 1))
   // wrapped — match LSL: replaces [0..end] and [start..end-of-list] both
-  return [...src, ...dst.slice(end + 1, start)]
+  return concatLists(src, sliceList(dst, end + 1, start))
 }
 
 /**
  * llListFindList(list src, list test) — index of first occurrence of `test`
  * as a contiguous subsequence in `src`, or -1. Empty `test` returns 0
- * (per LSL).
+ * (per LSL). Elements must match in type as well as value, so a key never
+ * matches a string with the same text.
  */
 export const llListFindList: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
@@ -173,9 +175,10 @@ export const llListFindList: BuiltinImpl = (_ctx, args) => {
   if (test.length === 0) return 0
   outer: for (let i = 0; i <= src.length - test.length; i++) {
     for (let j = 0; j < test.length; j++) {
-      const a = src[i + j]
-      const b = test[j]
-      if (!lslElementsEqual(a, b)) continue outer
+      const ta = listElementType(src, i + j)
+      const tb = listElementType(test, j)
+      if (ta && tb && ta !== tb) continue outer
+      if (!lslElementsEqual(src[i + j], test[j])) continue outer
     }
     return i
   }

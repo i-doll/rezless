@@ -1,6 +1,7 @@
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './types.js'
 import { isVector, isRotation, toInt32, vec, rot, NULL_KEY } from './types.js'
 import { coerce, stringify } from './coerce.js'
+import { concatLists, typedList } from './list-types.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -225,9 +226,9 @@ function opAdd(a: EvalResult, b: EvalResult): EvalResult {
   }
   // List concat / append / prepend
   if (a.type === 'list' || b.type === 'list') {
-    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : [a.value]
-    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : [b.value]
-    return { type: 'list', value: [...left, ...right] }
+    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : typedList([a.value], [a.type])
+    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : typedList([b.value], [b.type])
+    return { type: 'list', value: concatLists(left, right) }
   }
   // Vector / rotation
   if (isVector(a.value) && isVector(b.value)) {
