@@ -313,6 +313,28 @@ describe('parser — cast operands', () => {
   })
 })
 
+describe('parser — quaternion is another name for rotation', () => {
+  it('accepts quaternion wherever a type name goes and reads it as rotation', () => {
+    const { script, diagnostics } = parse(
+      `quaternion g;
+       quaternion f(quaternion p) { return p; }
+       default { state_entry() { quaternion q = (quaternion)"<0,0,0,1>"; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+    expect(script.globals[0]).toMatchObject({ typeName: 'rotation', name: 'g' })
+    expect(script.functions[0]).toMatchObject({
+      returnType: 'rotation',
+      params: [{ typeName: 'rotation', name: 'p' }],
+    })
+    expect(script.states[0]!.handlers[0]!.body.body[0]).toMatchObject({
+      kind: 'VariableDeclaration',
+      typeName: 'rotation',
+      init: { kind: 'CastExpression', targetType: 'rotation' },
+    })
+  })
+})
+
 describe('parser — event names are reserved', () => {
   const cases: Array<[string, string]> = [
     ['global variable', `integer attach = 2; default { state_entry() {} }`],

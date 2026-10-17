@@ -32,15 +32,21 @@ import type {
   LabelStatement,
 } from './ast.js'
 
-const TYPE_KEYWORDS = new Set<TypeName>([
+const TYPE_KEYWORDS = new Set<string>([
   'integer',
   'float',
   'string',
   'key',
   'vector',
   'rotation',
+  'quaternion',
   'list',
 ])
+
+/** The type a type keyword names. `quaternion` is another name for `rotation`. */
+function typeName(t: Token): TypeName {
+  return t.text === 'quaternion' ? 'rotation' : (t.text as TypeName)
+}
 
 const ASSIGN_OPS = new Set<AssignmentOp>(['=', '+=', '-=', '*=', '/=', '%='])
 
@@ -83,7 +89,7 @@ class Parser {
   private parseTopLevel(): GlobalVariable | FunctionDeclaration | State | null {
     const t = this.peek()
     // typed → either function or global var
-    if (t.kind === 'keyword' && TYPE_KEYWORDS.has(t.text as TypeName)) {
+    if (t.kind === 'keyword' && TYPE_KEYWORDS.has(t.text)) {
       const next = this.tokens[this.pos + 2]
       if (next && next.kind === 'lparen') {
         return this.parseFunctionDeclaration()
@@ -112,7 +118,7 @@ class Parser {
     let startLoc: SourceLocation
     if (this.atTypeKeyword()) {
       const t = this.advance()
-      returnType = t.text as TypeName
+      returnType = typeName(t)
       startLoc = t.loc
     } else {
       startLoc = this.peek().loc
@@ -149,7 +155,7 @@ class Parser {
   // ---- Top level ----
 
   private parseGlobalVariable(): GlobalVariable | null {
-    const t = this.expectKeyword(TYPE_KEYWORDS as Set<string>, 'expected global variable type')
+    const t = this.expectKeyword(TYPE_KEYWORDS, 'expected global variable type')
     if (!t) return null
     const name = this.expectName('expected global variable name')
     if (!name) return null
@@ -164,7 +170,7 @@ class Parser {
     return {
       kind: 'GlobalVariable',
       loc: t.loc,
-      typeName: t.text as TypeName,
+      typeName: typeName(t),
       name: name.text,
       init,
     }
@@ -235,14 +241,14 @@ class Parser {
 
   private parseParam(): Param | null {
     const t = this.peek()
-    if (t.kind !== 'keyword' || !TYPE_KEYWORDS.has(t.text as TypeName)) {
+    if (t.kind !== 'keyword' || !TYPE_KEYWORDS.has(t.text)) {
       this.diag(`expected parameter type, got '${t.text}'`, t.loc)
       return null
     }
     this.advance()
     const name = this.expectName('expected parameter name')
     if (!name) return null
-    return { kind: 'Param', loc: t.loc, typeName: t.text as TypeName, name: name.text }
+    return { kind: 'Param', loc: t.loc, typeName: typeName(t), name: name.text }
   }
 
   // ---- Statements ----
@@ -319,7 +325,7 @@ class Parser {
     return {
       kind: 'VariableDeclaration',
       loc: t.loc,
-      typeName: t.text as TypeName,
+      typeName: typeName(t),
       name: name.text,
       init,
     }
@@ -538,7 +544,7 @@ class Parser {
       return {
         kind: 'CastExpression',
         loc: start.loc,
-        targetType: ty.text as TypeName,
+        targetType: typeName(ty),
         argument: arg,
       }
     }
@@ -551,7 +557,7 @@ class Parser {
     return (
       this.check('lparen') &&
       next?.kind === 'keyword' &&
-      TYPE_KEYWORDS.has(next.text as TypeName) &&
+      TYPE_KEYWORDS.has(next.text) &&
       this.tokens[this.pos + 2]?.kind === 'rparen'
     )
   }
@@ -751,7 +757,7 @@ class Parser {
 
   private atTypeKeyword(): boolean {
     const t = this.peek()
-    return t.kind === 'keyword' && TYPE_KEYWORDS.has(t.text as TypeName)
+    return t.kind === 'keyword' && TYPE_KEYWORDS.has(t.text)
   }
 
   private expect(kind: TokenKind, message: string): Token | null {
@@ -798,7 +804,7 @@ class Parser {
       const t = this.peek()
       if (
         t.kind === 'keyword' &&
-        (t.text === 'default' || t.text === 'state' || TYPE_KEYWORDS.has(t.text as TypeName))
+        (t.text === 'default' || t.text === 'state' || TYPE_KEYWORDS.has(t.text))
       )
         return
       this.advance()
