@@ -20,7 +20,7 @@ export class LslParseError extends Error {
     const detail = first
       ? `${first.filename}:${first.loc.line}:${first.loc.col}: ${first.message}`
       : 'unknown parse error'
-    super(`LSL parse error: ${detail}`)
+    super(`LSL compile error: ${detail}`)
     this.name = 'LslParseError'
   }
 }

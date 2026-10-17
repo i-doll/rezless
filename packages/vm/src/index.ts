@@ -1,4 +1,5 @@
 export { Script } from './script.js'
+export { typecheck } from './typecheck.js'
 export type { ScriptOptions } from './script.js'
 export { CoverageCollector, buildCoveragePlan, mergeReports } from './coverage.js'
 export type {

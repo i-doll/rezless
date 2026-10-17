@@ -72,6 +72,14 @@ describe('Phase 2 — LSL quirks', () => {
     expect(s.global('b')).toBe(1)
   })
 
+  it('logical ! is integer-only (SL rejects !key with "Type mismatch")', async () => {
+    for (const decl of ['key v = NULL_KEY;', 'float v = 1.0;', 'string v = "";']) {
+      await expect(
+        loadScript({ source: `default { state_entry() { ${decl} integer r = !v; } }` }),
+      ).rejects.toThrow(/Type mismatch/)
+    }
+  })
+
   it('compound assignment to vector member preserves other components', async () => {
     const s = await run(`
       vector v = <1, 2, 3>;

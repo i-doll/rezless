@@ -54,11 +54,10 @@ describe('Phase 2 — multi-state and state transitions', () => {
     expect(s).toBeInState('default')
   })
 
-  it('throws on transition to unknown state', async () => {
-    const s = await loadScript({
-      source: `default { state_entry() { state nope; } }`,
-    })
-    expect(() => s.start()).toThrow(/unknown state 'nope'/)
+  it('rejects a transition to an unknown state at load time', async () => {
+    await expect(
+      loadScript({ source: `default { state_entry() { state nope; } }` }),
+    ).rejects.toThrow(/Name not defined within scope: state nope/)
   })
 })
 
@@ -114,23 +113,23 @@ describe('Phase 2 — jump and labels', () => {
   })
 
   it('genuine duplicate declarations in the same block are still rejected', async () => {
-    const s = await loadScript({
-      source: `
-        default {
-          state_entry() {
-            integer x = 1;
-            integer x = 2;
+    await expect(
+      loadScript({
+        source: `
+          default {
+            state_entry() {
+              integer x = 1;
+              integer x = 2;
+            }
           }
-        }
-      `,
-    })
-    expect(() => s.start()).toThrow(/duplicate declaration of 'x' in block/)
+        `,
+      }),
+    ).rejects.toThrow(/Name previously declared within scope: x/)
   })
 
-  it('jump to a label that does not exist in the function throws clearly', async () => {
-    // Without the catch in callUserFunction, the JumpSignal would escape
-    // the function and could land on a same-named label in the caller.
-    const s = await loadScript({
+  it('rejects a jump to a label in another function at load time', async () => {
+    // Labels are local: `done` in state_entry isn't visible from skip_ahead.
+    const load = loadScript({
       source: `
         integer x = 0;
         skip_ahead() { jump done; }
@@ -145,7 +144,7 @@ describe('Phase 2 — jump and labels', () => {
         }
       `,
     })
-    expect(() => s.start()).toThrow(/jump to undefined label 'done' in function 'skip_ahead'/)
+    await expect(load).rejects.toThrow(/Name not defined within scope: label done/)
   })
 })
 

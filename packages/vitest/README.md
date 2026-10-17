@@ -93,7 +93,7 @@ await loadScript({
 })
 ```
 
-Parse errors throw `LslParseError` with `file:line:col` location info.
+Parse errors and type errors SL would refuse to compile (such as `!` on a key) throw `LslParseError` with `file:line:col` location info.
 
 ### `Script` handle
 
