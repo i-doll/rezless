@@ -630,6 +630,63 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('out')).toEqual(expected)
   })
 
+  it('llGetListEntryType returns each element type, and TYPE_INVALID out of range', async () => {
+    const s = await run(`
+      list out = [];
+      default {
+        state_entry() {
+          list l = [1, 1.0, "a", (key)"a", <1, 2, 3>, <0, 0, 0, 1>];
+          integer i;
+          for (i = 0; i < 6; ++i) out += llGetListEntryType(l, i);
+          out += [llGetListEntryType(l, -1), llGetListEntryType(l, 6), llGetListEntryType([], 0)];
+        }
+      }
+    `)
+    expect(s.global('out')).toEqual([1, 2, 3, 4, 5, 6, 6, 0, 0])
+  })
+
+  // Every case was checked in Second Life. The second column gives each
+  // element's type, since llList2CSV prints keys and strings the same.
+  it.each([
+    ['[2, "a", 1.0, 1], 1, TRUE', '1, a, 1.000000, 2', 'isfi'],
+    ['[2, "a", 1.0, 1], 1, FALSE', '1, 1.000000, a, 2', 'ifsi'],
+    ['[2, "b", 0.5, 1, "a", 1.5], 1, TRUE', '1, a, 0.500000, 2, b, 1.500000', 'isfisf'],
+    ['[2, "b", 0.5, 1, "a", 1.5], 1, FALSE', '1.500000, a, 1, 0.500000, b, 2', 'fsifsi'],
+    ['[3, 1, 2], 1, 2', '3, 2, 1', 'iii'],
+    ['[3, 1, 2], 1, -1', '3, 2, 1', 'iii'],
+    ['["b", 1, "a", 2, 3, 0], 2, TRUE', 'a, 2, b, 1, 3, 0', 'sisiii'],
+    ['["b", 1, "a", 2, 3, 0], 2, FALSE', '3, 0, b, 1, a, 2', 'iisisi'],
+    [
+      '[<0,0,0,1>, 2, <1,0,0,0>, 1], 1, TRUE',
+      '<0.000000, 0.000000, 0.000000, 1.000000>, 1, <1.000000, 0.000000, 0.000000, 0.000000>, 2',
+      'riri',
+    ],
+    [
+      '[<0,0,0,1>, 2, <1,0,0,0>, 1], 1, FALSE',
+      '1, <1.000000, 0.000000, 0.000000, 0.000000>, 2, <0.000000, 0.000000, 0.000000, 1.000000>',
+      'irir',
+    ],
+    ['[(key)"b", "a", (key)"a", "b"], 1, TRUE', 'a, a, b, b', 'ksks'],
+  ])('llListSort(%s) orders mixed types like Second Life', async (args, csv, types) => {
+    const s = await run(`
+      string csv;
+      string types;
+      default {
+        state_entry() {
+          list out = llListSort(${args});
+          csv = llList2CSV(out);
+          integer i;
+          for (i = 0; i < llGetListLength(out); ++i) {
+            integer t = llGetListEntryType(out, i);
+            types += llGetSubString("?ifskvr", t, t);
+          }
+        }
+      }
+    `)
+    expect(s.global('csv')).toBe(csv)
+    expect(s.global('types')).toBe(types)
+  })
+
   it('llListSort only compares elements of the same type', async () => {
     const s = await run(`
       list out = [];
