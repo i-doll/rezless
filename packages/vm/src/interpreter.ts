@@ -25,7 +25,7 @@ import type { BuiltinImpl, ScriptState } from './runtime.js'
 import type { FunctionSignature, Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
-import { defaultEvalFor, isVector, isRotation } from './values/types.js'
+import { defaultEvalFor, isVector, isRotation, toFloat32Value } from './values/types.js'
 import { coerce } from './values/coerce.js'
 import { typedList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
@@ -458,11 +458,17 @@ function evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Eval
     return callUserFunction(ctx, userFn, evalArgs)
   }
   // Builtin (real, generated stub, or user-mocked).
-  const rawArgs: LslValue[] = evalArgs.map((r) => r.value)
+  const spec = specFor(call.callee)
+  const declared = own(ctx.functions, call.callee)
+  // An integer passed for a float parameter becomes a 32-bit float before the call.
+  const rawArgs: LslValue[] = evalArgs.map((r, i) =>
+    r.type === 'integer' && (spec?.params[i]?.type ?? declared?.params?.[i]) === 'float'
+      ? coerce(r, 'float').value
+      : r.value,
+  )
   const result = callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
-  const returnType = (specFor(call.callee)?.returnType ??
-    own(ctx.functions, call.callee)?.returns ??
-    'void') as LslType
+  const returnType = (spec?.returnType ?? declared?.returns ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }
-  return { type: returnType, value: result ?? defaultEvalFor(returnType).value }
+  // Builtins and mocks compute in doubles.
+  return { type: returnType, value: toFloat32Value(result ?? defaultEvalFor(returnType).value, returnType) }
 }

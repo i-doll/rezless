@@ -436,6 +436,123 @@ describe('Phase 2 — lists', () => {
   })
 })
 
+describe('32-bit floats', () => {
+  it('rounds float arithmetic and int → float promotion to 32 bits', async () => {
+    const s = await run(`
+      integer bigSum = 0;
+      integer promoted = 0;
+      integer tenths = 0;
+      integer mixed = 0;
+      default {
+        state_entry() {
+          float a = 16777216.0;
+          float b = a + 1.0;
+          integer i = 16777217;
+          float c = i;
+          bigSum = b == a;
+          promoted = c == a;
+          tenths = 0.1 + 0.2 == 0.3;
+          mixed = 16777217 * 1.0 == a;
+        }
+      }
+    `)
+    expect(s.global('bigSum')).toBe(1)
+    expect(s.global('promoted')).toBe(1)
+    expect(s.global('tenths')).toBe(1)
+    expect(s.global('mixed')).toBe(1)
+  })
+
+  it('rounds vector and rotation arithmetic to 32 bits', async () => {
+    const s = await run(`
+      vector v = ZERO_VECTOR;
+      rotation r = ZERO_ROTATION;
+      float dot = 0;
+      default {
+        state_entry() {
+          v = <0.1, 0.2, 16777216.0> + <0.2, 0.1, 1.0>;
+          r = <0.1, 0.2, 0.3, 0.4> + <0.2, 0.1, 0.0, 0.0>;
+          dot = <0.1, 0.2, 0.3> * <0.3, 0.2, 0.1>;
+        }
+      }
+    `)
+    expect(s.global('v')).toEqual({ x: Math.fround(0.3), y: Math.fround(0.3), z: 16777216 })
+    expect(s.global('r')).toMatchObject({ x: Math.fround(0.3), y: Math.fround(0.3) })
+    expect(Math.fround(s.global('dot') as number)).toBe(s.global('dot'))
+  })
+
+  it('rounds floats parsed from strings and returned by builtins to 32 bits', async () => {
+    const s = await run(`
+      float parsed = 0;
+      vector pv = ZERO_VECTOR;
+      float fromList = 0;
+      float root = 0;
+      default {
+        state_entry() {
+          parsed = (float)"0.1";
+          pv = (vector)"<0.1, 0.2, 0.3>";
+          fromList = llList2Float(["0.1"], 0);
+          root = llSqrt(2.0);
+        }
+      }
+    `)
+    expect(s.global('parsed')).toBe(Math.fround(0.1))
+    expect(s.global('pv')).toEqual({ x: Math.fround(0.1), y: Math.fround(0.2), z: Math.fround(0.3) })
+    expect(s.global('fromList')).toBe(Math.fround(0.1))
+    expect(s.global('root')).toBe(Math.fround(Math.SQRT2))
+  })
+
+  it('promotes integer arguments and vector scalars to 32-bit floats first', async () => {
+    const s = await run(`
+      float sine = 0;
+      vector scaled = ZERO_VECTOR;
+      vector divided = ZERO_VECTOR;
+      default {
+        state_entry() {
+          sine = llSin(16777217);
+          scaled = <0.1, 0, 0> * 16777217;
+          divided = <1, 0, 0> / 16777217;
+        }
+      }
+    `)
+    expect(s.global('sine')).toBe(Math.fround(Math.sin(16777216)))
+    expect((s.global('scaled') as { x: number }).x).toBe(Math.fround(Math.fround(0.1) * 16777216))
+    expect((s.global('divided') as { x: number }).x).toBe(Math.fround(1 / 16777216))
+  })
+
+  it('rounds float constants, global vector literals and mixed equality to 32 bits', async () => {
+    const s = await run(`
+      vector gv = <16777217, 0.1, 0>;
+      rotation gr = <16777217, 0, 0, 1>;
+      float pi = 0;
+      integer same = 0;
+      integer differ = 1;
+      integer localSame = 0;
+      default {
+        state_entry() {
+          pi = PI;
+          same = 16777217 == 16777216.0;
+          differ = 16777217 != 16777216.0;
+          localSame = gv == <16777217, 0.1, 0>;
+        }
+      }
+    `)
+    expect(s.global('gv')).toEqual({ x: 16777216, y: Math.fround(0.1), z: 0 })
+    expect(s.global('gr')).toMatchObject({ x: 16777216 })
+    expect(s.global('pi')).toBe(Math.fround(3.14159265))
+    expect(s.global('same')).toBe(1)
+    expect(s.global('differ')).toBe(0)
+    expect(s.global('localSame')).toBe(1)
+  })
+
+  it('keeps a parsed float too large for 32 bits as infinity', async () => {
+    const s = await run(`
+      float f = 0;
+      default { state_entry() { f = (float)"3.403e38"; } }
+    `)
+    expect(s.global('f')).toBe(Infinity)
+  })
+})
+
 describe('print', () => {
   it('evaluates its argument and takes its value', async () => {
     const s = await run(`

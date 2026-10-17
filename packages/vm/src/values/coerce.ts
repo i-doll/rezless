@@ -1,5 +1,5 @@
 import type { EvalResult, LslType, LslValue } from './types.js'
-import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32 } from './types.js'
+import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32, toFloat32 } from './types.js'
 import { formatFloat, formatList, formatVector, formatRotation } from './format.js'
 import { typedList } from './list-types.js'
 
@@ -27,7 +27,7 @@ export function coerce(from: EvalResult, target: LslType): EvalResult {
       throw typeError(from, target)
     }
     case 'float': {
-      if (typeof v === 'number') return { type: 'float', value: v }
+      if (typeof v === 'number') return { type: 'float', value: toFloat32(v) }
       if (typeof v === 'string') return { type: 'float', value: parseLslFloat(v) }
       throw typeError(from, target)
     }
@@ -139,7 +139,8 @@ function parseLslFloat(s: string): number {
   }
   if (i === start) return 0
   const n = Number.parseFloat(s.slice(start, i))
-  return Number.isFinite(n) ? n : 0
+  // A value too large for a 32-bit float rounds to infinity, as in Mono.
+  return Number.isFinite(n) ? toFloat32(n) : 0
 }
 
 function parseLslVector(s: string): { x: number; y: number; z: number } {

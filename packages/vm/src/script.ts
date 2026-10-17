@@ -19,7 +19,7 @@ import { execHandler, StateChangeSignal } from './interpreter.js'
 import { buildCoveragePlan, CoverageCollector } from './coverage.js'
 import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
-import { defaultEvalFor } from './values/types.js'
+import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { typedList } from './values/list-types.js'
 import { Env } from './env.js'
 import { ScriptClockView } from './clock.js'
@@ -687,7 +687,7 @@ function literalToEval(
       const y = literalToNumber(env, expr.y)
       const z = literalToNumber(env, expr.z)
       if (x === null || y === null || z === null) return undefined
-      return { type: 'vector', value: { x, y, z } }
+      return { type: 'vector', value: vec(x, y, z) }
     }
     case 'RotationLiteral': {
       const x = literalToNumber(env, expr.x)
@@ -695,7 +695,7 @@ function literalToEval(
       const z = literalToNumber(env, expr.z)
       const s = literalToNumber(env, expr.s)
       if (x === null || y === null || z === null || s === null) return undefined
-      return { type: 'rotation', value: { x, y, z, s } }
+      return { type: 'rotation', value: rot(x, y, z, s) }
     }
     case 'ListLiteral': {
       const elems: LslValue[] = []
@@ -787,9 +787,10 @@ function inferType(v: LslValue): LslType {
 function buildConstantsEnv(): Env {
   const env = new Env(null)
   for (const [name, entry] of Object.entries(CONSTANT_TABLE)) {
+    // kwdb lists float constants such as PI with more digits than a 32-bit float holds.
     env.declare(name, entry.type as LslType, {
       type: entry.type as LslType,
-      value: entry.value as LslValue,
+      value: toFloat32Value(entry.value as LslValue, entry.type as LslType),
     })
   }
   return env
