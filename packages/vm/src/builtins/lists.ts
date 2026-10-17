@@ -193,23 +193,30 @@ function lslElementsEqual(a: LslValue | undefined, b: LslValue | undefined): boo
   return false
 }
 
+function dumpElement(v: LslValue): string {
+  if (typeof v === 'string') return v
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v | 0) : v.toFixed(6)
+  if (Array.isArray(v)) return formatList(v)
+  if (isVector(v as Vector)) {
+    const u = v as Vector
+    return `<${u.x.toFixed(6)}, ${u.y.toFixed(6)}, ${u.z.toFixed(6)}>`
+  }
+  if (isRotation(v as Rotation)) {
+    const r = v as Rotation
+    return `<${r.x.toFixed(6)}, ${r.y.toFixed(6)}, ${r.z.toFixed(6)}, ${r.s.toFixed(6)}>`
+  }
+  return ''
+}
+
 export const llDumpList2String: BuiltinImpl = (_ctx, args) => {
   const list = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const sep = (args[1] as string | undefined) ?? ''
-  return list.map((v) => {
-    if (typeof v === 'string') return v
-    if (typeof v === 'number') return Number.isInteger(v) ? String(v | 0) : v.toFixed(6)
-    if (Array.isArray(v)) return formatList(v)
-    if (isVector(v as Vector)) {
-      const u = v as Vector
-      return `<${u.x.toFixed(6)}, ${u.y.toFixed(6)}, ${u.z.toFixed(6)}>`
-    }
-    if (isRotation(v as Rotation)) {
-      const r = v as Rotation
-      return `<${r.x.toFixed(6)}, ${r.y.toFixed(6)}, ${r.z.toFixed(6)}, ${r.s.toFixed(6)}>`
-    }
-    return ''
-  }).join(sep)
+  return list.map(dumpElement).join(sep)
+}
+
+export const llList2CSV: BuiltinImpl = (_ctx, args) => {
+  const list = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  return list.map(dumpElement).join(', ')
 }
 
 export const llCSV2List: BuiltinImpl = (_ctx, args) => {

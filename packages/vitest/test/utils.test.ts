@@ -451,6 +451,45 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('out')).toBe('a,b,c')
   })
 
+  it('llList2CSV joins values with a comma and a space, unquoted', async () => {
+    const s = await run(`
+      string empty = "x";
+      string strings = "";
+      string blank = "";
+      string comma = "";
+      string ints = "";
+      string floats = "";
+      string vec = "";
+      string rot = "";
+      string mixed = "";
+      string latin = "";
+      default {
+        state_entry() {
+          empty = llList2CSV([]);
+          strings = llList2CSV(["a", "b", "c"]);
+          blank = llList2CSV(["a", "", "b"]);
+          comma = llList2CSV(["a,b", "c"]);
+          ints = llList2CSV([1, -2, 0]);
+          floats = llList2CSV([0.5, -2.25, 3.14159265]);
+          vec = llList2CSV([<1.0, 2.5, -3.0>]);
+          rot = llList2CSV([<0.0, 0.0, 0.0, 1.0>]);
+          mixed = llList2CSV(["x", 1, 2.5, <1.0, 2.0, 3.0>, <0.0, 0.0, 0.0, 1.0>, (key)"11111111-2222-3333-4444-555555555555"]);
+          latin = llList2CSV(["a¤b", "c£d"]);
+        }
+      }
+    `)
+    expect(s.global('empty')).toBe('')
+    expect(s.global('strings')).toBe('a, b, c')
+    expect(s.global('blank')).toBe('a, , b')
+    expect(s.global('comma')).toBe('a,b, c')
+    expect(s.global('ints')).toBe('1, -2, 0')
+    expect(s.global('floats')).toBe('0.500000, -2.250000, 3.141593')
+    expect(s.global('vec')).toBe('<1.000000, 2.500000, -3.000000>')
+    expect(s.global('rot')).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
+    expect(s.global('mixed')).toBe('x, 1, 2.500000, <1.000000, 2.000000, 3.000000>, <0.000000, 0.000000, 0.000000, 1.000000>, 11111111-2222-3333-4444-555555555555')
+    expect(s.global('latin')).toBe('a¤b, c£d')
+  })
+
   it('llCSV2List splits commas with optional whitespace', async () => {
     const s = await run(`
       list out = [];
