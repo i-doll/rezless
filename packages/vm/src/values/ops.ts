@@ -34,8 +34,9 @@ export function applyUnary(op: '+' | '-' | '!' | '~', arg: EvalResult): EvalResu
       }
       throw new Error(`unary '-' not defined for ${arg.type}`)
     case '!':
-      // LSL: logical not — only valid on integers per the wiki, treat float/key likewise as truthy.
-      return { type: 'integer', value: truthy(arg) ? 0 : 1 }
+      // Logical NOT — integer only; SL's compiler rejects `!key`, `!float`, etc.
+      if (arg.type === 'integer') return { type: 'integer', value: arg.value === 0 ? 1 : 0 }
+      throw new Error(`Type mismatch: unary '!' not defined for ${arg.type}`)
     case '~':
       // Bitwise NOT — integer only.
       if (arg.type === 'integer')
