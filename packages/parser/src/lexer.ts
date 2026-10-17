@@ -152,10 +152,16 @@ export function lex(
       continue
     }
 
-    // String literal — LSL uses double-quoted strings with `\\`, `\"`, `\n`, `\t`
-    if (ch === '"') {
-      advance()
+    // String literal. Second Life turns `\n` into a newline and `\t` into
+    // four spaces, and keeps any other escaped character as-is. An `L`
+    // prefix also makes a string, whose value keeps the opening quote.
+    if (ch === '"' || (ch === 'L' && source[i + 1] === '"')) {
       let value = ''
+      if (ch === 'L') {
+        advance()
+        value = '"'
+      }
+      advance()
       while (i < source.length && source[i] !== '"') {
         const c = source[i]!
         if (c === '\\') {
@@ -163,9 +169,7 @@ export function lex(
           const esc = source[i]
           if (esc === undefined) break
           if (esc === 'n') value += '\n'
-          else if (esc === 't') value += '\t'
-          else if (esc === '\\') value += '\\'
-          else if (esc === '"') value += '"'
+          else if (esc === 't') value += '    '
           else value += esc
           advance()
         } else {
