@@ -230,3 +230,32 @@ describe('parser — error recovery', () => {
     expect(lastStmt.kind).toBe('ExpressionStatement')
   })
 })
+
+describe('parser — unary operators before casts', () => {
+  const firstExpr = (expr: string) => {
+    const { script, diagnostics } = parse(
+      `default { state_entry() { string s = "0"; ${expr}; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+    const stmt = script.states[0]!.handlers[0]!.body.body[1]!
+    if (stmt.kind !== 'ExpressionStatement') throw new Error(stmt.kind)
+    return stmt.expression
+  }
+
+  it.each(['!', '-', '~'])('parses %s(integer)s as a unary over a cast', (op) => {
+    expect(firstExpr(`${op}(integer)s`)).toMatchObject({
+      kind: 'UnaryExpression',
+      operator: op,
+      argument: { kind: 'CastExpression', targetType: 'integer' },
+    })
+  })
+
+  it('parses !(float)s', () => {
+    expect(firstExpr('!(float)s')).toMatchObject({
+      kind: 'UnaryExpression',
+      operator: '!',
+      argument: { kind: 'CastExpression', targetType: 'float' },
+    })
+  })
+})
