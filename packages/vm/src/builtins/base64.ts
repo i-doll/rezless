@@ -19,7 +19,7 @@ export const llBase64ToString: BuiltinImpl = (_ctx, args) => {
 
 /** UTF-8 decode where NUL and each byte of an invalid sequence become `?`. */
 function decodeUtf8Lenient(bytes: Uint8Array): string {
-  const strict = new TextDecoder('utf-8', { fatal: true })
+  const strict = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
   let out = ''
   let i = 0
   while (i < bytes.length) {

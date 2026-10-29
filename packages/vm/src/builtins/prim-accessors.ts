@@ -43,6 +43,7 @@ function targets(linkset: Linkset, sender: number, link: number): Prim[] {
 /*  Position / rotation / scale                                        */
 /* ------------------------------------------------------------------ */
 
+/** How far an unattached root prim moves per llSetPos call; child prims are not capped. */
 const MAX_SET_POS_DISTANCE = 10
 
 export const llSetPos: BuiltinImpl = (ctx, args) => {
@@ -50,7 +51,8 @@ export const llSetPos: BuiltinImpl = (ctx, args) => {
   const from = ctx.prim.params.position
   const dx = target.x - from.x, dy = target.y - from.y, dz = target.z - from.z
   const dist = Math.hypot(dx, dy, dz)
-  const k = dist > MAX_SET_POS_DISTANCE ? MAX_SET_POS_DISTANCE / dist : 1
+  const isChild = ctx.prim.linkNumber > 1
+  const k = !isChild && dist > MAX_SET_POS_DISTANCE ? MAX_SET_POS_DISTANCE / dist : 1
   ctx.prim.setPrimParam(PRIM_POSITION, [{ x: from.x + dx * k, y: from.y + dy * k, z: from.z + dz * k }], 0)
   return undefined
 }

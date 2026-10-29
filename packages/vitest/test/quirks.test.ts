@@ -468,8 +468,9 @@ describe('SL parity — rotations in lists', () => {
 describe('llBase64ToString replacement characters', () => {
   it('keeps a real U+FFFD and replaces only invalid bytes and NUL', async () => {
     const replacement = String.fromCodePoint(0xfffd)
+    const bom = String.fromCodePoint(0xfeff)
     const s = await run(`
-      string kept; string invalid; string nul; string badTail; string cutShort;
+      string kept; string invalid; string nul; string badTail; string cutShort; string bom;
       default {
         state_entry() {
           kept = llBase64ToString(llStringToBase64("a${replacement}b"));
@@ -477,6 +478,7 @@ describe('llBase64ToString replacement characters', () => {
           nul = llBase64ToString("YQBi");
           badTail = llBase64ToString("w0E=");
           cutShort = llBase64ToString("ww==");
+          bom = llBase64ToString(llStringToBase64("a${bom}b"));
         }
       }
     `)
@@ -487,5 +489,6 @@ describe('llBase64ToString replacement characters', () => {
     // follows the measured single-byte rule, one ? per invalid byte.
     expect(s.global('badTail')).toBe('?A')
     expect(s.global('cutShort')).toBe('?')
+    expect(s.global('bom')).toBe(`a${bom}b`)
   })
 })

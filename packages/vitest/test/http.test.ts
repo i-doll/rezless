@@ -270,3 +270,101 @@ describe('llHTTPRequest errors, throttle and truncation', () => {
     expect(scripts['sib']!.global('got')).toBe('pong')
   })
 })
+
+function extendedErrorBody(status: number, title: string, detail: string): string {
+  return (
+    '{\n' +
+    `   "detail" : "${detail}",\n` +
+    `   "status" : ${status},\n` +
+    `   "title" : "${title}",\n` +
+    '   "type" : "http://wiki.secondlife.com/wiki/llHTTPRequest"\n' +
+    '}\n'
+  )
+}
+
+// Measured in Second Life, 2026-10-30.
+describe('llHTTPRequest methods and HTTP_EXTENDED_ERROR', () => {
+  it('accepts GET POST PUT DELETE PATCH HEAD and rejects anything else', async () => {
+    const s = await load(`
+      list keys;
+      default {
+        state_entry() {
+          list methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "get", "BREW"];
+          integer i;
+          for (i = 0; i < llGetListLength(methods); i++)
+            keys += llHTTPRequest("https://example.test/", [HTTP_METHOD, llList2String(methods, i)], "");
+        }
+      }
+    `)
+    s.start()
+    const keys = s.global('keys') as string[]
+    expect(keys.slice(0, 6).every((k) => UUID.test(k) && k !== NULL_KEY)).toBe(true)
+    expect(keys.slice(6)).toEqual([NULL_KEY, NULL_KEY, NULL_KEY])
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual([
+      'HTTP method OPTIONS is unsupported',
+      'HTTP method get is unsupported',
+      'HTTP method BREW is unsupported',
+    ])
+  })
+
+  it('turns each rejection into a key and an http_response error', async () => {
+    const s = await load(`
+      list EXT = [HTTP_EXTENDED_ERROR, TRUE];
+      list keys;
+      list got;
+      default {
+        state_entry() {
+          keys += llHTTPRequest("notaurl", EXT, "");
+          keys += llHTTPRequest("https://example.test/", EXT + [HTTP_BODY_MAXLENGTH, 20000], "");
+          keys += llHTTPRequest("https://example.test/", EXT + [HTTP_METHOD, "BREW"], "");
+        }
+        http_response(key id, integer status, list meta, string body) {
+          got += [llListFindList(keys, [id]), status, llGetListLength(meta), body];
+        }
+      }
+    `)
+    s.start()
+    const keys = s.global('keys') as string[]
+    expect(keys.every((k) => UUID.test(k) && k !== NULL_KEY)).toBe(true)
+    expect(s.httpRequests).toHaveLength(0)
+    expect(s.global('got')).toEqual([
+      0, 471, 0,
+      extendedErrorBody(471, 'llHTTPRequest URL is invalid.', 'URL passed to llHTTPRequest is not valid'),
+      1, 472, 0,
+      extendedErrorBody(
+        472,
+        'llHTTPRequest parameter error.',
+        'Maximum body length must be in the rage (0, 16384] in position 2',
+      ),
+      2, 405, 0,
+      extendedErrorBody(405, 'Unrecognized HTTP Method.', 'HTTP method BREW is unsupported at position 2.'),
+    ])
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual([
+      'URL passed to llHTTPRequest is not valid',
+      'HTTP_BODY_MAXLENGTH value is invalid',
+      'HTTP method BREW is unsupported',
+    ])
+  })
+
+  it('reports the throttle as status 420, and rejected requests do not count toward it', async () => {
+    const s = await load(`
+      integer throttled; string body;
+      default {
+        state_entry() {
+          integer i;
+          for (i = 0; i < 4; i++) llHTTPRequest("notaurl", [], "");
+          for (i = 0; i < 26; i++) llHTTPRequest("https://example.test/" + (string)i, [HTTP_EXTENDED_ERROR, TRUE], "");
+        }
+        http_response(key id, integer status, list meta, string b) {
+          if (status == 420) { throttled++; body = b; }
+        }
+      }
+    `)
+    s.start()
+    expect(s.httpRequests).toHaveLength(25)
+    expect(s.global('throttled')).toBe(1)
+    expect(s.global('body')).toBe(
+      extendedErrorBody(420, 'llHTTPRequest is throttled.', 'Too many HTTP requests, made too quickly.'),
+    )
+  })
+})

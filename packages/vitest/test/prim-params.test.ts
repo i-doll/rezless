@@ -619,3 +619,29 @@ describe('llGetAlpha(ALL_SIDES) on non-box shapes', () => {
     expect(s.global('sphere')).toBeCloseTo(0.5)
   })
 })
+
+describe('llSetPos 10 m cap', () => {
+  it('applies to the root only; a child moves its local offset freely', async () => {
+    const { scripts } = await loadLinkset({
+      prims: [
+        { scripts: [{ name: 'root', source: { source: 'default { state_entry() { } }' } }] },
+        {
+          scripts: [
+            {
+              name: 'child',
+              source: {
+                source: `
+                  vector local;
+                  default { state_entry() { llSetPos(<20, 0, 0>); local = llGetLocalPos(); } }
+                `,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    scripts.root!.start()
+    scripts.child!.start()
+    expect(scripts.child!.global('local')).toEqual({ x: 20, y: 0, z: 0 })
+  })
+})

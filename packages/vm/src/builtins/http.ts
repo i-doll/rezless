@@ -1,4 +1,4 @@
-import type { BuiltinImpl } from '../runtime.js'
+import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
 import {
@@ -6,6 +6,7 @@ import {
   HTTP_MIMETYPE,
   HTTP_CUSTOM_HEADER,
   HTTP_BODY_MAXLENGTH,
+  HTTP_EXTENDED_ERROR,
 } from '../generated/constants.js'
 import { requestKey } from '../keys.js'
 import { shoutError } from './debug.js'
@@ -16,6 +17,7 @@ const MAX_HTTP_BODY_MAXLENGTH = 16384
 /** Requests allowed per object within HTTP_THROTTLE_WINDOW_MS. */
 const HTTP_THROTTLE_REQUESTS = 25
 const HTTP_THROTTLE_WINDOW_MS = 20_000
+const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'])
 
 /**
  * Captured outgoing HTTP request, exposed via Script.httpRequests so tests
@@ -46,6 +48,10 @@ interface ParsedOptions {
   mimetype: string
   headers: Array<readonly [string, string]>
   bodyMaxLength: number
+  extendedError: boolean
+  /** Index in the options list of the HTTP_METHOD and HTTP_BODY_MAXLENGTH flags, for error text. */
+  methodAt: number
+  bodyMaxLengthAt: number
 }
 
 function parseOptions(raw: ReadonlyArray<LslValue>): ParsedOptions {
@@ -54,6 +60,9 @@ function parseOptions(raw: ReadonlyArray<LslValue>): ParsedOptions {
     mimetype: 'text/plain;charset=utf-8',
     headers: [],
     bodyMaxLength: DEFAULT_HTTP_BODY_MAXLENGTH,
+    extendedError: false,
+    methodAt: -1,
+    bodyMaxLengthAt: -1,
   }
   let i = 0
   while (i < raw.length) {
@@ -65,7 +74,10 @@ function parseOptions(raw: ReadonlyArray<LslValue>): ParsedOptions {
     switch (code) {
       case HTTP_METHOD: {
         const v = raw[i + 1]
-        if (typeof v === 'string') out.method = v
+        if (typeof v === 'string') {
+          out.method = v
+          out.methodAt = i
+        }
         i += 2
         break
       }
@@ -77,7 +89,15 @@ function parseOptions(raw: ReadonlyArray<LslValue>): ParsedOptions {
       }
       case HTTP_BODY_MAXLENGTH: {
         const v = raw[i + 1]
-        if (typeof v === 'number') out.bodyMaxLength = v
+        if (typeof v === 'number') {
+          out.bodyMaxLength = v
+          out.bodyMaxLengthAt = i
+        }
+        i += 2
+        break
+      }
+      case HTTP_EXTENDED_ERROR: {
+        out.extendedError = raw[i + 1] !== 0
         i += 2
         break
       }
@@ -104,33 +124,57 @@ function parseOptions(raw: ReadonlyArray<LslValue>): ParsedOptions {
  *
  * Captures the request into ScriptState.httpRequests and returns a
  * deterministic key. Tests respond via Script.respondToHttp(key, ...),
- * which schedules an http_response event. An invalid URL, an invalid
- * HTTP_BODY_MAXLENGTH, or more than 25 requests per object in 20 seconds
- * returns NULL_KEY and shouts an error.
+ * which schedules an http_response event. An invalid URL, method or
+ * HTTP_BODY_MAXLENGTH, or more than 25 requests per object in 20 seconds,
+ * shouts an error and returns NULL_KEY; with HTTP_EXTENDED_ERROR set it
+ * returns a key and answers with an http_response error instead.
  */
 export const llHTTPRequest: BuiltinImpl = (ctx, args) => {
   const url = (args[0] as string | undefined) ?? ''
   const rawOptions = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const body = (args[2] as string | undefined) ?? ''
-  if (!isValidUrl(url)) {
-    shoutError(ctx, 'URL passed to llHTTPRequest is not valid')
-    return NULL_KEY
-  }
   const parsed = parseOptions(rawOptions)
-  if (parsed.bodyMaxLength > MAX_HTTP_BODY_MAXLENGTH) {
-    shoutError(ctx, 'HTTP_BODY_MAXLENGTH value is invalid')
-    return NULL_KEY
+  const reject = (shout: string, status: number, title: string, detail: string): string => {
+    shoutError(ctx, shout)
+    if (!parsed.extendedError) return NULL_KEY
+    const key = nextKey(ctx)
+    const payload = { request_id: key, status, metadata: [], body: extendedErrorBody(status, title, detail) }
+    for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, ctx.state.clock.now, 'http_response', payload)
+    return key
+  }
+  if (!isValidUrl(url)) {
+    const message = 'URL passed to llHTTPRequest is not valid'
+    return reject(message, 471, 'llHTTPRequest URL is invalid.', message)
+  }
+  if (parsed.bodyMaxLength <= 0 || parsed.bodyMaxLength > MAX_HTTP_BODY_MAXLENGTH) {
+    return reject(
+      'HTTP_BODY_MAXLENGTH value is invalid',
+      472,
+      'llHTTPRequest parameter error.',
+      `Maximum body length must be in the rage (0, ${MAX_HTTP_BODY_MAXLENGTH}] in position ${parsed.bodyMaxLengthAt}`,
+    )
+  }
+  if (!HTTP_METHODS.has(parsed.method)) {
+    return reject(
+      `HTTP method ${parsed.method} is unsupported`,
+      405,
+      'Unrecognized HTTP Method.',
+      `HTTP method ${parsed.method} is unsupported at position ${parsed.methodAt}.`,
+    )
   }
   const now = ctx.state.clock.now
   const recent = ctx.linkset.httpRequestTimes
   while (recent.length > 0 && recent[0]! <= now - HTTP_THROTTLE_WINDOW_MS) recent.shift()
   if (recent.length >= HTTP_THROTTLE_REQUESTS) {
-    shoutError(ctx, 'Too many HTTP requests too fast.')
-    return NULL_KEY
+    return reject(
+      'Too many HTTP requests too fast.',
+      420,
+      'llHTTPRequest is throttled.',
+      'Too many HTTP requests, made too quickly.',
+    )
   }
   recent.push(now)
-  ctx.state.httpKeyCounter += 1
-  const key = requestKey(ctx, 'http', ctx.state.httpKeyCounter)
+  const key = nextKey(ctx)
   ctx.state.httpRequests.push({
     key,
     url,
@@ -143,6 +187,23 @@ export const llHTTPRequest: BuiltinImpl = (ctx, args) => {
     fulfilled: false,
   })
   return key
+}
+
+function nextKey(ctx: CallContext): string {
+  ctx.state.httpKeyCounter += 1
+  return requestKey(ctx, 'http', ctx.state.httpKeyCounter)
+}
+
+/** The JSON body Second Life sends in an HTTP_EXTENDED_ERROR http_response. */
+function extendedErrorBody(status: number, title: string, detail: string): string {
+  return (
+    '{\n' +
+    `   "detail" : ${JSON.stringify(detail)},\n` +
+    `   "status" : ${status},\n` +
+    `   "title" : ${JSON.stringify(title)},\n` +
+    '   "type" : "http://wiki.secondlife.com/wiki/llHTTPRequest"\n' +
+    '}\n'
+  )
 }
 
 function isValidUrl(url: string): boolean {
