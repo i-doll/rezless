@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript, loadLinkset } from '../src/index.js'
+import { loadScript, loadLinkset, PRIM_SIZE, PRIM_TEXT, ZERO_ROTATION } from '../src/index.js'
 
 describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
   it('llSetPrimitiveParams + llGetPrimitiveParams round-trip a single prim', async () => {
@@ -570,5 +570,30 @@ describe('PRIM_GLTF_* overrides', () => {
     s.start()
     expect(s.chat.filter((c) => c.channel === 2147483647)).toEqual([])
     expect(s.global('text')).toBe('after')
+  })
+})
+
+describe('llSetPrimitiveParams rule type errors on untyped lists', () => {
+  // A mock can hand back a plain array with no recorded element types; the
+  // type check then infers each value's type from the value itself.
+  it.each([
+    ['string', [PRIM_SIZE, 'abc'], 'arg #1 vector expected but string given'],
+    ['integer', [PRIM_SIZE, 3], 'arg #1 vector expected but integer given'],
+    ['float', [PRIM_SIZE, 1.5], 'arg #1 vector expected but float given'],
+    ['rotation', [PRIM_SIZE, ZERO_ROTATION], 'arg #1 vector expected but rotation given'],
+    ['vector', [PRIM_TEXT, { x: 1, y: 1, z: 1 }, { x: 1, y: 1, z: 1 }, 1], 'arg #1 string expected but vector given'],
+    ['list', [PRIM_SIZE, []], 'arg #1 vector expected but list given'],
+  ])('reports a %s argument', async (_label, rules, message) => {
+    const s = await loadScript({
+      source: `
+        default {
+          state_entry() { llSetPrimitiveParams(llGetLinkPrimitiveParams(LINK_THIS, [])); }
+        }
+      `,
+    })
+    s.mock('llGetLinkPrimitiveParams', () => rules)
+    s.start()
+    const errors = s.chat.filter((c) => c.channel === 2147483647).map((c) => c.text)
+    expect(errors).toEqual([expect.stringContaining(message)])
   })
 })

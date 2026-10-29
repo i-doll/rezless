@@ -615,11 +615,6 @@ function lslValueToJsonElement(v: LslValue, type?: LslType): string | null {
     return formatFloatExact(v)
   }
   if (typeof v === 'string') return lslStringToJsonElement(v)
-  if (Array.isArray(v)) {
-    const parts: Array<string | null> = v.map((e) => lslValueToJsonElement(e))
-    if (parts.some((p) => p === null)) return null
-    return '[' + parts.join(',') + ']'
-  }
   if (isVector(v as Vector)) return `"${formatVector(v as Vector, 6, formatFloatExact)}"`
   if (isRotation(v as Rotation)) return `"${formatRotation(v as Rotation, 6, formatFloatExact)}"`
   return null

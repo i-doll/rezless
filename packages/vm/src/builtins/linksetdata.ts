@@ -69,7 +69,7 @@ const POSIX_CLASSES: Record<string, string> = {
 }
 
 const UNICODE_CLASSES: Record<string, string> = {
-  L: 'A-Za-z',
+  L: 'a-z',
   Lu: 'A-Z',
   Ll: 'a-z',
   N: '0-9',
@@ -88,6 +88,9 @@ const ESCAPE_CLASSES: Record<string, string> = {
   A: '^',
   z: '$',
 }
+
+/** Escapes that stay a character class inside brackets; any other backslash is a literal. */
+const BRACKET_ESCAPES = new Set(['d', 'D', 'w', 'W', 's', 'S'])
 
 function escapeLiteral(ch: string): string {
   return /[\\^$.*+?()[\]{}|/-]/.test(ch) ? '\\' + ch : ch
@@ -114,11 +117,19 @@ function translateBracket(p: string, i: number): [string, number] | null {
       out += cls
       j = close + 2
     } else if (ch === '[' && (p[j + 1] === '=' || p[j + 1] === '.')) {
-      return null
-    } else if (ch === '\\') {
-      if (j + 1 >= p.length) return null
+      const kind = p[j + 1]!
+      const close = p.indexOf(kind + ']', j + 2)
+      const name = close < 0 ? '' : p.slice(j + 2, close)
+      if ([...name].length !== 1) return null
+      const chars = kind === '=' ? new Set([name.toLowerCase(), name.toUpperCase()]) : new Set([name])
+      out += [...chars].map(escapeLiteral).join('')
+      j = close + 2
+    } else if (ch === '\\' && BRACKET_ESCAPES.has(p[j + 1] ?? '')) {
       out += p.slice(j, j + 2)
       j += 2
+    } else if (ch === '\\') {
+      out += '\\\\'
+      j += 1
     } else {
       out += ch === '[' ? '\\[' : ch
       j += 1
@@ -130,8 +141,9 @@ function translateBracket(p: string, i: number): [string, number] | null {
 
 /**
  * Translates SL's linkset data regex dialect (Boost POSIX-extended with Boost
- * escapes and a leading `(?i)`) into a JS RegExp. Anything SL rejects or does
- * not support, including empty alternatives, returns null so it matches no key.
+ * escapes and a leading `(?i)`) into a JS RegExp. Empty alternatives are
+ * dropped. Anything SL rejects or does not support returns null so it matches
+ * no key.
  */
 function compilePattern(pattern: string): RegExp | null {
   let p = pattern
@@ -141,12 +153,18 @@ function compilePattern(pattern: string): RegExp | null {
     p = p.slice(4)
   }
   let out = ''
-  let depth = 0
+  const groupStarts: number[] = []
   let altEmpty = true
+  let pendingBar = false
   let quantifiable = false
   let i = 0
-  const atom = (s: string, canRepeat = true) => {
+  const emit = (s: string) => {
+    if (pendingBar) out += '|'
+    pendingBar = false
     out += s
+  }
+  const atom = (s: string, canRepeat = true) => {
+    emit(s)
     altEmpty = false
     quantifiable = canRepeat
   }
@@ -206,23 +224,23 @@ function compilePattern(pattern: string): RegExp | null {
     }
     if (ch === '(') {
       if (p[i + 1] === '?') return null
-      out += '('
-      depth += 1
+      emit('(')
+      groupStarts.push(out.length)
       altEmpty = true
       quantifiable = false
       i += 1
       continue
     }
     if (ch === ')') {
-      if (depth === 0 || altEmpty) return null
-      depth -= 1
+      pendingBar = false
+      const start = groupStarts.pop()
+      if (start === undefined || start === out.length) return null
       atom(')')
       i += 1
       continue
     }
     if (ch === '|') {
-      if (altEmpty) return null
-      out += '|'
+      if (!altEmpty) pendingBar = true
       altEmpty = true
       quantifiable = false
       i += 1
@@ -247,7 +265,7 @@ function compilePattern(pattern: string): RegExp | null {
     atom(anchor || ch === '.' ? ch : escapeLiteral(ch), !anchor)
     i += 1
   }
-  if (depth !== 0 || altEmpty) return null
+  if (groupStarts.length !== 0 || out === '') return null
   try {
     return new RegExp(out, flags)
   } catch {

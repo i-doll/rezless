@@ -440,3 +440,27 @@ describe('SL parity — chat', () => {
     expect(s.global('took')).toBeCloseTo(2)
   })
 })
+
+describe('SL parity — rotations in lists', () => {
+  // Measured in Second Life, 2026-10-30.
+  it('format like vectors in each list function', async () => {
+    const s = await run(`
+      string json; string obj; string csv; string dump; string cast;
+      default {
+        state_entry() {
+          rotation r = <123456789.0, 0.1234567, -1.5, 1.0>;
+          json = llList2Json(JSON_ARRAY, [r]);
+          obj = llList2Json(JSON_OBJECT, ["r", <1, 2, 3, 4>]);
+          csv = llList2CSV([r]);
+          dump = llDumpList2String([r], ",");
+          cast = (string)r;
+        }
+      }
+    `)
+    expect(s.global('json')).toBe('["<123456792.000000, 0.123457, -1.500000, 1.000000>"]')
+    expect(s.global('obj')).toBe('{"r":"<1.000000, 2.000000, 3.000000, 4.000000>"}')
+    expect(s.global('csv')).toBe('<123456792.000000, 0.123457, -1.500000, 1.000000>')
+    expect(s.global('dump')).toBe('<123456800.000000, 0.123457, -1.500000, 1.000000>')
+    expect(s.global('cast')).toBe('<123456800.00000, 0.12346, -1.50000, 1.00000>')
+  })
+})

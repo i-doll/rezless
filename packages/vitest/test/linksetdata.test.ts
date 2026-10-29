@@ -512,8 +512,6 @@ const REGEX_KEYS = [
   'a    b', '(paren)', 'back\\slash', '[x]', 'aaa',
 ]
 
-const LETTER_KEYS = REGEX_KEYS.filter((k) => k !== 'é')
-
 // In-world results from /tmp/rzprobe/regex.lsl (main grid, 2026-10-29).
 const REGEX_CASES: Array<[string, string[]]> = [
   ['[[:digit:]]', ['a1', 'z9']],
@@ -534,7 +532,7 @@ const REGEX_CASES: Array<[string, string[]]> = [
   ['\\x{41}', ['ABC']],
   ['\\u0041', []],
   ['\\Aabc\\z', ['abc']],
-  ['\\p{L}', LETTER_KEYS],
+  ['\\p{L}', REGEX_KEYS.filter((k) => /[a-z]/.test(k))],
   ['[[:upper:]]', ['ABC']],
   ['', []],
   ['|', []],
@@ -547,18 +545,54 @@ const REGEX_CASES: Array<[string, string[]]> = [
   ['\\', []],
 ]
 
+const REGEX_KEYS_2 = [...REGEX_KEYS, ']x', 'a]']
+const lower = REGEX_KEYS_2.filter((k) => /[a-z]/.test(k))
+const notOnlyLower = REGEX_KEYS_2.filter((k) => /[^a-z]/.test(k))
+const withA = REGEX_KEYS_2.filter((k) => k.includes('a'))
+const withX = ['[x]', ']x', 'axb', 'x y']
+
+// Second in-world probe, same grid, 2026-10-30.
+const REGEX_CASES_2: Array<[string, string[]]> = [
+  ['^[^a]', ['(paren)', 'ABC', '[x]', ']x', 'back\\slash', 'word here', 'x y', 'z9', 'é']],
+  ['[]x]', ['[x]', ']x', 'a]', 'axb', 'x y']],
+  ['^[]x]', [']x', 'x y']],
+  ['[^]a]', REGEX_KEYS_2.filter((k) => !['aaa', 'a]'].includes(k))],
+  ['[[=a=]]', [...withA, 'ABC']],
+  ['[[.a.]]', withA],
+  ['[\\d]', ['a1', 'z9']],
+  ['[\\]]', []],
+  ['[a\\-z]', REGEX_KEYS_2.filter((k) => /[a\\-z]/.test(k))],
+  ['\\pL', lower],
+  ['\\PL', notOnlyLower],
+  ['\\p{L', []],
+  ['\\pZ', []],
+  ['a|z9', [...withA, 'z9']],
+  ['^(abc|ABC)$', ['ABC', 'abc']],
+  ['a{2,3}', ['aaa', 'aab']],
+  ['a{2,}', ['aaa', 'aab']],
+  ['^a{1,2}b', ['aab', 'abc']],
+  ['x|', withX],
+  ['|x', withX],
+  ['a{3,2}', []],
+  ['a{,2}', []],
+  ['(ab)+', ['aab', 'abc']],
+  ['((a))', withA],
+  ['a)', []],
+  ['[[:foo:]]', []],
+  ['[[:digit:', []],
+]
+
 function lslString(s: string): string {
   return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'
 }
 
-describe('Linkset Data regex dialect (SL parity)', () => {
-  it.each(REGEX_CASES)('/%s/', async (pattern, expected) => {
-    const s = await load(`
+async function findKeys(keys: string[], pattern: string) {
+  const s = await load(`
       list found = [];
       integer count = -1;
       default {
         state_entry() {
-          list keys = [${REGEX_KEYS.map(lslString).join(', ')}];
+          list keys = [${keys.map(lslString).join(', ')}];
           integer i;
           for (i = 0; i < llGetListLength(keys); i++) llLinksetDataWrite(llList2String(keys, i), "v");
           found = llLinksetDataFindKeys(${lslString(pattern)}, 0, 100);
@@ -566,8 +600,29 @@ describe('Linkset Data regex dialect (SL parity)', () => {
         }
       }
     `)
-    s.start()
-    expect([...(s.global('found') as string[])].sort()).toEqual([...expected].sort())
-    expect(s.global('count')).toBe(expected.length)
+  s.start()
+  return { found: [...(s.global('found') as string[])].sort(), count: s.global('count') }
+}
+
+describe('Linkset Data regex dialect (SL parity)', () => {
+  it.each(REGEX_CASES)('/%s/', async (pattern, expected) => {
+    const { found, count } = await findKeys(REGEX_KEYS, pattern)
+    expect(found).toEqual([...expected].sort())
+    expect(count).toBe(expected.length)
+  })
+
+  it.each([
+    ['a\\|', ['a|b']],
+    ['(\\()', ['(paren)']],
+    ['(a|)b', ['aab', 'abc']],
+  ])('/%s/ drops only real empty alternatives', async (pattern, expected) => {
+    const { found } = await findKeys([...REGEX_KEYS, 'a|b'], pattern)
+    expect(found).toEqual([...expected].sort())
+  })
+
+  it.each(REGEX_CASES_2)('/%s/ (second probe)', async (pattern, expected) => {
+    const { found, count } = await findKeys(REGEX_KEYS_2, pattern)
+    expect(found).toEqual([...new Set(expected)].sort())
+    expect(count).toBe(new Set(expected).size)
   })
 })
