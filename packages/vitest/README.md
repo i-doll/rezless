@@ -70,7 +70,7 @@ import { loadScript } from '@rezless/vitest'
 
 ```sh
 pnpm install
-pnpm gen          # regenerate ll* stub tables from vendor/kwdb.xml
+pnpm gen          # regenerate ll* stub tables from vendor/lsl_definitions.yaml
 pnpm typecheck
 pnpm build        # per-package tsc emit
 pnpm test
@@ -91,7 +91,7 @@ await loadScript({
   objectKey: 'cccc-dddd-...',     // optional, derived from filename
   objectName: 'StarterCube',      // optional, "Object" default
   scriptName: 'greeter',          // optional, derived from filename
-  functions: {                    // optional, functions outside kwdb you'll mock
+  functions: {                    // optional, unlisted functions you'll mock
     llNewThing: { returns: 'integer', params: ['string'] },
   },
 })
@@ -99,14 +99,14 @@ await loadScript({
 
 Parse errors and type errors SL would refuse to compile (such as `!` on a key) throw `LslParseError` with `file:line:col` location info.
 
-Calls to functions that aren't built in or defined by the script fail to load, as they do in Second Life. If the script calls a function that kwdb doesn't list yet, declare it in `functions` and give it an implementation with `s.mock`.
+Calls to functions that aren't built in or defined by the script fail to load, as they do in Second Life. If the script calls a function the LSL definitions don't list yet, declare it in `functions` and give it an implementation with `s.mock`.
 
 ### `Script` handle
 
 ```ts
 // Drive events
 s.start()                                       // run state_entry of default
-s.fire(eventName, payload)                      // payload binds to handler params by kwdb-spec name
+s.fire(eventName, payload)                      // payload binds to handler params by spec name
 s.advanceTime(ms)                               // advance virtual clock; drains timer + queued events
 s.deliverChat({ channel, name, key, message })  // fire `listen` on matching active listens
 s.respondToHttp(key, { status, body })          // fire `http_response` for a captured llHTTPRequest
@@ -206,7 +206,7 @@ expect(s).toHaveListened(7, { key: ownerKey })
 ### Implemented `ll*` functions
 
 The real-impl set covers the most common use cases. Anything outside it
-falls through to a typed stub that returns the kwdb-documented default
+falls through to a typed stub that returns the documented default
 and records the call. Use `s.mock(name, fn)` to provide your own
 behaviour for any function the script under test calls. Builtin
 function delays (e.g. the 0.2s delay on `llSetLinkPrimitiveParams`) are
@@ -328,12 +328,7 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 The rezless project is licensed under the **Apache License, Version 2.0** —
 see [`LICENSE`](LICENSE).
 
-LSL function/event/constant signatures come from
-[Sei-Lisa/kwdb](https://github.com/Sei-Lisa/kwdb), vendored at
-`vendor/kwdb.xml` and licensed under **LGPL-3.0-or-later**. Files
-mechanically derived from it (`packages/vm/src/generated/*.ts`) remain
-under that licence; see [`NOTICE`](NOTICE) for the full attribution.
-
-Apache 2.0 is one-way compatible with LGPL-3 (per the FSF), so a
-combined work that includes both can be redistributed under LGPL-3
-terms — which is what consumers receive when they use rezless.
+LSL function/event/constant signatures come from Linden Lab's official
+[secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
+vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
+License**; see [`NOTICE`](NOTICE) for the full attribution.

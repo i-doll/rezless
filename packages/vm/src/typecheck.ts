@@ -31,7 +31,7 @@ type Ty = TypeName | 'void' | 'unknown'
 type Scope = Map<string, Ty | 'label'>
 
 /**
- * `functions` declares names outside kwdb that tests provide through
+ * `functions` declares names outside the LSL definitions that tests provide through
  * `script.mock`; calls to any other undeclared name are rejected, as in SL.
  */
 export function typecheck(

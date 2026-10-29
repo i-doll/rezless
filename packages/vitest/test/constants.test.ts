@@ -8,14 +8,14 @@ async function run(source: string) {
 }
 
 /**
- * The kwdb XML stores LSL escape sequences as literal text (e.g. `\n` is
- * the two characters backslash + 'n'), and uses XML numeric character
- * references like `&#xFDD2;` for the JSON_* type tags. The codegen has to
- * interpret both before producing TS string literals — otherwise constants
+ * The LSL definitions store LSL escape sequences as literal text (e.g. `\n` is
+ * the two characters backslash + 'n', and `\u{FDD2}` for the JSON_* type
+ * tags). The codegen has to interpret both before producing TS string
+ * literals — otherwise constants
  * that scripts depend on (notably EOF, NAK, JSON_OBJECT, JSON_ARRAY) end
  * up as the wrong characters.
  */
-describe('kwdb string-constant decoding', () => {
+describe('string-constant decoding', () => {
   it('EOF is three actual newlines, not the literal text \\n\\n\\n', async () => {
     const s = await run(`
       string captured = "";

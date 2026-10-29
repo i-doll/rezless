@@ -79,7 +79,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Regenerate kwdb tables
+      - name: Regenerate LSL definition tables
         run: pnpm gen
 
       - name: Build

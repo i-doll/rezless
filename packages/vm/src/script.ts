@@ -30,7 +30,7 @@ import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
 import { own } from './own.js'
 
-/** Signature of a function outside kwdb that a test provides through `script.mock`. */
+/** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
   /** Return type; omit for a void function. */
   readonly returns?: TypeName
@@ -76,7 +76,7 @@ export interface ScriptOptions {
    */
   readonly coverage?: boolean
   /**
-   * Functions outside kwdb the script may call, keyed by name. Second Life
+   * Functions outside the LSL definitions the script may call, keyed by name. Second Life
    * rejects calls to undeclared names, so the type checker only accepts these
    * ones; give each an implementation with `script.mock`.
    */
@@ -191,7 +191,7 @@ export class Script {
       host.addScript(this)
     }
 
-    // Build a parent scope holding every kwdb constant (PI, TRUE, HTTP_METHOD,
+    // Build a parent scope holding every LSL constant (PI, TRUE, HTTP_METHOD,
     // …). Script globals get their own scope below; typecheck() rejects
     // globals named after constants, as SL does.
     const constants = buildConstantsEnv()
@@ -392,7 +392,7 @@ export class Script {
         channel: opts.channel,
         name: opts.name,
         id: opts.key,
-        message: opts.message,
+        msg: opts.message,
       })
     }
   }
@@ -433,7 +433,7 @@ export class Script {
   /**
    * Drive an event into the current state.
    *
-   * `payload` is keyed by the event's documented parameter names (per kwdb).
+   * `payload` is keyed by the event's documented parameter names (per the LSL definitions).
    * The handler's declared parameters bind by position to the event spec, so
    * the user's chosen names don't have to match.
    *
@@ -780,14 +780,14 @@ function inferType(v: LslValue): LslType {
 }
 
 /**
- * Construct a fresh Env with every kwdb constant pre-declared. Cheap
+ * Construct a fresh Env with every LSL constant pre-declared. Cheap
  * enough at ~950 entries that we just rebuild it per Script instance —
  * this avoids any cross-script aliasing of constant slots.
  */
 function buildConstantsEnv(): Env {
   const env = new Env(null)
   for (const [name, entry] of Object.entries(CONSTANT_TABLE)) {
-    // kwdb lists float constants such as PI with more digits than a 32-bit float holds.
+    // The definitions list float constants such as PI with more digits than a 32-bit float holds.
     env.declare(name, entry.type as LslType, {
       type: entry.type as LslType,
       value: toFloat32Value(entry.value as LslValue, entry.type as LslType),

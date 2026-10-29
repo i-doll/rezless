@@ -16,8 +16,8 @@ import {
 } from './generated/constants.js'
 
 /**
- * LSL inventory item types. Numeric values come straight from the kwdb
- * INVENTORY_* constants. MESH (22) has no kwdb constant.
+ * LSL inventory item types. Numeric values come straight from the
+ * INVENTORY_* constants. MESH (22) has no LSL constant.
  */
 export const InventoryType = {
   TEXTURE: INVENTORY_TEXTURE,

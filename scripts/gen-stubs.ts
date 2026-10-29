@@ -1,93 +1,70 @@
 #!/usr/bin/env tsx
 /**
- * Code generator: parses vendor/kwdb.xml and emits typed TS files for the VM.
+ * Code generator: parses vendor/lsl_definitions.yaml and emits typed TS files for the VM.
  *
  * Outputs under packages/vm/src/generated/:
- *   - constants.ts — every <constant> exported as a typed TS value
- *   - functions.ts — BUILTIN_SPECS metadata array for every <function>
- *   - events.ts    — EVENT_SPECS + EventPayloads mapped type for every <event>
+ *   - constants.ts — every constant exported as a typed TS value
+ *   - functions.ts — BUILTIN_SPECS metadata array for every function
+ *   - events.ts    — EVENT_SPECS + EventPayloads mapped type for every event
  *
  * And under packages/parser/src/generated/:
  *   - event-names.ts — EVENT_NAMES set; event names are reserved words in LSL
  *
- * Source of truth: Sei-Lisa/kwdb (LGPL-3, vendored at vendor/kwdb.xml).
- *
- * The generator filters by grid: anything that explicitly excludes "sl" is dropped
- * for the default SL output. Multi-grid duplicates (same name, different grids) are
- * resolved to the SL variant.
+ * Source of truth: secondlife/lsl-definitions (MIT, vendored at vendor/lsl_definitions.yaml).
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { XMLParser } from 'fast-xml-parser'
+import { parse } from 'yaml'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
-const KWDB_PATH = resolve(ROOT, 'vendor/kwdb.xml')
+const DEFS_PATH = resolve(ROOT, 'vendor/lsl_definitions.yaml')
 const OUT_DIR = resolve(ROOT, 'packages/vm/src/generated')
 const PARSER_OUT_DIR = resolve(ROOT, 'packages/parser/src/generated')
 
-// ---- XML loading ----
+// ---- YAML loading ----
 
-interface RawParam {
-  '@_name': string
-  '@_type': string
-}
+type RawArguments = Array<Record<string, { type: string }>>
 
 interface RawFunction {
-  '@_name': string
-  '@_type'?: string // return type; absent = void
-  '@_grid'?: string
-  '@_delay'?: string
-  '@_energy'?: string
-  '@_status'?: string
-  '@_version'?: string
-  param?: RawParam | RawParam[]
+  arguments?: RawArguments
+  return?: string
+  sleep?: number
+  'mono-sleep'?: number
+  deprecated?: unknown
+  'god-mode'?: boolean
 }
 
 interface RawEvent {
-  '@_name': string
-  '@_grid'?: string
-  '@_status'?: string
-  '@_version'?: string
-  param?: RawParam | RawParam[]
+  arguments?: RawArguments
 }
 
 interface RawConstant {
-  '@_name': string
-  '@_type': string
-  '@_value'?: string
-  '@_grid'?: string
-  '@_status'?: string
-  '@_version'?: string
+  type: string
+  value?: string | number
+  deprecated?: unknown
 }
 
-interface RawDoc {
-  keywords: {
-    function?: RawFunction[]
-    event?: RawEvent[]
-    constant?: RawConstant[]
-  }
+interface RawDefs {
+  functions: Record<string, RawFunction>
+  events: Record<string, RawEvent>
+  constants: Record<string, RawConstant>
 }
 
-function loadXml(): RawDoc {
-  const xml = readFileSync(KWDB_PATH, 'utf8')
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    isArray: (name) => ['function', 'event', 'constant', 'param'].includes(name),
-    // The kwdb XML uses numeric character references like &#xFDD2; for the
-    // JSON_* type-tag constants. Without these flags fast-xml-parser only
-    // decodes the five predefined XML entities; the numeric refs would be
-    // delivered as literal `&#xFDD2;` text and the constants would be wrong.
-    processEntities: true,
-    htmlEntities: true,
-  })
-  return parser.parse(xml) as RawDoc
+function loadDefs(): RawDefs {
+  return parse(readFileSync(DEFS_PATH, 'utf8')) as RawDefs
+}
+
+function params(args: RawArguments | undefined): { name: string; type: string }[] {
+  return (args ?? []).flatMap((a) =>
+    Object.entries(a).map(([name, p]) => ({ name, type: normType(p.type) })),
+  )
 }
 
 /**
- * Interpret LSL string-escape sequences (which the kwdb XML stores as
+ * Interpret LSL string-escape sequences (which the definitions file stores as
  * literal text — e.g. `\n` is the two characters backslash + 'n', not a
  * newline). Without this pass, constants like EOF (`"\n\n\n"`) end up
  * as the 6-char literal `\n\n\n` instead of the 3-char string of newlines.
@@ -119,6 +96,10 @@ function interpretLslEscapes(s: string): string {
     } else if (next === 'x' && i + 3 < s.length && /[0-9a-fA-F]{2}/.test(s.slice(i + 2, i + 4))) {
       out += String.fromCharCode(Number.parseInt(s.slice(i + 2, i + 4), 16))
       i += 3
+    } else if (next === 'u' && /^\{[0-9a-fA-F]+\}/.test(s.slice(i + 2))) {
+      const close = s.indexOf('}', i)
+      out += String.fromCodePoint(Number.parseInt(s.slice(i + 3, close), 16))
+      i = close
     } else {
       // Unknown escape — preserve as-is (matches LSL's lenient behaviour).
       out += ch
@@ -127,39 +108,14 @@ function interpretLslEscapes(s: string): string {
   return out
 }
 
-// ---- Filtering ----
-
-/** Default-grid filter: keep entries with no grid attr OR grid containing "sl". */
-function isSL(grid: string | undefined): boolean {
-  if (!grid) return true
-  return grid.split(/\s+/).includes('sl')
-}
-
-function asArray<T>(v: T | T[] | undefined): T[] {
-  if (v === undefined) return []
-  return Array.isArray(v) ? v : [v]
-}
-
 // ---- Type mapping ----
 
-const KNOWN_TYPES = new Set([
-  'integer',
-  'float',
-  'string',
-  'key',
-  'vector',
-  'rotation',
-  'quaternion',
-  'list',
-])
+const KNOWN_TYPES = new Set(['integer', 'float', 'string', 'key', 'vector', 'rotation', 'list'])
 
-/** Normalize XML type names to our LslType union. */
 function normType(t: string | undefined): string {
-  if (!t) return 'void'
-  if (t === 'quaternion') return 'rotation'
+  if (!t || t === 'void') return 'void'
   if (KNOWN_TYPES.has(t)) return t
-  // OpenSim/AuroraSim-only types we ignore for SL output.
-  return 'integer'
+  throw new Error(`gen-stubs: unknown LSL type "${t}"`)
 }
 
 /** TS literal for a LslType value used in generated `as const` arrays. */
@@ -169,9 +125,9 @@ function tsTypeLiteral(t: string): string {
 
 // ---- Constant value parsing ----
 
-function parseConstantValue(type: string, value: string | undefined): string | null {
+function parseConstantValue(type: string, value: string | number | undefined): string | null {
   if (value === undefined) return null
-  const v = value.trim()
+  const v = String(value).trim()
   switch (type) {
     case 'integer': {
       // hex like 0x10 or signed decimals
@@ -233,7 +189,7 @@ function tsConstantType(type: string): string {
 // ---- Code emitters ----
 
 const HEADER = `// AUTO-GENERATED by scripts/gen-stubs.ts — do not edit by hand.
-// Source: vendor/kwdb.xml (Sei-Lisa/kwdb, LGPL-3.0).
+// Source: vendor/lsl_definitions.yaml (secondlife/lsl-definitions, MIT).
 // Run \`pnpm gen\` to regenerate.
 
 `
@@ -244,21 +200,18 @@ const HEADER = `// AUTO-GENERATED by scripts/gen-stubs.ts — do not edit by han
 // public barrel re-exports both files.
 const CORE_TYPE_CONSTANTS = new Set(['ZERO_VECTOR', 'ZERO_ROTATION', 'NULL_KEY'])
 
-function emitConstants(doc: RawDoc): {
+function emitConstants(defs: RawDefs): {
   constantsTs: string
   tableTs: string
 } {
   const seen = new Map<string, { line: string | null; tableEntry: string }>()
-  for (const c of doc.keywords.constant ?? []) {
-    if (!isSL(c['@_grid'])) continue
-    const name = c['@_name']
-    if (seen.has(name)) continue
-    const type = normType(c['@_type'])
-    const val = parseConstantValue(type, c['@_value'])
+  for (const [name, c] of Object.entries(defs.constants)) {
+    const type = normType(c.type)
+    const val = parseConstantValue(type, c.value)
     if (val === null) continue
     const tsType = tsConstantType(type)
     if (tsType === 'never') continue
-    const status = c['@_status'] === 'deprecated' ? '/** @deprecated */ ' : ''
+    const status = c.deprecated ? '/** @deprecated */ ' : ''
     seen.set(name, {
       line: CORE_TYPE_CONSTANTS.has(name)
         ? null
@@ -291,7 +244,7 @@ export interface ConstantEntry {
 }
 
 /**
- * Every kwdb-derived constant exported by name with its type tag, so the
+ * Every LSL constant exported by name with its type tag, so the
  * VM can pre-load them into a base environment scope visible to all scripts.
  */
 export const CONSTANT_TABLE: Record<string, ConstantEntry> = {
@@ -301,28 +254,21 @@ ${tableBody}
   }
 }
 
-function emitFunctions(doc: RawDoc): string {
-  const seen = new Map<string, string>()
-  for (const f of doc.keywords.function ?? []) {
-    if (!isSL(f['@_grid'])) continue
-    const name = f['@_name']
-    if (seen.has(name)) continue
-    const ret = normType(f['@_type'])
-    const delay = Number.parseFloat(f['@_delay'] ?? '0') || 0
-    const status = f['@_status'] ?? 'normal'
-    const params = asArray(f.param).map((p) => ({
-      name: p['@_name'],
-      type: normType(p['@_type']),
-    }))
-    const paramsLit = params
+function emitFunctions(defs: RawDefs): string {
+  const lines: string[] = []
+  for (const [name, f] of Object.entries(defs.functions)) {
+    const ret = normType(f.return)
+    // Mirrors LL's Mono bindings, which sleep for mono-sleep and fall back to sleep.
+    const delay = f['mono-sleep'] ?? f.sleep ?? 0
+    const status = f['god-mode'] ? 'godmode' : f.deprecated ? 'deprecated' : 'normal'
+    const paramsLit = params(f.arguments)
       .map((p) => `{ name: ${JSON.stringify(p.name)}, type: ${tsTypeLiteral(p.type)} }`)
       .join(', ')
-    seen.set(
-      name,
+    lines.push(
       `  ${JSON.stringify(name)}: { name: ${JSON.stringify(name)}, returnType: ${tsTypeLiteral(ret)}, delay: ${delay}, status: ${JSON.stringify(status)}, params: [${paramsLit}] },`,
     )
   }
-  const body = [...seen.values()].sort().join('\n')
+  const body = lines.sort().join('\n')
   return (
     HEADER +
     `import type { LslType } from '../values/types.js'
@@ -337,7 +283,7 @@ export interface BuiltinSpec {
   readonly returnType: LslType
   /** Documented per-call delay in seconds (LSL throttles). */
   readonly delay: number
-  readonly status: 'normal' | 'deprecated' | 'godmode' | 'unimplemented'
+  readonly status: 'normal' | 'deprecated' | 'godmode'
   readonly params: ReadonlyArray<ParamSpec>
 }
 
@@ -350,33 +296,11 @@ export type BuiltinName = keyof typeof BUILTIN_SPECS
   )
 }
 
-/**
- * kwdb renames a few event params from their wiki-documented form to avoid
- * clashing with reserved words ("key" → "keyname"). The wiki names are what
- * users see in the LSL docs and in their own handler signatures, so we
- * remap back here to keep our spec aligned with the wiki.
- */
-const EVENT_PARAM_OVERRIDES: Record<string, Record<string, string>> = {
-  linkset_data: { keyname: 'name' },
-}
-
-function emitEvents(doc: RawDoc): string {
-  const entries: Array<{ name: string; params: { name: string; type: string }[] }> = []
-  const seen = new Set<string>()
-  for (const e of doc.keywords.event ?? []) {
-    if (!isSL(e['@_grid'])) continue
-    const name = e['@_name']
-    if (seen.has(name)) continue
-    seen.add(name)
-    const overrides = EVENT_PARAM_OVERRIDES[name] ?? {}
-    entries.push({
-      name,
-      params: asArray(e.param).map((p) => ({
-        name: overrides[p['@_name']] ?? p['@_name'],
-        type: normType(p['@_type']),
-      })),
-    })
-  }
+function emitEvents(defs: RawDefs): string {
+  const entries = Object.entries(defs.events).map(([name, e]) => ({
+    name,
+    params: params(e.arguments),
+  }))
   entries.sort((a, b) => a.name.localeCompare(b.name))
 
   const specs = entries
@@ -447,16 +371,10 @@ ${payloads}
   )
 }
 
-function emitEventNames(doc: RawDoc): string {
-  const names = [
-    ...new Set((doc.keywords.event ?? []).filter((e) => isSL(e['@_grid'])).map((e) => e['@_name'])),
-  ].sort((a, b) => a.localeCompare(b))
+function emitEventNames(defs: RawDefs): string {
+  const names = Object.keys(defs.events).sort((a, b) => a.localeCompare(b))
 
-  return `// AUTO-GENERATED by scripts/gen-stubs.ts — do not edit by hand.
-// Source: vendor/kwdb.xml (Sei-Lisa/kwdb, LGPL-3.0).
-// Run \`pnpm gen\` to regenerate.
-
-export const EVENT_NAMES: ReadonlySet<string> = new Set([
+  return `${HEADER}export const EVENT_NAMES: ReadonlySet<string> = new Set([
 ${names.map((n) => `  ${JSON.stringify(n)},`).join('\n')}
 ])
 `
@@ -465,28 +383,24 @@ ${names.map((n) => `  ${JSON.stringify(n)},`).join('\n')}
 // ---- Main ----
 
 function main(): void {
-  const doc = loadXml()
+  const defs = loadDefs()
   mkdirSync(OUT_DIR, { recursive: true })
   mkdirSync(PARSER_OUT_DIR, { recursive: true })
 
-  const { constantsTs, tableTs } = emitConstants(doc)
-  const functionsTs = emitFunctions(doc)
-  const eventsTs = emitEvents(doc)
+  const { constantsTs, tableTs } = emitConstants(defs)
+  const functionsTs = emitFunctions(defs)
+  const eventsTs = emitEvents(defs)
 
   writeFileSync(resolve(OUT_DIR, 'constants.ts'), constantsTs)
   writeFileSync(resolve(OUT_DIR, 'constants_table.ts'), tableTs)
   writeFileSync(resolve(OUT_DIR, 'functions.ts'), functionsTs)
   writeFileSync(resolve(OUT_DIR, 'events.ts'), eventsTs)
-  writeFileSync(resolve(PARSER_OUT_DIR, 'event-names.ts'), emitEventNames(doc))
+  writeFileSync(resolve(PARSER_OUT_DIR, 'event-names.ts'), emitEventNames(defs))
 
-  const counts = {
-    constants: (constantsTs.match(/^export const /gm) ?? []).length,
-    functions: (functionsTs.match(/^  "/gm) ?? []).length,
-    events: (eventsTs.match(/^  [a-z]/gm) ?? []).length / 2, // appears in both specs and payloads
-  }
-  console.log(
-    `gen-stubs: wrote ${counts.constants} constants, ${counts.functions} functions, ${counts.events} events`,
-  )
+  const constants = (constantsTs.match(/^(\/\*\* @deprecated \*\/ )?export const /gm) ?? []).length
+  const functions = Object.keys(defs.functions).length
+  const events = Object.keys(defs.events).length
+  console.log(`gen-stubs: wrote ${constants} constants, ${functions} functions, ${events} events`)
 }
 
 main()

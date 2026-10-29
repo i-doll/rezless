@@ -7,7 +7,7 @@ import { REAL_BUILTINS } from './builtins/index.js'
 import type { Script } from './script.js'
 import { own } from './own.js'
 
-/** Look up the kwdb-derived spec for a function name, if any. */
+/** Look up the generated spec for a function name, if any. */
 export function specFor(name: string): BuiltinSpec | undefined {
   return own(BUILTIN_SPECS as Record<string, BuiltinSpec>, name)
 }
@@ -52,7 +52,7 @@ function makeStub(name: string): BuiltinImpl {
   const spec = specFor(name)
   if (!spec) {
     return () => {
-      throw new Error(`LSL function '${name}' has no implementation (not in kwdb; use script.mock to provide it)`)
+      throw new Error(`LSL function '${name}' has no implementation (not in the LSL definitions; use script.mock to provide it)`)
     }
   }
   return () => defaultValueFor(spec.returnType)
