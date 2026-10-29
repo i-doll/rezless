@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript, loadLinkset } from '../src/index.js'
+import { loadScript, loadLinkset, PRIM_SIZE, PRIM_TEXT, ZERO_ROTATION } from '../src/index.js'
 
 describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
   it('llSetPrimitiveParams + llGetPrimitiveParams round-trip a single prim', async () => {
@@ -84,14 +84,14 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
       vector p = ZERO_VECTOR;
       default {
         state_entry() {
-          llSetPos(<5.0, 6.0, 7.0>);
+          llSetPos(<3.0, 4.0, 5.0>);
           p = llGetPos();
         }
       }
     `
     const s = await loadScript({ source: src, filename: 'p.lsl' })
     s.start()
-    expect(s.global('p')).toEqual({ x: 5, y: 6, z: 7 })
+    expect(s.global('p')).toEqual({ x: 3, y: 4, z: 5 })
   })
 
   it('llSetText writes to PRIM_TEXT (cross-builtin consistency)', async () => {
@@ -173,12 +173,12 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     expect(linkset.prims.map((p) => p.name)).toEqual(['all', 'all', 'all'])
   })
 
-  it('llGetLinkPrimitiveParams against multi-prim target concatenates per-prim results', async () => {
+  it('llGetLinkPrimitiveParams follows PRIM_LINK_TARGET across prims', async () => {
     const probe = `
       list out = [];
       default {
         state_entry() {
-          out = llGetLinkPrimitiveParams(LINK_SET, [PRIM_NAME]);
+          out = llGetLinkPrimitiveParams(1, [PRIM_NAME, PRIM_LINK_TARGET, 2, PRIM_NAME, PRIM_LINK_TARGET, 3, PRIM_NAME]);
         }
       }
     `
@@ -225,7 +225,8 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
       string out;
       default {
         state_entry() {
-          out = llDumpList2String(llGetLinkPrimitiveParams(LINK_SET, [PRIM_GLOW, 0, PRIM_FULLBRIGHT, 0]), "|");
+          out = llDumpList2String(llGetLinkPrimitiveParams(1, [PRIM_GLOW, 0, PRIM_FULLBRIGHT, 0,
+            PRIM_LINK_TARGET, 2, PRIM_GLOW, 0, PRIM_FULLBRIGHT, 0]), "|");
         }
       }
     `
@@ -237,7 +238,7 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
       ],
     })
     scripts['p']!.start()
-    expect(scripts['p']!.global('out')).toBe('0.000000|0.000000|0|0')
+    expect(scripts['p']!.global('out')).toBe('0.000000|0|0.000000|0')
   })
 
   it('unknown PRIM_* constant in llSetPrimitiveParams stops the rest of the walk', async () => {
@@ -369,5 +370,278 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     s.start()
     // Only PRIM_NAME is in the response — PRIM_DESC was never reached.
     expect(s.global('out')).toEqual(['Object'])
+  })
+})
+
+describe('prim behaviour measured in Second Life', () => {
+  const debugShouts = (s: { chat: ReadonlyArray<{ channel: number; text: string }> }) =>
+    s.chat.filter((c) => c.channel === 0x7fffffff).map((c) => c.text)
+
+  async function run(body: string, globals = '') {
+    const s = await loadScript({ source: `${globals}\ndefault { state_entry() { ${body} } }`, filename: 'sl.lsl' })
+    s.start()
+    return s
+  }
+
+  it('a new prim is wood with the default physics material', async () => {
+    const s = await run(`m = llList2Integer(llGetPrimitiveParams([PRIM_MATERIAL]), 0); pm = llGetPhysicsMaterial();`,
+      'integer m; list pm;')
+    expect(s.global('m')).toBe(3)
+    expect(s.global('pm')).toEqual([1, 0.5, Math.fround(0.6), 1000])
+  })
+
+  it('scale factors of a 0.5 m cube are 128 and 0.02', async () => {
+    const s = await run(`mx = llGetMaxScaleFactor(); mn = llGetMinScaleFactor();`, 'float mx; float mn;')
+    expect(s.global('mx')).toBe(128)
+    expect(s.global('mn')).toBe(Math.fround(0.02))
+  })
+
+  it('llGetAlpha(ALL_SIDES) sums the faces', async () => {
+    const s = await run(`llSetAlpha(0.5, ALL_SIDES); a = llGetAlpha(ALL_SIDES);`, 'float a;')
+    expect(s.global('a')).toBe(3)
+  })
+
+  it('llGetNumberOfSides: box 6, hollow box 7', async () => {
+    const s = await run(
+      `box = llGetNumberOfSides();
+       llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0,1,0>, 0.5, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR]);
+       hollow = llGetNumberOfSides();`,
+      'integer box; integer hollow;',
+    )
+    expect(s.global('box')).toBe(6)
+    expect(s.global('hollow')).toBe(7)
+  })
+
+  it('PRIM_SIZE clamps each axis to [0.01, 64]', async () => {
+    const s = await run(`llSetPrimitiveParams([PRIM_SIZE, <100, 0.001, 2>]); v = llGetScale();`, 'vector v;')
+    expect(s.global('v')).toEqual({ x: 64, y: Math.fround(0.01), z: 2 })
+  })
+
+  it('PRIM_COLOR clamps colour and alpha to [0, 1]; llSetColor does not clamp', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_COLOR, 0, <3, -1, 0.5>, 2.0]);
+       pp = llGetPrimitiveParams([PRIM_COLOR, 0]);
+       llSetColor(<3, 3, 3>, 1);
+       c = llGetColor(1);`,
+      'list pp; vector c;',
+    )
+    expect(s.global('pp')).toEqual([{ x: 1, y: 0, z: 0.5 }, 1])
+    expect(s.global('c')).toEqual({ x: 3, y: 3, z: 3 })
+  })
+
+  it('truncates text to 254 bytes, name to 63 and description to 127', async () => {
+    const s = await run(
+      `string long = "";
+       integer i;
+       for (i = 0; i < 300; ++i) long += "a";
+       llSetPrimitiveParams([PRIM_TEXT, long, <1,1,1>, 1.0, PRIM_DESC, long]);
+       llSetObjectName(long);
+       t = llStringLength(llList2String(llGetPrimitiveParams([PRIM_TEXT]), 0));
+       n = llStringLength(llGetObjectName());
+       d = llStringLength(llGetObjectDesc());
+       llSetPrimitiveParams([PRIM_NAME, long]);
+       pn = llStringLength(llGetObjectName());`,
+      'integer t; integer n; integer d; integer pn;',
+    )
+    expect(s.global('t')).toBe(254)
+    expect(s.global('n')).toBe(63)
+    expect(s.global('d')).toBe(127)
+    expect(s.global('pn')).toBe(63)
+  })
+
+  it('llSetRot and PRIM_ROTATION normalise the quaternion', async () => {
+    const s = await run(
+      `llSetRot(<0,0,0,2>); a = llGetRot();
+       llSetPrimitiveParams([PRIM_ROTATION, <0,0,0,3>]); b = llGetRot();`,
+      'rotation a; rotation b;',
+    )
+    expect(s.global('a')).toEqual({ x: 0, y: 0, z: 0, s: 1 })
+    expect(s.global('b')).toEqual({ x: 0, y: 0, z: 0, s: 1 })
+  })
+
+  it('llSetPos moves at most 10 m per call', async () => {
+    const s = await loadScript({
+      source: 'vector p; default { state_entry() { llSetPos(<128, 128, 40>); p = llGetPos(); } }',
+      filename: 'pos.lsl',
+    })
+    s.host.params.position = { x: 128, y: 128, z: 20 }
+    s.start()
+    expect(s.global('p')).toEqual({ x: 128, y: 128, z: 30 })
+  })
+
+  it('PRIM_GLOW out of bounds shouts and aborts the call', async () => {
+    const s = await run(`llSetPrimitiveParams([PRIM_GLOW, ALL_SIDES, 5.0, PRIM_NAME, "after"]);`)
+    expect(debugShouts(s)).toEqual([
+      'llSetPrimitiveParams error running rule #1 (PRIM_GLOW): bounds error; 5 is not in (0, 1).',
+    ])
+    expect(s.host.params.faces[0]!.glow).toBe(0)
+    expect(s.host.name).toBe('Object')
+  })
+
+  it('a wrong argument type shouts and aborts the whole call', async () => {
+    const s = await run(`llSetPrimitiveParams([PRIM_SIZE, "big", PRIM_NAME, "after"]);`)
+    expect(debugShouts(s)).toEqual([
+      'llSetPrimitiveParams error running rule #1 (PRIM_SIZE): arg #1 vector expected but string given.',
+    ])
+    expect(s.host.name).toBe('Object')
+  })
+
+  it('an unknown rule shouts and aborts', async () => {
+    const s = await run(`llSetPrimitiveParams([999999, "x", PRIM_NAME, "after"]);`)
+    expect(debugShouts(s)).toEqual(['llSetPrimitiveParams error running rule #1: unknown rule.'])
+    expect(s.host.name).toBe('Object')
+  })
+
+  it('rule numbers count from 1 and errors name the calling function', async () => {
+    const s = await run(`llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NAME, "a", PRIM_COLOR, 0, "red", 1.0]);`)
+    expect(debugShouts(s)).toEqual([
+      'llSetLinkPrimitiveParamsFast error running rule #2 (PRIM_COLOR): arg #2 vector expected but string given.',
+    ])
+  })
+
+  it('llGetLinkPrimitiveParams with a multi-prim link returns an empty list', async () => {
+    const probe = `
+      integer a; integer b; integer c;
+      default {
+        state_entry() {
+          a = llGetListLength(llGetLinkPrimitiveParams(LINK_SET, [PRIM_NAME]));
+          b = llGetListLength(llGetLinkPrimitiveParams(LINK_ALL_OTHERS, [PRIM_NAME]));
+          c = llGetListLength(llGetLinkPrimitiveParams(LINK_ALL_CHILDREN, [PRIM_NAME]));
+        }
+      }
+    `
+    const { scripts } = await loadLinkset({
+      prims: [
+        { name: 'Root', scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] },
+        { name: 'Child' },
+      ],
+    })
+    scripts['p']!.start()
+    expect([scripts['p']!.global('a'), scripts['p']!.global('b'), scripts['p']!.global('c')]).toEqual([0, 0, 0])
+  })
+
+  it('llGetLinkName of an invalid link is NULL_KEY', async () => {
+    const s = await run(`n = llGetLinkName(42);`, 'string n;')
+    expect(s.global('n')).toBe('00000000-0000-0000-0000-000000000000')
+  })
+
+  it('a child prim reports region position from llGetPos and local position from llGetLocalPos', async () => {
+    const probe = `
+      vector pos; vector local; list pp;
+      default {
+        state_entry() {
+          pos = llGetPos();
+          local = llGetLocalPos();
+          pp = llGetPrimitiveParams([PRIM_POSITION, PRIM_POS_LOCAL]);
+        }
+      }
+    `
+    const { scripts, prims } = await loadLinkset({
+      prims: [
+        { name: 'Root' },
+        { name: 'Child', scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] },
+      ],
+    })
+    prims[0]!.params.position = { x: 133.5, y: 200, z: 2001 }
+    prims[1]!.params.position = { x: 0, y: 1, z: 0.5 }
+    scripts['p']!.start()
+    expect(scripts['p']!.global('pos')).toEqual({ x: 133.5, y: 201, z: 2001.5 })
+    expect(scripts['p']!.global('local')).toEqual({ x: 0, y: 1, z: 0.5 })
+    expect(scripts['p']!.global('pp')).toEqual([{ x: 133.5, y: 201, z: 2001.5 }, { x: 0, y: 1, z: 0.5 }])
+  })
+})
+
+describe('PRIM_GLTF_* overrides', () => {
+  it('accept "" in any slot after the face, meaning no override', async () => {
+    const s = await loadScript({
+      source: `
+        string text;
+        default {
+          state_entry() {
+            llSetPrimitiveParams([
+              PRIM_GLTF_BASE_COLOR, 0, "", "", "", "", "", "", "", "", "",
+              PRIM_GLTF_EMISSIVE, 0, "", "", "", "", "",
+              PRIM_TEXT, "after", <1, 1, 1>, 1.0]);
+            text = llList2String(llGetPrimitiveParams([PRIM_TEXT]), 0);
+          }
+        }
+      `,
+    })
+    s.start()
+    expect(s.chat.filter((c) => c.channel === 2147483647)).toEqual([])
+    expect(s.global('text')).toBe('after')
+  })
+})
+
+describe('llSetPrimitiveParams rule type errors on untyped lists', () => {
+  // A mock can hand back a plain array with no recorded element types; the
+  // type check then infers each value's type from the value itself.
+  it.each([
+    ['string', [PRIM_SIZE, 'abc'], 'arg #1 vector expected but string given'],
+    ['integer', [PRIM_SIZE, 3], 'arg #1 vector expected but integer given'],
+    ['float', [PRIM_SIZE, 1.5], 'arg #1 vector expected but float given'],
+    ['rotation', [PRIM_SIZE, ZERO_ROTATION], 'arg #1 vector expected but rotation given'],
+    ['vector', [PRIM_TEXT, { x: 1, y: 1, z: 1 }, { x: 1, y: 1, z: 1 }, 1], 'arg #1 string expected but vector given'],
+    ['list', [PRIM_SIZE, []], 'arg #1 vector expected but list given'],
+  ])('reports a %s argument', async (_label, rules, message) => {
+    const s = await loadScript({
+      source: `
+        default {
+          state_entry() { llSetPrimitiveParams(llGetLinkPrimitiveParams(LINK_THIS, [])); }
+        }
+      `,
+    })
+    s.mock('llGetLinkPrimitiveParams', () => rules)
+    s.start()
+    const errors = s.chat.filter((c) => c.channel === 2147483647).map((c) => c.text)
+    expect(errors).toEqual([expect.stringContaining(message)])
+  })
+})
+
+describe('llGetAlpha(ALL_SIDES) on non-box shapes', () => {
+  it('sums only the faces the shape has', async () => {
+    const s = await loadScript({
+      source: `
+        float sphere; float box;
+        default {
+          state_entry() {
+            llSetAlpha(0.5, ALL_SIDES);
+            box = llGetAlpha(ALL_SIDES);
+            llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_SPHERE, PRIM_HOLE_DEFAULT, <0, 1, 0>, 0.0, <0, 0, 0>, <0, 1, 0>]);
+            llSetAlpha(0.5, ALL_SIDES);
+            sphere = llGetAlpha(ALL_SIDES);
+          }
+        }
+      `,
+    })
+    s.start()
+    expect(s.global('box')).toBeCloseTo(3)
+    expect(s.global('sphere')).toBeCloseTo(0.5)
+  })
+})
+
+describe('llSetPos 10 m cap', () => {
+  it('applies to the root only; a child moves its local offset freely', async () => {
+    const { scripts } = await loadLinkset({
+      prims: [
+        { scripts: [{ name: 'root', source: { source: 'default { state_entry() { } }' } }] },
+        {
+          scripts: [
+            {
+              name: 'child',
+              source: {
+                source: `
+                  vector local;
+                  default { state_entry() { llSetPos(<20, 0, 0>); local = llGetLocalPos(); } }
+                `,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    scripts.root!.start()
+    scripts.child!.start()
+    expect(scripts.child!.global('local')).toEqual({ x: 20, y: 0, z: 0 })
   })
 })

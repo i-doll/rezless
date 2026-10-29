@@ -1,10 +1,11 @@
-import type { BuiltinImpl } from '../runtime.js'
+import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslType, LslValue } from '../values/types.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
-import { PRIM_LINK_TARGET } from '../generated/constants.js'
-import { primParamTypes, writePrimParamSlots } from '../prim-params.js'
+import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_LINK_TARGET } from '../generated/constants.js'
+import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { typedList } from '../values/list-types.js'
+import { shoutError } from './debug.js'
 
 /**
  * Walk a PRIM_* rules list, applying each rule to every prim in the
@@ -13,19 +14,25 @@ import { typedList } from '../values/list-types.js'
  * llSetLinkPrimitiveParams behavior, available inside
  * llSetPrimitiveParams too).
  *
- * An unknown rule constant terminates the walk silently — same as LSL.
+ * An unknown rule or a bad argument shouts the simulator's error on
+ * DEBUG_CHANNEL and stops the walk; rules before it stay applied.
  */
-function walkSet(linkset: Linkset, caller: Prim, target: Prim[], rules: ReadonlyArray<LslValue>): void {
+function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyArray<LslValue>): void {
+  const { linkset, prim: caller } = ctx
   let cur = target
   let i = 0
-  while (i < rules.length) {
+  for (let ruleNumber = 1; i < rules.length; ruleNumber++) {
     const rule = rules[i] as number
-    if (typeof rule !== 'number') return
     if (rule === PRIM_LINK_TARGET) {
       const link = (rules[i + 1] as number) | 0
       cur = linkset.resolveTargets(caller.linkNumber, link)
       i += 2
       continue
+    }
+    const error = typeof rule === 'number' ? checkPrimRule(rule, rules, i + 1) : ': unknown rule'
+    if (error !== null) {
+      shoutError(ctx, `${fn} error running rule #${ruleNumber}${error}.`)
+      return
     }
     let consumed: number | null = null
     for (const p of cur) {
@@ -98,7 +105,7 @@ function walkGet(
 /** llSetPrimitiveParams(list rules) — caller's prim only (until PRIM_LINK_TARGET redirects). */
 export const llSetPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
-  walkSet(ctx.linkset, ctx.prim, [ctx.prim], rules)
+  walkSet(ctx, 'llSetPrimitiveParams', [ctx.prim], rules)
   return undefined
 }
 
@@ -107,7 +114,7 @@ export const llSetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const target = ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
-  walkSet(ctx.linkset, ctx.prim, target, rules)
+  walkSet(ctx, 'llSetLinkPrimitiveParams', target, rules)
   return undefined
 }
 
@@ -116,7 +123,7 @@ export const llSetLinkPrimitiveParamsFast: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const target = ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
-  walkSet(ctx.linkset, ctx.prim, target, rules)
+  walkSet(ctx, 'llSetLinkPrimitiveParamsFast', target, rules)
   return undefined
 }
 
@@ -126,9 +133,10 @@ export const llGetPrimitiveParams: BuiltinImpl = (ctx, args) => {
   return walkGet(ctx.linkset, ctx.prim, [ctx.prim], rules)
 }
 
-/** llGetLinkPrimitiveParams(integer link, list params). */
+/** llGetLinkPrimitiveParams(integer link, list params). Multi-prim links return []. */
 export const llGetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
+  if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return []
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const target = ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
   return walkGet(ctx.linkset, ctx.prim, target, rules)

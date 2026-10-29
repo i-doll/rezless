@@ -476,7 +476,7 @@ class Parser {
   }
 
   private parseAssignment(): Expression | null {
-    const left = this.parseLogicalOr()
+    const left = this.parseLogical()
     if (!left) return null
     if (this.peek().kind === 'op' && ASSIGN_OPS.has(this.peek().text as AssignmentOp)) {
       const op = this.advance()
@@ -493,11 +493,8 @@ class Parser {
     return left
   }
 
-  private parseLogicalOr(): Expression | null {
-    return this.parseBinaryLeft(['||'], () => this.parseLogicalAnd())
-  }
-  private parseLogicalAnd(): Expression | null {
-    return this.parseBinaryLeft(['&&'], () => this.parseBitwiseOr())
+  private parseLogical(): Expression | null {
+    return this.parseBinaryLeft(['||', '&&'], () => this.parseBitwiseOr())
   }
   private parseBitwiseOr(): Expression | null {
     return this.parseBinaryLeft(['|'], () => this.parseBitwiseXor())

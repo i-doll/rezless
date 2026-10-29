@@ -586,14 +586,14 @@ describe('llList2Json', () => {
     expect(s.global('out')).toBe('["set",[1,2,3]]')
   })
 
-  it('vector inside JSON → 5-decimal LSL string representation, JSON-quoted', async () => {
+  it('vector inside JSON → 6-decimal LSL string representation, JSON-quoted', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() {
         out = llList2Json(JSON_ARRAY, [<1,1,1>]);
       } }
     `)
-    expect(s.global('out')).toBe('["<1.00000, 1.00000, 1.00000>"]')
+    expect(s.global('out')).toBe('["<1.000000, 1.000000, 1.000000>"]')
   })
 
   it('round-trip: build {"a":{"b":[1,2,3]}} via list2json, then get nested', async () => {

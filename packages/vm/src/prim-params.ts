@@ -23,7 +23,7 @@ import {
   PRIM_HOLE_DEFAULT,
   PRIM_LINK_TARGET,
   PRIM_MATERIAL,
-  PRIM_MATERIAL_STONE,
+  PRIM_MATERIAL_WOOD,
   PRIM_NAME,
   PRIM_NORMAL,
   PRIM_OMEGA,
@@ -66,7 +66,9 @@ import {
   TEXTURE_DEFAULT,
 } from './generated/constants.js'
 import type { LslType, LslValue, Rotation, Vector } from './values/types.js'
-import { NULL_KEY } from './values/types.js'
+import { NULL_KEY, isRotation, isVector } from './values/types.js'
+import { listElementType } from './values/list-types.js'
+import { truncateUtf8 } from './values/utf8.js'
 import type { Prim } from './prim.js'
 
 /**
@@ -236,7 +238,7 @@ export function defaultPrimParams(): PrimParams {
     sculpt: { textureKey: '', type: PRIM_SCULPT_TYPE_SPHERE },
     slice: { x: 0, y: 1, z: 0 },
     shape: defaultShape(),
-    material: PRIM_MATERIAL_STONE,
+    material: PRIM_MATERIAL_WOOD,
     tempOnRez: false,
     castShadows: false,
     allowUnsit: true,
@@ -248,7 +250,7 @@ export function defaultPrimParams(): PrimParams {
     damage: { amount: 0, type: 0 },
     health: 1,
     reflectionProbe: { enabled: false, ambiance: 0, clipDistance: 0, flags: 0 },
-    physicsMaterial: { gravityMultiplier: 1, restitution: 0, friction: 0, density: 1000 },
+    physicsMaterial: { gravityMultiplier: 1, restitution: 0.5, friction: Math.fround(0.6), density: 1000 },
     textureAnim: { mode: 0, face: 0, sizex: 0, sizey: 0, start: 0, length: 0, rate: 0 },
     passCollisions: 0,
     passTouches: 0,
@@ -276,6 +278,15 @@ const asRot = (v: LslValue | undefined): Rotation => {
   return identityRot()
 }
 const toByteChannel = (c: number): number => Math.floor(Math.min(1, Math.max(0, c)) * 255) / 255
+const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
+const clampVec = (v: Vector, lo: number, hi: number): Vector =>
+  ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
+
+function normalizeRot(r: Rotation): Rotation {
+  const mag = Math.hypot(r.x, r.y, r.z, r.s)
+  if (mag === 0) return identityRot()
+  return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
+}
 
 function facesOf(faceArg: LslValue | undefined): number[] {
   const f = num(faceArg, 0) | 0
@@ -357,14 +368,14 @@ export function writePrimParam(
   const p = prim.params
   switch (param) {
     case PRIM_NAME:
-      prim.name = str(rules[cursor])
+      prim.name = truncateUtf8(str(rules[cursor]), 63)
       return 1
     case PRIM_DESC:
-      prim.description = str(rules[cursor])
+      prim.description = truncateUtf8(str(rules[cursor]), 127)
       prim.appearance.description = prim.description
       return 1
     case PRIM_TEXT: {
-      const text = str(rules[cursor])
+      const text = truncateUtf8(str(rules[cursor]), 254)
       const color = asVec(rules[cursor + 1])
       const alpha = num(rules[cursor + 2], 1)
       prim.appearance.text = { text, color, alpha }
@@ -376,10 +387,10 @@ export function writePrimParam(
       return 1
     case PRIM_ROTATION:
     case PRIM_ROT_LOCAL:
-      p.rotation = asRot(rules[cursor])
+      p.rotation = normalizeRot(asRot(rules[cursor]))
       return 1
     case PRIM_SIZE:
-      p.size = asVec(rules[cursor])
+      p.size = clampVec(asVec(rules[cursor]), 0.01, 64)
       return 1
     case PRIM_SLICE:
       p.slice = asVec(rules[cursor])
@@ -471,11 +482,10 @@ export function writePrimParam(
     case PRIM_COLOR: {
       const faces = facesOf(rules[cursor])
       const color = asVec(rules[cursor + 1])
-      const alpha = num(rules[cursor + 2], 1)
+      const alpha = clamp(num(rules[cursor + 2], 1), 0, 1)
       for (const f of faces) {
         if (!inRange(f)) continue
-        // Clone so faces don't alias the same vector instance.
-        p.faces[f]!.color = { x: color.x, y: color.y, z: color.z }
+        p.faces[f]!.color = clampVec(color, 0, 1)
         p.faces[f]!.alpha = alpha
       }
       return 3
@@ -767,6 +777,7 @@ export function readPrimParam(
       return { values: t ? [t.text, t.color, t.alpha] : ['', zero(), 0], consumed: 0 }
     }
     case PRIM_POSITION:
+      return { values: [prim.regionPosition()], consumed: 0 }
     case PRIM_POS_LOCAL:
       return { values: [p.position], consumed: 0 }
     case PRIM_ROTATION:
@@ -1049,4 +1060,84 @@ function primTypeTypes(kind: LslValue | undefined): ReadonlyArray<LslType> {
 export function primParamTypes(param: number, values: ReadonlyArray<LslValue>): Array<LslType | undefined> {
   const pattern = param === PRIM_TYPE ? primTypeTypes(values[0]) : (PRIM_PARAM_TYPES[param] ?? [])
   return values.map((_, i) => pattern[i % pattern.length])
+}
+
+const PER_FACE_RULES: ReadonlySet<number> = new Set([
+  PRIM_COLOR, PRIM_TEXTURE, PRIM_RENDER_MATERIAL, PRIM_FULLBRIGHT, PRIM_GLOW, PRIM_BUMP_SHINY,
+  PRIM_TEXGEN, PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE, PRIM_GLTF_BASE_COLOR,
+  PRIM_GLTF_NORMAL, PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE,
+])
+
+const RULE_CONSTANTS: Readonly<Record<string, number>> = {
+  PRIM_NAME, PRIM_DESC, PRIM_TEXT, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL,
+  PRIM_SIZE, PRIM_SLICE, PRIM_MATERIAL, PRIM_PHYSICS, PRIM_PHANTOM, PRIM_TEMP_ON_REZ,
+  PRIM_PHYSICS_SHAPE_TYPE, PRIM_CAST_SHADOWS, PRIM_ALLOW_UNSIT, PRIM_SCRIPTED_SIT_ONLY,
+  PRIM_SIT_FLAGS, PRIM_CLICK_ACTION, PRIM_HEALTH, PRIM_DAMAGE, PRIM_OMEGA, PRIM_POINT_LIGHT,
+  PRIM_REFLECTION_PROBE, PRIM_PROJECTOR, PRIM_FLEXIBLE, PRIM_SIT_TARGET, PRIM_TYPE, PRIM_COLOR,
+  PRIM_TEXTURE, PRIM_RENDER_MATERIAL, PRIM_FULLBRIGHT, PRIM_GLOW, PRIM_BUMP_SHINY, PRIM_TEXGEN,
+  PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE, PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL,
+  PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE,
+}
+const RULE_NAMES = new Map(Object.entries(RULE_CONSTANTS).map(([name, value]) => [value, name]))
+
+function givenType(rules: ReadonlyArray<LslValue>, index: number): LslType {
+  const known = listElementType(rules, index)
+  if (known) return known
+  const v = rules[index]!
+  if (typeof v === 'string') return 'string'
+  if (typeof v === 'number') return Number.isInteger(v) ? 'integer' : 'float'
+  if (isRotation(v)) return 'rotation'
+  if (isVector(v)) return 'vector'
+  return 'list'
+}
+
+function typeAccepts(expected: LslType, given: LslType): boolean {
+  if (expected === given) return true
+  const numeric = (t: LslType) => t === 'integer' || t === 'float'
+  const text = (t: LslType) => t === 'string' || t === 'key'
+  return (numeric(expected) && numeric(given)) || (text(expected) && text(given))
+}
+
+/** `%g`-style number text, as the simulator prints it in error messages. */
+const formatG = (v: number): string => String(Number(v.toPrecision(6)))
+
+/**
+ * Check one PRIM_* rule of a set call before it is applied. Returns null if
+ * the rule can run, otherwise the error text that follows "rule #N" in the
+ * simulator's message (e.g. " (PRIM_SIZE): arg #1 vector expected but string given").
+ */
+/** GLTF override rules take "" in any slot after the face to mean "no override". */
+const GLTF_RULES = new Set([PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL, PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE])
+
+export function checkPrimRule(param: number, rules: ReadonlyArray<LslValue>, cursor: number): string | null {
+  const name = RULE_NAMES.get(param)
+  if (name === undefined || writePrimParamSlots(param, rules, cursor) === null) return ': unknown rule'
+  const pattern = param === PRIM_TYPE ? primTypeTypes(rules[cursor]) : PRIM_PARAM_TYPES[param]!
+  const expected = PER_FACE_RULES.has(param) ? ['integer' as const, ...pattern] : pattern
+  for (let i = 0; i < expected.length; i++) {
+    if (cursor + i >= rules.length) break
+    if (i > 0 && GLTF_RULES.has(param) && rules[cursor + i] === '') continue
+    const given = givenType(rules, cursor + i)
+    if (!typeAccepts(expected[i]!, given)) {
+      return ` (${name}): arg #${i + 1} ${expected[i]} expected but ${given} given`
+    }
+  }
+  if (param === PRIM_GLOW) {
+    const glow = num(rules[cursor + 1])
+    if (glow < 0 || glow > 1) return ` (${name}): bounds error; ${formatG(glow)} is not in (0, 1)`
+  }
+  return null
+}
+
+const BASE_FACES: Readonly<Record<number, number>> = {
+  [SHAPE_BOX]: 6, [SHAPE_CYLINDER]: 3, [SHAPE_PRISM]: 5, [SHAPE_SPHERE]: 1,
+  [SHAPE_TORUS]: 1, [SHAPE_TUBE]: 4, [SHAPE_RING]: 3, [SHAPE_SCULPT]: 1,
+}
+
+/** Face count of a prim shape: the base shape, plus one for a hollow and two for a path cut. */
+export function numberOfSides(shape: PrimShape): number {
+  if (shape.kind === SHAPE_SCULPT) return BASE_FACES[SHAPE_SCULPT]!
+  const hollow = shape.hollow > 0 ? 1 : 0
+  const cut = shape.cut.x > 0 || shape.cut.y < 1 ? 2 : 0
+  return BASE_FACES[shape.kind]! + hollow + cut
 }

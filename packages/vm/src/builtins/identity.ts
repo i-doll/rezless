@@ -1,5 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { NULL_KEY } from '../values/types.js'
+import { PRIM_NAME } from '../generated/constants.js'
 
 const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -25,7 +26,7 @@ export const llGetOwnerKey: BuiltinImpl = (ctx, args) => {
 /** llSetObjectName(string name) — mutates the prim's name. */
 export const llSetObjectName: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
-  ctx.state.identity.objectName = name
+  ctx.prim.setPrimParam(PRIM_NAME, [name], 0)
   return undefined
 }
 

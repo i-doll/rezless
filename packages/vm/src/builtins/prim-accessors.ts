@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
+import { numberOfSides } from '../prim-params.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
 import type { Linkset } from '../linkset.js'
@@ -42,12 +43,21 @@ function targets(linkset: Linkset, sender: number, link: number): Prim[] {
 /*  Position / rotation / scale                                        */
 /* ------------------------------------------------------------------ */
 
+/** How far an unattached root prim moves per llSetPos call; child prims are not capped. */
+const MAX_SET_POS_DISTANCE = 10
+
 export const llSetPos: BuiltinImpl = (ctx, args) => {
-  ctx.prim.setPrimParam(PRIM_POSITION, [vecOf(args[0])], 0)
+  const target = vecOf(args[0])
+  const from = ctx.prim.params.position
+  const dx = target.x - from.x, dy = target.y - from.y, dz = target.z - from.z
+  const dist = Math.hypot(dx, dy, dz)
+  const isChild = ctx.prim.linkNumber > 1
+  const k = !isChild && dist > MAX_SET_POS_DISTANCE ? MAX_SET_POS_DISTANCE / dist : 1
+  ctx.prim.setPrimParam(PRIM_POSITION, [{ x: from.x + dx * k, y: from.y + dy * k, z: from.z + dz * k }], 0)
   return undefined
 }
 
-export const llGetPos: BuiltinImpl = (ctx) => ctx.prim.params.position
+export const llGetPos: BuiltinImpl = (ctx) => ctx.prim.regionPosition()
 export const llGetLocalPos: BuiltinImpl = (ctx) => ctx.prim.params.position
 export const llGetRootPosition: BuiltinImpl = (ctx) => {
   const root = ctx.linkset.prims[0] ?? ctx.prim
@@ -84,8 +94,11 @@ export const llScaleByFactor: BuiltinImpl = (ctx, args) => {
   }
   return 1
 }
-export const llGetMaxScaleFactor: BuiltinImpl = () => 64
-export const llGetMinScaleFactor: BuiltinImpl = () => 0.01
+export const llGetMaxScaleFactor: BuiltinImpl = (ctx) =>
+  Math.min(...ctx.linkset.prims.map((p) => 64 / Math.max(p.params.size.x, p.params.size.y, p.params.size.z)))
+export const llGetMinScaleFactor: BuiltinImpl = (ctx) =>
+  Math.max(...ctx.linkset.prims.map((p) => 0.01 / Math.min(p.params.size.x, p.params.size.y, p.params.size.z)))
+export const llGetNumberOfSides: BuiltinImpl = (ctx) => numberOfSides(ctx.prim.params.shape)
 
 /* ------------------------------------------------------------------ */
 /*  Color / alpha / texture                                            */
@@ -132,9 +145,10 @@ export const llSetAlpha: BuiltinImpl = (ctx, args) => {
 export const llGetAlpha: BuiltinImpl = (ctx, args) => {
   const face = num(args[0], 0) | 0
   if (face === ALL_SIDES) {
+    const faces = Math.min(numberOfSides(ctx.prim.params.shape), ctx.prim.params.faces.length)
     let a = 0
-    for (let f = 0; f < 6; f++) a += ctx.prim.params.faces[f]!.alpha
-    return a / 6
+    for (let f = 0; f < faces; f++) a += ctx.prim.params.faces[f]!.alpha
+    return a
   }
   if (face < 0 || face > 5) return 0
   return ctx.prim.params.faces[face]!.alpha

@@ -204,3 +204,52 @@ describe('Phase 3 — llDetected* family', () => {
     expect(s.global('own')).toBe('11111111-2222-3333-4444-555555555555')
   })
 })
+
+describe('event queue limit', () => {
+  // In-world: 100 llMessageLinked(LINK_THIS, ...) in one handler deliver 64 link_message events.
+  it('caps a script queue at 64 pending events', async () => {
+    const s = await load(`
+      integer got = 0;
+      default {
+        touch_start(integer n) {
+          integer i;
+          for (i = 0; i < 100; i++) llMessageLinked(LINK_THIS, i, "", "");
+        }
+        link_message(integer sender, integer num, string str, key id) { got = got + 1; }
+      }
+    `)
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.global('got')).toBe(64)
+  })
+})
+
+describe('request keys', () => {
+  // In-world: request keys are real UUIDs, so `if (key)` is true.
+  it('dataserver request keys are non-null UUIDs', async () => {
+    const s = await load(`
+      integer truthy = 0;
+      default {
+        state_entry() {
+          key a = llRequestAgentData("11111111-2222-3333-4444-555555555555", DATA_NAME);
+          key b = llRequestAgentData("11111111-2222-3333-4444-555555555555", DATA_NAME);
+          if (a) truthy = truthy + 1;
+          if (b) truthy = truthy + 1;
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('truthy')).toBe(2)
+    const [a, b] = s.dataserverRequests.map((r) => r.key)
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    expect(a).not.toBe(b)
+  })
+
+  it('request keys are deterministic across loads', async () => {
+    const src = `default { state_entry() { llRequestAgentData(NULL_KEY, DATA_NAME); } }`
+    const s1 = await load(src)
+    const s2 = await load(src)
+    s1.start()
+    s2.start()
+    expect(s1.dataserverRequests[0]!.key).toBe(s2.dataserverRequests[0]!.key)
+  })
+})

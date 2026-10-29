@@ -23,6 +23,9 @@ export interface QueuedEvent {
   readonly payload: Record<string, unknown>
 }
 
+/** Events a script can hold in its queue; more are dropped, as in Second Life. */
+export const MAX_PENDING_EVENTS = 64
+
 /** Linkset-wide clock. One instance per Linkset. */
 export class LinksetClock {
   /** Virtual milliseconds since linkset construction. Strictly monotonic. */
@@ -38,8 +41,17 @@ export class LinksetClock {
 
   private readonly queue: QueuedEvent[] = []
 
-  /** Schedule a one-shot event on `target`'s handler at virtual time `at`. */
+  /**
+   * Schedule a one-shot event on `target`'s handler at virtual time `at`.
+   * A script holds at most MAX_PENDING_EVENTS queued events, counting those
+   * parked while it is stopped; further events are dropped.
+   */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}): void {
+    if (event !== '__reset') {
+      let pending = target.parkedEvents.length
+      for (const e of this.queue) if (e.target === target) pending++
+      if (pending >= MAX_PENDING_EVENTS) return
+    }
     this.queue.push({ at, target, event, payload })
   }
 
@@ -50,20 +62,22 @@ export class LinksetClock {
   }
 
   /**
-   * Pop and return the next due event (`at <= now`) considering all queued
+   * Pop and return the next due event (`at <= horizon`, default `now`) considering all queued
    * one-shots and every script's recurring timer. Returns `null` when no
    * event is ready.
    *
    * Recurring timers fire once per script per interval; their next fire
    * timestamp is advanced by `at + interval` (not `now + interval`) so that
-   * long advances catch up on every missed fire.
+   * long advances catch up on every missed fire. Ticks that fall due while
+   * the script is busy (e.g. in llSleep) collapse into one event delivered
+   * when it finishes, and the interval restarts from there.
    */
-  takeNextDue(scripts: ReadonlyArray<Script>): QueuedEvent | null {
+  takeNextDue(scripts: ReadonlyArray<Script>, horizon = this.now): QueuedEvent | null {
     let bestIdx = -1
     let bestAt = Infinity
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
-      if (e.at <= this.now && e.at < bestAt) {
+      if (e.at <= horizon && e.at < bestAt) {
         bestAt = e.at
         bestIdx = i
       }
@@ -76,9 +90,12 @@ export class LinksetClock {
       // back-logged events that flood the script on resume.
       if (s.dead || !s.running) continue
       const v = s.clockView
-      if (v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now && v.timerNextFireMs < bestTimerAt) {
-        bestTimerAt = v.timerNextFireMs
-        bestTimerScript = s
+      if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon) {
+        const due = Math.max(v.timerNextFireMs, v.busyUntilMs)
+        if (due < bestTimerAt) {
+          bestTimerAt = due
+          bestTimerScript = s
+        }
       }
     }
 
@@ -100,10 +117,15 @@ export class LinksetClock {
     return this.queue.slice()
   }
 
-  /** Remove every queued event whose target is `script`. Used on reset. */
-  purgeTarget(script: Script): void {
+  /**
+   * Remove every queued event whose target is `script` and that is due by
+   * `upTo` (default: all of them), except events named `keep`. Used on reset
+   * and state change.
+   */
+  purgeTarget(script: Script, upTo = Infinity, keep?: string): void {
     for (let i = this.queue.length - 1; i >= 0; i--) {
-      if (this.queue[i]!.target === script) this.queue.splice(i, 1)
+      const e = this.queue[i]!
+      if (e.target === script && e.at <= upTo && e.event !== keep) this.queue.splice(i, 1)
     }
   }
 }
@@ -120,6 +142,8 @@ export class ScriptClockView {
   timerIntervalMs = 0
   /** Virtual time at which the next timer event fires. */
   timerNextFireMs = 0
+  /** Virtual time at which the script's last handler finished, when it took time (llSleep, delays). */
+  busyUntilMs = 0
 
   constructor(
     private readonly linksetClock: LinksetClock,

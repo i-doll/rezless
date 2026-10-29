@@ -14,8 +14,34 @@ export const llStringToBase64: BuiltinImpl = (_ctx, args) => {
 
 export const llBase64ToString: BuiltinImpl = (_ctx, args) => {
   const s = (args[0] as string | undefined) ?? ''
-  // LSL silently tolerates malformed input; Buffer does too.
-  return Buffer.from(s, 'base64').toString('utf8')
+  return decodeUtf8Lenient(Buffer.from(s, 'base64'))
+}
+
+/** UTF-8 decode where NUL and each byte of an invalid sequence become `?`. */
+function decodeUtf8Lenient(bytes: Uint8Array): string {
+  const strict = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
+  let out = ''
+  let i = 0
+  while (i < bytes.length) {
+    const b = bytes[i]!
+    const len = b < 0x80 ? 1 : b >= 0xc2 && b < 0xe0 ? 2 : b >= 0xe0 && b < 0xf0 ? 3 : b >= 0xf0 && b < 0xf5 ? 4 : 0
+    let ch: string | null = null
+    if (len > 0 && i + len <= bytes.length) {
+      try {
+        ch = strict.decode(bytes.subarray(i, i + len))
+      } catch {
+        ch = null
+      }
+    }
+    if (ch === null) {
+      out += '?'
+      i += 1
+    } else {
+      out += ch === '\0' ? '?' : ch
+      i += len
+    }
+  }
+  return out
 }
 
 /**

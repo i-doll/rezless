@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { loadScript } from '../src/index.js'
 
+const NULL_KEY_STR = '00000000-0000-0000-0000-000000000000'
+
 async function run(source: string) {
   const s = await loadScript({ source })
   s.start()
@@ -52,6 +54,70 @@ describe('Phase 2 — multi-state and state transitions', () => {
     expect(s).toBeInState('listening')
     s.fire('touch_start', { num_detected: 1 })
     expect(s).toBeInState('default')
+  })
+
+  // In-world: `state X;` while already in X runs neither state_exit nor state_entry.
+  it('`state default;` while in default is a no-op', async () => {
+    const s = await run(`
+      integer entries = 0;
+      integer exits = 0;
+      default {
+        state_entry() { entries = entries + 1; }
+        state_exit() { exits = exits + 1; }
+        touch_start(integer n) { state default; }
+      }
+    `)
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.global('entries')).toBe(1)
+    expect(s.global('exits')).toBe(0)
+  })
+
+  // In-world: a listen opened in default does not hear chat in state two.
+  it('a state change releases every listen', async () => {
+    const s = await run(`
+      integer heard = 0;
+      default {
+        state_entry() {
+          llListen(5, "", NULL_KEY, "");
+          state two;
+        }
+      }
+      state two {
+        listen(integer c, string n, key i, string m) { heard = heard + 1; }
+      }
+    `)
+    s.deliverChat({ channel: 5, name: 'A', key: NULL_KEY_STR, message: 'hi' })
+    expect(s.listens).toHaveLength(0)
+    expect(s.global('heard')).toBe(0)
+  })
+
+  it('a state change drops events queued for the old state', async () => {
+    const s = await run(`
+      integer got = 0;
+      default {
+        state_entry() {
+          llMessageLinked(LINK_THIS, 1, "", "");
+          state two;
+        }
+      }
+      state two {
+        link_message(integer sender, integer num, string str, key id) { got = got + 1; }
+      }
+    `)
+    expect(s.global('got')).toBe(0)
+  })
+
+  it('llResetScript releases every listen', async () => {
+    const s = await run(`
+      default {
+        touch_start(integer n) { llListen(5, "", NULL_KEY, ""); }
+        touch_end(integer n) { llResetScript(); }
+      }
+    `)
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.listens).toHaveLength(1)
+    s.fire('touch_end', { num_detected: 1 })
+    expect(s.listens).toHaveLength(0)
   })
 
   it('rejects a transition to an unknown state at load time', async () => {

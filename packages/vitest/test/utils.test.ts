@@ -19,7 +19,7 @@ describe('Phase 3 — math builtins', () => {
         state_entry() {
           a = llAbs(-5);
           f = llFabs(-3.5);
-          r = llRound(2.5);  // banker's: 2 (round to even)
+          r = llRound(2.5);
           c = llCeil(2.1);
           fl = llFloor(2.9);
         }
@@ -27,27 +27,30 @@ describe('Phase 3 — math builtins', () => {
     `)
     expect(s.global('a')).toBe(5)
     expect(s.global('f')).toBe(3.5)
-    expect(s.global('r')).toBe(2)
+    expect(s.global('r')).toBe(3)
     expect(s.global('c')).toBe(3)
     expect(s.global('fl')).toBe(2)
   })
 
-  it('llRound uses banker\'s rounding', async () => {
+  it('llRound is floor(x + 0.5) (SL parity)', async () => {
     const s = await run(`
       integer a = 0;
       integer b = 0;
       integer c = 0;
+      integer d = 0;
       default {
         state_entry() {
-          a = llRound(0.5);  // → 0 (even)
-          b = llRound(1.5);  // → 2 (even)
-          c = llRound(-0.5); // → 0 (even)
+          a = llRound(2.5);
+          b = llRound(0.5);
+          c = llRound(-1.5);
+          d = llRound(-2.5);
         }
       }
     `)
-    expect(s.global('a')).toBe(0)
-    expect(s.global('b')).toBe(2)
-    expect(s.global('c')).toBe(0)
+    expect(s.global('a')).toBe(3)
+    expect(s.global('b')).toBe(1)
+    expect(s.global('c')).toBe(-1)
+    expect(s.global('d')).toBe(-2)
   })
 
   it('llPow / llSqrt / llSin / llCos', async () => {
@@ -324,8 +327,119 @@ describe('Phase 3 — string builtins', () => {
         }
       }
     `)
-    expect(s.global('a')).toBe('hello%20world!')
+    expect(s.global('a')).toBe('hello%20world%21')
     expect(s.global('b')).toBe('hello world!')
+  })
+
+  it('llGetSubString / llDeleteSubString clamp out-of-range indices (SL parity)', async () => {
+    const s = await run(`
+      string a = "?";
+      string b = "?";
+      string c = "?";
+      string d = "?";
+      string e = "?";
+      default {
+        state_entry() {
+          a = llGetSubString("abc", 5, 10);
+          b = llGetSubString("abc", -10, -5);
+          c = llGetSubString("abc", 1, 10);
+          d = llGetSubString("abc", -10, 1);
+          e = llDeleteSubString("abc", 5, 10);
+        }
+      }
+    `)
+    expect(s.global('a')).toBe('')
+    expect(s.global('b')).toBe('')
+    expect(s.global('c')).toBe('bc')
+    expect(s.global('d')).toBe('ab')
+    expect(s.global('e')).toBe('abc')
+  })
+
+  it('string functions index by code point (SL parity)', async () => {
+    const s = await run(`
+      integer idx = -2;
+      string sub = "?";
+      integer len = -1;
+      string del = "?";
+      string ins = "?";
+      default {
+        state_entry() {
+          idx = llSubStringIndex("😀a", "a");
+          sub = llGetSubString("😀a", 1, 1);
+          len = llStringLength("😀a");
+          del = llDeleteSubString("😀ab", 1, 1);
+          ins = llInsertString("😀a", 1, "-");
+        }
+      }
+    `)
+    expect(s.global('idx')).toBe(1)
+    expect(s.global('sub')).toBe('a')
+    expect(s.global('len')).toBe(2)
+    expect(s.global('del')).toBe('😀b')
+    expect(s.global('ins')).toBe('😀-a')
+  })
+
+  it('llEscapeURL escapes every byte that is not alphanumeric (SL parity)', async () => {
+    const s = await run(`
+      string a = "";
+      string b = "";
+      default {
+        state_entry() {
+          a = llEscapeURL("a-b_c.d!e~f*g'h(i)j");
+          b = llEscapeURL("é");
+        }
+      }
+    `)
+    expect(s.global('a')).toBe('a%2Db%5Fc%2Ed%21e%7Ef%2Ag%27h%28i%29j')
+    expect(s.global('b')).toBe('%C3%A9')
+  })
+
+  it('llUnescapeURL drops a trailing lone % and fails on bad hex (SL parity)', async () => {
+    const s = await run(`
+      string a = "?";
+      string b = "?";
+      default {
+        state_entry() {
+          a = llUnescapeURL("100%");
+          b = llUnescapeURL("%zz%41");
+        }
+      }
+    `)
+    expect(s.global('a')).toBe('100')
+    expect(s.global('b')).toBe('')
+  })
+
+  it('llStringTrim trims ASCII whitespace only, not NBSP (SL parity)', async () => {
+    const s = await run(`
+      integer len = 0;
+      string t = "?";
+      default {
+        state_entry() {
+          len = llStringLength(llStringTrim("\u00A0x\u00A0", STRING_TRIM));
+          t = llStringTrim(" \\n x \\n ", STRING_TRIM);
+        }
+      }
+    `)
+    expect(s.global('len')).toBe(3)
+    expect(s.global('t')).toBe('x')
+  })
+
+  it('llBase64ToString turns NUL and invalid UTF-8 bytes into ? (SL parity)', async () => {
+    const s = await run(`
+      string a = "";
+      integer alen = 0;
+      string b = "";
+      default {
+        state_entry() {
+          a = llBase64ToString("YQBi");
+          alen = llStringLength(a);
+          b = llBase64ToString("/w==");
+        }
+      }
+    `)
+    expect(s.global('a')).toBe('a?b')
+    expect(s.global('alen')).toBe(3)
+    expect(s.global('b')).toBe('?')
   })
 })
 
@@ -750,7 +864,7 @@ describe('Phase 3 — list builtins', () => {
     `)
     expect(s.global('keyFound')).toBe(-1)
     expect(s.global('countFound')).toBe(-1)
-    expect(s.global('material')).toBe('1.000000,0.000000,0.000000,1000.000000')
+    expect(s.global('material')).toBe('1.000000,0.500000,0.600000,1000.000000')
   })
 })
 

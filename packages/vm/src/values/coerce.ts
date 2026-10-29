@@ -22,7 +22,7 @@ export function coerce(from: EvalResult, target: LslType): EvalResult {
   const v = from.value
   switch (target) {
     case 'integer': {
-      if (typeof v === 'number') return { type: 'integer', value: toInt32(Math.trunc(v)) }
+      if (typeof v === 'number') return { type: 'integer', value: floatToInteger(v) }
       if (typeof v === 'string') return { type: 'integer', value: parseLslInteger(v) }
       throw typeError(from, target)
     }
@@ -85,6 +85,12 @@ export function stringify(r: EvalResult): string {
   }
 }
 
+/** LSL `(integer)float`: truncate; out of range, NaN and infinity give -2147483648. */
+export function floatToInteger(n: number): number {
+  const t = Math.trunc(n)
+  return t >= -2147483648 && t <= 2147483647 ? t : -2147483648
+}
+
 /**
  * LSL `(integer)str` parsing.
  *   - Skip leading whitespace
@@ -93,7 +99,7 @@ export function stringify(r: EvalResult): string {
  *   - Read decimal digits (or hex digits) until the first non-matching character
  *   - Empty / no-digits → 0
  */
-function parseLslInteger(s: string): number {
+export function parseLslInteger(s: string): number {
   let i = 0
   while (i < s.length && /\s/.test(s[i]!)) i++
   let sign = 1
@@ -121,49 +127,71 @@ function parseLslInteger(s: string): number {
   return toInt32(sign * Number.parseInt(dec, 10))
 }
 
-/** LSL `(float)str` — accepts decimal, exponent, optional sign, leading whitespace. */
+/** LSL `(float)str`: leading whitespace, then a C `strtod` number; 0 if none. */
 function parseLslFloat(s: string): number {
   let i = 0
   while (i < s.length && /\s/.test(s[i]!)) i++
-  const start = i
-  if (s[i] === '+' || s[i] === '-') i++
-  while (i < s.length && /[0-9]/.test(s[i]!)) i++
-  if (s[i] === '.') {
-    i++
-    while (i < s.length && /[0-9]/.test(s[i]!)) i++
+  return scanFloat(s, i)?.value ?? 0
+}
+
+/**
+ * Read a C `strtod` number at `start`: decimal with optional exponent, hex
+ * (`0x1p4`), `inf`, `infinity` or `nan`, each with an optional sign.
+ */
+function scanFloat(s: string, start: number): { value: number; end: number } | null {
+  const m = /^[+-]?(?:(0x)([0-9a-f]*)(?:\.([0-9a-f]*))?(?:p([+-]?\d+))?|infinity|inf|nan|(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)/i.exec(
+    s.slice(start),
+  )
+  if (!m) return null
+  const text = m[0]
+  const sign = text.startsWith('-') ? -1 : 1
+  const body = text.replace(/^[+-]/, '').toLowerCase()
+  let value: number
+  if (body.startsWith('inf')) value = Infinity
+  else if (body === 'nan') value = NaN
+  else if (m[1]) {
+    const int = m[2] ?? ''
+    const frac = m[3] ?? ''
+    if (!int && !frac) return { value: 0, end: start + text.toLowerCase().indexOf('x') }
+    const mantissa = Number.parseInt(int + frac || '0', 16) / 16 ** frac.length
+    value = mantissa * 2 ** Number(m[4] ?? 0)
+  } else value = Number.parseFloat(body)
+  return { value: toFloat32(sign * value), end: start + text.length }
+}
+
+/**
+ * LSL `(vector)str` / `(rotation)str`, like C `sscanf("<%f,%f,%f")`: the
+ * string must start with `<`, each comma must follow its number directly,
+ * and anything after the last number is ignored.
+ */
+function scanComponents(s: string, count: number): number[] | null {
+  if (s[0] !== '<') return null
+  const out: number[] = []
+  let i = 1
+  while (out.length < count) {
+    if (out.length > 0) {
+      if (s[i] !== ',') return null
+      i++
+    }
+    while (/\s/.test(s[i] ?? '')) i++
+    const f = scanFloat(s, i)
+    if (!f) return null
+    out.push(f.value)
+    i = f.end
   }
-  if (s[i] === 'e' || s[i] === 'E') {
-    i++
-    if (s[i] === '+' || s[i] === '-') i++
-    while (i < s.length && /[0-9]/.test(s[i]!)) i++
-  }
-  if (i === start) return 0
-  const n = Number.parseFloat(s.slice(start, i))
-  // A value too large for a 32-bit float rounds to infinity, as in Mono.
-  return Number.isFinite(n) ? toFloat32(n) : 0
+  return out
 }
 
 function parseLslVector(s: string): { x: number; y: number; z: number } {
-  const m = s.match(/^\s*<\s*([^,]+),\s*([^,]+),\s*([^>]+)\s*>\s*$/)
-  if (!m) return ZERO_VECTOR
-  const [, xs, ys, zs] = m
-  return {
-    x: parseLslFloat(xs!),
-    y: parseLslFloat(ys!),
-    z: parseLslFloat(zs!),
-  }
+  const c = scanComponents(s, 3)
+  if (!c) return ZERO_VECTOR
+  return { x: c[0]!, y: c[1]!, z: c[2]! }
 }
 
 function parseLslRotation(s: string): { x: number; y: number; z: number; s: number } {
-  const m = s.match(/^\s*<\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^>]+)\s*>\s*$/)
-  if (!m) return ZERO_ROTATION
-  const [, xs, ys, zs, ss] = m
-  return {
-    x: parseLslFloat(xs!),
-    y: parseLslFloat(ys!),
-    z: parseLslFloat(zs!),
-    s: parseLslFloat(ss!),
-  }
+  const c = scanComponents(s, 4)
+  if (!c) return ZERO_ROTATION
+  return { x: c[0]!, y: c[1]!, z: c[2]!, s: c[3]! }
 }
 
 /** Sentinel re-exports for callers that want defaults inline. */

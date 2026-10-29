@@ -15,11 +15,11 @@ export const llGetLinkKey: BuiltinImpl = (ctx, args) => {
   return prim ? prim.key : NULL_KEY
 }
 
-/** llGetLinkName(integer link) — name of the prim at `link`, or empty. */
+/** llGetLinkName(integer link) — name of the prim at `link`, or NULL_KEY. */
 export const llGetLinkName: BuiltinImpl = (ctx, args) => {
   const link = (args[0] as number | undefined) ?? 0
   const prim = findPrim(ctx, link)
-  return prim ? prim.name : ''
+  return prim ? prim.name : NULL_KEY
 }
 
 function findPrim(ctx: Parameters<BuiltinImpl>[0], link: number) {

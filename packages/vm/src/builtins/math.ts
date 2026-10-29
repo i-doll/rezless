@@ -12,16 +12,9 @@ export const llFabs: BuiltinImpl = (_ctx, args) => {
   return Math.abs((args[0] as number | undefined) ?? 0)
 }
 
-/** llRound(float val) — banker's rounding per LSL (round-half-to-even). */
-export const llRound: BuiltinImpl = (_ctx, args) => {
-  const x = (args[0] as number | undefined) ?? 0
-  const floor = Math.floor(x)
-  const diff = x - floor
-  if (diff < 0.5) return floor | 0
-  if (diff > 0.5) return (floor + 1) | 0
-  // exact half — round to even
-  return ((floor % 2 === 0 ? floor : floor + 1) | 0)
-}
+/** llRound(float val) — floor(val + 0.5), so halves round up. */
+export const llRound: BuiltinImpl = (_ctx, args) =>
+  Math.floor(((args[0] as number | undefined) ?? 0) + 0.5) | 0
 
 export const llCeil: BuiltinImpl = (_ctx, args) =>
   Math.ceil((args[0] as number | undefined) ?? 0) | 0

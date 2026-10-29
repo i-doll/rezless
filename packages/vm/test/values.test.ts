@@ -8,6 +8,7 @@ import {
   formatListElement,
 } from '../src/values/format.js'
 import { ZERO_VECTOR, ZERO_ROTATION, vec, rot } from '../src/values/types.js'
+import { typedList } from '../src/values/list-types.js'
 import type { EvalResult } from '../src/values/types.js'
 
 const I = (value: number): EvalResult => ({ type: 'integer', value })
@@ -39,11 +40,13 @@ describe('coerce — string → integer', () => {
     expect(coerce(S('0x'), 'integer').value).toBe(0)
   })
 
-  it('truncates floats toward zero and clamps non-finite to 0', () => {
+  it('truncates floats toward zero; out of range and non-finite give -2147483648', () => {
     expect(coerce(F(3.9), 'integer').value).toBe(3)
     expect(coerce(F(-3.9), 'integer').value).toBe(-3)
-    expect(coerce(F(Number.POSITIVE_INFINITY), 'integer').value).toBe(0)
-    expect(coerce(F(Number.NaN), 'integer').value).toBe(0)
+    expect(coerce(F(2147483647), 'integer').value).toBe(2147483647)
+    expect(coerce(F(1e10), 'integer').value).toBe(-2147483648)
+    expect(coerce(F(Number.POSITIVE_INFINITY), 'integer').value).toBe(-2147483648)
+    expect(coerce(F(Number.NaN), 'integer').value).toBe(-2147483648)
   })
 })
 
@@ -97,25 +100,25 @@ describe('stringify — every LSL type', () => {
     expect(stringify(F(1.5))).toBe('1.500000')
     expect(stringify(S('hi'))).toBe('hi')
     expect(stringify(K('a-uuid'))).toBe('a-uuid')
-    expect(stringify(V(1, 2, 3))).toBe('<1.000000, 2.000000, 3.000000>')
-    expect(stringify(R(0, 0, 0, 1))).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
+    expect(stringify(V(1, 2, 3))).toBe('<1.00000, 2.00000, 3.00000>')
+    expect(stringify(R(0, 0, 0, 1))).toBe('<0.00000, 0.00000, 0.00000, 1.00000>')
     expect(stringify(L([1, 'a', vec(1, 2, 3)]))).toBe('1a<1.000000, 2.000000, 3.000000>')
     expect(stringify({ type: 'void', value: undefined } as unknown as EvalResult)).toBe('')
   })
 })
 
 describe('format — float, vector, rotation, list', () => {
-  it('formatFloat renders nan / inf / -inf and fixes 6 decimals', () => {
-    expect(formatFloat(Number.NaN)).toBe('nan')
-    expect(formatFloat(Number.POSITIVE_INFINITY)).toBe('inf')
-    expect(formatFloat(Number.NEGATIVE_INFINITY)).toBe('-inf')
+  it('formatFloat renders NaN / Infinity / -Infinity and fixes 6 decimals', () => {
+    expect(formatFloat(Number.NaN)).toBe('NaN')
+    expect(formatFloat(Number.POSITIVE_INFINITY)).toBe('Infinity')
+    expect(formatFloat(Number.NEGATIVE_INFINITY)).toBe('-Infinity')
     expect(formatFloat(0)).toBe('0.000000')
     expect(formatFloat(-1.25)).toBe('-1.250000')
   })
 
   it('formatVector / formatRotation use formatFloat for components', () => {
-    expect(formatVector(vec(1, 2, 3))).toBe('<1.000000, 2.000000, 3.000000>')
-    expect(formatRotation(rot(0, 0, 0, 1))).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
+    expect(formatVector(vec(1, 2, 3))).toBe('<1.00000, 2.00000, 3.00000>')
+    expect(formatRotation(rot(0, 0, 0, 1))).toBe('<0.00000, 0.00000, 0.00000, 1.00000>')
   })
 
   it('formatListElement handles strings, ints, floats, vectors, rotations, and nested lists', () => {
@@ -131,5 +134,36 @@ describe('format — float, vector, rotation, list', () => {
   it('formatList concatenates with no separator', () => {
     expect(formatList([])).toBe('')
     expect(formatList([1, 'a', 2.5])).toBe('1a2.500000')
+  })
+})
+
+describe('format — 7 significant digits (measured in SL)', () => {
+  it('rounds to 7 significant digits before fixing the decimals', () => {
+    expect(formatFloat(Math.fround(123456789))).toBe('123456800.000000')
+    expect(formatFloat(Math.fround(1e30))).toBe('1000000000000000000000000000000.000000')
+    expect(formatFloat(Math.fround(-1e30))).toBe('-1000000000000000000000000000000.000000')
+    expect(formatFloat(Math.fround(0.1))).toBe('0.100000')
+  })
+
+  it('formatList uses recorded element types', () => {
+    expect(formatList(typedList([2, 1, 2.5], ['float', 'integer', 'float']))).toBe('2.00000012.500000')
+  })
+})
+
+describe('coerce — strtod-style string → float and vector', () => {
+  it('reads hex floats, inf and nan, and an empty 0x prefix as 0', () => {
+    expect(coerce(S('0x1p4'), 'float').value).toBe(16)
+    expect(coerce(S('0X1.8P1'), 'float').value).toBe(3)
+    expect(coerce(S('-Infinity'), 'float').value).toBe(-Infinity)
+    expect(coerce(S('NaN'), 'float').value).toBeNaN()
+    expect(coerce(S('0x'), 'float').value).toBe(0)
+  })
+
+  it('needs a < at the very start and ignores what follows the last component', () => {
+    expect(coerce(S('<1, 2, 3>'), 'vector').value).toEqual({ x: 1, y: 2, z: 3 })
+    expect(coerce(S('<1,2,3>junk'), 'vector').value).toEqual({ x: 1, y: 2, z: 3 })
+    expect(coerce(S(' <1,2,3>'), 'vector').value).toBe(ZERO_VECTOR)
+    expect(coerce(S('<1,x,3>'), 'vector').value).toBe(ZERO_VECTOR)
+    expect(coerce(S('<1,2>'), 'vector').value).toBe(ZERO_VECTOR)
   })
 })

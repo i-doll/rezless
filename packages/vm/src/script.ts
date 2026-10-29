@@ -7,6 +7,7 @@ import type {
 } from '@rezless/parser'
 import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity } from './runtime.js'
 import type { HttpRequestEntry } from './builtins/http.js'
+import { truncateUtf8 } from './values/utf8.js'
 import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
 import type { DataserverRequestEntry } from './builtins/dataserver.js'
@@ -28,7 +29,9 @@ import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
+import { HTTP_BODY_TRUNCATED } from './generated/constants.js'
 import { own } from './own.js'
+import { deterministicKey } from './keys.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -263,7 +266,9 @@ export class Script {
 
   /**
    * Feed a response to a previously captured HTTP request. Schedules an
-   * `http_response` event for immediate delivery.
+   * `http_response` event for immediate delivery on every script in the
+   * prim. A body longer than the request's max length is cut, and the
+   * metadata becomes `[HTTP_BODY_TRUNCATED, max]`.
    */
   respondToHttp(
     key: string,
@@ -272,12 +277,18 @@ export class Script {
     const req = this.state.httpRequests.find((r) => r.key === key)
     if (!req) throw new Error(`unknown HTTP request key: ${key}`)
     req.fulfilled = true
-    this.clockView.schedule(this.now, 'http_response', {
+    const body = response.body ?? ''
+    const cut = truncateUtf8(body, req.bodyMaxLength)
+    const payload = {
       request_id: key,
       status: response.status,
-      metadata: response.metadata ?? [],
-      body: response.body ?? '',
-    })
+      metadata:
+        cut === body
+          ? (response.metadata ?? [])
+          : typedList([HTTP_BODY_TRUNCATED, req.bodyMaxLength], ['integer', 'integer']),
+      body: cut,
+    }
+    for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'http_response', payload)
     this.linkset.drainQueue()
   }
 
@@ -314,16 +325,15 @@ export class Script {
 
   /**
    * Feed a value back to a pending dataserver request. Schedules a
-   * `dataserver` event with the request key and a string value.
+   * `dataserver` event with the request key and a string value on every
+   * script in the prim.
    */
   respondToDataserver(key: string, value: string): void {
     const req = this.state.dataserverRequests.find((r) => r.key === key)
     if (!req) throw new Error(`unknown dataserver request key: ${key}`)
     req.fulfilled = true
-    this.clockView.schedule(this.now, 'dataserver', {
-      queryid: key,
-      data: value,
-    })
+    const payload = { queryid: key, data: value }
+    for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'dataserver', payload)
     this.linkset.drainQueue()
   }
 
@@ -488,6 +498,7 @@ export class Script {
     initGlobals(this.globals, this.ast.globals)
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
+    this.state.listens.length = 0
     this.clockView.cancelTimer()
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
@@ -549,6 +560,15 @@ export class Script {
    * does `state foo;` continues the chain correctly.
    */
   private runHandler(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
+    const startedAt = this.now
+    try {
+      this.runHandlerChain(handler, args)
+    } finally {
+      if (this.now > startedAt) this.clockView.busyUntilMs = this.now
+    }
+  }
+
+  private runHandlerChain(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
     const ctx = {
       state: this.state,
       mocks: this.mocks,
@@ -575,6 +595,7 @@ export class Script {
         }
         if (!(e instanceof StateChangeSignal)) throw e
         const target = e.target
+        if (target === this.state.currentState) continue
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
           try {
@@ -590,6 +611,8 @@ export class Script {
         if (!this.handlersByState.has(target)) {
           throw new Error(`unknown state '${target}' in state change`)
         }
+        this.state.listens.length = 0
+        this.linkset.clock.purgeTarget(this, this.now, '__reset')
         this.state.currentState = target
         if (this.state.coverage) this.state.coverage.hitState(target)
         const entry = this.handlersByState.get(target)?.get('state_entry')
@@ -745,22 +768,6 @@ function lookupGlobal(env: Env, name: string): EvalResult | undefined {
   } catch {
     return undefined
   }
-}
-
-/** A stable, UUID-shaped string derived from `seed`. */
-function deterministicKey(seed: string): string {
-  let h1 = 0x811c9dc5
-  for (let i = 0; i < seed.length; i++) {
-    h1 ^= seed.charCodeAt(i)
-    h1 = Math.imul(h1, 0x01000193) >>> 0
-  }
-  let h2 = (h1 ^ 0xdeadbeef) >>> 0
-  for (let i = 0; i < seed.length; i++) {
-    h2 ^= seed.charCodeAt(i) << (i & 31)
-    h2 = Math.imul(h2, 0x01000193) >>> 0
-  }
-  const hex = (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0')).repeat(2)
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
 }
 
 function deriveScriptName(filename: string | undefined): string {

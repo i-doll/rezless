@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset } from '../src/index.js'
-import { EOF, NAK, InventoryType, makeInventoryItem } from '@rezless/vm'
+import { EOF, InventoryType, makeInventoryItem } from '@rezless/vm'
 
 describe('multi-script linkset', () => {
   describe('LSD broadcast', () => {
@@ -263,20 +263,16 @@ describe('multi-script linkset', () => {
       expect(scripts['p']!.global('ts')).toBe('2024-04-09T13:15:08Z')
     })
 
-    it('llGetNotecardLine returns EOF past the end and NAK for missing notecard', async () => {
+    it('llGetNotecardLine returns EOF past the end', async () => {
       const probe = `
         string past = "";
-        string missing = "";
         key kPast;
-        key kMissing;
         default {
           state_entry() {
             kPast = llGetNotecardLine("memo", 99);
-            kMissing = llGetNotecardLine("nope", 0);
           }
           dataserver(key id, string data) {
             if (id == kPast) past = data;
-            if (id == kMissing) missing = data;
           }
         }
       `
@@ -284,24 +280,115 @@ describe('multi-script linkset', () => {
         prims: [
           {
             inventory: [
-              {
-                name: 'memo',
-                type: 7,
-                key: '00000000-0000-0000-0000-000000000123',
-                creator: '00000000-0000-0000-0000-000000000000',
-                description: '',
-                acquireTimeMs: 0,
-                permMask: { base: 0, owner: 0, group: 0, everyone: 0, next: 0 },
-                notecardLines: ['only line'],
-              },
+              makeInventoryItem({ name: 'memo', type: InventoryType.NOTECARD, notecardLines: ['only line'] }),
             ],
             scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }],
           },
         ],
       })
       scripts['p']!.start()
+      scripts['p']!.advanceTime(1000)
       expect(scripts['p']!.global('past')).toBe(EOF)
-      expect(scripts['p']!.global('missing')).toBe(NAK)
+    })
+
+    // In-world: a missing notecard shouts an error and fires no dataserver event; the key is still returned.
+    it.each([
+      ['llGetNotecardLine("nope", 0)'],
+      ['llGetNumberOfNotecardLines("nope")'],
+    ])('%s on a missing notecard shouts and fires no dataserver event', async (call) => {
+      const probe = `
+        integer events = 0;
+        key k;
+        default {
+          state_entry() { k = ${call}; }
+          dataserver(key id, string data) { events = events + 1; }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      p.advanceTime(1000)
+      expect(p.global('events')).toBe(0)
+      expect(p.global('k')).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      expect(p.global('k')).not.toBe('00000000-0000-0000-0000-000000000000')
+      expect(p.chat).toEqual([
+        { channel: 2147483647, text: "Could not find notecard 'nope'.", type: 'shout' },
+      ])
+    })
+
+    // In-world: dataserver events reach every script in the prim, not only the requester.
+    it('delivers notecard dataserver events to every script in the prim', async () => {
+      const requester = `default { state_entry() { llGetNotecardLine("memo", 0); } }`
+      const sibling = `
+        string got = "";
+        default { dataserver(key id, string data) { got = data; } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: [
+              makeInventoryItem({ name: 'memo', type: InventoryType.NOTECARD, notecardLines: ['hello'] }),
+            ],
+            scripts: [
+              { source: { source: requester, filename: 'req.lsl' }, name: 'req' },
+              { source: { source: sibling, filename: 'sib.lsl' }, name: 'sib' },
+            ],
+          },
+        ],
+      })
+      scripts['sib']!.start()
+      scripts['req']!.start()
+      scripts['req']!.advanceTime(1000)
+      expect(scripts['sib']!.global('got')).toBe('hello')
+    })
+
+    it('respondToDataserver delivers to every script in the prim', async () => {
+      const requester = `default { state_entry() { llRequestAgentData(NULL_KEY, DATA_NAME); } }`
+      const sibling = `
+        string got = "";
+        default { dataserver(key id, string data) { got = data; } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: requester, filename: 'req.lsl' }, name: 'req' },
+              { source: { source: sibling, filename: 'sib.lsl' }, name: 'sib' },
+            ],
+          },
+        ],
+      })
+      scripts['sib']!.start()
+      scripts['req']!.start()
+      scripts['req']!.respondToLastDataserver('Alice')
+      expect(scripts['sib']!.global('got')).toBe('Alice')
+    })
+
+    // In-world: llGetInventoryName walks items alphabetically, not in insertion order.
+    it('llGetInventoryName returns items in alphabetical order', async () => {
+      const probe = `
+        list names;
+        default { state_entry() {
+          integer i;
+          for (i = 0; i < llGetInventoryNumber(INVENTORY_ALL); i++)
+            names += llGetInventoryName(INVENTORY_ALL, i);
+        } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: [
+              makeInventoryItem({ name: 'zeta', type: InventoryType.NOTECARD }),
+              makeInventoryItem({ name: 'alpha', type: InventoryType.TEXTURE }),
+            ],
+            scripts: [{ source: { source: probe, filename: 'm.lsl' }, name: 'm' }],
+          },
+        ],
+      })
+      scripts['m']!.start()
+      expect(scripts['m']!.global('names')).toEqual(['alpha', 'm', 'zeta'])
     })
 
     it('llGetNotecardLine reads notecard inventory via dataserver', async () => {
@@ -693,5 +780,96 @@ describe('multi-script linkset', () => {
       expect(scripts['a']!.global('t')).toBeCloseTo(2.5)
       expect(scripts['b']!.global('t')).toBeCloseTo(2.5)
     })
+  })
+})
+
+describe('llResetOtherScript and state changes', () => {
+  it('a pending reset survives a state change in the target', async () => {
+    const { scripts } = await loadLinkset({
+      prims: [
+        {
+          scripts: [
+            {
+              name: 'a',
+              source: {
+                source: `
+                  default { link_message(integer s, integer n, string m, key k) { state two; } }
+                  state two { state_entry() { } }
+                `,
+              },
+            },
+            {
+              name: 'b',
+              source: {
+                source: `
+                  default {
+                    touch_start(integer n) {
+                      llMessageLinked(LINK_THIS, 0, "", "");
+                      llResetOtherScript("a");
+                    }
+                  }
+                `,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    scripts.a!.start()
+    scripts.b!.start()
+    scripts.b!.fire('touch_start', { num_detected: 1 })
+    expect(scripts.a!.currentState).toBe('default')
+  })
+})
+
+describe('event queue cap with a stopped script', () => {
+  it('keeps the parked events and drops the newer overflow', async () => {
+    const { scripts } = await loadLinkset({
+      prims: [
+        {
+          scripts: [
+            {
+              name: 'reader',
+              source: {
+                source: `
+                  integer first; integer second;
+                  default {
+                    link_message(integer s, integer n, string m, key k) {
+                      if (n == 1) first++; else second++;
+                    }
+                  }
+                `,
+              },
+            },
+            {
+              name: 'sender',
+              source: {
+                source: `
+                  default {
+                    state_entry() {
+                      llSetScriptState("reader", FALSE);
+                      integer i;
+                      for (i = 0; i < 64; i++) llMessageLinked(LINK_THIS, 1, "", "");
+                      llSetTimerEvent(1.0);
+                    }
+                    timer() {
+                      llSetTimerEvent(0);
+                      integer i;
+                      for (i = 0; i < 64; i++) llMessageLinked(LINK_THIS, 2, "", "");
+                      llSetScriptState("reader", TRUE);
+                    }
+                  }
+                `,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    scripts.reader!.start()
+    scripts.sender!.start()
+    scripts.sender!.advanceTime(5_000)
+    expect(scripts.reader!.global('first')).toBe(64)
+    expect(scripts.reader!.global('second')).toBe(0)
   })
 })
