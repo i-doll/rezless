@@ -155,13 +155,16 @@ const SHAPE_TORUS = PRIM_TYPE_TORUS as 4
 const SHAPE_TUBE = PRIM_TYPE_TUBE as 5
 const SHAPE_RING = PRIM_TYPE_RING as 6
 const SHAPE_SCULPT = PRIM_TYPE_SCULPT as 7
-if (
-  SHAPE_BOX !== 0 || SHAPE_CYLINDER !== 1 || SHAPE_PRISM !== 2 ||
-  SHAPE_SPHERE !== 3 || SHAPE_TORUS !== 4 || SHAPE_TUBE !== 5 ||
-  SHAPE_RING !== 6 || SHAPE_SCULPT !== 7
-) {
-  throw new Error('PRIM_TYPE_* constants disagree with PrimShape literal aliases')
+/** Throws unless `shapes` lists PRIM_TYPE_BOX..PRIM_TYPE_SCULPT as 0..7 in order. */
+export function assertShapeAliases(shapes: readonly number[]): void {
+  if (shapes.length !== 8 || shapes.some((v, i) => v !== i)) {
+    throw new Error('PRIM_TYPE_* constants disagree with PrimShape literal aliases')
+  }
 }
+assertShapeAliases([
+  SHAPE_BOX, SHAPE_CYLINDER, SHAPE_PRISM, SHAPE_SPHERE,
+  SHAPE_TORUS, SHAPE_TUBE, SHAPE_RING, SHAPE_SCULPT,
+])
 
 export type PrimShape =
   | { kind: typeof SHAPE_BOX | typeof SHAPE_CYLINDER | typeof SHAPE_PRISM; hole: number; cut: Vector; hollow: number; twist: Vector; topSize: Vector; topShear: Vector }

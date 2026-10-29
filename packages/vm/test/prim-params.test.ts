@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Prim } from '../src/prim.js'
 import { Linkset } from '../src/linkset.js'
 import {
+  assertShapeAliases,
   readPrimParam,
   writePrimParam,
   defaultPrimParams,
@@ -73,6 +74,12 @@ const v = (x: number, y: number, z: number) => ({ x, y, z })
 const r = (x: number, y: number, z: number, s: number) => ({ x, y, z, s })
 
 describe('prim-params helpers', () => {
+  it('rejects PRIM_TYPE_* values that drift from the PrimShape aliases', () => {
+    expect(() => assertShapeAliases([0, 1, 2, 3, 4, 5, 6, 7])).not.toThrow()
+    expect(() => assertShapeAliases([0, 1, 2, 3, 4, 5, 6, 8])).toThrow(/PRIM_TYPE_\* constants disagree/)
+    expect(() => assertShapeAliases([0, 1, 2, 3, 4, 5, 6])).toThrow(/PRIM_TYPE_\* constants disagree/)
+  })
+
   it('default PrimParams has documented defaults', () => {
     const p = defaultPrimParams()
     expect(p.size).toEqual({ x: 0.5, y: 0.5, z: 0.5 })
