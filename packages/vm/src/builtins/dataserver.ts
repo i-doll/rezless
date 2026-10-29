@@ -1,4 +1,5 @@
-import type { BuiltinImpl } from '../runtime.js'
+import type { BuiltinImpl, CallContext } from '../runtime.js'
+import { requestKey } from '../keys.js'
 
 /**
  * A pending dataserver request. LSL has a small zoo of llRequest*
@@ -15,17 +16,17 @@ export interface DataserverRequestEntry {
   fulfilled: boolean
 }
 
-function nextKey(state: { dataserverKeyCounter: number }): string {
-  state.dataserverKeyCounter += 1
-  return `data-req-${String(state.dataserverKeyCounter).padStart(8, '0')}`
+export function nextDataserverKey(ctx: CallContext): string {
+  ctx.state.dataserverKeyCounter += 1
+  return requestKey(ctx, 'dataserver', ctx.state.dataserverKeyCounter)
 }
 
 function record(
-  ctx: Parameters<BuiltinImpl>[0],
+  ctx: CallContext,
   source: string,
   args: ReadonlyArray<unknown>,
 ): string {
-  const key = nextKey(ctx.state)
+  const key = nextDataserverKey(ctx)
   ctx.state.dataserverRequests.push({ key, source, args, fulfilled: false })
   return key
 }

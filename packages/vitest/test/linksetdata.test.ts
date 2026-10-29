@@ -283,7 +283,7 @@ describe('Linkset Data', () => {
     expect(s.linksetData.size).toBe(0)
   })
 
-  it('ListKeys returns keys in insertion order; FindKeys regex-filters', async () => {
+  it('ListKeys and FindKeys return keys in alphabetical order (SL parity)', async () => {
     const s = await load(`
       list all = [];
       list found = [];
@@ -298,7 +298,7 @@ describe('Linkset Data', () => {
       }
     `)
     s.start()
-    expect(s.global('all')).toEqual(['foo1', 'bar', 'foo2'])
+    expect(s.global('all')).toEqual(['bar', 'foo1', 'foo2'])
     expect(s.global('found')).toEqual(['foo1', 'foo2'])
   })
 
@@ -429,5 +429,145 @@ describe('Linkset Data', () => {
     expect(s.global('act')).toBe(3) // LINKSETDATA_MULTIDELETE
     expect(s.global('seenName')).toBe('ka,kb,kc')
     expect(s.global('seenValue')).toBe('')
+  })
+
+  it('ListKeys / FindKeys with count < 1 return all remaining keys (SL parity)', async () => {
+    const s = await load(`
+      list a = [];
+      list b = [];
+      list c = [];
+      default {
+        state_entry() {
+          llLinksetDataWrite("k1", "v");
+          llLinksetDataWrite("k2", "v");
+          llLinksetDataWrite("k3", "v");
+          a = llLinksetDataListKeys(0, 0);
+          b = llLinksetDataListKeys(1, -1);
+          c = llLinksetDataFindKeys("k", 1, 0);
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('a')).toEqual(['k1', 'k2', 'k3'])
+    expect(s.global('b')).toEqual(['k2', 'k3'])
+    expect(s.global('c')).toEqual(['k2', 'k3'])
+  })
+
+  it('llLinksetDataAvailable counts UTF-8 bytes, plus 32 for a protected pair (SL parity)', async () => {
+    const s = await load(`
+      integer plain = 0;
+      integer utf8 = 0;
+      integer prot = 0;
+      default {
+        state_entry() {
+          integer full = llLinksetDataAvailable();
+          llLinksetDataWrite("k", "v");
+          plain = full - llLinksetDataAvailable();
+          llLinksetDataReset();
+          llLinksetDataWrite("k", "é");
+          utf8 = full - llLinksetDataAvailable();
+          llLinksetDataReset();
+          llLinksetDataWriteProtected("k", "v", "pw");
+          prot = full - llLinksetDataAvailable();
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('plain')).toBe(2)
+    expect(s.global('utf8')).toBe(3)
+    expect(s.global('prot')).toBe(34)
+  })
+
+  it('a write past the 131072-byte store returns LINKSETDATA_EMEMORY and writes nothing (SL parity)', async () => {
+    const s = await load(`
+      integer ok = 0;
+      integer failRc = -1;
+      integer failedAt = -1;
+      integer avail = -1;
+      default {
+        state_entry() {
+          string big = "";
+          integer i;
+          for (i = 0; i < 1000; i++) big += "x";
+          for (i = 0; i < 200 && failedAt < 0; i++) {
+            integer rc = llLinksetDataWrite("k" + (string)i, big);
+            if (rc == 0) ok++;
+            else { failRc = rc; failedAt = i; }
+          }
+          avail = llLinksetDataAvailable();
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('ok')).toBe(130)
+    expect(s.global('failedAt')).toBe(130)
+    expect(s.global('failRc')).toBe(1)
+    expect(s.global('avail')).toBe(662)
+    expect(s.linksetData.has('k130')).toBe(false)
+  })
+})
+
+const REGEX_KEYS = [
+  'abc', 'ABC', 'a.b', 'axb', 'aab', 'a1', 'z9', 'é', 'word here', 'x y',
+  'a    b', '(paren)', 'back\\slash', '[x]', 'aaa',
+]
+
+const LETTER_KEYS = REGEX_KEYS.filter((k) => k !== 'é')
+
+// In-world results from /tmp/rzprobe/regex.lsl (main grid, 2026-10-29).
+const REGEX_CASES: Array<[string, string[]]> = [
+  ['[[:digit:]]', ['a1', 'z9']],
+  ['[[:alpha:]]+$', ['ABC', 'a    b', 'a.b', 'aaa', 'aab', 'abc', 'axb', 'back\\slash', 'word here', 'x y']],
+  ['[[:space:]]', ['a    b', 'word here', 'x y']],
+  ['\\h', ['a    b', 'word here', 'x y']],
+  ['(?i)abc', ['ABC', 'abc']],
+  ['(?i:abc)', []],
+  ['a(?=b)', []],
+  ['(?<=a)b', []],
+  ['(?<=x)b', []],
+  ['(a)\\1', []],
+  ['(?<n>a)\\k<n>', []],
+  ['a++b', []],
+  ['(?>a+)b', []],
+  ['\\Qa.b\\E', ['a.b']],
+  ['\\x41', ['ABC']],
+  ['\\x{41}', ['ABC']],
+  ['\\u0041', []],
+  ['\\Aabc\\z', ['abc']],
+  ['\\p{L}', LETTER_KEYS],
+  ['[[:upper:]]', ['ABC']],
+  ['', []],
+  ['|', []],
+  ['^\\w$', []],
+  ['\\w+$', REGEX_KEYS.filter((k) => !['(paren)', '[x]', 'é'].includes(k))],
+  ['(', []],
+  ['[a', []],
+  ['a{2,1}', []],
+  ['*a', []],
+  ['\\', []],
+]
+
+function lslString(s: string): string {
+  return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'
+}
+
+describe('Linkset Data regex dialect (SL parity)', () => {
+  it.each(REGEX_CASES)('/%s/', async (pattern, expected) => {
+    const s = await load(`
+      list found = [];
+      integer count = -1;
+      default {
+        state_entry() {
+          list keys = [${REGEX_KEYS.map(lslString).join(', ')}];
+          integer i;
+          for (i = 0; i < llGetListLength(keys); i++) llLinksetDataWrite(llList2String(keys, i), "v");
+          found = llLinksetDataFindKeys(${lslString(pattern)}, 0, 100);
+          count = llLinksetDataCountFound(${lslString(pattern)});
+        }
+      }
+    `)
+    s.start()
+    expect([...(s.global('found') as string[])].sort()).toEqual([...expected].sort())
+    expect(s.global('count')).toBe(expected.length)
   })
 })

@@ -27,17 +27,26 @@ function nextListenHandle(state: { listenHandleCounter: number }): number {
   return state.listenHandleCounter
 }
 
+const MAX_LISTENS = 65
+
 /**
  * llListen(integer channel, string name, key id, string msg) → integer handle
  *
  * Empty name / NULL_KEY id / empty msg act as wildcards. The handle is
- * a positive integer used by llListenRemove / llListenControl.
+ * a positive integer used by llListenRemove / llListenControl. A filter
+ * identical to an existing listen returns that listen's handle. Opening
+ * more than 65 listens is a fatal "Too Many Listens" error.
  */
 export const llListen: BuiltinImpl = (ctx, args) => {
   const channel = (args[0] as number | undefined) ?? 0
   const name = (args[1] as string | undefined) ?? ''
   const id = (args[2] as string | undefined) ?? NULL_KEY
   const msg = (args[3] as string | undefined) ?? ''
+  const existing = ctx.state.listens.find(
+    (l) => l.channel === channel && l.name === name && l.key === id && l.message === msg,
+  )
+  if (existing) return existing.handle
+  if (ctx.state.listens.length >= MAX_LISTENS) throw new Error('Too Many Listens')
   const handle = nextListenHandle(ctx.state)
   ctx.state.listens.push({
     handle,

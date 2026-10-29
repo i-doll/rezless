@@ -14,8 +14,7 @@ export const llStringToBase64: BuiltinImpl = (_ctx, args) => {
 
 export const llBase64ToString: BuiltinImpl = (_ctx, args) => {
   const s = (args[0] as string | undefined) ?? ''
-  // LSL silently tolerates malformed input; Buffer does too.
-  return Buffer.from(s, 'base64').toString('utf8')
+  return Buffer.from(s, 'base64').toString('utf8').replace(/[\0\uFFFD]/g, '?')
 }
 
 /**

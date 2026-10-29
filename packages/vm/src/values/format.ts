@@ -1,46 +1,62 @@
-import type { LslValue, Vector, Rotation } from './types.js'
+import type { LslType, LslValue, Vector, Rotation } from './types.js'
 import { isVector, isRotation } from './types.js'
+import { listElementType } from './list-types.js'
 
 /**
- * Format a float the way LSL prints it.
- *
- * LSL uses `%.6f`-style fixed notation for `(string)floatVal`, e.g.
- *   (string)1.5  → "1.500000"
- *   (string)0    → "0.000000"
- *   (string)1e30 → "1.000000000000000e+30" (very large/small fall back)
- *
- * For now we approximate with toFixed(6); switch-to-scientific cutoff lives
- * in Phase 4 polish.
+ * Format a float the way LSL prints it: rounded to 7 significant digits,
+ * then written in fixed notation with `decimals` places, e.g.
+ *   (string)1.5          → "1.500000"
+ *   (string)123456789.0  → "123456800.000000"
+ *   (string)1e30         → "1000000000000000000000000000000.000000"
  */
-export function formatFloat(n: number): string {
+export function formatFloat(n: number, decimals = 6): string {
+  if (Number.isNaN(n)) return 'NaN'
+  if (!Number.isFinite(n)) return n > 0 ? 'Infinity' : '-Infinity'
+  const [mantissa, exp] = n.toExponential(6).split('e') as [string, string]
+  if (Number(exp) < 21) return Number(n.toPrecision(7)).toFixed(decimals)
+  const digits = mantissa.replace('.', '')
+  return `${digits}${'0'.repeat(Number(exp) - 6)}.${'0'.repeat(decimals)}`
+}
+
+/**
+ * Format a float like C `%f`: the exact digits of the 32-bit value, as
+ * llList2CSV and llList2Json print it, e.g. 1e30 →
+ * "1000000015047466219876688855040.000000".
+ */
+export function formatFloatExact(n: number, decimals = 6): string {
   if (Number.isNaN(n)) return 'nan'
   if (!Number.isFinite(n)) return n > 0 ? 'inf' : '-inf'
-  return n.toFixed(6)
+  if (Math.abs(n) < 1e21) return n.toFixed(decimals)
+  return `${BigInt(n)}.${'0'.repeat(decimals)}`
 }
 
-export function formatVector(v: Vector): string {
-  return `<${formatFloat(v.x)}, ${formatFloat(v.y)}, ${formatFloat(v.z)}>`
+type FloatFormat = (n: number, decimals: number) => string
+
+export function formatVector(v: Vector, decimals = 5, fmt: FloatFormat = formatFloat): string {
+  return `<${fmt(v.x, decimals)}, ${fmt(v.y, decimals)}, ${fmt(v.z, decimals)}>`
 }
 
-export function formatRotation(r: Rotation): string {
-  return `<${formatFloat(r.x)}, ${formatFloat(r.y)}, ${formatFloat(r.z)}, ${formatFloat(r.s)}>`
+export function formatRotation(r: Rotation, decimals = 5, fmt: FloatFormat = formatFloat): string {
+  return `<${fmt(r.x, decimals)}, ${fmt(r.y, decimals)}, ${fmt(r.z, decimals)}, ${fmt(r.s, decimals)}>`
 }
 
-/** Format a list element when stringifying a list with `(string)list`.
- *  LSL concatenates element string forms WITHOUT a separator. */
-export function formatListElement(v: LslValue): string {
+/**
+ * Format a list element the way `(string)list`, llList2String and
+ * llDumpList2String do (llList2CSV passes `formatFloatExact`): vectors and
+ * rotations get 6 decimals. Without a recorded type, a whole number reads as
+ * an integer.
+ */
+export function formatListElement(v: LslValue, type?: LslType, fmt: FloatFormat = formatFloat): string {
   if (typeof v === 'number') {
-    // In a list, ints stringify as ints and floats with the float format.
-    // We can't tell from a raw JS number — assume float-ish if it has a fractional part.
-    return Number.isInteger(v) ? String(v | 0) : formatFloat(v)
+    return type !== 'float' && Number.isInteger(v) ? String(v | 0) : fmt(v, 6)
   }
   if (typeof v === 'string') return v
-  if (isVector(v)) return formatVector(v)
-  if (isRotation(v)) return formatRotation(v)
-  if (Array.isArray(v)) return v.map(formatListElement).join('')
+  if (isVector(v)) return formatVector(v, 6, fmt)
+  if (isRotation(v)) return formatRotation(v, 6, fmt)
+  if (Array.isArray(v)) return formatList(v)
   return String(v)
 }
 
 export function formatList(list: ReadonlyArray<LslValue>): string {
-  return list.map(formatListElement).join('')
+  return list.map((v, i) => formatListElement(v, listElementType(list, i))).join('')
 }

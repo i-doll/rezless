@@ -135,8 +135,15 @@ export function applyBinary(
     case '==':
       return { type: 'integer', value: lslEquals(left, right) ? 1 : 0 }
     case '!=':
+      if (left.type === 'list' && right.type === 'list') {
+        return { type: 'integer', value: toInt32(listLength(left) - listLength(right)) }
+      }
       return { type: 'integer', value: lslEquals(left, right) ? 0 : 1 }
   }
+}
+
+function listLength(r: EvalResult): number {
+  return (r.value as ReadonlyArray<LslValue>).length
 }
 
 function intBinary(
@@ -206,10 +213,7 @@ function lslEquals(a: EvalResult, b: EvalResult): boolean {
   }
   if (a.type === 'list' && b.type === 'list') {
     // LSL: list == list compares LENGTHS, not contents.
-    return (
-      (a.value as ReadonlyArray<LslValue>).length ===
-      (b.value as ReadonlyArray<LslValue>).length
-    )
+    return listLength(a) === listLength(b)
   }
   return false
 }
@@ -376,8 +380,12 @@ function opMod(a: EvalResult, b: EvalResult): EvalResult {
 
 // ---- Quaternion math ----
 
+/** LSL `a * b`: rotate by a, then by b. */
 function mulRotation(a: Rotation, b: Rotation): Rotation {
-  // Hamilton product (LSL convention).
+  return hamilton(b, a)
+}
+
+function hamilton(a: Rotation, b: Rotation): Rotation {
   return rot(
     a.s * b.x + a.x * b.s + a.y * b.z - a.z * b.y,
     a.s * b.y - a.x * b.z + a.y * b.s + a.z * b.x,
@@ -393,7 +401,7 @@ function conjugate(q: Rotation): Rotation {
 function rotateVector(v: Vector, q: Rotation): Vector {
   // v' = q * v * q⁻¹
   const qv: Rotation = rot(v.x, v.y, v.z, 0)
-  const r = mulRotation(mulRotation(q, qv), conjugate(q))
+  const r = hamilton(hamilton(q, qv), conjugate(q))
   return vec(r.x, r.y, r.z)
 }
 

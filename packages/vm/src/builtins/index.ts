@@ -1,5 +1,13 @@
 import type { BuiltinImpl } from '../runtime.js'
-import { llSay, llShout, llWhisper, llOwnerSay } from './chat.js'
+import {
+  llSay,
+  llShout,
+  llWhisper,
+  llOwnerSay,
+  llRegionSay,
+  llRegionSayTo,
+  llInstantMessage,
+} from './chat.js'
 import {
   llSetTimerEvent,
   llSleep,
@@ -181,6 +189,7 @@ import {
   llScaleByFactor,
   llGetMaxScaleFactor,
   llGetMinScaleFactor,
+  llGetNumberOfSides,
   llSetColor,
   llGetColor,
   llSetAlpha,
@@ -228,6 +237,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llShout,
   llWhisper,
   llOwnerSay,
+  llRegionSay,
+  llRegionSayTo,
+  llInstantMessage,
   llSetTimerEvent,
   llSleep,
   llGetTime,
@@ -401,6 +413,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llScaleByFactor,
   llGetMaxScaleFactor,
   llGetMinScaleFactor,
+  llGetNumberOfSides,
   llSetColor,
   llGetColor,
   llSetAlpha,

@@ -1,7 +1,8 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation } from '../values/types.js'
-import { typedList } from '../values/list-types.js'
+import { listElementType, typedList } from '../values/list-types.js'
+import { formatFloatExact, formatRotation, formatVector } from '../values/format.js'
 import {
   JSON_INVALID,
   JSON_OBJECT,
@@ -608,44 +609,19 @@ function lslStringToJsonElement(raw: string): string {
   return '"' + escapeJsonString(trimmed) + '"'
 }
 
-function lslValueToJsonElement(v: LslValue): string | null {
+function lslValueToJsonElement(v: LslValue, type?: LslType): string | null {
   if (typeof v === 'number') {
-    if (!Number.isFinite(v)) return null
-    if (Number.isInteger(v)) return String(v | 0)
-    return v.toFixed(6)
+    if (type !== 'float' && Number.isInteger(v)) return String(v | 0)
+    return formatFloatExact(v)
   }
   if (typeof v === 'string') return lslStringToJsonElement(v)
   if (Array.isArray(v)) {
-    const parts: Array<string | null> = v.map(lslValueToJsonElement)
+    const parts: Array<string | null> = v.map((e) => lslValueToJsonElement(e))
     if (parts.some((p) => p === null)) return null
     return '[' + parts.join(',') + ']'
   }
-  if (isVector(v as Vector)) {
-    const u = v as Vector
-    return (
-      '"<' +
-      u.x.toFixed(5) +
-      ', ' +
-      u.y.toFixed(5) +
-      ', ' +
-      u.z.toFixed(5) +
-      '>"'
-    )
-  }
-  if (isRotation(v as Rotation)) {
-    const r = v as Rotation
-    return (
-      '"<' +
-      r.x.toFixed(5) +
-      ', ' +
-      r.y.toFixed(5) +
-      ', ' +
-      r.z.toFixed(5) +
-      ', ' +
-      r.s.toFixed(5) +
-      '>"'
-    )
-  }
+  if (isVector(v as Vector)) return `"${formatVector(v as Vector, 6, formatFloatExact)}"`
+  if (isRotation(v as Rotation)) return `"${formatRotation(v as Rotation, 6, formatFloatExact)}"`
   return null
 }
 
@@ -653,7 +629,7 @@ export const llList2Json: BuiltinImpl = (_ctx, args) => {
   const type = (args[0] as string | undefined) ?? ''
   const values = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (type === JSON_ARRAY) {
-    const parts: Array<string | null> = values.map(lslValueToJsonElement)
+    const parts = values.map((v, i) => lslValueToJsonElement(v, listElementType(values, i)))
     if (parts.some((p) => p === null)) return JSON_INVALID
     return '[' + parts.join(',') + ']'
   }
@@ -664,7 +640,7 @@ export const llList2Json: BuiltinImpl = (_ctx, args) => {
       const k = values[i]
       const v = values[i + 1]!
       if (typeof k !== 'string') return JSON_INVALID
-      const ve = lslValueToJsonElement(v)
+      const ve = lslValueToJsonElement(v, listElementType(values, i + 1))
       if (ve === null) return JSON_INVALID
       parts.push('"' + escapeJsonString(k) + '":' + ve)
     }

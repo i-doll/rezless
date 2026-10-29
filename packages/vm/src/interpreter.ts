@@ -338,9 +338,9 @@ function evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): Eva
 }
 
 function evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): EvalResult {
-  // LSL: && and || are NOT short-circuit. Eager evaluation matches the language.
-  const left = evalExpression(ctx, env, e.left)
+  // LSL: && and || are NOT short-circuit, and the right operand runs first.
   const right = evalExpression(ctx, env, e.right)
+  const left = evalExpression(ctx, env, e.left)
   return applyBinary(e.operator, left, right)
 }
 

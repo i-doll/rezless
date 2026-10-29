@@ -43,6 +43,8 @@ export class Linkset {
    * `clearLinkedMessages()` between scenarios to keep memory bounded.
    */
   readonly linkedMessages: LinkedMessageEntry[] = []
+  /** Virtual times of recent llHTTPRequest calls, for the per-object throttle. */
+  readonly httpRequestTimes: number[] = []
 
   /** Drop every captured cross-script linked-message entry. */
   clearLinkedMessages(): void {
@@ -164,11 +166,15 @@ export class Linkset {
 
   /**
    * Advance the shared clock by `ms` and drain every event that becomes
-   * due, dispatching each to its target script.
+   * due, dispatching each to its target script. The clock steps to each
+   * event's due time before its handler runs, so handlers see the time the
+   * event fired rather than the end of the window.
    */
   advanceTime(ms: number): void {
-    this.clock.advance(ms)
-    this.drainQueue()
+    if (ms < 0) throw new Error('cannot advance time backwards')
+    const until = this.clock.now + ms
+    this.drainQueue(until)
+    if (this.clock.now < until) this.clock.now = until
   }
 
   /**
@@ -183,12 +189,13 @@ export class Linkset {
    * up on the next outer drain. Worth-the-trade for avoiding an O(scripts)
    * allocation per event.
    */
-  drainQueue(): void {
+  drainQueue(until = this.clock.now): void {
     const scripts = this.allScripts()
     if (scripts.length === 0) return
     while (true) {
-      const next = this.clock.takeNextDue(scripts)
+      const next = this.clock.takeNextDue(scripts, Math.max(until, this.clock.now))
       if (!next) return
+      if (next.at > this.clock.now) this.clock.now = next.at
       const target = next.target
       if (target.dead) continue
       // `__reset` (from llResetOtherScript) must run regardless of the

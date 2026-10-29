@@ -287,7 +287,7 @@ describe('Phase 2 — type coercions', () => {
     `)
     expect(s.global('a')).toBe('42')
     expect(s.global('b')).toBe('3.500000')
-    expect(s.global('c')).toBe('<1.000000, 2.000000, 3.000000>')
+    expect(s.global('c')).toBe('<1.00000, 2.00000, 3.00000>')
   })
 
   it('applies a unary operator to a cast: !(integer)s, -(integer)s, ~(integer)s, -(float)s', async () => {

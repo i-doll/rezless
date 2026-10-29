@@ -254,3 +254,85 @@ describe('wall-clock time from the virtual clock', () => {
     expect(scripts['clock']!.global('unix')).toBe(1_700_000_000)
   })
 })
+
+describe('timer after a long handler', () => {
+  // In-world: llSleep(5) with a 1 s timer, then ticks at ~0.04, 1.07, 2.05, 3.05 s after the sleep.
+  it('delivers one pending timer event after llSleep, not a burst', async () => {
+    const s = await load(`
+      integer ticks = 0;
+      default {
+        state_entry() {
+          llSetTimerEvent(1);
+          llSleep(5);
+        }
+        timer() { ticks = ticks + 1; }
+      }
+    `)
+    s.start()
+    expect(s.global('ticks')).toBe(1)
+    s.advanceTime(999)
+    expect(s.global('ticks')).toBe(1)
+    s.advanceTime(1)
+    expect(s.global('ticks')).toBe(2)
+    s.advanceTime(1000)
+    expect(s.global('ticks')).toBe(3)
+  })
+})
+
+describe('one long advanceTime', () => {
+  // Measured in Second Life: with one advance covering the whole run, the timer
+  // still sees its own fire time, 64 of 100 self-sent link messages arrive, and
+  // the ticks after llSleep(5) stay 1 s apart.
+  it('runs each handler at its own fire time', async () => {
+    const s = await load(`
+      integer phase; integer count; float t0; string log; integer ticks;
+      default {
+        state_entry() { llSetTimerEvent(1.0); }
+        link_message(integer sender, integer n, string str, key id) { count++; }
+        timer() {
+          if (phase == 0) {
+            phase = 1;
+            log = (string)llGetTime();
+            integer i;
+            for (i = 0; i < 100; i++) llMessageLinked(LINK_THIS, 0, "q", "");
+          } else if (phase == 1) {
+            phase = 2;
+            llSleep(5.0);
+            t0 = llGetTime();
+          } else {
+            ticks++;
+            log += "," + (string)llRound(llGetTime() - t0);
+            if (ticks == 3) llSetTimerEvent(0);
+          }
+        }
+      }
+    `)
+    s.start()
+    s.advanceTime(15_000)
+    expect(s.global('count')).toBe(64)
+    expect(s.global('log')).toBe('1.000000,0,1,2')
+  })
+})
+
+describe('timer after a handler that started late', () => {
+  it('delivers one pending tick, not a burst', async () => {
+    const s = await load(`
+      string log;
+      default {
+        state_entry() {
+          llSetTimerEvent(1.0);
+          llMessageLinked(LINK_THIS, 0, "", "");
+          llMessageLinked(LINK_THIS, 0, "", "");
+        }
+        link_message(integer sender, integer n, string str, key id) { llSleep(3.0); }
+        timer() {
+          log += (string)llRound(llGetTime()) + ",";
+          if (llGetTime() > 7.5) llSetTimerEvent(0);
+        }
+      }
+    `)
+    s.start()
+    s.advanceTime(10_000)
+    expect(s.global('log')).toBe('6,7,8,')
+  })
+})

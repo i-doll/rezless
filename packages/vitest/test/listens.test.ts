@@ -101,7 +101,7 @@ describe('Phase 3 — listens and chat delivery', () => {
       default {
         state_entry() {
           llListen(0, "", NULL_KEY, "");
-          llListen(0, "", NULL_KEY, "");
+          llListen(0, "", NULL_KEY, "hi");
         }
         listen(integer c, string n, key i, string m) { hits = hits + 1; }
       }
@@ -141,5 +141,65 @@ describe('Phase 3 — listens and chat delivery', () => {
     s.deliverChat({ channel: 0, name: 'A', key: '11111111-2222-3333-4444-555555555555', message: 'hi' })
     s.deliverChat({ channel: 0, name: 'B', key: 'ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb', message: 'hi' })
     expect(s.global('hits')).toBe(2)
+  })
+})
+
+describe('listen limits and llRegionSay', () => {
+  // In-world: two identical llListen calls both return handle 1.
+  it('llListen with an identical filter returns the same handle', async () => {
+    const s = await load(`
+      integer a = 0;
+      integer b = 0;
+      default {
+        state_entry() {
+          a = llListen(5, "", NULL_KEY, "");
+          b = llListen(5, "", NULL_KEY, "");
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('a')).toBe(1)
+    expect(s.global('b')).toBe(1)
+    expect(s.listens).toHaveLength(1)
+  })
+
+  it('allows 65 listens', async () => {
+    const s = await load(`
+      default {
+        state_entry() {
+          integer i;
+          for (i = 0; i < 65; i++) llListen(i, "", NULL_KEY, "");
+        }
+      }
+    `)
+    s.start()
+    expect(s.listens).toHaveLength(65)
+  })
+
+  it('the 66th listen is a fatal "Too Many Listens" error', async () => {
+    const s = await load(`
+      default {
+        state_entry() {
+          integer i;
+          for (i = 0; i < 66; i++) llListen(i, "", NULL_KEY, "");
+        }
+      }
+    `)
+    expect(() => s.start()).toThrow(/Too Many Listens/)
+  })
+
+  it('llRegionSay on a non-zero channel is captured as regionSay chat', async () => {
+    const s = await load(`default { state_entry() { llRegionSay(5, "hi"); } }`)
+    s.start()
+    expect(s.chat).toEqual([{ channel: 5, text: 'hi', type: 'regionSay' }])
+  })
+
+  // In-world: llRegionSay(0, ...) says nothing and shouts an error on DEBUG_CHANNEL.
+  it('llRegionSay on channel 0 shouts an error instead of chatting', async () => {
+    const s = await load(`default { state_entry() { llRegionSay(0, "hi"); } }`)
+    s.start()
+    expect(s.chat).toEqual([
+      { channel: 2147483647, text: 'Cannot use llRegionSay() on channel 0.', type: 'shout' },
+    ])
   })
 })

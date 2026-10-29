@@ -2,7 +2,7 @@ import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
 import { InventoryType } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
-import type { LslValue } from './values/types.js'
+import type { LslValue, Vector } from './values/types.js'
 import { NULL_KEY } from './values/types.js'
 import { PERM_ALL } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
@@ -112,6 +112,26 @@ export class Prim {
     cursor: number,
   ): number | null {
     return writePrimParam(this, param, rules, cursor)
+  }
+
+  /**
+   * Position in region coordinates. `params.position` is the region
+   * position of a root or lone prim and the root-relative offset of a child.
+   */
+  regionPosition(): Vector {
+    const local = this.params.position
+    const root = this.linkset?.prims[0]
+    if (!root || root === this) return local
+    const { x, y, z, s } = root.params.rotation
+    const tx = 2 * (y * local.z - z * local.y)
+    const ty = 2 * (z * local.x - x * local.z)
+    const tz = 2 * (x * local.y - y * local.x)
+    const origin = root.params.position
+    return {
+      x: origin.x + local.x + s * tx + (y * tz - z * ty),
+      y: origin.y + local.y + s * ty + (z * tx - x * tz),
+      z: origin.z + local.z + s * tz + (x * ty - y * tx),
+    }
   }
 
   /** llSetStatus seam. STATUS_* is a bit value; sets or clears it. */

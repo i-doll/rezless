@@ -11,7 +11,8 @@ export const llStringLength: BuiltinImpl = (_ctx, args) => {
 export const llSubStringIndex: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''
   const pat = (args[1] as string | undefined) ?? ''
-  return src.indexOf(pat)
+  const idx = src.indexOf(pat)
+  return idx < 0 ? -1 : [...src.slice(0, idx)].length
 }
 
 /**
@@ -40,16 +41,17 @@ export const llInsertString: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''
   const pos = (args[1] as number | undefined) ?? 0
   const text = (args[2] as string | undefined) ?? ''
-  const safe = clampInsertPos(src, pos)
-  return src.slice(0, safe) + text + src.slice(safe)
+  const chars = [...src]
+  const safe = Math.min(Math.max(pos, 0), chars.length)
+  return chars.slice(0, safe).join('') + text + chars.slice(safe).join('')
 }
 
 export const llStringTrim: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''
   const flags = (args[1] as number | undefined) ?? 0
   let s = src
-  if (flags & STRING_TRIM_HEAD) s = s.replace(/^\s+/, '')
-  if (flags & STRING_TRIM_TAIL) s = s.replace(/\s+$/, '')
+  if (flags & STRING_TRIM_HEAD) s = s.replace(/^[\t\n\v\f\r ]+/, '')
+  if (flags & STRING_TRIM_TAIL) s = s.replace(/[\t\n\v\f\r ]+$/, '')
   return s
 }
 
@@ -91,11 +93,24 @@ export const llReplaceSubString: BuiltinImpl = (_ctx, args) => {
   return result
 }
 
-export const llEscapeURL: BuiltinImpl = (_ctx, args) =>
-  encodeURIComponent((args[0] as string | undefined) ?? '')
+export const llEscapeURL: BuiltinImpl = (_ctx, args) => {
+  let out = ''
+  for (const byte of Buffer.from((args[0] as string | undefined) ?? '', 'utf8')) {
+    const isAlnum =
+      (byte >= 0x30 && byte <= 0x39) ||
+      (byte >= 0x41 && byte <= 0x5a) ||
+      (byte >= 0x61 && byte <= 0x7a)
+    out += isAlnum
+      ? String.fromCharCode(byte)
+      : '%' + byte.toString(16).toUpperCase().padStart(2, '0')
+  }
+  return out
+}
+
 export const llUnescapeURL: BuiltinImpl = (_ctx, args) => {
+  const src = (args[0] as string | undefined) ?? ''
   try {
-    return decodeURIComponent((args[0] as string | undefined) ?? '')
+    return decodeURIComponent(src.endsWith('%') ? src.slice(0, -1) : src)
   } catch {
     return ''
   }
@@ -103,32 +118,26 @@ export const llUnescapeURL: BuiltinImpl = (_ctx, args) => {
 
 // ---- Helpers ----
 
-function normalizeIndex(i: number, length: number): number {
-  return i < 0 ? Math.max(0, length + i) : Math.min(length - 1, i)
+function resolveIndex(i: number, length: number): number {
+  return i < 0 ? length + i : i
 }
 
 function sliceLslString(src: string, start: number, end: number): string {
-  const len = src.length
-  if (len === 0) return ''
-  const a = normalizeIndex(start, len)
-  const b = normalizeIndex(end, len)
-  if (a <= b) return src.slice(a, b + 1)
-  // LSL "exclusive" slice: returns [0..b] + [a..end]
-  return src.slice(0, b + 1) + src.slice(a)
+  const chars = [...src]
+  const len = chars.length
+  const a = resolveIndex(start, len)
+  const b = resolveIndex(end, len)
+  if (a <= b) return chars.slice(Math.max(a, 0), Math.max(b + 1, 0)).join('')
+  return chars.slice(0, Math.max(b + 1, 0)).join('') + chars.slice(Math.min(a, len)).join('')
 }
 
 function deleteLslSubString(src: string, start: number, end: number): string {
-  const len = src.length
-  if (len === 0) return src
-  const a = normalizeIndex(start, len)
-  const b = normalizeIndex(end, len)
-  if (a <= b) return src.slice(0, a) + src.slice(b + 1)
-  // Wrapped: keep just the slice between b and a (exclusive).
-  return src.slice(b + 1, a)
-}
-
-function clampInsertPos(src: string, pos: number): number {
-  if (pos < 0) return 0
-  if (pos > src.length) return src.length
-  return pos
+  const chars = [...src]
+  const len = chars.length
+  const a = resolveIndex(start, len)
+  const b = resolveIndex(end, len)
+  if (a <= b) {
+    return chars.slice(0, Math.max(a, 0)).join('') + chars.slice(Math.max(b + 1, 0)).join('')
+  }
+  return chars.slice(Math.max(b + 1, 0), Math.min(a, len)).join('')
 }

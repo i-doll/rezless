@@ -548,3 +548,28 @@ describe('parser — empty statements and unbraced declarations', () => {
     expect(parseBody('if (TRUE) { integer y; } else { integer y; }').diagnostics).toEqual([])
   })
 })
+
+describe('parser — logical operators', () => {
+  const init = (expr: string) => {
+    const { script, diagnostics } = parse(
+      `default { state_entry() { integer x = ${expr}; } }`,
+      'inline.lsl',
+    )
+    expect(diagnostics).toEqual([])
+    const stmt = script.states[0]!.handlers[0]!.body.body[0]!
+    if (stmt.kind !== 'VariableDeclaration') throw new Error(stmt.kind)
+    return stmt.init
+  }
+
+  it('gives && and || one precedence level, left-associative (SL: 1 || 0 && 0 is 0)', () => {
+    expect(init('1 || 0 && 0')).toMatchObject({
+      operator: '&&',
+      left: { operator: '||', left: { value: 1 }, right: { value: 0 } },
+      right: { value: 0 },
+    })
+    expect(init('0 && 1 || 1')).toMatchObject({
+      operator: '||',
+      left: { operator: '&&' },
+    })
+  })
+})
