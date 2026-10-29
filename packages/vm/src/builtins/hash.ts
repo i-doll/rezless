@@ -33,7 +33,7 @@ export const llHMAC: BuiltinImpl = (_ctx, args) => {
   const algo = ((args[2] as string | undefined) ?? 'sha256').toLowerCase()
   const supported = new Set(['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512'])
   if (!supported.has(algo)) return ''
-  // Per kwdb: llHMAC returns the *Base64*-encoded HMAC, unlike the other
+  // Per the LSL definitions: llHMAC returns the *Base64*-encoded HMAC, unlike the other
   // hash builtins which return lowercase hex.
   return createHmac(algo, key).update(message, 'utf8').digest('base64')
 }

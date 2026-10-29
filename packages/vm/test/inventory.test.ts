@@ -54,7 +54,7 @@ describe('makeInventoryItem', () => {
     expect(item.script).toBeUndefined()
   })
 
-  it('exposes the kwdb-derived InventoryType numeric codes', () => {
+  it('exposes the generated InventoryType numeric codes', () => {
     // NOTECARD=7 is hard-coded in several existing tests; lock it down.
     expect(InventoryType.NOTECARD).toBe(7)
     expect(InventoryType.SCRIPT).toBe(10)

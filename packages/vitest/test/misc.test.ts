@@ -38,7 +38,7 @@ describe('Phase 3 — hash builtins', () => {
     )
   })
 
-  it('llHMAC returns Base64-encoded digest, not hex (kwdb spec)', async () => {
+  it('llHMAC returns Base64-encoded digest, not hex (per the LSL definitions)', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() { out = llHMAC("secret", "hello", "sha256"); } }

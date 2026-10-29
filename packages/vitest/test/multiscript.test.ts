@@ -343,7 +343,7 @@ describe('multi-script linkset', () => {
       ['llGetNotecardLine', 'llGetNotecardLine("memo", 0);'],
       ['llGetNumberOfNotecardLines', 'llGetNumberOfNotecardLines("memo");'],
     ])('%s schedules dataserver after the throttle delay (issue #32)', async (_name, call) => {
-      // Each builtin must schedule its dataserver event after the kwdb
+      // Each builtin must schedule its dataserver event after the documented
       // throttle delay, not at the pre-call clock — otherwise the queued
       // event timestamp ends up earlier than the next instruction's clock,
       // inverting LSL's wall-clock ordering.

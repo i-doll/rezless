@@ -141,10 +141,10 @@ export interface PrimFace {
 }
 
 /**
- * Typed-literal aliases for the kwdb PRIM_TYPE_* constants. The
+ * Typed-literal aliases for the PRIM_TYPE_* constants. The
  * generated module exports them as `: number` so TS can't narrow on
  * them; we re-pin them to their literal values here. The `as` assertions
- * are runtime-asserted below so a future kwdb renumber would surface as
+ * are runtime-asserted below so a future upstream renumber would surface as
  * a load-time failure rather than silent corruption.
  */
 const SHAPE_BOX = PRIM_TYPE_BOX as 0
@@ -160,7 +160,7 @@ if (
   SHAPE_SPHERE !== 3 || SHAPE_TORUS !== 4 || SHAPE_TUBE !== 5 ||
   SHAPE_RING !== 6 || SHAPE_SCULPT !== 7
 ) {
-  throw new Error('kwdb PRIM_TYPE_* constants disagree with PrimShape literal aliases')
+  throw new Error('PRIM_TYPE_* constants disagree with PrimShape literal aliases')
 }
 
 export type PrimShape =

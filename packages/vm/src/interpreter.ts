@@ -50,7 +50,7 @@ export interface InterpreterContext {
   readonly globals: Env
   /** User-defined functions, indexed by name (LSL has a flat function namespace). */
   readonly userFunctions: ReadonlyMap<string, FunctionDeclaration>
-  /** Functions outside kwdb declared through `ScriptOptions.functions`. */
+  /** Functions outside the LSL definitions declared through `ScriptOptions.functions`. */
   readonly functions: Readonly<Record<string, FunctionSignature>>
   /** Owning script — passed through to builtins via dispatch. */
   readonly script: Script

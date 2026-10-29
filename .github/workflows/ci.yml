@@ -32,10 +32,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Regenerate kwdb tables
+      - name: Regenerate LSL definition tables
         run: pnpm gen
 
-      - name: Verify generated files are in sync with vendor/kwdb.xml
+      - name: Verify generated files are in sync with vendor/lsl_definitions.yaml
         run: |
           if ! git diff --quiet packages/vm/src/generated/ packages/parser/src/generated/; then
             echo '::error::Generated files differ from a fresh `pnpm gen`. Re-run locally and commit.'
