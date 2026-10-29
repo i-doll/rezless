@@ -821,3 +821,55 @@ describe('llResetOtherScript and state changes', () => {
     expect(scripts.a!.currentState).toBe('default')
   })
 })
+
+describe('event queue cap with a stopped script', () => {
+  it('keeps the parked events and drops the newer overflow', async () => {
+    const { scripts } = await loadLinkset({
+      prims: [
+        {
+          scripts: [
+            {
+              name: 'reader',
+              source: {
+                source: `
+                  integer first; integer second;
+                  default {
+                    link_message(integer s, integer n, string m, key k) {
+                      if (n == 1) first++; else second++;
+                    }
+                  }
+                `,
+              },
+            },
+            {
+              name: 'sender',
+              source: {
+                source: `
+                  default {
+                    state_entry() {
+                      llSetScriptState("reader", FALSE);
+                      integer i;
+                      for (i = 0; i < 64; i++) llMessageLinked(LINK_THIS, 1, "", "");
+                      llSetTimerEvent(1.0);
+                    }
+                    timer() {
+                      llSetTimerEvent(0);
+                      integer i;
+                      for (i = 0; i < 64; i++) llMessageLinked(LINK_THIS, 2, "", "");
+                      llSetScriptState("reader", TRUE);
+                    }
+                  }
+                `,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    scripts.reader!.start()
+    scripts.sender!.start()
+    scripts.sender!.advanceTime(5_000)
+    expect(scripts.reader!.global('first')).toBe(64)
+    expect(scripts.reader!.global('second')).toBe(0)
+  })
+})

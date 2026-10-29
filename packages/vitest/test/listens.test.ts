@@ -203,3 +203,26 @@ describe('listen limits and llRegionSay', () => {
     ])
   })
 })
+
+describe('llListen handle reuse', () => {
+  it('opens a new listener when the matching one is disabled', async () => {
+    const s = await loadScript({
+      source: `
+        integer h1; integer h2; integer heard;
+        default {
+          state_entry() {
+            h1 = llListen(5, "", NULL_KEY, "");
+            llListenControl(h1, FALSE);
+            h2 = llListen(5, "", NULL_KEY, "");
+          }
+          listen(integer c, string n, key id, string m) { heard++; }
+        }
+      `,
+    })
+    s.start()
+    s.deliverChat({ channel: 5, name: 'Alice', key: 'a2e76fcd-9360-4f6d-a924-000000000001', message: 'hi' })
+    expect(s.global('h1')).toBe(1)
+    expect(s.global('h2')).toBe(2)
+    expect(s.global('heard')).toBe(1)
+  })
+})

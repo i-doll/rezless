@@ -597,3 +597,25 @@ describe('llSetPrimitiveParams rule type errors on untyped lists', () => {
     expect(errors).toEqual([expect.stringContaining(message)])
   })
 })
+
+describe('llGetAlpha(ALL_SIDES) on non-box shapes', () => {
+  it('sums only the faces the shape has', async () => {
+    const s = await loadScript({
+      source: `
+        float sphere; float box;
+        default {
+          state_entry() {
+            llSetAlpha(0.5, ALL_SIDES);
+            box = llGetAlpha(ALL_SIDES);
+            llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_SPHERE, PRIM_HOLE_DEFAULT, <0, 1, 0>, 0.0, <0, 0, 0>, <0, 1, 0>]);
+            llSetAlpha(0.5, ALL_SIDES);
+            sphere = llGetAlpha(ALL_SIDES);
+          }
+        }
+      `,
+    })
+    s.start()
+    expect(s.global('box')).toBeCloseTo(3)
+    expect(s.global('sphere')).toBeCloseTo(0.5)
+  })
+})

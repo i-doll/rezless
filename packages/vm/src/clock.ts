@@ -43,12 +43,12 @@ export class LinksetClock {
 
   /**
    * Schedule a one-shot event on `target`'s handler at virtual time `at`.
-   * A script holds at most MAX_PENDING_EVENTS queued events; further
-   * events are dropped.
+   * A script holds at most MAX_PENDING_EVENTS queued events, counting those
+   * parked while it is stopped; further events are dropped.
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}): void {
     if (event !== '__reset') {
-      let pending = 0
+      let pending = target.parkedEvents.length
       for (const e of this.queue) if (e.target === target) pending++
       if (pending >= MAX_PENDING_EVENTS) return
     }

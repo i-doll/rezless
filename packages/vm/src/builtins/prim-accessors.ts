@@ -143,8 +143,9 @@ export const llSetAlpha: BuiltinImpl = (ctx, args) => {
 export const llGetAlpha: BuiltinImpl = (ctx, args) => {
   const face = num(args[0], 0) | 0
   if (face === ALL_SIDES) {
+    const faces = Math.min(numberOfSides(ctx.prim.params.shape), ctx.prim.params.faces.length)
     let a = 0
-    for (let f = 0; f < 6; f++) a += ctx.prim.params.faces[f]!.alpha
+    for (let f = 0; f < faces; f++) a += ctx.prim.params.faces[f]!.alpha
     return a
   }
   if (face < 0 || face > 5) return 0

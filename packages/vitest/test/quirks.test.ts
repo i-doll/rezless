@@ -464,3 +464,28 @@ describe('SL parity — rotations in lists', () => {
     expect(s.global('cast')).toBe('<123456800.00000, 0.12346, -1.50000, 1.00000>')
   })
 })
+
+describe('llBase64ToString replacement characters', () => {
+  it('keeps a real U+FFFD and replaces only invalid bytes and NUL', async () => {
+    const replacement = String.fromCodePoint(0xfffd)
+    const s = await run(`
+      string kept; string invalid; string nul; string badTail; string cutShort;
+      default {
+        state_entry() {
+          kept = llBase64ToString(llStringToBase64("a${replacement}b"));
+          invalid = llBase64ToString("/w==");
+          nul = llBase64ToString("YQBi");
+          badTail = llBase64ToString("w0E=");
+          cutShort = llBase64ToString("ww==");
+        }
+      }
+    `)
+    expect(s.global('kept')).toBe(`a${replacement}b`)
+    expect(s.global('invalid')).toBe('?')
+    expect(s.global('nul')).toBe('a?b')
+    // Not measured in-world: a lead byte with a bad or missing continuation
+    // follows the measured single-byte rule, one ? per invalid byte.
+    expect(s.global('badTail')).toBe('?A')
+    expect(s.global('cutShort')).toBe('?')
+  })
+})

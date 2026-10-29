@@ -43,7 +43,7 @@ export const llListen: BuiltinImpl = (ctx, args) => {
   const id = (args[2] as string | undefined) ?? NULL_KEY
   const msg = (args[3] as string | undefined) ?? ''
   const existing = ctx.state.listens.find(
-    (l) => l.channel === channel && l.name === name && l.key === id && l.message === msg,
+    (l) => l.active && l.channel === channel && l.name === name && l.key === id && l.message === msg,
   )
   if (existing) return existing.handle
   if (ctx.state.listens.length >= MAX_LISTENS) throw new Error('Too Many Listens')
