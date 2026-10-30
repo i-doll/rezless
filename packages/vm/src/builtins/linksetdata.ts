@@ -442,7 +442,7 @@ export const llLinksetDataCountKeys: BuiltinImpl = (ctx) => {
 export const llLinksetDataListKeys: BuiltinImpl = (ctx, args) => {
   const start = (args[0] as number | undefined) ?? 0
   const count = (args[1] as number | undefined) ?? -1
-  return uniformList(slice(sortedKeys(ctx), start, count), 'string')
+  return uniformList(slice(sortedKeys(ctx), Math.max(start, 0), count), 'string')
 }
 
 export const llLinksetDataFindKeys: BuiltinImpl = (ctx, args) => {

@@ -302,6 +302,23 @@ describe('Linkset Data', () => {
     expect(s.global('found')).toEqual(['foo1', 'foo2'])
   })
 
+  // In-world: with keys a, p, u, llLinksetDataListKeys(-1, 2) = [a, p]
+  it('ListKeys treats a negative start as 0', async () => {
+    const s = await load(`
+      list out = [];
+      default {
+        state_entry() {
+          llLinksetDataWrite("a", "v");
+          llLinksetDataWrite("p", "v");
+          llLinksetDataWrite("u", "v");
+          out = llLinksetDataListKeys(-1, 2);
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('out')).toEqual(['a', 'p'])
+  })
+
   it('LSD persists across llResetScript', async () => {
     const s = await load(`
       string got = "";

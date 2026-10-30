@@ -25,8 +25,8 @@ type JNode =
   | { t: 'false' }
   | { t: 'num'; raw: string }
   | { t: 'str'; v: string }
-  | { t: 'arr'; items: JNode[] }
-  | { t: 'obj'; entries: Array<[string, JNode]> }
+  | { t: 'arr'; items: JNode[]; raw?: string }
+  | { t: 'obj'; entries: Array<[string, JNode]>; raw?: string }
   | { t: 'empty' }
 
 const SENTINEL_STRINGS: ReadonlySet<string> = new Set([
@@ -87,12 +87,13 @@ class Parser {
   }
 
   private parseObject(): JNode | null {
+    const start = this.i
     this.i++
     const entries: Array<[string, JNode]> = []
     this.ws()
     if (this.src[this.i] === '}') {
       this.i++
-      return { t: 'obj', entries }
+      return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
     }
     while (true) {
       this.ws()
@@ -116,14 +117,14 @@ class Parser {
       this.ws()
       if (this.src[this.i] === '}') {
         this.i++
-        return { t: 'obj', entries }
+        return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
       }
       if (this.src[this.i] === ',') {
         this.i++
         this.ws()
         if (this.src[this.i] === '}') {
           this.i++
-          return { t: 'obj', entries }
+          return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
         }
         continue
       }
@@ -132,12 +133,13 @@ class Parser {
   }
 
   private parseArray(): JNode | null {
+    const start = this.i
     this.i++
     const items: JNode[] = []
     this.ws()
     if (this.src[this.i] === ']') {
       this.i++
-      return { t: 'arr', items }
+      return { t: 'arr', items, raw: this.src.slice(start, this.i) }
     }
     while (true) {
       this.ws()
@@ -154,14 +156,14 @@ class Parser {
       this.ws()
       if (this.src[this.i] === ']') {
         this.i++
-        return { t: 'arr', items }
+        return { t: 'arr', items, raw: this.src.slice(start, this.i) }
       }
       if (this.src[this.i] === ',') {
         this.i++
         this.ws()
         if (this.src[this.i] === ']') {
           this.i++
-          return { t: 'arr', items }
+          return { t: 'arr', items, raw: this.src.slice(start, this.i) }
         }
         continue
       }
@@ -192,14 +194,7 @@ class Parser {
         else if (e === 'r') out += '\r'
         else if (e === 'b') out += '\b'
         else if (e === 'f') out += '\f'
-        else if (e === 'u') {
-          const hex = this.src.slice(this.i, this.i + 4)
-          if (hex.length !== 4 || !/^[0-9a-fA-F]+$/.test(hex)) return null
-          this.i += 4
-          out += String.fromCharCode(parseInt(hex, 16))
-        } else {
-          out += e
-        }
+        else out += e
       } else {
         out += c
         this.i++
@@ -282,9 +277,9 @@ function printJson(n: JNode): string {
     case 'str':
       return '"' + escapeJsonString(n.v) + '"'
     case 'arr':
-      return '[' + n.items.map(printJson).join(',') + ']'
+      return n.raw ?? '[' + n.items.map(printJson).join(',') + ']'
     case 'obj':
-      return (
+      return n.raw ?? (
         '{' +
         n.entries
           .map(([k, v]) => '"' + escapeJsonString(k) + '":' + printJson(v))
@@ -305,7 +300,11 @@ function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
   let cur: JNode = root
   for (const spec of specs) {
     if (cur.t === 'empty') return { kind: 'null' }
-    if (typeof spec === 'string') {
+    if (typeof spec === 'string' && cur.t === 'arr' && /^\d+$/.test(spec)) {
+      const item = cur.items[Number(spec)]
+      if (item === undefined || item.t === 'empty') return { kind: 'invalid' }
+      cur = item
+    } else if (typeof spec === 'string') {
       if (cur.t !== 'obj') return { kind: 'invalid' }
       let found: JNode | null = null
       for (const [k, v] of cur.entries) if (k === spec) found = v
@@ -315,7 +314,9 @@ function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
       if (cur.t !== 'arr') return { kind: 'invalid' }
       const idx = Math.trunc(spec)
       if (idx < 0 || idx >= cur.items.length) return { kind: 'invalid' }
-      cur = cur.items[idx]!
+      const item = cur.items[idx]!
+      if (item.t === 'empty') return { kind: 'invalid' }
+      cur = item
     } else {
       return { kind: 'invalid' }
     }
@@ -504,7 +505,7 @@ function jsonNodeToLslListItem(n: JNode): LslValue {
     case 'false':
       return JSON_FALSE
     case 'num':
-      return isJsonInteger(n.raw) ? Number(n.raw) | 0 : Number(n.raw)
+      return isJsonInteger(n.raw) ? Math.max(-2147483648, Math.min(2147483647, Number(n.raw))) : Number(n.raw)
     case 'str':
       return n.v
     case 'empty':
@@ -548,7 +549,7 @@ export const llJsonGetValue: BuiltinImpl = (_ctx, args) => {
   const json = (args[0] as string | undefined) ?? ''
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (json === '') return JSON_INVALID
-  if (SENTINEL_STRINGS.has(json)) return JSON_INVALID
+  if (SENTINEL_STRINGS.has(json)) return specs.length === 0 ? json : JSON_INVALID
   const root = parseJson(json)
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)

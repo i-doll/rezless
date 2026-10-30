@@ -104,6 +104,24 @@ describe('llJson2List', () => {
     expect(s.global('out')).toEqual([])
   })
 
+  // In-world: llJson2List("[12345678901]") = [2147483647]
+  it('an integer above int32 clamps to the maximum', async () => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llJson2List("[12345678901]"); } }
+    `)
+    expect(s.global('out')).toEqual([2147483647])
+  })
+
+  // Unmeasured: the negative side is assumed to mirror the positive.
+  it('an integer below int32 clamps to the minimum', async () => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llJson2List("[-12345678901]"); } }
+    `)
+    expect(s.global('out')).toEqual([-2147483648])
+  })
+
   it('UUID-shaped bare string → 1-element list', async () => {
     const s = await run(`
       list out = [];
@@ -220,10 +238,20 @@ describe('llJsonGetValue', () => {
     expect(s.global('out')).toBe('TRUE')
   })
 
-  it('passing a sentinel as JSON text → JSON_INVALID', async () => {
+  // In-world: llJsonGetValue(JSON_TRUE, []) = JSON_TRUE
+  it('passing a sentinel as JSON text with no specifiers → the sentinel itself', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() { out = llJsonGetValue(JSON_TRUE, []); } }
+    `)
+    expect(s.global('out')).toBe(JSON_TRUE)
+  })
+
+  // Unmeasured: a sentinel has no members to look up.
+  it('passing a sentinel as JSON text with specifiers → JSON_INVALID', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonGetValue(JSON_TRUE, [0]); } }
     `)
     expect(s.global('out')).toBe(JSON_INVALID)
   })
@@ -250,14 +278,55 @@ describe('llJsonGetValue', () => {
     expect(s.global('b')).toBe(JSON_NULL)
   })
 
-  it('empty array slot → JSON_NULL', async () => {
+  // In-world: llJsonGetValue("[1,,3]", [1]) = JSON_INVALID
+  it('empty array slot → JSON_INVALID', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() {
-        out = llJsonGetValue("[ , , , , ]", [2]);
+        out = llJsonGetValue("[1,,3]", [1]);
       } }
     `)
-    expect(s.global('out')).toBe(JSON_NULL)
+    expect(s.global('out')).toBe(JSON_INVALID)
+  })
+
+  // In-world: llJsonGetValue("[1]", ["0"]) = "1"
+  it('a string specifier on an array is read as an index', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonGetValue("[1]", ["0"]); } }
+    `)
+    expect(s.global('out')).toBe('1')
+  })
+
+  // In-world: the string "a\"b\n\u00e9" reads back as a"b, a newline, then u00e9
+  it('\\u escapes are not decoded', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonGetValue("\\"a\\\\\\"b\\\\n\\\\u00e9\\"", []);
+      } }
+    `)
+    expect(s.global('out')).toBe('a"b\nu00e9')
+  })
+
+  // In-world: llJsonGetValue(" { \"a\" : [ 1 , 2 ] } ", ["a"]) = "[ 1 , 2 ]"
+  it('compound values keep their original text', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonGetValue(" { \\"a\\" : [ 1 , 2 ] } ", ["a"]);
+      } }
+    `)
+    expect(s.global('out')).toBe('[ 1 , 2 ]')
+  })
+
+  // In-world: llJsonSetValue("{}", ["a"], "[1, 2]") = {"a":[1, 2]}
+  it('a JSON-shaped value is inserted verbatim on set', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonSetValue("{}", ["a"], "[1, 2]"); } }
+    `)
+    expect(s.global('out')).toBe('{"a":[1, 2]}')
   })
 
   it('duplicate keys → returns the last occurrence', async () => {
