@@ -66,6 +66,9 @@ describe('llList2ListSlice (measured in Second Life)', () => {
     ['L, 0, -1, 3, 5', []],
     ['L, 0, -1, 0, 0', []],
     ['L, 7, 2, 2, 0', [1, 3, 8, 10]],
+    ['L, 0, -1, -3, 0', []],
+    ['L, 0, -1, -3, 1', []],
+    ['L, 0, -1, -3, -1', []],
   ])('llList2ListSlice(%s)', async (args, expected) => {
     expect(await evalList(`llList2ListSlice(${args})`)).toEqual(expected)
   })
@@ -135,6 +138,23 @@ describe('rotation helpers (measured in Second Life)', () => {
     ['llRot2Euler(llEuler2Rot(<0.3, -PI_BY_TWO, 0.2>))', '<0.00000, -1.57080, -0.10000>'],
     ['llRot2Euler(llEuler2Rot(<0.3, 1.5707, 0.2>))', '<0.00000, 1.57080, 0.50000>'],
     ['llRot2Euler(llEuler2Rot(<0, PI_BY_TWO, 0>))', '<0.00000, 1.57080, 0.00000>'],
+    ['llRot2Euler(llEuler2Rot(<0.3, 1.5704, 0.2>))', '<0.00000, 1.57080, 0.50000>'],
+    ['llRot2Euler(llEuler2Rot(<0.3, 1.5705, 0.2>))', '<0.00000, 1.57080, 0.50000>'],
+    ['llRot2Euler(llEuler2Rot(<0.3, 1.5706, 0.2>))', '<0.00000, 1.57080, 0.50000>'],
+    ['llEuler2Rot(<3, 0, 0>)', '<0.99750, 0.00000, 0.00000, 0.07074>'],
+    ['llEuler2Rot(<-3, 0, 0>)', '<0.99750, 0.00000, 0.00000, -0.07074>'],
+    ['llEuler2Rot(<0, -3, 0>)', '<0.00000, 0.99750, 0.00000, -0.07074>'],
+    ['llEuler2Rot(<0, 0, -3>)', '<0.00000, 0.00000, 0.99750, -0.07074>'],
+    ['llEuler2Rot(<3, 3, 3>)', '<-0.07537, 0.06539, -0.07537, 0.99215>'],
+    ['llEuler2Rot(<-3, -3, -3>)', '<0.06539, -0.07537, 0.06539, 0.99286>'],
+    ['llEuler2Rot(<2, -2.5, 1>)', '<-0.01297, -0.57718, -0.61911, 0.53236>'],
+    ['llEuler2Rot(<-2.9, 0.1, 0.2>)', '<0.98592, -0.10497, 0.03735, -0.12470>'],
+    ['llEuler2Rot(<1.5, 2.5, -2>)', '<-0.46815, 0.55603, 0.15536, 0.66898>'],
+    ['llEuler2Rot(<0.1, 3.1, 0.1>)', '<0.05094, 0.99723, 0.05094, 0.01825>'],
+    ['llRot2Left(<0,0,0,0>)', '<0.00000, 1.00000, 0.00000>'],
+    ['llRot2Up(<0,0,0,0>)', '<0.00000, 0.00000, 1.00000>'],
+    ['llRot2Axis(<0,0,0,0>)', '<0.00000, 0.00000, 0.00000>'],
+    ['llRot2Angle(<0,0,0,0>)', '0.000000'],
     [`llRot2Fwd(${q})`, '<0.93629, 0.31299, -0.15935>'],
     [`llRot2Left(${q})`, '<-0.28963, 0.94470, 0.15379>'],
     [`llRot2Up(${q})`, '<0.19867, -0.09784, 0.97517>'],
@@ -238,6 +258,42 @@ describe('permissions (measured in Second Life)', () => {
     expect(s.permissionRequests).toEqual([])
     expect(() => s.grantPermissions()).toThrow(/no pending permission request/)
   })
+
+  it('requesting no permissions after a grant keeps the grant', async () => {
+    const s = await loadScript({
+      source: `
+        list seen;
+        default {
+          touch_start(integer n) { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+          touch_end(integer n) { llRequestPermissions(llGetOwner(), 0); llSetTimerEvent(3.0); }
+          timer() { llSetTimerEvent(0); seen += [llGetPermissions(), llGetPermissionsKey()]; }
+        }
+      `,
+      owner: OWNER,
+    })
+    s.fire('touch_start', { num_detected: 1 })
+    s.grantPermissions()
+    s.fire('touch_end', { num_detected: 1 })
+    s.advanceTime(3000)
+    expect(s.global('seen')).toEqual([128, OWNER])
+  })
+
+  it('llResetScript clears permissions', async () => {
+    const s = await loadScript({
+      source: `
+        list seen;
+        default {
+          state_entry() { seen += [llGetPermissions(), llGetPermissionsKey()]; }
+          touch_start(integer n) { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+          run_time_permissions(integer perm) { llResetScript(); }
+        }
+      `,
+      owner: OWNER,
+    })
+    s.fire('touch_start', { num_detected: 1 })
+    s.grantPermissions()
+    expect(s.global('seen')).toEqual([0, NULL_KEY])
+  })
 })
 
 describe('llRemoveInventory (measured in Second Life)', () => {
@@ -293,6 +349,19 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.host.inventory).toHaveLength(0)
     expect(s.host.scripts).toHaveLength(0)
     s.fire('touch_start', { num_detected: 1 })
+    expect(s.chat.map((c) => c.text)).toEqual(['next'])
+  })
+
+  it('a self-removed script stops at its next delaying call', async () => {
+    const s = await loadScript({
+      source: `default { state_entry() {
+        llRemoveInventory(llGetScriptName());
+        llOwnerSay("next");
+        llSetPrimitiveParams([PRIM_TEXT, "set", <1,1,1>, 1.0]);
+        llOwnerSay("after");
+      } }`,
+    })
+    s.start()
     expect(s.chat.map((c) => c.text)).toEqual(['next'])
   })
 

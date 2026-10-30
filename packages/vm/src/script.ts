@@ -547,6 +547,8 @@ export class Script {
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
     this.state.listens.length = 0
+    this.state.permissions.granted = 0
+    this.state.permissions.agent = NULL_KEY
     this.clockView.cancelTimer()
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0

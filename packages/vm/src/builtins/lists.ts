@@ -375,16 +375,16 @@ export const llList2ListStrided: BuiltinImpl = (_ctx, args) => {
  * llList2ListSlice(list src, integer start, integer end, integer stride, integer slice_index)
  * — within each selected range, the elements whose offset from the range's
  * start is slice_index modulo the stride. A negative slice_index counts from
- * the end of the stride; one outside the stride, or a stride of 0, gives [].
+ * the end of the stride; one outside the stride, or a stride below 1, gives [].
  */
 export const llList2ListSlice: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const start = (args[1] as number | undefined) ?? 0
   const end = (args[2] as number | undefined) ?? 0
-  const stride = Math.abs((args[3] as number | undefined) ?? 0)
+  const stride = (args[3] as number | undefined) ?? 0
   let slice = (args[4] as number | undefined) ?? 0
   if (slice < 0) slice += stride
-  if (stride === 0 || slice < 0 || slice >= stride) return []
+  if (stride <= 0 || slice < 0 || slice >= stride) return []
   const indexes: number[] = []
   for (const [from, to] of ranges(start, end, src.length)) {
     for (let i = from + slice; i <= to; i += stride) indexes.push(i)
