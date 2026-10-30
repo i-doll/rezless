@@ -275,6 +275,49 @@ describe('script memory: Stack-Heap Collision', () => {
     expect(s.running).toBe(false)
   })
 
+  it('a crashed script ignores fired events until it runs again', async () => {
+    const s = await loadScript({
+      source: `
+        list l;
+        integer touches;
+        default {
+          state_entry() { llSetMemoryLimit(llGetUsedMemory() + 32); for (;;) l += [0]; }
+          touch_start(integer n) { touches++; }
+        }
+      `,
+      memoryLimit: true,
+    })
+    expect(() => s.start()).toThrow('Stack-Heap Collision')
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.global('touches')).toBe(0)
+  })
+
+  it('a script that collides while loading leaves its prim untouched', async () => {
+    const sibling = await loadScript({ source: 'default { link_message(integer s, integer n, string m, key k) {} }' })
+    await expect(
+      loadScript({
+        source: `string big = "${'x'.repeat(20000)}"; default { state_entry() {} }`,
+        host: sibling.host,
+        memoryLimit: true,
+      }),
+    ).rejects.toThrow('Stack-Heap Collision')
+    expect(sibling.host.scripts).toEqual([sibling])
+  })
+
+  it('a reset gives back the last event’s stack before rebuilding globals', async () => {
+    const s = await loadScript({
+      source: `
+        string g = "${'x'.repeat(6000)}";
+        f(integer d) { if (d > 0) f(d - 1); }
+        default { state_entry() { g = ""; f(850); } }
+      `,
+      memoryLimit: true,
+    })
+    s.start()
+    expect(() => s.reset()).not.toThrow()
+    expect(s.running).toBe(true)
+  })
+
   it('jumping out of a nested block gives back that block’s locals', async () => {
     const s = await run(`
       integer i;

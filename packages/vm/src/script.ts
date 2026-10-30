@@ -209,11 +209,6 @@ export class Script {
     }
     if (coverage) coverage.hitState('default')
 
-    // Register this script with the prim if it isn't already there.
-    if (!host.scripts.includes(this)) {
-      host.addScript(this)
-    }
-
     // Build a parent scope holding every LSL constant (PI, TRUE, HTTP_METHOD,
     // …). Script globals get their own scope below; typecheck() rejects
     // globals named after constants, as SL does.
@@ -225,6 +220,12 @@ export class Script {
     this.handlersByState = indexHandlers(ast)
     if (!this.handlersByState.has('default')) {
       throw new Error('LSL script has no default state')
+    }
+
+    // Register with the prim only once the script is fully built, so a failed
+    // construction (e.g. a Stack-Heap Collision in a global) leaves no trace.
+    if (!host.scripts.includes(this)) {
+      host.addScript(this)
     }
   }
 
@@ -512,6 +513,10 @@ export class Script {
    */
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
+    if (!this.running) {
+      this.parkedEvents.push({ at: this.now, event: eventName, payload })
+      return
+    }
     if (!this.started) {
       this.started = true
       const entry = this.handlersByState.get(this.state.currentState)?.get('state_entry')
@@ -550,6 +555,7 @@ export class Script {
    * is invoked from inside a handler; tests can also call it directly.
    */
   reset(): void {
+    this.state.memory.releaseStack()
     this.globals.clear()
     initGlobals(this.globals, this.ast.globals)
     this.state.currentState = 'default'
