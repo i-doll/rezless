@@ -16,6 +16,8 @@ const LIST_HEADER = 36
 
 /** A fatal Stack-Heap Collision: the script ran out of memory. */
 export class StackHeapCollision extends Error {
+  reported = false
+
   constructor() {
     super('Stack-Heap Collision')
     this.name = 'StackHeapCollision'

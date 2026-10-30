@@ -557,7 +557,12 @@ export class Script {
   reset(): void {
     this.state.memory.releaseStack()
     this.globals.clear()
-    initGlobals(this.globals, this.ast.globals)
+    try {
+      initGlobals(this.globals, this.ast.globals)
+    } catch (e) {
+      if (e instanceof StackHeapCollision) this.crash(e)
+      throw e
+    }
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
     this.state.listens.length = 0
@@ -632,7 +637,7 @@ export class Script {
       this.state.memory.startEvent()
       this.runHandlerChain(handler, args)
     } catch (e) {
-      if (e instanceof StackHeapCollision) this.crash(e.message)
+      if (e instanceof StackHeapCollision) this.crash(e)
       throw e
     } finally {
       if (this.now > startedAt) this.clockView.busyUntilMs = this.now
@@ -697,8 +702,10 @@ export class Script {
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
-  private crash(error: string): void {
-    for (const text of ['Script run-time error', error]) {
+  private crash(error: StackHeapCollision): void {
+    if (error.reported) return
+    error.reported = true
+    for (const text of ['Script run-time error', error.message]) {
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }

@@ -304,6 +304,44 @@ describe('script memory: Stack-Heap Collision', () => {
     expect(sibling.host.scripts).toEqual([sibling])
   })
 
+  it('an event whose parameters collide gives them back', async () => {
+    const s = await loadScript({
+      source: `
+        default {
+          state_entry() { ${REPORT} llSetMemoryLimit(llGetUsedMemory() + 100); }
+          listen(integer c, string n, key k, string m) {}
+          touch_start(integer n) { ${REPORT} }
+        }
+      `,
+      memoryLimit: true,
+    })
+    s.start()
+    expect(() => s.fire('listen', { channel: 0, name: 'n'.repeat(30), id: '', msg: 'm'.repeat(200) })).toThrow(
+      'Stack-Heap Collision',
+    )
+    s.running = true
+    s.fire('touch_start', { num_detected: 1 })
+    const [before, after] = reports(s)
+    expect(after).toBe(before)
+  })
+
+  it('a collision while a reset rebuilds the globals stops the script', async () => {
+    const s = await loadScript({
+      source: `
+        string g = "${'x'.repeat(2000)}";
+        default { state_entry() { g = ""; llSetMemoryLimit(llGetUsedMemory() + 100); } }
+      `,
+      memoryLimit: true,
+    })
+    s.start()
+    expect(() => s.reset()).toThrow('Stack-Heap Collision')
+    expect(s.running).toBe(false)
+    expect(s.chat.filter((c) => c.channel === 2147483647).map((c) => c.text)).toEqual([
+      'Script run-time error',
+      'Stack-Heap Collision',
+    ])
+  })
+
   it('a reset gives back the last event’s stack before rebuilding globals', async () => {
     const s = await loadScript({
       source: `

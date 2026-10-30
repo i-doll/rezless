@@ -84,12 +84,12 @@ export function execHandler(
   }
   const locals = ctx.state.memory.locals
   const env = ctx.globals.push()
-  // Bind handler params (each carries declared LSL type).
-  handler.params.forEach((p, i) => {
-    const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
-    env.declare(p.name, p.typeName as LslType, a)
-  })
   try {
+    // Bind handler params (each carries declared LSL type).
+    handler.params.forEach((p, i) => {
+      const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
+      env.declare(p.name, p.typeName as LslType, a)
+    })
     execBlock(ctx, env, handler.body)
   } catch (e) {
     if (e instanceof ReturnSignal) return
