@@ -6,6 +6,7 @@ import {
   readPrimParam,
   writePrimParam,
   defaultPrimParams,
+  numberOfSides,
 } from '../src/prim-params.js'
 import {
   ALL_SIDES,
@@ -281,5 +282,162 @@ describe('prim-params helpers', () => {
     const p = freshPrim()
     expect(readPrimParam(p, 99999, [], 0)).toBeNull()
     expect(writePrimParam(p, 99999, [], 0)).toBeNull()
+  })
+})
+
+describe('face slots follow the shape (measured in Second Life)', () => {
+  const plain = v(0, 1, 0)
+  const half = v(0.25, 0.75, 0)
+  const wide = v(0.1, 0.9, 0)
+  const linear = (kind: number, cut = plain, hollow = 0) =>
+    [kind, PRIM_HOLE_DEFAULT, cut, hollow, v(0, 0, 0), v(1, 1, 0), v(0, 0, 0)]
+  const sphere = (cut = plain, hollow = 0, dimple = plain) =>
+    [PRIM_TYPE_SPHERE, PRIM_HOLE_DEFAULT, cut, hollow, v(0, 0, 0), dimple]
+  const looped = (kind: number, cut = plain, hollow = 0, profileCut = plain) =>
+    [kind, PRIM_HOLE_DEFAULT, cut, hollow, v(0, 0, 0), v(1, 0.25, 0), v(0, 0, 0), profileCut, v(0, 0, 0), 1, 0, 0]
+
+  const sides = (shape: unknown[]) => {
+    const p = freshPrim()
+    writePrimParam(p, PRIM_TYPE, shape as never, 0)
+    expect(p.params.faces).toHaveLength(numberOfSides(p.params.shape))
+    expect(readPrimParam(p, PRIM_COLOR, [ALL_SIDES], 0)!.values).toHaveLength(2 * p.params.faces.length)
+    return p.params.faces.length
+  }
+
+  it.each([
+    ['box', 6, linear(0)],
+    ['box hollow', 7, linear(0, plain, 0.5)],
+    ['box cut', 6, linear(0, half)],
+    ['box cut + hollow', 7, linear(0, half, 0.5)],
+    ['box cut 0.1-0.9', 8, linear(0, wide)],
+    ['box cut 0.1-0.9 + hollow', 9, linear(0, wide, 0.5)],
+    ['cylinder', 3, linear(1)],
+    ['cylinder hollow', 4, linear(1, plain, 0.5)],
+    ['cylinder cut', 5, linear(1, half)],
+    ['cylinder cut + hollow', 6, linear(1, half, 0.5)],
+    ['prism', 5, linear(2)],
+    ['prism hollow', 6, linear(2, plain, 0.5)],
+    ['prism cut', 7, linear(2, half)],
+    ['prism cut + hollow', 8, linear(2, half, 0.5)],
+    ['prism cut 0.1-0.9 + hollow', 8, linear(2, wide, 0.5)],
+    ['sphere', 1, sphere()],
+    ['sphere hollow', 4, sphere(plain, 0.5)],
+    ['sphere cut', 3, sphere(half)],
+    ['sphere cut + hollow', 6, sphere(half, 0.5)],
+    ['sphere dimple', 3, sphere(plain, 0, half)],
+    ['sphere dimple + hollow', 4, sphere(plain, 0.5, half)],
+    ['sphere cut + dimple', 5, sphere(half, 0, half)],
+    ['torus', 1, looped(4)],
+    ['torus hollow', 2, looped(4, plain, 0.5)],
+    ['torus cut', 3, looped(4, half)],
+    ['torus cut + hollow', 4, looped(4, half, 0.5)],
+    ['torus profile cut', 3, looped(4, plain, 0, half)],
+    ['torus profile cut + hollow', 4, looped(4, plain, 0.5, half)],
+    ['torus cut + profile cut', 5, looped(4, half, 0, half)],
+    ['tube', 4, looped(5)],
+    ['tube hollow', 5, looped(5, plain, 0.5)],
+    ['tube cut', 6, looped(5, half)],
+    ['tube cut + hollow', 7, looped(5, half, 0.5)],
+    ['tube profile cut', 4, looped(5, plain, 0, half)],
+    ['tube profile cut + hollow', 5, looped(5, plain, 0.5, half)],
+    ['tube cut + profile cut', 6, looped(5, half, 0, half)],
+    ['tube cut + profile cut 0.1-0.9 + hollow', 9, looped(5, half, 0.5, wide)],
+    ['ring', 3, looped(6)],
+    ['ring hollow', 4, looped(6, plain, 0.5)],
+    ['ring cut', 5, looped(6, half)],
+    ['ring cut + hollow', 6, looped(6, half, 0.5)],
+    ['ring profile cut', 5, looped(6, plain, 0, half)],
+    ['ring profile cut + hollow', 6, looped(6, plain, 0.5, half)],
+    ['ring cut + profile cut', 7, looped(6, half, 0, half)],
+    ['ring cut + profile cut + hollow', 8, looped(6, half, 0.5, half)],
+  ])('%s has %i faces', (_, count, shape) => {
+    expect(sides(shape)).toBe(count)
+  })
+
+  it('a sculpt has one face', () => {
+    expect(sides([PRIM_TYPE_SCULPT, 'map', 1])).toBe(1)
+  })
+
+  const paint = (p: Prim) => {
+    for (let f = 0; f < p.params.faces.length; f++) {
+      writePrimParam(p, PRIM_COLOR, [f, v((f + 1) / 10, 0, 0), 1], 0)
+    }
+  }
+  const reds = (p: Prim) => p.params.faces.map((f) => f.color.x)
+  const reshape = (p: Prim, shape: unknown[]) => writePrimParam(p, PRIM_TYPE, shape as never, 0)
+
+  it('hollowing a box adds the inner face as a copy of the last face', () => {
+    const p = freshPrim()
+    paint(p)
+    reshape(p, linear(0, plain, 0.5))
+    expect(reds(p)).toEqual([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.6])
+  })
+
+  it('removing the hollow drops the inner face and moves the bottom back', () => {
+    const p = freshPrim()
+    reshape(p, linear(0, plain, 0.5))
+    paint(p)
+    reshape(p, linear(0))
+    expect(reds(p)).toEqual([0.1, 0.2, 0.3, 0.4, 0.5, 0.7])
+    reshape(p, linear(0, plain, 0.5))
+    expect(reds(p)).toEqual([0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.7])
+  })
+
+  it('a profile cut keeps the overlapping outer faces and adds cut faces copied from the last face', () => {
+    const p = freshPrim()
+    paint(p)
+    reshape(p, linear(0, half))
+    expect(reds(p)).toEqual([0.1, 0.3, 0.4, 0.6, 0.6, 0.6])
+    reshape(p, linear(0))
+    expect(reds(p)).toEqual([0.1, 0.3, 0.3, 0.4, 0.4, 0.6])
+  })
+
+  it('cut + hollow box back to a plain box, then to a cylinder', () => {
+    const p = freshPrim()
+    reshape(p, linear(0, half, 0.5))
+    paint(p)
+    reshape(p, linear(0))
+    expect(reds(p)).toEqual([0.1, 0.2, 0.2, 0.3, 0.3, 0.5])
+    reshape(p, linear(1))
+    expect(reds(p)).toEqual([0.1, 0.2, 0.5])
+  })
+
+  it('re-applying the same shape keeps every face', () => {
+    const p = freshPrim()
+    reshape(p, looped(6, half, 0.5, half))
+    paint(p)
+    reshape(p, looped(6, half, 0.5, half))
+    expect(reds(p)).toEqual([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+  })
+
+  it('faces copied across a shape change are independent', () => {
+    const p = freshPrim()
+    reshape(p, linear(0, plain, 0.5))
+    p.params.faces[6]!.color.x = 0.9
+    expect(p.params.faces[5]!.color.x).toBe(1)
+  })
+
+  it.each([
+    PRIM_COLOR, PRIM_TEXTURE, PRIM_RENDER_MATERIAL, PRIM_FULLBRIGHT, PRIM_GLOW, PRIM_BUMP_SHINY,
+    PRIM_TEXGEN, PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE, PRIM_GLTF_BASE_COLOR,
+    PRIM_GLTF_NORMAL, PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE,
+  ])('per-face rule %i reads all nine faces of a nine-face box and nothing past them', (rule) => {
+    const p = freshPrim()
+    reshape(p, linear(0, wide, 0.5))
+    const one = readPrimParam(p, rule, [8], 0)!.values
+    expect(one.length).toBeGreaterThan(0)
+    expect(readPrimParam(p, rule, [ALL_SIDES], 0)!.values).toHaveLength(9 * one.length)
+    expect(readPrimParam(p, rule, [9], 0)!.values).toEqual([])
+  })
+
+  it('PRIM_GLOW reaches face 8 of a nine-face box and keeps the glow mirror in step', () => {
+    const p = freshPrim()
+    reshape(p, linear(0, wide, 0.5))
+    writePrimParam(p, PRIM_GLOW, [8, 0.5], 0)
+    expect(readPrimParam(p, PRIM_GLOW, [8], 0)!.values).toEqual([0.5])
+    expect(readPrimParam(p, PRIM_GLOW, [9], 0)!.values).toEqual([])
+    expect(p.params.glow).toHaveLength(9)
+    reshape(p, linear(0))
+    expect(p.params.glow).toEqual(p.params.faces.map((f) => f.glow))
   })
 })

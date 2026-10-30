@@ -412,6 +412,104 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('hollow')).toBe(7)
   })
 
+  it('a hollow box has seven faces for every per-face call', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0,1,0>, 0.5, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR]);
+       all = llGetPrimitiveParams([PRIM_COLOR, ALL_SIDES]);
+       llSetColor(<0.7, 0, 0>, 6);
+       llSetColor(<0.8, 0, 0>, 7);
+       llSetAlpha(0.5, ALL_SIDES);
+       llSetTexture(TEXTURE_BLANK, 6);
+       six = llGetPrimitiveParams([PRIM_COLOR, 6]);
+       seven = llGetPrimitiveParams([PRIM_COLOR, 7]);
+       avg = llGetColor(ALL_SIDES);
+       sum = llGetAlpha(ALL_SIDES);
+       tex = llGetTexture(6);`,
+      'list all; list six; list seven; vector avg; float sum; string tex;',
+    )
+    expect(s.global('all')).toHaveLength(14)
+    expect(s.global('six')).toEqual([{ x: Math.fround(0.7), y: 0, z: 0 }, 0.5])
+    expect(s.global('seven')).toEqual([])
+    expect((s.global('avg') as { x: number }).x).toBeCloseTo((6 + 0.7) / 7, 5)
+    expect(s.global('sum')).toBeCloseTo(3.5)
+    expect(s.global('tex')).toBe('5748decc-f629-461c-9a36-a35a221fe21f')
+  })
+
+  it('a box cut 0.1-0.9 has eight faces, nine with a hollow', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0.1,0.9,0>, 0.0, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR]);
+       eight = llGetNumberOfSides();
+       all8 = llGetPrimitiveParams([PRIM_COLOR, ALL_SIDES]);
+       f7 = llGetPrimitiveParams([PRIM_COLOR, 7]);
+       f8 = llGetPrimitiveParams([PRIM_COLOR, 8]);
+       llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0.1,0.9,0>, 0.5, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR]);
+       nine = llGetNumberOfSides();
+       all9 = llGetPrimitiveParams([PRIM_COLOR, ALL_SIDES]);
+       g8 = llGetPrimitiveParams([PRIM_COLOR, 8]);
+       g9 = llGetPrimitiveParams([PRIM_COLOR, 9]);`,
+      'integer eight; integer nine; list all8; list all9; list f7; list f8; list g8; list g9;',
+    )
+    expect(s.global('eight')).toBe(8)
+    expect(s.global('all8')).toHaveLength(16)
+    expect(s.global('f7')).toHaveLength(2)
+    expect(s.global('f8')).toEqual([])
+    expect(s.global('nine')).toBe(9)
+    expect(s.global('all9')).toHaveLength(18)
+    expect(s.global('g8')).toHaveLength(2)
+    expect(s.global('g9')).toEqual([])
+  })
+
+  it('llSetColor per face, then hollowing, keeps colours by face role', async () => {
+    const s = await run(
+      `integer i;
+       vector c;
+       for (i = 0; i < 6; i++) llSetColor(<(i + 1) / 10.0, 0, 0>, i);
+       llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0,1,0>, 0.5, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR]);
+       for (i = 0; i < llGetNumberOfSides(); i++) { c = llGetColor(i); reds += c.x; }`,
+      'list reds;',
+    )
+    expect(s.global('reds')).toEqual([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.6].map(Math.fround))
+  })
+
+  it('per-face accessors past the face count read defaults and write nothing', async () => {
+    const s = await run(
+      `llSetTexture(TEXTURE_BLANK, 6);
+       llScaleTexture(2, 2, 6);
+       llOffsetTexture(0.5, 0.5, 6);
+       llRotateTexture(1, 6);
+       llSetLinkColor(LINK_THIS, <0,0,0>, 6);
+       llSetLinkAlpha(LINK_THIS, 0.0, 6);
+       llSetLinkTexture(LINK_THIS, TEXTURE_BLANK, 6);
+       out = [llGetColor(6), llGetAlpha(6), llGetTexture(6), llGetTextureOffset(6), llGetTextureScale(6),
+              llGetTextureRot(6), llGetRenderMaterial(6)];`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual([{ x: 0, y: 0, z: 0 }, 0, '', { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 0, ''])
+  })
+
+  it('ALL_SIDES texture and link calls reach the seventh face of a hollow box', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0,1,0>, 0.5, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR]);
+       llSetTexture(TEXTURE_BLANK, ALL_SIDES);
+       llScaleTexture(2, 3, ALL_SIDES);
+       llOffsetTexture(0.25, 0.5, ALL_SIDES);
+       llRotateTexture(1, ALL_SIDES);
+       llSetLinkColor(LINK_THIS, <0,1,0>, ALL_SIDES);
+       llSetLinkAlpha(LINK_THIS, 0.5, ALL_SIDES);
+       llSetRenderMaterial("mat", ALL_SIDES);
+       out = [llGetTexture(6), llGetTextureScale(6), llGetTextureOffset(6), llGetTextureRot(6),
+              llGetColor(6), llGetAlpha(6), llGetRenderMaterial(6)];
+       llSetLinkTexture(LINK_THIS, TEXTURE_DEFAULT, 6);
+       linked = llGetTexture(6);`,
+      'list out; string linked;',
+    )
+    expect(s.global('out')).toEqual([
+      '5748decc-f629-461c-9a36-a35a221fe21f', { x: 2, y: 3, z: 0 }, { x: 0.25, y: 0.5, z: 0 }, 1,
+      { x: 0, y: 1, z: 0 }, 0.5, 'mat',
+    ])
+    expect(s.global('linked')).toBe('89556747-24cb-43ed-920b-47caed15465f')
+  })
+
   it('PRIM_SIZE clamps each axis to [0.01, 64]', async () => {
     const s = await run(`llSetPrimitiveParams([PRIM_SIZE, <100, 0.001, 2>]); v = llGetScale();`, 'vector v;')
     expect(s.global('v')).toEqual({ x: 64, y: Math.fround(0.01), z: 2 })
