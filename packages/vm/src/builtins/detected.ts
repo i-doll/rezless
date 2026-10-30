@@ -20,6 +20,7 @@ export interface DetectedEntry {
   readonly linkNumber?: number
   readonly grab?: Vector
   readonly touchPos?: Vector
+  readonly touchFace?: number
 }
 
 /**
@@ -58,3 +59,4 @@ export const llDetectedLinkNumber: BuiltinImpl = (ctx, args) =>
 export const llDetectedGrab: BuiltinImpl = (ctx, args) => entry(ctx, args)?.grab ?? ZERO_VECTOR
 export const llDetectedTouchPos: BuiltinImpl = (ctx, args) =>
   entry(ctx, args)?.touchPos ?? ZERO_VECTOR
+export const llDetectedTouchFace: BuiltinImpl = (ctx, args) => entry(ctx, args)?.touchFace ?? 0

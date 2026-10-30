@@ -140,6 +140,7 @@ import {
   llDetectedLinkNumber,
   llDetectedGrab,
   llDetectedTouchPos,
+  llDetectedTouchFace,
 } from './detected.js'
 import { llMD5String, llSHA1String, llSHA256String, llHMAC, llComputeHash } from './hash.js'
 import {
@@ -392,6 +393,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llDetectedLinkNumber,
   llDetectedGrab,
   llDetectedTouchPos,
+  llDetectedTouchFace,
   // hash
   llMD5String,
   llSHA1String,

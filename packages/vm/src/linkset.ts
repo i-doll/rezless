@@ -3,6 +3,7 @@ import { Prim } from './prim.js'
 import type { Script } from './script.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
+import type { DetectedEntry } from './builtins/detected.js'
 import type { ChatType } from './runtime.js'
 import type { World } from './world.js'
 import { NULL_KEY, type Vector } from './values/types.js'
@@ -12,6 +13,8 @@ import {
   LINK_ALL_OTHERS,
   LINK_ALL_CHILDREN,
   LINK_THIS,
+  PASS_ALWAYS,
+  PASS_NEVER,
 } from './generated/constants.js'
 
 // Re-export so `import { LINK_* } from '@rezless/vm'` keeps working.
@@ -30,6 +33,15 @@ export interface LinksetOptions {
   /** Region of `world` the linkset is in. */
   readonly region?: string
 }
+
+export interface TouchOptions {
+  /** Face of the prim that was clicked. Default 0. */
+  readonly face?: number
+  /** Who clicked. Defaults to the owner. */
+  readonly avatar?: Omit<DetectedEntry, 'linkNumber' | 'touchFace'>
+}
+
+const TOUCH_EVENTS = ['touch_start', 'touch', 'touch_end'] as const
 
 const CHAT_RANGE: Partial<Record<ChatType, number>> = { whisper: 10, say: 20, shout: 100 }
 
@@ -204,6 +216,40 @@ export class Linkset {
         for (const s of p.scripts) s.matchChatListens({ channel, name: from.name, key: from.key, message })
       }
     }
+  }
+
+  /**
+   * Click link `link` as an avatar. Each script in that prim gets
+   * `touch_start`, `touch` and `touch_end`, if it handles them. The click
+   * also reaches the root's scripts when the prim set PASS_ALWAYS, or when
+   * no running script in it handles any touch event and it did not set
+   * PASS_NEVER. In every receiver llDetectedLinkNumber is `link` and
+   * llDetectedTouchFace is `face`.
+   */
+  touch(link: number, opts: TouchOptions = {}): void {
+    const prim =
+      this.prims.length === 1 && (link === 0 || link === LINK_ROOT)
+        ? this.prims[0]
+        : this.prims.find((p) => p.linkNumber === link)
+    if (!prim) throw new Error(`touch: no prim with link number ${link}`)
+    const root = this.prims[0]!
+    for (const s of new Set([...prim.scripts, ...root.scripts])) if (s.running) s.start()
+    const handlers = (p: Prim) =>
+      p.scripts.filter((s) => s.running && !s.dead && TOUCH_EVENTS.some((e) => s.handles(e)))
+    const receivers = handlers(prim)
+    const pass = prim.params.passTouches
+    if (prim !== root && (pass === PASS_ALWAYS || (pass !== PASS_NEVER && receivers.length === 0))) {
+      receivers.push(...handlers(root))
+    }
+    const avatar = opts.avatar ?? { key: this.owner, name: '' }
+    const detected = [{ ...avatar, linkNumber: prim.linkNumber, touchFace: opts.face ?? 0 }]
+    const at = this.clock.now
+    for (const s of receivers) {
+      for (const e of TOUCH_EVENTS) {
+        if (s.handles(e)) this.clock.schedule(s, at, e, { num_detected: 1, detected })
+      }
+    }
+    this.settle(receivers)
   }
 
   private globalPosition(prim: Prim): Vector {
