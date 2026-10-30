@@ -63,6 +63,12 @@ describe('script memory: code and baseline', () => {
 })
 
 /** Memory taken by running `change` in state_entry, with `globals` declared. */
+/** Used memory read inside a call to a user function, as the in-world probes did. */
+async function insideCall(signature: string, body: string, call: string): Promise<number> {
+  const s = await run(`${signature} { ${body} ${REPORT} } default { state_entry() { ${call} } }`)
+  return reports(s)[0]!
+}
+
 async function cost(globals: string, change: string): Promise<number> {
   const s = await run(`
     ${globals}
@@ -188,10 +194,22 @@ describe('script memory: stack', () => {
     expect(reports(s)).toEqual([10 * 50, 0])
   })
 
-  it('a frame costs about 7 bytes more per local', async () => {
-    const one = await cost('f(integer d) {}', 'f(0);')
-    const six = await cost('f(integer d) { integer a; integer b; integer c; integer e; integer g; }', 'f(0);')
-    expect(six - one).toBe(35)
+  it.each([
+    ['integer', 4],
+    ['float', 4],
+    ['key', 4],
+    ['vector', 12],
+    ['rotation', 16],
+    ['string', 18],
+    ['list', 40],
+  ])('a function local %s costs %i bytes', async (type, bytes) => {
+    const locals = Array.from({ length: 60 }, (_, i) => `${type} a${i};`).join(' ')
+    expect((await insideCall('f()', locals, 'f();')) - (await insideCall('f()', '', 'f();'))).toBe(60 * bytes)
+  })
+
+  it('a parameter costs its type’s size', async () => {
+    const both = await insideCall('f(vector v, rotation r)', '', 'f(ZERO_VECTOR, ZERO_ROTATION);')
+    expect(both - (await insideCall('f()', '', 'f();'))).toBe(28)
   })
 
   it('bare recursion collides at a depth of 1200 to 1250', async () => {
