@@ -50,16 +50,18 @@ export function formatRotation(r: Rotation, decimals = 5, fmt: FloatFormat = for
 /**
  * Format a list element the way `(string)list`, llList2String and
  * llDumpList2String do (llList2CSV passes `formatFloatExact`): vectors and
- * rotations get 6 decimals. Without a recorded type, a whole number reads as
+ * rotations get 6 decimals and the zero rule. Without a recorded type, a whole number reads as
  * an integer.
  */
-export function formatListElement(v: LslValue, type?: LslType, fmt?: FloatFormat): string {
-  if (typeof v === 'number') {
-    return type !== 'float' && Number.isInteger(v) ? String(v | 0) : (fmt ?? formatFloatZeroRule)(v, 6)
-  }
+export function formatListElement(
+  v: LslValue,
+  type?: LslType,
+  fmt: FloatFormat = formatFloatZeroRule,
+): string {
+  if (typeof v === 'number') return type !== 'float' && Number.isInteger(v) ? String(v | 0) : fmt(v, 6)
   if (typeof v === 'string') return v
-  if (isVector(v)) return formatVector(v, 6, fmt ?? formatFloat)
-  if (isRotation(v)) return formatRotation(v, 6, fmt ?? formatFloat)
+  if (isVector(v)) return formatVector(v, 6, fmt)
+  if (isRotation(v)) return formatRotation(v, 6, fmt)
   if (Array.isArray(v)) return formatList(v)
   return String(v)
 }

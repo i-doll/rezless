@@ -19,6 +19,7 @@ import type {
   BlockStatement,
   VariableDeclaration,
   FunctionDeclaration,
+  Node,
   TypeName,
 } from '@rezless/parser'
 import type { BuiltinImpl, ScriptState } from './runtime.js'
@@ -31,13 +32,12 @@ import { typedList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
 import { Env } from './env.js'
 import { own } from './own.js'
-import { StackHeapCollision, frameBytes } from './memory.js'
+import { RuntimeError, StackHeapCollision, frameBytes } from './memory.js'
 
-/** Mono rejects the compiled script when a key print's value is used. */
-class InvalidProgram extends StackHeapCollision {
-  constructor() {
-    super()
-    this.message = 'System.InvalidProgramException'
+/** Mono can't run a function or handler that uses the value of a key print. */
+class InvalidProgram extends RuntimeError {
+  constructor(name: string) {
+    super(`System.InvalidProgramException: Invalid IL code in LSL :${name} ()`)
     this.name = 'InvalidProgram'
   }
 }
@@ -62,6 +62,8 @@ export interface InterpreterContext {
   readonly userFunctions: ReadonlyMap<string, FunctionDeclaration>
   /** Functions outside the LSL definitions declared through `ScriptOptions.functions`. */
   readonly functions: Readonly<Record<string, FunctionSignature>>
+  /** Functions and handlers that halt the script when entered. */
+  readonly invalidPrograms: ReadonlySet<Node>
   /** Owning script — passed through to builtins via dispatch. */
   readonly script: Script
   readonly prim: import('./prim.js').Prim
@@ -85,6 +87,7 @@ export function execHandler(
   handler: EventHandler,
   args: ReadonlyArray<EvalResult> = [],
 ): void {
+  if (ctx.invalidPrograms.has(handler)) throw new InvalidProgram(handler.name)
   if (ctx.state.coverage) {
     ctx.state.coverage.hitFunction(handler.loc)
     // execBlock bypasses execStatement for the outermost body, so credit
@@ -118,6 +121,7 @@ export function callUserFunction(
   fn: FunctionDeclaration,
   args: ReadonlyArray<EvalResult>,
 ): EvalResult {
+  if (ctx.invalidPrograms.has(fn)) throw new InvalidProgram(fn.name)
   if (ctx.state.coverage) {
     ctx.state.coverage.hitFunction(fn.loc)
     ctx.state.coverage.hitStatement(fn.body.loc)
@@ -337,11 +341,7 @@ function evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): Ev
     case 'UpdateExpression':
       return evalUpdate(ctx, env, expr)
     case 'PrintExpression':
-    {
-      const printed = evalExpression(ctx, env, expr.argument)
-      if (printed.type === 'key') throw new InvalidProgram()
-      return defaultEvalFor(printed.type)
-    }
+      return defaultEvalFor(evalExpression(ctx, env, expr.argument).type)
   }
 }
 

@@ -326,8 +326,25 @@ describe('SL parity — values and operators', () => {
     expect(g('c')).toBe('0.000000')
     expect(g('d')).toBe('-0.000000')
     expect(g('e')).toBe('-0.000000')
-    expect(g('f')).toBe('<-0.000000, -0.000000, -0.000000>')
+    expect(g('f')).toBe('<0.000000, 0.000000, 0.000000>')
     expect(g('h')).toBe('[-0.000000]')
+  })
+
+  it('prints list vectors and rotations that round to zero without a minus sign', async () => {
+    // In-world: with v = <-0.0000004,0,0> and q = <-0.0000004,0,0,1>, llList2String([v],0) and (string)[v] =
+    // <0.000000, 0.000000, 0.000000>, llDumpList2String([v, q], ";") =
+    // <0.000000, 0.000000, 0.000000>;<0.000000, 0.000000, 0.000000, 1.000000>,
+    // llList2String([q],0) = <0.000000, 0.000000, 0.000000, 1.000000>
+    const g = await globals(
+      'string a; string b; string c; string d;',
+      `vector v = <-0.0000004, 0, 0>; rotation q = <-0.0000004, 0, 0, 1>;
+       a = llList2String([v], 0); b = (string)[v]; c = llDumpList2String([v, q], ";");
+       d = llList2String([q], 0);`,
+    )
+    expect(g('a')).toBe('<0.000000, 0.000000, 0.000000>')
+    expect(g('b')).toBe('<0.000000, 0.000000, 0.000000>')
+    expect(g('c')).toBe('<0.000000, 0.000000, 0.000000>;<0.000000, 0.000000, 0.000000, 1.000000>')
+    expect(g('d')).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
   })
 
   it('prints vectors and rotations that round to zero without a minus sign unless exactly -0.0', async () => {

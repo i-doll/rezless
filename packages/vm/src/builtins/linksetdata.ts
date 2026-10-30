@@ -301,10 +301,9 @@ function compilePattern(pattern: string): ((key: string) => boolean) | null {
  */
 function slice<T>(arr: ReadonlyArray<T>, start: number, count: number): T[] {
   if (arr.length === 0) return []
-  const s = start
-  if (s >= arr.length) return []
-  const end = count < 1 ? arr.length : Math.min(arr.length, s + count)
-  return arr.slice(s, end)
+  if (start >= arr.length) return []
+  const end = count < 1 ? arr.length : Math.min(arr.length, start + count)
+  return arr.slice(start, end)
 }
 
 export const llLinksetDataWrite: BuiltinImpl = (ctx, args) => {

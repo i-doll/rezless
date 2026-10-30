@@ -1102,7 +1102,7 @@ describe('in-world parity — math, strings, hashes', () => {
     expect(await evalExpr('string', 'llUnescapeURL("😀%41")')).toBe('😀A')
   })
 
-  // In-world values for llModPow; base, exponent and modulus are unsigned 32-bit. A zero modulus was not measured.
+  // In-world values for llModPow; base, exponent and modulus are unsigned 32-bit.
   it.each([
     ['llModPow(2, 10, 1000)', 24],
     ['llModPow(-2, 3, 5)', 4],

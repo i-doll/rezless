@@ -33,7 +33,7 @@ describe('llListStatistics', () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_NUM_COUNT, [1, "2", 3.0])')).toBe(2)
   })
 
-  // In-world: the remaining operations over [5, 1, 2, 7].
+  // Unmeasured: the remaining operations over [5, 1, 2, 7].
   it.each([
     ['LIST_STAT_RANGE', 6],
     ['LIST_STAT_MIN', 1],
@@ -70,7 +70,8 @@ describe('llListStatistics', () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_GEOMETRIC_MEAN, [0, 4])')).toBe(0)
   })
 
-  // Unmeasured
+  // In-world: STD_DEV is the sample deviation (3.324154 for the mixed list above).
+  // Unmeasured: these inputs, and 0 for fewer than two numbers.
   it('sample standard deviation, and 0 for fewer than two numbers', async () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_STD_DEV, [2, 4, 4, 4, 5, 5, 7, 9])')).toBeCloseTo(
       Math.sqrt(32 / 7),
@@ -79,9 +80,13 @@ describe('llListStatistics', () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_STD_DEV, [2])')).toBe(0)
   })
 
-  // In-world: empty lists and an unknown operation give 0.
-  it('an empty or non-numeric list gives 0, as does an unknown operation', async () => {
+  // Unmeasured
+  it('a non-numeric list gives 0', async () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_MEAN, ["a"])')).toBe(0)
+  })
+
+  // In-world: empty lists and an unknown operation give 0.
+  it('an empty list gives 0, as does an unknown operation', async () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_MAX, [])')).toBe(0)
     expect(await evalFloat('llListStatistics(99, [1, 2])')).toBe(0)
   })

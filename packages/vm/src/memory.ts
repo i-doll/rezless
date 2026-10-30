@@ -13,10 +13,13 @@ const FRAME_BYTES = 46
 
 const LIST_HEADER = 36
 
-/** A fatal Stack-Heap Collision: the script ran out of memory. */
-export class StackHeapCollision extends Error {
+/** A fatal run-time error: the script reports it and halts. */
+export class RuntimeError extends Error {
   reported = false
+}
 
+/** A fatal Stack-Heap Collision: the script ran out of memory. */
+export class StackHeapCollision extends RuntimeError {
   constructor() {
     super('Stack-Heap Collision')
     this.name = 'StackHeapCollision'

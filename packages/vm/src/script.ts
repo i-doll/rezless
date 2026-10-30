@@ -3,6 +3,7 @@ import type {
   EventHandler,
   FunctionDeclaration,
   GlobalVariable,
+  Node,
   TypeName,
 } from '@rezless/parser'
 import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity } from './runtime.js'
@@ -35,7 +36,8 @@ import { CONSTANT_TABLE } from './generated/constants_table.js'
 import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED } from './generated/constants.js'
 import { own } from './own.js'
 import { deterministicKey } from './keys.js'
-import { Memory, StackHeapCollision, codeBytes } from './memory.js'
+import { Memory, RuntimeError, codeBytes } from './memory.js'
+import { invalidPrograms } from './typecheck.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -113,6 +115,7 @@ export class Script {
   private readonly globals: Env
   private readonly userFunctions: Map<string, FunctionDeclaration>
   private readonly functions: Readonly<Record<string, FunctionSignature>>
+  private readonly invalidPrograms: ReadonlySet<Node>
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
   private readonly stubs: 'allow' | 'warn' | 'throw'
@@ -216,6 +219,7 @@ export class Script {
     initGlobals(this.globals, ast.globals)
     this.userFunctions = new Map(ast.functions.map((f) => [f.name, f]))
     this.functions = options.functions ?? {}
+    this.invalidPrograms = invalidPrograms(ast, this.functions)
     this.stubs = options.stubs ?? 'allow'
     this.handlersByState = indexHandlers(ast)
     if (!this.handlersByState.has('default')) {
@@ -561,7 +565,7 @@ export class Script {
     try {
       initGlobals(this.globals, this.ast.globals)
     } catch (e) {
-      if (e instanceof StackHeapCollision) this.crash(e)
+      if (e instanceof RuntimeError) this.crash(e)
       throw e
     }
     this.state.currentState = 'default'
@@ -638,7 +642,7 @@ export class Script {
       this.state.memory.startEvent()
       this.runHandlerChain(handler, args)
     } catch (e) {
-      if (e instanceof StackHeapCollision) this.crash(e)
+      if (e instanceof RuntimeError) this.crash(e)
       throw e
     } finally {
       if (this.now > startedAt) this.clockView.busyUntilMs = this.now
@@ -652,6 +656,7 @@ export class Script {
       globals: this.globals,
       userFunctions: this.userFunctions,
       functions: this.functions,
+      invalidPrograms: this.invalidPrograms,
       script: this,
       prim: this.host,
       linkset: this.linkset,
@@ -703,7 +708,7 @@ export class Script {
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
-  private crash(error: StackHeapCollision): void {
+  private crash(error: RuntimeError): void {
     if (error.reported) return
     error.reported = true
     for (const text of ['Script run-time error', error.message]) {

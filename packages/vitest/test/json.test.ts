@@ -595,15 +595,44 @@ describe('llJsonSetValue', () => {
     expect(s.global('out')).toBe('{"k":"a \\"b\\" c"}')
   })
 
-  it('object with duplicate keys collapses to last on any set', async () => {
+  it('object with duplicate keys collapses to the last one and sorts', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"b\\":1,\\"a\\":2,\\"b\\":3}", ["a"], "9");
+      } }
+    `)
+    // In-world: llJsonSetValue("{\"b\":1,\"a\":2,\"b\":3}", ["a"], "9") = {"a":9,"b":3}
+    expect(s.global('out')).toBe('{"a":9,"b":3}')
+  })
+
+  it('object with duplicate keys collapses to last when another key is set', async () => {
+    // Unmeasured as a whole: combines the measured last-duplicate-wins and sorted-rebuild rules.
     const s = await run(`
       string out = "";
       default { state_entry() {
         out = llJsonSetValue("{\\"a\\":1,\\"a\\":2,\\"b\\":3,\\"a\\":4}", ["b"], "9");
       } }
     `)
-    // In-world: llJsonSetValue("{\"b\":1,\"a\":2,\"b\":3}", ["a"], "9") = {"a":9,"b":3}
     expect(s.global('out')).toBe('{"a":4,"b":9}')
+  })
+
+  it('returns the input unchanged for a float specifier', async () => {
+    // In-world: llJsonSetValue("[1,2]", [1.0], "x") = [1,2]
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonSetValue("[1,2]", [1.0], "x"); } }
+    `)
+    expect(s.global('out')).toBe('[1,2]')
+  })
+
+  it('keeps the key order of an object given as the new value', async () => {
+    // In-world: llJsonSetValue("{}", ["k"], "{\"b\":1,\"a\":2}") = {"k":{"b":1,"a":2}}
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonSetValue("{}", ["k"], "{\\"b\\":1,\\"a\\":2}"); } }
+    `)
+    expect(s.global('out')).toBe('{"k":{"b":1,"a":2}}')
   })
 
   it('three successive sets build a 3-level nested object; gets read each level back', async () => {

@@ -18,8 +18,8 @@ import {
 } from '../generated/constants.js'
 
 // Internal AST. `empty` represents the implicit-null slots LSL JSON allows
-// in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
-// regardless of remaining specifiers.
+// in `{"k":,}` and `[,,]` (`{"k":}` is invalid); on Get/Type these
+// short-circuit to JSON_NULL regardless of remaining specifiers.
 type JNode =
   | { t: 'null' }
   | { t: 'true' }
@@ -410,8 +410,8 @@ function valueToNode(value: string): JNode | 'delete' {
 function collapseDuplicateKeys(
   entries: ReadonlyArray<readonly [string, JNode]>,
 ): Array<[string, JNode]> {
-  // Wiki: any modification to an object collapses duplicate keys, keeping
-  // only the LAST occurrence (in its position).
+  // Any modification to an object collapses duplicate keys, keeping only the
+  // LAST occurrence; the printed object is then sorted by key.
   const seen = new Set<string>()
   const reversed: Array<[string, JNode]> = []
   for (let i = entries.length - 1; i >= 0; i--) {
@@ -586,6 +586,7 @@ export const llJsonSetValue: BuiltinImpl = (_ctx, args) => {
   const json = (args[0] as string | undefined) ?? ''
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const value = (args[2] as string | undefined) ?? ''
+  if (specs.some((_, i) => listElementType(specs, i) === 'float')) return json
   const root = json === '' || SENTINEL_STRINGS.has(json) ? null : parseJson(json)
   const valueNode = valueToNode(value)
   const r = setIn(root, specs, valueNode)
