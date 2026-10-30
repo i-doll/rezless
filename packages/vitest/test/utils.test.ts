@@ -689,6 +689,24 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('spaces')).toEqual(['a', ' b'])
   })
 
+  it('llCSV2List drops one leading space from the first item too', async () => {
+    const s = await run(`
+      list one = [];
+      list two = [];
+      list blank = [];
+      default {
+        state_entry() {
+          one = llCSV2List(" a, b");
+          two = llCSV2List("  a, b");
+          blank = llCSV2List(" ");
+        }
+      }
+    `)
+    expect(s.global('one')).toEqual(['a', 'b'])
+    expect(s.global('two')).toEqual([' a', 'b'])
+    expect(s.global('blank')).toEqual([''])
+  })
+
   it('llParseString2List splits on separators, keeps tokens', async () => {
     const s = await run(`
       list out = [];
