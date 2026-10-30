@@ -247,7 +247,7 @@ export function textureKey(prim: Prim, texture: string): string | null {
 }
 
 const itemName = (prim: Prim, type: number, key: string): string =>
-  prim.inventory.find((it) => it.type === type && it.key === key)?.name ?? key
+  key === NULL_KEY ? key : (prim.inventory.find((it) => it.type === type && it.key === key)?.name ?? key)
 
 export const textureName = (prim: Prim, key: string): string => itemName(prim, InventoryType.TEXTURE, key)
 

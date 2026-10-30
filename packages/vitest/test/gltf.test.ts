@@ -701,3 +701,22 @@ describe('render material names across a linkset (probe p10)', () => {
     expect(script.chat.map((c) => c.text)).toEqual(["Could not find texture 'nope5'."])
   })
 })
+
+describe('unset faces with unkeyed inventory', () => {
+  // In-world: an unset material, normal map and specular map read NULL_KEY (p1.full.iw fresh_rm, fresh_lnm, fresh_spec);
+  // inventory items made without a key must not change that.
+  it('reads NULL_KEY for an unset material and maps when inventory items have no key', async () => {
+    const s = await loadScript({
+      source: `string m; string g; string n; string p; default { state_entry() {
+        m = llList2String(llGetPrimitiveParams([PRIM_RENDER_MATERIAL, 0]), 0);
+        g = llGetRenderMaterial(0);
+        n = llList2String(llGetPrimitiveParams([PRIM_NORMAL, 0]), 0);
+        p = llList2String(llGetPrimitiveParams([PRIM_SPECULAR, 0]), 0);
+      } }`,
+    })
+    s.host.addInventory(makeInventoryItem({ name: 'unkeyed material', type: InventoryType.MATERIAL }))
+    s.host.addInventory(makeInventoryItem({ name: 'unkeyed texture', type: InventoryType.TEXTURE }))
+    s.start()
+    expect([s.global('m'), s.global('g'), s.global('n'), s.global('p')]).toEqual(['00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000'])
+  })
+})
