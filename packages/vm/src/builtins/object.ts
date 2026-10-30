@@ -11,7 +11,9 @@ import { PRIM_DESC, PRIM_TEXT } from '../generated/constants.js'
 /** llSetText(string text, vector color, float alpha) — floating prim text. */
 export const llSetText: BuiltinImpl = (ctx, args) => {
   const text = (args[0] as string | undefined) ?? ''
-  const color = (args[1] as Vector | undefined) ?? { x: 1, y: 1, z: 1 }
+  const rawColor = (args[1] as Vector | undefined) ?? { x: 1, y: 1, z: 1 }
+  const clamp = (v: number) => Math.min(1, Math.max(0, v))
+  const color = { x: clamp(rawColor.x), y: clamp(rawColor.y), z: clamp(rawColor.z) }
   const alpha = Math.min(1, Math.max(0, (args[2] as number | undefined) ?? 1))
   // Route through the PRIM_TEXT seam — `ctx.state.appearance` is aliased
   // to `prim.appearance`, so legacy `s.text` reads see this write too.

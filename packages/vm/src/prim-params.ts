@@ -1,5 +1,4 @@
 import {
-  ALL_SIDES,
   CLICK_ACTION_TOUCH,
   PRIM_ALPHA_MODE,
   PRIM_ALPHA_MODE_BLEND,
@@ -288,10 +287,10 @@ function normalizeRot(r: Rotation): Rotation {
   return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
 }
 
-/** Face indexes a face argument names: every face for ALL_SIDES, none past the shape's face count. */
+/** Face indexes a face argument names: every face for a negative face, none past the shape's face count. */
 export function faceIndices(p: PrimParams, face: number): number[] {
-  if (face === ALL_SIDES) return p.faces.map((_, i) => i)
-  return face >= 0 && face < p.faces.length ? [face] : []
+  if (face < 0) return p.faces.map((_, i) => i)
+  return face < p.faces.length ? [face] : []
 }
 
 const facesOf = (p: PrimParams, faceArg: LslValue | undefined): number[] => faceIndices(p, num(faceArg, 0) | 0)
@@ -374,9 +373,10 @@ export function writePrimParam(
       return 1
     case PRIM_TEXT: {
       const text = truncateUtf8(str(rules[cursor]), 254)
-      const color = clampVec(asVec(rules[cursor + 1]), 0, 1)
+      const color = asVec(rules[cursor + 1])
       const alpha = num(rules[cursor + 2], 1)
-      if (alpha < 0 || alpha > 1) return 3
+      const inRange = (v: number) => v >= 0 && v <= 1
+      if (!inRange(alpha) || !inRange(color.x) || !inRange(color.y) || !inRange(color.z)) return 3
       prim.appearance.text = { text, color, alpha }
       return 3
     }

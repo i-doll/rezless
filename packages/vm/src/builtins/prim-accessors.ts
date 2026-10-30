@@ -121,7 +121,7 @@ export const llSetColor: BuiltinImpl = (ctx, args) => {
 }
 export const llGetColor: BuiltinImpl = (ctx, args) => {
   const face = num(args[0], 0) | 0
-  if (face === ALL_SIDES) {
+  if (face < 0) {
     const faces = ctx.prim.params.faces
     let x = 0, y = 0, z = 0
     for (const { color: c } of faces) {
@@ -130,7 +130,6 @@ export const llGetColor: BuiltinImpl = (ctx, args) => {
     return { x: x / faces.length, y: y / faces.length, z: z / faces.length }
   }
   if (face >= ctx.prim.params.faces.length) return { x: 1, y: 1, z: 1 }
-  if (face < 0) return ZERO_VECTOR
   return ctx.prim.params.faces[face]!.color
 }
 

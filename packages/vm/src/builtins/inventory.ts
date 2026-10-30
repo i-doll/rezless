@@ -8,6 +8,7 @@ import {
   INVENTORY_ALL,
   INVENTORY_NONE,
   EOF,
+  NAK,
   MASK_BASE,
   MASK_OWNER,
   MASK_GROUP,
@@ -100,7 +101,10 @@ export const llGetInventoryDesc: BuiltinImpl = (ctx, args) => {
 export const llGetInventoryAcquireTime: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const item = find(ctx.prim.inventory, name)
-  if (!item) return ''
+  if (!item) {
+    sayError(ctx, `No item named '${name}'.`)
+    return ''
+  }
   return new Date(item.acquireTimeMs).toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
 
@@ -109,7 +113,10 @@ export const llGetInventoryPermMask: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const mask = (args[1] as number | undefined) ?? 0
   const item = find(ctx.prim.inventory, name)
-  if (!item) return 0
+  if (!item) {
+    sayError(ctx, `No item named '${name}'.`)
+    return 0
+  }
   switch (mask) {
     case MASK_BASE:
       return item.permMask.base
@@ -206,13 +213,13 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
 }
 
 /**
- * llGetNotecardLineSync(string name, integer line) — the line itself, or EOF past the end.
- * Notecards are always cached here, so it never returns NAK.
+ * llGetNotecardLineSync(string name, integer line) — the line itself, EOF past the end, or NAK
+ * (after an error) for a missing notecard. Notecards are always cached here.
  */
 export const llGetNotecardLineSync: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const line = (args[1] as number | undefined) ?? 0
   const lines = notecardLines(ctx, name)
-  if (!lines) return EOF
+  if (!lines) return NAK
   return line >= 0 && line < lines.length ? lines[line]! : EOF
 }

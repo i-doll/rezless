@@ -321,25 +321,72 @@ describe('multi-script linkset', () => {
       expect(scripts['p']!.global('past')).toBe(EOF)
     })
 
-    // Unmeasured: a missing notecard is assumed to say the llGetNotecardLine error and return EOF.
-    it('llGetNotecardLineSync on a missing notecard says an error and returns EOF', async () => {
+    // In-world: llGetNotecardLineSync("nope5", 0) says "Could not find notecard 'nope5'." and returns NAK.
+    it('llGetNotecardLineSync on a missing notecard says an error and returns NAK', async () => {
       const probe = `
         string got = "";
-        default { state_entry() { got = llGetNotecardLineSync("nope", 0); } }
+        default { state_entry() { got = llGetNotecardLineSync("nope5", 0); } }
       `
       const { scripts } = await loadLinkset({
         prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
       })
       const p = scripts['p']!
       p.start()
-      expect(p.global('got')).toBe(EOF)
+      expect(p.global('got')).toBe('\n\x15\n')
       expect(p.chat).toEqual([
-        { channel: 2147483647, text: "Could not find notecard 'nope'.", type: 'say' },
+        { channel: 2147483647, text: "Could not find notecard 'nope5'.", type: 'say' },
+      ])
+    })
+
+    // In-world: llGetInventoryPermMask("nope3", MASK_OWNER) -> "No item named 'nope3'.";
+    // llGetInventoryAcquireTime("nope4") -> "No item named 'nope4'.".
+    it('llGetInventoryPermMask and llGetInventoryAcquireTime say an error for a missing item', async () => {
+      const probe = `
+        integer m = 9;
+        string t = "x";
+        default {
+          state_entry() {
+            m = llGetInventoryPermMask("nope3", MASK_OWNER);
+            t = llGetInventoryAcquireTime("nope4");
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      expect(p.global('m')).toBe(0)
+      expect(p.global('t')).toBe('')
+      expect(p.chat).toEqual([
+        { channel: 2147483647, text: "No item named 'nope3'.", type: 'say' },
+        { channel: 2147483647, text: "No item named 'nope4'.", type: 'say' },
+      ])
+    })
+
+    // In-world: llSetScriptState("nope6", FALSE) -> "Could not find script 'nope6'.";
+    // llResetOtherScript("nope7") -> "Could not find script 'nope7'" (no full stop).
+    it('llSetScriptState and llResetOtherScript say an error for a missing script', async () => {
+      const probe = `
+        default {
+          state_entry() {
+            llSetScriptState("nope6", FALSE);
+            llResetOtherScript("nope7");
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      expect(p.chat).toEqual([
+        { channel: 2147483647, text: "Could not find script 'nope6'.", type: 'say' },
+        { channel: 2147483647, text: "Could not find script 'nope7'", type: 'say' },
       ])
     })
 
     // In-world: llGetInventoryKey("nope") then llGetInventoryCreator("nope") gave one error.
-    // Which call said it is inferred from the wiki: llGetInventoryCreator.
     it('llGetInventoryCreator says an error for a missing item; llGetInventoryKey and llGetInventoryType stay silent', async () => {
       const probe = `
         key k;

@@ -10,7 +10,11 @@ import { sayError } from './debug.js'
 export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const target = ctx.prim.findScript(name)
-  if (!target || !target.running) return undefined
+  if (!target) {
+    sayError(ctx, `Could not find script '${name}'`)
+    return undefined
+  }
+  if (!target.running) return undefined
   ctx.linkset.clock.schedule(target, ctx.linkset.clock.now, '__reset', {})
   return undefined
 }
@@ -20,7 +24,10 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const running = ((args[1] as number | undefined) ?? 0) !== 0
   const target = ctx.prim.findScript(name)
-  if (!target) return undefined
+  if (!target) {
+    sayError(ctx, `Could not find script '${name}'.`)
+    return undefined
+  }
   const wasRunning = target.running
   target.running = running
   if (running && !wasRunning) {

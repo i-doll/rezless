@@ -408,10 +408,82 @@ describe('prim behaviour measured in Second Life', () => {
     expect(debugErrors(s)).toEqual([])
   })
 
-  // Unmeasured: PRIM_TEXT with an out-of-range colour and valid alpha clamps the colour like llSetText.
-  it('PRIM_TEXT clamps an out-of-range colour', async () => {
-    const s = await run(`llSetPrimitiveParams([PRIM_TEXT, "t", <2,-1,0.5>, 0.5]); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
+  // In-world: PRIM_TEXT with a colour channel or alpha outside [0, 1] is ignored silently (text, colour and
+  // alpha unchanged) and later rules still apply; <1,0,1> with alpha 1.0 and <0.1,0.2,0.3> with 0.4 apply.
+  it.each([
+    ['[PRIM_TEXT, "c", <2,-1,0.5>, 0.5]'],
+    ['[PRIM_TEXT, "d", <0.1,0.2,0.3>, 1.5]'],
+    ['[PRIM_TEXT, "x", <1.01,0,0>, 1.0]'],
+  ])('PRIM_TEXT %s is ignored without an error', async (rule) => {
+    const s = await run(`llSetText("t", <1,0,0.5>, 0.5); llSetPrimitiveParams(${rule}); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
     expect(s.global('out')).toEqual(['t', { x: 1, y: 0, z: 0.5 }, 0.5])
+    expect(debugErrors(s)).toEqual([])
+  })
+
+  it('an ignored PRIM_TEXT rule does not stop later rules', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TEXT, "e", <0.1,0.2,0.3>, -0.5, PRIM_DESC, "after neg alpha"]);
+       out = llGetPrimitiveParams([PRIM_TEXT, PRIM_DESC]);`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual(['', { x: 0, y: 0, z: 0 }, 0, 'after neg alpha'])
+  })
+
+  it('PRIM_TEXT applies colour channels at the 0 and 1 edges', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TEXT, "edge", <1,0,1>, 1.0]);
+       out = llGetPrimitiveParams([PRIM_TEXT]);
+       llSetPrimitiveParams([PRIM_TEXT, "ok", <0.1,0.2,0.3>, 0.4]);
+       out += llGetPrimitiveParams([PRIM_TEXT]);`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual([
+      'edge', { x: 1, y: 0, z: 1 }, 1,
+      'ok', { x: Math.fround(0.1), y: Math.fround(0.2), z: Math.fround(0.3) }, Math.fround(0.4),
+    ])
+  })
+
+  // In-world: llSetColor(<1,0,0>, -5), llSetAlpha(0.2, -3), PRIM_COLOR with face -7 and
+  // llSetLinkColor(LINK_THIS, <0,0,1>, -9) each set every face.
+  it('negative faces set every face', async () => {
+    const s = await run(
+      `llSetColor(<1,0,0>, -5);
+       out = llGetPrimitiveParams([PRIM_COLOR, 3]);
+       llSetAlpha(0.2, -3);
+       out += llGetPrimitiveParams([PRIM_COLOR, 5]);
+       llSetPrimitiveParams([PRIM_COLOR, -7, <0,1,0>, 0.5]);
+       out += llGetPrimitiveParams([PRIM_COLOR, 0, PRIM_COLOR, 5]);
+       llSetLinkColor(LINK_THIS, <0,0,1>, -9);
+       out += llGetPrimitiveParams([PRIM_COLOR, 0, PRIM_COLOR, 5]);`,
+      'list out;',
+    )
+    const f = Math.fround
+    const red = { x: 1, y: 0, z: 0 }, green = { x: 0, y: 1, z: 0 }, blue = { x: 0, y: 0, z: 1 }
+    expect(s.global('out')).toEqual([
+      red, 1, red, f(0.2),
+      green, 0.5, green, 0.5,
+      blue, 0.5, blue, 0.5,
+    ])
+  })
+
+  // In-world: llGetColor(-5) and llGetColor(-2) average the faces like ALL_SIDES; llGetAlpha(-2) sums them;
+  // [PRIM_COLOR, -5] returns every face, [PRIM_TEXTURE, -5] 24 values on a box and [PRIM_GLOW, -2] 6;
+  // [PRIM_TEXTURE, 6] and [PRIM_COLOR, 6] return nothing.
+  it('negative faces read every face; a face past the count reads nothing', async () => {
+    const s = await run(
+      `llSetColor(<1,0,0>, 0);
+       llSetAlpha(0.5, 1);
+       out = [llGetColor(-5), llGetColor(-2), llGetColor(ALL_SIDES), llGetAlpha(-2)];
+       counts = [llGetListLength(llGetPrimitiveParams([PRIM_COLOR, -5])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_TEXTURE, -5])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_GLOW, -2])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_TEXTURE, 6])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_COLOR, 6]))];`,
+      'list out; list counts;',
+    )
+    const avg = { x: 1, y: Math.fround(5 / 6), z: Math.fround(5 / 6) }
+    expect(s.global('out')).toEqual([avg, avg, avg, 5.5])
+    expect(s.global('counts')).toEqual([12, 24, 6, 0, 0])
   })
 
   // In-world: llSetObjectDesc("a|b\nc") -> "a?b?c"; llSetObjectName("n|m\nx") -> "n?m?x";
@@ -481,12 +553,6 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('out')).toEqual([
       { x: 1, y: 1, z: 1 }, { x: 1, y: 1, z: 1 }, 1, Math.fround(5.3),
     ])
-  })
-
-  // Unmeasured: llGetColor with a negative face other than ALL_SIDES keeps reading black.
-  it('llGetColor with a negative face other than ALL_SIDES reads black', async () => {
-    const s = await run(`c = llGetColor(-5);`, 'vector c;')
-    expect(s.global('c')).toEqual({ x: 0, y: 0, z: 0 })
   })
 
   // In-world: PRIM_CLICK_ACTION yields a value only as the last rule.
