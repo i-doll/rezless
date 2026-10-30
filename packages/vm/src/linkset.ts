@@ -180,7 +180,7 @@ export class Linkset {
    * available for the single-script case (delivers only to that script).
    */
   deliverChat(opts: { channel: number; name: string; key: string; message: string }): void {
-    this.settle(this.allScripts().filter((s) => s.matchChatListens(opts)))
+    this.settle(this.allScripts().filter((s) => s.matchChatListens(opts)), 'listen')
   }
 
   /**
@@ -231,13 +231,15 @@ export class Linkset {
   /**
    * Drain due events, then keep moving the clock to the next wake of any of
    * `scripts` that is sleeping, running everything due on the way, until
-   * none of them is (or the sleeper is paused).
+   * none of them is (or the sleeper is paused). With `event`, only scripts
+   * whose current state handles it count.
    */
-  settle(scripts: ReadonlyArray<Script>): void {
+  settle(scripts: ReadonlyArray<Script>, event?: string): void {
     this.drainQueue()
+    const waitFor = event === undefined ? scripts : scripts.filter((s) => s.handles(event))
     for (;;) {
       let at = Infinity
-      for (const s of scripts) if (s.running && s.wakeAt !== undefined) at = Math.min(at, s.wakeAt)
+      for (const s of waitFor) if (s.running && s.wakeAt !== undefined) at = Math.min(at, s.wakeAt)
       if (at === Infinity) return
       this.drainQueue(at)
     }

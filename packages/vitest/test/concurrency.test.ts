@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadLinkset } from '../src/index.js'
+import { DEBUG_CHANNEL, World, loadLinkset } from '../src/index.js'
 import type { Script } from '../src/index.js'
 
 const SAY = 'say(string s) { llOwnerSay(s); }\n'
@@ -9,7 +9,7 @@ async function pair(a: [string, string], b: [string, string], bLeadMs = 0) {
   const { scripts, linkset } = await loadLinkset({
     prims: [
       {
-        scripts: [a, b].map(([name, source]) => ({ source: { source: SAY + source, filename: `${name}.lsl` }, name })),
+        scripts: [a, b].map(([name, source]) => ({ source: { source: SAY + source, filename: `${name}.lsl` }, name, memoryLimit: true })),
       },
     ],
   })
@@ -224,6 +224,55 @@ describe('scripts run while another script sleeps', () => {
   })
 })
 
+describe('after a script wakes', () => {
+  it('a sleeper in one linkset interleaves with a timer in another linkset of the world', async () => {
+    const world = new World()
+    world.addRegion('R', { x: 0, y: 0 })
+    const log: string[] = []
+    const load = async (source: string) => {
+      const { scripts } = await loadLinkset({ world, region: 'R', prims: [{ scripts: [{ source: { source: SAY + source } }] }] })
+      const s = Object.values(scripts)[0]!
+      s.mock('llOwnerSay', (ctx, args) => {
+        log.push(`${Math.round(ctx.state.clock.now)} ${args[0] as string}`)
+        return undefined
+      })
+      return s
+    }
+    const ticker = await load(`default { state_entry() { llSetTimerEvent(1.0); } timer() { say("tick"); } }`)
+    const sleeper = await load(`default { touch_start(integer n) { say("sleep"); llSleep(2.5); say("woke"); } }`)
+    ticker.start()
+    sleeper.fire('touch_start', { num_detected: 1 })
+    expect(log).toEqual(['0 sleep', '1000 tick', '2000 tick', '2500 woke'])
+  })
+
+  it('a state change, a reset and a run-time error all work after a sleep', async () => {
+    const { log, scripts } = await pair(
+      [
+        'w_a',
+        `integer n;
+        default { state_entry() { say("entry " + (string)(++n)); }
+          touch_start(integer t) { llSleep(1.0); state other; } }
+        state other { state_entry() { say("other"); }
+          link_message(integer s, integer num, string m, key id) { llSleep(1.0); llResetScript(); }
+          touch_start(integer t) { string s = "x"; llSleep(1.0); while (TRUE) s += s; } }`,
+      ],
+      ['w_b', `default { state_entry() { } }`],
+    )
+    const s = scripts['w_a']!
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.currentState).toBe('other')
+    expect(() => s.fire('touch_start', { num_detected: 1 })).toThrow('Stack-Heap Collision')
+    expect(log).toEqual(['0 entry 1', '1000 other'])
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)[0]).toBe('Script run-time error')
+    expect(s.running).toBe(false)
+    s.running = true
+    s.fire('link_message', { num: 0, str: '', id: '' })
+    expect(s.now).toBe(3000)
+    expect(s.currentState).toBe('default')
+    expect(log.at(-1)).toBe('3000 entry 1')
+  })
+})
+
 describe('driving a sleeping script from a test', () => {
   const sleeper = `integer step;
     default { touch_start(integer n) { step = 1; llSleep(5.0); step = 2; say("woke"); } }`
@@ -267,6 +316,28 @@ describe('driving a sleeping script from a test', () => {
     linkset.deliverChat({ channel: 5, name: 'av', key: '', message: 'hi' })
     expect(linkset.clock.now).toBe(2000)
     expect(log).toEqual(['1000 tick', '2000 tick', '2000 heard hi'])
+  })
+
+  it('a reply only waits for scripts with a handler for it', async () => {
+    const { scripts } = await pair(
+      ['h_a', `default { state_entry() { llSetTimerEvent(1.0); } timer() { llSetTimerEvent(0); llSleep(30.0); } }`],
+      ['h_b', `default { touch_start(integer n) { llHTTPRequest("https://example.com", [], ""); llRequestAgentData(llGetOwner(), DATA_ONLINE); llRequestPermissions(llGetOwner(), PERMISSION_TRIGGER_ANIMATION); llListen(5, "", NULL_KEY, ""); } }`],
+    )
+    const a = scripts['h_a']!
+    const b = scripts['h_b']!
+    b.fire('touch_start', { num_detected: 1 })
+    a.advanceTime(1_500)
+    expect(a.wakeAt).toBe(31000)
+    const before = a.now
+    b.respondToLastHttp({ status: 200, body: '' })
+    b.respondToLastDataserver('1')
+    b.grantPermissions()
+    b.deliverChat({ channel: 5, name: 'av', key: '', message: 'hi' })
+    b.fire('touch_end', { num_detected: 1 })
+    a.fire('touch_end', { num_detected: 1 })
+    b.linkset.deliverChat({ channel: 5, name: 'av', key: '', message: 'hi' })
+    expect(a.now).toBe(before)
+    expect(a.wakeAt).toBe(31000)
   })
 
   it('reset() of a sleeping script abandons its handler', async () => {

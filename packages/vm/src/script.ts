@@ -317,7 +317,7 @@ export class Script {
       body: cut,
     }
     for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'http_response', payload)
-    this.linkset.settle(this.host.scripts)
+    this.linkset.settle(this.host.scripts, 'http_response')
   }
 
   /** Convenience: respond to the most recent HTTP request. */
@@ -362,7 +362,7 @@ export class Script {
     req.fulfilled = true
     const payload = { queryid: key, data: value }
     for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'dataserver', payload)
-    this.linkset.settle(this.host.scripts)
+    this.linkset.settle(this.host.scripts, 'dataserver')
   }
 
   /** Convenience: respond to the most recent dataserver request. */
@@ -390,7 +390,7 @@ export class Script {
     this.state.permissions.granted = granted
     this.state.permissions.agent = req.agent
     this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
-    this.linkset.settle([this])
+    this.linkset.settle([this], 'run_time_permissions')
   }
 
   /** Answer the most recent unanswered permission request with No. */
@@ -474,7 +474,7 @@ export class Script {
     message: string
   }): void {
     this.matchChatListens(opts)
-    this.linkset.settle([this])
+    this.linkset.settle([this], 'listen')
   }
 
   /**
@@ -539,7 +539,7 @@ export class Script {
     }
     if (this.task) this.clockView.schedule(this.now, eventName, payload)
     else this.deliver(eventName, payload)
-    this.linkset.settle([this])
+    this.linkset.settle([this], eventName)
   }
 
   /**
@@ -619,6 +619,11 @@ export class Script {
     if (handler) this.begin(handler, bindPayload(event, payload), payload)
   }
 
+  /** Whether the current state has a handler for `event`. */
+  handles(event: string): boolean {
+    return this.handlersByState.get(this.state.currentState)!.has(event)
+  }
+
   /** Virtual time a sleeping handler wakes at, or undefined when the script is idle. */
   get wakeAt(): number | undefined {
     return this.task?.wakeAt
@@ -644,8 +649,7 @@ export class Script {
       throw e
     }
     if (!r.done) {
-      if (this.state.lifecycle.dead) task.run.return(false)
-      else this.task = { ...task, wakeAt: r.value.until }
+      this.task = { ...task, wakeAt: r.value.until }
       return
     }
     this.finish(task)

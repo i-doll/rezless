@@ -220,9 +220,38 @@ describe('Phase 3 — object lifecycle and appearance', () => {
       expect(heard(s)).toEqual(['exit'])
     })
 
-    it('halts at a backward jump (not measured: treated as a loop iteration)', async () => {
-      const s = await die(`llDie(); integer i; @top; if (++i < 3) jump top; llSay(7777, "after jump");`)
-      expect(heard(s)).toEqual([])
+    it('halts at a backward jump', async () => {
+      // In-world: die3.iw (two runs) v5, a 1000-pass jump loop, heard only "v5 before".
+      const s = await die(`llSay(7777, "v5 before"); llDie(); integer i; @top; if (++i < 1000) jump top; llSay(7777, "v5 s1");`)
+      expect(heard(s)).toEqual(['v5 before'])
+      // In-world: die3.iw (two runs) v9, a single backward jump, heard only "v9 before".
+      const one = await die(`llSay(7777, "v9 before"); llDie(); integer i; @top2; if (++i < 2) jump top2; llSay(7777, "v9 s1");`)
+      expect(heard(one)).toEqual(['v9 before'])
+    })
+
+    it('halts at the first iteration of a short loop', async () => {
+      // In-world: die3.iw (two runs) v6 heard only "v6 before".
+      const f = await die(`llSay(7777, "v6 before"); llDie(); integer i; for (i = 0; i < 2; ++i) ; llSay(7777, "v6 s1");`)
+      expect(heard(f)).toEqual(['v6 before'])
+      // In-world: die3.iw (two runs) v8 heard only "v8 before".
+      const w = await die(`llSay(7777, "v8 before"); llDie(); integer i; while (i < 2) ++i; llSay(7777, "v8 s1");`)
+      expect(heard(w)).toEqual(['v8 before'])
+    })
+
+    it('a loop that never iterates does not halt', async () => {
+      // In-world: die3.iw (two runs) v7 heard "v7 before", "v7 s1".
+      const s = await die(`llSay(7777, "v7 before"); llDie(); integer i; for (i = 0; i < 0; ++i) ; llSay(7777, "v7 s1"); llSay(7777, "v7 s2");`)
+      expect(heard(s)).toEqual(['v7 before', 'v7 s1'])
+    })
+
+    it('llResetScript does not revive it', async () => {
+      // In-world: dieR.iw (two runs) heard "entry n=1", "before die"; no second state_entry, and the object was gone.
+      const s = await run(`integer n;
+        default { state_entry() { n++; llSay(7777, "entry n=" + (string)n); if (n == 1) llSetTimerEvent(3.0); }
+          timer() { llSetTimerEvent(0); llSay(7777, "before die"); llDie(); llResetScript(); } }`)
+      s.advanceTime(3_000)
+      expect(heard(s)).toEqual(['entry n=1', 'before die'])
+      expect(s.dead).toBe(true)
     })
   })
 

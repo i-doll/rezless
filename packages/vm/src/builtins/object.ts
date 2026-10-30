@@ -57,6 +57,7 @@ export class HaltSignal {}
  * the builtin throws a sentinel that runHandler / drainQueue catch.
  */
 export class ResetScriptSignal {}
-export const llResetScript: BuiltinImpl = () => {
+export const llResetScript: BuiltinImpl = (ctx) => {
+  if (ctx.state.lifecycle.dying) return undefined
   throw new ResetScriptSignal()
 }
