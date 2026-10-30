@@ -1,6 +1,6 @@
 import type { EvalResult, LslType, LslValue } from './types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32, toFloat32 } from './types.js'
-import { formatFloat, formatList, formatVector, formatRotation } from './format.js'
+import { formatFloat6, formatList, formatVector, formatRotation } from './format.js'
 import { typedList } from './list-types.js'
 
 /**
@@ -68,10 +68,8 @@ export function stringify(r: EvalResult): string {
   switch (r.type) {
     case 'integer':
       return String(toInt32(v as number))
-    case 'float': {
-      const s = formatFloat(v as number)
-      return s === '-0.000000' && !Object.is(v, -0) ? '0.000000' : s
-    }
+    case 'float':
+      return formatFloat6(v as number)
     case 'string':
       return v as string
     case 'key':

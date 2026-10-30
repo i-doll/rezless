@@ -14,17 +14,17 @@ export const llFabs: BuiltinImpl = (_ctx, args) => {
 }
 
 /** Second Life gives -2147483648 for a rounded result outside int32, NaN and infinity. */
-const saturate = (n: number): number =>
+const toIntOrMin = (n: number): number =>
   n >= -2147483648 && n <= 2147483647 ? n | 0 : -2147483648
 
 /** llRound(float val) — floor(val + 0.5), so halves round up. */
 export const llRound: BuiltinImpl = (_ctx, args) =>
-  saturate(Math.floor(((args[0] as number | undefined) ?? 0) + 0.5))
+  toIntOrMin(Math.floor(((args[0] as number | undefined) ?? 0) + 0.5))
 
 export const llCeil: BuiltinImpl = (_ctx, args) =>
-  saturate(Math.ceil((args[0] as number | undefined) ?? 0))
+  toIntOrMin(Math.ceil((args[0] as number | undefined) ?? 0))
 export const llFloor: BuiltinImpl = (_ctx, args) =>
-  saturate(Math.floor((args[0] as number | undefined) ?? 0))
+  toIntOrMin(Math.floor((args[0] as number | undefined) ?? 0))
 
 export const llPow: BuiltinImpl = (_ctx, args) =>
   Math.pow((args[0] as number) ?? 0, (args[1] as number) ?? 0)

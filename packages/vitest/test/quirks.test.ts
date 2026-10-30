@@ -313,6 +313,28 @@ describe('SL parity — values and operators', () => {
     expect(g('c')).toBe('0.000000')
   })
 
+  it('prints list floats that round to zero like the (string) cast', async () => {
+    // Follows the measured cast rule ((string)(-0.0000004) = 0.000000, (string)((float)"-0") = -0.000000); the list paths were not measured in-world.
+    const g = await globals(
+      'string a; string b; string c; string d; string e; string f;',
+      `float x = -0.0000004; float z = (float)"-0";
+       a = llList2String([x], 0); b = (string)[x]; c = llDumpList2String([x], ","); d = llList2CSV([x]);
+       e = llList2String([z], 0); f = llList2String([<x, x, x>], 0);`,
+    )
+    expect(g('a')).toBe('0.000000')
+    expect(g('b')).toBe('0.000000')
+    expect(g('c')).toBe('0.000000')
+    expect(g('d')).toBe('0.000000')
+    expect(g('e')).toBe('-0.000000')
+    expect(g('f')).toBe('<-0.000000, -0.000000, -0.000000>')
+  })
+
+  it('reads a JSON -0 list element as integer 0', async () => {
+    // Unmeasured: follows the old `| 0` clamp, which gave 0.
+    const g = await globals('string a;', 'a = (string)llList2Float(llJson2List("[-0]"), 0);')
+    expect(g('a')).toBe('0.000000')
+  })
+
   it('parses vectors and rotations from strings like SL', async () => {
     const g = await globals(
       'vector a; vector b; vector c; vector d; rotation e; rotation f; rotation h;',

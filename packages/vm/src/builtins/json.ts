@@ -505,7 +505,8 @@ function jsonNodeToLslListItem(n: JNode): LslValue {
     case 'false':
       return JSON_FALSE
     case 'num':
-      return isJsonInteger(n.raw) ? Math.max(-2147483648, Math.min(2147483647, Number(n.raw))) : Number(n.raw)
+      // `+ 0` turns -0 into 0
+      return isJsonInteger(n.raw) ? Math.max(-2147483648, Math.min(2147483647, Number(n.raw))) + 0 : Number(n.raw)
     case 'str':
       return n.v
     case 'empty':

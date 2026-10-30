@@ -1057,6 +1057,12 @@ describe('in-world parity — math, strings, hashes', () => {
     ['llCeil(1e10)'],
     ['llFloor(-1e10)'],
     ['llRound(1e10)'],
+  ])('%s is -2147483648', async (expr) => {
+    expect(await evalExpr('integer', expr)).toBe(-2147483648)
+  })
+
+  // Unmeasured: infinity and NaN follow the measured out-of-range result.
+  it.each([
     ['llCeil(llPow(10.0, 999.0))'],
     ['llFloor(llSqrt(-1.0))'],
   ])('%s is -2147483648', async (expr) => {
@@ -1085,11 +1091,15 @@ describe('in-world parity — math, strings, hashes', () => {
     ['%e9x', '?x'],
     ['%00x', ''],
     ['%C3%A9', 'é'],
-    ['😀%41', '😀A'],
     ['100%', '100'],
     ['%zz%41', ''],
   ])('llUnescapeURL(%j) is %j', async (input, want) => {
     expect(await evalExpr('string', `llUnescapeURL("${input}")`)).toBe(want)
+  })
+
+  // Unmeasured: a multi-byte character before an escape.
+  it('llUnescapeURL keeps a non-BMP character before an escape', async () => {
+    expect(await evalExpr('string', 'llUnescapeURL("😀%41")')).toBe('😀A')
   })
 
   // In-world values for llModPow; base, exponent and modulus are unsigned 32-bit. A zero modulus was not measured.

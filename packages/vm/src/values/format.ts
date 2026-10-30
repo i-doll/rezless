@@ -33,6 +33,12 @@ export function formatFloatExact(n: number, decimals = 6): string {
 
 type FloatFormat = (n: number, decimals: number) => string
 
+/** A scalar float at 6 decimals: only an exact -0.0 keeps its sign when it prints as zero. */
+export function formatFloat6(n: number, fmt: FloatFormat = formatFloat): string {
+  const s = fmt(n, 6)
+  return s === '-0.000000' && !Object.is(n, -0) ? '0.000000' : s
+}
+
 export function formatVector(v: Vector, decimals = 5, fmt: FloatFormat = formatFloat): string {
   return `<${fmt(v.x, decimals)}, ${fmt(v.y, decimals)}, ${fmt(v.z, decimals)}>`
 }
@@ -49,7 +55,7 @@ export function formatRotation(r: Rotation, decimals = 5, fmt: FloatFormat = for
  */
 export function formatListElement(v: LslValue, type?: LslType, fmt: FloatFormat = formatFloat): string {
   if (typeof v === 'number') {
-    return type !== 'float' && Number.isInteger(v) ? String(v | 0) : fmt(v, 6)
+    return type !== 'float' && Number.isInteger(v) ? String(v | 0) : formatFloat6(v, fmt)
   }
   if (typeof v === 'string') return v
   if (isVector(v)) return formatVector(v, 6, fmt)
