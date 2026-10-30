@@ -145,6 +145,11 @@ describe('format — 7 significant digits (measured in SL)', () => {
     expect(formatFloat(Math.fround(0.1))).toBe('0.100000')
   })
 
+  it('keeps the sign of a negative zero', () => {
+    expect(formatFloat(-0)).toBe('-0.000000')
+    expect(formatVector(vec(-0, 0, 0))).toBe('<-0.00000, 0.00000, 0.00000>')
+  })
+
   it('formatList uses recorded element types', () => {
     expect(formatList(typedList([2, 1, 2.5], ['float', 'integer', 'float']))).toBe('2.00000012.500000')
   })

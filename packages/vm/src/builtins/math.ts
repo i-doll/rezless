@@ -116,13 +116,14 @@ export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
     cx * cy * cz - sx * sy * sz,
   )
   // Second Life goes through a rotation matrix, which makes s positive, or
-  // when |s| <= 0.5 the largest of x, y, z (the first on a tie).
+  // when |s| <= 0.5 the largest of x, y, z (the first on a tie), and never
+  // gives a negative zero.
   const xx = q.x * q.x
   const yy = q.y * q.y
   const zz = q.z * q.z
   let sign = q.s
   if (3 - 4 * (xx + yy + zz) <= 0) sign = zz > Math.max(xx, yy) ? q.z : yy > xx ? q.y : q.x
-  return sign < 0 ? rot(0 - q.x, 0 - q.y, 0 - q.z, 0 - q.s) : q
+  return sign < 0 ? rot(0 - q.x, 0 - q.y, 0 - q.z, 0 - q.s) : rot(q.x + 0, q.y + 0, q.z + 0, q.s + 0)
 }
 
 /** Second Life clears half-angle sines and cosines below this, so a turn by PI has exact zeros. */
@@ -150,7 +151,7 @@ export const llRot2Up: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rot
 
 /** q, or -q when its s is negative, so the angle comes out in [0, PI]. */
 function positiveS(q: Rotation): Rotation {
-  return q.s < 0 ? { x: -q.x, y: -q.y, z: -q.z, s: -q.s } : q
+  return q.s < 0 ? { x: 0 - q.x, y: 0 - q.y, z: 0 - q.z, s: 0 - q.s } : q
 }
 
 /** llRot2Axis(rotation q) — the unit rotation axis, or ZERO_VECTOR for no rotation. */

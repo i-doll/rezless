@@ -12,6 +12,7 @@ import { listElementType } from './list-types.js'
 export function formatFloat(n: number, decimals = 6): string {
   if (Number.isNaN(n)) return 'NaN'
   if (!Number.isFinite(n)) return n > 0 ? 'Infinity' : '-Infinity'
+  if (Object.is(n, -0)) return `-${(0).toFixed(decimals)}`
   const [mantissa, exp] = n.toExponential(6).split('e') as [string, string]
   if (Number(exp) < 21) return Number(n.toPrecision(7)).toFixed(decimals)
   const digits = mantissa.replace('.', '')

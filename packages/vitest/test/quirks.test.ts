@@ -252,6 +252,17 @@ describe('SL parity — values and operators', () => {
     expect(g('b')).toBe('1000000000000000000000000000000.000000')
   })
 
+  it('keeps the sign of a negative zero', async () => {
+    const g = await globals(
+      'string a; string b; string c; string d;',
+      'float zero = 0.0; a = (string)zero; b = (string)-0.0; c = (string)(zero * -1.0); d = (string)<-0.0, 0.0, 0.0>;',
+    )
+    expect(g('a')).toBe('0.000000')
+    expect(g('b')).toBe('-0.000000')
+    expect(g('c')).toBe('-0.000000')
+    expect(g('d')).toBe('<-0.00000, 0.00000, 0.00000>')
+  })
+
   it('prints infinity and NaN as Infinity, -Infinity and NaN', async () => {
     const g = await globals(
       'string a; string b; string c;',
