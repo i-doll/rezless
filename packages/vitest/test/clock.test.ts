@@ -74,6 +74,20 @@ describe('Phase 3 — virtual clock + timers', () => {
     expect(s.global('t')).toBeCloseTo(5.0)
   })
 
+  it('llResetScript restarts llGetTime', async () => {
+    const s = await load(`
+      float t = -1;
+      default {
+        state_entry() { t = llGetTime(); }
+        touch_start(integer n) { llResetScript(); }
+      }
+    `)
+    s.start()
+    s.advanceTime(5_000)
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.global('t')).toBe(0)
+  })
+
   it('llResetTime sets the reference to now', async () => {
     const s = await load(`
       float t = 0;

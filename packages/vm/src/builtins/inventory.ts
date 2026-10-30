@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { nextDataserverKey } from './dataserver.js'
-import { shoutError } from './debug.js'
+import { sayError } from './debug.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
@@ -126,7 +126,7 @@ export const llGetInventoryPermMask: BuiltinImpl = (ctx, args) => {
 
 /**
  * Record a notecard dataserver request and return its key. A missing
- * notecard shouts an error and fires no event; otherwise `data` is
+ * notecard says an error and fires no event; otherwise `data` is
  * scheduled for every script in the prim once the call's delay has passed.
  */
 function notecardRequest(
@@ -141,7 +141,7 @@ function notecardRequest(
   ctx.state.dataserverRequests.push(req)
   const item = find(ctx.prim.inventory, name)
   if (!item || item.type !== InventoryType.NOTECARD || !item.notecardLines) {
-    shoutError(ctx, `Could not find notecard '${name}'.`)
+    sayError(ctx, `Could not find notecard '${name}'.`)
     return key
   }
   // Schedule after the dispatcher's post-call throttle advance so the event
@@ -185,7 +185,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const index = ctx.prim.inventory.findIndex((it) => it.name === name)
   if (index < 0) {
-    shoutError(ctx, `Missing inventory item '${name}'.`)
+    sayError(ctx, `Missing inventory item '${name}'.`)
     return undefined
   }
   const [item] = ctx.prim.inventory.splice(index, 1)

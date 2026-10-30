@@ -1,14 +1,14 @@
 import type { BuiltinImpl, CallContext, ChatType } from '../runtime.js'
 import { PUBLIC_CHANNEL } from '../generated/constants.js'
 import { truncateUtf8 } from '../values/utf8.js'
-import { shoutError } from './debug.js'
+import { sayError } from './debug.js'
 
 const MAX_CHAT_BYTES = 1024
 
 function emit(ctx: CallContext, channel: number, text: string, type: ChatType, to?: string): undefined {
   const entry = { channel, text: truncateUtf8(text, MAX_CHAT_BYTES), type }
   ctx.state.chat.push(to === undefined ? entry : { ...entry, to })
-  if (type !== 'ownerSay' && type !== 'im') ctx.linkset.routeChat(ctx.prim, channel, entry.text, to)
+  if (type !== 'ownerSay' && type !== 'im') ctx.linkset.routeChat(ctx.prim, type, channel, entry.text, to)
   return undefined
 }
 
@@ -32,7 +32,7 @@ export const llOwnerSay: BuiltinImpl = (ctx, args) =>
 export const llRegionSay: BuiltinImpl = (ctx, args) => {
   const channel = (args[0] as number | undefined) ?? 0
   if (channel === PUBLIC_CHANNEL) {
-    shoutError(ctx, 'Cannot use llRegionSay() on channel 0.')
+    sayError(ctx, 'Cannot use llRegionSay() on channel 0.')
     return undefined
   }
   return emit(ctx, channel, (args[1] as string | undefined) ?? '', 'regionSay')

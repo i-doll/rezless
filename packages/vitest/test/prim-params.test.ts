@@ -374,7 +374,7 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
 })
 
 describe('prim behaviour measured in Second Life', () => {
-  const debugShouts = (s: { chat: ReadonlyArray<{ channel: number; text: string }> }) =>
+  const debugErrors = (s: { chat: ReadonlyArray<{ channel: number; text: string }> }) =>
     s.chat.filter((c) => c.channel === 0x7fffffff).map((c) => c.text)
 
   async function run(body: string, globals = '') {
@@ -589,9 +589,9 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('p')).toEqual({ x: 128, y: 128, z: 30 })
   })
 
-  it('PRIM_GLOW out of bounds shouts and aborts the call', async () => {
+  it('PRIM_GLOW out of bounds says an error and aborts the call', async () => {
     const s = await run(`llSetPrimitiveParams([PRIM_GLOW, ALL_SIDES, 5.0, PRIM_NAME, "after"]);`)
-    expect(debugShouts(s)).toEqual([
+    expect(debugErrors(s)).toEqual([
       'llSetPrimitiveParams error running rule #1 (PRIM_GLOW): bounds error; 5 is not in (0, 1).',
     ])
     expect(s.host.params.faces[0]!.glow).toBe(0)
@@ -604,29 +604,29 @@ describe('prim behaviour measured in Second Life', () => {
        out = llGetPrimitiveParams([PRIM_TEXT, PRIM_DESC]);`,
       'list out;',
     )
-    expect(debugShouts(s)).toEqual([
+    expect(debugErrors(s)).toEqual([
       'llSetPrimitiveParams error running rule #2 (PRIM_GLOW): bounds error; 5 is not in (0, 1).',
     ])
     expect(s.global('out')).toEqual(['first', { x: 1, y: 1, z: 1 }, 1, ''])
   })
 
-  it('a wrong argument type shouts and aborts the whole call', async () => {
+  it('a wrong argument type says an error and aborts the whole call', async () => {
     const s = await run(`llSetPrimitiveParams([PRIM_SIZE, "big", PRIM_NAME, "after"]);`)
-    expect(debugShouts(s)).toEqual([
+    expect(debugErrors(s)).toEqual([
       'llSetPrimitiveParams error running rule #1 (PRIM_SIZE): arg #1 vector expected but string given.',
     ])
     expect(s.host.name).toBe('Object')
   })
 
-  it('an unknown rule shouts and aborts', async () => {
+  it('an unknown rule says an error and aborts', async () => {
     const s = await run(`llSetPrimitiveParams([999999, "x", PRIM_NAME, "after"]);`)
-    expect(debugShouts(s)).toEqual(['llSetPrimitiveParams error running rule #1: unknown rule.'])
+    expect(debugErrors(s)).toEqual(['llSetPrimitiveParams error running rule #1: unknown rule.'])
     expect(s.host.name).toBe('Object')
   })
 
   it('rule numbers count from 1 and errors name the calling function', async () => {
     const s = await run(`llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NAME, "a", PRIM_COLOR, 0, "red", 1.0]);`)
-    expect(debugShouts(s)).toEqual([
+    expect(debugErrors(s)).toEqual([
       'llSetLinkPrimitiveParamsFast error running rule #2 (PRIM_COLOR): arg #2 vector expected but string given.',
     ])
   })

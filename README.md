@@ -194,11 +194,37 @@ names across prims throw to prevent silent overwrites. Each `Script` is the
 same handle described above, so all matchers, mocks, and inspectors keep
 working — they're just scoped to one script in a larger system.
 
-Chat a script sends with `llSay`, `llShout`, `llWhisper` or `llRegionSay`, and
-its `DEBUG_CHANNEL` errors, reach matching `listen` handlers in the other prims
-of the linkset, named and keyed after the sending prim. `llRegionSayTo` reaches
-only the prim with that key. A prim never hears its own chat, and `llOwnerSay`
-and `llInstantMessage` never trigger a `listen`.
+Chat a script sends reaches matching `listen` handlers in other prims, named
+and keyed after the sending prim. `llWhisper`, `llSay` and `llShout` reach
+prims within 10, 20 and 100 m of the sending prim, and so do its
+`DEBUG_CHANNEL` errors, which are said. `llRegionSay` reaches every prim in the
+region, and `llRegionSayTo` only the prim with that key. A prim never hears its
+own chat, and `llOwnerSay` and `llInstantMessage` never trigger a `listen`.
+
+#### Several objects in a world
+
+To test chat between separate objects, put their linksets in a `World`. Each
+region has a name and the global position of its south-west corner; regions
+are 256 m squares. `position` is the root prim's position in its region.
+
+```ts
+import { loadLinkset, World } from '@rezless/vitest'
+
+const world = new World({ startUnixTime: 1_700_000_000 })
+world.addRegion('Callida', { x: 256768, y: 194560 })
+world.addRegion('Opportuna', { x: 256768, y: 194816 })
+
+const door = await loadLinkset({ world, region: 'Callida', position: { x: 5, y: 250, z: 25 }, prims: [...] })
+const remote = await loadLinkset({ world, region: 'Opportuna', position: { x: 5, y: 3, z: 25 }, prims: [...] })
+
+remote.prims[0].params.position = { x: 5, y: 20, z: 25 } // move it
+door.linkset.advanceTime(1_000)                           // advances the whole world
+```
+
+Every linkset in a world shares the world's clock, so advancing time on any
+script or linkset runs every script's events in time order. Whisper, say and
+shout cross region borders; `llRegionSay` and `llRegionSayTo` stay in the
+sender's region.
 
 `loadScript` continues to work for single-script tests; under the hood it
 auto-allocates a 1-prim/1-script linkset, so existing tests are unaffected.

@@ -291,11 +291,11 @@ describe('multi-script linkset', () => {
       expect(scripts['p']!.global('past')).toBe(EOF)
     })
 
-    // In-world: a missing notecard shouts an error and fires no dataserver event; the key is still returned.
+    // In-world: a missing notecard says an error and fires no dataserver event; the key is still returned.
     it.each([
       ['llGetNotecardLine("nope", 0)'],
       ['llGetNumberOfNotecardLines("nope")'],
-    ])('%s on a missing notecard shouts and fires no dataserver event', async (call) => {
+    ])('%s on a missing notecard says an error and fires no dataserver event', async (call) => {
       const probe = `
         integer events = 0;
         key k;
@@ -314,7 +314,7 @@ describe('multi-script linkset', () => {
       expect(p.global('k')).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
       expect(p.global('k')).not.toBe('00000000-0000-0000-0000-000000000000')
       expect(p.chat).toEqual([
-        { channel: 2147483647, text: "Could not find notecard 'nope'.", type: 'shout' },
+        { channel: 2147483647, text: "Could not find notecard 'nope'.", type: 'say' },
       ])
     })
 
