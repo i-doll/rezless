@@ -149,9 +149,9 @@ export const llAxisAngle2Rot: BuiltinImpl = (_ctx, args) => {
 
 /**
  * llRotBetween(vector a, vector b) — the shortest rotation taking a's
- * direction to b's. Opposite vectors turn half a circle about the axis
- * nearest to world z that is perpendicular to a, or about x when a is
- * vertical. Zero vectors and equal directions give ZERO_ROTATION.
+ * direction to b's. Opposite vectors turn half a circle about the x axis
+ * with its component along a removed, or about z when a lies along x.
+ * Zero vectors and equal directions give ZERO_ROTATION.
  */
 export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   const a = (args[0] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
@@ -166,7 +166,7 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   }
   if (ab >= 0) return rot(0, 0, 0, 1)
   const aa = a.x * a.x + a.y * a.y + a.z * a.z
-  const ref = a.x === 0 && a.y === 0 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 0, z: 1 }
+  const ref = a.y === 0 && a.z === 0 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 }
   const k = (ref.x * a.x + ref.y * a.y + ref.z * a.z) / aa
   const u = { x: ref.x - k * a.x, y: ref.y - k * a.y, z: ref.z - k * a.z }
   const m = Math.hypot(u.x, u.y, u.z)
