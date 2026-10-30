@@ -264,6 +264,33 @@ describe('script memory: Stack-Heap Collision', () => {
     expect(s.global('n')).toBe(2)
   })
 
+  it('a script whose code alone passes the limit collides on its first event', async () => {
+    const s = await loadScript({
+      source: `default { state_entry() { llSay(0, "${'x'.repeat(33000)}"); } }`,
+    })
+    expect(() => s.start()).toThrow('Stack-Heap Collision')
+    expect(s.running).toBe(false)
+  })
+
+  it('jumping out of a nested block gives back that block’s locals', async () => {
+    const s = await run(`
+      integer i;
+      default {
+        state_entry() {
+          @again;
+          {
+            list l = [1, 2, 3];
+            i++;
+            if (i < 1000) jump again;
+          }
+          ${REPORT}
+        }
+      }
+    `)
+    expect(s.running).toBe(true)
+    expect(reports(s)[0]).toBeLessThan(5000)
+  })
+
   it('recursion past the host stack is a Stack-Heap Collision too', async () => {
     const s = await loadScript({
       source: 'f() { f(); } default { state_entry() { f(); } }',

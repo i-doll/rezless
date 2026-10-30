@@ -77,9 +77,11 @@ export class Memory {
     this.stack -= bytes
   }
 
+  /** Drop the last event's stack. Throws if the script is already past its limit, as code alone can be. */
   startEvent(): void {
     this.alloc(-this.stackHighWater)
     this.stackHighWater = 0
+    if (this.enforced && this.used > this.limit) throw new StackHeapCollision()
   }
 
   /** llSetMemoryLimit: accept a limit above current use, up to 64 KiB. */

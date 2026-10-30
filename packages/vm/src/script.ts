@@ -621,8 +621,8 @@ export class Script {
   private runHandler(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
     if (this.state.lifecycle.dead) return
     const startedAt = this.now
-    this.state.memory.startEvent()
     try {
+      this.state.memory.startEvent()
       this.runHandlerChain(handler, args)
     } catch (e) {
       if (e instanceof StackHeapCollision) this.crash(e.message)

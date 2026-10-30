@@ -170,22 +170,24 @@ function execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): vo
     }
   }
   let i = 0
-  while (i < block.body.length) {
-    const stmt = block.body[i]!
-    try {
-      execStatement(ctx, child, stmt)
-      i++
-    } catch (e) {
-      if (e instanceof JumpSignal && labels && labels.has(e.label)) {
-        // Resume execution at the label.
-        i = labels.get(e.label)! + 1
-        continue
+  try {
+    while (i < block.body.length) {
+      const stmt = block.body[i]!
+      try {
+        execStatement(ctx, child, stmt)
+        i++
+      } catch (e) {
+        if (e instanceof JumpSignal && labels && labels.has(e.label)) {
+          // Resume execution at the label.
+          i = labels.get(e.label)! + 1
+          continue
+        }
+        throw e
       }
-      throw e
     }
+  } finally {
+    child.clear()
   }
-  // Locals left behind by an exception are released by the enclosing call.
-  child.clear()
 }
 
 function execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): void {
