@@ -3,6 +3,7 @@ import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation } from '../values/types.js'
 import { listElementType, typedList } from '../values/list-types.js'
 import { formatFloatExact, formatRotation, formatVector } from '../values/format.js'
+import { parseLslInteger } from '../values/coerce.js'
 import {
   JSON_INVALID,
   JSON_OBJECT,
@@ -106,7 +107,8 @@ class Parser {
       this.ws()
       const nc = this.src[this.i]
       let v: JNode
-      if (nc === ',' || nc === '}') {
+      if (nc === '}') return null
+      if (nc === ',') {
         v = { t: 'empty' }
       } else {
         const parsed = this.parseValue()
@@ -298,10 +300,10 @@ type WalkResult =
 
 function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
   let cur: JNode = root
-  for (const spec of specs) {
+  for (const [i, spec] of specs.entries()) {
     if (cur.t === 'empty') return { kind: 'null' }
-    if (typeof spec === 'string' && cur.t === 'arr' && /^\d+$/.test(spec)) {
-      const item = cur.items[Number(spec)]
+    if (typeof spec === 'string' && cur.t === 'arr') {
+      const item = cur.items[parseLslInteger(spec)]
       if (item === undefined || item.t === 'empty') return { kind: 'invalid' }
       cur = item
     } else if (typeof spec === 'string') {
@@ -311,7 +313,7 @@ function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
       if (found === null) return { kind: 'invalid' }
       cur = found
     } else if (typeof spec === 'number') {
-      if (cur.t !== 'arr') return { kind: 'invalid' }
+      if (cur.t !== 'arr' || listElementType(specs, i) === 'float') return { kind: 'invalid' }
       const idx = Math.trunc(spec)
       if (idx < 0 || idx >= cur.items.length) return { kind: 'invalid' }
       const item = cur.items[idx]!

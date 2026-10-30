@@ -33,7 +33,7 @@ describe('llListStatistics', () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_NUM_COUNT, [1, "2", 3.0])')).toBe(2)
   })
 
-  // Unmeasured: the remaining operations follow the wiki definitions.
+  // In-world: the remaining operations over [5, 1, 2, 7].
   it.each([
     ['LIST_STAT_RANGE', 6],
     ['LIST_STAT_MIN', 1],
@@ -42,8 +42,32 @@ describe('llListStatistics', () => {
     ['LIST_STAT_MEDIAN', 3.5],
     ['LIST_STAT_SUM_SQUARES', 79],
     ['LIST_STAT_GEOMETRIC_MEAN', Math.pow(1 * 2 * 5 * 7, 1 / 4)],
-  ])('%s (unmeasured)', async (op, expected) => {
+  ])('%s', async (op, expected) => {
     expect(await evalFloat(`llListStatistics(${op}, [5, 1, 2, 7])`)).toBeCloseTo(expected, 5)
+  })
+
+  // In-world: L = [1, 2.0, 3, 4, "x", 9.5] gives RANGE 8.5, MIN 1, MAX 9.5, MEAN 3.9, STD_DEV 3.324154,
+  // SUM_SQUARES 120.25, GEOMETRIC_MEAN 2.962013
+  it('mixed list with a string', async () => {
+    const L = '[1, 2.0, 3, 4, "x", 9.5]'
+    for (const [op, want] of [
+      ['RANGE', 8.5],
+      ['MIN', 1],
+      ['MAX', 9.5],
+      ['MEAN', 3.9],
+      ['STD_DEV', 3.324154],
+      ['SUM_SQUARES', 120.25],
+      ['GEOMETRIC_MEAN', 2.962013],
+    ] as const) {
+      expect(await evalFloat(`llListStatistics(LIST_STAT_${op}, ${L})`)).toBeCloseTo(want, 5)
+    }
+    expect(await evalFloat('llListStatistics(LIST_STAT_MEDIAN, [5,1,3])')).toBe(3)
+  })
+
+  // In-world: llListStatistics(LIST_STAT_GEOMETRIC_MEAN, [2, -8]) = 0, [0, 4] = 0
+  it('geometric mean is 0 when a number is negative or zero', async () => {
+    expect(await evalFloat('llListStatistics(LIST_STAT_GEOMETRIC_MEAN, [2, -8])')).toBe(0)
+    expect(await evalFloat('llListStatistics(LIST_STAT_GEOMETRIC_MEAN, [0, 4])')).toBe(0)
   })
 
   // Unmeasured
@@ -55,7 +79,7 @@ describe('llListStatistics', () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_STD_DEV, [2])')).toBe(0)
   })
 
-  // Unmeasured
+  // In-world: empty lists and an unknown operation give 0.
   it('an empty or non-numeric list gives 0, as does an unknown operation', async () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_MEAN, ["a"])')).toBe(0)
     expect(await evalFloat('llListStatistics(LIST_STAT_MAX, [])')).toBe(0)
@@ -69,15 +93,32 @@ describe('llListFindListNext', () => {
     expect(await evalInt('llListFindListNext([1,2,1,2], [1], 1)')).toBe(2)
   })
 
-  // Unmeasured
-  it('returns -1 when there is no such instance', async () => {
-    expect(await evalInt('llListFindListNext([1,2,1,2], [1], 2)')).toBe(-1)
-  })
-
-  // Unmeasured
-  it('a negative instance counts from the last match', async () => {
-    expect(await evalInt('llListFindListNext([1,2,1,2], [1], -1)')).toBe(2)
-    expect(await evalInt('llListFindListNext([1,2,1,2], [1], -3)')).toBe(-1)
+  // In-world values, F = [1,2,1,2,1]; a search that runs past the last match returns length(src).
+  it.each([
+    ['F, [1], -1', 4],
+    ['F, [1], -2', 2],
+    ['F, [1], -3', 0],
+    ['F, [1], -4', 5],
+    ['F, [1], -5', 5],
+    ['F, [1], 3', 5],
+    ['F, [1], 4', 5],
+    ['F, [1], 5', 5],
+    ['F, [1], 10', 5],
+    ['[1,2,1], [1], 5', 3],
+    ['F, [2], 2', -1],
+    ['F, [1,2], 1', 2],
+    ['[7,8], [1], 0', -1],
+    ['[7,8], [1], 3', -1],
+    ['[7,8,9], [1], -1', -1],
+    ['F, [], 0', 0],
+    ['F, [], 1', 1],
+    ['F, [], 5', 5],
+    ['F, [], 6', 5],
+    ['F, [], -1', 4],
+    ['[], [], 0', -1],
+  ])('llListFindListNext(%s) is %d', async (args, want) => {
+    const s = await run(`integer out = 0; default { state_entry() { list F = [1,2,1,2,1]; out = llListFindListNext(${args}); } }`)
+    expect(s.global('out')).toBe(want)
   })
 
   // Unmeasured

@@ -42,6 +42,9 @@ export const llHMAC: BuiltinImpl = (_ctx, args) => {
 export const llComputeHash: BuiltinImpl = (_ctx, args) => {
   const message = (args[0] as string | undefined) ?? ''
   const algo = ((args[1] as string | undefined) ?? '').toLowerCase()
+  if (algo === 'md5_sha1') {
+    return lowerHex(createHash('md5').update(message, 'utf8')) + lowerHex(createHash('sha1').update(message, 'utf8'))
+  }
   if (!HASH_ALGORITHMS.has(algo)) return ''
   return lowerHex(createHash(algo).update(message, 'utf8'))
 }

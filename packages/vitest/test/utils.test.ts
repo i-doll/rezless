@@ -1108,6 +1108,10 @@ describe('in-world parity — math, strings, hashes', () => {
     ['llModPow(-2, 3, 5)', 4],
     ['llModPow(2, -1, 5)', 3],
     ['llModPow(2, 3, 0)', 0],
+    ['llModPow(0, 0, 7)', 0],
+    ['llModPow(2, 0, 7)', 1],
+    ['llModPow(5, 0, 1)', 0],
+    ['llModPow(3, 2, 7)', 2],
   ])('%s is %d', async (expr, want) => {
     expect(await evalExpr('integer', expr)).toBe(want)
   })
@@ -1129,10 +1133,15 @@ describe('in-world parity — math, strings, hashes', () => {
     expect(await evalExpr('string', expr)).toBe(want)
   })
 
-  // In-world: llHash("hello") = 684824882, llHash("") = 0.
+  // In-world: llHash("hello") = 684824882, llHash("") = 0, llHash("é") = 233, llHash("😀") = 128512,
+  // llHash("aé") = 6363336, llHash("Hello World") = -922159996 (sdbm over code points).
   it.each([
     ['llHash("hello")', 684824882],
     ['llHash("")', 0],
+    ['llHash("é")', 233],
+    ['llHash("😀")', 128512],
+    ['llHash("aé")', 6363336],
+    ['llHash("Hello World")', -922159996],
   ])('%s is %d', async (expr, want) => {
     expect(await evalExpr('integer', expr)).toBe(want)
   })
@@ -1143,6 +1152,14 @@ describe('in-world parity — math, strings, hashes', () => {
     ['md5', '5d41402abc4b2a76b9719d911017c592'],
   ])('llComputeHash("hello", %s)', async (algo, want) => {
     expect(await evalExpr('string', `llComputeHash("hello", "${algo}")`)).toBe(want)
+  })
+
+  // In-world: llComputeHash("hello", "md5_sha1") is the md5 hex followed by the sha1 hex; llHMAC with it is "".
+  it('llComputeHash md5_sha1 concatenates the md5 and sha1 digests', async () => {
+    expect(await evalExpr('string', 'llComputeHash("hello", "md5_sha1")')).toBe(
+      '5d41402abc4b2a76b9719d911017c592aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d',
+    )
+    expect(await evalExpr('string', 'llHMAC("k", "hello", "md5_sha1")')).toBe('')
   })
 
   it('llComputeHash returns "" for an unknown algorithm', async () => {

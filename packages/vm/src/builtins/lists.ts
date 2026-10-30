@@ -455,6 +455,7 @@ export const llListStatistics: BuiltinImpl = (_ctx, args) => {
     case LIST_STAT_NUM_COUNT:
       return nums.length
     case LIST_STAT_GEOMETRIC_MEAN:
+      if (nums.some((n) => n <= 0)) return 0
       return Math.exp(nums.reduce((a, b) => a + Math.log(b), 0) / nums.length)
     default:
       return 0
@@ -463,16 +464,41 @@ export const llListStatistics: BuiltinImpl = (_ctx, args) => {
 
 /**
  * llListFindListNext(list src, list test, integer instance) — start index of
- * the instance-th occurrence of `test` (0-based), or -1. A negative instance
- * counts from the last occurrence.
+ * the instance-th occurrence of `test` (0-based, or counted back from the end
+ * when negative). Each search resumes after the previous match; once a later
+ * search starts past the end of `src` the result is length(src).
  */
 export const llListFindListNext: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const test = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const instance = (args[2] as number | undefined) ?? 0
-  const found: number[] = []
-  for (let i = 0; i <= src.length - test.length; i++) if (matchesAt(src, test, i)) found.push(i)
-  return found.at(instance) ?? -1
+  const last = src.length - 1
+  const forward = instance >= 0
+  const rounds = forward ? instance + 1 : -instance
+  let pos = forward ? 0 : last
+  let found = -1
+  for (let round = 0; round < rounds; round++) {
+    if (round > 0 && (forward ? pos >= src.length : pos < 0)) return src.length
+    found = -1
+    if (forward) {
+      for (let i = pos; i <= last - test.length + 1 && i < src.length; i++) {
+        if (matchesAt(src, test, i)) {
+          found = i
+          break
+        }
+      }
+    } else {
+      for (let i = Math.min(pos, last - test.length + 1); i >= 0; i--) {
+        if (matchesAt(src, test, i)) {
+          found = i
+          break
+        }
+      }
+    }
+    if (found < 0) return -1
+    pos = forward ? found + 1 : found - 1
+  }
+  return found
 }
 
 /**

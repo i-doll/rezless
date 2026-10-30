@@ -113,7 +113,7 @@ describe('llJson2List', () => {
     expect(s.global('out')).toEqual([2147483647])
   })
 
-  // Unmeasured: the negative side is assumed to mirror the positive.
+  // In-world: llJson2List("[-12345678901]") = [-2147483648]
   it('an integer below int32 clamps to the minimum', async () => {
     const s = await run(`
       list out = [];
@@ -247,13 +247,39 @@ describe('llJsonGetValue', () => {
     expect(s.global('out')).toBe(JSON_TRUE)
   })
 
-  // Unmeasured: a sentinel has no members to look up.
+  // In-world: llJsonGetValue(JSON_TRUE, [0]) = JSON_INVALID
   it('passing a sentinel as JSON text with specifiers → JSON_INVALID', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() { out = llJsonGetValue(JSON_TRUE, [0]); } }
     `)
     expect(s.global('out')).toBe(JSON_INVALID)
+  })
+
+  // In-world: an object member with no value, and string or float specifiers on an array.
+  it.each([
+    ['"{\\"a\\":}"', '["a"]', JSON_INVALID],
+    ['"[1,2]"', '["1x"]', '2'],
+    ['"[1,2]"', '[" 1"]', '2'],
+    ['"[1]"', '["5"]', JSON_INVALID],
+    ['"[1,2]"', '["-1"]', JSON_INVALID],
+    ['"[1,2]"', '[1.0]', JSON_INVALID],
+    ['JSON_NULL', '[]', JSON_NULL],
+  ])('llJsonGetValue(%s, %s)', async (json, specs, want) => {
+    const s = await run(`
+      string out = "x";
+      default { state_entry() { out = llJsonGetValue(${json}, ${specs}); } }
+    `)
+    expect(s.global('out')).toBe(want)
+  })
+
+  // In-world: llJsonValueType("[1,2]", ["1"]) = JSON_NUMBER
+  it('a numeric string specifier on an array selects the element', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonValueType("[1,2]", ["1"]); } }
+    `)
+    expect(s.global('out')).toBe(JSON_NUMBER)
   })
 
   it('escape sequences inside JSON strings are unescaped on retrieval', async () => {

@@ -218,8 +218,8 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
 export const llModPow: BuiltinImpl = (_ctx, args) => {
   const u = (i: number) => BigInt(((args[i] as number | undefined) ?? 0) >>> 0)
   const m = u(2)
-  if (m === 0n) return 0
-  let result = 1n
+  if (m === 0n || u(0) === 0n) return 0
+  let result = 1n % m
   let base = u(0) % m
   let exp = u(1)
   while (exp > 0n) {

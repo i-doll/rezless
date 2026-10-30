@@ -174,11 +174,11 @@ export const llChar: BuiltinImpl = (_ctx, args) => {
   return String.fromCodePoint(code)
 }
 
-/** llHash(string val) — sdbm hash (multiplier 65599) over the UTF-8 bytes. */
+/** llHash(string val) — sdbm hash (multiplier 65599) over the Unicode code points. */
 export const llHash: BuiltinImpl = (_ctx, args) => {
   let h = 0
-  for (const b of Buffer.from((args[0] as string | undefined) ?? '', 'utf8')) {
-    h = (Math.imul(h, 65599) + b) | 0
+  for (const ch of (args[0] as string | undefined) ?? '') {
+    h = (Math.imul(h, 65599) + ch.codePointAt(0)!) | 0
   }
   return h
 }
