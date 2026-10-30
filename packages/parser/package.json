@@ -1,6 +1,6 @@
 {
   "name": "@rezless/parser",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Recursive-descent parser for the Linden Scripting Language (LSL).",
   "license": "Apache-2.0",
   "author": "i-doll",
