@@ -278,6 +278,26 @@ describe('permissions (measured in Second Life)', () => {
     expect(s.global('seen')).toEqual([128, OWNER])
   })
 
+  it('llResetScript discards an unanswered request', async () => {
+    const s = await loadScript({
+      source: `
+        list seen;
+        default {
+          state_entry() { seen += [llGetPermissions(), llGetPermissionsKey()]; }
+          touch_start(integer n) { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); llResetScript(); }
+          run_time_permissions(integer perm) { seen += ["rtp", perm]; }
+        }
+      `,
+      owner: OWNER,
+    })
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.permissionRequests).toEqual([
+      { agent: OWNER, permissions: PERMISSION_CHANGE_LINKS, answered: true },
+    ])
+    expect(() => s.grantPermissions()).toThrow(/no pending permission request/)
+    expect(s.global('seen')).toEqual([0, NULL_KEY])
+  })
+
   it('llResetScript clears permissions', async () => {
     const s = await loadScript({
       source: `
