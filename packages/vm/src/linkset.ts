@@ -180,10 +180,7 @@ export class Linkset {
    * available for the single-script case (delivers only to that script).
    */
   deliverChat(opts: { channel: number; name: string; key: string; message: string }): void {
-    for (const s of this.allScripts()) {
-      s.matchChatListens(opts)
-    }
-    this.drainQueue()
+    this.settle(this.allScripts().filter((s) => s.matchChatListens(opts)))
   }
 
   /**
@@ -221,13 +218,29 @@ export class Linkset {
    * due across the linkset, or its whole world, dispatching each to its
    * target script. The clock steps to each
    * event's due time before its handler runs, so handlers see the time the
-   * event fired rather than the end of the window.
+   * event fired rather than the end of the window. The clock ends exactly
+   * `ms` later; a handler sleeping past that stays asleep until a later advance.
    */
   advanceTime(ms: number): void {
     if (ms < 0) throw new Error('cannot advance time backwards')
     const until = this.clock.now + ms
     this.drainQueue(until)
     if (this.clock.now < until) this.clock.now = until
+  }
+
+  /**
+   * Drain due events, then keep moving the clock to the next wake of any of
+   * `scripts` that is sleeping, running everything due on the way, until
+   * none of them is (or the sleeper is paused).
+   */
+  settle(scripts: ReadonlyArray<Script>): void {
+    this.drainQueue()
+    for (;;) {
+      let at = Infinity
+      for (const s of scripts) if (s.running && s.wakeAt !== undefined) at = Math.min(at, s.wakeAt)
+      if (at === Infinity) return
+      this.drainQueue(at)
+    }
   }
 
   /**
@@ -251,6 +264,10 @@ export class Linkset {
       if (next.at > this.clock.now) this.clock.now = next.at
       const target = next.target
       if (target.dead) continue
+      if (next.event === '__wake') {
+        target.wake()
+        continue
+      }
       // `__reset` (from llResetOtherScript) was requested while the target
       // was running, so it applies even if the target was stopped since; the
       // target just stays stopped afterward.

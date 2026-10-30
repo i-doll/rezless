@@ -188,9 +188,6 @@ export const llGetNumberOfNotecardLines: BuiltinImpl = (ctx, args) => {
   return notecardRequest(ctx, 'notecard_lines', [name], (lines) => String(lines.length))
 }
 
-/** Thrown when a script that removed itself yields; the handler stops there. */
-export class ScriptRemovedSignal {}
-
 /**
  * llRemoveInventory(string name) — deletes the item, stopping it if it is
  * a script. A script that removes itself runs on until it next yields.
@@ -207,7 +204,6 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   if (script) {
     ctx.prim.scripts.splice(ctx.prim.scripts.indexOf(script), 1)
     script.markDead()
-    if (script === ctx.script) ctx.state.lifecycle.removed = true
   }
   return undefined
 }

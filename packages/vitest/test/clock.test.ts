@@ -102,7 +102,7 @@ describe('Phase 3 — virtual clock + timers', () => {
       }
     `)
     s.start()
-    s.advanceTime(2_000) // fires timer; resets ref; sleeps 1.5; reads time → 1.5
+    s.advanceTime(3_500) // fires timer at 2 s; resets ref; sleeps 1.5; reads time → 1.5
     expect(s.global('t')).toBeCloseTo(1.5)
   })
 

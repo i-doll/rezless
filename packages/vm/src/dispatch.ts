@@ -6,7 +6,6 @@ import type { BuiltinSpec } from './generated/functions.js'
 import { REAL_BUILTINS } from './builtins/index.js'
 import type { Script } from './script.js'
 import { own } from './own.js'
-import { ScriptRemovedSignal } from './builtins/inventory.js'
 
 /** Look up the generated spec for a function name, if any. */
 export function specFor(name: string): BuiltinSpec | undefined {
@@ -33,7 +32,7 @@ export function* callBuiltin(
 ): Run<LslValue | undefined> {
   const spec = specFor(name)
   const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(dctx.script, name)
-  let sleptMs = 0
+  let sleptMs: number | null = null
   const ctx: CallContext = {
     state: dctx.state,
     spec,
@@ -41,15 +40,13 @@ export function* callBuiltin(
     prim: dctx.script.host,
     linkset: dctx.script.linkset,
     sleep: (ms) => {
-      sleptMs += ms
+      sleptMs = (sleptMs ?? 0) + ms
     },
   }
-  const startedAt = dctx.state.clock.now
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
   const delayMs = spec ? spec.delay * 1000 : 0
-  if (sleptMs > 0 || delayMs > 0) yield { until: dctx.state.clock.now + sleptMs + delayMs }
-  if (dctx.state.lifecycle.removed && dctx.state.clock.now > startedAt) throw new ScriptRemovedSignal()
+  if (sleptMs !== null || delayMs > 0) yield { until: dctx.state.clock.now + (sleptMs ?? 0) + delayMs }
   return result
 }
 

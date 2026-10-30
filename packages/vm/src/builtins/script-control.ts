@@ -19,7 +19,7 @@ export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-/** llSetScriptState(string name, integer running) — enable/disable sibling. */
+/** llSetScriptState(string name, integer running) — enable/disable a script; one that stops itself stops at once. */
 export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const running = ((args[1] as number | undefined) ?? 0) !== 0
@@ -30,6 +30,7 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   }
   const wasRunning = target.running
   target.running = running
+  if (target === ctx.script && !running) ctx.sleep?.(0)
   if (running && !wasRunning) {
     // Ticks missed while paused collapse into one fired at once.
     const v = target.clockView

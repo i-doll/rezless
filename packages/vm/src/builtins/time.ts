@@ -29,9 +29,8 @@ const FRAME_MS = 1000 / 45
  *   - For positive `sec`, the wait is at least one server frame (~22.22 ms
  *     at 45 Hz), so e.g. `llSleep(0.001)` actually waits ~22 ms.
  *
- * Events that arrive while the script is sleeping queue up but don't fire
- * on the calling script until the current handler returns; the queue drain
- * happens at the handler boundary (inside Script.runHandler).
+ * Other scripts keep running while it sleeps. Events that arrive for the
+ * sleeping script queue up and fire after its current handler returns.
  */
 export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0

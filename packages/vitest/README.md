@@ -109,7 +109,7 @@ Calls to functions that aren't built in or defined by the script fail to load, a
 // Drive events
 s.start()                                       // run state_entry of default
 s.fire(eventName, payload)                      // payload binds to handler params by spec name
-s.advanceTime(ms)                               // advance virtual clock; drains timer + queued events
+s.advanceTime(ms)                               // advance virtual clock by exactly ms; runs everything due by then
 s.deliverChat({ channel, name, key, message })  // fire `listen` on matching active listens
 s.respondToHttp(key, { status, body })          // fire `http_response` for a captured llHTTPRequest
 s.respondToLastHttp({ status, body })           // same, for the most recent
@@ -252,7 +252,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
-* **time**: `llSetTimerEvent`, `llSleep`, `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate` (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0)
+* **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate` (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0)
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
 * **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`

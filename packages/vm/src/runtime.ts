@@ -90,13 +90,9 @@ export interface ScriptState {
     agent: string
     readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
   }
-  /**
-   * Lifecycle flags — `dead` is set when llDie runs; `removed` when the
-   * script removes itself from inventory, so it stops at its next yield.
-   */
+  /** Lifecycle flags — `dead` is set when llDie runs or the script is removed from inventory. */
   lifecycle: {
     dead: boolean
-    removed?: boolean
   }
   /** Source filename used for coverage attribution. "<inline>" for inline-source loads. */
   readonly filename: string
