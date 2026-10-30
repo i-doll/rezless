@@ -9,8 +9,7 @@ const MAX_MEMORY = 65536
 const SCRIPT_BASE = 292
 const CODE_BLOCK = 512
 
-const FRAME_BYTES = 43
-const STACK_SLOT_BYTES = 7
+const FRAME_BYTES = 46
 
 const LIST_HEADER = 36
 
@@ -103,11 +102,15 @@ export class Memory {
   }
 }
 
-/** Stack bytes of a call to `fn`: a fixed frame plus a slot per parameter and local. */
+/**
+ * Stack bytes of a call to `fn`: a fixed frame plus each parameter and local
+ * at its type's size. Strings and lists are charged as values when they're
+ * assigned, so they add nothing here.
+ */
 export function frameBytes(fn: FunctionDeclaration): number {
   let bytes = frames.get(fn)
   if (bytes === undefined) {
-    bytes = FRAME_BYTES + STACK_SLOT_BYTES * (fn.params.length + localsIn(fn.body))
+    bytes = fn.params.reduce((n, p) => n + slotBytes(p.typeName), FRAME_BYTES + localsIn(fn.body))
     frames.set(fn, bytes)
   }
   return bytes
@@ -115,10 +118,24 @@ export function frameBytes(fn: FunctionDeclaration): number {
 
 const frames = new WeakMap<FunctionDeclaration, number>()
 
+function slotBytes(type: string): number {
+  switch (type) {
+    case 'vector':
+      return 12
+    case 'rotation':
+      return 16
+    case 'string':
+    case 'list':
+      return 0
+    default:
+      return 4
+  }
+}
+
 function localsIn(s: Statement): number {
   switch (s.kind) {
     case 'VariableDeclaration':
-      return 1
+      return slotBytes(s.typeName)
     case 'BlockStatement':
       return s.body.reduce((n, b) => n + localsIn(b), 0)
     case 'IfStatement':
