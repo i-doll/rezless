@@ -1,6 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
-import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from '../values/types.js'
+import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { formatFloatExact, formatListElement } from '../values/format.js'
 import { floatToInteger, parseLslInteger } from '../values/coerce.js'
 import { concatLists, listElementType, sliceList, typedList, uniformList } from '../values/list-types.js'
@@ -58,11 +58,11 @@ export const llList2String: BuiltinImpl = (_ctx, args) => {
 
 export const llList2Key: BuiltinImpl = (_ctx, args) => {
   const l = args[0] as ReadonlyArray<LslValue> | undefined
-  if (!l) return NULL_KEY
+  if (!l) return ''
   const i = resolveIndex((args[1] as number | undefined) ?? 0, l.length)
-  if (i < 0) return NULL_KEY
+  if (i < 0) return ''
   const v = l[i]
-  return typeof v === 'string' ? v : NULL_KEY
+  return typeof v === 'string' ? v : ''
 }
 
 const ENTRY_TYPES: Partial<Record<LslType, number>> = {

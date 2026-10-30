@@ -452,6 +452,30 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('n')).toBe(4)
   })
 
+  it('llList2Key gives an empty string for a non-key item and past the end', async () => {
+    const s = await run(`
+      string k = "";
+      string str = "";
+      string int = "x";
+      string flt = "x";
+      string past = "x";
+      default {
+        state_entry() {
+          k = (string)llList2Key([(key)"11111111-2222-3333-4444-555555555555"], 0);
+          str = (string)llList2Key(["abc"], 0);
+          int = (string)llList2Key([5], 0);
+          flt = (string)llList2Key([1.5], 0);
+          past = (string)llList2Key([], 0);
+        }
+      }
+    `)
+    expect(s.global('k')).toBe('11111111-2222-3333-4444-555555555555')
+    expect(s.global('str')).toBe('abc')
+    expect(s.global('int')).toBe('')
+    expect(s.global('flt')).toBe('')
+    expect(s.global('past')).toBe('')
+  })
+
   it('llList2Integer / Float / String / Key with negative index', async () => {
     const s = await run(`
       integer i = 0;
