@@ -37,10 +37,14 @@ export interface LinksetOptions {
 export interface TouchOptions {
   /** Face of the prim that was clicked. Default 0. */
   readonly face?: number
+  /** Where on the face the click landed, as texture coordinates. */
+  readonly st?: Vector
+  /** Where on the texture the click landed, after repeats and offsets. */
+  readonly uv?: Vector
   /** Milliseconds the click is held before release. Default 0. */
   readonly hold?: number
   /** Who clicked. Defaults to the owner. */
-  readonly avatar?: Omit<DetectedEntry, 'linkNumber' | 'touchFace'>
+  readonly avatar?: Omit<DetectedEntry, 'linkNumber' | 'touchFace' | 'touchST' | 'touchUV'>
 }
 
 const TOUCH_EVENTS = ['touch_start', 'touch', 'touch_end'] as const
@@ -245,7 +249,15 @@ export class Linkset {
       receivers.push(...handlers(root))
     }
     const avatar = opts.avatar ?? { key: this.owner, name: '' }
-    const detected = [{ ...avatar, linkNumber: prim.linkNumber, touchFace: opts.face ?? 0 }]
+    const detected = [
+      {
+        ...avatar,
+        linkNumber: prim.linkNumber,
+        touchFace: opts.face ?? 0,
+        ...(opts.st && { touchST: opts.st }),
+        ...(opts.uv && { touchUV: opts.uv }),
+      },
+    ]
     const deliver = (events: ReadonlyArray<string>) => {
       for (const s of receivers) {
         for (const e of events) {

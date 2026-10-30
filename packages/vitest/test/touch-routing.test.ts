@@ -224,3 +224,43 @@ describe('llDetectedTouchFace', () => {
     expect(scripts['s']!.global('got')).toEqual([0, 3, 0, 0])
   })
 })
+
+describe('touch coordinates', () => {
+  const coords = `
+    list got = [];
+    string d(integer i) {
+      return (string)llDetectedTouchST(i) + "|" + (string)llDetectedTouchUV(i) + "|"
+        + (string)llDetectedTouchNormal(i) + "|" + (string)llDetectedTouchBinormal(i);
+    }
+    default {
+      state_entry() { got += [d(0)]; }
+      touch_start(integer n) { got += [d(0), d(1)]; }
+    }
+  `
+  const ZERO = '<0.00000, 0.00000, 0.00000>'
+  const INVALID = '<-1.00000, -1.00000, 0.00000>'
+
+  it('reads the point passed to linkset.touch', async () => {
+    const { linkset, got } = await setup([[script('s', coords)]])
+    linkset.touch(0, { st: { x: 0.25, y: 0.75, z: 0 }, uv: { x: 0.5, y: 0.5, z: 0 } })
+    expect(got('s')[1]).toBe(`<0.25000, 0.75000, 0.00000>|<0.50000, 0.50000, 0.00000>|${ZERO}|${ZERO}`)
+  })
+
+  it('reads normals passed to fire()', async () => {
+    const { scripts, got } = await setup([[script('s', coords)]])
+    const up = { x: 0, y: 0, z: 1 }
+    const east = { x: 1, y: 0, z: 0 }
+    scripts['s']!.fire('touch_start', { num_detected: 1, detected: [{ ...ALICE, touchNormal: up, touchBinormal: east }] })
+    expect(got('s')[1]).toBe(`${INVALID}|${INVALID}|<0.00000, 0.00000, 1.00000>|<1.00000, 0.00000, 0.00000>`)
+  })
+
+  it('a click with no point reads invalid texture coordinates; outside a touch and past the count read zero', async () => {
+    // In-world: object.touch sends no surface point. touch_start, touch and
+    // touch_end all read ST and UV <-1, -1, 0> and zero normals; index 1 and
+    // state_entry read zero for all four.
+    const { linkset, got } = await setup([[script('s', coords)]])
+    linkset.touch(0)
+    const none = [ZERO, ZERO, ZERO, ZERO].join('|')
+    expect(got('s')).toEqual([none, `${INVALID}|${INVALID}|${ZERO}|${ZERO}`, none])
+  })
+})
