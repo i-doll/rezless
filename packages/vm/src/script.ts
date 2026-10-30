@@ -15,6 +15,7 @@ import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import { ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
+import { inventoryItemName } from './inventory.js'
 import { NULL_KEY } from './values/types.js'
 import { execHandler, StateChangeSignal } from './interpreter.js'
 import { buildCoveragePlan, CoverageCollector } from './coverage.js'
@@ -131,7 +132,7 @@ export class Script {
       throw new Error('Script host prim must belong to a Linkset')
     }
     this.linkset = host.linkset
-    this.scriptName = options.scriptName ?? deriveScriptName(options.filename)
+    this.scriptName = inventoryItemName(options.scriptName ?? deriveScriptName(options.filename))
 
     this.clockView = new ScriptClockView(this.linkset.clock, () => this)
 

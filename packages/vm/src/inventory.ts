@@ -74,6 +74,11 @@ export interface InventoryItem {
   notecardLines?: ReadonlyArray<string>
 }
 
+/** Second Life drops non-ASCII characters from an item's name when it enters a prim's inventory. */
+export function inventoryItemName(name: string): string {
+  return name.replace(/[^\x00-\x7f]/g, '')
+}
+
 export function makeInventoryItem(
   partial: Partial<InventoryItem> & { name: string; type: InventoryTypeValue },
 ): InventoryItem {

@@ -434,6 +434,47 @@ describe('multi-script linkset', () => {
       expect(scripts['m']!.global('first')).toBe('app')
     })
 
+    // Measured in Second Life, 2026-10-30: notecards abc, ABC, Abc, apple, app, App and a script
+    // created as "éscript" list as ABC|Abc|abc|App|app|apple|rz_q|script.
+    it('llGetInventoryName breaks case-only ties uppercase first', async () => {
+      const probe = `
+        list names;
+        default { state_entry() {
+          integer i;
+          for (i = 0; i < llGetInventoryNumber(INVENTORY_NOTECARD); i++)
+            names += llGetInventoryName(INVENTORY_NOTECARD, i);
+        } }
+      `
+      const notecards = ['abc', 'ABC', 'Abc', 'apple', 'app', 'App']
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: notecards.map((name) => makeInventoryItem({ name, type: InventoryType.NOTECARD })),
+            scripts: [{ source: { source: probe, filename: 'm.lsl' }, name: 'm' }],
+          },
+        ],
+      })
+      scripts['m']!.start()
+      expect((scripts['m']!.global('names') as string[]).join('|')).toBe('ABC|Abc|abc|App|app|apple')
+    })
+
+    it('drops non-ASCII characters from script names too', async () => {
+      const probe = `
+        string me; string listed;
+        default { state_entry() {
+          me = llGetScriptName();
+          listed = llGetInventoryName(INVENTORY_SCRIPT, 0);
+        } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'm.lsl' }, name: 'éscript' }] }],
+      })
+      const s = Object.values(scripts)[0]!
+      s.start()
+      expect(s.global('me')).toBe('script')
+      expect(s.global('listed')).toBe('script')
+    })
+
     it('llGetNotecardLine reads notecard inventory via dataserver', async () => {
       const probe = `
         string got = "";
