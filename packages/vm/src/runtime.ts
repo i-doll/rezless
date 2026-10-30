@@ -6,6 +6,7 @@ import type { Prim } from './prim.js'
 import type { Linkset } from './linkset.js'
 import type { Script } from './script.js'
 import type { CoverageCollector } from './coverage.js'
+import type { Memory } from './memory.js'
 
 /** Script-identity values exposed via llGetOwner / llGetKey / etc. */
 export interface ScriptIdentity {
@@ -103,6 +104,8 @@ export interface ScriptState {
   readonly source: string
   /** Coverage collector when enabled, otherwise null. Hooks short-circuit on null. */
   coverage: CoverageCollector | null
+  /** Estimated memory use and the llSetMemoryLimit limit. */
+  readonly memory: Memory
 }
 
 export type BuiltinImpl = (ctx: CallContext, args: ReadonlyArray<LslValue>) => LslValue | undefined

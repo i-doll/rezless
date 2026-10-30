@@ -23,6 +23,11 @@ export function typedList(
   return values
 }
 
+/** The recorded element types of `list`, or undefined if none were recorded. */
+export function listElementTypes(list: ReadonlyArray<LslValue>): ReadonlyArray<LslType | undefined> | undefined {
+  return elementTypes.get(list)
+}
+
 /** Build a list whose elements all have the same LSL type. */
 export function uniformList(values: LslValue[], type: LslType): ReadonlyArray<LslValue> {
   return typedList(values, values.map(() => type))

@@ -1,10 +1,13 @@
-import type { EvalResult, LslType } from './values/types.js'
+import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor } from './values/types.js'
 import { coerce } from './values/coerce.js'
+import type { Memory } from './memory.js'
+import { globalBytes, listBytes, stringBytes } from './memory.js'
 
 interface Slot {
   type: LslType
   value: EvalResult
+  bytes: number
 }
 
 /**
@@ -15,7 +18,16 @@ interface Slot {
 export class Env {
   private readonly slots = new Map<string, Slot>()
 
-  constructor(private readonly parent: Env | null = null) {}
+  /**
+   * `memory` (inherited by child scopes) is charged for the variables this
+   * scope holds: every global, and the strings and lists among locals. Call
+   * frames pay for the rest of a local's stack space.
+   */
+  constructor(
+    private readonly parent: Env | null = null,
+    private readonly memory: Memory | null = null,
+    private readonly global = memory !== null,
+  ) {}
 
   /** Declare a new variable in the current scope. Coerces init to declared type. */
   declare(name: string, type: LslType, init?: EvalResult): void {
@@ -23,7 +35,9 @@ export class Env {
       throw new Error(`variable '${name}' already declared in this scope`)
     }
     const value = init ? coerce(init, type) : defaultEvalFor(type)
-    this.slots.set(name, { type, value })
+    const bytes = this.bytesFor(value)
+    this.charge(bytes)
+    this.slots.set(name, { type, value, bytes })
   }
 
   /**
@@ -38,7 +52,7 @@ export class Env {
     const slot = this.slots.get(name)
     if (slot) {
       slot.type = type
-      slot.value = init ? coerce(init, type) : defaultEvalFor(type)
+      this.store(slot, init ? coerce(init, type) : defaultEvalFor(type))
       return
     }
     this.declare(name, type, init)
@@ -53,9 +67,12 @@ export class Env {
 
   /** Assign to an existing variable. Coerces to declared type. */
   set(name: string, value: EvalResult): EvalResult {
-    const slot = this.findSlot(name)
-    if (!slot) throw new Error(`undefined variable '${name}'`)
-    slot.value = coerce(value, slot.type)
+    const slot = this.slots.get(name)
+    if (!slot) {
+      if (!this.parent) throw new Error(`undefined variable '${name}'`)
+      return this.parent.set(name, value)
+    }
+    this.store(slot, coerce(value, slot.type))
     return slot.value
   }
 
@@ -63,14 +80,36 @@ export class Env {
     return this.slots.has(name)
   }
 
-  /** Drop every slot in *this* scope; doesn't touch the parent chain. */
+  /** Drop every slot in *this* scope and give back its memory; doesn't touch the parent chain. */
   clear(): void {
+    let bytes = 0
+    for (const s of this.slots.values()) bytes += s.bytes
+    this.charge(-bytes)
     this.slots.clear()
   }
 
-  /** Open a child scope. */
+  /** Open a child scope for locals. */
   push(): Env {
-    return new Env(this)
+    return new Env(this, this.memory, false)
+  }
+
+  private store(slot: Slot, value: EvalResult): void {
+    const bytes = this.bytesFor(value)
+    this.charge(bytes - slot.bytes)
+    slot.value = value
+    slot.bytes = bytes
+  }
+
+  private charge(bytes: number): void {
+    if (this.global) this.memory!.alloc(bytes)
+    else this.memory?.allocLocal(bytes)
+  }
+
+  private bytesFor(value: EvalResult): number {
+    if (!this.memory) return 0
+    if (this.global) return globalBytes(value.type, value.value)
+    if (value.type === 'string') return stringBytes(value.value as string)
+    return value.type === 'list' ? listBytes(value.value as ReadonlyArray<LslValue>) : 0
   }
 
   private findSlot(name: string): Slot | null {

@@ -32,9 +32,10 @@ import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
-import { HTTP_BODY_TRUNCATED } from './generated/constants.js'
+import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED } from './generated/constants.js'
 import { own } from './own.js'
 import { deterministicKey } from './keys.js'
+import { Memory, StackHeapCollision, codeBytes } from './memory.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -93,6 +94,11 @@ export interface ScriptOptions {
    * also warns once per function, 'throw' fails the call.
    */
   readonly stubs?: 'allow' | 'warn' | 'throw'
+  /**
+   * Set false to let the script outgrow its memory limit without a
+   * Stack-Heap Collision. Default true.
+   */
+  readonly memoryLimit?: boolean
 }
 
 /**
@@ -198,6 +204,7 @@ export class Script {
       filename,
       source,
       coverage,
+      memory: new Memory(codeBytes(ast), options.memoryLimit ?? true),
     }
     if (coverage) coverage.hitState('default')
 
@@ -209,8 +216,7 @@ export class Script {
     // Build a parent scope holding every LSL constant (PI, TRUE, HTTP_METHOD,
     // …). Script globals get their own scope below; typecheck() rejects
     // globals named after constants, as SL does.
-    const constants = buildConstantsEnv()
-    this.globals = constants.push()
+    this.globals = new Env(buildConstantsEnv(), this.state.memory)
     initGlobals(this.globals, ast.globals)
     this.userFunctions = new Map(ast.functions.map((f) => [f.name, f]))
     this.functions = options.functions ?? {}
@@ -615,8 +621,12 @@ export class Script {
   private runHandler(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
     if (this.state.lifecycle.dead) return
     const startedAt = this.now
+    this.state.memory.startEvent()
     try {
       this.runHandlerChain(handler, args)
+    } catch (e) {
+      if (e instanceof StackHeapCollision) this.crash(e.message)
+      throw e
     } finally {
       if (this.now > startedAt) this.clockView.busyUntilMs = this.now
     }
@@ -677,6 +687,15 @@ export class Script {
         }
       }
     }
+  }
+
+  /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
+  private crash(error: string): void {
+    for (const text of ['Script run-time error', error]) {
+      this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
+      this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
+    }
+    this.running = false
   }
 
   /**

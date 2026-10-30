@@ -107,6 +107,14 @@ import {
 } from './identity.js'
 import { llMessageLinked } from './linked.js'
 import {
+  llGetUsedMemory,
+  llGetFreeMemory,
+  llGetMemoryLimit,
+  llSetMemoryLimit,
+  llScriptProfiler,
+  llGetSPMaxMemory,
+} from './memory.js'
+import {
   llRequestAgentData,
   llRequestInventoryData,
   llRequestSimulatorData,
@@ -480,4 +488,11 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llAvatarOnLinkSitTarget,
   llSetLinkSitFlags,
   llGetLinkSitFlags,
+  // script memory
+  llGetUsedMemory,
+  llGetFreeMemory,
+  llGetMemoryLimit,
+  llSetMemoryLimit,
+  llScriptProfiler,
+  llGetSPMaxMemory,
 }
