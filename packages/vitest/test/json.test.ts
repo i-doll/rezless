@@ -940,3 +940,62 @@ describe('llList2Json', () => {
     expect(s.global('out')).toBe('{"val":"42"}')
   });
 })
+
+describe('empty and trailing-comma arrays', () => {
+  // In-world: llJsonGetValue("{\"a\":[ ]}", ["a"]) = "[ ]"; llJsonSetValue("{\"b\":[ ],\"a\":0}", ["a"], "1") = {"a":1,"b":[ ]}
+  it('keeps the text of an empty array inside another value', async () => {
+    const s = await run(`
+      string got;
+      string set;
+      default { state_entry() {
+        got = llJsonGetValue("{\\"a\\":[ ]}", ["a"]);
+        set = llJsonSetValue("{\\"b\\":[ ],\\"a\\":0}", ["a"], "1");
+      } }
+    `)
+    expect(s.global('got')).toBe('[ ]')
+    expect(s.global('set')).toBe('{"a":1,"b":[ ]}')
+  })
+
+  // In-world: a trailing comma is an empty last slot: llJson2List("[1,]") = [1, ""],
+  // llJsonGetValue("[1,]", [1]) = JSON_INVALID, llJsonSetValue("[1,]", [0], "2") = "[2,]"
+  it('reads a trailing comma as an empty last slot', async () => {
+    const s = await run(`
+      list items;
+      string slot;
+      string set;
+      default { state_entry() {
+        items = llJson2List("[1,]");
+        slot = llJsonGetValue("[1,]", [1]);
+        set = llJsonSetValue("[1,]", [0], "2");
+      } }
+    `)
+    expect(s.global('items')).toEqual([1, ''])
+    expect(s.global('slot')).toBe(JSON_INVALID)
+    expect(s.global('set')).toBe('[2,]')
+  })
+
+  // In-world: empty slots read as "" strings and stay empty when written back:
+  // llJson2List("[1,,3]") = [1, "", 3], llJson2List("[,1]") = ["", 1], llJson2List("[,]") = ["", ""],
+  // llJson2List("[null]") = [JSON_NULL], llJsonSetValue("[1,,3]", [0], "2") = "[2,,3]"
+  it('reads empty slots as empty strings and writes them back empty', async () => {
+    const s = await run(`
+      list mid;
+      list lead;
+      list only;
+      list nul;
+      string set;
+      default { state_entry() {
+        mid = llJson2List("[1,,3]");
+        lead = llJson2List("[,1]");
+        only = llJson2List("[,]");
+        nul = llJson2List("[null]");
+        set = llJsonSetValue("[1,,3]", [0], "2");
+      } }
+    `)
+    expect(s.global('mid')).toEqual([1, '', 3])
+    expect(s.global('lead')).toEqual(['', 1])
+    expect(s.global('only')).toEqual(['', ''])
+    expect(s.global('nul')).toEqual([JSON_NULL])
+    expect(s.global('set')).toBe('[2,,3]')
+  })
+})

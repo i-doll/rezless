@@ -162,11 +162,6 @@ class Parser {
       }
       if (this.src[this.i] === ',') {
         this.i++
-        this.ws()
-        if (this.src[this.i] === ']') {
-          this.i++
-          return { t: 'arr', items, raw: this.src.slice(start, this.i) }
-        }
         continue
       }
       return null
@@ -287,7 +282,7 @@ function printJson(n: JNode): string {
     case 'str':
       return n.raw ?? '"' + escapeJsonString(n.v) + '"'
     case 'arr':
-      return n.raw ?? '[' + n.items.map(printJson).join(',') + ']'
+      return n.raw ?? '[' + n.items.map((i) => (i.t === 'empty' ? '' : printJson(i))).join(',') + ']'
     case 'obj':
       return n.raw ?? (
         '{' +
@@ -520,7 +515,7 @@ function jsonNodeToLslListItem(n: JNode): LslValue {
     case 'str':
       return n.v
     case 'empty':
-      return JSON_NULL
+      return ''
   }
 }
 
