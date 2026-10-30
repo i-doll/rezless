@@ -302,6 +302,17 @@ describe('SL parity — values and operators', () => {
     expect(g('b')).toBe(10)
   })
 
+  it('prints a float that rounds to zero as 0.000000 unless it is exactly -0.0', async () => {
+    // In-world: (string)(-0.0000004) = 0.000000, (string)((float)"-0") = -0.000000
+    const g = await globals(
+      'string a; string b; string c;',
+      'a = (string)(-0.0000004); b = (string)((float)"-0"); c = (string)(0.0000004);',
+    )
+    expect(g('a')).toBe('0.000000')
+    expect(g('b')).toBe('-0.000000')
+    expect(g('c')).toBe('0.000000')
+  })
+
   it('parses vectors and rotations from strings like SL', async () => {
     const g = await globals(
       'vector a; vector b; vector c; vector d; rotation e; rotation f; rotation h;',

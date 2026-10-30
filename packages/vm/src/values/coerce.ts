@@ -68,8 +68,10 @@ export function stringify(r: EvalResult): string {
   switch (r.type) {
     case 'integer':
       return String(toInt32(v as number))
-    case 'float':
-      return formatFloat(v as number)
+    case 'float': {
+      const s = formatFloat(v as number)
+      return s === '-0.000000' && !Object.is(v, -0) ? '0.000000' : s
+    }
     case 'string':
       return v as string
     case 'key':
@@ -95,7 +97,7 @@ export function floatToInteger(n: number): number {
  * LSL `(integer)str` parsing.
  *   - Skip leading whitespace
  *   - Optional + or - sign
- *   - Optional `0x` for hex
+ *   - Optional `0x` for hex (not accepted after a '-')
  *   - Read decimal digits (or hex digits) until the first non-matching character
  *   - Empty / no-digits → 0
  */
@@ -115,8 +117,8 @@ export function parseLslInteger(s: string): number {
       hex += s[i]
       i++
     }
-    if (!hex) return 0
-    return toInt32(sign * Number.parseInt(hex, 16))
+    if (!hex || sign < 0) return 0
+    return saturate(Number.parseInt(hex, 16), sign)
   }
   let dec = ''
   while (i < s.length && /[0-9]/.test(s[i]!)) {
@@ -124,7 +126,12 @@ export function parseLslInteger(s: string): number {
     i++
   }
   if (!dec) return 0
-  return toInt32(sign * Number.parseInt(dec, 10))
+  return saturate(Number.parseInt(dec, 10), sign)
+}
+
+/** C `strtoul` into 32 bits: saturate at 0xFFFFFFFF, negate mod 2^32 for '-'. */
+function saturate(magnitude: number, sign: number): number {
+  return toInt32(sign * Math.min(magnitude, 0xffffffff))
 }
 
 /** LSL `(float)str`: leading whitespace, then a C `strtod` number; 0 if none. */

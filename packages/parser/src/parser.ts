@@ -392,11 +392,8 @@ class Parser {
     if (!this.expect('lparen', "expected '(' after 'for'")) return null
     const init = this.parseExpressionList('semi')
     if (!this.expect('semi', "expected ';' after for-init")) return null
-    let test: Expression | null = null
-    if (!this.check('semi')) {
-      test = this.parseExpression()
-      if (!test) return null
-    }
+    const test = this.parseExpression()
+    if (!test) return null
     if (!this.expect('semi', "expected ';' after for-test")) return null
     const update = this.parseExpressionList('rparen')
     if (!this.expect('rparen', "expected ')' to close for-header")) return null

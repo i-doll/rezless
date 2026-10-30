@@ -568,7 +568,18 @@ describe('print', () => {
       }
     `)
     expect(s.global('n')).toBe(1)
-    expect(s.global('r')).toBe(11)
-    expect(s.global('t')).toBe('ab')
+    expect(s.global('r')).toBe(10)
+    expect(s.global('t')).toBe('b')
+  })
+
+  it('yields the zero value of its argument type', async () => {
+    // In-world: (string)(print(3) + 1) = 1. Only the integer case was measured.
+    const s = await run(`
+      string r;
+      float f;
+      default { state_entry() { r = (string)(print(3) + 1); f = print(2.5) + 1.5; } }
+    `)
+    expect(s.global('r')).toBe('1')
+    expect(s.global('f')).toBe(1.5)
   })
 })

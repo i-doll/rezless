@@ -324,7 +324,7 @@ function evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): Ev
     case 'UpdateExpression':
       return evalUpdate(ctx, env, expr)
     case 'PrintExpression':
-      return evalExpression(ctx, env, expr.argument)
+      return defaultEvalFor(evalExpression(ctx, env, expr.argument).type)
   }
 }
 

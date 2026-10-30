@@ -524,6 +524,18 @@ describe('parser — empty statements and unbraced declarations', () => {
     expect(parseBody(body).diagnostics).toEqual([])
   })
 
+  it('rejects a for loop without a test expression', () => {
+    // In-world: for (;;) is a syntax error
+    expect(parseBody('for (;;) ;').diagnostics.length).toBeGreaterThan(0)
+    expect(parseBody('for (i = 0; ; i++) ;').diagnostics.length).toBeGreaterThan(0)
+  })
+
+  it('accepts comma lists in for init and update', () => {
+    expect(parseBody('integer j; for (i = 0, j = 0; i < 2; i++, j++) ;').diagnostics).toEqual([])
+    expect(parseBody('for (; i < 2; i++) ;').diagnostics).toEqual([])
+    expect(parseBody('for (i = 0; i < 2;) i++;').diagnostics).toEqual([])
+  })
+
   it('parses ; as an EmptyStatement', () => {
     const { script } = parseBody('if (TRUE) ;')
     expect(script.states[0]!.handlers[0]!.body.body[1]).toMatchObject({

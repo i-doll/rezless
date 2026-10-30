@@ -271,7 +271,7 @@ describe('script memory: Stack-Heap Collision', () => {
         default {
           state_entry() {
             llSetMemoryLimit(llGetUsedMemory() + 32);
-            for (;;) {
+            for (; 1;) {
               l += [n];
               n++;
             }
@@ -299,7 +299,7 @@ describe('script memory: Stack-Heap Collision', () => {
         list l;
         integer touches;
         default {
-          state_entry() { llSetMemoryLimit(llGetUsedMemory() + 32); for (;;) l += [0]; }
+          state_entry() { llSetMemoryLimit(llGetUsedMemory() + 32); for (; 1;) l += [0]; }
           touch_start(integer n) { touches++; }
         }
       `,
