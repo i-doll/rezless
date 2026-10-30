@@ -214,7 +214,7 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     s.start()
     expect(s.global('out')).toBe(
       '0.000000|0|0|0|<0.000000, 1.000000, 0.000000>|0.000000|<0.000000, 0.000000, 0.000000>' +
-        '|<1.000000, 1.000000, 0.000000>|<0.000000, 0.000000, 0.000000>||<0.000000, 0.000000, 0.000000>|0.000000',
+        '|<1.000000, 1.000000, 0.000000>|<0.000000, 0.000000, 0.000000>||<0.000000, 0.000000, 0.000000>|1.000000',
     )
     expect(s.global('glowFound')).toBe(-1)
     expect(s.global('nameFound')).toBe(-1)
@@ -396,6 +396,12 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('out')).toEqual(['t', { x: 1, y: 0, z: 0.5 }, 1])
   })
 
+  // In-world: a new prim whose text was never set reads PRIM_TEXT as ["", <0,0,0>, 1.0] (alpha 1.0, not 0.0).
+  it('an unset PRIM_TEXT reads back with alpha 1.0', async () => {
+    const s = await run(`out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
+    expect(s.global('out')).toEqual(['', { x: 0, y: 0, z: 0 }, 1])
+  })
+
   // In-world: PRIM_TEXT "t2" with alpha -3.0 left the text, colour and alpha unchanged, with no error shout.
   it('PRIM_TEXT with an out-of-range alpha changes nothing and says no error', async () => {
     const s = await run(
@@ -426,7 +432,7 @@ describe('prim behaviour measured in Second Life', () => {
        out = llGetPrimitiveParams([PRIM_TEXT, PRIM_DESC]);`,
       'list out;',
     )
-    expect(s.global('out')).toEqual(['', { x: 0, y: 0, z: 0 }, 0, 'after neg alpha'])
+    expect(s.global('out')).toEqual(['', { x: 0, y: 0, z: 0 }, 1, 'after neg alpha'])
   })
 
   it('PRIM_TEXT applies colour channels at the 0 and 1 edges', async () => {

@@ -765,7 +765,7 @@ export function readPrimParam(
       return { values: [prim.description], consumed: 0 }
     case PRIM_TEXT: {
       const t = prim.appearance.text
-      return { values: t ? [t.text, t.color, t.alpha] : ['', zero(), 0], consumed: 0 }
+      return { values: t ? [t.text, t.color, t.alpha] : ['', zero(), 1], consumed: 0 }
     }
     case PRIM_POSITION:
       return { values: [prim.regionPosition()], consumed: 0 }
