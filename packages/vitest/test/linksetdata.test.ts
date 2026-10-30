@@ -302,6 +302,23 @@ describe('Linkset Data', () => {
     expect(s.global('found')).toEqual(['foo1', 'foo2'])
   })
 
+  // In-world: with keys a, p, u, llLinksetDataListKeys(-1, 2) = [a, p]
+  it('ListKeys treats a negative start as 0', async () => {
+    const s = await load(`
+      list out = [];
+      default {
+        state_entry() {
+          llLinksetDataWrite("a", "v");
+          llLinksetDataWrite("p", "v");
+          llLinksetDataWrite("u", "v");
+          out = llLinksetDataListKeys(-1, 2);
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('out')).toEqual(['a', 'p'])
+  })
+
   it('LSD persists across llResetScript', async () => {
     const s = await load(`
       string got = "";
@@ -451,6 +468,29 @@ describe('Linkset Data', () => {
     expect(s.global('a')).toEqual(['k1', 'k2', 'k3'])
     expect(s.global('b')).toEqual(['k2', 'k3'])
     expect(s.global('c')).toEqual(['k2', 'k3'])
+  })
+
+  // In-world: with keys a, b, c: FindKeys(".", -1, 2) = a, b; FindKeys(".", -2, 1) = a; ListKeys(-5, 0) and FindKeys(".", 0, -2) = all
+  it('a negative start acts as 0', async () => {
+    const s = await load(`
+      list a = []; list b = []; list c = []; list d = [];
+      default {
+        state_entry() {
+          llLinksetDataWrite("a", "v");
+          llLinksetDataWrite("b", "v");
+          llLinksetDataWrite("c", "v");
+          a = llLinksetDataFindKeys(".", -1, 2);
+          b = llLinksetDataFindKeys(".", -2, 1);
+          c = llLinksetDataListKeys(-5, 0);
+          d = llLinksetDataFindKeys(".", 0, -2);
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('a')).toEqual(['a', 'b'])
+    expect(s.global('b')).toEqual(['a'])
+    expect(s.global('c')).toEqual(['a', 'b', 'c'])
+    expect(s.global('d')).toEqual(['a', 'b', 'c'])
   })
 
   it('llLinksetDataAvailable counts UTF-8 bytes, plus 32 for a protected pair (SL parity)', async () => {

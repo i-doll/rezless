@@ -132,6 +132,8 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['calling names like Object.prototype keys', inEntry('toString(); constructor(1);'), /Name not defined within scope: toString/],
     ['print of a string assigned to an integer', inEntry('integer i = print("a");'), /Type mismatch/],
     ['global initialised from print', `integer g = print(1); ${inEntry('')}`, /Syntax error/],
+    // In-world: key k = print((key)"k"); fails with "Internal server compile error".
+    ['a key local initialised by a key print', inEntry('key k = print((key)"k");'), /Internal server compile error/],
     ['statement after the return', `integer f() { return 1; f(); } ${inEntry('')}`, /Not all code paths/],
   ]
 

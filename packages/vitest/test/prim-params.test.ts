@@ -214,7 +214,7 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     s.start()
     expect(s.global('out')).toBe(
       '0.000000|0|0|0|<0.000000, 1.000000, 0.000000>|0.000000|<0.000000, 0.000000, 0.000000>' +
-        '|<1.000000, 1.000000, 0.000000>|<0.000000, 0.000000, 0.000000>||<0.000000, 0.000000, 0.000000>|0.000000',
+        '|<1.000000, 1.000000, 0.000000>|<0.000000, 0.000000, 0.000000>||<0.000000, 0.000000, 0.000000>|1.000000',
     )
     expect(s.global('glowFound')).toBe(-1)
     expect(s.global('nameFound')).toBe(-1)
@@ -390,6 +390,231 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('pm')).toEqual([1, 0.5, Math.fround(0.6), 1000])
   })
 
+  // In-world: llSetText("t", <2,-1,0.5>, 3.0) reads back [t, <1,0,0.5>, 1.0].
+  it('llSetText clamps colour and alpha to [0, 1]', async () => {
+    const s = await run(`llSetText("t", <2,-1,0.5>, 3.0); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
+    expect(s.global('out')).toEqual(['t', { x: 1, y: 0, z: 0.5 }, 1])
+  })
+
+  // In-world: a new prim whose text was never set reads PRIM_TEXT as ["", <0,0,0>, 1.0] (alpha 1.0, not 0.0).
+  it('an unset PRIM_TEXT reads back with alpha 1.0', async () => {
+    const s = await run(`out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
+    expect(s.global('out')).toEqual(['', { x: 0, y: 0, z: 0 }, 1])
+  })
+
+  // In-world: PRIM_TEXT "t2" with alpha -3.0 left the text, colour and alpha unchanged, with no error shout.
+  it('PRIM_TEXT with an out-of-range alpha changes nothing and says no error', async () => {
+    const s = await run(
+      `llSetText("t", <1,0,0.5>, 0.5);
+       llSetPrimitiveParams([PRIM_TEXT, "t2", <0,1,0>, -3.0]);
+       out = llGetPrimitiveParams([PRIM_TEXT]);`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual(['t', { x: 1, y: 0, z: 0.5 }, 0.5])
+    expect(debugErrors(s)).toEqual([])
+  })
+
+  // In-world: PRIM_TEXT with a colour channel or alpha outside [0, 1] is ignored silently (text, colour and
+  // alpha unchanged) and later rules still apply; <1,0,1> with alpha 1.0 and <0.1,0.2,0.3> with 0.4 apply.
+  it.each([
+    ['[PRIM_TEXT, "c", <2,-1,0.5>, 0.5]'],
+    ['[PRIM_TEXT, "d", <0.1,0.2,0.3>, 1.5]'],
+    ['[PRIM_TEXT, "x", <1.01,0,0>, 1.0]'],
+  ])('PRIM_TEXT %s is ignored without an error', async (rule) => {
+    const s = await run(`llSetText("t", <1,0,0.5>, 0.5); llSetPrimitiveParams(${rule}); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
+    expect(s.global('out')).toEqual(['t', { x: 1, y: 0, z: 0.5 }, 0.5])
+    expect(debugErrors(s)).toEqual([])
+  })
+
+  it('an ignored PRIM_TEXT rule does not stop later rules', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TEXT, "e", <0.1,0.2,0.3>, -0.5, PRIM_DESC, "after neg alpha"]);
+       out = llGetPrimitiveParams([PRIM_TEXT, PRIM_DESC]);`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual(['', { x: 0, y: 0, z: 0 }, 1, 'after neg alpha'])
+  })
+
+  it('PRIM_TEXT applies colour channels at the 0 and 1 edges', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TEXT, "edge", <1,0,1>, 1.0]);
+       out = llGetPrimitiveParams([PRIM_TEXT]);
+       llSetPrimitiveParams([PRIM_TEXT, "ok", <0.1,0.2,0.3>, 0.4]);
+       out += llGetPrimitiveParams([PRIM_TEXT]);`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual([
+      'edge', { x: 1, y: 0, z: 1 }, 1,
+      'ok', { x: Math.fround(0.1), y: Math.fround(0.2), z: Math.fround(0.3) }, Math.fround(0.4),
+    ])
+  })
+
+  // In-world: llSetColor(<1,0,0>, -5), llSetAlpha(0.2, -3), PRIM_COLOR with face -7 and
+  // llSetLinkColor(LINK_THIS, <0,0,1>, -9) each set every face.
+  it('negative faces set every face', async () => {
+    const s = await run(
+      `llSetColor(<1,0,0>, -5);
+       out = llGetPrimitiveParams([PRIM_COLOR, 3]);
+       llSetAlpha(0.2, -3);
+       out += llGetPrimitiveParams([PRIM_COLOR, 5]);
+       llSetPrimitiveParams([PRIM_COLOR, -7, <0,1,0>, 0.5]);
+       out += llGetPrimitiveParams([PRIM_COLOR, 0, PRIM_COLOR, 5]);
+       llSetLinkColor(LINK_THIS, <0,0,1>, -9);
+       out += llGetPrimitiveParams([PRIM_COLOR, 0, PRIM_COLOR, 5]);`,
+      'list out;',
+    )
+    const f = Math.fround
+    const red = { x: 1, y: 0, z: 0 }, green = { x: 0, y: 1, z: 0 }, blue = { x: 0, y: 0, z: 1 }
+    expect(s.global('out')).toEqual([
+      red, 1, red, f(0.2),
+      green, 0.5, green, 0.5,
+      blue, 0.5, blue, 0.5,
+    ])
+  })
+
+  // In-world: llGetColor(-5) and llGetColor(-2) average the faces like ALL_SIDES; llGetAlpha(-2) sums them;
+  // [PRIM_COLOR, -5] returns every face, [PRIM_TEXTURE, -5] 24 values on a box and [PRIM_GLOW, -2] 6;
+  // [PRIM_TEXTURE, 6] and [PRIM_COLOR, 6] return nothing.
+  it('negative faces read every face; a face past the count reads nothing', async () => {
+    const s = await run(
+      `llSetColor(<1,0,0>, 0);
+       llSetAlpha(0.5, 1);
+       out = [llGetColor(-5), llGetColor(-2), llGetColor(ALL_SIDES), llGetAlpha(-2)];
+       counts = [llGetListLength(llGetPrimitiveParams([PRIM_COLOR, -5])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_TEXTURE, -5])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_GLOW, -2])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_TEXTURE, 6])),
+                 llGetListLength(llGetPrimitiveParams([PRIM_COLOR, 6]))];`,
+      'list out; list counts;',
+    )
+    const avg = { x: 1, y: Math.fround(5 / 6), z: Math.fround(5 / 6) }
+    expect(s.global('out')).toEqual([avg, avg, avg, 5.5])
+    expect(s.global('counts')).toEqual([12, 24, 6, 0, 0])
+  })
+
+  // In-world: llSetText("f", <1,1,1>, (float)"nan") reads back PRIM_TEXT = [f, <1,1,1>, nan].
+  it('llSetText with a NaN alpha stores the text and keeps NaN', async () => {
+    const s = await run(`llSetText("f", <1,1,1>, (float)"nan"); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
+    const out = s.global('out') as unknown[]
+    expect(out[0]).toBe('f')
+    expect(out[1]).toEqual({ x: 1, y: 1, z: 1 })
+    expect(out[2]).toBeNaN()
+  })
+
+  // In-world: [PRIM_TEXT, "nanc", <nan,0,0>, 1.0] reads back [nanc, <nan, 0, 0>, 1.0].
+  it('PRIM_TEXT with a NaN colour channel stores the text and keeps NaN', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TEXT, "nanc", <(float)"nan", 0, 0>, 1.0]); out = llGetPrimitiveParams([PRIM_TEXT]);`,
+      'list out;',
+    )
+    const out = s.global('out') as Array<{ x: number; y: number; z: number }>
+    expect(out[0]).toBe('nanc')
+    expect(out[1]!.x).toBeNaN()
+    expect([out[1]!.y, out[1]!.z, out[2]]).toEqual([0, 0, 1])
+  })
+
+  // In-world: llSetObjectDesc("a|b\nc") -> "a?b?c"; llSetObjectName("n|m\nx") -> "n?m?x";
+  // PRIM_DESC "p|q" -> "p?q"; PRIM_NAME "probe k|z" -> "probe k?z".
+  it('names and descriptions turn | and newline into ?', async () => {
+    const s = await run(
+      `llSetObjectDesc("a|b\nc");
+       llSetObjectName("n|m\nx");
+       out = [llGetObjectDesc(), llGetObjectName()];
+       llSetPrimitiveParams([PRIM_DESC, "p|q", PRIM_NAME, "probe k|z"]);
+       out += llGetPrimitiveParams([PRIM_DESC, PRIM_NAME]);`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual(['a?b?c', 'n?m?x', 'p?q', 'probe k?z'])
+  })
+
+  // In-world: gravity 50 and -5 ignored, 28 and 2 accepted; restitution 5 and -1 ignored, 0.3 accepted;
+  // friction 500 and -1 ignored, 99 accepted; density 50000 and -1 ignored, 500 and 900 accepted.
+  // The exact edges (wiki ranges) were not measured.
+  it.each([
+    ['gravity 50', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, 50.0, 0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['gravity -5', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, -5.0, 0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['gravity 28', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, 28.0, 0, 0, 0);', [28, 0.5, Math.fround(0.6), 1000]],
+    ['gravity 2', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, 2.0, 0, 0, 0);', [2, 0.5, Math.fround(0.6), 1000]],
+    ['restitution 5', 'llSetPhysicsMaterial(RESTITUTION, 0, 5.0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['restitution -1', 'llSetPhysicsMaterial(RESTITUTION, 0, -1.0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['restitution 0.3', 'llSetPhysicsMaterial(RESTITUTION, 0, 0.3, 0, 0);', [1, Math.fround(0.3), Math.fround(0.6), 1000]],
+    ['friction 500', 'llSetPhysicsMaterial(FRICTION, 0, 0, 500.0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['friction -1', 'llSetPhysicsMaterial(FRICTION, 0, 0, -1.0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['friction 99', 'llSetPhysicsMaterial(FRICTION, 0, 0, 99.0, 0);', [1, 0.5, 99, 1000]],
+    ['density 50000', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 50000.0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['density -1', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, -1.0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['density 500', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 500.0);', [1, 0.5, Math.fround(0.6), 500]],
+    ['density 900', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 900.0);', [1, 0.5, Math.fround(0.6), 900]],
+  ])('llSetPhysicsMaterial %s', async (_, call, expected) => {
+    const s = await run(`${call} out = llGetPhysicsMaterial();`, 'list out;')
+    expect(s.global('out')).toEqual(expected)
+  })
+
+  it('llSetPhysicsMaterial still applies the in-range fields of a call with an out-of-range one', async () => {
+    const s = await run(
+      `llSetPhysicsMaterial(GRAVITY_MULTIPLIER | RESTITUTION | FRICTION | DENSITY, 50.0, 0.25, 99.0, 900.0);
+       out = llGetPhysicsMaterial();`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual([1, 0.25, 99, 900])
+  })
+
+  // In-world: a new prim's PRIM_ALPHA_MODE per face is [PRIM_ALPHA_MODE_BLEND, 0] and
+  // PRIM_POINT_LIGHT is [FALSE, <0,0,0>, 0.0, 0.0, 0.0].
+  it('a new prim has alpha mode blend and a zeroed point light', async () => {
+    const s = await run(
+      `out = llGetPrimitiveParams([PRIM_ALPHA_MODE, 0, PRIM_ALPHA_MODE, 5, PRIM_POINT_LIGHT]);`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual([1, 0, 1, 0, 0, { x: 0, y: 0, z: 0 }, 0, 0, 0])
+  })
+
+  // In-world: on a 6-face box llGetColor(99) and llGetColor(6) = <1,1,1>, llGetAlpha(99) = 1.0, and
+  // llGetAlpha(-5) is the sum over faces (face 0 at 0.3, the rest 1 -> 5.3).
+  it('colour and alpha past the last face read white and 1.0; a negative alpha face sums', async () => {
+    const s = await run(
+      `llSetAlpha(0.3, 0);
+       out = [llGetColor(99), llGetColor(6), llGetAlpha(99), llGetAlpha(-5)];`,
+      'list out;',
+    )
+    expect(s.global('out')).toEqual([
+      { x: 1, y: 1, z: 1 }, { x: 1, y: 1, z: 1 }, 1, Math.fround(5.3),
+    ])
+  })
+
+  // In-world: PRIM_CLICK_ACTION yields a value only as the last rule.
+  describe('PRIM_CLICK_ACTION in llGetPrimitiveParams', () => {
+    it.each([
+      ['[PRIM_CLICK_ACTION]', [0]],
+      ['[PRIM_CLICK_ACTION, PRIM_NAME]', ['Object']],
+      ['[PRIM_NAME, PRIM_CLICK_ACTION, PRIM_DESC, PRIM_NAME]', ['Object', '', 'Object']],
+      ['[PRIM_CLICK_ACTION, PRIM_CLICK_ACTION]', [0]],
+    ])('%s', async (rules, expected) => {
+      const s = await run(`out = llGetPrimitiveParams(${rules});`, 'list out;')
+      expect(s.global('out')).toEqual(expected)
+    })
+
+    it('llGetLinkPrimitiveParams follows the same rule', async () => {
+      const s = await run(`out = llGetLinkPrimitiveParams(LINK_THIS, [PRIM_CLICK_ACTION, PRIM_NAME]);`, 'list out;')
+      expect(s.global('out')).toEqual(['Object'])
+    })
+
+    it('reads the changed value as the last rule', async () => {
+      const s = await run(`llSetClickAction(CLICK_ACTION_SIT); out = llGetPrimitiveParams([PRIM_CLICK_ACTION]);`, 'list out;')
+      expect(s.global('out')).toEqual([1])
+    })
+  })
+
+  // In-world: PRIM_TYPE with shape kind 99 applies the rules before it, not it or later ones, and says no error.
+  it('PRIM_TYPE with an unknown shape kind says no error', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_DESC, "before", PRIM_TYPE, 99, 0, <0,1,0>, 0.0, ZERO_VECTOR, <1,1,0>, ZERO_VECTOR, PRIM_NAME, "after"]);`,
+    )
+    expect(debugErrors(s)).toEqual([])
+    expect(s.host.description).toBe('before')
+    expect(s.host.name).toBe('Object')
+  })
+
   it('scale factors of a 0.5 m cube are 128 and 0.02', async () => {
     const s = await run(`mx = llGetMaxScaleFactor(); mn = llGetMinScaleFactor();`, 'float mx; float mn;')
     expect(s.global('mx')).toBe(128)
@@ -506,7 +731,7 @@ describe('prim behaviour measured in Second Life', () => {
               llGetTextureRot(6), llGetRenderMaterial(6)];`,
       'list out;',
     )
-    expect(s.global('out')).toEqual([{ x: 0, y: 0, z: 0 }, 0, '', { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 0, ''])
+    expect(s.global('out')).toEqual([{ x: 1, y: 1, z: 1 }, 1, '', { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 0, ''])
   })
 
   it('ALL_SIDES texture and link calls reach the seventh face of a hollow box', async () => {

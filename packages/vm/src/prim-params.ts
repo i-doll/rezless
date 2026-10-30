@@ -1,8 +1,7 @@
 import {
-  ALL_SIDES,
   CLICK_ACTION_TOUCH,
   PRIM_ALPHA_MODE,
-  PRIM_ALPHA_MODE_NONE,
+  PRIM_ALPHA_MODE_BLEND,
   PRIM_ALLOW_UNSIT,
   PRIM_BUMP_NONE,
   PRIM_BUMP_SHINY,
@@ -202,7 +201,7 @@ export function defaultFace(): PrimFace {
     renderMaterial: '',
     normal: defaultFaceMaterial(),
     specular: { ...defaultFaceMaterial(), color: one(), glossiness: 51, environment: 0 },
-    alphaMode: { mode: PRIM_ALPHA_MODE_NONE, cutoff: 0 },
+    alphaMode: { mode: PRIM_ALPHA_MODE_BLEND, cutoff: 0 },
     gltf: {
       baseColor: { ...defaultFaceMaterial(), color: one(), alpha: 1, alphaMode: PRIM_GLTF_ALPHA_MODE_OPAQUE, alphaCutoff: 0.5, doubleSided: 0 },
       normal: defaultFaceMaterial(),
@@ -230,7 +229,7 @@ export function defaultPrimParams(): PrimParams {
     rotation: identityRot(),
     size: { x: 0.5, y: 0.5, z: 0.5 },
     faces: Array.from({ length: 6 }, () => defaultFace()),
-    pointLight: { enabled: false, color: one(), intensity: 1, radius: 10, falloff: 0.75 },
+    pointLight: { enabled: false, color: zero(), intensity: 0, radius: 0, falloff: 0 },
     glow: [0, 0, 0, 0, 0, 0],
     omega: { axis: zero(), spinrate: 0, gain: 0 },
     physicsShapeType: PRIM_PHYSICS_SHAPE_PRIM,
@@ -288,10 +287,10 @@ function normalizeRot(r: Rotation): Rotation {
   return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
 }
 
-/** Face indexes a face argument names: every face for ALL_SIDES, none past the shape's face count. */
+/** Face indexes a face argument names: every face for a negative face, none past the shape's face count. */
 export function faceIndices(p: PrimParams, face: number): number[] {
-  if (face === ALL_SIDES) return p.faces.map((_, i) => i)
-  return face >= 0 && face < p.faces.length ? [face] : []
+  if (face < 0) return p.faces.map((_, i) => i)
+  return face < p.faces.length ? [face] : []
 }
 
 const facesOf = (p: PrimParams, faceArg: LslValue | undefined): number[] => faceIndices(p, num(faceArg, 0) | 0)
@@ -366,16 +365,18 @@ export function writePrimParam(
   const p = prim.params
   switch (param) {
     case PRIM_NAME:
-      prim.name = truncateUtf8(str(rules[cursor]), 63)
+      prim.name = truncateUtf8(plainText(str(rules[cursor])), 63)
       return 1
     case PRIM_DESC:
-      prim.description = truncateUtf8(str(rules[cursor]), 127)
+      prim.description = truncateUtf8(plainText(str(rules[cursor])), 127)
       prim.appearance.description = prim.description
       return 1
     case PRIM_TEXT: {
       const text = truncateUtf8(str(rules[cursor]), 254)
       const color = asVec(rules[cursor + 1])
       const alpha = num(rules[cursor + 2], 1)
+      const outOfRange = (v: number) => v < 0 || v > 1
+      if (outOfRange(alpha) || outOfRange(color.x) || outOfRange(color.y) || outOfRange(color.z)) return 3
       prim.appearance.text = { text, color, alpha }
       return 3
     }
@@ -678,6 +679,9 @@ export function writePrimParam(
   }
 }
 
+/** Names and descriptions can't hold the separator characters; they become `?`. */
+const plainText = (s: string): string => s.replace(/[|\n]/g, '?')
+
 function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number): number | null {
   const kind = (num(rules[cursor]) | 0)
   const old = p.shape
@@ -761,7 +765,7 @@ export function readPrimParam(
       return { values: [prim.description], consumed: 0 }
     case PRIM_TEXT: {
       const t = prim.appearance.text
-      return { values: t ? [t.text, t.color, t.alpha] : ['', zero(), 0], consumed: 0 }
+      return { values: t ? [t.text, t.color, t.alpha] : ['', zero(), 1], consumed: 0 }
     }
     case PRIM_POSITION:
       return { values: [prim.regionPosition()], consumed: 0 }
@@ -1084,7 +1088,8 @@ const GLTF_RULES = new Set([PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL, PRIM_GLTF_ME
 
 export function checkPrimRule(param: number, rules: ReadonlyArray<LslValue>, cursor: number): string | null {
   const name = RULE_NAMES.get(param)
-  if (name === undefined || writePrimParamSlots(param, rules, cursor) === null) return ': unknown rule'
+  if (name === undefined) return ': unknown rule'
+  if (writePrimParamSlots(param, rules, cursor) === null) return param === PRIM_TYPE ? null : ': unknown rule'
   const pattern = param === PRIM_TYPE ? primTypeTypes(rules[cursor]) : PRIM_PARAM_TYPES[param]!
   const expected = PER_FACE_RULES.has(param) ? ['integer' as const, ...pattern] : pattern
   for (let i = 0; i < expected.length; i++) {

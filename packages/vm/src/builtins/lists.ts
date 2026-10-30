@@ -3,6 +3,18 @@ import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { formatFloatExact, formatListElement } from '../values/format.js'
 import { floatToInteger, parseLslInteger } from '../values/coerce.js'
+import {
+  LIST_STAT_GEOMETRIC_MEAN,
+  LIST_STAT_MAX,
+  LIST_STAT_MEAN,
+  LIST_STAT_MEDIAN,
+  LIST_STAT_MIN,
+  LIST_STAT_NUM_COUNT,
+  LIST_STAT_RANGE,
+  LIST_STAT_STD_DEV,
+  LIST_STAT_SUM,
+  LIST_STAT_SUM_SQUARES,
+} from '../generated/constants.js'
 import { concatLists, listElementType, sliceList, typedList, uniformList } from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
@@ -188,16 +200,18 @@ export const llListFindList: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const test = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (test.length === 0) return 0
-  outer: for (let i = 0; i <= src.length - test.length; i++) {
-    for (let j = 0; j < test.length; j++) {
-      const ta = listElementType(src, i + j)
-      const tb = listElementType(test, j)
-      if (ta && tb && ta !== tb) continue outer
-      if (!lslElementsEqual(src[i + j], test[j])) continue outer
-    }
-    return i
-  }
+  for (let i = 0; i <= src.length - test.length; i++) if (matchesAt(src, test, i)) return i
   return -1
+}
+
+function matchesAt(src: ReadonlyArray<LslValue>, test: ReadonlyArray<LslValue>, at: number): boolean {
+  for (let j = 0; j < test.length; j++) {
+    const ta = listElementType(src, at + j)
+    const tb = listElementType(test, j)
+    if (ta && tb && ta !== tb) return false
+    if (!lslElementsEqual(src[at + j], test[j])) return false
+  }
+  return true
 }
 
 function lslElementsEqual(a: LslValue | undefined, b: LslValue | undefined): boolean {
@@ -408,4 +422,101 @@ export const llListRandomize: BuiltinImpl = (ctx, args) => {
     ;[blocks[i], blocks[j]] = [blocks[j]!, blocks[i]!]
   }
   return pick(src, blocks.flatMap((b) => Array.from({ length: stride }, (_, k) => b * stride + k)))
+}
+
+export const llListStatistics: BuiltinImpl = (_ctx, args) => {
+  const op = (args[0] as number | undefined) ?? 0
+  const src = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
+  const nums = src.filter((v): v is number => typeof v === 'number')
+  if (nums.length === 0) return 0
+  const sum = nums.reduce((a, b) => a + b, 0)
+  const mean = sum / nums.length
+  const sorted = [...nums].sort((a, b) => a - b)
+  switch (op) {
+    case LIST_STAT_RANGE:
+      return sorted[sorted.length - 1]! - sorted[0]!
+    case LIST_STAT_MIN:
+      return sorted[0]!
+    case LIST_STAT_MAX:
+      return sorted[sorted.length - 1]!
+    case LIST_STAT_MEAN:
+      return mean
+    case LIST_STAT_MEDIAN: {
+      const mid = sorted.length >> 1
+      return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+    }
+    case LIST_STAT_STD_DEV:
+      if (nums.length < 2) return 0
+      return Math.sqrt(nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (nums.length - 1))
+    case LIST_STAT_SUM:
+      return sum
+    case LIST_STAT_SUM_SQUARES:
+      return nums.reduce((a, b) => a + b * b, 0)
+    case LIST_STAT_NUM_COUNT:
+      return nums.length
+    case LIST_STAT_GEOMETRIC_MEAN:
+      if (nums.some((n) => n <= 0)) return 0
+      return Math.exp(nums.reduce((a, b) => a + Math.log(b), 0) / nums.length)
+    default:
+      return 0
+  }
+}
+
+/**
+ * llListFindListNext(list src, list test, integer instance) — start index of
+ * the instance-th occurrence of `test` (0-based, or counted back from the end
+ * when negative). Each search resumes after the previous match; once a later
+ * search starts past the end of `src` the result is length(src).
+ */
+export const llListFindListNext: BuiltinImpl = (_ctx, args) => {
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const test = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
+  const instance = (args[2] as number | undefined) ?? 0
+  const last = src.length - 1
+  const forward = instance >= 0
+  const rounds = forward ? instance + 1 : -instance
+  let pos = forward ? 0 : last
+  let found = -1
+  for (let round = 0; round < rounds; round++) {
+    if (round > 0 && (forward ? pos >= src.length : pos < 0)) return src.length
+    found = -1
+    if (forward) {
+      for (let i = pos; i <= last - test.length + 1 && i < src.length; i++) {
+        if (matchesAt(src, test, i)) {
+          found = i
+          break
+        }
+      }
+    } else {
+      for (let i = Math.min(pos, last - test.length + 1); i >= 0; i--) {
+        if (matchesAt(src, test, i)) {
+          found = i
+          break
+        }
+      }
+    }
+    if (found < 0) return -1
+    pos = forward ? found + 1 : found - 1
+  }
+  return found
+}
+
+/**
+ * llListFindStrided(list src, list test, integer start, integer end, integer stride)
+ * — first match of `test` beginning at start, start + stride, ... and no
+ * later than end. Negative start or end count from the end; a stride below 1
+ * acts as 1.
+ */
+export const llListFindStrided: BuiltinImpl = (_ctx, args) => {
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const test = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
+  let start = (args[2] as number | undefined) ?? 0
+  let end = (args[3] as number | undefined) ?? -1
+  const stride = Math.max(1, (args[4] as number | undefined) ?? 1)
+  if (start < 0) start += src.length
+  if (end < 0) end += src.length
+  for (let i = Math.max(start, 0); i <= Math.min(end, src.length - test.length); i += stride) {
+    if (matchesAt(src, test, i)) return i
+  }
+  return -1
 }

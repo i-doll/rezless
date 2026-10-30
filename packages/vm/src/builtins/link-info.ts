@@ -23,7 +23,7 @@ export const llGetLinkName: BuiltinImpl = (ctx, args) => {
 }
 
 function findPrim(ctx: Parameters<BuiltinImpl>[0], link: number) {
-  if (link === 0 && ctx.linkset.prims.length === 1) return ctx.linkset.prims[0]
+  if (link === 0) return ctx.prim.linkNumber === 1 ? undefined : ctx.linkset.prims[0]
   if (link === LINK_THIS) return ctx.prim
   return ctx.linkset.prims.find((p) => p.linkNumber === link)
 }

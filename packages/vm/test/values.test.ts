@@ -35,9 +35,33 @@ describe('coerce — string → integer', () => {
 
   it('parses hex with the 0x / 0X prefix', () => {
     expect(coerce(S('0xFF'), 'integer').value).toBe(255)
-    expect(coerce(S('-0x10'), 'integer').value).toBe(-16)
+    // In-world: a sign before hex is not accepted
+    expect(coerce(S('-0x10'), 'integer').value).toBe(0)
+    expect(coerce(S('0x10'), 'integer').value).toBe(16)
+    expect(coerce(S('0X1a'), 'integer').value).toBe(26)
     // Bare prefix with no hex digits → 0.
     expect(coerce(S('0x'), 'integer').value).toBe(0)
+  })
+
+  it('saturates string-to-integer like strtoul into 32 bits', () => {
+    // In-world: magnitudes over 4294967295 saturate; a leading '-' negates mod 2^32
+    expect(coerce(S('99999999999'), 'integer').value).toBe(-1)
+    expect(coerce(S('0x100000000'), 'integer').value).toBe(-1)
+    expect(coerce(S('0xFFFFFFFF'), 'integer').value).toBe(-1)
+    expect(coerce(S('2147483648'), 'integer').value).toBe(-2147483648)
+    expect(coerce(S('-2147483649'), 'integer').value).toBe(2147483647)
+    expect(coerce(S('3000000000'), 'integer').value).toBe(-1294967296)
+    expect(coerce(S('  12abc'), 'integer').value).toBe(12)
+  })
+
+  it('saturates a negative magnitude over 4294967295 to -1', () => {
+    // In-world: (integer)"-4294967296" = -1, (integer)"-3000000000" = 1294967296, (integer)"-0" = 0
+    expect(coerce(S('-4294967296'), 'integer').value).toBe(-1)
+    expect(coerce(S('-99999999999'), 'integer').value).toBe(-1)
+    expect(coerce(S('-4294967295'), 'integer').value).toBe(1)
+    expect(coerce(S('-3000000000'), 'integer').value).toBe(1294967296)
+    expect(coerce(S('-0'), 'integer').value).toBe(0)
+    expect(coerce(S(' -5'), 'integer').value).toBe(-5)
   })
 
   it('truncates floats toward zero; out of range and non-finite give -2147483648', () => {

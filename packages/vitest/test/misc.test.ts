@@ -209,3 +209,28 @@ describe('Phase 3 — object lifecycle and appearance', () => {
     expect(s.global('entries')).toBe(1)
   })
 })
+
+describe('in-world parity — base64', () => {
+  async function evalExpr(type: string, expr: string) {
+    const s = await run(`${type} out; default { state_entry() { out = ${expr}; } }`)
+    return s.global('out')
+  }
+
+  // In-world values for llBase64ToInteger.
+  it.each([
+    ['AAAB', 256],
+    ['AQ', 16777216],
+    ['AAAAAQ==', 1],
+    ['AAAAAQ', 1],
+    ['/////w', -1],
+    ['', 0],
+    ['AAAAAQAAAAI=', 0],
+  ])('llBase64ToInteger(%j) is %d', async (input, want) => {
+    expect(await evalExpr('integer', `llBase64ToInteger("${input}")`)).toBe(want)
+  })
+
+  // In-world: same result as llXorBase64 for this input.
+  it('llXorBase64StringsCorrect', async () => {
+    expect(await evalExpr('string', 'llXorBase64StringsCorrect("AQIDBA==", "Bwc=")')).toBe('BgUEAw==')
+  })
+})

@@ -45,7 +45,7 @@ function entry(
 }
 
 export const llDetectedKey: BuiltinImpl = (ctx, args) => entry(ctx, args)?.key ?? NULL_KEY
-export const llDetectedName: BuiltinImpl = (ctx, args) => entry(ctx, args)?.name ?? ''
+export const llDetectedName: BuiltinImpl = (ctx, args) => entry(ctx, args)?.name ?? NULL_KEY
 export const llDetectedOwner: BuiltinImpl = (ctx, args) =>
   entry(ctx, args)?.owner ?? entry(ctx, args)?.key ?? NULL_KEY
 export const llDetectedGroup: BuiltinImpl = (ctx, args) => entry(ctx, args)?.group ?? NULL_KEY

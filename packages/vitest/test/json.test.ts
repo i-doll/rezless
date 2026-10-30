@@ -104,6 +104,24 @@ describe('llJson2List', () => {
     expect(s.global('out')).toEqual([])
   })
 
+  // In-world: llJson2List("[12345678901]") = [2147483647]
+  it('an integer above int32 clamps to the maximum', async () => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llJson2List("[12345678901]"); } }
+    `)
+    expect(s.global('out')).toEqual([2147483647])
+  })
+
+  // In-world: llJson2List("[-12345678901]") = [-2147483648]
+  it('an integer below int32 clamps to the minimum', async () => {
+    const s = await run(`
+      list out = [];
+      default { state_entry() { out = llJson2List("[-12345678901]"); } }
+    `)
+    expect(s.global('out')).toEqual([-2147483648])
+  })
+
   it('UUID-shaped bare string → 1-element list', async () => {
     const s = await run(`
       list out = [];
@@ -220,12 +238,48 @@ describe('llJsonGetValue', () => {
     expect(s.global('out')).toBe('TRUE')
   })
 
-  it('passing a sentinel as JSON text → JSON_INVALID', async () => {
+  // In-world: llJsonGetValue(JSON_TRUE, []) = JSON_TRUE
+  it('passing a sentinel as JSON text with no specifiers → the sentinel itself', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() { out = llJsonGetValue(JSON_TRUE, []); } }
     `)
+    expect(s.global('out')).toBe(JSON_TRUE)
+  })
+
+  // In-world: llJsonGetValue(JSON_TRUE, [0]) = JSON_INVALID
+  it('passing a sentinel as JSON text with specifiers → JSON_INVALID', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonGetValue(JSON_TRUE, [0]); } }
+    `)
     expect(s.global('out')).toBe(JSON_INVALID)
+  })
+
+  // In-world: an object member with no value, and string or float specifiers on an array.
+  it.each([
+    ['"{\\"a\\":}"', '["a"]', JSON_INVALID],
+    ['"[1,2]"', '["1x"]', '2'],
+    ['"[1,2]"', '[" 1"]', '2'],
+    ['"[1]"', '["5"]', JSON_INVALID],
+    ['"[1,2]"', '["-1"]', JSON_INVALID],
+    ['"[1,2]"', '[1.0]', JSON_INVALID],
+    ['JSON_NULL', '[]', JSON_NULL],
+  ])('llJsonGetValue(%s, %s)', async (json, specs, want) => {
+    const s = await run(`
+      string out = "x";
+      default { state_entry() { out = llJsonGetValue(${json}, ${specs}); } }
+    `)
+    expect(s.global('out')).toBe(want)
+  })
+
+  // In-world: llJsonValueType("[1,2]", ["1"]) = JSON_NUMBER
+  it('a numeric string specifier on an array selects the element', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonValueType("[1,2]", ["1"]); } }
+    `)
+    expect(s.global('out')).toBe(JSON_NUMBER)
   })
 
   it('escape sequences inside JSON strings are unescaped on retrieval', async () => {
@@ -250,14 +304,55 @@ describe('llJsonGetValue', () => {
     expect(s.global('b')).toBe(JSON_NULL)
   })
 
-  it('empty array slot → JSON_NULL', async () => {
+  // In-world: llJsonGetValue("[1,,3]", [1]) = JSON_INVALID
+  it('empty array slot → JSON_INVALID', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() {
-        out = llJsonGetValue("[ , , , , ]", [2]);
+        out = llJsonGetValue("[1,,3]", [1]);
       } }
     `)
-    expect(s.global('out')).toBe(JSON_NULL)
+    expect(s.global('out')).toBe(JSON_INVALID)
+  })
+
+  // In-world: llJsonGetValue("[1]", ["0"]) = "1"
+  it('a string specifier on an array is read as an index', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonGetValue("[1]", ["0"]); } }
+    `)
+    expect(s.global('out')).toBe('1')
+  })
+
+  // In-world: the string "a\"b\n\u00e9" reads back as a"b, a newline, then u00e9
+  it('\\u escapes are not decoded', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonGetValue("\\"a\\\\\\"b\\\\n\\\\u00e9\\"", []);
+      } }
+    `)
+    expect(s.global('out')).toBe('a"b\nu00e9')
+  })
+
+  // In-world: llJsonGetValue(" { \"a\" : [ 1 , 2 ] } ", ["a"]) = "[ 1 , 2 ]"
+  it('compound values keep their original text', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonGetValue(" { \\"a\\" : [ 1 , 2 ] } ", ["a"]);
+      } }
+    `)
+    expect(s.global('out')).toBe('[ 1 , 2 ]')
+  })
+
+  // In-world: llJsonSetValue("{}", ["a"], "[1, 2]") = {"a":[1, 2]}
+  it('a JSON-shaped value is inserted verbatim on set', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonSetValue("{}", ["a"], "[1, 2]"); } }
+    `)
+    expect(s.global('out')).toBe('{"a":[1, 2]}')
   })
 
   it('duplicate keys → returns the last occurrence', async () => {
@@ -438,8 +533,9 @@ describe('llJsonSetValue', () => {
         out = llJsonSetValue(j, [3,"W","X"], "10");
       } }
     `)
+    // In-world: llJsonSetValue("{\"b\":1}", ["a"], "2") = {"a":2,"b":1} (rebuilt objects are byte-sorted)
     expect(s.global('out')).toBe(
-      '[9,"<1,1,1>",false,{"A":8,"Z":9,"W":{"X":10}}]',
+      '[9,"<1,1,1>",false,{"A":8,"W":{"X":10},"Z":9}]',
     )
   })
 
@@ -499,15 +595,44 @@ describe('llJsonSetValue', () => {
     expect(s.global('out')).toBe('{"k":"a \\"b\\" c"}')
   })
 
-  it('object with duplicate keys collapses to last on any set', async () => {
+  it('object with duplicate keys collapses to the last one and sorts', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"b\\":1,\\"a\\":2,\\"b\\":3}", ["a"], "9");
+      } }
+    `)
+    // In-world: llJsonSetValue("{\"b\":1,\"a\":2,\"b\":3}", ["a"], "9") = {"a":9,"b":3}
+    expect(s.global('out')).toBe('{"a":9,"b":3}')
+  })
+
+  it('object with duplicate keys collapses to last when another key is set', async () => {
+    // Unmeasured as a whole: combines the measured last-duplicate-wins and sorted-rebuild rules.
     const s = await run(`
       string out = "";
       default { state_entry() {
         out = llJsonSetValue("{\\"a\\":1,\\"a\\":2,\\"b\\":3,\\"a\\":4}", ["b"], "9");
       } }
     `)
-    // duplicates collapsed; surviving "a":4 in last position; "b":9 in its position
-    expect(s.global('out')).toBe('{"b":9,"a":4}')
+    expect(s.global('out')).toBe('{"a":4,"b":9}')
+  })
+
+  it('returns the input unchanged for a float specifier', async () => {
+    // In-world: llJsonSetValue("[1,2]", [1.0], "x") = [1,2]
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonSetValue("[1,2]", [1.0], "x"); } }
+    `)
+    expect(s.global('out')).toBe('[1,2]')
+  })
+
+  it('keeps the key order of an object given as the new value', async () => {
+    // In-world: llJsonSetValue("{}", ["k"], "{\"b\":1,\"a\":2}") = {"k":{"b":1,"a":2}}
+    const s = await run(`
+      string out = "";
+      default { state_entry() { out = llJsonSetValue("{}", ["k"], "{\\"b\\":1,\\"a\\":2}"); } }
+    `)
+    expect(s.global('out')).toBe('{"k":{"b":1,"a":2}}')
   })
 
   it('three successive sets build a 3-level nested object; gets read each level back', async () => {
@@ -526,6 +651,151 @@ describe('llJsonSetValue', () => {
     expect(s.global('a')).toBe('1')
     expect(s.global('b')).toBe('2')
     expect(s.global('c')).toBe('3')
+  })
+})
+
+describe('llJsonSetValue serialisation', () => {
+  it('keeps a unicode escape in an untouched string value', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"s\\":\\"\\\\u0041\\",\\"n\\":0}", ["n"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":1,"s":"\u0041"}
+    expect(s.global('out')).toBe('{"n":1,"s":"\\u0041"}')
+  })
+
+  it('keeps a unicode escape in an array string', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("[\\"\\\\u00e9x\\",0]", [1], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = ["\u00e9x",1]
+    expect(s.global('out')).toBe('["\\u00e9x",1]')
+  })
+
+  it('keeps escapes including slash in a string', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"s\\":\\"a\\\\nb\\\\\\"c\\\\/d\\\\\\\\e\\",\\"n\\":0}", ["n"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":1,"s":"a\nb\"c\/d\\e"}
+    expect(s.global('out')).toBe('{"n":1,"s":"a\\nb\\"c\\/d\\\\e"}')
+  })
+
+  it('keeps raw number tokens', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"x\\":1.50,\\"y\\":1e3,\\"z\\":-0,\\"w\\":0}", ["w"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"w":1,"x":1.50,"y":1e3,"z":-0}
+    expect(s.global('out')).toBe('{"w":1,"x":1.50,"y":1e3,"z":-0}')
+  })
+
+  it('keeps raw tokens and untouched compounds in a rebuilt array', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("[\\"\\\\u0041\\", 1.50, 1e3, {\\"b\\":1,\\"a\\":2}, -0]", [1], "2");
+      } }
+    `)
+    // In-world: llJsonSetValue result = ["\u0041",2,1e3,{"b":1,"a":2},-0]
+    expect(s.global('out')).toBe('["\\u0041",2,1e3,{"b":1,"a":2},-0]')
+  })
+
+  it('sorts a new key into byte order', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"b\\":1}", ["a"], "2");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"a":2,"b":1}
+    expect(s.global('out')).toBe('{"a":2,"b":1}')
+  })
+
+  it('sorts keys by byte order, not numerically or case-insensitively', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"a\\":1,\\"B\\":2,\\"_\\":3,\\"10\\":4,\\"9\\":5}", ["a"], "0");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"10":4,"9":5,"B":2,"_":3,"a":0}
+    expect(s.global('out')).toBe('{"10":4,"9":5,"B":2,"_":3,"a":0}')
+  })
+
+  it('keeps sorted order after JSON_DELETE', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"c\\":1,\\"b\\":2,\\"a\\":3}", ["b"], JSON_DELETE);
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"a":3,"c":1}
+    expect(s.global('out')).toBe('{"a":3,"c":1}')
+  })
+
+  it('sorts nested rebuilt objects and keeps raw strings', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"o\\":{\\"s\\":\\"\\\\u0041\\"},\\"n\\":0}", ["o","t"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":0,"o":{"s":"\u0041","t":1}}
+    expect(s.global('out')).toBe('{"n":0,"o":{"s":"\\u0041","t":1}}')
+  })
+
+  it('keeps untouched compound values raw', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"z\\":{\\"b\\":1,\\"a\\":2},\\"y\\":0}", ["y"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"y":1,"z":{"b":1,"a":2}}
+    expect(s.global('out')).toBe('{"y":1,"z":{"b":1,"a":2}}')
+  })
+
+  it('keeps untouched array whitespace', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"b\\":[1, 2],\\"a\\":0}", ["a"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"a":1,"b":[1, 2]}
+    expect(s.global('out')).toBe('{"a":1,"b":[1, 2]}')
+  })
+
+  it('keeps untouched objects in a rebuilt array', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("[{\\"b\\":1,\\"a\\":2},0]", [1], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = [{"b":1,"a":2},1]
+    expect(s.global('out')).toBe('[{"b":1,"a":2},1]')
+  })
+
+  it('writes decoded keys back', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"\\\\u0041\\":1,\\"n\\":0}", ["n"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":1,"u0041":1}
+    expect(s.global('out')).toBe('{"n":1,"u0041":1}')
   })
 })
 
@@ -669,4 +939,63 @@ describe('llList2Json', () => {
     `)
     expect(s.global('out')).toBe('{"val":"42"}')
   });
+})
+
+describe('empty and trailing-comma arrays', () => {
+  // In-world: llJsonGetValue("{\"a\":[ ]}", ["a"]) = "[ ]"; llJsonSetValue("{\"b\":[ ],\"a\":0}", ["a"], "1") = {"a":1,"b":[ ]}
+  it('keeps the text of an empty array inside another value', async () => {
+    const s = await run(`
+      string got;
+      string set;
+      default { state_entry() {
+        got = llJsonGetValue("{\\"a\\":[ ]}", ["a"]);
+        set = llJsonSetValue("{\\"b\\":[ ],\\"a\\":0}", ["a"], "1");
+      } }
+    `)
+    expect(s.global('got')).toBe('[ ]')
+    expect(s.global('set')).toBe('{"a":1,"b":[ ]}')
+  })
+
+  // In-world: a trailing comma is an empty last slot: llJson2List("[1,]") = [1, ""],
+  // llJsonGetValue("[1,]", [1]) = JSON_INVALID, llJsonSetValue("[1,]", [0], "2") = "[2,]"
+  it('reads a trailing comma as an empty last slot', async () => {
+    const s = await run(`
+      list items;
+      string slot;
+      string set;
+      default { state_entry() {
+        items = llJson2List("[1,]");
+        slot = llJsonGetValue("[1,]", [1]);
+        set = llJsonSetValue("[1,]", [0], "2");
+      } }
+    `)
+    expect(s.global('items')).toEqual([1, ''])
+    expect(s.global('slot')).toBe(JSON_INVALID)
+    expect(s.global('set')).toBe('[2,]')
+  })
+
+  // In-world: empty slots read as "" strings and stay empty when written back:
+  // llJson2List("[1,,3]") = [1, "", 3], llJson2List("[,1]") = ["", 1], llJson2List("[,]") = ["", ""],
+  // llJson2List("[null]") = [JSON_NULL], llJsonSetValue("[1,,3]", [0], "2") = "[2,,3]"
+  it('reads empty slots as empty strings and writes them back empty', async () => {
+    const s = await run(`
+      list mid;
+      list lead;
+      list only;
+      list nul;
+      string set;
+      default { state_entry() {
+        mid = llJson2List("[1,,3]");
+        lead = llJson2List("[,1]");
+        only = llJson2List("[,]");
+        nul = llJson2List("[null]");
+        set = llJsonSetValue("[1,,3]", [0], "2");
+      } }
+    `)
+    expect(s.global('mid')).toEqual([1, '', 3])
+    expect(s.global('lead')).toEqual(['', 1])
+    expect(s.global('only')).toEqual(['', ''])
+    expect(s.global('nul')).toEqual([JSON_NULL])
+    expect(s.global('set')).toBe('[2,,3]')
+  })
 })

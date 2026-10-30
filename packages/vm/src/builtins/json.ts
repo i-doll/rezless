@@ -3,6 +3,7 @@ import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation } from '../values/types.js'
 import { listElementType, typedList } from '../values/list-types.js'
 import { formatFloatExact, formatRotation, formatVector } from '../values/format.js'
+import { parseLslInteger } from '../values/coerce.js'
 import {
   JSON_INVALID,
   JSON_OBJECT,
@@ -17,16 +18,16 @@ import {
 } from '../generated/constants.js'
 
 // Internal AST. `empty` represents the implicit-null slots LSL JSON allows
-// in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
-// regardless of remaining specifiers.
+// in `{"k":,}` and `[,,]` (`{"k":}` is invalid); on Get/Type these
+// short-circuit to JSON_NULL regardless of remaining specifiers.
 type JNode =
   | { t: 'null' }
   | { t: 'true' }
   | { t: 'false' }
   | { t: 'num'; raw: string }
-  | { t: 'str'; v: string }
-  | { t: 'arr'; items: JNode[] }
-  | { t: 'obj'; entries: Array<[string, JNode]> }
+  | { t: 'str'; v: string; raw?: string }
+  | { t: 'arr'; items: JNode[]; raw?: string }
+  | { t: 'obj'; entries: Array<[string, JNode]>; raw?: string }
   | { t: 'empty' }
 
 const SENTINEL_STRINGS: ReadonlySet<string> = new Set([
@@ -87,12 +88,13 @@ class Parser {
   }
 
   private parseObject(): JNode | null {
+    const start = this.i
     this.i++
     const entries: Array<[string, JNode]> = []
     this.ws()
     if (this.src[this.i] === '}') {
       this.i++
-      return { t: 'obj', entries }
+      return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
     }
     while (true) {
       this.ws()
@@ -105,7 +107,8 @@ class Parser {
       this.ws()
       const nc = this.src[this.i]
       let v: JNode
-      if (nc === ',' || nc === '}') {
+      if (nc === '}') return null
+      if (nc === ',') {
         v = { t: 'empty' }
       } else {
         const parsed = this.parseValue()
@@ -116,14 +119,14 @@ class Parser {
       this.ws()
       if (this.src[this.i] === '}') {
         this.i++
-        return { t: 'obj', entries }
+        return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
       }
       if (this.src[this.i] === ',') {
         this.i++
         this.ws()
         if (this.src[this.i] === '}') {
           this.i++
-          return { t: 'obj', entries }
+          return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
         }
         continue
       }
@@ -132,12 +135,13 @@ class Parser {
   }
 
   private parseArray(): JNode | null {
+    const start = this.i
     this.i++
     const items: JNode[] = []
     this.ws()
     if (this.src[this.i] === ']') {
       this.i++
-      return { t: 'arr', items }
+      return { t: 'arr', items, raw: this.src.slice(start, this.i) }
     }
     while (true) {
       this.ws()
@@ -154,15 +158,10 @@ class Parser {
       this.ws()
       if (this.src[this.i] === ']') {
         this.i++
-        return { t: 'arr', items }
+        return { t: 'arr', items, raw: this.src.slice(start, this.i) }
       }
       if (this.src[this.i] === ',') {
         this.i++
-        this.ws()
-        if (this.src[this.i] === ']') {
-          this.i++
-          return { t: 'arr', items }
-        }
         continue
       }
       return null
@@ -171,13 +170,14 @@ class Parser {
 
   private parseString(): JNode | null {
     if (this.src[this.i] !== '"') return null
+    const start = this.i
     this.i++
     let out = ''
     while (this.i < this.src.length) {
       const c = this.src[this.i]!
       if (c === '"') {
         this.i++
-        return { t: 'str', v: out }
+        return { t: 'str', v: out, raw: this.src.slice(start, this.i) }
       }
       if (c === '\\') {
         this.i++
@@ -192,14 +192,7 @@ class Parser {
         else if (e === 'r') out += '\r'
         else if (e === 'b') out += '\b'
         else if (e === 'f') out += '\f'
-        else if (e === 'u') {
-          const hex = this.src.slice(this.i, this.i + 4)
-          if (hex.length !== 4 || !/^[0-9a-fA-F]+$/.test(hex)) return null
-          this.i += 4
-          out += String.fromCharCode(parseInt(hex, 16))
-        } else {
-          out += e
-        }
+        else out += e
       } else {
         out += c
         this.i++
@@ -269,6 +262,13 @@ function escapeJsonString(s: string): string {
   return out
 }
 
+function sortByKeyBytes(entries: ReadonlyArray<[string, JNode]>): Array<[string, JNode]> {
+  return entries
+    .map((e) => ({ e, key: Buffer.from(e[0], 'utf8') }))
+    .sort((a, b) => Buffer.compare(a.key, b.key))
+    .map(({ e }) => e)
+}
+
 function printJson(n: JNode): string {
   switch (n.t) {
     case 'null':
@@ -280,13 +280,13 @@ function printJson(n: JNode): string {
     case 'num':
       return n.raw
     case 'str':
-      return '"' + escapeJsonString(n.v) + '"'
+      return n.raw ?? '"' + escapeJsonString(n.v) + '"'
     case 'arr':
-      return '[' + n.items.map(printJson).join(',') + ']'
+      return n.raw ?? '[' + n.items.map((i) => (i.t === 'empty' ? '' : printJson(i))).join(',') + ']'
     case 'obj':
-      return (
+      return n.raw ?? (
         '{' +
-        n.entries
+        sortByKeyBytes(n.entries)
           .map(([k, v]) => '"' + escapeJsonString(k) + '":' + printJson(v))
           .join(',') +
         '}'
@@ -303,19 +303,25 @@ type WalkResult =
 
 function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
   let cur: JNode = root
-  for (const spec of specs) {
+  for (const [i, spec] of specs.entries()) {
     if (cur.t === 'empty') return { kind: 'null' }
-    if (typeof spec === 'string') {
+    if (typeof spec === 'string' && cur.t === 'arr') {
+      const item = cur.items[parseLslInteger(spec)]
+      if (item === undefined || item.t === 'empty') return { kind: 'invalid' }
+      cur = item
+    } else if (typeof spec === 'string') {
       if (cur.t !== 'obj') return { kind: 'invalid' }
       let found: JNode | null = null
       for (const [k, v] of cur.entries) if (k === spec) found = v
       if (found === null) return { kind: 'invalid' }
       cur = found
     } else if (typeof spec === 'number') {
-      if (cur.t !== 'arr') return { kind: 'invalid' }
+      if (cur.t !== 'arr' || listElementType(specs, i) === 'float') return { kind: 'invalid' }
       const idx = Math.trunc(spec)
       if (idx < 0 || idx >= cur.items.length) return { kind: 'invalid' }
-      cur = cur.items[idx]!
+      const item = cur.items[idx]!
+      if (item.t === 'empty') return { kind: 'invalid' }
+      cur = item
     } else {
       return { kind: 'invalid' }
     }
@@ -399,8 +405,8 @@ function valueToNode(value: string): JNode | 'delete' {
 function collapseDuplicateKeys(
   entries: ReadonlyArray<readonly [string, JNode]>,
 ): Array<[string, JNode]> {
-  // Wiki: any modification to an object collapses duplicate keys, keeping
-  // only the LAST occurrence (in its position).
+  // Any modification to an object collapses duplicate keys, keeping only the
+  // LAST occurrence; the printed object is then sorted by key.
   const seen = new Set<string>()
   const reversed: Array<[string, JNode]> = []
   for (let i = entries.length - 1; i >= 0; i--) {
@@ -504,11 +510,12 @@ function jsonNodeToLslListItem(n: JNode): LslValue {
     case 'false':
       return JSON_FALSE
     case 'num':
-      return isJsonInteger(n.raw) ? Number(n.raw) | 0 : Number(n.raw)
+      // `+ 0` turns -0 into 0
+      return isJsonInteger(n.raw) ? Math.max(-2147483648, Math.min(2147483647, Number(n.raw))) + 0 : Number(n.raw)
     case 'str':
       return n.v
     case 'empty':
-      return JSON_NULL
+      return ''
   }
 }
 
@@ -548,7 +555,7 @@ export const llJsonGetValue: BuiltinImpl = (_ctx, args) => {
   const json = (args[0] as string | undefined) ?? ''
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (json === '') return JSON_INVALID
-  if (SENTINEL_STRINGS.has(json)) return JSON_INVALID
+  if (SENTINEL_STRINGS.has(json)) return specs.length === 0 ? json : JSON_INVALID
   const root = parseJson(json)
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)
@@ -574,6 +581,7 @@ export const llJsonSetValue: BuiltinImpl = (_ctx, args) => {
   const json = (args[0] as string | undefined) ?? ''
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const value = (args[2] as string | undefined) ?? ''
+  if (specs.some((_, i) => listElementType(specs, i) === 'float')) return json
   const root = json === '' || SENTINEL_STRINGS.has(json) ? null : parseJson(json)
   const valueNode = valueToNode(value)
   const r = setIn(root, specs, valueNode)

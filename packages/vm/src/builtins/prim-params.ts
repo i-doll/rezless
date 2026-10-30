@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslType, LslValue } from '../values/types.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
-import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_LINK_TARGET } from '../generated/constants.js'
+import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET } from '../generated/constants.js'
 import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { typedList } from '../values/list-types.js'
 import { sayError } from './debug.js'
@@ -70,6 +70,10 @@ function walkGet(
       const link = (rules[i + 1] as number) | 0
       cur = linkset.resolveTargets(caller.linkNumber, link)
       i += 2
+      continue
+    }
+    if (rule === PRIM_CLICK_ACTION && i !== rules.length - 1) {
+      i++
       continue
     }
     // For multi-prim get targets, LSL concatenates per-prim results.

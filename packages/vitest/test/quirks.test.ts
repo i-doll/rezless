@@ -302,6 +302,71 @@ describe('SL parity — values and operators', () => {
     expect(g('b')).toBe(10)
   })
 
+  it('prints a float that rounds to zero as 0.000000 unless it is exactly -0.0', async () => {
+    // In-world: (string)(-0.0000004) = 0.000000, (string)((float)"-0") = -0.000000
+    const g = await globals(
+      'string a; string b; string c;',
+      'a = (string)(-0.0000004); b = (string)((float)"-0"); c = (string)(0.0000004);',
+    )
+    expect(g('a')).toBe('0.000000')
+    expect(g('b')).toBe('-0.000000')
+    expect(g('c')).toBe('0.000000')
+  })
+
+  it('prints list floats that round to zero like the (string) cast, except llList2CSV', async () => {
+    // In-world: llList2CSV([-0.0000004]) = -0.000000; llList2String, (string)[x] and llDumpList2String print 0.000000
+    const g = await globals(
+      'string a; string b; string c; string d; string e; string f; string h;',
+      `float x = -0.0000004; float z = (float)"-0";
+       a = llList2String([x], 0); b = (string)[x]; c = llDumpList2String([x], ","); d = llList2CSV([x]);
+       e = llList2String([z], 0); f = llList2String([<x, x, x>], 0); h = llList2Json(JSON_ARRAY, [x]);`,
+    )
+    expect(g('a')).toBe('0.000000')
+    expect(g('b')).toBe('0.000000')
+    expect(g('c')).toBe('0.000000')
+    expect(g('d')).toBe('-0.000000')
+    expect(g('e')).toBe('-0.000000')
+    expect(g('f')).toBe('<0.000000, 0.000000, 0.000000>')
+    expect(g('h')).toBe('[-0.000000]')
+  })
+
+  it('prints list vectors and rotations that round to zero without a minus sign', async () => {
+    // In-world: with v = <-0.0000004,0,0> and q = <-0.0000004,0,0,1>, llList2String([v],0) and (string)[v] =
+    // <0.000000, 0.000000, 0.000000>, llDumpList2String([v, q], ";") =
+    // <0.000000, 0.000000, 0.000000>;<0.000000, 0.000000, 0.000000, 1.000000>,
+    // llList2String([q],0) = <0.000000, 0.000000, 0.000000, 1.000000>
+    const g = await globals(
+      'string a; string b; string c; string d;',
+      `vector v = <-0.0000004, 0, 0>; rotation q = <-0.0000004, 0, 0, 1>;
+       a = llList2String([v], 0); b = (string)[v]; c = llDumpList2String([v, q], ";");
+       d = llList2String([q], 0);`,
+    )
+    expect(g('a')).toBe('<0.000000, 0.000000, 0.000000>')
+    expect(g('b')).toBe('<0.000000, 0.000000, 0.000000>')
+    expect(g('c')).toBe('<0.000000, 0.000000, 0.000000>;<0.000000, 0.000000, 0.000000, 1.000000>')
+    expect(g('d')).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
+  })
+
+  it('prints vectors and rotations that round to zero without a minus sign unless exactly -0.0', async () => {
+    // In-world: (string)<-0.0000004, -0.000004, 0> = <0.00000, 0.00000, 0.00000>,
+    // (string)<-0.0, 0, 0> = <-0.00000, 0.00000, 0.00000>, (string)<-0.0000004, 0, 0, 1> = <0.00000, 0.00000, 0.00000, 1.00000>,
+    // llList2CSV([<-0.0000004, 0, 0>]) = <-0.000000, 0.000000, 0.000000>
+    const g = await globals(
+      'string a; string b; string c; string d;',
+      `a = (string)<-0.0000004, -0.000004, 0>; b = (string)<-0.0, 0, 0>;
+       c = (string)<-0.0000004, 0, 0, 1>; d = llList2CSV([<-0.0000004, 0, 0>]);`,
+    )
+    expect(g('a')).toBe('<0.00000, 0.00000, 0.00000>')
+    expect(g('b')).toBe('<-0.00000, 0.00000, 0.00000>')
+    expect(g('c')).toBe('<0.00000, 0.00000, 0.00000, 1.00000>')
+    expect(g('d')).toBe('<-0.000000, 0.000000, 0.000000>')
+  })
+
+  it('reads a JSON -0 list element as integer 0', async () => {
+    const g = await globals('string a;', 'a = (string)llList2Float(llJson2List("[-0]"), 0);')
+    expect(g('a')).toBe('0.000000')
+  })
+
   it('parses vectors and rotations from strings like SL', async () => {
     const g = await globals(
       'vector a; vector b; vector c; vector d; rotation e; rotation f; rotation h;',

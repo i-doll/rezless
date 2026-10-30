@@ -568,7 +568,72 @@ describe('print', () => {
       }
     `)
     expect(s.global('n')).toBe(1)
-    expect(s.global('r')).toBe(11)
-    expect(s.global('t')).toBe('ab')
+    expect(s.global('r')).toBe(10)
+    expect(s.global('t')).toBe('b')
+  })
+
+  it('yields the zero value of its argument type', async () => {
+    // In-world: (string)(print(3) + 1) = 1; print of integer, float, string and vector yields the zero value.
+    const s = await run(`
+      string r;
+      float f;
+      default { state_entry() { r = (string)(print(3) + 1); f = print(2.5) + 1.5; } }
+    `)
+    expect(s.global('r')).toBe('1')
+    expect(s.global('f')).toBe(1.5)
+  })
+
+  it('halts on entering a handler that uses the value of a key print, before any statement runs', async () => {
+    // In-world: a timer with (key)"x" == print((key)"k") in a branch that never runs said nothing, reported
+    // "Script run-time error" and "System.InvalidProgramException: Invalid IL code in LSL :timer (): IL_...",
+    // and a later touch got no reply.
+    const s = await loadScript({
+      source: `
+        integer r;
+        default {
+          touch_start(integer n) { llSay(0, "touch ok"); }
+          timer() {
+            llSay(0, "before");
+            r = 1;
+            if (r == 2) { llSay(0, (string)((key)"x" == print((key)"k"))); }
+            llSay(0, "after");
+          }
+        }
+      `,
+    })
+    expect(() => s.fire('timer')).toThrow('System.InvalidProgramException')
+    expect(s.running).toBe(false)
+    expect(s.global('r')).toBe(0)
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.chat.map((c) => c.text)).toEqual([
+      'Script run-time error',
+      'System.InvalidProgramException: Invalid IL code in LSL :timer ()',
+    ])
+  })
+
+  it('halts on entering a user function that uses the value of a key print', async () => {
+    // Unmeasured: a user function failing on entry like a handler, and its name in the message.
+    const s = await loadScript({
+      source: `
+        integer r;
+        f() { r = 2; if (r == 3) r = ((key)"x" == print((key)"k")); }
+        default { state_entry() { r = 1; f(); r = 3; } }
+      `,
+    })
+    expect(() => s.start()).toThrow('System.InvalidProgramException')
+    expect(s.running).toBe(false)
+    expect(s.global('r')).toBe(1)
+    expect(s.chat.map((c) => c.text)).toEqual([
+      'Script run-time error',
+      'System.InvalidProgramException: Invalid IL code in LSL :f ()',
+    ])
+  })
+
+  it('still runs a key print used as a statement', async () => {
+    const s = await run(`
+      integer r;
+      default { state_entry() { print((key)"k"); r = 1; } }
+    `)
+    expect(s.global('r')).toBe(1)
   })
 })

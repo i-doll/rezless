@@ -296,16 +296,14 @@ function compilePattern(pattern: string): ((key: string) => boolean) | null {
 
 /**
  * Slice helper matching LSL list-style start/count semantics for ListKeys /
- * FindKeys: negative `start` counts from the end; `count < 1` means "to the
+ * FindKeys: callers clamp a negative `start` to 0; `count < 1` means "to the
  * end".
  */
 function slice<T>(arr: ReadonlyArray<T>, start: number, count: number): T[] {
   if (arr.length === 0) return []
-  let s = start < 0 ? arr.length + start : start
-  if (s < 0) s = 0
-  if (s >= arr.length) return []
-  const end = count < 1 ? arr.length : Math.min(arr.length, s + count)
-  return arr.slice(s, end)
+  if (start >= arr.length) return []
+  const end = count < 1 ? arr.length : Math.min(arr.length, start + count)
+  return arr.slice(start, end)
 }
 
 export const llLinksetDataWrite: BuiltinImpl = (ctx, args) => {
@@ -442,7 +440,7 @@ export const llLinksetDataCountKeys: BuiltinImpl = (ctx) => {
 export const llLinksetDataListKeys: BuiltinImpl = (ctx, args) => {
   const start = (args[0] as number | undefined) ?? 0
   const count = (args[1] as number | undefined) ?? -1
-  return uniformList(slice(sortedKeys(ctx), start, count), 'string')
+  return uniformList(slice(sortedKeys(ctx), Math.max(start, 0), count), 'string')
 }
 
 export const llLinksetDataFindKeys: BuiltinImpl = (ctx, args) => {
@@ -451,7 +449,7 @@ export const llLinksetDataFindKeys: BuiltinImpl = (ctx, args) => {
   const count = (args[2] as number | undefined) ?? -1
   const matches = compilePattern(pattern)
   if (!matches) return []
-  return uniformList(slice(sortedKeys(ctx).filter(matches), start, count), 'string')
+  return uniformList(slice(sortedKeys(ctx).filter(matches), Math.max(start, 0), count), 'string')
 }
 
 export const llLinksetDataCountFound: BuiltinImpl = (ctx, args) => {

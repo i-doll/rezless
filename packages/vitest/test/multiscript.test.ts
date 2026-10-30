@@ -161,20 +161,25 @@ describe('multi-script linkset', () => {
       expect(scripts['b']!.global('myLink')).toBe(2)
     })
 
-    it('llGetLinkKey(0) on a multi-prim linkset returns NULL_KEY', async () => {
+    // In-world: link 0 in a linkset is NULL_KEY from the root and the root prim from a child.
+    it('llGetLinkKey(0) / llGetLinkName(0) in a multi-prim linkset', async () => {
       const probe = `
         string k = "unset";
-        default { state_entry() { k = (string)llGetLinkKey(0); } }
+        string n = "unset";
+        default { state_entry() { k = (string)llGetLinkKey(0); n = llGetLinkName(0); } }
       `
-      const { scripts } = await loadLinkset({
+      const { linkset, scripts } = await loadLinkset({
         prims: [
           { name: 'Root', scripts: [{ source: { source: probe, filename: 'a.lsl' }, name: 'a' }] },
-          { name: 'Child', scripts: [{ source: { source: 'default { state_entry() {} }', filename: 'b.lsl' }, name: 'b' }] },
+          { name: 'Child', scripts: [{ source: { source: probe, filename: 'b.lsl' }, name: 'b' }] },
         ],
       })
       scripts['a']!.start()
       scripts['b']!.start()
       expect(scripts['a']!.global('k')).toBe('00000000-0000-0000-0000-000000000000')
+      expect(scripts['a']!.global('n')).toBe('00000000-0000-0000-0000-000000000000')
+      expect(scripts['b']!.global('k')).toBe(linkset.prims[0]!.key)
+      expect(scripts['b']!.global('n')).toBe('Root')
     })
 
     it('lone prim reports linkNumber 0 and 1 prim', async () => {
@@ -289,6 +294,136 @@ describe('multi-script linkset', () => {
       scripts['p']!.start()
       scripts['p']!.advanceTime(1000)
       expect(scripts['p']!.global('past')).toBe(EOF)
+    })
+
+    // In-world: llGetNotecardLineSync line 0 of the probe notecard is "line0"; past the end is EOF.
+    it('llGetNotecardLineSync returns the line at once, or EOF past the end', async () => {
+      const probe = `
+        string first = "";
+        string past = "";
+        default {
+          state_entry() {
+            first = llGetNotecardLineSync("memo", 0);
+            past = llGetNotecardLineSync("memo", 1);
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: [makeInventoryItem({ name: 'memo', type: InventoryType.NOTECARD, notecardLines: ['line0'] })],
+            scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }],
+          },
+        ],
+      })
+      scripts['p']!.start()
+      expect(scripts['p']!.global('first')).toBe('line0')
+      expect(scripts['p']!.global('past')).toBe(EOF)
+    })
+
+    // In-world: llGetNotecardLineSync("nope5", 0) says "Could not find notecard 'nope5'." and returns NAK.
+    it('llGetNotecardLineSync on a missing notecard says an error and returns NAK', async () => {
+      const probe = `
+        string got = "";
+        default { state_entry() { got = llGetNotecardLineSync("nope5", 0); } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      expect(p.global('got')).toBe('\n\x15\n')
+      expect(p.chat).toEqual([
+        { channel: 2147483647, text: "Could not find notecard 'nope5'.", type: 'say' },
+      ])
+    })
+
+    // In-world: llGetInventoryPermMask("nope3", MASK_OWNER) -> "No item named 'nope3'.";
+    // llGetInventoryAcquireTime("nope4") -> "No item named 'nope4'.".
+    it('llGetInventoryPermMask and llGetInventoryAcquireTime say an error for a missing item', async () => {
+      const probe = `
+        integer m = 9;
+        string t = "x";
+        default {
+          state_entry() {
+            m = llGetInventoryPermMask("nope3", MASK_OWNER);
+            t = llGetInventoryAcquireTime("nope4");
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      expect(p.global('m')).toBe(0)
+      expect(p.global('t')).toBe('')
+      expect(p.chat).toEqual([
+        { channel: 2147483647, text: "No item named 'nope3'.", type: 'say' },
+        { channel: 2147483647, text: "No item named 'nope4'.", type: 'say' },
+      ])
+    })
+
+    // In-world: llSetScriptState("nope6", FALSE) -> "Could not find script 'nope6'.";
+    // llResetOtherScript("nope7") -> "Could not find script 'nope7'" (no full stop).
+    it('llSetScriptState and llResetOtherScript say an error for a missing script', async () => {
+      const probe = `
+        default {
+          state_entry() {
+            llSetScriptState("nope6", FALSE);
+            llResetOtherScript("nope7");
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      expect(p.chat).toEqual([
+        { channel: 2147483647, text: "Could not find script 'nope6'.", type: 'say' },
+        { channel: 2147483647, text: "Could not find script 'nope7'", type: 'say' },
+      ])
+    })
+
+    // In-world: llGetInventoryKey("nope") then llGetInventoryCreator("nope") gave one error.
+    it('llGetInventoryCreator says an error for a missing item; llGetInventoryKey and llGetInventoryType stay silent', async () => {
+      const probe = `
+        key k;
+        key c;
+        integer t;
+        default {
+          state_entry() {
+            k = llGetInventoryKey("nope");
+            c = llGetInventoryCreator("nope");
+            t = llGetInventoryType("nope");
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      expect(p.global('k')).toBe('00000000-0000-0000-0000-000000000000')
+      expect(p.global('c')).toBe('00000000-0000-0000-0000-000000000000')
+      expect(p.global('t')).toBe(-1)
+      expect(p.chat).toEqual([{ channel: 2147483647, text: "No item named 'nope'.", type: 'say' }])
+    })
+
+    // In-world: llGetScriptState("nope") gives "Could not find script 'nope'." and returns 0.
+    it('llGetScriptState on a missing script says an error and returns 0', async () => {
+      const probe = `
+        integer st = 9;
+        default { state_entry() { st = llGetScriptState("nope"); } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+      })
+      const p = scripts['p']!
+      p.start()
+      expect(p.global('st')).toBe(0)
+      expect(p.chat).toEqual([{ channel: 2147483647, text: "Could not find script 'nope'.", type: 'say' }])
     })
 
     // In-world: a missing notecard says an error and fires no dataserver event; the key is still returned.
@@ -644,7 +779,48 @@ describe('multi-script linkset', () => {
       expect(scripts['sibling']!.global('counter')).toBe(0)
     })
 
-    it('llSetScriptState resume realigns timer instead of flooding catch-up events', async () => {
+    // In-world: B's 1 s timer ticked at 1,2,3,4; paused at 4.0, resumed at 9.1 -> a tick at 9.1, then every 1 s.
+    it('llSetScriptState resume fires one catch-up tick at once, then the usual cadence', async () => {
+      const sibling = `
+        integer ticks = 0;
+        float last;
+        default {
+          state_entry() { llSetTimerEvent(1.0); }
+          timer() { ticks = ticks + 1; last = llGetTime(); }
+        }
+      `
+      const driver = `
+        integer on = TRUE;
+        default { touch_start(integer n) { on = !on; llSetScriptState("sibling", on); } }
+      `
+      const { scripts, linkset } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: sibling, filename: 's.lsl' }, name: 'sibling' },
+              { source: { source: driver, filename: 'd.lsl' }, name: 'driver' },
+            ],
+          },
+        ],
+      })
+      scripts['sibling']!.start()
+      scripts['driver']!.start()
+      linkset.advanceTime(4000)
+      expect(scripts['sibling']!.global('ticks')).toBe(4)
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
+      linkset.advanceTime(5100)
+      expect(scripts['sibling']!.global('ticks')).toBe(4)
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
+      expect(scripts['sibling']!.global('ticks')).toBe(5)
+      expect(scripts['sibling']!.global('last')).toBeCloseTo(9.1)
+      linkset.advanceTime(999)
+      expect(scripts['sibling']!.global('ticks')).toBe(5)
+      linkset.advanceTime(1)
+      expect(scripts['sibling']!.global('ticks')).toBe(6)
+      expect(scripts['sibling']!.global('last')).toBeCloseTo(10.1)
+    })
+
+    it('llSetScriptState resume does not flood catch-up ticks after a long pause', async () => {
       const sibling = `
         integer ticks = 0;
         default {
@@ -667,32 +843,116 @@ describe('multi-script linkset', () => {
       scripts['driver']!.start()
       linkset.advanceTime(2500)
       expect(scripts['sibling']!.global('ticks')).toBe(2)
-      // Pause and let a long stretch of virtual time pass — without the
-      // timer realignment, resume would replay one fire per missed interval.
       scripts['sibling']!.running = false
       linkset.advanceTime(100_000)
       scripts['driver']!.fire('touch_start', { num_detected: 1 })
-      // Half an interval after resume → no new fires yet.
-      linkset.advanceTime(500)
-      expect(scripts['sibling']!.global('ticks')).toBe(2)
-      // Past the next interval → exactly one new fire.
-      linkset.advanceTime(700)
       expect(scripts['sibling']!.global('ticks')).toBe(3)
+      linkset.advanceTime(500)
+      expect(scripts['sibling']!.global('ticks')).toBe(3)
+      linkset.advanceTime(700)
+      expect(scripts['sibling']!.global('ticks')).toBe(4)
     })
 
-    it('llResetOtherScript on a paused sibling clears its globals immediately', async () => {
+    it('llSetScriptState resume keeps the timer phase when no tick was missed', async () => {
       const sibling = `
-        integer counter = 0;
+        integer ticks = 0;
         default {
-          touch_start(integer n) { counter = counter + 1; }
+          state_entry() { llSetTimerEvent(1.0); }
+          timer() { ticks = ticks + 1; }
         }
+      `
+      const driver = `
+        integer on = TRUE;
+        default { touch_start(integer n) { on = !on; llSetScriptState("sibling", on); } }
       `
       const { scripts, linkset } = await loadLinkset({
         prims: [
           {
             scripts: [
               { source: { source: sibling, filename: 's.lsl' }, name: 'sibling' },
-              { source: { source: 'default { state_entry() {} }', filename: 'd.lsl' }, name: 'driver' },
+              { source: { source: driver, filename: 'd.lsl' }, name: 'driver' },
+            ],
+          },
+        ],
+      })
+      scripts['sibling']!.start()
+      scripts['driver']!.start()
+      linkset.advanceTime(200)
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
+      linkset.advanceTime(300)
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
+      linkset.advanceTime(499)
+      expect(scripts['sibling']!.global('ticks')).toBe(0)
+      linkset.advanceTime(1)
+      expect(scripts['sibling']!.global('ticks')).toBe(1)
+    })
+
+    // In-world: llResetOtherScript on a paused script is ignored; after resume its globals
+    // are kept and no state_entry runs. Link messages sent while it is paused are never delivered.
+    it('a paused sibling ignores llResetOtherScript and drops link messages', async () => {
+      const sibling = `
+        integer entries;
+        integer messages;
+        integer touches;
+        default {
+          state_entry() { entries++; }
+          link_message(integer s, integer n, string m, key k) { messages++; }
+          touch_start(integer n) { touches++; }
+        }
+      `
+      const driver = `
+        default {
+          touch_start(integer n) {
+            llSetScriptState("sibling", FALSE);
+            llMessageLinked(LINK_THIS, 1, "", "");
+            llMessageLinked(LINK_THIS, 2, "", "");
+            llResetOtherScript("sibling");
+            llSetScriptState("sibling", TRUE);
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: sibling, filename: 's.lsl' }, name: 'sibling' },
+              { source: { source: driver, filename: 'd.lsl' }, name: 'driver' },
+            ],
+          },
+        ],
+      })
+      scripts['sibling']!.start()
+      scripts['driver']!.start()
+      scripts['sibling']!.fire('touch_start', { num_detected: 1 })
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
+      scripts['driver']!.advanceTime(1000)
+      expect(scripts['sibling']!.global('touches')).toBe(1)
+      expect(scripts['sibling']!.global('entries')).toBe(1)
+      expect(scripts['sibling']!.global('messages')).toBe(0)
+    })
+
+    // Unmeasured: a reset requested while the sibling runs still applies if it is paused before the reset runs.
+    it('llResetOtherScript then pausing the sibling still resets it, and it stays paused', async () => {
+      const sibling = `
+        integer counter = 0;
+        default {
+          touch_start(integer n) { counter = counter + 1; }
+        }
+      `
+      const driver = `
+        default {
+          touch_start(integer n) {
+            llResetOtherScript("sibling");
+            llSetScriptState("sibling", FALSE);
+          }
+        }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            scripts: [
+              { source: { source: sibling, filename: 's.lsl' }, name: 'sibling' },
+              { source: { source: driver, filename: 'd.lsl' }, name: 'driver' },
             ],
           },
         ],
@@ -702,13 +962,8 @@ describe('multi-script linkset', () => {
       scripts['sibling']!.fire('touch_start', { num_detected: 1 })
       scripts['sibling']!.fire('touch_start', { num_detected: 1 })
       expect(scripts['sibling']!.global('counter')).toBe(2)
-      // Pause the sibling.
-      scripts['sibling']!.running = false
-      // Schedule a reset; even though the target is paused, it must apply.
-      linkset.clock.schedule(scripts['sibling']!, linkset.clock.now, '__reset', {})
-      linkset.drainQueue()
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
       expect(scripts['sibling']!.global('counter')).toBe(0)
-      // The script stays paused.
       expect(scripts['sibling']!.running).toBe(false)
     })
 
@@ -918,8 +1173,8 @@ describe('event queue cap with a stopped script', () => {
                 source: `
                   integer first; integer second;
                   default {
-                    link_message(integer s, integer n, string m, key k) {
-                      if (n == 1) first++; else second++;
+                    linkset_data(integer a, string n, string v) {
+                      if (v == "1") first++; else second++;
                     }
                   }
                 `,
@@ -933,13 +1188,13 @@ describe('event queue cap with a stopped script', () => {
                     state_entry() {
                       llSetScriptState("reader", FALSE);
                       integer i;
-                      for (i = 0; i < 64; i++) llMessageLinked(LINK_THIS, 1, "", "");
+                      for (i = 0; i < 64; i++) llLinksetDataWrite("a" + (string)i, "1");
                       llSetTimerEvent(1.0);
                     }
                     timer() {
                       llSetTimerEvent(0);
                       integer i;
-                      for (i = 0; i < 64; i++) llMessageLinked(LINK_THIS, 2, "", "");
+                      for (i = 0; i < 64; i++) llLinksetDataWrite("b" + (string)i, "2");
                       llSetScriptState("reader", TRUE);
                     }
                   }

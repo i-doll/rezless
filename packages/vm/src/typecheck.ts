@@ -42,6 +42,16 @@ export function typecheck(
   return new Checker(ast, filename, functions).run()
 }
 
+/** Functions and handlers that use the value of a key print, which Mono can't run. */
+export function invalidPrograms(
+  ast: Ast,
+  functions: Readonly<Record<string, FunctionSignature>> = {},
+): ReadonlySet<Node> {
+  const checker = new Checker(ast, '<inline>', functions)
+  checker.run()
+  return checker.invalid
+}
+
 const CASTS: Record<TypeName, ReadonlyArray<TypeName>> = {
   integer: ['integer', 'float', 'string', 'list'],
   float: ['integer', 'float', 'string', 'list'],
@@ -144,6 +154,9 @@ class Checker {
   private labelScopes: Array<Set<string>> = []
   /** Every label in the current function or handler; Mono rejects duplicates. */
   private labels = new Set<string>()
+  /** The function or handler being checked. */
+  private owner: Node | null = null
+  readonly invalid = new Set<Node>()
 
   constructor(
     private readonly ast: Ast,
@@ -198,6 +211,7 @@ class Checker {
     for (const f of this.ast.functions) {
       this.returnType = f.returnType ?? 'void'
       this.inFunction = true
+      this.owner = f
       this.body(f.params, f.body)
       if (f.returnType && !alwaysReturns(f.body)) {
         this.error(f, `Not all code paths return a value in ${f.name}`)
@@ -221,6 +235,7 @@ class Checker {
           this.error(h, `Event '${h.name}' takes (${want})`)
         }
         this.returnType = 'void'
+        this.owner = h
         this.body(h.params, h.body)
       }
     }
@@ -283,13 +298,19 @@ class Checker {
       case 'BlockStatement':
         return this.block(s, mode)
       case 'VariableDeclaration':
-        if (s.init) this.expectAssignable(s, s.typeName, this.expr(s.init))
+        if (s.init) {
+          const t = this.expr(s.init)
+          if (s.typeName === 'key' && s.init.kind === 'PrintExpression' && t === 'key') {
+            this.error(s, 'Internal server compile error')
+          }
+          this.expectAssignable(s, s.typeName, t)
+        }
         this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, s.typeName)
         return []
       case 'EmptyStatement':
         return []
       case 'ExpressionStatement':
-        this.expr(s.expression)
+        this.expr(s.expression.kind === 'PrintExpression' ? s.expression.argument : s.expression)
         return []
       case 'IfStatement': {
         this.condition(s.test)
@@ -450,8 +471,11 @@ class Checker {
         if (t !== 'unknown' && !isNum(t)) this.mismatch(e, `'${e.operator}' not defined for ${t}`)
         return t
       }
-      case 'PrintExpression':
-        return this.expr(e.argument)
+      case 'PrintExpression': {
+        const t = this.expr(e.argument)
+        if (t === 'key' && this.owner) this.invalid.add(this.owner)
+        return t
+      }
     }
   }
 

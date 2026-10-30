@@ -263,7 +263,7 @@ describe('Phase 3 — string builtins', () => {
     expect(s.global('t')).toBe('  hi')
   })
 
-  it('llUnescapeURL returns "" on malformed percent-escapes', async () => {
+  it('llUnescapeURL turns a truncated UTF-8 sequence into ? and drops the incomplete escape', async () => {
     const s = await run(`
       string out = "no-fallback";
       default {
@@ -272,7 +272,7 @@ describe('Phase 3 — string builtins', () => {
         }
       }
     `)
-    expect(s.global('out')).toBe('')
+    expect(s.global('out')).toBe('??')
   })
 
   it('llInsertString clamps negative and out-of-bounds positions', async () => {
@@ -638,7 +638,7 @@ describe('Phase 3 — list builtins', () => {
           ints = llList2CSV([1, -2, 0]);
           floats = llList2CSV([0.5, -2.25, 3.14159265]);
           whole = llList2CSV([1.0, 0.0, -3.0]);
-          nonfinite = llList2CSV([llSqrt(-1.0), llLog(0.0)]);
+          nonfinite = llList2CSV([llSqrt(-1.0), llPow(10.0, 999.0)]);
           vec = llList2CSV([<1.0, 2.5, -3.0>]);
           rot = llList2CSV([<0.0, 0.0, 0.0, 1.0>]);
           mixed = llList2CSV(["x", 1, 2.5, <1.0, 2.0, 3.0>, <0.0, 0.0, 0.0, 1.0>, (key)"11111111-2222-3333-4444-555555555555"]);
@@ -653,7 +653,7 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('ints')).toBe('1, -2, 0')
     expect(s.global('floats')).toBe('0.500000, -2.250000, 3.141593')
     expect(s.global('whole')).toBe('1.000000, 0.000000, -3.000000')
-    expect(s.global('nonfinite')).toBe('nan, -inf')
+    expect(s.global('nonfinite')).toBe('nan, inf')
     expect(s.global('vec')).toBe('<1.000000, 2.500000, -3.000000>')
     expect(s.global('rot')).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
     expect(s.global('mixed')).toBe('x, 1, 2.500000, <1.000000, 2.000000, 3.000000>, <0.000000, 0.000000, 0.000000, 1.000000>, 11111111-2222-3333-4444-555555555555')
@@ -1043,5 +1043,126 @@ describe('Phase 3 — identity builtins', () => {
       },
     )
     expect(s.global('k')).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
+  })
+})
+
+describe('in-world parity — math, strings, hashes', () => {
+  async function evalExpr(type: string, expr: string) {
+    const s = await run(`${type} out; default { state_entry() { out = ${expr}; } }`)
+    return s.global('out')
+  }
+
+  // In-world: llCeil(1e10), llFloor(-1e10) and llRound(1e10) all gave -2147483648.
+  it.each([
+    ['llCeil(1e10)'],
+    ['llFloor(-1e10)'],
+    ['llRound(1e10)'],
+  ])('%s is -2147483648', async (expr) => {
+    expect(await evalExpr('integer', expr)).toBe(-2147483648)
+  })
+
+  // Unmeasured: infinity and NaN follow the measured out-of-range result.
+  it.each([
+    ['llCeil(llPow(10.0, 999.0))'],
+    ['llFloor(llSqrt(-1.0))'],
+  ])('%s is -2147483648', async (expr) => {
+    expect(await evalExpr('integer', expr)).toBe(-2147483648)
+  })
+
+  // In-world: llLog(0) and llLog(-1) gave 0.0. llLog10(x <= 0) = 0 is from the wiki, not measured.
+  it.each([
+    ['llLog(0.0)', 0],
+    ['llLog(-1.0)', 0],
+    ['llLog10(0.0)', 0],
+    ['llLog10(-5.0)', 0],
+    ['llLog10(100.0)', 2],
+  ])('%s is %d', async (expr, want) => {
+    expect(await evalExpr('float', expr)).toBe(want)
+  })
+
+  // In-world: llToUpper("école straße ß") gave "ÉCOLE STRAßE ß".
+  it('llToUpper leaves characters whose uppercase is longer', async () => {
+    expect(await evalExpr('string', 'llToUpper("école straße ß")')).toBe('ÉCOLE STRAßE ß')
+  })
+
+  // In-world values for llUnescapeURL.
+  it.each([
+    ['a%20b+c%2', 'a b+c'],
+    ['%e9x', '?x'],
+    ['%00x', ''],
+    ['%C3%A9', 'é'],
+    ['100%', '100'],
+    ['%zz%41', ''],
+  ])('llUnescapeURL(%j) is %j', async (input, want) => {
+    expect(await evalExpr('string', `llUnescapeURL("${input}")`)).toBe(want)
+  })
+
+  // Unmeasured: a multi-byte character before an escape.
+  it('llUnescapeURL keeps a non-BMP character before an escape', async () => {
+    expect(await evalExpr('string', 'llUnescapeURL("😀%41")')).toBe('😀A')
+  })
+
+  // In-world values for llModPow; base, exponent and modulus are unsigned 32-bit.
+  it.each([
+    ['llModPow(2, 10, 1000)', 24],
+    ['llModPow(-2, 3, 5)', 4],
+    ['llModPow(2, -1, 5)', 3],
+    ['llModPow(2, 3, 0)', 0],
+    ['llModPow(0, 0, 7)', 0],
+    ['llModPow(2, 0, 7)', 1],
+    ['llModPow(5, 0, 1)', 0],
+    ['llModPow(3, 2, 7)', 2],
+  ])('%s is %d', async (expr, want) => {
+    expect(await evalExpr('integer', expr)).toBe(want)
+  })
+
+  // In-world values for llOrd and llChar.
+  it.each([
+    ['llOrd("é", 0)', 233],
+    ['llOrd("abc", -1)', 99],
+    ['llOrd("abc", 5)', 0],
+    ['llStringLength(llChar(0))', 0],
+  ])('%s is %d', async (expr, want) => {
+    expect(await evalExpr('integer', expr)).toBe(want)
+  })
+
+  it.each([
+    ['llChar(233)', 'é'],
+    ['llChar(-1)', '�'],
+  ])('%s is %j', async (expr, want) => {
+    expect(await evalExpr('string', expr)).toBe(want)
+  })
+
+  // In-world: llHash("hello") = 684824882, llHash("") = 0, llHash("é") = 233, llHash("😀") = 128512,
+  // llHash("aé") = 6363336, llHash("Hello World") = -922159996 (sdbm over code points).
+  it.each([
+    ['llHash("hello")', 684824882],
+    ['llHash("")', 0],
+    ['llHash("é")', 233],
+    ['llHash("😀")', 128512],
+    ['llHash("aé")', 6363336],
+    ['llHash("Hello World")', -922159996],
+  ])('%s is %d', async (expr, want) => {
+    expect(await evalExpr('integer', expr)).toBe(want)
+  })
+
+  // In-world values for llComputeHash (lowercase hex).
+  it.each([
+    ['sha256', '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'],
+    ['md5', '5d41402abc4b2a76b9719d911017c592'],
+  ])('llComputeHash("hello", %s)', async (algo, want) => {
+    expect(await evalExpr('string', `llComputeHash("hello", "${algo}")`)).toBe(want)
+  })
+
+  // In-world: llComputeHash("hello", "md5_sha1") is the md5 hex followed by the sha1 hex; llHMAC with it is "".
+  it('llComputeHash md5_sha1 concatenates the md5 and sha1 digests', async () => {
+    expect(await evalExpr('string', 'llComputeHash("hello", "md5_sha1")')).toBe(
+      '5d41402abc4b2a76b9719d911017c592aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d',
+    )
+    expect(await evalExpr('string', 'llHMAC("k", "hello", "md5_sha1")')).toBe('')
+  })
+
+  it('llComputeHash returns "" for an unknown algorithm', async () => {
+    expect(await evalExpr('string', 'llComputeHash("hello", "nope")')).toBe('')
   })
 })
