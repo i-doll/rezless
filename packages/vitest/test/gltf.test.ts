@@ -390,14 +390,53 @@ describe('texture names (probe p6)', () => {
     ])
   })
 
-  it('llSetTexture resolves a texture in the prim inventory to its key', async () => {
+  it('keeps the name of a texture in the prim inventory as given', async () => {
     const s = await loadScript({
-      source: `string t; default { state_entry() { llSetTexture("wood", 0); t = llGetTexture(0); } }`,
+      source: `string t; string n; string x; default { state_entry() {
+        llSetTexture("Wood_BaseColor", 2); t = llGetTexture(2);
+        llSetPrimitiveParams([PRIM_TEXTURE, 3, "Wood_BaseColor", <1,1,0>, ZERO_VECTOR, 0.0]); x = llGetTexture(3);
+        llSetPrimitiveParams([PRIM_NORMAL, 4, "Wood_BaseColor", <1,1,0>, ZERO_VECTOR, 0.0]); n = llList2String(llGetPrimitiveParams([PRIM_NORMAL, 4]), 0);
+      } }`,
     })
-    s.host.addInventory(makeInventoryItem({ name: 'wood', type: InventoryType.TEXTURE, key: BLANK }))
+    s.host.addInventory(makeInventoryItem({ name: 'Wood_BaseColor', type: InventoryType.TEXTURE, key: BLANK }))
     s.start()
-    expect(s.global('t')).toBe(BLANK)
+    // In-world: st_inv, pp_inv, nm_inv in p8.full.iw
+    expect([s.global('t'), s.global('x'), s.global('n')]).toEqual(['Wood_BaseColor', 'Wood_BaseColor', 'Wood_BaseColor'])
     expect(s.chat).toEqual([])
+  })
+
+  it('keeps the name of an inventory texture in a glTF texture slot', async () => {
+    const s = await loadScript({
+      source: `string t; default { state_entry() {
+        llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_RENDER_MATERIAL, 0, "${MAT}"]);
+        llSetPrimitiveParams([PRIM_GLTF_NORMAL, 0, "Wood_BaseColor", "", "", ""]);
+        t = llList2String(llGetPrimitiveParams([PRIM_GLTF_NORMAL, 0]), 0);
+      } }`,
+    })
+    s.host.addInventory(makeInventoryItem({ name: 'Wood_BaseColor', type: InventoryType.TEXTURE, key: BLANK }))
+    s.start()
+    // Not measured in-world: the glTF slots follow the measured PRIM_NORMAL rule (p8 nm_inv).
+    expect(s.global('t')).toBe('Wood_BaseColor')
+  })
+
+  it('llSetLinkTexture reports a name that is not a texture and leaves the face alone', async () => {
+    const { lines, errors } = await probe(`
+      llSetLinkTexture(LINK_THIS, "nope", 0); out("a", llGetTexture(0));
+      llSetLinkTexture(LINK_THIS, "", 1); out("b", llGetTexture(1));
+      llSetLinkTexture(LINK_THIS, TEXTURE_BLANK, 2); out("c", llGetTexture(2));
+    `)
+    // In-world: lt_badname, lt_empty in p8.full.iw
+    expect(lines).toEqual([`a=[${DEFAULT_TEX}]`, `b=[${DEFAULT_TEX}]`, `c=[${BLANK}]`])
+    expect(errors).toEqual(["Could not find texture 'nope'.", "Could not find texture ''."])
+  })
+
+  it('llSetLinkPrimitiveParamsFast PRIM_TEXTURE stores NULL_KEY for an unknown name silently', async () => {
+    const { lines, errors } = await probe(`
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_TEXTURE, 5, "nope5", <1,1,0>, ZERO_VECTOR, 0.0]); out("a", D(llGetPrimitiveParams([PRIM_TEXTURE, 5])));
+    `)
+    // In-world: slpp_badname in p8.full.iw
+    expect(lines).toEqual([`a=[{${NULL}}3${TX}]`])
+    expect(errors).toEqual([])
   })
 
   it('PRIM_TEXTURE stores NULL_KEY for an unknown name without an error and runs later rules', async () => {

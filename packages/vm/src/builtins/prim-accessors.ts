@@ -232,10 +232,15 @@ export const llSetLinkAlpha: BuiltinImpl = (ctx, args) => {
 }
 export const llSetLinkTexture: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
-  const tex = str(args[1])
+  const name = str(args[1])
   const face = num(args[2], ALL_SIDES) | 0
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
-    for (const f of faceIndices(p.params, face)) p.params.faces[f]!.texture = tex
+    const key = textureKey(p, name)
+    if (key === null || key === NULL_KEY) {
+      sayError(ctx, `Could not find texture '${name}'.`)
+      continue
+    }
+    for (const f of faceIndices(p.params, face)) p.params.faces[f]!.texture = key
   }
   return undefined
 }

@@ -230,18 +230,19 @@ function clearGltfOverrides(g: PrimFace['gltf']): void {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const findItem = (prim: Prim, type: number, name: string) =>
+  prim.inventory.find((it) => it.type === type && it.name === name)
+
 /** The key a render material argument names: "" (none), a key, or a material item's name; null if it names nothing. */
 export function renderMaterialKey(prim: Prim, material: string): string | null {
   if (material === '') return NULL_KEY
   if (UUID.test(material)) return material
-  return prim.inventory.find((it) => it.type === InventoryType.MATERIAL && it.name === material)?.key ?? null
+  return findItem(prim, InventoryType.MATERIAL, material)?.key ?? null
 }
 
-/** The key a texture argument names: "" (none), a key, or a texture item's name; null if it names nothing. */
 export function textureKey(prim: Prim, texture: string): string | null {
   if (texture === '') return NULL_KEY
-  if (UUID.test(texture)) return texture
-  return prim.inventory.find((it) => it.type === InventoryType.TEXTURE && it.name === texture)?.key ?? null
+  return UUID.test(texture) || findItem(prim, InventoryType.TEXTURE, texture) ? texture : null
 }
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
