@@ -1,7 +1,8 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { faceIndices, numberOfSides } from '../prim-params.js'
+import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName } from '../prim-params.js'
+import { sayError } from './debug.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
 import type { Linkset } from '../linkset.js'
@@ -151,16 +152,20 @@ export const llGetAlpha: BuiltinImpl = (ctx, args) => {
 }
 
 export const llSetTexture: BuiltinImpl = (ctx, args) => {
-  const tex = str(args[0])
+  const name = str(args[0])
   const face = num(args[1], ALL_SIDES) | 0
-  const list = faceIndices(ctx.prim.params, face)
-  for (const f of list) ctx.prim.params.faces[f]!.texture = tex
+  const key = textureKey(ctx.prim, name)
+  if (key === null || key === NULL_KEY) {
+    sayError(ctx, `Could not find texture '${name}'.`)
+    return undefined
+  }
+  for (const f of faceIndices(ctx.prim.params, face)) ctx.prim.params.faces[f]!.texture = key
   return undefined
 }
 export const llGetTexture: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
-  if (!hasFace(ctx.prim, face)) return ''
-  return ctx.prim.params.faces[face]!.texture
+  const face = Math.max(0, num(args[0], 0) | 0)
+  if (!hasFace(ctx.prim, face)) return NULL_KEY
+  return textureName(ctx.prim, ctx.prim.params.faces[face]!.texture)
 }
 export const llGetTextureOffset: BuiltinImpl = (ctx, args) => {
   const face = num(args[0], 0) | 0
@@ -227,10 +232,15 @@ export const llSetLinkAlpha: BuiltinImpl = (ctx, args) => {
 }
 export const llSetLinkTexture: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
-  const tex = str(args[1])
+  const name = str(args[1])
   const face = num(args[2], ALL_SIDES) | 0
+  const key = textureKey(ctx.prim, name)
+  if (key === null || key === NULL_KEY) {
+    sayError(ctx, `Could not find texture '${name}'.`)
+    return undefined
+  }
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
-    for (const f of faceIndices(p.params, face)) p.params.faces[f]!.texture = tex
+    for (const f of faceIndices(p.params, face)) p.params.faces[f]!.texture = key
   }
   return undefined
 }
@@ -271,16 +281,31 @@ export const llSetLinkTextureAnim: BuiltinImpl = (ctx, args) => {
 export const llSetLinkTextureAnimOverrideMe: BuiltinImpl = (ctx, args) =>
   llSetLinkTextureAnim(ctx, args)
 
+export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
+  const link = num(args[0]) | 0
+  const face = num(args[1]) | 0
+  const params = args[2] as ReadonlyArray<LslValue>
+  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
+    for (const f of faceIndices(p.params, face)) {
+      const fa = p.params.faces[f]!
+      if (fa.renderMaterial !== NULL_KEY) setGltfOverrides(fa.gltf, params)
+    }
+  }
+  return undefined
+}
+
 export const llSetRenderMaterial: BuiltinImpl = (ctx, args) => {
   const material = str(args[0])
   const face = num(args[1], ALL_SIDES) | 0
-  ctx.prim.setPrimParam(PRIM_RENDER_MATERIAL, [face, material], 0)
+  const key = renderMaterialKey(ctx.prim, material)
+  if (key === null) sayError(ctx, `Could not find render material '${material}'.`)
+  ctx.prim.setPrimParam(PRIM_RENDER_MATERIAL, [face, key ?? NULL_KEY], 0)
   return undefined
 }
 export const llGetRenderMaterial: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
-  if (!hasFace(ctx.prim, face)) return ''
-  return ctx.prim.params.faces[face]!.renderMaterial
+  const face = Math.max(0, num(args[0], 0) | 0)
+  if (!hasFace(ctx.prim, face)) return NULL_KEY
+  return materialName(ctx.prim, ctx.prim.params.faces[face]!.renderMaterial)
 }
 
 /* ------------------------------------------------------------------ */

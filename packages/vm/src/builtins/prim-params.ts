@@ -36,7 +36,7 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
     }
     let consumed: number | null = null
     for (const p of cur) {
-      const c = p.setPrimParam(rule, rules, i + 1)
+      const c = p.setPrimParam(rule, rules, i + 1, caller)
       if (c === null) return
       consumed = c
     }

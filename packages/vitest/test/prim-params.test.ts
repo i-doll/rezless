@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript, loadLinkset, PRIM_SIZE, PRIM_TEXT, ZERO_ROTATION } from '../src/index.js'
+import { loadScript, loadLinkset, NULL_KEY, PRIM_SIZE, PRIM_TEXT, ZERO_ROTATION } from '../src/index.js'
 
 describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
   it('llSetPrimitiveParams + llGetPrimitiveParams round-trip a single prim', async () => {
@@ -731,7 +731,8 @@ describe('prim behaviour measured in Second Life', () => {
               llGetTextureRot(6), llGetRenderMaterial(6)];`,
       'list out;',
     )
-    expect(s.global('out')).toEqual([{ x: 1, y: 1, z: 1 }, 1, '', { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 0, ''])
+    // In-world: llGetRenderMaterial and llGetTexture past the face count return NULL_KEY (probes p4 allsides_rm, p6 gettex_bad).
+    expect(s.global('out')).toEqual([{ x: 1, y: 1, z: 1 }, 1, NULL_KEY, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 0, NULL_KEY])
   })
 
   it('ALL_SIDES texture and link calls reach the seventh face of a hollow box', async () => {
@@ -743,7 +744,7 @@ describe('prim behaviour measured in Second Life', () => {
        llRotateTexture(1, ALL_SIDES);
        llSetLinkColor(LINK_THIS, <0,1,0>, ALL_SIDES);
        llSetLinkAlpha(LINK_THIS, 0.5, ALL_SIDES);
-       llSetRenderMaterial("mat", ALL_SIDES);
+       llSetRenderMaterial("f35823e6-40dc-d992-f4cc-85a4cb5464c0", ALL_SIDES);
        out = [llGetTexture(6), llGetTextureScale(6), llGetTextureOffset(6), llGetTextureRot(6),
               llGetColor(6), llGetAlpha(6), llGetRenderMaterial(6)];
        llSetLinkTexture(LINK_THIS, TEXTURE_DEFAULT, 6);
@@ -752,7 +753,7 @@ describe('prim behaviour measured in Second Life', () => {
     )
     expect(s.global('out')).toEqual([
       '5748decc-f629-461c-9a36-a35a221fe21f', { x: 2, y: 3, z: 0 }, { x: 0.25, y: 0.5, z: 0 }, 1,
-      { x: 0, y: 1, z: 0 }, 0.5, 'mat',
+      { x: 0, y: 1, z: 0 }, 0.5, 'f35823e6-40dc-d992-f4cc-85a4cb5464c0',
     ])
     expect(s.global('linked')).toBe('89556747-24cb-43ed-920b-47caed15465f')
   })
