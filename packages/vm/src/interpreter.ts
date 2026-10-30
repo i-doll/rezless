@@ -33,6 +33,15 @@ import { Env } from './env.js'
 import { own } from './own.js'
 import { StackHeapCollision, frameBytes } from './memory.js'
 
+/** Mono rejects the compiled script when a key print's value is used. */
+class InvalidProgram extends StackHeapCollision {
+  constructor() {
+    super()
+    this.message = 'System.InvalidProgramException'
+    this.name = 'InvalidProgram'
+  }
+}
+
 /**
  * Tree-walking interpreter for the language subset shipped in Phase 2.
  * Supports: variables (locals + globals), all binary/unary/assignment/cast/
@@ -202,7 +211,11 @@ function execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): void
       execVariableDeclaration(ctx, env, stmt)
       return
     case 'ExpressionStatement':
-      evalExpression(ctx, env, stmt.expression)
+      evalExpression(
+        ctx,
+        env,
+        stmt.expression.kind === 'PrintExpression' ? stmt.expression.argument : stmt.expression,
+      )
       return
     case 'IfStatement':
       execIf(ctx, env, stmt)
@@ -324,7 +337,11 @@ function evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): Ev
     case 'UpdateExpression':
       return evalUpdate(ctx, env, expr)
     case 'PrintExpression':
-      return defaultEvalFor(evalExpression(ctx, env, expr.argument).type)
+    {
+      const printed = evalExpression(ctx, env, expr.argument)
+      if (printed.type === 'key') throw new InvalidProgram()
+      return defaultEvalFor(printed.type)
+    }
   }
 }
 

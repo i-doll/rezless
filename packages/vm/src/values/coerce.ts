@@ -1,6 +1,6 @@
 import type { EvalResult, LslType, LslValue } from './types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32, toFloat32 } from './types.js'
-import { formatFloat6, formatList, formatVector, formatRotation } from './format.js'
+import { formatFloatZeroRule, formatList, formatVector, formatRotation } from './format.js'
 import { typedList } from './list-types.js'
 
 /**
@@ -69,7 +69,7 @@ export function stringify(r: EvalResult): string {
     case 'integer':
       return String(toInt32(v as number))
     case 'float':
-      return formatFloat6(v as number)
+      return formatFloatZeroRule(v as number)
     case 'string':
       return v as string
     case 'key':
@@ -129,7 +129,7 @@ export function parseLslInteger(s: string): number {
 
 /** C `strtoul` into 32 bits: saturate at 0xFFFFFFFF, negate mod 2^32 for '-'. */
 function saturate(magnitude: number, sign: number): number {
-  return toInt32(sign * Math.min(magnitude, 0xffffffff))
+  return magnitude > 0xffffffff ? -1 : toInt32(sign * magnitude)
 }
 
 /** LSL `(float)str`: leading whitespace, then a C `strtod` number; 0 if none. */

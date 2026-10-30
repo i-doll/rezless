@@ -54,6 +54,16 @@ describe('coerce — string → integer', () => {
     expect(coerce(S('  12abc'), 'integer').value).toBe(12)
   })
 
+  it('saturates a negative magnitude over 4294967295 to -1', () => {
+    // In-world: (integer)"-4294967296" = -1, (integer)"-3000000000" = 1294967296, (integer)"-0" = 0
+    expect(coerce(S('-4294967296'), 'integer').value).toBe(-1)
+    expect(coerce(S('-99999999999'), 'integer').value).toBe(-1)
+    expect(coerce(S('-4294967295'), 'integer').value).toBe(1)
+    expect(coerce(S('-3000000000'), 'integer').value).toBe(1294967296)
+    expect(coerce(S('-0'), 'integer').value).toBe(0)
+    expect(coerce(S(' -5'), 'integer').value).toBe(-5)
+  })
+
   it('truncates floats toward zero; out of range and non-finite give -2147483648', () => {
     expect(coerce(F(3.9), 'integer').value).toBe(3)
     expect(coerce(F(-3.9), 'integer').value).toBe(-3)

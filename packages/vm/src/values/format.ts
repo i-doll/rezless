@@ -33,17 +33,17 @@ export function formatFloatExact(n: number, decimals = 6): string {
 
 type FloatFormat = (n: number, decimals: number) => string
 
-/** A scalar float at 6 decimals: only an exact -0.0 keeps its sign when it prints as zero. */
-export function formatFloat6(n: number, fmt: FloatFormat = formatFloat): string {
-  const s = fmt(n, 6)
-  return s === '-0.000000' && !Object.is(n, -0) ? '0.000000' : s
+/** A float that prints as zero keeps its minus sign only if it is exactly -0.0. */
+export function formatFloatZeroRule(n: number, decimals = 6): string {
+  const s = formatFloat(n, decimals)
+  return s.startsWith('-0.') && Number(s) === 0 && !Object.is(n, -0) ? s.slice(1) : s
 }
 
-export function formatVector(v: Vector, decimals = 5, fmt: FloatFormat = formatFloat): string {
+export function formatVector(v: Vector, decimals = 5, fmt: FloatFormat = formatFloatZeroRule): string {
   return `<${fmt(v.x, decimals)}, ${fmt(v.y, decimals)}, ${fmt(v.z, decimals)}>`
 }
 
-export function formatRotation(r: Rotation, decimals = 5, fmt: FloatFormat = formatFloat): string {
+export function formatRotation(r: Rotation, decimals = 5, fmt: FloatFormat = formatFloatZeroRule): string {
   return `<${fmt(r.x, decimals)}, ${fmt(r.y, decimals)}, ${fmt(r.z, decimals)}, ${fmt(r.s, decimals)}>`
 }
 
@@ -53,13 +53,13 @@ export function formatRotation(r: Rotation, decimals = 5, fmt: FloatFormat = for
  * rotations get 6 decimals. Without a recorded type, a whole number reads as
  * an integer.
  */
-export function formatListElement(v: LslValue, type?: LslType, fmt: FloatFormat = formatFloat): string {
+export function formatListElement(v: LslValue, type?: LslType, fmt?: FloatFormat): string {
   if (typeof v === 'number') {
-    return type !== 'float' && Number.isInteger(v) ? String(v | 0) : formatFloat6(v, fmt)
+    return type !== 'float' && Number.isInteger(v) ? String(v | 0) : (fmt ?? formatFloatZeroRule)(v, 6)
   }
   if (typeof v === 'string') return v
-  if (isVector(v)) return formatVector(v, 6, fmt)
-  if (isRotation(v)) return formatRotation(v, 6, fmt)
+  if (isVector(v)) return formatVector(v, 6, fmt ?? formatFloat)
+  if (isRotation(v)) return formatRotation(v, 6, fmt ?? formatFloat)
   if (Array.isArray(v)) return formatList(v)
   return String(v)
 }

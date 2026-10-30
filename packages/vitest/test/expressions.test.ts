@@ -573,7 +573,7 @@ describe('print', () => {
   })
 
   it('yields the zero value of its argument type', async () => {
-    // In-world: (string)(print(3) + 1) = 1. Only the integer case was measured.
+    // In-world: (string)(print(3) + 1) = 1; print of integer, float, string and vector yields the zero value.
     const s = await run(`
       string r;
       float f;
@@ -581,5 +581,27 @@ describe('print', () => {
     `)
     expect(s.global('r')).toBe('1')
     expect(s.global('f')).toBe(1.5)
+  })
+
+  it('halts the script when the value of a key print is used', async () => {
+    // In-world: (key)"x" == print((key)"k") is a run-time error (System.InvalidProgramException)
+    const s = await loadScript({
+      source: `
+        integer r;
+        default { state_entry() { r = 1; r = ((key)"x" == print((key)"k")); r = 2; } }
+      `,
+    })
+    expect(() => s.start()).toThrow('System.InvalidProgramException')
+    expect(s.running).toBe(false)
+    expect(s.global('r')).toBe(1)
+    expect(s.chat.map((c) => c.text)).toEqual(['Script run-time error', 'System.InvalidProgramException'])
+  })
+
+  it('still runs a key print used as a statement', async () => {
+    const s = await run(`
+      integer r;
+      default { state_entry() { print((key)"k"); r = 1; } }
+    `)
+    expect(s.global('r')).toBe(1)
   })
 })
