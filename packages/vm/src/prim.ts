@@ -110,8 +110,9 @@ export class Prim {
     param: number,
     rules: ReadonlyArray<LslValue>,
     cursor: number,
+    caller: Prim = this,
   ): number | null {
-    return writePrimParam(this, param, rules, cursor)
+    return writePrimParam(this, param, rules, cursor, caller)
   }
 
   /**

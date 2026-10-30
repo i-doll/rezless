@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript, makeInventoryItem, InventoryType, DEBUG_CHANNEL } from '../src/index.js'
+import { loadScript, loadLinkset, makeInventoryItem, InventoryType, DEBUG_CHANNEL } from '../src/index.js'
 
 const MAT = 'f35823e6-40dc-d992-f4cc-85a4cb5464c0'
 
@@ -466,9 +466,9 @@ describe('texture names (probe p6)', () => {
   })
 
   it('llGetTexture past the face count is NULL_KEY and -1 is face 0', async () => {
-    const { lines } = await probe(`out("a", llGetTexture(99) + "|" + llGetTexture(-1));`)
+    const { lines } = await probe(`llSetTexture(TEXTURE_BLANK, 0); out("a", llGetTexture(99) + "|" + llGetTexture(-1));`)
     // In-world: gettex_bad in p6.full.iw
-    expect(lines).toEqual([`a=[${NULL}|${DEFAULT_TEX}]`])
+    expect(lines).toEqual([`a=[${NULL}|${BLANK}]`])
   })
 
   it('PRIM_NORMAL and PRIM_SPECULAR store NULL_KEY for an unknown name', async () => {
@@ -582,5 +582,67 @@ describe('glTF value ranges (probe p6)', () => {
     expect(lines).toEqual([
       `o=[${head}{<1.000000, 0.000000, 0.500000>}5{1.000000}2{1}1{1.000000}2{1}1#${head}{0.000000}2{0.000000}2#${head}{<1.000000, 0.000000, 0.500000>}5]`,
     ])
+  })
+})
+
+describe('texture names across a linkset (probe p9)', () => {
+  const WOOD = '85f3d0a5-add0-16f7-ae8b-349a9bd84186'
+  const wood = () => makeInventoryItem({ name: 'Wood_BaseColor', type: InventoryType.TEXTURE, key: WOOD })
+
+  async function threePrims(body: string) {
+    const { scripts } = await loadLinkset({
+      prims: [
+        {
+          name: 'root',
+          inventory: [wood()],
+          scripts: [{
+            source: { source: `list r; default { state_entry() { ${body} } }`, filename: 'root.lsl' },
+            name: 'root',
+          }],
+        },
+        { name: 'child' },
+        { name: 'holder', inventory: [wood()] },
+      ],
+    })
+    scripts['root']!.start()
+    return scripts['root']!
+  }
+
+  it('resolves a name in the calling prim and stores the key on a child without the item', async () => {
+    const script = await threePrims(`
+      llSetLinkTexture(2, "Wood_BaseColor", 0);
+      llSetLinkPrimitiveParamsFast(2, [PRIM_TEXTURE, 1, "Wood_BaseColor", <1,1,0>, ZERO_VECTOR, 0.0]);
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_LINK_TARGET, 2, PRIM_NORMAL, 2, "Wood_BaseColor", <1,1,0>, ZERO_VECTOR, 0.0]);
+      llSetLinkTexture(LINK_SET, "nope", 3);
+      llSetLinkTexture(LINK_ALL_CHILDREN, "Wood_BaseColor", 4);
+      llSetLinkTexture(LINK_SET, "Wood_BaseColor", 5);
+      r = [llList2String(llGetLinkPrimitiveParams(2, [PRIM_TEXTURE, 0]), 0),
+           llList2String(llGetLinkPrimitiveParams(2, [PRIM_TEXTURE, 1]), 0),
+           llList2String(llGetLinkPrimitiveParams(2, [PRIM_NORMAL, 2]), 0),
+           llList2String(llGetLinkPrimitiveParams(2, [PRIM_TEXTURE, 4]), 0),
+           llGetTexture(5)];
+    `)
+    // In-world: lt_child, slpp_child, lt_normal_child, lac_child, lset_root in p9.full.iw
+    expect(script.global('r')).toEqual([WOOD, WOOD, WOOD, WOOD, 'Wood_BaseColor'])
+    // In-world: one error for LINK_SET, not one per prim
+    expect(script.chat.map((c) => c.text)).toEqual(["Could not find texture 'nope'."])
+  })
+
+  it('reads a key back as the item name in a prim that holds the item', async () => {
+    const script = await threePrims(`
+      llSetLinkTexture(3, "Wood_BaseColor", 0);
+      r = [llList2String(llGetLinkPrimitiveParams(3, [PRIM_TEXTURE, 0]), 0)];
+    `)
+    expect(script.global('r')).toEqual(['Wood_BaseColor'])
+  })
+
+  it('applies the same rule to glTF texture slots', async () => {
+    const script = await threePrims(`
+      llSetLinkPrimitiveParamsFast(2, [PRIM_RENDER_MATERIAL, 0, "${MAT}"]);
+      llSetLinkPrimitiveParamsFast(2, [PRIM_GLTF_NORMAL, 0, "Wood_BaseColor", "", "", ""]);
+      r = [llList2String(llGetLinkPrimitiveParams(2, [PRIM_GLTF_NORMAL, 0]), 0)];
+    `)
+    // Not measured in-world: the glTF slots follow the measured PRIM_NORMAL rule (p9 lt_normal_child).
+    expect(script.global('r')).toEqual([WOOD])
   })
 })

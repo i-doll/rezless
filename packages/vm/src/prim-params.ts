@@ -242,8 +242,12 @@ export function renderMaterialKey(prim: Prim, material: string): string | null {
 
 export function textureKey(prim: Prim, texture: string): string | null {
   if (texture === '') return NULL_KEY
-  return UUID.test(texture) || findItem(prim, InventoryType.TEXTURE, texture) ? texture : null
+  if (UUID.test(texture)) return texture
+  return findItem(prim, InventoryType.TEXTURE, texture)?.key ?? null
 }
+
+export const textureName = (prim: Prim, key: string): string =>
+  prim.inventory.find((it) => it.type === InventoryType.TEXTURE && it.key === key)?.name ?? key
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
   [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: 'vector',
@@ -447,6 +451,7 @@ export function writePrimParam(
   param: number,
   rules: ReadonlyArray<LslValue>,
   cursor: number,
+  caller: Prim = prim,
 ): number | null {
   const p = prim.params
   switch (param) {
@@ -576,7 +581,7 @@ export function writePrimParam(
     }
     case PRIM_TEXTURE: {
       const faces = facesOf(p, rules[cursor])
-      const tex = textureKey(prim, str(rules[cursor + 1])) ?? NULL_KEY
+      const tex = textureKey(caller, str(rules[cursor + 1])) ?? NULL_KEY
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
@@ -590,7 +595,7 @@ export function writePrimParam(
     }
     case PRIM_RENDER_MATERIAL: {
       const faces = facesOf(p, rules[cursor])
-      const m = renderMaterialKey(prim, str(rules[cursor + 1])) ?? NULL_KEY
+      const m = renderMaterialKey(caller, str(rules[cursor + 1])) ?? NULL_KEY
       for (const f of faces) {
         p.faces[f]!.renderMaterial = m
         clearGltfOverrides(p.faces[f]!.gltf)
@@ -639,7 +644,7 @@ export function writePrimParam(
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       if (tex === '') return 5
-      const key = textureKey(prim, tex) ?? NULL_KEY
+      const key = textureKey(caller, tex) ?? NULL_KEY
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
@@ -657,7 +662,7 @@ export function writePrimParam(
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       if (tex === '') return 8
-      const key = textureKey(prim, tex) ?? NULL_KEY
+      const key = textureKey(caller, tex) ?? NULL_KEY
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
@@ -691,7 +696,7 @@ export function writePrimParam(
       const color = rules[cursor + 5]
       const alpha = rules[cursor + 6]
       const factor = color !== '' || alpha !== ''
-      writeGltf(prim, rules, cursor, 'baseColor', {
+      writeGltf(prim, caller, rules, cursor, 'baseColor', {
         color: factor ? (color === '' ? one() : clampVec(asVec(color), 0, 1)) : '',
         alpha: factor ? clamp(num(alpha, 1), 0, 1) : '',
         alphaMode: valueOverride(rules[cursor + 7], (v) => clamp(num(v) | 0, 0, 2)),
@@ -701,16 +706,16 @@ export function writePrimParam(
       return 10
     }
     case PRIM_GLTF_NORMAL:
-      writeGltf(prim, rules, cursor, 'normal', {})
+      writeGltf(prim, caller, rules, cursor, 'normal', {})
       return 5
     case PRIM_GLTF_METALLIC_ROUGHNESS:
-      writeGltf(prim, rules, cursor, 'metallicRoughness', {
+      writeGltf(prim, caller, rules, cursor, 'metallicRoughness', {
         metallic: valueOverride(rules[cursor + 5], (v) => clamp(num(v), 0, 1)),
         roughness: valueOverride(rules[cursor + 6], (v) => clamp(num(v), 0, 1)),
       })
       return 7
     case PRIM_GLTF_EMISSIVE:
-      writeGltf(prim, rules, cursor, 'emissive', { tint: valueOverride(rules[cursor + 5], (v) => clampVec(asVec(v), 0, 1)) })
+      writeGltf(prim, caller, rules, cursor, 'emissive', { tint: valueOverride(rules[cursor + 5], (v) => clampVec(asVec(v), 0, 1)) })
       return 6
     case PRIM_LINK_TARGET:
       return null
@@ -728,6 +733,7 @@ const valueOverride = <T>(v: LslValue | undefined, read: (v: LslValue | undefine
  */
 function writeGltf<K extends keyof PrimFace['gltf']>(
   prim: Prim,
+  caller: Prim,
   rules: ReadonlyArray<LslValue>,
   cursor: number,
   rule: K,
@@ -739,7 +745,7 @@ function writeGltf<K extends keyof PrimFace['gltf']>(
     textureRotation: num(rules[cursor + 4]),
   }
   const name = str(rules[cursor + 1])
-  const texture = name === '' ? '' : (textureKey(prim, name) ?? NULL_KEY)
+  const texture = name === '' ? '' : (textureKey(caller, name) ?? NULL_KEY)
   for (const f of facesOf(prim.params, rules[cursor])) {
     const face = prim.params.faces[f]!
     const overrides = face.renderMaterial === NULL_KEY ? {} : { texture, ...values }
@@ -910,7 +916,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const fa = p.faces[f]!
-        out.push(fa.texture, fa.textureRepeats, fa.textureOffsets, fa.textureRotation)
+        out.push(textureName(prim, fa.texture), fa.textureRepeats, fa.textureOffsets, fa.textureRotation)
       }
       return { values: out, consumed: 1 }
     }
@@ -959,7 +965,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const n = p.faces[f]!.normal
-        out.push(n.texture, n.textureRepeats, n.textureOffsets, n.textureRotation)
+        out.push(textureName(prim, n.texture), n.textureRepeats, n.textureOffsets, n.textureRotation)
       }
       return { values: out, consumed: 1 }
     }
@@ -968,7 +974,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const s = p.faces[f]!.specular
-        out.push(s.texture, s.textureRepeats, s.textureOffsets, s.textureRotation, s.color, s.glossiness, s.environment)
+        out.push(textureName(prim, s.texture), s.textureRepeats, s.textureOffsets, s.textureRotation, s.color, s.glossiness, s.environment)
       }
       return { values: out, consumed: 1 }
     }
@@ -985,7 +991,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.baseColor
-        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.color, g.alpha, g.alphaMode, g.alphaCutoff, g.doubleSided)
+        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation, g.color, g.alpha, g.alphaMode, g.alphaCutoff, g.doubleSided)
       }
       return { values: out, consumed: 1 }
     }
@@ -994,7 +1000,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.normal
-        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation)
+        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation)
       }
       return { values: out, consumed: 1 }
     }
@@ -1003,7 +1009,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.metallicRoughness
-        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.metallic, g.roughness)
+        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation, g.metallic, g.roughness)
       }
       return { values: out, consumed: 1 }
     }
@@ -1012,7 +1018,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.emissive
-        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.tint)
+        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation, g.tint)
       }
       return { values: out, consumed: 1 }
     }
