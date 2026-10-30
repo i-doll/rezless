@@ -31,6 +31,7 @@ import { typedList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
 import { Env } from './env.js'
 import { own } from './own.js'
+import { StackHeapCollision, frameBytes } from './memory.js'
 
 /**
  * Tree-walking interpreter for the language subset shipped in Phase 2.
@@ -81,17 +82,20 @@ export function execHandler(
     // the body BlockStatement here.
     ctx.state.coverage.hitStatement(handler.body.loc)
   }
+  const locals = ctx.state.memory.locals
   const env = ctx.globals.push()
-  // Bind handler params (each carries declared LSL type).
-  handler.params.forEach((p, i) => {
-    const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
-    env.declare(p.name, p.typeName as LslType, a)
-  })
   try {
+    // Bind handler params (each carries declared LSL type).
+    handler.params.forEach((p, i) => {
+      const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
+      env.declare(p.name, p.typeName as LslType, a)
+    })
     execBlock(ctx, env, handler.body)
   } catch (e) {
     if (e instanceof ReturnSignal) return
     throw e
+  } finally {
+    ctx.state.memory.releaseLocals(locals)
   }
 }
 
@@ -109,12 +113,16 @@ export function callUserFunction(
     ctx.state.coverage.hitFunction(fn.loc)
     ctx.state.coverage.hitStatement(fn.body.loc)
   }
+  const memory = ctx.state.memory
+  const frame = frameBytes(fn)
+  const locals = memory.locals
+  memory.pushFrame(frame)
   const env = ctx.globals.push()
-  fn.params.forEach((p, i) => {
-    const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
-    env.declare(p.name, p.typeName as LslType, a)
-  })
   try {
+    fn.params.forEach((p, i) => {
+      const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
+      env.declare(p.name, p.typeName as LslType, a)
+    })
     execBlock(ctx, env, fn.body)
   } catch (e) {
     if (e instanceof ReturnSignal) {
@@ -129,7 +137,12 @@ export function callUserFunction(
         `jump to undefined label '${e.label}' in function '${fn.name}'`,
       )
     }
+    // The host ran out of stack before the memory model did.
+    if (e instanceof RangeError) throw new StackHeapCollision()
     throw e
+  } finally {
+    memory.releaseLocals(locals)
+    memory.popFrame(frame)
   }
   // Fell off end without explicit return.
   return fn.returnType ? defaultEvalFor(fn.returnType as LslType) : { type: 'void', value: 0 }
@@ -157,19 +170,23 @@ function execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): vo
     }
   }
   let i = 0
-  while (i < block.body.length) {
-    const stmt = block.body[i]!
-    try {
-      execStatement(ctx, child, stmt)
-      i++
-    } catch (e) {
-      if (e instanceof JumpSignal && labels && labels.has(e.label)) {
-        // Resume execution at the label.
-        i = labels.get(e.label)! + 1
-        continue
+  try {
+    while (i < block.body.length) {
+      const stmt = block.body[i]!
+      try {
+        execStatement(ctx, child, stmt)
+        i++
+      } catch (e) {
+        if (e instanceof JumpSignal && labels && labels.has(e.label)) {
+          // Resume execution at the label.
+          i = labels.get(e.label)! + 1
+          continue
+        }
+        throw e
       }
-      throw e
     }
+  } finally {
+    child.clear()
   }
 }
 

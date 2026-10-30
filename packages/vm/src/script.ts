@@ -32,9 +32,10 @@ import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
-import { HTTP_BODY_TRUNCATED } from './generated/constants.js'
+import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED } from './generated/constants.js'
 import { own } from './own.js'
 import { deterministicKey } from './keys.js'
+import { Memory, StackHeapCollision, codeBytes } from './memory.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -93,6 +94,12 @@ export interface ScriptOptions {
    * also warns once per function, 'throw' fails the call.
    */
   readonly stubs?: 'allow' | 'warn' | 'throw'
+  /**
+   * Set true to crash the script with a Stack-Heap Collision when it outgrows
+   * its memory limit, as Second Life does. Default false: memory is still
+   * measured, but the script keeps running.
+   */
+  readonly memoryLimit?: boolean
 }
 
 /**
@@ -198,19 +205,14 @@ export class Script {
       filename,
       source,
       coverage,
+      memory: new Memory(codeBytes(ast), options.memoryLimit ?? false),
     }
     if (coverage) coverage.hitState('default')
-
-    // Register this script with the prim if it isn't already there.
-    if (!host.scripts.includes(this)) {
-      host.addScript(this)
-    }
 
     // Build a parent scope holding every LSL constant (PI, TRUE, HTTP_METHOD,
     // …). Script globals get their own scope below; typecheck() rejects
     // globals named after constants, as SL does.
-    const constants = buildConstantsEnv()
-    this.globals = constants.push()
+    this.globals = new Env(buildConstantsEnv(), this.state.memory)
     initGlobals(this.globals, ast.globals)
     this.userFunctions = new Map(ast.functions.map((f) => [f.name, f]))
     this.functions = options.functions ?? {}
@@ -218,6 +220,12 @@ export class Script {
     this.handlersByState = indexHandlers(ast)
     if (!this.handlersByState.has('default')) {
       throw new Error('LSL script has no default state')
+    }
+
+    // Register with the prim only once the script is fully built, so a failed
+    // construction (e.g. a Stack-Heap Collision in a global) leaves no trace.
+    if (!host.scripts.includes(this)) {
+      host.addScript(this)
     }
   }
 
@@ -505,6 +513,10 @@ export class Script {
    */
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
+    if (!this.running) {
+      this.parkedEvents.push({ at: this.now, event: eventName, payload })
+      return
+    }
     if (!this.started) {
       this.started = true
       const entry = this.handlersByState.get(this.state.currentState)?.get('state_entry')
@@ -543,8 +555,14 @@ export class Script {
    * is invoked from inside a handler; tests can also call it directly.
    */
   reset(): void {
+    this.state.memory.releaseStack()
     this.globals.clear()
-    initGlobals(this.globals, this.ast.globals)
+    try {
+      initGlobals(this.globals, this.ast.globals)
+    } catch (e) {
+      if (e instanceof StackHeapCollision) this.crash(e)
+      throw e
+    }
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
     this.state.listens.length = 0
@@ -616,7 +634,11 @@ export class Script {
     if (this.state.lifecycle.dead) return
     const startedAt = this.now
     try {
+      this.state.memory.startEvent()
       this.runHandlerChain(handler, args)
+    } catch (e) {
+      if (e instanceof StackHeapCollision) this.crash(e)
+      throw e
     } finally {
       if (this.now > startedAt) this.clockView.busyUntilMs = this.now
     }
@@ -677,6 +699,17 @@ export class Script {
         }
       }
     }
+  }
+
+  /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
+  private crash(error: StackHeapCollision): void {
+    if (error.reported) return
+    error.reported = true
+    for (const text of ['Script run-time error', error.message]) {
+      this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
+      this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
+    }
+    this.running = false
   }
 
   /**
