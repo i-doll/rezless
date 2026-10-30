@@ -83,9 +83,19 @@ export interface ScriptState {
     text: { text: string; color: { x: number; y: number; z: number }; alpha: number } | null
     description: string
   }
-  /** Lifecycle flags — `dead` is set when llDie runs. */
+  /** Permissions granted through llRequestPermissions, and the requests made. */
+  readonly permissions: {
+    granted: number
+    agent: string
+    readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
+  }
+  /**
+   * Lifecycle flags — `dead` is set when llDie runs; `removed` when the
+   * script removes itself from inventory, so it stops at its next yield.
+   */
   lifecycle: {
     dead: boolean
+    removed?: boolean
   }
   /** Source filename used for coverage attribution. "<inline>" for inline-source loads. */
   readonly filename: string

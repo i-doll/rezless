@@ -6,6 +6,7 @@ import type { BuiltinSpec } from './generated/functions.js'
 import { REAL_BUILTINS } from './builtins/index.js'
 import type { Script } from './script.js'
 import { own } from './own.js'
+import { ScriptRemovedSignal } from './builtins/inventory.js'
 
 /** Look up the generated spec for a function name, if any. */
 export function specFor(name: string): BuiltinSpec | undefined {
@@ -30,7 +31,7 @@ export function callBuiltin(
   args: ReadonlyArray<LslValue>,
 ): LslValue | undefined {
   const spec = specFor(name)
-  const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(name)
+  const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(dctx.script, name)
   const ctx: CallContext = {
     state: dctx.state,
     spec,
@@ -38,6 +39,7 @@ export function callBuiltin(
     prim: dctx.script.host,
     linkset: dctx.script.linkset,
   }
+  const startedAt = dctx.state.clock.now
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
   // Call log timestamps when the script invoked the function (pre-delay);
@@ -45,15 +47,19 @@ export function callBuiltin(
   if (spec && spec.delay > 0) {
     dctx.state.clock.advance(spec.delay * 1000)
   }
+  if (dctx.state.lifecycle.removed && dctx.state.clock.now > startedAt) throw new ScriptRemovedSignal()
   return result
 }
 
-function makeStub(name: string): BuiltinImpl {
+function makeStub(script: Script, name: string): BuiltinImpl {
   const spec = specFor(name)
   if (!spec) {
     return () => {
       throw new Error(`LSL function '${name}' has no implementation (not in the LSL definitions; use script.mock to provide it)`)
     }
   }
-  return () => defaultValueFor(spec.returnType)
+  return () => {
+    script.reportStub(name)
+    return defaultValueFor(spec.returnType)
+  }
 }

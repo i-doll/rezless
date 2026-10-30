@@ -17,6 +17,7 @@ import {
   llGetUnixTime,
   llGetTimestamp,
   llGetDate,
+  llGetRegionTimeDilation,
 } from './time.js'
 import { llHTTPRequest, llHTTPResponse } from './http.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
@@ -42,6 +43,13 @@ import {
   llVecDist,
   llRot2Euler,
   llEuler2Rot,
+  llRot2Fwd,
+  llRot2Left,
+  llRot2Up,
+  llRot2Axis,
+  llRot2Angle,
+  llAxisAngle2Rot,
+  llRotBetween,
 } from './math.js'
 import {
   llStringLength,
@@ -76,6 +84,9 @@ import {
   llParseString2List,
   llParseStringKeepNulls,
   llListSort,
+  llList2ListStrided,
+  llList2ListSlice,
+  llListRandomize,
 } from './lists.js'
 import {
   llJson2List,
@@ -92,6 +103,7 @@ import {
   llGetObjectName,
   llSetObjectName,
   llGetScriptName,
+  llGenerateKey,
 } from './identity.js'
 import { llMessageLinked } from './linked.js'
 import {
@@ -146,7 +158,9 @@ import {
   llGetInventoryPermMask,
   llGetNotecardLine,
   llGetNumberOfNotecardLines,
+  llRemoveInventory,
 } from './inventory.js'
+import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
 import {
   llResetOtherScript,
   llSetScriptState,
@@ -248,6 +262,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetUnixTime,
   llGetTimestamp,
   llGetDate,
+  llGetRegionTimeDilation,
   llHTTPRequest,
   llHTTPResponse,
   llListen,
@@ -275,6 +290,13 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llVecDist,
   llRot2Euler,
   llEuler2Rot,
+  llRot2Fwd,
+  llRot2Left,
+  llRot2Up,
+  llRot2Axis,
+  llRot2Angle,
+  llAxisAngle2Rot,
+  llRotBetween,
   // strings
   llStringLength,
   llSubStringIndex,
@@ -307,6 +329,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llParseString2List,
   llParseStringKeepNulls,
   llListSort,
+  llList2ListStrided,
+  llList2ListSlice,
+  llListRandomize,
   // json
   llJson2List,
   llJsonGetValue,
@@ -321,6 +346,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetObjectName,
   llSetObjectName,
   llGetScriptName,
+  llGenerateKey,
   // linked
   llMessageLinked,
   // dataserver
@@ -374,6 +400,11 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetInventoryPermMask,
   llGetNotecardLine,
   llGetNumberOfNotecardLines,
+  llRemoveInventory,
+  // permissions
+  llRequestPermissions,
+  llGetPermissions,
+  llGetPermissionsKey,
   // script control
   llResetOtherScript,
   llSetScriptState,

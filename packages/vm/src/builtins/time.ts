@@ -77,3 +77,6 @@ export const llGetTimestamp: BuiltinImpl = (ctx) => {
 export const llGetDate: BuiltinImpl = (ctx) => {
   return new Date(Math.floor(ctx.state.clock.unixMicros() / 1000)).toISOString().slice(0, 10)
 }
+
+/** llGetRegionTimeDilation() — 1.0, a region running at full speed. */
+export const llGetRegionTimeDilation: BuiltinImpl = () => 1

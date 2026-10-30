@@ -334,3 +334,78 @@ function compareCodePoints(a: string, b: string): number {
     if (d !== 0) return d
   }
 }
+
+/**
+ * The inclusive index ranges `start..end` selects, clamped to the list.
+ * Negative indexes count from the end; start after end selects both outer ends.
+ */
+function ranges(start: number, end: number, len: number): Array<[number, number]> {
+  const s = start < 0 ? start + len : start
+  const e = end < 0 ? end + len : end
+  const selected: Array<[number, number]> = s > e ? [[0, e], [s, len - 1]] : [[s, e]]
+  return selected.map(([from, to]) => [Math.max(from, 0), Math.min(to, len - 1)])
+}
+
+function pick(src: ReadonlyArray<LslValue>, indexes: number[]): ReadonlyArray<LslValue> {
+  return typedList(
+    indexes.map((i) => src[i]!),
+    indexes.map((i) => listElementType(src, i)),
+  )
+}
+
+/**
+ * llList2ListStrided(list src, integer start, integer end, integer stride) —
+ * the elements in start..end whose index in the whole list is a multiple of
+ * the stride. A stride of 0 acts as 1, a negative one as its absolute value,
+ * and start after end selects the whole list.
+ */
+export const llList2ListStrided: BuiltinImpl = (_ctx, args) => {
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const start = (args[1] as number | undefined) ?? 0
+  const end = (args[2] as number | undefined) ?? 0
+  const stride = Math.abs((args[3] as number | undefined) ?? 1) || 1
+  const selected = ranges(start, end, src.length)
+  const [from, to] = selected.length > 1 ? [0, src.length - 1] : selected[0]!
+  const indexes: number[] = []
+  for (let i = from; i <= to; i++) if (i % stride === 0) indexes.push(i)
+  return pick(src, indexes)
+}
+
+/**
+ * llList2ListSlice(list src, integer start, integer end, integer stride, integer slice_index)
+ * — within each selected range, the elements whose offset from the range's
+ * start is slice_index modulo the stride. A negative slice_index counts from
+ * the end of the stride; one outside the stride, or a stride of 0, gives [].
+ */
+export const llList2ListSlice: BuiltinImpl = (_ctx, args) => {
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const start = (args[1] as number | undefined) ?? 0
+  const end = (args[2] as number | undefined) ?? 0
+  const stride = Math.abs((args[3] as number | undefined) ?? 0)
+  let slice = (args[4] as number | undefined) ?? 0
+  if (slice < 0) slice += stride
+  if (stride === 0 || slice < 0 || slice >= stride) return []
+  const indexes: number[] = []
+  for (const [from, to] of ranges(start, end, src.length)) {
+    for (let i = from + slice; i <= to; i += stride) indexes.push(i)
+  }
+  return pick(src, indexes)
+}
+
+/**
+ * llListRandomize(list src, integer stride) — shuffles whole stride-sized
+ * blocks with the script's seeded random source. A stride below 1 shuffles
+ * single elements; a list whose length isn't a multiple of the stride comes
+ * back unchanged.
+ */
+export const llListRandomize: BuiltinImpl = (ctx, args) => {
+  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const stride = Math.max(1, (args[1] as number | undefined) ?? 1)
+  if (src.length % stride !== 0) return src
+  const blocks = Array.from({ length: src.length / stride }, (_, b) => b)
+  for (let i = blocks.length - 1; i > 0; i--) {
+    const j = ctx.state.random.nextInt(i + 1)
+    ;[blocks[i], blocks[j]] = [blocks[j]!, blocks[i]!]
+  }
+  return pick(src, blocks.flatMap((b) => Array.from({ length: stride }, (_, k) => b * stride + k)))
+}

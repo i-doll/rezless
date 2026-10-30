@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { Vector, Rotation } from '../values/types.js'
-import { isVector } from '../values/types.js'
+import { isVector, rot, vec } from '../values/types.js'
+import { rotateVector } from '../values/ops.js'
 
 /** llAbs(integer val) — absolute value (integer). */
 export const llAbs: BuiltinImpl = (_ctx, args) => {
@@ -69,38 +70,105 @@ export const llVecDist: BuiltinImpl = (_ctx, args) => {
 }
 
 /**
- * llRot2Euler(rotation r) → vector (x, y, z) Euler angles in radians.
- * Uses the LSL convention (extrinsic XYZ, ZYX intrinsic equivalent).
+ * llRot2Euler(rotation r) → vector (x, y, z) Euler angles in radians, the
+ * inverse of llEuler2Rot.
  */
 export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
   const q = args[0] as Rotation | undefined
   if (!q) return { x: 0, y: 0, z: 0 }
-  // Standard quaternion → Euler (ZYX) conversion.
-  const sinr_cosp = 2 * (q.s * q.x + q.y * q.z)
-  const cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y)
-  const x = Math.atan2(sinr_cosp, cosr_cosp)
-  const sinp = 2 * (q.s * q.y - q.z * q.x)
-  const y = Math.abs(sinp) >= 1 ? Math.sign(sinp) * (Math.PI / 2) : Math.asin(sinp)
-  const siny_cosp = 2 * (q.s * q.z + q.x * q.y)
-  const cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-  const z = Math.atan2(siny_cosp, cosy_cosp)
+  const x = Math.atan2(2 * (q.x * q.s - q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y))
+  const y = Math.asin(Math.max(-1, Math.min(1, 2 * (q.x * q.z + q.y * q.s))))
+  const z = Math.atan2(2 * (q.z * q.s - q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
   return { x, y, z }
 }
 
-/** llEuler2Rot(vector v) → rotation. Inverse of llRot2Euler. */
+/**
+ * llEuler2Rot(vector v) → rotation. Measured in Second Life:
+ * llEuler2Rot(<0.1, 0.2, 0.3>) turns the x axis to <0.93629, 0.31299, -0.15935>.
+ */
 export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
   const v = args[0] as Vector | undefined
   if (!v) return { x: 0, y: 0, z: 0, s: 1 }
-  const cy = Math.cos(v.z * 0.5)
-  const sy = Math.sin(v.z * 0.5)
-  const cp = Math.cos(v.y * 0.5)
-  const sp = Math.sin(v.y * 0.5)
-  const cr = Math.cos(v.x * 0.5)
-  const sr = Math.sin(v.x * 0.5)
+  const cz = Math.cos(v.z * 0.5)
+  const sz = Math.sin(v.z * 0.5)
+  const cy = Math.cos(v.y * 0.5)
+  const sy = Math.sin(v.y * 0.5)
+  const cx = Math.cos(v.x * 0.5)
+  const sx = Math.sin(v.x * 0.5)
   return {
-    x: sr * cp * cy - cr * sp * sy,
-    y: cr * sp * cy + sr * cp * sy,
-    z: cr * cp * sy - sr * sp * cy,
-    s: cr * cp * cy + sr * sp * sy,
+    x: sx * cy * cz + cx * sy * sz,
+    y: cx * sy * cz - sx * cy * sz,
+    z: cx * cy * sz + sx * sy * cz,
+    s: cx * cy * cz - sx * sy * sz,
   }
+}
+
+function rotationAxis(q: Rotation, axis: Vector): Vector {
+  const m = Math.hypot(q.x, q.y, q.z, q.s)
+  if (m === 0) return vec(axis.x, axis.y, axis.z)
+  return rotateVector(axis, rot(q.x / m, q.y / m, q.z / m, q.s / m))
+}
+
+/** llRot2Fwd(rotation q) — the x axis rotated by q, normalised. */
+export const llRot2Fwd: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rotation, { x: 1, y: 0, z: 0 })
+
+/** llRot2Left(rotation q) — the y axis rotated by q, normalised. */
+export const llRot2Left: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rotation, { x: 0, y: 1, z: 0 })
+
+/** llRot2Up(rotation q) — the z axis rotated by q, normalised. */
+export const llRot2Up: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rotation, { x: 0, y: 0, z: 1 })
+
+/** q, or -q when its s is negative, so the angle comes out in [0, PI]. */
+function positiveS(q: Rotation): Rotation {
+  return q.s < 0 ? { x: -q.x, y: -q.y, z: -q.z, s: -q.s } : q
+}
+
+/** llRot2Axis(rotation q) — the unit rotation axis, or ZERO_VECTOR for no rotation. */
+export const llRot2Axis: BuiltinImpl = (_ctx, args) => {
+  const q = positiveS((args[0] as Rotation | undefined) ?? { x: 0, y: 0, z: 0, s: 1 })
+  const m = Math.hypot(q.x, q.y, q.z)
+  if (m === 0) return vec(0, 0, 0)
+  return vec(q.x / m, q.y / m, q.z / m)
+}
+
+/** llRot2Angle(rotation q) — the rotation angle in [0, PI]. */
+export const llRot2Angle: BuiltinImpl = (_ctx, args) => {
+  const q = positiveS((args[0] as Rotation | undefined) ?? { x: 0, y: 0, z: 0, s: 1 })
+  return Math.fround(2 * Math.atan2(Math.hypot(q.x, q.y, q.z), q.s))
+}
+
+/** llAxisAngle2Rot(vector axis, float angle) — the axis is normalised; a zero axis gives ZERO_ROTATION. */
+export const llAxisAngle2Rot: BuiltinImpl = (_ctx, args) => {
+  const axis = (args[0] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
+  const angle = (args[1] as number | undefined) ?? 0
+  const m = Math.hypot(axis.x, axis.y, axis.z)
+  if (m === 0) return rot(0, 0, 0, 1)
+  const k = Math.sin(angle / 2) / m
+  return rot(axis.x * k, axis.y * k, axis.z * k, Math.cos(angle / 2))
+}
+
+/**
+ * llRotBetween(vector a, vector b) — the shortest rotation taking a's
+ * direction to b's. Opposite vectors turn half a circle about the axis
+ * nearest to world z that is perpendicular to a, or about x when a is
+ * vertical. Zero vectors and equal directions give ZERO_ROTATION.
+ */
+export const llRotBetween: BuiltinImpl = (_ctx, args) => {
+  const a = (args[0] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
+  const b = (args[1] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
+  const ab = a.x * b.x + a.y * b.y + a.z * b.z
+  const c = { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }
+  const cc = c.x * c.x + c.y * c.y + c.z * c.z
+  if (cc > 0) {
+    const s = Math.sqrt(ab * ab + cc) + ab
+    const m = Math.sqrt(cc + s * s)
+    return rot(c.x / m, c.y / m, c.z / m, s / m)
+  }
+  if (ab >= 0) return rot(0, 0, 0, 1)
+  const aa = a.x * a.x + a.y * a.y + a.z * a.z
+  const ref = a.x === 0 && a.y === 0 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 0, z: 1 }
+  const k = (ref.x * a.x + ref.y * a.y + ref.z * a.z) / aa
+  const u = { x: ref.x - k * a.x, y: ref.y - k * a.y, z: ref.z - k * a.z }
+  const m = Math.hypot(u.x, u.y, u.z)
+  return rot(u.x / m, u.y / m, u.z / m, 0)
 }

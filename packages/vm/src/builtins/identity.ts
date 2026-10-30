@@ -32,3 +32,10 @@ export const llSetObjectName: BuiltinImpl = (ctx, args) => {
 
 /** llGetScriptName() — the script's filename (e.g. "greeter.lsl"). */
 export const llGetScriptName: BuiltinImpl = (ctx) => ctx.state.identity.scriptName
+
+/** llGenerateKey() — a fresh random UUID from the script's seeded random source. */
+export const llGenerateKey: BuiltinImpl = (ctx) => {
+  let hex = ''
+  for (let i = 0; i < 4; i++) hex += ctx.state.random.nextInt(0x100000000).toString(16).padStart(8, '0')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
