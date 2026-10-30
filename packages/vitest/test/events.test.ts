@@ -172,7 +172,8 @@ describe('Phase 3 — llDetected* family', () => {
     expect(s.global('b')).toBe('Bob')
   })
 
-  it('llDetectedName(out-of-range) returns empty string', async () => {
+  // In-world: llDetectedName(5) with one toucher is the NULL_KEY string.
+  it('llDetectedName(out-of-range) returns the NULL_KEY string', async () => {
     const s = await load(`
       string oob = "";
       default {
@@ -185,7 +186,7 @@ describe('Phase 3 — llDetected* family', () => {
       num_detected: 1,
       detected: [{ key: 'k', name: 'Alice' }],
     })
-    expect(s.global('oob')).toBe('')
+    expect(s.global('oob')).toBe('00000000-0000-0000-0000-000000000000')
   })
 
   it('llDetectedOwner falls back to the avatar key when no owner provided', async () => {

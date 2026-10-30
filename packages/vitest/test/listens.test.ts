@@ -95,20 +95,29 @@ describe('Phase 3 — listens and chat delivery', () => {
     expect(s.listens).toHaveLength(0)
   })
 
-  it('multiple matching listens all fire', async () => {
-    const s = await load(`
-      integer hits = 0;
+  it('a message matching several listens fires one listen event', async () => {
+    // In-world: these five listens, owner says "hi" then "exact" -> one event each.
+    const owner = 'a2e76fcd-9360-4f6d-a924-000000000001'
+    const s = await loadScript({
+      owner,
+      source: `
+      string heard = "";
       default {
         state_entry() {
-          llListen(0, "", NULL_KEY, "");
-          llListen(0, "", NULL_KEY, "hi");
+          llListen(4242, "", NULL_KEY, "");
+          llListen(4242, "", "", "");
+          llListen(4242, "", NULL_KEY, "exact");
+          llListen(4242, "nobody", NULL_KEY, "");
+          llListen(4242, "", llGetOwner(), "");
         }
-        listen(integer c, string n, key i, string m) { hits = hits + 1; }
+        listen(integer c, string n, key i, string m) { heard += m + " "; }
       }
-    `)
+    `,
+    })
     s.start()
-    s.deliverChat({ channel: 0, name: 'A', key: '', message: 'hi' })
-    expect(s.global('hits')).toBe(2)
+    s.deliverChat({ channel: 4242, name: 'Owner', key: owner, message: 'hi' })
+    s.deliverChat({ channel: 4242, name: 'Owner', key: owner, message: 'exact' })
+    expect(s.global('heard')).toBe('hi exact ')
   })
 
   it('exact-message filter requires exact match', async () => {

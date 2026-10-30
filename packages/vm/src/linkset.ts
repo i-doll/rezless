@@ -153,8 +153,9 @@ export class Linkset {
   /**
    * Send a `link_message` according to LSL fan-out semantics.
    * `senderLink` is the calling prim's link number; the event payload's
-   * `sender_num` is set to that value. The capture array on the linkset
-   * records every invocation for cross-script test assertions.
+   * `sender_num` is set to that value. Scripts that are not running never
+   * get the message. The capture array on the linkset records every
+   * invocation for cross-script test assertions.
    */
   deliverLinkMessage(
     senderLink: number,
@@ -168,7 +169,7 @@ export class Linkset {
     const at = this.clock.now
     for (const p of targets) {
       for (const s of p.scripts) {
-        this.clock.schedule(s, at, 'link_message', { sender_num: senderLink, num, str, id })
+        if (s.running) this.clock.schedule(s, at, 'link_message', { sender_num: senderLink, num, str, id })
       }
     }
   }
@@ -250,9 +251,9 @@ export class Linkset {
       if (next.at > this.clock.now) this.clock.now = next.at
       const target = next.target
       if (target.dead) continue
-      // `__reset` (from llResetOtherScript) must run regardless of the
-      // target's running flag — per LSL, a stopped script is still reset
-      // when commanded, it just stays stopped afterward.
+      // `__reset` (from llResetOtherScript) was requested while the target
+      // was running, so it applies even if the target was stopped since; the
+      // target just stays stopped afterward.
       if (!target.running && next.event !== '__reset') {
         // Park for replay when the script is re-enabled. A paused script
         // must not block other scripts' events, so we stash on the script

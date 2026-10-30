@@ -77,10 +77,12 @@ export const llGetInventoryKey: BuiltinImpl = (ctx, args) => {
   return find(ctx.prim.inventory, name)?.key ?? NULL_KEY
 }
 
-/** llGetInventoryCreator(string name) — creator key, or NULL_KEY. */
+/** llGetInventoryCreator(string name) — creator key, or NULL_KEY and an error for a missing item. */
 export const llGetInventoryCreator: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
-  return find(ctx.prim.inventory, name)?.creator ?? NULL_KEY
+  const item = find(ctx.prim.inventory, name)
+  if (!item) sayError(ctx, `No item named '${name}'.`)
+  return item?.creator ?? NULL_KEY
 }
 
 /** llGetInventoryDesc(string name) — description, or "". */
@@ -124,6 +126,14 @@ export const llGetInventoryPermMask: BuiltinImpl = (ctx, args) => {
   }
 }
 
+/** The named notecard's lines, or undefined after saying an error when there is no such notecard. */
+function notecardLines(ctx: CallContext, name: string): ReadonlyArray<string> | undefined {
+  const item = find(ctx.prim.inventory, name)
+  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) return item.notecardLines
+  sayError(ctx, `Could not find notecard '${name}'.`)
+  return undefined
+}
+
 /**
  * Record a notecard dataserver request and return its key. A missing
  * notecard says an error and fires no event; otherwise `data` is
@@ -139,15 +149,12 @@ function notecardRequest(
   const key = nextDataserverKey(ctx)
   const req = { key, source, args, fulfilled: false }
   ctx.state.dataserverRequests.push(req)
-  const item = find(ctx.prim.inventory, name)
-  if (!item || item.type !== InventoryType.NOTECARD || !item.notecardLines) {
-    sayError(ctx, `Could not find notecard '${name}'.`)
-    return key
-  }
+  const lines = notecardLines(ctx, name)
+  if (!lines) return key
   // Schedule after the dispatcher's post-call throttle advance so the event
   // fires after the call returns (matches real LSL).
   const at = ctx.state.clock.now + (ctx.spec?.delay ?? 0) * 1000
-  const payload = { queryid: key, data: data(item.notecardLines) }
+  const payload = { queryid: key, data: data(lines) }
   for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, at, 'dataserver', payload)
   req.fulfilled = true
   return key
@@ -198,6 +205,14 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-export const llGetNotecardLineSync: BuiltinImpl = () => {
-  throw new Error('llGetNotecardLineSync: not implemented')
+/**
+ * llGetNotecardLineSync(string name, integer line) — the line itself, or EOF past the end.
+ * Notecards are always cached here, so it never returns NAK.
+ */
+export const llGetNotecardLineSync: BuiltinImpl = (ctx, args) => {
+  const name = (args[0] as string | undefined) ?? ''
+  const line = (args[1] as number | undefined) ?? 0
+  const lines = notecardLines(ctx, name)
+  if (!lines) return EOF
+  return line >= 0 && line < lines.length ? lines[line]! : EOF
 }

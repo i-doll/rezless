@@ -429,8 +429,8 @@ export class Script {
   }
 
   /**
-   * Match chat against this script's listens and queue `listen` events for
-   * every match. Does not drain — caller does that. Used by Linkset.deliverChat
+   * Match chat against this script's listens and queue one `listen` event
+   * if any of them match. Does not drain — caller does that. Used by Linkset.deliverChat
    * for cross-script delivery.
    */
   matchChatListens(opts: {
@@ -451,6 +451,7 @@ export class Script {
         id: opts.key,
         msg: opts.message,
       })
+      return
     }
   }
 
