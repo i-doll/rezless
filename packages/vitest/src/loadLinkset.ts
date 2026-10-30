@@ -101,7 +101,7 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
       }
       const s = new Script(ast, opts)
       if (coverage) registerScript(s)
-      const finalName = inventoryName ?? s.scriptName
+      const finalName = s.scriptName
       const item = prim.inventory.find((it) => it.script === s)
       if (item) item.name = finalName
       if (finalName in scripts) {

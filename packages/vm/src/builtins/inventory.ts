@@ -28,6 +28,12 @@ const nameTokens = (name: string) => name.toLowerCase().match(/\d+|\D/g) ?? []
 const isDigits = (token: string) => /^\d/.test(token)
 
 function compareNames(a: string, b: string): number {
+  const folded = compareFolded(a, b)
+  if (folded !== 0) return folded
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+function compareFolded(a: string, b: string): number {
   const x = nameTokens(a)
   const y = nameTokens(b)
   for (let k = 0; k < Math.min(x.length, y.length); k++) {
@@ -48,7 +54,7 @@ export const llGetInventoryNumber: BuiltinImpl = (ctx, args) => {
 
 /**
  * llGetInventoryName(integer type, integer i) — i-th item name, or "". Names sort case-insensitively
- * and digit runs compare as numbers.
+ * with uppercase first on a tie, and digit runs compare as numbers.
  */
 export const llGetInventoryName: BuiltinImpl = (ctx, args) => {
   const type = (args[0] as number | undefined) ?? INVENTORY_ALL

@@ -1,6 +1,6 @@
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
-import { InventoryType } from './inventory.js'
+import { InventoryType, inventoryItemName } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Vector } from './values/types.js'
 import { NULL_KEY } from './values/types.js'
@@ -53,7 +53,7 @@ export class Prim {
   addScript(script: Script, opts: { name?: string; key?: string } = {}): void {
     this.scripts.push(script)
     this.inventory.push({
-      name: opts.name ?? script.scriptName,
+      name: inventoryItemName(opts.name ?? script.scriptName),
       type: InventoryType.SCRIPT,
       key: opts.key ?? NULL_KEY,
       creator: NULL_KEY,
@@ -77,7 +77,7 @@ export class Prim {
    * and pass `acquireTimeMs: this.linkset?.clock.now ?? 0`.
    */
   addInventory(item: InventoryItem): void {
-    this.inventory.push({ ...item, name: item.name.replace(/[^\x00-\x7f]/g, '') })
+    this.inventory.push({ ...item, name: inventoryItemName(item.name) })
   }
 
   /** Find a script by inventory name. */
