@@ -167,6 +167,65 @@ describe('Phase 3 — object lifecycle and appearance', () => {
     expect(s.global('touched')).toBe(0)
   })
 
+  describe('after llDie the script halts at its next builtin return or loop iteration', () => {
+    const die = async (body: string) => {
+      const s = await run(`default { state_entry() { llSetTimerEvent(3.0); } timer() { llSetTimerEvent(0); ${body} } }`)
+      s.advanceTime(3_000)
+      return s
+    }
+    const heard = (s: { chat: ReadonlyArray<{ text: string }> }) => s.chat.map((c) => c.text)
+
+    it('runs one more builtin call, then halts', async () => {
+      // In-world: die.iw (two runs) heard "before die", "after die" only; no "after die region", "after loop" or "after sleep".
+      const s = await die(`llSay(7777, "before die"); llDie(); llSay(7777, "after die"); llRegionSay(7777, "after die region");
+        integer i; for (i = 0; i < 1000; ++i) ; llSay(7777, "after loop"); llSleep(0.1); llSay(7777, "after sleep");`)
+      expect(heard(s)).toEqual(['before die', 'after die'])
+    })
+
+    it('halts after the second llSay', async () => {
+      // In-world: die2.iw (two runs) v1 heard "v1 before", "v1 s1"; not "v1 s2".
+      const s = await die(`llSay(7777, "v1 before"); llDie(); llSay(7777, "v1 s1"); llSay(7777, "v1 s2");`)
+      expect(heard(s)).toEqual(['v1 before', 'v1 s1'])
+    })
+
+    it('halts after an llRegionSay', async () => {
+      // In-world: die2.iw (two runs) v2 heard "v2 before", "v2 r1"; not "v2 s1".
+      const s = await die(`llSay(7777, "v2 before"); llDie(); llRegionSay(7777, "v2 r1"); llSay(7777, "v2 s1");`)
+      expect(heard(s)).toEqual(['v2 before', 'v2 r1'])
+    })
+
+    it('halts after a builtin that says nothing', async () => {
+      // In-world: die2.iw (two runs) v3 heard only "v3 before"; llSetText ran and "v3 s1" did not.
+      const s = await die(`llSay(7777, "v3 before"); llDie(); llSetText("x", <1,1,1>, 1.0); llSay(7777, "v3 s1"); llSay(7777, "v3 s2");`)
+      expect(heard(s)).toEqual(['v3 before'])
+      expect(s.text?.text).toBe('x')
+    })
+
+    it('halts at a for loop iteration before any builtin', async () => {
+      // In-world: die2.iw (two runs) v4 heard only "v4 before".
+      const s = await die(`llSay(7777, "v4 before"); llDie(); integer i; for (i = 0; i < 1000; ++i) ; llSay(7777, "v4 s1"); llSay(7777, "v4 s2");`)
+      expect(heard(s)).toEqual(['v4 before'])
+    })
+
+    it('halts at a while or do-while iteration too', async () => {
+      const w = await die(`llDie(); integer i; while (i < 2) { i++; } llSay(7777, "after while");`)
+      expect(heard(w)).toEqual([])
+      const d = await die(`llDie(); integer i; do { i++; } while (i < 2); llSay(7777, "after do");`)
+      expect(heard(d)).toEqual([])
+    })
+
+    it('halts in state_exit too', async () => {
+      const s = await run(`default { state_entry() { state other; } state_exit() { llDie(); llOwnerSay("exit"); llOwnerSay("after"); } }
+        state other { state_entry() { llOwnerSay("other"); } }`)
+      expect(heard(s)).toEqual(['exit'])
+    })
+
+    it('halts at a backward jump (not measured: treated as a loop iteration)', async () => {
+      const s = await die(`llDie(); integer i; @top; if (++i < 3) jump top; llSay(7777, "after jump");`)
+      expect(heard(s)).toEqual([])
+    })
+  })
+
   it('llDie inside a queue-dispatched handler stops further drains', async () => {
     // A timer that calls llDie on its 2nd fire — without the dead-check
     // in drainQueue, advanceTime(2_500) would still fire ticks 3, 4, 5.

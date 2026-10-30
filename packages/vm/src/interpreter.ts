@@ -33,6 +33,7 @@ import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js
 import { Env } from './env.js'
 import { own } from './own.js'
 import { RuntimeError, StackHeapCollision, frameBytes } from './memory.js'
+import { DieSignal } from './builtins/object.js'
 
 /** Mono can't run a function or handler that uses the value of a key print. */
 class InvalidProgram extends RuntimeError {
@@ -242,8 +243,9 @@ function* execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): E
         i++
       } catch (e) {
         if (e instanceof JumpSignal && labels && labels.has(e.label)) {
-          // Resume execution at the label.
-          i = labels.get(e.label)! + 1
+          const at = labels.get(e.label)!
+          if (at < i) iterate(ctx)
+          i = at + 1
           continue
         }
         throw e
@@ -328,6 +330,7 @@ function* execWhile(ctx: InterpreterContext, env: Env, stmt: WhileStatement): Ex
     if (cov) cov.hitBranch(stmt.loc, t)
     if (!t) break
     yield* execStatement(ctx, env, stmt.body)
+    iterate(ctx)
   }
 }
 
@@ -338,6 +341,7 @@ function* execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement)
     const t = truthy(yield* evalExpression(ctx, env, stmt.test))
     if (cov) cov.hitBranch(stmt.loc, t)
     if (!t) break
+    iterate(ctx)
   }
 }
 
@@ -356,7 +360,13 @@ function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): Exec<v
     }
     yield* execStatement(ctx, child, stmt.body)
     for (const e of stmt.update) yield* evalExpression(ctx, child, e)
+    iterate(ctx)
   }
+}
+
+/** A loop's back-edge, where a script that called llDie halts. */
+function iterate(ctx: InterpreterContext): void {
+  if (ctx.state.lifecycle.dying) throw new DieSignal()
 }
 
 // ---- Expressions ----
