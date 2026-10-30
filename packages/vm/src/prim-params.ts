@@ -288,15 +288,13 @@ function normalizeRot(r: Rotation): Rotation {
   return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
 }
 
-function facesOf(faceArg: LslValue | undefined): number[] {
-  const f = num(faceArg, 0) | 0
-  if (f === ALL_SIDES) return [0, 1, 2, 3, 4, 5]
-  return [f]
+/** Face indexes a face argument names: every face for ALL_SIDES, none past the shape's face count. */
+export function faceIndices(p: PrimParams, face: number): number[] {
+  if (face === ALL_SIDES) return p.faces.map((_, i) => i)
+  return face >= 0 && face < p.faces.length ? [face] : []
 }
 
-function inRange(face: number): boolean {
-  return face >= 0 && face <= 5
-}
+const facesOf = (p: PrimParams, faceArg: LslValue | undefined): number[] => faceIndices(p, num(faceArg, 0) | 0)
 
 /**
  * Slot count for a PRIM_* rule's *write* form, given the rule constant
@@ -480,24 +478,22 @@ export function writePrimParam(
     case PRIM_TYPE:
       return writePrimType(p, rules, cursor)
     case PRIM_COLOR: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const color = asVec(rules[cursor + 1])
       const alpha = clamp(num(rules[cursor + 2], 1), 0, 1)
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.color = clampVec(color, 0, 1)
         p.faces[f]!.alpha = alpha
       }
       return 3
     }
     case PRIM_TEXTURE: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.texture = tex
         p.faces[f]!.textureRepeats = { x: repeats.x, y: repeats.y, z: repeats.z }
         p.faces[f]!.textureOffsets = { x: offsets.x, y: offsets.y, z: offsets.z }
@@ -506,60 +502,54 @@ export function writePrimParam(
       return 5
     }
     case PRIM_RENDER_MATERIAL: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const m = str(rules[cursor + 1])
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.renderMaterial = m
       }
       return 2
     }
     case PRIM_FULLBRIGHT: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const v = num(rules[cursor + 1]) !== 0
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.fullBright = v
       }
       return 2
     }
     case PRIM_GLOW: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const v = num(rules[cursor + 1])
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.glow = v
         p.glow[f] = v
       }
       return 2
     }
     case PRIM_BUMP_SHINY: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const shiny = num(rules[cursor + 1]) | 0
       const bump = num(rules[cursor + 2]) | 0
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.bumpShiny = { shiny, bump }
       }
       return 3
     }
     case PRIM_TEXGEN: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const mode = num(rules[cursor + 1]) | 0
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.texgen = mode
       }
       return 2
     }
     case PRIM_NORMAL: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.normal = {
           texture: tex,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
@@ -570,7 +560,7 @@ export function writePrimParam(
       return 5
     }
     case PRIM_SPECULAR: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
@@ -579,7 +569,6 @@ export function writePrimParam(
       const gloss = num(rules[cursor + 6]) | 0
       const env = num(rules[cursor + 7]) | 0
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.specular = {
           texture: tex,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
@@ -594,17 +583,16 @@ export function writePrimParam(
       return 8
     }
     case PRIM_ALPHA_MODE: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const mode = num(rules[cursor + 1]) | 0
       const cutoff = num(rules[cursor + 2]) | 0
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.alphaMode = { mode, cutoff }
       }
       return 3
     }
     case PRIM_GLTF_BASE_COLOR: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
@@ -615,7 +603,6 @@ export function writePrimParam(
       const aCut = num(rules[cursor + 8])
       const dbl = num(rules[cursor + 9]) | 0
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.gltf.baseColor = {
           texture: tex,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
@@ -631,13 +618,12 @@ export function writePrimParam(
       return 10
     }
     case PRIM_GLTF_NORMAL: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.gltf.normal = {
           texture: tex,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
@@ -648,7 +634,7 @@ export function writePrimParam(
       return 5
     }
     case PRIM_GLTF_METALLIC_ROUGHNESS: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
@@ -656,7 +642,6 @@ export function writePrimParam(
       const metallic = num(rules[cursor + 5])
       const rough = num(rules[cursor + 6])
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.gltf.metallicRoughness = {
           texture: tex,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
@@ -669,14 +654,13 @@ export function writePrimParam(
       return 7
     }
     case PRIM_GLTF_EMISSIVE: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
       const tint = asVec(rules[cursor + 5])
       for (const f of faces) {
-        if (!inRange(f)) continue
         p.faces[f]!.gltf.emissive = {
           texture: tex,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
@@ -696,6 +680,7 @@ export function writePrimParam(
 
 function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number): number | null {
   const kind = (num(rules[cursor]) | 0)
+  const old = p.shape
   switch (kind) {
     case SHAPE_BOX:
     case SHAPE_CYLINDER:
@@ -709,7 +694,7 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
         topSize: asVec(rules[cursor + 5]),
         topShear: asVec(rules[cursor + 6]),
       }
-      return 7
+      break
     case SHAPE_SPHERE:
       p.shape = {
         kind: SHAPE_SPHERE,
@@ -719,7 +704,7 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
         twist: asVec(rules[cursor + 4]),
         dimple: asVec(rules[cursor + 5]),
       }
-      return 6
+      break
     case SHAPE_TORUS:
     case SHAPE_TUBE:
     case SHAPE_RING:
@@ -737,14 +722,14 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
         radiusOffset: num(rules[cursor + 10]),
         skew: num(rules[cursor + 11]),
       }
-      return 12
+      break
     case SHAPE_SCULPT:
       p.shape = {
         kind: SHAPE_SCULPT,
         map: str(rules[cursor + 1]),
         type: num(rules[cursor + 2]) | 0,
       }
-      return 3
+      break
     default:
       // Unknown PRIM_TYPE_* kind: terminate the walk rather than guessing
       // a slot count. Matches writePrimParamSlots' default behavior so
@@ -752,6 +737,8 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
       // same way.
       return null
   }
+  remapFaces(p, old)
+  return writePrimParamSlots(PRIM_TYPE, rules, cursor)
 }
 
 /**
@@ -839,133 +826,119 @@ export function readPrimParam(
     case PRIM_TYPE:
       return { values: readPrimType(p), consumed: 0 }
     case PRIM_COLOR: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         out.push(p.faces[f]!.color, p.faces[f]!.alpha)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_TEXTURE: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         const fa = p.faces[f]!
         out.push(fa.texture, fa.textureRepeats, fa.textureOffsets, fa.textureRotation)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_RENDER_MATERIAL: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         out.push(p.faces[f]!.renderMaterial)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_FULLBRIGHT: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         out.push(p.faces[f]!.fullBright ? 1 : 0)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_GLOW: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         out.push(p.faces[f]!.glow)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_BUMP_SHINY: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         out.push(p.faces[f]!.bumpShiny.shiny, p.faces[f]!.bumpShiny.bump)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_TEXGEN: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         out.push(p.faces[f]!.texgen)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_NORMAL: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         const n = p.faces[f]!.normal
         out.push(n.texture, n.textureRepeats, n.textureOffsets, n.textureRotation)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_SPECULAR: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         const s = p.faces[f]!.specular
         out.push(s.texture, s.textureRepeats, s.textureOffsets, s.textureRotation, s.color, s.glossiness, s.environment)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_ALPHA_MODE: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         out.push(p.faces[f]!.alphaMode.mode, p.faces[f]!.alphaMode.cutoff)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_GLTF_BASE_COLOR: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         const g = p.faces[f]!.gltf.baseColor
         out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.color, g.alpha, g.alphaMode, g.alphaCutoff, g.doubleSided)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_GLTF_NORMAL: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         const g = p.faces[f]!.gltf.normal
         out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_GLTF_METALLIC_ROUGHNESS: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         const g = p.faces[f]!.gltf.metallicRoughness
         out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.metallic, g.roughness)
       }
       return { values: out, consumed: 1 }
     }
     case PRIM_GLTF_EMISSIVE: {
-      const faces = facesOf(rules[cursor])
+      const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        if (!inRange(f)) continue
         const g = p.faces[f]!.gltf.emissive
         out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.tint)
       }
@@ -1129,15 +1102,63 @@ export function checkPrimRule(param: number, rules: ReadonlyArray<LslValue>, cur
   return null
 }
 
-const BASE_FACES: Readonly<Record<number, number>> = {
-  [SHAPE_BOX]: 6, [SHAPE_CYLINDER]: 3, [SHAPE_PRISM]: 5, [SHAPE_SPHERE]: 1,
-  [SHAPE_TORUS]: 1, [SHAPE_TUBE]: 4, [SHAPE_RING]: 3, [SHAPE_SCULPT]: 1,
+/**
+ * What a face is on its shape: a path end (top / bottom), the hollow's inner
+ * face, one of the two profile-cut faces, or an outer profile side covering
+ * `[from, to]` of the profile. Faces are numbered top, outer sides, inner,
+ * bottom, cut faces, as measured on a box in Second Life.
+ */
+type FaceRole = 'top' | 'inner' | 'bottom' | 'cutStart' | 'cutEnd' | { from: number; to: number }
+
+const PROFILE_SIDES: Readonly<Record<number, number>> = {
+  [SHAPE_BOX]: 4, [SHAPE_CYLINDER]: 1, [SHAPE_PRISM]: 3, [SHAPE_SPHERE]: 1,
+  [SHAPE_TORUS]: 1, [SHAPE_TUBE]: 4, [SHAPE_RING]: 3,
 }
 
-/** Face count of a prim shape: the base shape, plus one for a hollow and two for a path cut. */
+const isCut = (range: Vector): boolean => range.x > 0 || range.y < 1
+
+function faceRoles(shape: PrimShape): FaceRole[] {
+  if (shape.kind === SHAPE_SCULPT) return [{ from: 0, to: 1 }]
+  const looped = shape.kind === SHAPE_TORUS || shape.kind === SHAPE_TUBE || shape.kind === SHAPE_RING
+  const profileCut = looped ? shape.advancedCut : shape.cut
+  const pathEnds = shape.kind === SHAPE_SPHERE
+    ? isCut(shape.dimple) || shape.hollow > 0
+    : !looped || isCut(shape.cut)
+  const sides = PROFILE_SIDES[shape.kind]!
+  const roles: FaceRole[] = pathEnds ? ['top'] : []
+  for (let i = 0; i < sides; i++) {
+    const from = i / sides, to = (i + 1) / sides
+    if (from < profileCut.y && to > profileCut.x) roles.push({ from, to })
+  }
+  if (shape.hollow > 0) roles.push('inner')
+  if (pathEnds) roles.push('bottom')
+  if (isCut(profileCut)) roles.push('cutStart', 'cutEnd')
+  return roles
+}
+
+/**
+ * Rebuild the face slots for a new shape. A face keeps the values of the old
+ * face with the same role; an outer side takes the first old outer side it
+ * overlaps, else the nearest one; any other new face copies the old last face.
+ */
+function remapFaces(p: PrimParams, oldShape: PrimShape): void {
+  const oldRoles = faceRoles(oldShape)
+  const old = p.faces
+  const last = old[old.length - 1]!
+  const oldOuter = oldRoles.flatMap((r, i) => (typeof r === 'string' ? [] : [{ ...r, face: old[i]! }]))
+  const source = (role: FaceRole): PrimFace => {
+    if (typeof role === 'string') return old[oldRoles.indexOf(role)] ?? last
+    const gap = (o: { from: number; to: number }) => Math.max(o.from - role.to, role.from - o.to)
+    const overlap = oldOuter.find((o) => gap(o) < 0)
+    if (overlap) return overlap.face
+    const nearest = oldOuter.reduce<(typeof oldOuter)[number] | undefined>((a, o) => (!a || gap(o) < gap(a) ? o : a), undefined)
+    return nearest?.face ?? last
+  }
+  p.faces = faceRoles(p.shape).map((role) => structuredClone(source(role)))
+  p.glow = p.faces.map((f) => f.glow)
+}
+
+/** Face count of a prim shape, as llGetNumberOfSides reports it. */
 export function numberOfSides(shape: PrimShape): number {
-  if (shape.kind === SHAPE_SCULPT) return BASE_FACES[SHAPE_SCULPT]!
-  const hollow = shape.hollow > 0 ? 1 : 0
-  const cut = shape.cut.x > 0 || shape.cut.y < 1 ? 2 : 0
-  return BASE_FACES[shape.kind]! + hollow + cut
+  return faceRoles(shape).length
 }
