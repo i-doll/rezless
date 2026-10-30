@@ -486,6 +486,15 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('counts')).toEqual([12, 24, 6, 0, 0])
   })
 
+  // In-world: llSetText("f", <1,1,1>, (float)"nan") reads back PRIM_TEXT = [f, <1,1,1>, nan].
+  it('llSetText with a NaN alpha stores the text and keeps NaN', async () => {
+    const s = await run(`llSetText("f", <1,1,1>, (float)"nan"); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
+    const out = s.global('out') as unknown[]
+    expect(out[0]).toBe('f')
+    expect(out[1]).toEqual({ x: 1, y: 1, z: 1 })
+    expect(out[2]).toBeNaN()
+  })
+
   // In-world: llSetObjectDesc("a|b\nc") -> "a?b?c"; llSetObjectName("n|m\nx") -> "n?m?x";
   // PRIM_DESC "p|q" -> "p?q"; PRIM_NAME "probe k|z" -> "probe k?z".
   it('names and descriptions turn | and newline into ?', async () => {

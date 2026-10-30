@@ -3,7 +3,7 @@ import { sayError } from './debug.js'
 
 /**
  * llResetOtherScript(string name) — reset a sibling script in the same prim.
- * No-op if no script of that name exists or it is not running. The reset is scheduled via a
+ * Says an error if no script of that name exists; a script that is not running is left alone. The reset is scheduled via a
  * synthetic `__reset` event so it runs on the next drain step rather than
  * re-entering the target while the caller's handler is still on the stack.
  */

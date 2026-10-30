@@ -375,8 +375,8 @@ export function writePrimParam(
       const text = truncateUtf8(str(rules[cursor]), 254)
       const color = asVec(rules[cursor + 1])
       const alpha = num(rules[cursor + 2], 1)
-      const inRange = (v: number) => v >= 0 && v <= 1
-      if (!inRange(alpha) || !inRange(color.x) || !inRange(color.y) || !inRange(color.z)) return 3
+      const outOfRange = (v: number) => v < 0 || v > 1
+      if (outOfRange(alpha) || outOfRange(color.x) || outOfRange(color.y) || outOfRange(color.z)) return 3
       prim.appearance.text = { text, color, alpha }
       return 3
     }
