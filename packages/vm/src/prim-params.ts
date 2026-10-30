@@ -220,7 +220,6 @@ export function defaultFace(): PrimFace {
   }
 }
 
-/** Drop a face's glTF texture and value overrides, keeping their transforms. */
 function clearGltfOverrides(g: PrimFace['gltf']): void {
   g.baseColor = { ...g.baseColor, texture: '', color: '', alpha: '', alphaMode: '', alphaCutoff: '', doubleSided: '' }
   g.normal = { ...g.normal, texture: '' }
@@ -237,18 +236,35 @@ export function renderMaterialKey(prim: Prim, material: string): string | null {
   return prim.inventory.find((it) => it.type === InventoryType.MATERIAL && it.name === material)?.key ?? null
 }
 
-const scalarOverride = (v: LslValue): number | '' | undefined => (typeof v === 'number' || v === '' ? v : undefined)
+const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
+  [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: 'vector',
+  [OVERRIDE_GLTF_BASE_ALPHA]: 'float',
+  [OVERRIDE_GLTF_BASE_ALPHA_MODE]: 'integer',
+  [OVERRIDE_GLTF_BASE_ALPHA_MASK]: 'float',
+  [OVERRIDE_GLTF_BASE_DOUBLE_SIDED]: 'integer',
+  [OVERRIDE_GLTF_METALLIC_FACTOR]: 'float',
+  [OVERRIDE_GLTF_ROUGHNESS_FACTOR]: 'float',
+  [OVERRIDE_GLTF_EMISSIVE_FACTOR]: 'vector',
+}
+
+const overrideType = (code: LslValue): LslType | undefined => (typeof code === 'number' ? OVERRIDE_TYPES[code] : undefined)
 
 /**
  * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs. The base
  * colour and alpha form one factor that "" leaves alone; "" clears the others.
- * A pair with an unknown code or a wrong-typed value is skipped.
+ * One wrong-typed value rejects the whole call; an unknown code is skipped.
  */
 export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslValue>): void {
+  for (let i = 0; i + 1 < params.length; i += 2) {
+    const expected = overrideType(params[i]!)
+    if (expected === undefined || params[i + 1] === '') continue
+    const given = givenType(params, i + 1)
+    if (given !== expected && !(expected === 'float' && given === 'integer')) return
+  }
   const bc = g.baseColor
   for (let i = 0; i + 1 < params.length; i += 2) {
     const v = params[i + 1]!
-    const n = scalarOverride(v)
+    const n = typeof v === 'number' ? v : ''
     switch (params[i]) {
       case OVERRIDE_GLTF_BASE_COLOR_FACTOR:
         if (isVector(v)) {
@@ -258,19 +274,16 @@ export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslV
         break
       case OVERRIDE_GLTF_BASE_ALPHA:
         if (typeof v === 'number') {
-          bc.alpha = v
+          bc.alpha = clamp(v, 0, 1)
           if (bc.color === '') bc.color = one()
         }
         break
-      case OVERRIDE_GLTF_BASE_ALPHA_MODE: if (n !== undefined) bc.alphaMode = n; break
-      case OVERRIDE_GLTF_BASE_ALPHA_MASK: if (n !== undefined) bc.alphaCutoff = n; break
-      case OVERRIDE_GLTF_BASE_DOUBLE_SIDED: if (n !== undefined) bc.doubleSided = n; break
-      case OVERRIDE_GLTF_METALLIC_FACTOR: if (n !== undefined) g.metallicRoughness.metallic = n; break
-      case OVERRIDE_GLTF_ROUGHNESS_FACTOR: if (n !== undefined) g.metallicRoughness.roughness = n; break
-      case OVERRIDE_GLTF_EMISSIVE_FACTOR:
-        if (isVector(v)) g.emissive.tint = asVec(v)
-        else if (v === '') g.emissive.tint = ''
-        break
+      case OVERRIDE_GLTF_BASE_ALPHA_MODE: bc.alphaMode = n === '' ? '' : clamp(n, 0, 2); break
+      case OVERRIDE_GLTF_BASE_ALPHA_MASK: bc.alphaCutoff = n; break
+      case OVERRIDE_GLTF_BASE_DOUBLE_SIDED: bc.doubleSided = n; break
+      case OVERRIDE_GLTF_METALLIC_FACTOR: g.metallicRoughness.metallic = n === '' ? '' : clamp(n, 0, 1); break
+      case OVERRIDE_GLTF_ROUGHNESS_FACTOR: g.metallicRoughness.roughness = n; break
+      case OVERRIDE_GLTF_EMISSIVE_FACTOR: g.emissive.tint = isVector(v) ? asVec(v) : ''; break
     }
   }
 }
@@ -612,6 +625,7 @@ export function writePrimParam(
     case PRIM_NORMAL: {
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
+      if (tex === '') return 5
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
@@ -628,6 +642,7 @@ export function writePrimParam(
     case PRIM_SPECULAR: {
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
+      if (tex === '') return 8
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])

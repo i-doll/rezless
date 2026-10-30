@@ -272,7 +272,6 @@ export const llSetLinkTextureAnim: BuiltinImpl = (ctx, args) => {
 export const llSetLinkTextureAnimOverrideMe: BuiltinImpl = (ctx, args) =>
   llSetLinkTextureAnim(ctx, args)
 
-/** Faces without a render material ignore glTF overrides. */
 export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
   const face = num(args[1]) | 0
@@ -289,8 +288,9 @@ export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
 export const llSetRenderMaterial: BuiltinImpl = (ctx, args) => {
   const material = str(args[0])
   const face = num(args[1], ALL_SIDES) | 0
-  if (renderMaterialKey(ctx.prim, material) === null) sayError(ctx, `Could not find render material '${material}'.`)
-  ctx.prim.setPrimParam(PRIM_RENDER_MATERIAL, [face, material], 0)
+  const key = renderMaterialKey(ctx.prim, material)
+  if (key === null) sayError(ctx, `Could not find render material '${material}'.`)
+  ctx.prim.setPrimParam(PRIM_RENDER_MATERIAL, [face, key ?? NULL_KEY], 0)
   return undefined
 }
 export const llGetRenderMaterial: BuiltinImpl = (ctx, args) => {

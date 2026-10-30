@@ -198,6 +198,23 @@ describe('render materials', () => {
     expect(errors).toEqual(["Could not find render material 'nope'."])
   })
 
+  it('reads face 0 for a negative face and stores NULL_KEY for an unknown name in PRIM_RENDER_MATERIAL', async () => {
+    const { lines, errors } = await probe(`
+      setMat(MAT);
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_RENDER_MATERIAL, 1, "nope"]);
+      out("pp_bad_name", D(llGetPrimitiveParams([PRIM_RENDER_MATERIAL, 1])));
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_RENDER_MATERIAL, 1, "00000000-0000-0000-0000-000000000123"]);
+      out("rm_m1", llGetRenderMaterial(-1) + "|" + llGetRenderMaterial(1) + "|" + D(llGetPrimitiveParams([PRIM_RENDER_MATERIAL, -1])));
+    `)
+    // In-world: probe p5.
+    expect(lines).toEqual([
+      'pp_bad_name=[{00000000-0000-0000-0000-000000000000}3]',
+      `rm_m1=[${MAT}|00000000-0000-0000-0000-000000000123|{${MAT}}3{00000000-0000-0000-0000-000000000123}3${'{00000000-0000-0000-0000-000000000000}3'.repeat(4)}]`,
+    ])
+    expect(errors).toEqual([])
+  })
+
+  // Not measured in-world: material items in the prim inventory.
   it('takes the key of a material item named in the prim inventory', async () => {
     const s = await loadScript({
       source: `string m; default { state_entry() { llSetRenderMaterial("brick", 0); m = llGetRenderMaterial(0); } }`,
@@ -273,6 +290,81 @@ describe('llSetLinkGLTFOverrides', () => {
     // In-world: an unset colour beside a set alpha reads <1,1,1> (probe p2 ov_bc_partial2).
     expect(lines).toEqual([
       'alpha=[{}3{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2{<1.000000, 1.000000, 1.000000>}5{0.250000}2{}3{}3{}3]',
+    ])
+  })
+
+  it('clears separate overrides with "", leaves the alpha alone, rejects a call with any wrong-typed value, and clamps', async () => {
+    const { lines } = await probe(`
+      setMat(MAT);
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_COLOR_FACTOR, <1,0,0>, OVERRIDE_GLTF_BASE_ALPHA, 0.5, OVERRIDE_GLTF_BASE_ALPHA_MODE, PRIM_GLTF_ALPHA_MODE_MASK, OVERRIDE_GLTF_BASE_ALPHA_MASK, 0.4, OVERRIDE_GLTF_BASE_DOUBLE_SIDED, TRUE, OVERRIDE_GLTF_METALLIC_FACTOR, 0.1, OVERRIDE_GLTF_ROUGHNESS_FACTOR, 0.2, OVERRIDE_GLTF_EMISSIVE_FACTOR, <0.3,0.3,0.3>]);
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_ALPHA, ""]); out("c_alpha", G(PRIM_GLTF_BASE_COLOR));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_ALPHA_MODE, ""]); out("c_mode", G(PRIM_GLTF_BASE_COLOR));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_ALPHA_MASK, ""]); out("c_mask", G(PRIM_GLTF_BASE_COLOR));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_DOUBLE_SIDED, ""]); out("c_dbl", G(PRIM_GLTF_BASE_COLOR));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_ROUGHNESS_FACTOR, ""]); out("c_rough", G(PRIM_GLTF_METALLIC_ROUGHNESS));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_EMISSIVE_FACTOR, ""]); out("c_emis", G(PRIM_GLTF_EMISSIVE));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_METALLIC_FACTOR, 0.3, OVERRIDE_GLTF_BASE_ALPHA, "x", OVERRIDE_GLTF_ROUGHNESS_FACTOR, 0.6]); out("multi_bad", G(PRIM_GLTF_METALLIC_ROUGHNESS) + "#" + G(PRIM_GLTF_BASE_COLOR));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_ALPHA_MODE, 1.5, OVERRIDE_GLTF_BASE_DOUBLE_SIDED, 2.7]); out("int_float", G(PRIM_GLTF_BASE_COLOR));
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_ALPHA_MODE, 7, OVERRIDE_GLTF_BASE_ALPHA, 2.0, OVERRIDE_GLTF_METALLIC_FACTOR, -1.0]); out("ranges", G(PRIM_GLTF_BASE_COLOR) + "#" + G(PRIM_GLTF_METALLIC_ROUGHNESS));
+    `)
+    const t = '{}3{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2'
+    const red = '{<1.000000, 0.000000, 0.000000>}5'
+    // In-world: probe p5.
+    expect(lines).toEqual([
+      `c_alpha=[${t}${red}{0.500000}2{2}1{0.400000}2{1}1]`,
+      `c_mode=[${t}${red}{0.500000}2{}3{0.400000}2{1}1]`,
+      `c_mask=[${t}${red}{0.500000}2{}3{}3{1}1]`,
+      `c_dbl=[${t}${red}{0.500000}2{}3{}3{}3]`,
+      `c_rough=[${t}{0.100000}2{}3]`,
+      `c_emis=[${t}{}3]`,
+      `multi_bad=[${t}{0.100000}2{}3#${t}${red}{0.500000}2{}3{}3{}3]`,
+      `int_float=[${t}${red}{0.500000}2{}3{}3{}3]`,
+      `ranges=[${t}${red}{1.000000}2{2}1{}3{}3#${t}{0.000000}2{}3]`,
+    ])
+  })
+})
+
+describe('llSetLinkGLTFOverrides codes', () => {
+  it('skips a code that is not an integer', async () => {
+    const { lines } = await probe(`
+      setMat(MAT);
+      llSetLinkGLTFOverrides(LINK_THIS, 0, ["1", "x", OVERRIDE_GLTF_METALLIC_FACTOR, 0.3]);
+      out("mr", G(PRIM_GLTF_METALLIC_ROUGHNESS));
+    `)
+    // Not measured in-world: modelled like the unknown code 99 in probe p3, which changed nothing.
+    expect(lines).toEqual([
+      'mr=[{}3{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2{0.300000}2{}3]',
+    ])
+  })
+})
+
+describe('legacy PRIM_NORMAL and PRIM_SPECULAR', () => {
+  it('ignore a rule with a "" texture and read NULL_KEY and set maps as keys', async () => {
+    const { lines } = await probe(`
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NORMAL, 0, "", <2,2,0>, ZERO_VECTOR, 0.0]); out("nm_empty", G(PRIM_NORMAL));
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NORMAL, 0, TEXTURE_BLANK, <1,1,0>, ZERO_VECTOR, 0.0]); out("nm_set", G(PRIM_NORMAL));
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NORMAL, 0, NULL_KEY, <1,1,0>, ZERO_VECTOR, 0.0]); out("nm_null", G(PRIM_NORMAL));
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_SPECULAR, 0, "", <1,1,0>, ZERO_VECTOR, 0.0, <1,0,0>, 100, 5]); out("sp_empty", G(PRIM_SPECULAR));
+    `)
+    const t = '{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2'
+    // In-world: probe p5, on a face at its defaults. Whether a "" texture ignores the rule or resets the
+    // face to its defaults is not measured; this models "ignored".
+    expect(lines).toEqual([
+      `nm_empty=[{00000000-0000-0000-0000-000000000000}4${t}]`,
+      `nm_set=[{5748decc-f629-461c-9a36-a35a221fe21f}4${t}]`,
+      `nm_null=[{00000000-0000-0000-0000-000000000000}4${t}]`,
+      `sp_empty=[{00000000-0000-0000-0000-000000000000}4${t}{<1.000000, 1.000000, 1.000000>}5{51}1{0}1]`,
+    ])
+  })
+
+  it('ignore a "" texture on a face that already has a map', async () => {
+    const { lines } = await probe(`
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NORMAL, 0, TEXTURE_BLANK, <2,2,0>, ZERO_VECTOR, 0.0, PRIM_NORMAL, 0, "", <3,3,0>, ZERO_VECTOR, 0.0]);
+      out("nm", G(PRIM_NORMAL));
+    `)
+    // Not measured in-world: "ignored" is the choice made for p5's nm_empty.
+    expect(lines).toEqual([
+      'nm=[{5748decc-f629-461c-9a36-a35a221fe21f}4{<2.000000, 2.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2]',
     ])
   })
 })
