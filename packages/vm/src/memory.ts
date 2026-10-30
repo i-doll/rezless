@@ -186,7 +186,8 @@ export function listBytes(list: ReadonlyArray<LslValue>): number {
 
 /**
  * Code size estimated from the AST, rounded up to whole 512-byte blocks.
- * The weights are calibrated against in-world llGetUsedMemory readings.
+ * The weights come from a few small in-world probe scripts; expect real scripts
+ * to differ, often by a lot.
  */
 export function codeBytes(ast: Ast): number {
   let bytes = 2984
