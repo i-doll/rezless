@@ -45,9 +45,10 @@ export function* callBuiltin(
     },
   }
   const dying = dctx.state.lifecycle.dying
+  if (dctx.state.lifecycle.removed && name !== 'llOwnerSay') throw new HaltSignal()
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
-  if (dying || dctx.state.lifecycle.removed) throw new HaltSignal()
+  if (dying) throw new HaltSignal()
   const delayMs = spec ? spec.delay * 1000 : 0
   if (sleptMs !== null || delayMs > 0) yield { until: dctx.state.clock.now + (sleptMs ?? 0) + delayMs }
   return result

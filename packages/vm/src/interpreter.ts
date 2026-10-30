@@ -364,9 +364,9 @@ function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): Exec<v
   }
 }
 
-/** A loop's back-edge, where a script that called llDie halts. */
+/** A loop's back-edge, where a script that called llDie or removed itself halts. */
 function iterate(ctx: InterpreterContext): void {
-  if (ctx.state.lifecycle.dying) throw new HaltSignal()
+  if (ctx.state.lifecycle.dying || ctx.state.lifecycle.removed) throw new HaltSignal()
 }
 
 // ---- Expressions ----

@@ -246,13 +246,18 @@ describe('after a script wakes', () => {
   })
 
   it('llDie or a self-removal in state_exit after a sleep halts the chain', async () => {
-    for (const end of ['llDie(); llOwnerSay("exit"); say("after");', 'llRemoveInventory(llGetScriptName()); say("after");']) {
+    const ends: Array<[string, string[]]> = [
+      ['llDie(); llOwnerSay("exit"); say("after");', []],
+      // say() is llOwnerSay, which still runs after a self-removal (seen in the owner's viewer).
+      ['llRemoveInventory(llGetScriptName()); say("after");', ['1000 after']],
+    ]
+    for (const [end, after] of ends) {
       const { log, scripts } = await pair(
         ['e_a', `default { touch_start(integer n) { state two; } state_exit() { llSleep(1.0); ${end} } } state two { state_entry() { say("two"); } }`],
         ['e_b', `default { state_entry() { } }`],
       )
       scripts['e_a']!.fire('touch_start', { num_detected: 1 })
-      expect(log.filter((l) => l.endsWith('after') || l.endsWith('two'))).toEqual([])
+      expect(log.filter((l) => l.endsWith('after') || l.endsWith('two'))).toEqual(after)
     }
   })
 

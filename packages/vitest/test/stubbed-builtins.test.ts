@@ -359,7 +359,7 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.host.inventory).toHaveLength(1)
   })
 
-  it('removing the calling script halts it at once and the script is gone', async () => {
+  it('removing the calling script stops it at its next call other than llOwnerSay, and the script is gone', async () => {
     const s = await loadScript({
       source: `default {
         state_entry() {
@@ -373,16 +373,16 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       scriptName: 'self',
     })
     s.start()
-    // In-world: rm.iw / rm2.iw (Aditi, two runs) nothing after the removal took effect (rm1, rm5, rm8) and the script was gone.
-    // An older main-grid observation heard llOwnerSay("next"); owner chat can't be captured headless, so it wasn't re-measured.
-    expect(s.chat.map((c) => c.text)).toEqual([])
+    // In-world: rm.iw / rm2.iw (Aditi, two runs) no other call after the removal took effect (rm1, rm5, rm8) and the script was gone;
+    // llRemoveInventory(llGetScriptName()); llOwnerSay("next"); showed "next" in the owner's viewer.
+    expect(s.chat.map((c) => c.text)).toEqual(['next'])
     expect(s.host.inventory).toHaveLength(0)
     expect(s.host.scripts).toHaveLength(0)
     s.fire('touch_start', { num_detected: 1 })
-    expect(s.chat.map((c) => c.text)).toEqual([])
+    expect(s.chat.map((c) => c.text)).toEqual(['next'])
   })
 
-  it('a self-removed script stops before its next call', async () => {
+  it('a self-removed script still runs llOwnerSay, then stops at its next call', async () => {
     const s = await loadScript({
       source: `default { state_entry() {
         llRemoveInventory(llGetScriptName());
@@ -392,13 +392,13 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       } }`,
     })
     s.start()
-    // In-world: rm.iw / rm2.iw (Aditi, two runs) nothing after the removal took effect (rm3, rm8).
-    // An older main-grid observation heard llOwnerSay("next"); owner chat can't be captured headless, so it wasn't re-measured.
-    expect(s.chat.map((c) => c.text)).toEqual([])
+    // In-world: rm.iw / rm2.iw (Aditi, two runs) no other call after the removal took effect (rm3, rm8);
+    // llOwnerSay("next") right after the removal showed in the owner's viewer.
+    expect(s.chat.map((c) => c.text)).toEqual(['next'])
     expect(s.text).toBeNull()
   })
 
-  it('nothing after a self-removal takes effect', async () => {
+  it('nothing after a self-removal takes effect except llOwnerSay', async () => {
     const run = async (body: string) => {
       const s = await loadScript({
         source: `default { state_entry() { llSetTimerEvent(3.0); } timer() { llSetTimerEvent(0); ${body} } }`,
@@ -417,6 +417,8 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(await run(`llSetObjectDesc("v6 before"); ${rm} llSetObjectDesc("v6 d1"); llSetObjectDesc("v6 d2");`)).toEqual({ heard: [], desc: 'v6 before', inventory: 0 })
     expect(await run(`llSetObjectDesc("v7 before"); ${rm} integer x = 5; x++; llSetObjectDesc("v7 d1");`)).toEqual({ heard: [], desc: 'v7 before', inventory: 0 })
     expect(await run(`llSetObjectDesc("v9 before"); ${rm} llSay(7777, "v9 s1"); llSetObjectDesc("v9 d1");`)).toEqual({ heard: [], desc: 'v9 before', inventory: 0 })
+    // In-world: rm2.iw rm8 kept "v8 before"; the owner's viewer showed llOwnerSay("next") right after a self-removal.
+    expect(await run(`llSetObjectDesc("v8 before"); ${rm} llOwnerSay("next"); llSetObjectDesc("v8 d1");`)).toEqual({ heard: ['next'], desc: 'v8 before', inventory: 0 })
   })
 
   it('a script that removes itself in state_exit just stops', async () => {
@@ -433,7 +435,8 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       state other { state_entry() { llOwnerSay("other"); } }`,
     })
     expect(() => s.start()).not.toThrow()
-    expect(s.chat.map((c) => c.text)).toEqual([])
+    // llOwnerSay still runs after a self-removal (seen in the owner's viewer); the sleep then stops the script.
+    expect(s.chat.map((c) => c.text)).toEqual(['exit'])
   })
 
   it('a fired handler does not run after state_entry removed the script', async () => {
@@ -447,6 +450,33 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.chat).toEqual([])
   })
 
+  it('a self-removed script stops at its next loop iteration', async () => {
+    const s = await loadScript({
+      source: `default { state_entry() {
+        llRemoveInventory(llGetScriptName());
+        integer i;
+        for (i = 0; i < 3; ++i) llOwnerSay((string)i);
+        while (TRUE) ++i;
+      } }`,
+    })
+    s.start()
+    // Not measured: owner chat after a removal is only visible in the owner's viewer. This follows the measured llDie rule
+    // (a loop iteration halts) and keeps a removed script from looping forever.
+    expect(s.chat.map((c) => c.text)).toEqual(['0'])
+    expect(s.host.scripts).toHaveLength(0)
+  })
+  it('a removal at the end of state_exit skips the new state_entry', async () => {
+    const s = await loadScript({
+      source: `default {
+        state_entry() { state other; }
+        state_exit() { llRemoveInventory(llGetScriptName()); }
+      }
+      state other { state_entry() { llOwnerSay("other"); } }`,
+    })
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual([])
+    expect(s.host.scripts).toHaveLength(0)
+  })
   it('a removal before a state change skips state_exit and the new state_entry', async () => {
     const s = await loadScript({
       source: `default {
@@ -456,7 +486,8 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       state other { state_entry() { llOwnerSay("other"); } }`,
     })
     s.start()
-    expect(s.chat.map((c) => c.text)).toEqual([])
+    // llOwnerSay still runs after a self-removal (seen in the owner's viewer); the state change then stops the script.
+    expect(s.chat.map((c) => c.text)).toEqual(['next'])
   })
 
   it('removing another script stops it', async () => {
