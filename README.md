@@ -95,7 +95,7 @@ await loadScript({
     llNewThing: { returns: 'integer', params: ['string'] },
   },
   stubs: 'warn',                  // optional: 'allow' (default), 'warn' or 'throw' when the script calls a stubbed function
-  memoryLimit: false,             // optional, default true: false lets the script use more than its memory limit without a Stack-Heap Collision
+  memoryLimit: true,              // optional, default false: true crashes the script with a Stack-Heap Collision when it runs out of memory
 })
 ```
 

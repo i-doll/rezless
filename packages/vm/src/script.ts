@@ -95,8 +95,9 @@ export interface ScriptOptions {
    */
   readonly stubs?: 'allow' | 'warn' | 'throw'
   /**
-   * Set false to let the script outgrow its memory limit without a
-   * Stack-Heap Collision. Default true.
+   * Set true to crash the script with a Stack-Heap Collision when it outgrows
+   * its memory limit, as Second Life does. Default false: memory is still
+   * measured, but the script keeps running.
    */
   readonly memoryLimit?: boolean
 }
@@ -204,7 +205,7 @@ export class Script {
       filename,
       source,
       coverage,
-      memory: new Memory(codeBytes(ast), options.memoryLimit ?? true),
+      memory: new Memory(codeBytes(ast), options.memoryLimit ?? false),
     }
     if (coverage) coverage.hitState('default')
 

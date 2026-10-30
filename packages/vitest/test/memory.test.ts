@@ -201,6 +201,7 @@ describe('script memory: stack', () => {
         f(integer d) { depth = d; f(d + 1); }
         default { state_entry() { f(1); } }
       `,
+      memoryLimit: true,
     })
     expect(() => s.start()).toThrow('Stack-Heap Collision')
     expect(s.global('depth')).toBeGreaterThanOrEqual(1200)
@@ -228,14 +229,14 @@ describe('script memory: Stack-Heap Collision', () => {
   `
 
   it('a list of distinct integers reaches 510 elements under a 16 KiB limit', async () => {
-    const s = await loadScript({ source: GROW })
+    const s = await loadScript({ source: GROW, memoryLimit: true })
     expect(() => s.start()).toThrow('Stack-Heap Collision')
     expect(s.global('n')).toBe(510)
     expect(s.global('used')).toBe(16378)
   })
 
   it('reports the error on DEBUG_CHANNEL and stops the script', async () => {
-    const s = await loadScript({ source: GROW, scriptName: 'grower' })
+    const s = await loadScript({ source: GROW, scriptName: 'grower', memoryLimit: true })
     expect(() => s.start()).toThrow('Stack-Heap Collision')
     expect(s.chat).toEqual([
       { channel: 2147483647, text: 'Script run-time error', type: 'say' },
@@ -259,6 +260,7 @@ describe('script memory: Stack-Heap Collision', () => {
           }
         }
       `,
+      memoryLimit: true,
     })
     expect(() => s.start()).toThrow('Stack-Heap Collision')
     expect(s.global('n')).toBe(2)
@@ -267,6 +269,7 @@ describe('script memory: Stack-Heap Collision', () => {
   it('a script whose code alone passes the limit collides on its first event', async () => {
     const s = await loadScript({
       source: `default { state_entry() { llSay(0, "${'x'.repeat(33000)}"); } }`,
+      memoryLimit: true,
     })
     expect(() => s.start()).toThrow('Stack-Heap Collision')
     expect(s.running).toBe(false)
@@ -299,21 +302,22 @@ describe('script memory: Stack-Heap Collision', () => {
     expect(() => s.start()).toThrow('Stack-Heap Collision')
   })
 
-  it('memoryLimit: false lets the script grow past its limit', async () => {
-    const s = await run(
-      `
-        list l;
-        default {
-          state_entry() {
-            integer i;
-            for (i = 0; i < 5000; i++) l += [i];
-            llSay(7357, (string)llGetFreeMemory());
-          }
+  it('only crashes when memoryLimit is on', async () => {
+    const source = `
+      list l;
+      default {
+        state_entry() {
+          integer i;
+          for (i = 0; i < 5000; i++) l += [i];
+          llSay(7357, (string)llGetFreeMemory());
         }
-      `,
-      { memoryLimit: false },
-    )
+      }
+    `
+    const s = await run(source)
+    expect(s.running).toBe(true)
     expect(reports(s)[0]).toBeLessThan(0)
+    const strict = await loadScript({ source, memoryLimit: true })
+    expect(() => strict.start()).toThrow('Stack-Heap Collision')
   })
 })
 
