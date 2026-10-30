@@ -194,12 +194,12 @@ describe('listen limits and llRegionSay', () => {
     expect(s.chat).toEqual([{ channel: 5, text: 'hi', type: 'regionSay' }])
   })
 
-  // In-world: llRegionSay(0, ...) says nothing and shouts an error on DEBUG_CHANNEL.
-  it('llRegionSay on channel 0 shouts an error instead of chatting', async () => {
+  // In-world: llRegionSay(0, ...) says nothing and says an error on DEBUG_CHANNEL.
+  it('llRegionSay on channel 0 says an error instead of chatting', async () => {
     const s = await load(`default { state_entry() { llRegionSay(0, "hi"); } }`)
     s.start()
     expect(s.chat).toEqual([
-      { channel: 2147483647, text: 'Cannot use llRegionSay() on channel 0.', type: 'shout' },
+      { channel: 2147483647, text: 'Cannot use llRegionSay() on channel 0.', type: 'say' },
     ])
   })
 })

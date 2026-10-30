@@ -9,6 +9,7 @@ import {
   type LinksetOptions,
   type PrimOptions,
   type InventoryItem,
+  type Vector,
 } from '@rezless/vm'
 import { isCoverageEnabled } from './coverage-config.js'
 import { registerScript } from './coverage-registry.js'
@@ -38,6 +39,8 @@ export interface PrimInput extends PrimOptions {
 
 export interface LinksetInput extends LinksetOptions {
   readonly prims: ReadonlyArray<PrimInput>
+  /** Region position of the root prim. */
+  readonly position?: Vector
 }
 
 export interface LoadedLinkset {
@@ -65,6 +68,8 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
   const linksetOpts: { -readonly [K in keyof LinksetOptions]: LinksetOptions[K] } = {}
   if (input.owner !== undefined) linksetOpts.owner = input.owner
   if (input.startUnixTime !== undefined) linksetOpts.startUnixTime = input.startUnixTime
+  if (input.world !== undefined) linksetOpts.world = input.world
+  if (input.region !== undefined) linksetOpts.region = input.region
   const linkset = new Linkset(linksetOpts)
   // Object.create(null) avoids prototype keys ('toString', 'constructor', …)
   // false-positive-tripping the duplicate-name check below.
@@ -77,6 +82,7 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
     if (primInput.description !== undefined) primOpts.description = primInput.description
     const prim = new Prim(primOpts)
     linkset.addPrim(prim)
+    if (prims.length === 0 && input.position) prim.params.position = input.position
     prims.push(prim)
     for (const item of primInput.inventory ?? []) {
       prim.addInventory(item)

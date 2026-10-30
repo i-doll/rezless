@@ -6,8 +6,8 @@
  * it by calling `llSleep` or `llSetTimerEvent`. Real wall-clock time is
  * never read.
  *
- * The queue is **linkset-wide**: every script in the linkset shares one
- * `now` and one event queue. Each queued event carries a `target: Script`
+ * The queue is **linkset-wide**, or world-wide for linksets in a `World`:
+ * every script shares one `now` and one event queue. Each queued event carries a `target: Script`
  * — the script whose handler will run when the event fires. Per-script
  * state (timer interval, llGetTime reference) lives on `ScriptClockView`,
  * a thin facade exposed to builtins as `ctx.state.clock`.

@@ -352,10 +352,10 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.global('type')).toBe(INVENTORY_NONE)
   })
 
-  it('shouts on a missing name and does nothing else', async () => {
+  it('says an error on a missing name and does nothing else', async () => {
     const s = await loadScript({ source: `default { state_entry() { llRemoveInventory("nope"); } }` })
     s.start()
-    expect(s.chat).toEqual([{ channel: DEBUG_CHANNEL, text: "Missing inventory item 'nope'.", type: 'shout' }])
+    expect(s.chat).toEqual([{ channel: DEBUG_CHANNEL, text: "Missing inventory item 'nope'.", type: 'say' }])
     expect(s.host.inventory).toHaveLength(1)
   })
 

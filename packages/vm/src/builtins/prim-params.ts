@@ -5,7 +5,7 @@ import type { Prim } from '../prim.js'
 import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_LINK_TARGET } from '../generated/constants.js'
 import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { typedList } from '../values/list-types.js'
-import { shoutError } from './debug.js'
+import { sayError } from './debug.js'
 
 /**
  * Walk a PRIM_* rules list, applying each rule to every prim in the
@@ -14,7 +14,7 @@ import { shoutError } from './debug.js'
  * llSetLinkPrimitiveParams behavior, available inside
  * llSetPrimitiveParams too).
  *
- * An unknown rule or a bad argument shouts the simulator's error on
+ * An unknown rule or a bad argument says the simulator's error on
  * DEBUG_CHANNEL and stops the walk; rules before it stay applied.
  */
 function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyArray<LslValue>): void {
@@ -31,7 +31,7 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
     }
     const error = typeof rule === 'number' ? checkPrimRule(rule, rules, i + 1) : ': unknown rule'
     if (error !== null) {
-      shoutError(ctx, `${fn} error running rule #${ruleNumber}${error}.`)
+      sayError(ctx, `${fn} error running rule #${ruleNumber}${error}.`)
       return
     }
     let consumed: number | null = null

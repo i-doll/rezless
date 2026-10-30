@@ -19,6 +19,8 @@ export type {
 } from './coverage.js'
 export { Linkset, LINK_THIS, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_ROOT } from './linkset.js'
 export type { LinksetOptions } from './linkset.js'
+export { World } from './world.js'
+export type { WorldOptions, RegionCorner } from './world.js'
 export { Prim } from './prim.js'
 export type { PrimOptions } from './prim.js'
 export { InventoryType, makeInventoryItem } from './inventory.js'

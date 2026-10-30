@@ -3,7 +3,9 @@ import { Prim } from './prim.js'
 import type { Script } from './script.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
-import { NULL_KEY } from './values/types.js'
+import type { ChatType } from './runtime.js'
+import type { World } from './world.js'
+import { NULL_KEY, type Vector } from './values/types.js'
 import {
   LINK_ROOT,
   LINK_SET,
@@ -18,9 +20,18 @@ export { LINK_ROOT, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_THIS }
 export interface LinksetOptions {
   /** Owner key applied to all scripts in this linkset. */
   readonly owner?: string
-  /** Unix time in seconds at virtual time 0, read by llGetUnixTime and friends. Default 0. */
+  /**
+   * Unix time in seconds at virtual time 0, read by llGetUnixTime and
+   * friends. Default 0. Ignored in a world, whose clock the linkset shares.
+   */
   readonly startUnixTime?: number
+  /** World to join; the linkset shares its clock and chats with its other linksets. */
+  readonly world?: World
+  /** Region of `world` the linkset is in. */
+  readonly region?: string
 }
+
+const CHAT_RANGE: Partial<Record<ChatType, number>> = { whisper: 10, say: 20, shout: 100 }
 
 /**
  * A linkset owns the shared world state for its prims and scripts: the
@@ -51,10 +62,20 @@ export class Linkset {
     this.linkedMessages.length = 0
   }
   readonly owner: string
+  readonly world?: World
+  readonly region: string | undefined
 
   constructor(opts: LinksetOptions = {}) {
     this.owner = opts.owner ?? NULL_KEY
-    this.clock = new LinksetClock(opts.startUnixTime)
+    this.region = opts.region
+    if (opts.world) {
+      opts.world.corner(opts.region)
+      this.world = opts.world
+      this.clock = opts.world.clock
+      opts.world.linksets.push(this)
+    } else {
+      this.clock = new LinksetClock(opts.startUnixTime)
+    }
   }
 
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */
@@ -165,20 +186,39 @@ export class Linkset {
   }
 
   /**
-   * Queue chat a script in prim `from` sent on the listens of every other
-   * prim, or only the prim keyed `to` for llRegionSayTo. A prim never hears
-   * its own chat.
+   * Queue chat a script in prim `from` sent on the listens of every prim it
+   * reaches, in this linkset and the rest of its world. Whisper, say and
+   * shout reach prims within 10, 20 and 100 m in any region; llRegionSay
+   * reaches the sender's region, and llRegionSayTo only the prim keyed `to`
+   * in that region. A prim never hears its own chat.
    */
-  routeChat(from: Prim, channel: number, message: string, to?: string): void {
-    for (const p of this.prims) {
-      if (p === from || (to !== undefined && (to === NULL_KEY || p.key !== to))) continue
-      for (const s of p.scripts) s.matchChatListens({ channel, name: from.name, key: from.key, message })
+  routeChat(from: Prim, type: ChatType, channel: number, message: string, to?: string): void {
+    const origin = this.globalPosition(from)
+    const range = CHAT_RANGE[type] ?? 0
+    const reaches = (linkset: Linkset, p: Prim): boolean => {
+      if (type === 'regionSay') return linkset.region === this.region
+      if (type === 'regionSayTo') return linkset.region === this.region && to !== NULL_KEY && p.key === to
+      return distanceSquared(origin, linkset.globalPosition(p)) <= range * range
     }
+    for (const linkset of this.world?.linksets ?? [this]) {
+      for (const p of linkset.prims) {
+        if (p === from || !reaches(linkset, p)) continue
+        for (const s of p.scripts) s.matchChatListens({ channel, name: from.name, key: from.key, message })
+      }
+    }
+  }
+
+  private globalPosition(prim: Prim): Vector {
+    const p = prim.regionPosition()
+    if (!this.world) return p
+    const corner = this.world.corner(this.region)
+    return { x: corner.x + p.x, y: corner.y + p.y, z: p.z }
   }
 
   /**
    * Advance the shared clock by `ms` and drain every event that becomes
-   * due, dispatching each to its target script. The clock steps to each
+   * due across the linkset, or its whole world, dispatching each to its
+   * target script. The clock steps to each
    * event's due time before its handler runs, so handlers see the time the
    * event fired rather than the end of the window.
    */
@@ -202,7 +242,7 @@ export class Linkset {
    * allocation per event.
    */
   drainQueue(until = this.clock.now): void {
-    const scripts = this.allScripts()
+    const scripts = this.world?.allScripts() ?? this.allScripts()
     if (scripts.length === 0) return
     while (true) {
       const next = this.clock.takeNextDue(scripts, Math.max(until, this.clock.now))
@@ -225,4 +265,8 @@ export class Linkset {
       target.deliver(next.event, next.payload)
     }
   }
+}
+
+function distanceSquared(a: Vector, b: Vector): number {
+  return (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2
 }

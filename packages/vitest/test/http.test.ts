@@ -126,8 +126,8 @@ describe('Phase 3 — HTTP requests and responses', () => {
 })
 
 describe('llHTTPRequest errors, throttle and truncation', () => {
-  // In-world: "notaurl" returns NULL_KEY and shouts on DEBUG_CHANNEL.
-  it('an invalid URL returns NULL_KEY and shouts an error', async () => {
+  // In-world: "notaurl" returns NULL_KEY and says an error on DEBUG_CHANNEL.
+  it('an invalid URL returns NULL_KEY and says an error', async () => {
     const s = await load(`
       key req = "x";
       default { state_entry() { req = llHTTPRequest("notaurl", [], ""); } }
@@ -136,11 +136,11 @@ describe('llHTTPRequest errors, throttle and truncation', () => {
     expect(s.global('req')).toBe(NULL_KEY)
     expect(s.httpRequests).toHaveLength(0)
     expect(s.chat).toEqual([
-      { channel: DEBUG_CHANNEL, text: 'URL passed to llHTTPRequest is not valid', type: 'shout' },
+      { channel: DEBUG_CHANNEL, text: 'URL passed to llHTTPRequest is not valid', type: 'say' },
     ])
   })
 
-  it('HTTP_BODY_MAXLENGTH above 16384 returns NULL_KEY and shouts an error', async () => {
+  it('HTTP_BODY_MAXLENGTH above 16384 returns NULL_KEY and says an error', async () => {
     const s = await load(`
       key req = "x";
       default {
@@ -153,11 +153,11 @@ describe('llHTTPRequest errors, throttle and truncation', () => {
     expect(s.global('req')).toBe(NULL_KEY)
     expect(s.httpRequests).toHaveLength(0)
     expect(s.chat).toEqual([
-      { channel: DEBUG_CHANNEL, text: 'HTTP_BODY_MAXLENGTH value is invalid', type: 'shout' },
+      { channel: DEBUG_CHANNEL, text: 'HTTP_BODY_MAXLENGTH value is invalid', type: 'say' },
     ])
   })
 
-  // In-world: 25 requests per object per 20 s, then NULL_KEY and a shout.
+  // In-world: 25 requests per object per 20 s, then NULL_KEY and an error on DEBUG_CHANNEL.
   it('throttles after 25 requests in 20 seconds', async () => {
     const s = await load(`
       integer ok = 0;
@@ -176,7 +176,7 @@ describe('llHTTPRequest errors, throttle and truncation', () => {
     expect(s.global('ok')).toBe(25)
     expect(s.global('last')).toBe(NULL_KEY)
     expect(s.chat).toEqual([
-      { channel: DEBUG_CHANNEL, text: 'Too many HTTP requests too fast.', type: 'shout' },
+      { channel: DEBUG_CHANNEL, text: 'Too many HTTP requests too fast.', type: 'say' },
     ])
     s.advanceTime(20_000)
     s.fire('touch_start', { num_detected: 1 })

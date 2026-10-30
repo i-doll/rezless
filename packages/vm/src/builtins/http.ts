@@ -9,7 +9,7 @@ import {
   HTTP_EXTENDED_ERROR,
 } from '../generated/constants.js'
 import { requestKey } from '../keys.js'
-import { shoutError } from './debug.js'
+import { sayError } from './debug.js'
 
 /** Response bodies longer than this are cut unless HTTP_BODY_MAXLENGTH says otherwise. */
 export const DEFAULT_HTTP_BODY_MAXLENGTH = 2048
@@ -126,7 +126,7 @@ function parseOptions(raw: ReadonlyArray<LslValue>): ParsedOptions {
  * deterministic key. Tests respond via Script.respondToHttp(key, ...),
  * which schedules an http_response event. An invalid URL, method or
  * HTTP_BODY_MAXLENGTH, or more than 25 requests per object in 20 seconds,
- * shouts an error and returns NULL_KEY; with HTTP_EXTENDED_ERROR set it
+ * says an error and returns NULL_KEY; with HTTP_EXTENDED_ERROR set it
  * returns a key and answers with an http_response error instead.
  */
 export const llHTTPRequest: BuiltinImpl = (ctx, args) => {
@@ -134,8 +134,8 @@ export const llHTTPRequest: BuiltinImpl = (ctx, args) => {
   const rawOptions = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const body = (args[2] as string | undefined) ?? ''
   const parsed = parseOptions(rawOptions)
-  const reject = (shout: string, status: number, title: string, detail: string): string => {
-    shoutError(ctx, shout)
+  const reject = (error: string, status: number, title: string, detail: string): string => {
+    sayError(ctx, error)
     if (!parsed.extendedError) return NULL_KEY
     const key = nextKey(ctx)
     const payload = { request_id: key, status, metadata: [], body: extendedErrorBody(status, title, detail) }
