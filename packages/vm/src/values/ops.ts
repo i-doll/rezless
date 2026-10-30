@@ -398,7 +398,7 @@ function conjugate(q: Rotation): Rotation {
   return rot(-q.x, -q.y, -q.z, q.s)
 }
 
-function rotateVector(v: Vector, q: Rotation): Vector {
+export function rotateVector(v: Vector, q: Rotation): Vector {
   // v' = q * v * q⁻¹
   const qv: Rotation = rot(v.x, v.y, v.z, 0)
   const r = hamilton(hamilton(q, qv), conjugate(q))

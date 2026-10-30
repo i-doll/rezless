@@ -13,7 +13,9 @@ import type { LinkedMessageEntry } from './builtins/linked.js'
 import type { DataserverRequestEntry } from './builtins/dataserver.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
+import type { PermissionRequestEntry } from './builtins/permissions.js'
 import { ResetScriptSignal } from './builtins/object.js'
+import { ScriptRemovedSignal } from './builtins/inventory.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
 import { NULL_KEY } from './values/types.js'
@@ -85,6 +87,12 @@ export interface ScriptOptions {
    * ones; give each an implementation with `script.mock`.
    */
   readonly functions?: Readonly<Record<string, FunctionSignature>>
+  /**
+   * What happens when the script calls a function rezless only stubs:
+   * 'allow' (default) returns the type's default value silently, 'warn'
+   * also warns once per function, 'throw' fails the call.
+   */
+  readonly stubs?: 'allow' | 'warn' | 'throw'
 }
 
 /**
@@ -100,6 +108,8 @@ export class Script {
   private readonly functions: Readonly<Record<string, FunctionSignature>>
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
+  private readonly stubs: 'allow' | 'warn' | 'throw'
+  private readonly warnedStubs = new Set<string>()
   /** Per-script clock facade (timer state + time reference). */
   readonly clockView: ScriptClockView
   readonly host: Prim
@@ -181,6 +191,7 @@ export class Script {
       detectedStack: [],
       linksetData: this.linkset.linksetData,
       appearance: this.host.appearance,
+      permissions: { granted: 0, agent: NULL_KEY, requests: [] },
       lifecycle: {
         dead: false,
       },
@@ -203,6 +214,7 @@ export class Script {
     initGlobals(this.globals, ast.globals)
     this.userFunctions = new Map(ast.functions.map((f) => [f.name, f]))
     this.functions = options.functions ?? {}
+    this.stubs = options.stubs ?? 'allow'
     this.handlersByState = indexHandlers(ast)
     if (!this.handlersByState.has('default')) {
       throw new Error('LSL script has no default state')
@@ -345,6 +357,32 @@ export class Script {
     this.respondToDataserver(req.key, value)
   }
 
+  /** Permission requests made with llRequestPermissions, oldest first. */
+  get permissionRequests(): ReadonlyArray<PermissionRequestEntry> {
+    return this.state.permissions.requests
+  }
+
+  /**
+   * Answer the most recent unanswered permission request, granting the
+   * requested bits that are also in `permissions` (all of them by default).
+   * Fires `run_time_permissions` on this script.
+   */
+  grantPermissions(permissions?: number): void {
+    const req = [...this.state.permissions.requests].reverse().find((r) => !r.answered)
+    if (!req) throw new Error('no pending permission request')
+    req.answered = true
+    const granted = req.permissions & (permissions ?? req.permissions)
+    this.state.permissions.granted = granted
+    this.state.permissions.agent = req.agent
+    this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
+    this.linkset.drainQueue()
+  }
+
+  /** Answer the most recent unanswered permission request with No. */
+  denyPermissions(): void {
+    this.grantPermissions(0)
+  }
+
   /** Currently displayed floating text (from llSetText). null if unset. */
   get text(): {
     text: string
@@ -430,6 +468,16 @@ export class Script {
     this.mocks[name] = impl
   }
 
+  /** Internal: called by the dispatcher when the script calls a stubbed function. */
+  reportStub(name: string): void {
+    const message = `${name} is a stub in rezless and returns its type's default value; give it a value with script.mock`
+    if (this.stubs === 'throw') throw new Error(message)
+    if (this.stubs === 'warn' && !this.warnedStubs.has(name)) {
+      this.warnedStubs.add(name)
+      console.warn(message)
+    }
+  }
+
   /** Read a global variable's current value. White-box hook for tests. */
   global(name: string): LslValue {
     return this.globals.get(name).value
@@ -500,6 +548,9 @@ export class Script {
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
     this.state.listens.length = 0
+    this.state.permissions.granted = 0
+    this.state.permissions.agent = NULL_KEY
+    for (const r of this.state.permissions.requests) r.answered = true
     this.clockView.cancelTimer()
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
@@ -561,6 +612,7 @@ export class Script {
    * does `state foo;` continues the chain correctly.
    */
   private runHandler(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
+    if (this.state.lifecycle.dead) return
     const startedAt = this.now
     try {
       this.runHandlerChain(handler, args)
@@ -584,7 +636,7 @@ export class Script {
       handler,
       args,
     }
-    while (pending) {
+    while (pending && !this.state.lifecycle.dead) {
       const { handler: h, args: a } = pending
       pending = null
       try {
@@ -594,14 +646,16 @@ export class Script {
           this.reset()
           return
         }
+        if (e instanceof ScriptRemovedSignal) return
         if (!(e instanceof StateChangeSignal)) throw e
         const target = e.target
-        if (target === this.state.currentState) continue
+        if (target === this.state.currentState || this.state.lifecycle.dead) continue
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
           try {
             execHandler(ctx, exit, [])
           } catch (e2) {
+            if (e2 instanceof ScriptRemovedSignal) return
             if (e2 instanceof StateChangeSignal) {
               // Discard further changes inside state_exit per LSL convention.
             } else {
