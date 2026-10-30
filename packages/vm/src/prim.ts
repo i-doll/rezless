@@ -77,7 +77,7 @@ export class Prim {
    * and pass `acquireTimeMs: this.linkset?.clock.now ?? 0`.
    */
   addInventory(item: InventoryItem): void {
-    this.inventory.push({ ...item })
+    this.inventory.push({ ...item, name: item.name.replace(/[^\x00-\x7f]/g, '') })
   }
 
   /** Find a script by inventory name. */

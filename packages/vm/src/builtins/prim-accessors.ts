@@ -96,8 +96,12 @@ export const llScaleByFactor: BuiltinImpl = (ctx, args) => {
   }
   return 1
 }
-export const llGetMaxScaleFactor: BuiltinImpl = (ctx) =>
-  Math.min(...ctx.linkset.prims.map((p) => 64 / Math.max(p.params.size.x, p.params.size.y, p.params.size.z)))
+export const llGetMaxScaleFactor: BuiltinImpl = (ctx) => {
+  const prims = ctx.linkset.prims
+  const sizes = prims.map((p) => Math.max(p.params.size.x, p.params.size.y, p.params.size.z))
+  const offsets = prims.slice(1).map(({ params: { position: v } }) => Math.hypot(v.x, v.y, v.z))
+  return 64 / Math.max(...sizes, ...offsets)
+}
 export const llGetMinScaleFactor: BuiltinImpl = (ctx) =>
   Math.max(...ctx.linkset.prims.map((p) => 0.01 / Math.min(p.params.size.x, p.params.size.y, p.params.size.z)))
 export const llGetNumberOfSides: BuiltinImpl = (ctx) => numberOfSides(ctx.prim.params.shape)

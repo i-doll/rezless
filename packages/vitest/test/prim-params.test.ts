@@ -396,6 +396,28 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('mn')).toBe(Math.fround(0.02))
   })
 
+  // Measured with a 0.5 m root cube and a 0.5 m child cube.
+  it.each([
+    ['child at <0,1,0>', { x: 0.5, y: 0.5, z: 0.5 }, { x: 0.5, y: 0.5, z: 0.5 }, { x: 0, y: 1, z: 0 }, 64, 0.02],
+    ['child resized to 2 m', { x: 0.5, y: 0.5, z: 0.5 }, { x: 2, y: 2, z: 2 }, { x: 0, y: 1, z: 0 }, 32, 0.02],
+    ['child at <0,20,0>', { x: 0.5, y: 0.5, z: 0.5 }, { x: 0.5, y: 0.5, z: 0.5 }, { x: 0, y: 20, z: 0 }, 3.2, 0.02],
+    ['root resized to <0.1,4,0.5>', { x: 0.1, y: 4, z: 0.5 }, { x: 0.5, y: 0.5, z: 0.5 }, { x: 0, y: 1, z: 0 }, 16, 0.1],
+  ])('scale factors of a linkset with %s', async (_, rootSize, childSize, childPos, max, min) => {
+    const probe = `float mx; float mn; default { state_entry() { mx = llGetMaxScaleFactor(); mn = llGetMinScaleFactor(); } }`
+    const { scripts, prims } = await loadLinkset({
+      prims: [
+        { name: 'Root', scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] },
+        { name: 'Child' },
+      ],
+    })
+    prims[0]!.params.size = rootSize
+    prims[1]!.params.size = childSize
+    prims[1]!.params.position = childPos
+    scripts['p']!.start()
+    expect(scripts['p']!.global('mx')).toBe(Math.fround(max))
+    expect(scripts['p']!.global('mn')).toBe(Math.fround(min))
+  })
+
   it('llGetAlpha(ALL_SIDES) sums the faces', async () => {
     const s = await run(`llSetAlpha(0.5, ALL_SIDES); a = llGetAlpha(ALL_SIDES);`, 'float a;')
     expect(s.global('a')).toBe(3)
@@ -574,6 +596,18 @@ describe('prim behaviour measured in Second Life', () => {
     ])
     expect(s.host.params.faces[0]!.glow).toBe(0)
     expect(s.host.name).toBe('Object')
+  })
+
+  it('a bad rule partway through keeps the rules before it and skips the rest', async () => {
+    const s = await run(
+      `llSetPrimitiveParams([PRIM_TEXT, "first", <1,1,1>, 1.0, PRIM_GLOW, ALL_SIDES, 5.0, PRIM_DESC, "after"]);
+       out = llGetPrimitiveParams([PRIM_TEXT, PRIM_DESC]);`,
+      'list out;',
+    )
+    expect(debugShouts(s)).toEqual([
+      'llSetPrimitiveParams error running rule #2 (PRIM_GLOW): bounds error; 5 is not in (0, 1).',
+    ])
+    expect(s.global('out')).toEqual(['first', { x: 1, y: 1, z: 1 }, 1, ''])
   })
 
   it('a wrong argument type shouts and aborts the whole call', async () => {

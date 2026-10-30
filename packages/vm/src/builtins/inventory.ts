@@ -24,19 +24,38 @@ function find(items: ReadonlyArray<InventoryItem>, name: string): InventoryItem 
   return items.find((it) => it.name === name)
 }
 
+const nameTokens = (name: string) => name.toLowerCase().match(/\d+|\D/g) ?? []
+const isDigits = (token: string) => /^\d/.test(token)
+
+function compareNames(a: string, b: string): number {
+  const x = nameTokens(a)
+  const y = nameTokens(b)
+  for (let k = 0; k < Math.min(x.length, y.length); k++) {
+    const p = x[k]!
+    const q = y[k]!
+    if (p === q) continue
+    if (p.length !== q.length && isDigits(p) && isDigits(q)) return p.length - q.length
+    return p < q ? -1 : 1
+  }
+  return x.length - y.length
+}
+
 /** llGetInventoryNumber(integer type) — count of items of that type. */
 export const llGetInventoryNumber: BuiltinImpl = (ctx, args) => {
   const type = (args[0] as number | undefined) ?? INVENTORY_ALL
   return itemsOfType(ctx.prim.inventory, type).length
 }
 
-/** llGetInventoryName(integer type, integer i) — i-th item name in alphabetical order, or "". */
+/**
+ * llGetInventoryName(integer type, integer i) — i-th item name, or "". Names sort case-insensitively
+ * and digit runs compare as numbers.
+ */
 export const llGetInventoryName: BuiltinImpl = (ctx, args) => {
   const type = (args[0] as number | undefined) ?? INVENTORY_ALL
   const i = (args[1] as number | undefined) ?? 0
   const names = itemsOfType(ctx.prim.inventory, type)
     .map((it) => it.name)
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .sort(compareNames)
   return names[i] ?? ''
 }
 

@@ -391,6 +391,49 @@ describe('multi-script linkset', () => {
       expect(scripts['m']!.global('names')).toEqual(['alpha', 'm', 'zeta'])
     })
 
+    // Measured in-world: case-insensitive, digit runs compare as numbers (shorter run first), and
+    // non-ASCII characters are dropped from item names.
+    it('llGetInventoryName sorts case-insensitively with numeric digit runs', async () => {
+      const probe = `
+        list names;
+        default { state_entry() {
+          integer i;
+          for (i = 0; i < llGetInventoryNumber(INVENTORY_NOTECARD); i++)
+            names += llGetInventoryName(INVENTORY_NOTECARD, i);
+        } }
+      `
+      const notecards = ['Banana', 'apple', 'Cherry', '_date', '10 fig', '9 egg', 'a10', 'a2', 'A3', 'a1b', 'a01', 'a-z', 'a z', 'aZ', 'éclair']
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: notecards.map((name) => makeInventoryItem({ name, type: InventoryType.NOTECARD })),
+            scripts: [{ source: { source: probe, filename: 'm.lsl' }, name: 'm' }],
+          },
+        ],
+      })
+      scripts['m']!.start()
+      expect((scripts['m']!.global('names') as string[]).join('|')).toBe(
+        '9 egg|10 fig|_date|a z|a-z|a1b|a2|A3|a01|a10|apple|aZ|Banana|Cherry|clair',
+      )
+    })
+
+    it('llGetInventoryName puts a name before longer names it prefixes', async () => {
+      const probe = `
+        string first;
+        default { state_entry() { first = llGetInventoryName(INVENTORY_NOTECARD, 0); } }
+      `
+      const { scripts } = await loadLinkset({
+        prims: [
+          {
+            inventory: ['apple', 'app'].map((name) => makeInventoryItem({ name, type: InventoryType.NOTECARD })),
+            scripts: [{ source: { source: probe, filename: 'm.lsl' }, name: 'm' }],
+          },
+        ],
+      })
+      scripts['m']!.start()
+      expect(scripts['m']!.global('first')).toBe('app')
+    })
+
     it('llGetNotecardLine reads notecard inventory via dataserver', async () => {
       const probe = `
         string got = "";
