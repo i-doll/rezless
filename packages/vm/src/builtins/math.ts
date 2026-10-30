@@ -103,12 +103,12 @@ export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
 export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
   const v = args[0] as Vector | undefined
   if (!v) return { x: 0, y: 0, z: 0, s: 1 }
-  const cz = Math.cos(v.z * 0.5)
-  const sz = Math.sin(v.z * 0.5)
-  const cy = Math.cos(v.y * 0.5)
-  const sy = Math.sin(v.y * 0.5)
-  const cx = Math.cos(v.x * 0.5)
-  const sx = Math.sin(v.x * 0.5)
+  const cz = halfAngleTerm(Math.cos, v.z)
+  const sz = halfAngleTerm(Math.sin, v.z)
+  const cy = halfAngleTerm(Math.cos, v.y)
+  const sy = halfAngleTerm(Math.sin, v.y)
+  const cx = halfAngleTerm(Math.cos, v.x)
+  const sx = halfAngleTerm(Math.sin, v.x)
   const q = rot(
     sx * cy * cz + cx * sy * sz,
     cx * sy * cz - sx * cy * sz,
@@ -122,7 +122,15 @@ export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
   const zz = q.z * q.z
   let sign = q.s
   if (3 - 4 * (xx + yy + zz) <= 0) sign = zz > Math.max(xx, yy) ? q.z : yy > xx ? q.y : q.x
-  return sign < 0 ? rot(-q.x, -q.y, -q.z, -q.s) : q
+  return sign < 0 ? rot(0 - q.x, 0 - q.y, 0 - q.z, 0 - q.s) : q
+}
+
+/** Second Life clears half-angle sines and cosines below this, so a turn by PI has exact zeros. */
+const HALF_ANGLE_ZERO = 0.00001
+
+function halfAngleTerm(fn: (a: number) => number, angle: number): number {
+  const v = fn(angle * 0.5)
+  return Math.abs(v) < HALF_ANGLE_ZERO ? 0 : v
 }
 
 function rotationAxis(q: Rotation, axis: Vector): Vector {

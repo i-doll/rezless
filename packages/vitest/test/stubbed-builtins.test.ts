@@ -484,3 +484,54 @@ describe('calls to functions that are still stubs', () => {
     expect(() => s.start()).not.toThrow()
   })
 })
+
+// Measured in Second Life, 2026-10-30: llEuler2Rot clears each half-angle sine and cosine whose
+// size is below about 1e-5 before combining them, so rotations by PI have exact zero components.
+describe('llEuler2Rot near-zero half-angle terms (measured in Second Life)', () => {
+  async function component(euler: string, c: 'x' | 'y' | 'z' | 's') {
+    const s = await loadScript({
+      source: `float out; default { state_entry() { rotation q = llEuler2Rot(${euler}); out = q.${c}; } }`,
+    })
+    s.start()
+    return s.global('out') as number
+  }
+
+  it.each([
+    ['llEuler2Rot(<PI, 0, 0>)', '<1.00000, 0.00000, 0.00000, 0.00000>'],
+    ['llEuler2Rot(<0, PI, 0>)', '<0.00000, 1.00000, 0.00000, 0.00000>'],
+    ['llEuler2Rot(<0, 0, PI>)', '<0.00000, 0.00000, 1.00000, 0.00000>'],
+    ['llEuler2Rot(<PI, PI, 0>)', '<0.00000, 0.00000, 1.00000, 0.00000>'],
+    ['llEuler2Rot(<4, 0, 0>)', '<0.90930, 0.00000, 0.00000, -0.41615>'],
+    ['llEuler2Rot(<0, 4, 0>)', '<0.00000, 0.90930, 0.00000, -0.41615>'],
+    ['llEuler2Rot(<0, 0, 4>)', '<0.00000, 0.00000, 0.90930, -0.41615>'],
+    ['llEuler2Rot(<-4, 0, 0>)', '<0.90930, 0.00000, 0.00000, 0.41615>'],
+    ['llEuler2Rot(<4, 4, 0>)', '<-0.37840, -0.37840, 0.82682, 0.17318>'],
+    ['llEuler2Rot(<-4, 0, 4>)', '<0.37840, 0.82682, -0.37840, 0.17318>'],
+    ['llEuler2Rot(<0, -5, 0>)', '<0.00000, 0.59847, 0.00000, 0.80114>'],
+    ['llEuler2Rot(<4, PI, 0>)', '<0.00000, -0.41615, 0.90930, 0.00000>'],
+  ])('%s prints %s', async (expr, want) => {
+    expect(await evalString(expr)).toBe(want)
+  })
+
+  it.each([
+    ['<PI, 0, 0>', 's'],
+    ['<-PI, 0, 0>', 's'],
+    ['<3.14159, 0, 0>', 's'],
+    ['<3.14158, 0, 0>', 's'],
+    ['<0.00001, 0, 0>', 'x'],
+    ['<1, 0.00001, 0>', 'y'],
+    ['<1, 0.00001, 0>', 'z'],
+  ] as const)('%s has an exact positive zero %s', async (euler, c) => {
+    expect(Object.is(await component(euler, c), 0)).toBe(true)
+  })
+
+  it.each([
+    ['<3.14157, 0, 0>', 's', 1.128117e-5],
+    ['<3.1415, 0, 0>', 's', 4.63287e-5],
+    ['<0.00003, 0, 0>', 'x', 1.500023e-5],
+    ['<1, 0.00003, 0>', 'y', 1.316394e-5],
+    ['<1, 0.00003, 0>', 'z', 7.191495e-6],
+  ] as const)('%s keeps %s at about %f', async (euler, c, want) => {
+    expect(Math.abs((await component(euler, c)) - want) / want).toBeLessThan(1e-4)
+  })
+})
