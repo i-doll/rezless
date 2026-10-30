@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName } from '../prim-params.js'
+import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName } from '../prim-params.js'
 import { sayError } from './debug.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
@@ -305,7 +305,7 @@ export const llSetRenderMaterial: BuiltinImpl = (ctx, args) => {
 export const llGetRenderMaterial: BuiltinImpl = (ctx, args) => {
   const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return NULL_KEY
-  return ctx.prim.params.faces[face]!.renderMaterial
+  return materialName(ctx.prim, ctx.prim.params.faces[face]!.renderMaterial)
 }
 
 /* ------------------------------------------------------------------ */

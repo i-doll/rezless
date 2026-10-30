@@ -214,14 +214,14 @@ describe('render materials', () => {
     expect(errors).toEqual([])
   })
 
-  // Not measured in-world: material items in the prim inventory.
-  it('takes the key of a material item named in the prim inventory', async () => {
+  it('reads a material item named in the prim inventory back as its name', async () => {
     const s = await loadScript({
       source: `string m; default { state_entry() { llSetRenderMaterial("brick", 0); m = llGetRenderMaterial(0); } }`,
     })
     s.host.addInventory(makeInventoryItem({ name: 'brick', type: InventoryType.MATERIAL, key: MAT }))
     s.start()
-    expect(s.global('m')).toBe(MAT)
+    // In-world: mat_name_root in p10.full.iw
+    expect(s.global('m')).toBe('brick')
     expect(s.chat).toEqual([])
   })
 })
@@ -339,7 +339,7 @@ describe('llSetLinkGLTFOverrides codes', () => {
 })
 
 describe('legacy PRIM_NORMAL and PRIM_SPECULAR', () => {
-  it('ignore a rule with a "" texture and read NULL_KEY and set maps as keys', async () => {
+  it('treat a "" texture on a default face as NULL_KEY and read set maps as keys', async () => {
     const { lines } = await probe(`
       llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NORMAL, 0, "", <2,2,0>, ZERO_VECTOR, 0.0]); out("nm_empty", G(PRIM_NORMAL));
       llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NORMAL, 0, TEXTURE_BLANK, <1,1,0>, ZERO_VECTOR, 0.0]); out("nm_set", G(PRIM_NORMAL));
@@ -347,8 +347,7 @@ describe('legacy PRIM_NORMAL and PRIM_SPECULAR', () => {
       llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_SPECULAR, 0, "", <1,1,0>, ZERO_VECTOR, 0.0, <1,0,0>, 100, 5]); out("sp_empty", G(PRIM_SPECULAR));
     `)
     const t = '{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2'
-    // In-world: probe p5, on a face at its defaults. Whether a "" texture ignores the rule or resets the
-    // face to its defaults is not measured; this models "ignored".
+    // In-world: probe p5, on a face at its defaults.
     expect(lines).toEqual([
       `nm_empty=[{00000000-0000-0000-0000-000000000000}4${t}]`,
       `nm_set=[{5748decc-f629-461c-9a36-a35a221fe21f}4${t}]`,
@@ -357,14 +356,17 @@ describe('legacy PRIM_NORMAL and PRIM_SPECULAR', () => {
     ])
   })
 
-  it('ignore a "" texture on a face that already has a map', async () => {
+  it('reset a map to its defaults when written with a "" texture', async () => {
     const { lines } = await probe(`
-      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NORMAL, 0, TEXTURE_BLANK, <2,2,0>, ZERO_VECTOR, 0.0, PRIM_NORMAL, 0, "", <3,3,0>, ZERO_VECTOR, 0.0]);
-      out("nm", G(PRIM_NORMAL));
+      llSetPrimitiveParams([PRIM_NORMAL, 3, TEXTURE_BLANK, <2,2,0>, <0.1,0,0>, 0.5]);
+      llSetPrimitiveParams([PRIM_NORMAL, 3, "", <3,3,0>, <0.2,0,0>, 1.0]); out("nm", D(llGetPrimitiveParams([PRIM_NORMAL, 3])));
+      llSetPrimitiveParams([PRIM_SPECULAR, 3, TEXTURE_BLANK, <2,2,0>, <0.1,0,0>, 0.5, <1,0,0>, 100, 5]);
+      llSetPrimitiveParams([PRIM_SPECULAR, 3, "", <3,3,0>, <0.2,0,0>, 1.0, <0,1,0>, 20, 2]); out("sp", D(llGetPrimitiveParams([PRIM_SPECULAR, 3])));
     `)
-    // Not measured in-world: "ignored" is the choice made for p5's nm_empty.
+    // In-world: nm_existing_empty, sp_existing_empty in p10.full.iw
     expect(lines).toEqual([
-      'nm=[{5748decc-f629-461c-9a36-a35a221fe21f}4{<2.000000, 2.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2]',
+      `nm=[{00000000-0000-0000-0000-000000000000}4${'{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2'}]`,
+      `sp=[{00000000-0000-0000-0000-000000000000}4{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2{<1.000000, 1.000000, 1.000000>}5{51}1{0}1]`,
     ])
   })
 })
@@ -405,7 +407,7 @@ describe('texture names (probe p6)', () => {
     expect(s.chat).toEqual([])
   })
 
-  it('keeps the name of an inventory texture in a glTF texture slot', async () => {
+  it('reads an inventory texture in a glTF texture slot back as its key', async () => {
     const s = await loadScript({
       source: `string t; default { state_entry() {
         llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_RENDER_MATERIAL, 0, "${MAT}"]);
@@ -415,8 +417,8 @@ describe('texture names (probe p6)', () => {
     })
     s.host.addInventory(makeInventoryItem({ name: 'Wood_BaseColor', type: InventoryType.TEXTURE, key: BLANK }))
     s.start()
-    // Not measured in-world: the glTF slots follow the measured PRIM_NORMAL rule (p8 nm_inv).
-    expect(s.global('t')).toBe('Wood_BaseColor')
+    // In-world: gltf_inv_root in p10.full.iw
+    expect(s.global('t')).toBe(BLANK)
   })
 
   it('llSetLinkTexture reports a name that is not a texture and leaves the face alone', async () => {
@@ -636,13 +638,66 @@ describe('texture names across a linkset (probe p9)', () => {
     expect(script.global('r')).toEqual(['Wood_BaseColor'])
   })
 
-  it('applies the same rule to glTF texture slots', async () => {
+  it('reads an inventory texture in a child glTF texture slot as its key', async () => {
     const script = await threePrims(`
       llSetLinkPrimitiveParamsFast(2, [PRIM_RENDER_MATERIAL, 0, "${MAT}"]);
       llSetLinkPrimitiveParamsFast(2, [PRIM_GLTF_NORMAL, 0, "Wood_BaseColor", "", "", ""]);
       r = [llList2String(llGetLinkPrimitiveParams(2, [PRIM_GLTF_NORMAL, 0]), 0)];
     `)
-    // Not measured in-world: the glTF slots follow the measured PRIM_NORMAL rule (p9 lt_normal_child).
+    // In-world: gltf_inv_child in p10.full.iw
     expect(script.global('r')).toEqual([WOOD])
+  })
+})
+
+describe('render material names across a linkset (probe p10)', () => {
+  const ORNATE = '66a1c7ac-129a-294b-403d-5c336f9b99ac'
+
+  async function twoPrims(body: string) {
+    const { scripts } = await loadLinkset({
+      prims: [
+        {
+          name: 'root',
+          inventory: [
+            makeInventoryItem({ name: 'Wood_BaseColor', type: InventoryType.TEXTURE, key: BLANK }),
+            makeInventoryItem({ name: 'ornate metal', type: InventoryType.MATERIAL, key: ORNATE }),
+          ],
+          scripts: [{
+            source: { source: `list r; default { state_entry() { ${body} } }`, filename: 'root.lsl' },
+            name: 'root',
+          }],
+        },
+        { name: 'child' },
+      ],
+    })
+    scripts['root']!.start()
+    return scripts['root']!
+  }
+
+  it('reads a material item name back only on a prim that holds the item', async () => {
+    const script = await twoPrims(`
+      llSetRenderMaterial("ornate metal", 1);
+      llSetPrimitiveParams([PRIM_RENDER_MATERIAL, 2, "ornate metal"]);
+      llSetLinkPrimitiveParamsFast(2, [PRIM_RENDER_MATERIAL, 1, "ornate metal"]);
+      r = [llGetRenderMaterial(1), llList2String(llGetPrimitiveParams([PRIM_RENDER_MATERIAL, 1]), 0), llGetRenderMaterial(2),
+           llList2String(llGetLinkPrimitiveParams(2, [PRIM_RENDER_MATERIAL, 1]), 0)];
+    `)
+    // In-world: mat_name_root, mat_name_pp, mat_name_child in p10.full.iw
+    expect(script.global('r')).toEqual(['ornate metal', 'ornate metal', 'ornate metal', ORNATE])
+  })
+
+  it('still clears glTF overrides when a material is set by name', async () => {
+    const script = await twoPrims(`
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_RENDER_MATERIAL, 0, "${MAT}"]);
+      llSetPrimitiveParams([PRIM_GLTF_METALLIC_ROUGHNESS, 0, "", "", "", "", 0.5, 0.5]);
+      llSetRenderMaterial("ornate metal", 0);
+      r = llGetPrimitiveParams([PRIM_GLTF_METALLIC_ROUGHNESS, 0]);
+    `)
+    expect(script.global('r')).toEqual(['', { x: 1, y: 1, z: 0 }, { x: 0, y: 0, z: 0 }, 0, '', ''])
+  })
+
+  it('llSetLinkTexture reports a name that is not a texture even when the link does not exist', async () => {
+    const script = await twoPrims(`llSetLinkTexture(5, "nope5", 0); llSetLinkTexture(5, "Wood_BaseColor", 0);`)
+    // In-world: DBG line in p10.full.iw, after "mark after nolink" the Wood_BaseColor call reports nothing
+    expect(script.chat.map((c) => c.text)).toEqual(["Could not find texture 'nope5'."])
   })
 })

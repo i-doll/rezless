@@ -246,8 +246,12 @@ export function textureKey(prim: Prim, texture: string): string | null {
   return findItem(prim, InventoryType.TEXTURE, texture)?.key ?? null
 }
 
-export const textureName = (prim: Prim, key: string): string =>
-  prim.inventory.find((it) => it.type === InventoryType.TEXTURE && it.key === key)?.name ?? key
+const itemName = (prim: Prim, type: number, key: string): string =>
+  prim.inventory.find((it) => it.type === type && it.key === key)?.name ?? key
+
+export const textureName = (prim: Prim, key: string): string => itemName(prim, InventoryType.TEXTURE, key)
+
+export const materialName = (prim: Prim, key: string): string => itemName(prim, InventoryType.MATERIAL, key)
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
   [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: 'vector',
@@ -643,11 +647,10 @@ export function writePrimParam(
     case PRIM_NORMAL: {
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
-      if (tex === '') return 5
       const key = textureKey(caller, tex) ?? NULL_KEY
-      const repeats = asVec(rules[cursor + 2])
-      const offsets = asVec(rules[cursor + 3])
-      const rot = num(rules[cursor + 4])
+      const repeats = tex === '' ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
+      const offsets = tex === '' ? zero() : asVec(rules[cursor + 3])
+      const rot = tex === '' ? 0 : num(rules[cursor + 4])
       for (const f of faces) {
         p.faces[f]!.normal = {
           texture: key,
@@ -661,14 +664,14 @@ export function writePrimParam(
     case PRIM_SPECULAR: {
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
-      if (tex === '') return 8
       const key = textureKey(caller, tex) ?? NULL_KEY
-      const repeats = asVec(rules[cursor + 2])
-      const offsets = asVec(rules[cursor + 3])
-      const rot = num(rules[cursor + 4])
-      const color = asVec(rules[cursor + 5])
-      const gloss = clamp(num(rules[cursor + 6]) | 0, 0, 255)
-      const env = clamp(num(rules[cursor + 7]) | 0, 0, 255)
+      const reset = tex === ''
+      const repeats = reset ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
+      const offsets = reset ? zero() : asVec(rules[cursor + 3])
+      const rot = reset ? 0 : num(rules[cursor + 4])
+      const color = reset ? one() : asVec(rules[cursor + 5])
+      const gloss = reset ? 51 : clamp(num(rules[cursor + 6]) | 0, 0, 255)
+      const env = reset ? 0 : clamp(num(rules[cursor + 7]) | 0, 0, 255)
       for (const f of faces) {
         p.faces[f]!.specular = {
           texture: key,
@@ -924,7 +927,7 @@ export function readPrimParam(
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
       for (const f of faces) {
-        out.push(p.faces[f]!.renderMaterial)
+        out.push(materialName(prim, p.faces[f]!.renderMaterial))
       }
       return { values: out, consumed: 1 }
     }
@@ -991,7 +994,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.baseColor
-        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation, g.color, g.alpha, g.alphaMode, g.alphaCutoff, g.doubleSided)
+        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.color, g.alpha, g.alphaMode, g.alphaCutoff, g.doubleSided)
       }
       return { values: out, consumed: 1 }
     }
@@ -1000,7 +1003,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.normal
-        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation)
+        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation)
       }
       return { values: out, consumed: 1 }
     }
@@ -1009,7 +1012,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.metallicRoughness
-        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation, g.metallic, g.roughness)
+        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.metallic, g.roughness)
       }
       return { values: out, consumed: 1 }
     }
@@ -1018,7 +1021,7 @@ export function readPrimParam(
       const out: LslValue[] = []
       for (const f of faces) {
         const g = p.faces[f]!.gltf.emissive
-        out.push(textureName(prim, g.texture), g.textureRepeats, g.textureOffsets, g.textureRotation, g.tint)
+        out.push(g.texture, g.textureRepeats, g.textureOffsets, g.textureRotation, g.tint)
       }
       return { values: out, consumed: 1 }
     }
