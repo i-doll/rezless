@@ -190,7 +190,7 @@ expect(scripts['display'].text?.text).toBe('count: 1')
 // Linkset-wide helpers
 linkset.advanceTime(1_000)              // shared clock; every script's timers advance together
 linkset.deliverChat({ channel: 0, name: 'Alice', key: 'k', message: 'hi' })
-linkset.touch(2, { face: 0, avatar: { key: 'k', name: 'Alice' } })
+linkset.touch(2, { face: 0, hold: 1_500, avatar: { key: 'k', name: 'Alice' } })
                                         // click link 2; reaches the scripts Second Life would
                                         //   deliver it to, honouring llPassTouches
 linkset.linkedMessages                  // every llMessageLinked across the linkset
@@ -349,6 +349,7 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 
 * **hello** — minimal `state_entry { llSay(...) }` + matchers.
 * **greeter** — touch + name greeting + state transition + reminder timer.
+* **long-press** — a lamp that tells a short tap from a long press with `linkset.touch`'s `hold`.
 * **remote** — owner-only listen on a custom channel + command dispatch.
 * **fetcher** — `llHTTPRequest` + `http_response` + status handling.
 * **nametag** — `llRequestAgentData` + `dataserver` + floating text.

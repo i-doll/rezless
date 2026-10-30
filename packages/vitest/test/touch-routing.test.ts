@@ -169,6 +169,23 @@ describe('linkset.touch routes a click like Second Life', () => {
     expect(loaded.scripts['s']!.global('got')).toEqual([`touch_start|1|0|0||${owner}`])
   })
 
+  it('hold delays touch_end, and lets the clock run in between', async () => {
+    // Not measured: the headless viewer can only click, not hold, so how often
+    // touch repeats during a long hold is not modelled; it fires once.
+    const timed = `
+      list got = [];
+      default {
+        touch_start(integer n) { got += ["start@" + (string)llGetTime()]; llSetTimerEvent(0.5); }
+        touch(integer n) { got += ["touch@" + (string)llGetTime()]; }
+        timer() { got += ["timer@" + (string)llGetTime()]; llSetTimerEvent(0); }
+        touch_end(integer n) { got += ["end@" + (string)llGetTime()]; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', timed)]])
+    linkset.touch(0, { hold: 1500 })
+    expect(got('s')).toEqual(['start@0.000000', 'touch@0.000000', 'timer@0.500000', 'end@1.500000'])
+  })
+
   it('starts scripts that have not run state_entry yet', async () => {
     const loaded = await loadLinkset({
       prims: [

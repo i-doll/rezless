@@ -1,0 +1,9 @@
+{
+  "name": "@rezless-example/long-press",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "vitest run" },
+  "dependencies": { "@rezless/vitest": "workspace:*" },
+  "devDependencies": { "vitest": "^5.0.5" }
+}
