@@ -368,3 +368,180 @@ describe('legacy PRIM_NORMAL and PRIM_SPECULAR', () => {
     ])
   })
 })
+
+const TX = '{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2'
+const NULL = '00000000-0000-0000-0000-000000000000'
+const BLANK = '5748decc-f629-461c-9a36-a35a221fe21f'
+const DEFAULT_TEX = '89556747-24cb-43ed-920b-47caed15465f'
+
+describe('texture names (probe p6)', () => {
+  it('llSetTexture reports a name that is not a texture and leaves the face alone', async () => {
+    const { lines, errors } = await probe(`
+      llSetTexture("nope", 0); out("a", llGetTexture(0));
+      llSetTexture("", 1); out("b", llGetTexture(1));
+      llSetTexture(NULL_KEY, 2); out("c", llGetTexture(2));
+    `)
+    // In-world: tex_badname, tex_empty, tex_null in p6.full.iw
+    expect(lines).toEqual([`a=[${DEFAULT_TEX}]`, `b=[${DEFAULT_TEX}]`, `c=[${DEFAULT_TEX}]`])
+    expect(errors).toEqual([
+      "Could not find texture 'nope'.",
+      "Could not find texture ''.",
+      `Could not find texture '${NULL}'.`,
+    ])
+  })
+
+  it('llSetTexture resolves a texture in the prim inventory to its key', async () => {
+    const s = await loadScript({
+      source: `string t; default { state_entry() { llSetTexture("wood", 0); t = llGetTexture(0); } }`,
+    })
+    s.host.addInventory(makeInventoryItem({ name: 'wood', type: InventoryType.TEXTURE, key: BLANK }))
+    s.start()
+    expect(s.global('t')).toBe(BLANK)
+    expect(s.chat).toEqual([])
+  })
+
+  it('PRIM_TEXTURE stores NULL_KEY for an unknown name without an error and runs later rules', async () => {
+    const { lines, errors } = await probe(`
+      llSetPrimitiveParams([PRIM_TEXTURE, 3, "nope2", <1,1,0>, ZERO_VECTOR, 0.0, PRIM_DESC, "after tex"]);
+      out("a", D(llGetPrimitiveParams([PRIM_TEXTURE, 3])) + "|" + llGetObjectDesc());
+      llSetPrimitiveParams([PRIM_TEXTURE, 1, "", <2,2,0>, ZERO_VECTOR, 0.0]);
+      out("b", D(llGetPrimitiveParams([PRIM_TEXTURE, 1])));
+    `)
+    // In-world: pp_tex_badname in p6.full.iw, tex_empty_pp in p7.full.iw
+    expect(lines).toEqual([
+      `a=[{${NULL}}3${TX}|after tex]`,
+      `b=[{${NULL}}3{<2.000000, 2.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2]`,
+    ])
+    expect(errors).toEqual([])
+  })
+
+  it('PRIM_TEXTURE zeroes the z of repeats and offsets and keeps rotation as given', async () => {
+    const { lines } = await probe(`
+      llSetPrimitiveParams([PRIM_TEXTURE, 4, TEXTURE_BLANK, <100,-5,9>, <7,-7,3>, 50.0]);
+      out("a", D(llGetPrimitiveParams([PRIM_TEXTURE, 4])));
+    `)
+    // In-world: tex_ranges in p6.full.iw
+    expect(lines).toEqual([
+      `a=[{${BLANK}}3{<100.000000, -5.000000, 0.000000>}5{<7.000000, -7.000000, 0.000000>}5{50.000000}2]`,
+    ])
+  })
+
+  it('llGetTexture past the face count is NULL_KEY and -1 is face 0', async () => {
+    const { lines } = await probe(`out("a", llGetTexture(99) + "|" + llGetTexture(-1));`)
+    // In-world: gettex_bad in p6.full.iw
+    expect(lines).toEqual([`a=[${NULL}|${DEFAULT_TEX}]`])
+  })
+
+  it('PRIM_NORMAL and PRIM_SPECULAR store NULL_KEY for an unknown name', async () => {
+    const { lines, errors } = await probe(`
+      llSetPrimitiveParams([PRIM_SPECULAR, 0, "nopeS", <1,1,0>, ZERO_VECTOR, 0.0, <1,1,1>, 51, 0]); out("s", G(PRIM_SPECULAR));
+      llSetPrimitiveParams([PRIM_NORMAL, 0, "nopeN", <1,1,0>, ZERO_VECTOR, 0.0]); out("n", G(PRIM_NORMAL));
+    `)
+    // In-world: spec_badname, norm_badname in p7.full.iw
+    expect(lines).toEqual([
+      `s=[{${NULL}}4${TX}{<1.000000, 1.000000, 1.000000>}5{51}1{0}1]`,
+      `n=[{${NULL}}4${TX}]`,
+    ])
+    expect(errors).toEqual([])
+  })
+
+  it('PRIM_GLTF_NORMAL stores NULL_KEY as a key for an unknown name', async () => {
+    const { lines } = await probe(`
+      setMat(MAT);
+      llSetPrimitiveParams([PRIM_GLTF_NORMAL, 0, "nope3", "", "", ""]); out("a", G(PRIM_GLTF_NORMAL));
+    `)
+    // In-world: gltf_nm_badname in p6.full.iw
+    expect(lines).toEqual([`a=[{${NULL}}4${TX}]`])
+  })
+})
+
+describe('legacy material ranges (probes p6, p7)', () => {
+  it('PRIM_SPECULAR clamps glossiness and environment to 0..255', async () => {
+    const { lines } = await probe(`
+      llSetPrimitiveParams([PRIM_SPECULAR, 0, TEXTURE_BLANK, <1,1,0>, ZERO_VECTOR, 0.0, <2,-1,0.5>, 300, 300]); out("a", G(PRIM_SPECULAR));
+      llSetPrimitiveParams([PRIM_SPECULAR, 0, TEXTURE_BLANK, <1,1,0>, ZERO_VECTOR, 0.0, <1,1,1>, -5, -5]); out("b", G(PRIM_SPECULAR));
+    `)
+    // In-world: spec_ranges, spec_neg in p6.full.iw
+    expect(lines).toEqual([
+      `a=[{${BLANK}}4${TX}{<1.000000, 0.000000, 0.498039>}5{255}1{255}1]`,
+      `b=[{${BLANK}}4${TX}{<1.000000, 1.000000, 1.000000>}5{0}1{0}1]`,
+    ])
+  })
+
+  it('PRIM_ALPHA_MODE clamps the mode and cutoff and reads a cutoff only for MASK', async () => {
+    const cases: Array<[string, string]> = [
+      ['PRIM_ALPHA_MODE_MASK, 100', '{2}1{100}1'],
+      ['PRIM_ALPHA_MODE_MASK, 300', '{2}1{255}1'],
+      ['PRIM_ALPHA_MODE_MASK, -5', '{2}1{0}1'],
+      ['PRIM_ALPHA_MODE_EMISSIVE, 50', '{3}1{0}1'],
+      ['PRIM_ALPHA_MODE_BLEND, 77', '{1}1{0}1'],
+      ['-1, 50', '{0}1{0}1'],
+      ['9, 300', '{3}1{0}1'],
+    ]
+    const { lines } = await probe(
+      cases.map(([a], i) => `llSetPrimitiveParams([PRIM_ALPHA_MODE, 0, ${a}]); out("c${i}", G(PRIM_ALPHA_MODE));`).join('\n'),
+    )
+    // In-world: am_* in p6.full.iw and p7.full.iw
+    expect(lines).toEqual(cases.map(([, e], i) => `c${i}=[${e}]`))
+  })
+
+  it('PRIM_BUMP_SHINY ignores an out-of-range pair and applies an in-range one', async () => {
+    const { lines } = await probe(`
+      list pairs = [9, 99, 1, 99, 9, 2, -1, -1, 0, 17];
+      integer i;
+      for (i = 0; i < 10; i += 2) {
+        llSetPrimitiveParams([PRIM_BUMP_SHINY, 0, PRIM_SHINY_HIGH, PRIM_BUMP_BRIGHT]);
+        llSetPrimitiveParams([PRIM_BUMP_SHINY, 0, llList2Integer(pairs, i), llList2Integer(pairs, i + 1)]);
+        out("b" + (string)i, G(PRIM_BUMP_SHINY));
+      }
+    `)
+    // In-world: bs_bad_both, bs_bad_bump, bs_bad_shiny, bs_neg, bs_17 in p7.full.iw
+    expect(lines).toEqual(['b0=[{3}1{1}1]', 'b2=[{3}1{1}1]', 'b4=[{3}1{1}1]', 'b6=[{3}1{1}1]', 'b8=[{0}1{17}1]'])
+  })
+
+  it('PRIM_TEXGEN and PRIM_FULLBRIGHT ignore out-of-range values and later rules still run', async () => {
+    const { lines } = await probe(`
+      llSetPrimitiveParams([PRIM_TEXGEN, 0, PRIM_TEXGEN_PLANAR, PRIM_TEXGEN, 0, 7]); out("t7", G(PRIM_TEXGEN));
+      llSetPrimitiveParams([PRIM_TEXGEN, 0, -1]); out("t-1", G(PRIM_TEXGEN));
+      llSetPrimitiveParams([PRIM_FULLBRIGHT, 0, 1]);
+      llSetPrimitiveParams([PRIM_FULLBRIGHT, 0, 5, PRIM_DESC, "after"]); out("f5", G(PRIM_FULLBRIGHT) + llGetObjectDesc());
+      llSetPrimitiveParams([PRIM_FULLBRIGHT, 0, -1]); out("f-1", G(PRIM_FULLBRIGHT));
+      llSetPrimitiveParams([PRIM_FULLBRIGHT, 0, 0]); llSetPrimitiveParams([PRIM_FULLBRIGHT, 0, 5]); out("f0", G(PRIM_FULLBRIGHT));
+    `)
+    // In-world: texgen_bad, texgen_neg, fb_5_from1, fb_m1, fb_5_from0 in p7.full.iw
+    expect(lines).toEqual(['t7=[{1}1]', 't-1=[{1}1]', 'f5=[{1}1after]', 'f-1=[{1}1]', 'f0=[{0}1]'])
+  })
+})
+
+describe('glTF value ranges (probe p6)', () => {
+  it('clamps PRIM_GLTF_* values', async () => {
+    const { lines } = await probe(`
+      setMat(MAT);
+      llSetPrimitiveParams([PRIM_GLTF_BASE_COLOR, 0, "", "", "", "", <2,-1,0.5>, 3.0, 9, 4.0, 7]); out("bc", G(PRIM_GLTF_BASE_COLOR));
+      llSetPrimitiveParams([PRIM_GLTF_METALLIC_ROUGHNESS, 0, "", "", "", "", -2.0, 5.0]); out("mr", G(PRIM_GLTF_METALLIC_ROUGHNESS));
+      llSetPrimitiveParams([PRIM_GLTF_EMISSIVE, 0, "", "", "", "", <5,-1,0.5>]); out("em", G(PRIM_GLTF_EMISSIVE));
+    `)
+    const head = '{}3{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2'
+    // In-world: gltf_bc_ranges, gltf_mr_ranges, gltf_em_ranges in p6.full.iw
+    expect(lines).toEqual([
+      `bc=[${head}{<1.000000, 0.000000, 0.500000>}5{1.000000}2{2}1{1.000000}2{1}1]`,
+      `mr=[${head}{0.000000}2{1.000000}2]`,
+      `em=[${head}{<1.000000, 0.000000, 0.500000>}5]`,
+    ])
+  })
+
+  it('clamps llSetLinkGLTFOverrides values', async () => {
+    const { lines } = await probe(`
+      setMat(MAT);
+      llSetPrimitiveParams([PRIM_GLTF_BASE_COLOR, 0, "", "", "", "", <1,1,1>, 1.0, 1, 0.5, 0, PRIM_GLTF_METALLIC_ROUGHNESS, 0, "", "", "", "", 0.0, 0.0]);
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_BASE_ALPHA_MASK, 5.0, OVERRIDE_GLTF_ROUGHNESS_FACTOR, -3.0,
+        OVERRIDE_GLTF_EMISSIVE_FACTOR, <4,-4,0.5>, OVERRIDE_GLTF_BASE_COLOR_FACTOR, <3,-3,0.5>, OVERRIDE_GLTF_BASE_DOUBLE_SIDED, 9]);
+      out("o", G(PRIM_GLTF_BASE_COLOR) + "#" + G(PRIM_GLTF_METALLIC_ROUGHNESS) + "#" + G(PRIM_GLTF_EMISSIVE));
+    `)
+    const head = '{}3{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2'
+    // In-world: glo_ranges in p6.full.iw, after the same earlier base colour and metallic-roughness writes
+    expect(lines).toEqual([
+      `o=[${head}{<1.000000, 0.000000, 0.500000>}5{1.000000}2{1}1{1.000000}2{1}1#${head}{0.000000}2{0.000000}2#${head}{<1.000000, 0.000000, 0.500000>}5]`,
+    ])
+  })
+})

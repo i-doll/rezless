@@ -10,6 +10,7 @@ import {
   OVERRIDE_GLTF_ROUGHNESS_FACTOR,
   PRIM_ALPHA_MODE,
   PRIM_ALPHA_MODE_BLEND,
+  PRIM_ALPHA_MODE_MASK,
   PRIM_ALLOW_UNSIT,
   PRIM_BUMP_NONE,
   PRIM_BUMP_SHINY,
@@ -236,6 +237,13 @@ export function renderMaterialKey(prim: Prim, material: string): string | null {
   return prim.inventory.find((it) => it.type === InventoryType.MATERIAL && it.name === material)?.key ?? null
 }
 
+/** The key a texture argument names: "" (none), a key, or a texture item's name; null if it names nothing. */
+export function textureKey(prim: Prim, texture: string): string | null {
+  if (texture === '') return NULL_KEY
+  if (UUID.test(texture)) return texture
+  return prim.inventory.find((it) => it.type === InventoryType.TEXTURE && it.name === texture)?.key ?? null
+}
+
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
   [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: 'vector',
   [OVERRIDE_GLTF_BASE_ALPHA]: 'float',
@@ -268,7 +276,7 @@ export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslV
     switch (params[i]) {
       case OVERRIDE_GLTF_BASE_COLOR_FACTOR:
         if (isVector(v)) {
-          bc.color = asVec(v)
+          bc.color = clampVec(asVec(v), 0, 1)
           if (bc.alpha === '') bc.alpha = 1
         }
         break
@@ -279,11 +287,11 @@ export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslV
         }
         break
       case OVERRIDE_GLTF_BASE_ALPHA_MODE: bc.alphaMode = n === '' ? '' : clamp(n, 0, 2); break
-      case OVERRIDE_GLTF_BASE_ALPHA_MASK: bc.alphaCutoff = n; break
-      case OVERRIDE_GLTF_BASE_DOUBLE_SIDED: bc.doubleSided = n; break
+      case OVERRIDE_GLTF_BASE_ALPHA_MASK: bc.alphaCutoff = n === '' ? '' : clamp(n, 0, 1); break
+      case OVERRIDE_GLTF_BASE_DOUBLE_SIDED: bc.doubleSided = n === '' ? '' : clamp(n, 0, 1); break
       case OVERRIDE_GLTF_METALLIC_FACTOR: g.metallicRoughness.metallic = n === '' ? '' : clamp(n, 0, 1); break
-      case OVERRIDE_GLTF_ROUGHNESS_FACTOR: g.metallicRoughness.roughness = n; break
-      case OVERRIDE_GLTF_EMISSIVE_FACTOR: g.emissive.tint = isVector(v) ? asVec(v) : ''; break
+      case OVERRIDE_GLTF_ROUGHNESS_FACTOR: g.metallicRoughness.roughness = n === '' ? '' : clamp(n, 0, 1); break
+      case OVERRIDE_GLTF_EMISSIVE_FACTOR: g.emissive.tint = isVector(v) ? clampVec(asVec(v), 0, 1) : ''; break
     }
   }
 }
@@ -567,14 +575,14 @@ export function writePrimParam(
     }
     case PRIM_TEXTURE: {
       const faces = facesOf(p, rules[cursor])
-      const tex = str(rules[cursor + 1])
+      const tex = textureKey(prim, str(rules[cursor + 1])) ?? NULL_KEY
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
       for (const f of faces) {
         p.faces[f]!.texture = tex
-        p.faces[f]!.textureRepeats = { x: repeats.x, y: repeats.y, z: repeats.z }
-        p.faces[f]!.textureOffsets = { x: offsets.x, y: offsets.y, z: offsets.z }
+        p.faces[f]!.textureRepeats = { x: repeats.x, y: repeats.y, z: 0 }
+        p.faces[f]!.textureOffsets = { x: offsets.x, y: offsets.y, z: 0 }
         p.faces[f]!.textureRotation = rot
       }
       return 5
@@ -590,7 +598,9 @@ export function writePrimParam(
     }
     case PRIM_FULLBRIGHT: {
       const faces = facesOf(p, rules[cursor])
-      const v = num(rules[cursor + 1]) !== 0
+      const raw = num(rules[cursor + 1])
+      if (raw !== 0 && raw !== 1) return 2
+      const v = raw === 1
       for (const f of faces) {
         p.faces[f]!.fullBright = v
       }
@@ -609,6 +619,7 @@ export function writePrimParam(
       const faces = facesOf(p, rules[cursor])
       const shiny = num(rules[cursor + 1]) | 0
       const bump = num(rules[cursor + 2]) | 0
+      if (shiny < 0 || shiny > 3 || bump < 0 || bump > 17) return 3
       for (const f of faces) {
         p.faces[f]!.bumpShiny = { shiny, bump }
       }
@@ -617,6 +628,7 @@ export function writePrimParam(
     case PRIM_TEXGEN: {
       const faces = facesOf(p, rules[cursor])
       const mode = num(rules[cursor + 1]) | 0
+      if (mode < 0 || mode > 1) return 2
       for (const f of faces) {
         p.faces[f]!.texgen = mode
       }
@@ -626,12 +638,13 @@ export function writePrimParam(
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       if (tex === '') return 5
+      const key = textureKey(prim, tex) ?? NULL_KEY
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
       for (const f of faces) {
         p.faces[f]!.normal = {
-          texture: tex,
+          texture: key,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
           textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
           textureRotation: rot,
@@ -643,15 +656,16 @@ export function writePrimParam(
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       if (tex === '') return 8
+      const key = textureKey(prim, tex) ?? NULL_KEY
       const repeats = asVec(rules[cursor + 2])
       const offsets = asVec(rules[cursor + 3])
       const rot = num(rules[cursor + 4])
       const color = asVec(rules[cursor + 5])
-      const gloss = num(rules[cursor + 6]) | 0
-      const env = num(rules[cursor + 7]) | 0
+      const gloss = clamp(num(rules[cursor + 6]) | 0, 0, 255)
+      const env = clamp(num(rules[cursor + 7]) | 0, 0, 255)
       for (const f of faces) {
         p.faces[f]!.specular = {
-          texture: tex,
+          texture: key,
           textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
           textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
           // Second Life stores a negative rotation as 0 and the colour in 8 bits per channel
@@ -665,8 +679,8 @@ export function writePrimParam(
     }
     case PRIM_ALPHA_MODE: {
       const faces = facesOf(p, rules[cursor])
-      const mode = num(rules[cursor + 1]) | 0
-      const cutoff = num(rules[cursor + 2]) | 0
+      const mode = clamp(num(rules[cursor + 1]) | 0, 0, 3)
+      const cutoff = mode === PRIM_ALPHA_MODE_MASK ? clamp(num(rules[cursor + 2]) | 0, 0, 255) : 0
       for (const f of faces) {
         p.faces[f]!.alphaMode = { mode, cutoff }
       }
@@ -676,26 +690,26 @@ export function writePrimParam(
       const color = rules[cursor + 5]
       const alpha = rules[cursor + 6]
       const factor = color !== '' || alpha !== ''
-      writeGltf(p, rules, cursor, 'baseColor', {
-        color: factor ? (color === '' ? one() : asVec(color)) : '',
-        alpha: factor ? num(alpha, 1) : '',
-        alphaMode: valueOverride(rules[cursor + 7], (v) => num(v) | 0),
-        alphaCutoff: valueOverride(rules[cursor + 8], num),
-        doubleSided: valueOverride(rules[cursor + 9], (v) => num(v) | 0),
+      writeGltf(prim, rules, cursor, 'baseColor', {
+        color: factor ? (color === '' ? one() : clampVec(asVec(color), 0, 1)) : '',
+        alpha: factor ? clamp(num(alpha, 1), 0, 1) : '',
+        alphaMode: valueOverride(rules[cursor + 7], (v) => clamp(num(v) | 0, 0, 2)),
+        alphaCutoff: valueOverride(rules[cursor + 8], (v) => clamp(num(v), 0, 1)),
+        doubleSided: valueOverride(rules[cursor + 9], (v) => clamp(num(v) | 0, 0, 1)),
       })
       return 10
     }
     case PRIM_GLTF_NORMAL:
-      writeGltf(p, rules, cursor, 'normal', {})
+      writeGltf(prim, rules, cursor, 'normal', {})
       return 5
     case PRIM_GLTF_METALLIC_ROUGHNESS:
-      writeGltf(p, rules, cursor, 'metallicRoughness', {
-        metallic: valueOverride(rules[cursor + 5], num),
-        roughness: valueOverride(rules[cursor + 6], num),
+      writeGltf(prim, rules, cursor, 'metallicRoughness', {
+        metallic: valueOverride(rules[cursor + 5], (v) => clamp(num(v), 0, 1)),
+        roughness: valueOverride(rules[cursor + 6], (v) => clamp(num(v), 0, 1)),
       })
       return 7
     case PRIM_GLTF_EMISSIVE:
-      writeGltf(p, rules, cursor, 'emissive', { tint: valueOverride(rules[cursor + 5], asVec) })
+      writeGltf(prim, rules, cursor, 'emissive', { tint: valueOverride(rules[cursor + 5], (v) => clampVec(asVec(v), 0, 1)) })
       return 6
     case PRIM_LINK_TARGET:
       return null
@@ -712,7 +726,7 @@ const valueOverride = <T>(v: LslValue | undefined, read: (v: LslValue | undefine
  * only the transforms.
  */
 function writeGltf<K extends keyof PrimFace['gltf']>(
-  p: PrimParams,
+  prim: Prim,
   rules: ReadonlyArray<LslValue>,
   cursor: number,
   rule: K,
@@ -723,9 +737,11 @@ function writeGltf<K extends keyof PrimFace['gltf']>(
     textureOffsets: asVec(rules[cursor + 3]),
     textureRotation: num(rules[cursor + 4]),
   }
-  for (const f of facesOf(p, rules[cursor])) {
-    const face = p.faces[f]!
-    const overrides = face.renderMaterial === NULL_KEY ? {} : { texture: str(rules[cursor + 1]), ...values }
+  const name = str(rules[cursor + 1])
+  const texture = name === '' ? '' : (textureKey(prim, name) ?? NULL_KEY)
+  for (const f of facesOf(prim.params, rules[cursor])) {
+    const face = prim.params.faces[f]!
+    const overrides = face.renderMaterial === NULL_KEY ? {} : { texture, ...values }
     face.gltf[rule] = { ...face.gltf[rule], ...transform, ...overrides }
   }
 }

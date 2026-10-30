@@ -731,8 +731,8 @@ describe('prim behaviour measured in Second Life', () => {
               llGetTextureRot(6), llGetRenderMaterial(6)];`,
       'list out;',
     )
-    // In-world: llGetRenderMaterial past the face count returns NULL_KEY (probe p4 allsides_rm).
-    expect(s.global('out')).toEqual([{ x: 1, y: 1, z: 1 }, 1, '', { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 0, NULL_KEY])
+    // In-world: llGetRenderMaterial and llGetTexture past the face count return NULL_KEY (probes p4 allsides_rm, p6 gettex_bad).
+    expect(s.global('out')).toEqual([{ x: 1, y: 1, z: 1 }, 1, NULL_KEY, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, 0, NULL_KEY])
   })
 
   it('ALL_SIDES texture and link calls reach the seventh face of a hollow box', async () => {

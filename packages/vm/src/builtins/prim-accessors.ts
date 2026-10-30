@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides } from '../prim-params.js'
+import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey } from '../prim-params.js'
 import { sayError } from './debug.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
@@ -152,15 +152,19 @@ export const llGetAlpha: BuiltinImpl = (ctx, args) => {
 }
 
 export const llSetTexture: BuiltinImpl = (ctx, args) => {
-  const tex = str(args[0])
+  const name = str(args[0])
   const face = num(args[1], ALL_SIDES) | 0
-  const list = faceIndices(ctx.prim.params, face)
-  for (const f of list) ctx.prim.params.faces[f]!.texture = tex
+  const key = textureKey(ctx.prim, name)
+  if (key === null || key === NULL_KEY) {
+    sayError(ctx, `Could not find texture '${name}'.`)
+    return undefined
+  }
+  for (const f of faceIndices(ctx.prim.params, face)) ctx.prim.params.faces[f]!.texture = key
   return undefined
 }
 export const llGetTexture: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
-  if (!hasFace(ctx.prim, face)) return ''
+  const face = Math.max(0, num(args[0], 0) | 0)
+  if (!hasFace(ctx.prim, face)) return NULL_KEY
   return ctx.prim.params.faces[face]!.texture
 }
 export const llGetTextureOffset: BuiltinImpl = (ctx, args) => {

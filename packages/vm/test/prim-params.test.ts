@@ -73,6 +73,8 @@ function freshPrim(): Prim {
 
 const v = (x: number, y: number, z: number) => ({ x, y, z })
 const MAT = 'f35823e6-40dc-d992-f4cc-85a4cb5464c0'
+const KEY_A = '11111111-1111-4111-8111-111111111111'
+const KEY_B = '22222222-2222-4222-8222-222222222222'
 const r = (x: number, y: number, z: number, s: number) => ({ x, y, z, s })
 
 describe('prim-params helpers', () => {
@@ -188,43 +190,44 @@ describe('prim-params helpers', () => {
       expect(readPrimParam(p, PRIM_RENDER_MATERIAL, [4], 0)?.values).toEqual([MAT])
     })
     it('PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE round-trip', () => {
+      // In-world: a texture name that is neither a key nor an inventory item reads NULL_KEY (probe p7 spec_badname), so these use keys.
       const p = freshPrim()
-      writePrimParam(p, PRIM_NORMAL, [0, 'n-tex', v(1, 1, 0), v(0, 0, 0), 0], 0)
-      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0, v(1, 1, 1), 51, 0], 0)
+      writePrimParam(p, PRIM_NORMAL, [0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0], 0)
+      writePrimParam(p, PRIM_SPECULAR, [0, KEY_B, v(1, 1, 0), v(0, 0, 0), 0, v(1, 1, 1), 51, 0], 0)
       writePrimParam(p, PRIM_ALPHA_MODE, [0, PRIM_ALPHA_MODE_BLEND, 0], 0)
-      expect(readPrimParam(p, PRIM_NORMAL, [0], 0)?.values).toEqual(['n-tex', v(1, 1, 0), v(0, 0, 0), 0])
-      expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values).toEqual(['s-tex', v(1, 1, 0), v(0, 0, 0), 0, v(1, 1, 1), 51, 0])
+      expect(readPrimParam(p, PRIM_NORMAL, [0], 0)?.values).toEqual([KEY_A, v(1, 1, 0), v(0, 0, 0), 0])
+      expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values).toEqual([KEY_B, v(1, 1, 0), v(0, 0, 0), 0, v(1, 1, 1), 51, 0])
       expect(readPrimParam(p, PRIM_ALPHA_MODE, [0], 0)?.values).toEqual([PRIM_ALPHA_MODE_BLEND, 0])
     })
     it('PRIM_SPECULAR stores a negative rotation as 0', () => {
       const p = freshPrim()
-      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0.5, v(1, 1, 1), 51, 0], 0)
+      writePrimParam(p, PRIM_SPECULAR, [0, KEY_B, v(1, 1, 0), v(0, 0, 0), 0.5, v(1, 1, 1), 51, 0], 0)
       expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[3]).toBe(0.5)
-      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), -1.5, v(1, 1, 1), 51, 0], 0)
+      writePrimParam(p, PRIM_SPECULAR, [0, KEY_B, v(1, 1, 0), v(0, 0, 0), -1.5, v(1, 1, 1), 51, 0], 0)
       expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[3]).toBe(0)
     })
     it('PRIM_SPECULAR keeps the colour in 8 bits per channel', () => {
       const p = freshPrim()
-      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0, v(0.5, 0.5, 0.5), 51, 0], 0)
+      writePrimParam(p, PRIM_SPECULAR, [0, KEY_B, v(1, 1, 0), v(0, 0, 0), 0, v(0.5, 0.5, 0.5), 51, 0], 0)
       expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[4]).toEqual(v(127 / 255, 127 / 255, 127 / 255))
-      writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0, v(-0.5, 2, 1), 51, 0], 0)
+      writePrimParam(p, PRIM_SPECULAR, [0, KEY_B, v(1, 1, 0), v(0, 0, 0), 0, v(-0.5, 2, 1), 51, 0], 0)
       expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[4]).toEqual(v(0, 1, 1))
     })
     it('PRIM_GLTF_* round-trips on a face with a render material', () => {
-      // In-world: overrides on a face without a material read back as "" (probe p1 nomat_bc_full).
+      // In-world: overrides on a face without a material read back as "" (probe p1 nomat_bc_full); a texture name that is not a key reads NULL_KEY (probe p6 gltf_nm_badname).
       const p = freshPrim()
       writePrimParam(p, PRIM_RENDER_MATERIAL, [0, MAT], 0)
       writePrimParam(p, PRIM_GLTF_BASE_COLOR, [
-        0, 'bc', v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.5, 1,
+        0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.5, 1,
       ], 0)
-      writePrimParam(p, PRIM_GLTF_NORMAL, [0, 'n', v(1, 1, 0), v(0, 0, 0), 0], 0)
-      writePrimParam(p, PRIM_GLTF_METALLIC_ROUGHNESS, [0, 'mr', v(1, 1, 0), v(0, 0, 0), 0, 0.4, 0.6], 0)
-      writePrimParam(p, PRIM_GLTF_EMISSIVE, [0, 'e', v(1, 1, 0), v(0, 0, 0), 0, v(0.1, 0.2, 0.3)], 0)
+      writePrimParam(p, PRIM_GLTF_NORMAL, [0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0], 0)
+      writePrimParam(p, PRIM_GLTF_METALLIC_ROUGHNESS, [0, KEY_B, v(1, 1, 0), v(0, 0, 0), 0, 0.4, 0.6], 0)
+      writePrimParam(p, PRIM_GLTF_EMISSIVE, [0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(0.1, 0.2, 0.3)], 0)
       expect(readPrimParam(p, PRIM_GLTF_BASE_COLOR, [0], 0)?.values).toEqual([
-        'bc', v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.5, 1,
+        KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.5, 1,
       ])
       expect(readPrimParam(p, PRIM_GLTF_METALLIC_ROUGHNESS, [0], 0)?.values).toEqual([
-        'mr', v(1, 1, 0), v(0, 0, 0), 0, 0.4, 0.6,
+        KEY_B, v(1, 1, 0), v(0, 0, 0), 0, 0.4, 0.6,
       ])
     })
   })
