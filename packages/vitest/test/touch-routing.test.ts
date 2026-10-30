@@ -186,6 +186,52 @@ describe('linkset.touch routes a click like Second Life', () => {
     expect(got('s')).toEqual(['start@0.000000', 'touch@0.000000', 'timer@0.500000', 'end@1.500000'])
   })
 
+  it('hold counts from the click, not from when the touch_start handler finishes', async () => {
+    const sleepy = `
+      list got = [];
+      default {
+        touch_start(integer n) { llResetTime(); llSleep(2.0); }
+        touch_end(integer n) { got += [llGetTime()]; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', sleepy)]])
+    linkset.touch(0, { hold: 1000 })
+    expect(got('s')).toEqual([2])
+  })
+
+  const selfStopping = (stopIn: string) => `
+    list got = [];
+    default {
+      touch_start(integer n) { got += ["start"]; ${stopIn === 'touch_start' ? 'llSetScriptState(llGetScriptName(), FALSE);' : 'llSetTimerEvent(0.5);'} }
+      timer() { llSetTimerEvent(0); llSetScriptState(llGetScriptName(), FALSE); }
+      touch(integer n) { got += ["touch"]; }
+      touch_end(integer n) { got += ["end"]; }
+    }
+  `
+  const restarter = `default { link_message(integer s, integer n, string m, key k) { llSetScriptState("s", TRUE); } }`
+
+  it('a script that stops itself in touch_start still gets the rest of a click once restarted', async () => {
+    // In-world: touch_start called llSetScriptState(llGetScriptName(), FALSE);
+    // after another script restarted it, it said "touch" then "end".
+    const { linkset, got } = await setup([[script('s', selfStopping('touch_start')), script('r', restarter)]])
+    linkset.touch(0)
+    expect(got('s')).toEqual(['start'])
+    linkset.deliverLinkMessage(0, 0, 0, '', '')
+    linkset.advanceTime(0)
+    expect(got('s')).toEqual(['start', 'touch', 'end'])
+  })
+
+  it('a script stopped during a hold never gets that release', async () => {
+    // Not measured: the headless viewer cannot hold a click. In-world a
+    // stopped script is never sent a touch, so a release that happens while
+    // it is stopped is not queued for it.
+    const { linkset, got } = await setup([[script('s', selfStopping('timer')), script('r', restarter)]])
+    linkset.touch(0, { hold: 1000 })
+    linkset.deliverLinkMessage(0, 0, 0, '', '')
+    linkset.advanceTime(0)
+    expect(got('s')).toEqual(['start', 'touch'])
+  })
+
   it('starts scripts that have not run state_entry yet', async () => {
     const loaded = await loadLinkset({
       prims: [

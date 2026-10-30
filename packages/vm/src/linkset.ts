@@ -230,8 +230,9 @@ export class Linkset {
    * also reaches the root's scripts when the prim set PASS_ALWAYS, or when
    * no running script in it handles any touch event and it did not set
    * PASS_NEVER. In every receiver llDetectedLinkNumber is `link` and
-   * llDetectedTouchFace is `face`. `touch_end` comes `hold` ms after
-   * `touch_start`; `touch` fires once, right after `touch_start`.
+   * llDetectedTouchFace is `face`. `touch_end` is queued `hold` ms after
+   * the click, only for receivers still running then; `touch` fires once,
+   * right after `touch_start`.
    */
   touch(link: number, opts: TouchOptions = {}): void {
     const prim =
@@ -258,17 +259,22 @@ export class Linkset {
         ...(opts.uv && { touchUV: opts.uv }),
       },
     ]
-    const deliver = (events: ReadonlyArray<string>) => {
+    const queue = (events: ReadonlyArray<string>) => {
       for (const s of receivers) {
+        if (!s.running || s.dead) continue
         for (const e of events) {
           if (s.handles(e)) this.clock.schedule(s, this.clock.now, e, { num_detected: 1, detected })
         }
       }
-      this.settle(receivers)
     }
-    deliver(['touch_start', 'touch'])
-    if (opts.hold) this.advanceTime(opts.hold)
-    deliver(['touch_end'])
+    if (opts.hold) {
+      queue(['touch_start', 'touch'])
+      this.advanceTime(opts.hold)
+      queue(['touch_end'])
+    } else {
+      queue(TOUCH_EVENTS)
+    }
+    this.settle(receivers)
   }
 
   private globalPosition(prim: Prim): Vector {
