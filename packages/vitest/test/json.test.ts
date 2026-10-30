@@ -533,8 +533,9 @@ describe('llJsonSetValue', () => {
         out = llJsonSetValue(j, [3,"W","X"], "10");
       } }
     `)
+    // In-world: llJsonSetValue("{\"b\":1}", ["a"], "2") = {"a":2,"b":1} (rebuilt objects are byte-sorted)
     expect(s.global('out')).toBe(
-      '[9,"<1,1,1>",false,{"A":8,"Z":9,"W":{"X":10}}]',
+      '[9,"<1,1,1>",false,{"A":8,"W":{"X":10},"Z":9}]',
     )
   })
 
@@ -601,8 +602,8 @@ describe('llJsonSetValue', () => {
         out = llJsonSetValue("{\\"a\\":1,\\"a\\":2,\\"b\\":3,\\"a\\":4}", ["b"], "9");
       } }
     `)
-    // duplicates collapsed; surviving "a":4 in last position; "b":9 in its position
-    expect(s.global('out')).toBe('{"b":9,"a":4}')
+    // In-world: llJsonSetValue("{\"b\":1,\"a\":2,\"b\":3}", ["a"], "9") = {"a":9,"b":3}
+    expect(s.global('out')).toBe('{"a":4,"b":9}')
   })
 
   it('three successive sets build a 3-level nested object; gets read each level back', async () => {
@@ -621,6 +622,151 @@ describe('llJsonSetValue', () => {
     expect(s.global('a')).toBe('1')
     expect(s.global('b')).toBe('2')
     expect(s.global('c')).toBe('3')
+  })
+})
+
+describe('llJsonSetValue serialisation', () => {
+  it('keeps a unicode escape in an untouched string value', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"s\\":\\"\\\\u0041\\",\\"n\\":0}", ["n"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":1,"s":"\u0041"}
+    expect(s.global('out')).toBe('{"n":1,"s":"\\u0041"}')
+  })
+
+  it('keeps a unicode escape in an array string', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("[\\"\\\\u00e9x\\",0]", [1], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = ["\u00e9x",1]
+    expect(s.global('out')).toBe('["\\u00e9x",1]')
+  })
+
+  it('keeps escapes including slash in a string', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"s\\":\\"a\\\\nb\\\\\\"c\\\\/d\\\\\\\\e\\",\\"n\\":0}", ["n"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":1,"s":"a\nb\"c\/d\\e"}
+    expect(s.global('out')).toBe('{"n":1,"s":"a\\nb\\"c\\/d\\\\e"}')
+  })
+
+  it('keeps raw number tokens', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"x\\":1.50,\\"y\\":1e3,\\"z\\":-0,\\"w\\":0}", ["w"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"w":1,"x":1.50,"y":1e3,"z":-0}
+    expect(s.global('out')).toBe('{"w":1,"x":1.50,"y":1e3,"z":-0}')
+  })
+
+  it('keeps raw tokens and untouched compounds in a rebuilt array', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("[\\"\\\\u0041\\", 1.50, 1e3, {\\"b\\":1,\\"a\\":2}, -0]", [1], "2");
+      } }
+    `)
+    // In-world: llJsonSetValue result = ["\u0041",2,1e3,{"b":1,"a":2},-0]
+    expect(s.global('out')).toBe('["\\u0041",2,1e3,{"b":1,"a":2},-0]')
+  })
+
+  it('sorts a new key into byte order', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"b\\":1}", ["a"], "2");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"a":2,"b":1}
+    expect(s.global('out')).toBe('{"a":2,"b":1}')
+  })
+
+  it('sorts keys by byte order, not numerically or case-insensitively', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"a\\":1,\\"B\\":2,\\"_\\":3,\\"10\\":4,\\"9\\":5}", ["a"], "0");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"10":4,"9":5,"B":2,"_":3,"a":0}
+    expect(s.global('out')).toBe('{"10":4,"9":5,"B":2,"_":3,"a":0}')
+  })
+
+  it('keeps sorted order after JSON_DELETE', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"c\\":1,\\"b\\":2,\\"a\\":3}", ["b"], JSON_DELETE);
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"a":3,"c":1}
+    expect(s.global('out')).toBe('{"a":3,"c":1}')
+  })
+
+  it('sorts nested rebuilt objects and keeps raw strings', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"o\\":{\\"s\\":\\"\\\\u0041\\"},\\"n\\":0}", ["o","t"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":0,"o":{"s":"\u0041","t":1}}
+    expect(s.global('out')).toBe('{"n":0,"o":{"s":"\\u0041","t":1}}')
+  })
+
+  it('keeps untouched compound values raw', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"z\\":{\\"b\\":1,\\"a\\":2},\\"y\\":0}", ["y"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"y":1,"z":{"b":1,"a":2}}
+    expect(s.global('out')).toBe('{"y":1,"z":{"b":1,"a":2}}')
+  })
+
+  it('keeps untouched array whitespace', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"b\\":[1, 2],\\"a\\":0}", ["a"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"a":1,"b":[1, 2]}
+    expect(s.global('out')).toBe('{"a":1,"b":[1, 2]}')
+  })
+
+  it('keeps untouched objects in a rebuilt array', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("[{\\"b\\":1,\\"a\\":2},0]", [1], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = [{"b":1,"a":2},1]
+    expect(s.global('out')).toBe('[{"b":1,"a":2},1]')
+  })
+
+  it('writes decoded keys back', async () => {
+    const s = await run(`
+      string out = "";
+      default { state_entry() {
+        out = llJsonSetValue("{\\"\\\\u0041\\":1,\\"n\\":0}", ["n"], "1");
+      } }
+    `)
+    // In-world: llJsonSetValue result = {"n":1,"u0041":1}
+    expect(s.global('out')).toBe('{"n":1,"u0041":1}')
   })
 })
 

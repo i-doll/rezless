@@ -25,7 +25,7 @@ type JNode =
   | { t: 'true' }
   | { t: 'false' }
   | { t: 'num'; raw: string }
-  | { t: 'str'; v: string }
+  | { t: 'str'; v: string; raw?: string }
   | { t: 'arr'; items: JNode[]; raw?: string }
   | { t: 'obj'; entries: Array<[string, JNode]>; raw?: string }
   | { t: 'empty' }
@@ -175,13 +175,14 @@ class Parser {
 
   private parseString(): JNode | null {
     if (this.src[this.i] !== '"') return null
+    const start = this.i
     this.i++
     let out = ''
     while (this.i < this.src.length) {
       const c = this.src[this.i]!
       if (c === '"') {
         this.i++
-        return { t: 'str', v: out }
+        return { t: 'str', v: out, raw: this.src.slice(start, this.i) }
       }
       if (c === '\\') {
         this.i++
@@ -266,6 +267,13 @@ function escapeJsonString(s: string): string {
   return out
 }
 
+function sortByKeyBytes(entries: ReadonlyArray<[string, JNode]>): Array<[string, JNode]> {
+  return entries
+    .map((e) => ({ e, key: Buffer.from(e[0], 'utf8') }))
+    .sort((a, b) => Buffer.compare(a.key, b.key))
+    .map(({ e }) => e)
+}
+
 function printJson(n: JNode): string {
   switch (n.t) {
     case 'null':
@@ -277,13 +285,13 @@ function printJson(n: JNode): string {
     case 'num':
       return n.raw
     case 'str':
-      return '"' + escapeJsonString(n.v) + '"'
+      return n.raw ?? '"' + escapeJsonString(n.v) + '"'
     case 'arr':
       return n.raw ?? '[' + n.items.map(printJson).join(',') + ']'
     case 'obj':
       return n.raw ?? (
         '{' +
-        n.entries
+        sortByKeyBytes(n.entries)
           .map(([k, v]) => '"' + escapeJsonString(k) + '":' + printJson(v))
           .join(',') +
         '}'
