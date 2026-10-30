@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { Vector, Rotation } from '../values/types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from '../values/types.js'
+import { TOUCH_INVALID_TEXCOORD } from '../generated/constants.js'
 
 /**
  * One entry in the per-handler "detected" context — the data exposed to
@@ -20,6 +21,11 @@ export interface DetectedEntry {
   readonly linkNumber?: number
   readonly grab?: Vector
   readonly touchPos?: Vector
+  readonly touchFace?: number
+  readonly touchST?: Vector
+  readonly touchUV?: Vector
+  readonly touchNormal?: Vector
+  readonly touchBinormal?: Vector
 }
 
 /**
@@ -58,3 +64,21 @@ export const llDetectedLinkNumber: BuiltinImpl = (ctx, args) =>
 export const llDetectedGrab: BuiltinImpl = (ctx, args) => entry(ctx, args)?.grab ?? ZERO_VECTOR
 export const llDetectedTouchPos: BuiltinImpl = (ctx, args) =>
   entry(ctx, args)?.touchPos ?? ZERO_VECTOR
+export const llDetectedTouchFace: BuiltinImpl = (ctx, args) => entry(ctx, args)?.touchFace ?? 0
+
+// In-world, a click that carries no surface point reads <-1, -1, 0> here;
+// outside a touch event and past the count these read ZERO_VECTOR.
+const texcoord = (e: DetectedEntry | undefined, v: Vector | undefined): Vector =>
+  e ? (v ?? TOUCH_INVALID_TEXCOORD) : ZERO_VECTOR
+export const llDetectedTouchST: BuiltinImpl = (ctx, args) => {
+  const e = entry(ctx, args)
+  return texcoord(e, e?.touchST)
+}
+export const llDetectedTouchUV: BuiltinImpl = (ctx, args) => {
+  const e = entry(ctx, args)
+  return texcoord(e, e?.touchUV)
+}
+export const llDetectedTouchNormal: BuiltinImpl = (ctx, args) =>
+  entry(ctx, args)?.touchNormal ?? ZERO_VECTOR
+export const llDetectedTouchBinormal: BuiltinImpl = (ctx, args) =>
+  entry(ctx, args)?.touchBinormal ?? ZERO_VECTOR

@@ -190,6 +190,9 @@ expect(scripts['display'].text?.text).toBe('count: 1')
 // Linkset-wide helpers
 linkset.advanceTime(1_000)              // shared clock; every script's timers advance together
 linkset.deliverChat({ channel: 0, name: 'Alice', key: 'k', message: 'hi' })
+linkset.touch(2, { face: 0, st: { x: 0.5, y: 0.5, z: 0 }, hold: 1_500, avatar: { key: 'k', name: 'Alice' } })
+                                        // click link 2; reaches the scripts Second Life would
+                                        //   deliver it to, honouring llPassTouches
 linkset.linkedMessages                  // every llMessageLinked across the linkset
 linkset.clearLinkedMessages()
 linkset.clock.now                       // current virtual time in ms
@@ -264,7 +267,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
 * **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
 * **dataserver**: `llRequestAgentData`, `llRequestInventoryData`, `llRequestSimulatorData`, `llRequestUsername`, `llRequestDisplayName`
-* **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`
+* **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`/`TouchFace`/`TouchST`/`TouchUV`/`TouchNormal`/`TouchBinormal`
 * **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`, `llRot2Fwd`/`Left`/`Up`, `llRot2Axis`/`Angle`, `llAxisAngle2Rot`, `llRotBetween`
 * **string**: `llStringLength`, `llSubStringIndex`, `llGetSubString`, `llDeleteSubString`, `llInsertString`, `llStringTrim`, `llToLower`/`Upper`, `llReplaceSubString`, `llEscapeURL`/`UnescapeURL`
 * **list**: `llGetListLength`, `llList2Integer`/`Float`/`String`/`Key`/`Vector`/`Rot`, `llList2List`, `llList2ListStrided`, `llList2ListSlice`, `llListRandomize` (seeded), `llDeleteSubList`, `llListInsertList`, `llListReplaceList`, `llListFindList`, `llListSort`, `llDumpList2String`, `llList2CSV`, `llCSV2List`, `llParseString2List`, `llParseStringKeepNulls`
@@ -346,6 +349,8 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 
 * **hello** — minimal `state_entry { llSay(...) }` + matchers.
 * **greeter** — touch + name greeting + state transition + reminder timer.
+* **long-press** — a lamp that tells a short tap from a long press with `linkset.touch`'s `hold`.
+* **keypad** — a door keypad that reads which key was clicked from `llDetectedTouchST`.
 * **remote** — owner-only listen on a custom channel + command dispatch.
 * **fetcher** — `llHTTPRequest` + `http_response` + status handling.
 * **nametag** — `llRequestAgentData` + `dataserver` + floating text.
