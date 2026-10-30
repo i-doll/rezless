@@ -6,7 +6,7 @@ import type { BuiltinSpec } from './generated/functions.js'
 import { REAL_BUILTINS } from './builtins/index.js'
 import type { Script } from './script.js'
 import { own } from './own.js'
-import { DieSignal } from './builtins/object.js'
+import { HaltSignal } from './builtins/object.js'
 
 /** Look up the generated spec for a function name, if any. */
 export function specFor(name: string): BuiltinSpec | undefined {
@@ -47,7 +47,7 @@ export function* callBuiltin(
   const dying = dctx.state.lifecycle.dying
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
-  if (dying) throw new DieSignal()
+  if (dying || dctx.state.lifecycle.removed) throw new HaltSignal()
   const delayMs = spec ? spec.delay * 1000 : 0
   if (sleptMs !== null || delayMs > 0) yield { until: dctx.state.clock.now + (sleptMs ?? 0) + delayMs }
   return result

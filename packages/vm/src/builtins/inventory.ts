@@ -190,7 +190,7 @@ export const llGetNumberOfNotecardLines: BuiltinImpl = (ctx, args) => {
 
 /**
  * llRemoveInventory(string name) — deletes the item, stopping it if it is
- * a script. A script that removes itself runs on until it next yields.
+ * a script. A script that removes itself halts at once.
  */
 export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
@@ -204,6 +204,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   if (script) {
     ctx.prim.scripts.splice(ctx.prim.scripts.indexOf(script), 1)
     script.markDead()
+    if (script === ctx.script) ctx.state.lifecycle.removed = true
   }
   return undefined
 }

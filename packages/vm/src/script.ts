@@ -15,7 +15,7 @@ import type { DataserverRequestEntry } from './builtins/dataserver.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import type { PermissionRequestEntry } from './builtins/permissions.js'
-import { DieSignal, ResetScriptSignal } from './builtins/object.js'
+import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
 import { NULL_KEY } from './values/types.js'
@@ -206,6 +206,7 @@ export class Script {
       lifecycle: {
         dead: false,
         dying: false,
+        removed: false,
       },
       filename,
       source,
@@ -583,6 +584,7 @@ export class Script {
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
     this.state.lifecycle.dying = false
+    this.state.lifecycle.removed = false
     this.state.listens.length = 0
     this.state.permissions.granted = 0
     this.state.permissions.agent = NULL_KEY
@@ -717,7 +719,7 @@ export class Script {
         yield* execHandler(ctx, h, a)
       } catch (e) {
         if (e instanceof ResetScriptSignal) return true
-        if (e instanceof DieSignal) return false
+        if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
@@ -726,7 +728,7 @@ export class Script {
           try {
             yield* execHandler(ctx, exit, [])
           } catch (e2) {
-            if (e2 instanceof DieSignal) return false
+            if (e2 instanceof HaltSignal) return false
             if (e2 instanceof StateChangeSignal) {
               // Discard further changes inside state_exit per LSL convention.
             } else {

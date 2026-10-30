@@ -33,7 +33,7 @@ import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js
 import { Env } from './env.js'
 import { own } from './own.js'
 import { RuntimeError, StackHeapCollision, frameBytes } from './memory.js'
-import { DieSignal } from './builtins/object.js'
+import { HaltSignal } from './builtins/object.js'
 
 /** Mono can't run a function or handler that uses the value of a key print. */
 class InvalidProgram extends RuntimeError {
@@ -366,7 +366,7 @@ function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): Exec<v
 
 /** A loop's back-edge, where a script that called llDie halts. */
 function iterate(ctx: InterpreterContext): void {
-  if (ctx.state.lifecycle.dying) throw new DieSignal()
+  if (ctx.state.lifecycle.dying) throw new HaltSignal()
 }
 
 // ---- Expressions ----

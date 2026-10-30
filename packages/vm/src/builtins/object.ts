@@ -48,8 +48,8 @@ export const llDie: BuiltinImpl = (ctx) => {
   return undefined
 }
 
-/** Thrown where a script that called llDie halts. */
-export class DieSignal {}
+/** Thrown where a script that called llDie or removed itself halts. */
+export class HaltSignal {}
 
 /**
  * llResetScript() — reset globals to their initial values, return to the
