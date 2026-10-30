@@ -8,10 +8,11 @@ const MAX_CHAT_BYTES = 1024
 function emit(ctx: CallContext, channel: number, text: string, type: ChatType, to?: string): undefined {
   const entry = { channel, text: truncateUtf8(text, MAX_CHAT_BYTES), type }
   ctx.state.chat.push(to === undefined ? entry : { ...entry, to })
+  if (type !== 'ownerSay' && type !== 'im') ctx.linkset.routeChat(ctx.prim, channel, entry.text, to)
   return undefined
 }
 
-/** llSay(integer channel, string msg) — captures into ScriptState.chat. */
+/** llSay(integer channel, string msg) — captures into ScriptState.chat and reaches other prims' listens. */
 export const llSay: BuiltinImpl = (ctx, args) =>
   emit(ctx, (args[0] as number | undefined) ?? 0, (args[1] as string | undefined) ?? '', 'say')
 
