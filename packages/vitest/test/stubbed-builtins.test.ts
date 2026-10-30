@@ -127,6 +127,14 @@ describe('rotation helpers (measured in Second Life)', () => {
     [`llRot2Euler(${q})`, '<0.10000, 0.20000, 0.30000>'],
     ['llEuler2Rot(<1.0, -2.0, 2.5>)', '<-0.61911, -0.47867, 0.32276, 0.53236>'],
     ['llRot2Euler(<0.1, 0.2, 0.3, 0.927362>)', '<0.07262, 0.44554, 0.60929>'],
+    ['llRot2Euler(<0.5, 0.5, 0.5, 0.5>)', '<0.00000, 1.57080, 1.57080>'],
+    ['llEuler2Rot(llRot2Euler(<0.5, 0.5, 0.5, 0.5>))', '<0.50000, 0.50000, 0.50000, 0.50000>'],
+    ['llRot2Euler(<-0.5, 0.5, -0.5, 0.5>)', '<0.00000, 1.57080, -1.57080>'],
+    ['llEuler2Rot(llRot2Euler(<-0.5, 0.5, -0.5, 0.5>))', '<0.50000, -0.50000, 0.50000, -0.50000>'],
+    ['llRot2Euler(llEuler2Rot(<0.3, PI_BY_TWO, 0.2>))', '<0.00000, 1.57080, 0.50000>'],
+    ['llRot2Euler(llEuler2Rot(<0.3, -PI_BY_TWO, 0.2>))', '<0.00000, -1.57080, -0.10000>'],
+    ['llRot2Euler(llEuler2Rot(<0.3, 1.5707, 0.2>))', '<0.00000, 1.57080, 0.50000>'],
+    ['llRot2Euler(llEuler2Rot(<0, PI_BY_TWO, 0>))', '<0.00000, 1.57080, 0.00000>'],
     [`llRot2Fwd(${q})`, '<0.93629, 0.31299, -0.15935>'],
     [`llRot2Left(${q})`, '<-0.28963, 0.94470, 0.15379>'],
     [`llRot2Up(${q})`, '<0.19867, -0.09784, 0.97517>'],
@@ -153,6 +161,19 @@ describe('rotation helpers (measured in Second Life)', () => {
     ['llRotBetween(<1,2,3>, <-3,1,0.5>)', '<-0.11567, -0.54942, 0.40483, 0.72171>'],
   ])('%s = %s', async (expr, expected) => {
     expect(await evalString(expr)).toBe(expected)
+  })
+
+  it('a gimbal-locked rotation survives the Euler round trip', async () => {
+    const s = await loadScript({
+      source: `vector v; default { state_entry() {
+        v = <1,0,0> * llEuler2Rot(llRot2Euler(<-0.5, 0.5, -0.5, 0.5>));
+      } }`,
+    })
+    s.start()
+    const v = s.global('v') as { x: number; y: number; z: number }
+    expect(v.x).toBeCloseTo(0, 5)
+    expect(v.y).toBeCloseTo(-1, 5)
+    expect(v.z).toBeCloseTo(0, 5)
   })
 
   it('llRot2Fwd of a zero rotation is the x axis', async () => {
@@ -272,6 +293,46 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.host.inventory).toHaveLength(0)
     expect(s.host.scripts).toHaveLength(0)
     s.fire('touch_start', { num_detected: 1 })
+    expect(s.chat.map((c) => c.text)).toEqual(['next'])
+  })
+
+  it('a script that removes itself in state_exit and sleeps just stops', async () => {
+    const s = await loadScript({
+      source: `default {
+        state_entry() { state other; }
+        state_exit() {
+          llRemoveInventory(llGetScriptName());
+          llOwnerSay("exit");
+          llSleep(1.0);
+          llOwnerSay("after sleep");
+        }
+      }
+      state other { state_entry() { llOwnerSay("other"); } }`,
+    })
+    expect(() => s.start()).not.toThrow()
+    expect(s.chat.map((c) => c.text)).toEqual(['exit'])
+  })
+
+  it('a fired handler does not run after state_entry removed the script', async () => {
+    const s = await loadScript({
+      source: `default {
+        state_entry() { llRemoveInventory(llGetScriptName()); }
+        touch_start(integer n) { llOwnerSay("touched"); }
+      }`,
+    })
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.chat).toEqual([])
+  })
+
+  it('a removal before a state change skips state_exit and the new state_entry', async () => {
+    const s = await loadScript({
+      source: `default {
+        state_entry() { llRemoveInventory(llGetScriptName()); llOwnerSay("next"); state other; }
+        state_exit() { llOwnerSay("exit"); }
+      }
+      state other { state_entry() { llOwnerSay("other"); } }`,
+    })
+    s.start()
     expect(s.chat.map((c) => c.text)).toEqual(['next'])
   })
 

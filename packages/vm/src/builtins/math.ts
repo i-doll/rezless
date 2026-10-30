@@ -69,17 +69,29 @@ export const llVecDist: BuiltinImpl = (_ctx, args) => {
   return Math.sqrt(dx * dx + dy * dy + dz * dz)
 }
 
+/** Below this cos(y), llRot2Euler treats the rotation as gimbal-locked. */
+const GIMBAL_THRESHOLD = 0.000436
+
 /**
  * llRot2Euler(rotation r) → vector (x, y, z) Euler angles in radians, the
- * inverse of llEuler2Rot.
+ * inverse of llEuler2Rot. At y = ±PI/2 it returns x = 0 and puts the
+ * combined turn in z, as Second Life does.
  */
 export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
   const q = args[0] as Rotation | undefined
   if (!q) return { x: 0, y: 0, z: 0 }
-  const x = Math.atan2(2 * (q.x * q.s - q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y))
-  const y = Math.asin(Math.max(-1, Math.min(1, 2 * (q.x * q.z + q.y * q.s))))
-  const z = Math.atan2(2 * (q.z * q.s - q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
-  return { x, y, z }
+  const sx = 2 * (q.x * q.s - q.y * q.z)
+  const sy = 2 * (q.y * q.s + q.x * q.z)
+  const ys = q.s * q.s - q.y * q.y
+  const xz = q.x * q.x - q.z * q.z
+  const cx = ys - xz
+  const cy = Math.sqrt(sx * sx + cx * cx)
+  if (cy > GIMBAL_THRESHOLD) {
+    return vec(Math.atan2(sx, cx), Math.atan2(sy, cy), Math.atan2(2 * (q.z * q.s - q.x * q.y), ys + xz))
+  }
+  // Gimbal lock: x and z turn about the same axis, so z carries both.
+  if (sy > 0) return vec(0, Math.PI / 2, 2 * Math.atan2(q.z + q.x, q.s + q.y))
+  return vec(0, -Math.PI / 2, 2 * Math.atan2(q.z - q.x, q.s - q.y))
 }
 
 /**
@@ -95,12 +107,20 @@ export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
   const sy = Math.sin(v.y * 0.5)
   const cx = Math.cos(v.x * 0.5)
   const sx = Math.sin(v.x * 0.5)
-  return {
-    x: sx * cy * cz + cx * sy * sz,
-    y: cx * sy * cz - sx * cy * sz,
-    z: cx * cy * sz + sx * sy * cz,
-    s: cx * cy * cz - sx * sy * sz,
-  }
+  const q = rot(
+    sx * cy * cz + cx * sy * sz,
+    cx * sy * cz - sx * cy * sz,
+    cx * cy * sz + sx * sy * cz,
+    cx * cy * cz - sx * sy * sz,
+  )
+  // Second Life goes through a rotation matrix, which makes s positive, or
+  // when |s| <= 0.5 the largest of x, y, z (the first on a tie).
+  const xx = q.x * q.x
+  const yy = q.y * q.y
+  const zz = q.z * q.z
+  let sign = q.s
+  if (3 - 4 * (xx + yy + zz) <= 0) sign = zz > Math.max(xx, yy) ? q.z : yy > xx ? q.y : q.x
+  return sign < 0 ? rot(-q.x, -q.y, -q.z, -q.s) : q
 }
 
 function rotationAxis(q: Rotation, axis: Vector): Vector {

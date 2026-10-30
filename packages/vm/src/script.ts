@@ -608,6 +608,7 @@ export class Script {
    * does `state foo;` continues the chain correctly.
    */
   private runHandler(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
+    if (this.state.lifecycle.dead) return
     const startedAt = this.now
     try {
       this.runHandlerChain(handler, args)
@@ -631,7 +632,7 @@ export class Script {
       handler,
       args,
     }
-    while (pending) {
+    while (pending && !this.state.lifecycle.dead) {
       const { handler: h, args: a } = pending
       pending = null
       try {
@@ -644,12 +645,13 @@ export class Script {
         if (e instanceof ScriptRemovedSignal) return
         if (!(e instanceof StateChangeSignal)) throw e
         const target = e.target
-        if (target === this.state.currentState) continue
+        if (target === this.state.currentState || this.state.lifecycle.dead) continue
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
           try {
             execHandler(ctx, exit, [])
           } catch (e2) {
+            if (e2 instanceof ScriptRemovedSignal) return
             if (e2 instanceof StateChangeSignal) {
               // Discard further changes inside state_exit per LSL convention.
             } else {
