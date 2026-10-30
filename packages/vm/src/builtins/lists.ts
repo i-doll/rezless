@@ -224,19 +224,19 @@ export const llCSV2List: BuiltinImpl = (_ctx, args) => {
   const out: string[] = []
   let depth = 0
   let start = 0
-  let afterComma = false
+  let atItemStart = true
   for (let i = 0; i < s.length; i++) {
     const c = s[i]
     if (c === ',' && depth === 0) {
       out.push(s.slice(start, i))
       start = i + 1
-      afterComma = true
+      atItemStart = true
       continue
     }
     if (c === '<') depth++
     else if (c === '>' && depth > 0) depth--
-    else if (c === ' ' && afterComma) start++
-    afterComma = false
+    else if (c === ' ' && atItemStart) start++
+    atItemStart = false
   }
   out.push(s.slice(start))
   return uniformList(out, 'string')
