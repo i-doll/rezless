@@ -78,8 +78,10 @@ const GIMBAL_THRESHOLD = 0.000436
  * combined turn in z, as Second Life does.
  */
 export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
-  const q = args[0] as Rotation | undefined
-  if (!q) return { x: 0, y: 0, z: 0 }
+  const r = args[0] as Rotation
+  const m = Math.hypot(r.x, r.y, r.z, r.s)
+  if (m === 0) return vec(0, 0, 0)
+  const q = { x: r.x / m, y: r.y / m, z: r.z / m, s: r.s / m }
   const sx = 2 * (q.x * q.s - q.y * q.z)
   const sy = 2 * (q.y * q.s + q.x * q.z)
   const ys = q.s * q.s - q.y * q.y
