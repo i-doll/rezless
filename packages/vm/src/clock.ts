@@ -136,8 +136,8 @@ export class LinksetClock {
  * forwards shared state to the linkset and keeps per-script state local.
  */
 export class ScriptClockView {
-  /** Reference time for `llGetTime`/`llResetTime` (virtual ms). */
-  timeReferenceMs = 0
+  /** Reference time for `llGetTime`/`llResetTime` (virtual ms); the script's creation, reset or last llResetTime. */
+  timeReferenceMs: number
   /** Recurring timer interval in ms; 0 = no timer. */
   timerIntervalMs = 0
   /** Virtual time at which the next timer event fires. */
@@ -148,7 +148,9 @@ export class ScriptClockView {
   constructor(
     private readonly linksetClock: LinksetClock,
     private readonly self: () => Script,
-  ) {}
+  ) {
+    this.timeReferenceMs = linksetClock.now
+  }
 
   get now(): number {
     return this.linksetClock.now

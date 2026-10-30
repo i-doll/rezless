@@ -255,4 +255,31 @@ describe('a world shares one clock', () => {
     expect(a.script.now).toBe(2_500)
     expect(r.script.linkset.clock).toBe(world.clock)
   })
+
+  it('times a script added later from its own start, on the world clock', async () => {
+    const world = new World({ startUnixTime: 1_000 })
+    world.addRegion('Sandbox', { x: 0, y: 0 })
+    const early = await place(world, 'Sandbox', { x: 10, y: 10, z: 25 }, listener)
+    early.script.advanceTime(60_000)
+    const late = await place(
+      world,
+      'Sandbox',
+      { x: 12, y: 10, z: 25 },
+      `
+        float started = -1;
+        integer unix = 0;
+        float ticked = -1;
+        default {
+          state_entry() { started = llGetTime(); unix = llGetUnixTime(); llSetTimerEvent(2.0); }
+          timer() { ticked = llGetTime(); llSetTimerEvent(0); }
+        }
+      `,
+    )
+    expect(late.script.global('started')).toBe(0)
+    expect(late.script.global('unix')).toBe(1_060)
+    early.script.advanceTime(1_000)
+    expect(late.script.global('ticked')).toBe(-1)
+    early.script.advanceTime(1_000)
+    expect(late.script.global('ticked')).toBeCloseTo(2.0)
+  })
 })

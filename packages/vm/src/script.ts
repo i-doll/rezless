@@ -552,6 +552,7 @@ export class Script {
     this.state.permissions.agent = NULL_KEY
     for (const r of this.state.permissions.requests) r.answered = true
     this.clockView.cancelTimer()
+    this.clockView.resetReference()
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
     this.started = false
