@@ -129,7 +129,8 @@ export const llGetColor: BuiltinImpl = (ctx, args) => {
     }
     return { x: x / faces.length, y: y / faces.length, z: z / faces.length }
   }
-  if (!hasFace(ctx.prim, face)) return ZERO_VECTOR
+  if (face >= ctx.prim.params.faces.length) return { x: 1, y: 1, z: 1 }
+  if (face < 0) return ZERO_VECTOR
   return ctx.prim.params.faces[face]!.color
 }
 
@@ -141,12 +142,12 @@ export const llSetAlpha: BuiltinImpl = (ctx, args) => {
 }
 export const llGetAlpha: BuiltinImpl = (ctx, args) => {
   const face = num(args[0], 0) | 0
-  if (face === ALL_SIDES) {
+  if (face < 0) {
     let a = 0
     for (const f of ctx.prim.params.faces) a += f.alpha
     return a
   }
-  if (!hasFace(ctx.prim, face)) return 0
+  if (face >= ctx.prim.params.faces.length) return 1
   return ctx.prim.params.faces[face]!.alpha
 }
 
@@ -322,10 +323,11 @@ export const llSetPhysicsMaterial: BuiltinImpl = (ctx, args) => {
   // property of the material — don't store it.
   const mask = num(args[0]) | 0
   const m = ctx.prim.params.physicsMaterial
-  if (mask & GRAVITY_MULTIPLIER) m.gravityMultiplier = num(args[1], 1)
-  if (mask & RESTITUTION) m.restitution = num(args[2])
-  if (mask & FRICTION) m.friction = num(args[3])
-  if (mask & DENSITY) m.density = num(args[4], 1000)
+  const inRange = (v: number, lo: number, hi: number): boolean => v >= lo && v <= hi
+  if (mask & GRAVITY_MULTIPLIER && inRange(num(args[1], 1), -1, 28)) m.gravityMultiplier = num(args[1], 1)
+  if (mask & RESTITUTION && inRange(num(args[2]), 0, 1)) m.restitution = num(args[2])
+  if (mask & FRICTION && inRange(num(args[3]), 0, 255)) m.friction = num(args[3])
+  if (mask & DENSITY && inRange(num(args[4], 1000), 1, 22587)) m.density = num(args[4], 1000)
   return undefined
 }
 export const llGetPhysicsMaterial: BuiltinImpl = (ctx) => {

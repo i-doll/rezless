@@ -12,7 +12,7 @@ import { PRIM_DESC, PRIM_TEXT } from '../generated/constants.js'
 export const llSetText: BuiltinImpl = (ctx, args) => {
   const text = (args[0] as string | undefined) ?? ''
   const color = (args[1] as Vector | undefined) ?? { x: 1, y: 1, z: 1 }
-  const alpha = (args[2] as number | undefined) ?? 1
+  const alpha = Math.min(1, Math.max(0, (args[2] as number | undefined) ?? 1))
   // Route through the PRIM_TEXT seam — `ctx.state.appearance` is aliased
   // to `prim.appearance`, so legacy `s.text` reads see this write too.
   ctx.prim.setPrimParam(PRIM_TEXT, [text, color, alpha], 0)
