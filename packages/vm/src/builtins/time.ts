@@ -37,7 +37,7 @@ export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0
   if (seconds <= 0) return undefined
   const ms = Math.max(FRAME_MS, seconds * 1000)
-  ctx.sleep(ms)
+  ctx.sleep?.(ms)
   return undefined
 }
 

@@ -83,9 +83,9 @@ export class StateChangeSignal {
 }
 
 /** A user function call, run by `trampoline` so recursion doesn't use the host stack. */
-interface UserCall extends Generator<Suspension | UserCall, EvalResult, EvalResult> {}
+interface UserCall extends Generator<Suspension | UserCall, EvalResult, unknown> {}
 
-type Exec<T> = Generator<Suspension | UserCall, T, EvalResult>
+type Exec<T> = Generator<Suspension | UserCall, T, unknown>
 
 /** Calls nested deeper than this are a Stack-Heap Collision even without the memory model. */
 const MAX_CALL_DEPTH = 10_000
@@ -99,33 +99,37 @@ export function execHandler(
 }
 
 function* trampoline(root: Exec<void>): Run<void> {
-  const frames: Generator<Suspension | UserCall, unknown, unknown>[] = [root]
+  const frames: Exec<unknown>[] = [root]
   let sent: unknown
   let thrown: { error: unknown } | null = null
-  for (;;) {
-    const frame = frames[frames.length - 1]!
-    let step: IteratorResult<Suspension | UserCall, unknown>
-    try {
-      step = thrown ? frame.throw(thrown.error) : frame.next(sent)
-    } catch (error) {
-      frames.pop()
-      if (frames.length === 0) throw error
-      thrown = { error }
-      continue
+  try {
+    for (;;) {
+      const frame = frames[frames.length - 1]!
+      let step: IteratorResult<Suspension | UserCall, unknown>
+      try {
+        step = thrown ? frame.throw(thrown.error) : frame.next(sent)
+      } catch (error) {
+        frames.pop()
+        if (frames.length === 0) throw error
+        thrown = { error }
+        continue
+      }
+      thrown = null
+      sent = undefined
+      if (step.done) {
+        frames.pop()
+        if (frames.length === 0) return
+        sent = step.value
+      } else if ('until' in step.value) {
+        yield step.value
+      } else if (frames.length > MAX_CALL_DEPTH) {
+        thrown = { error: new StackHeapCollision() }
+      } else {
+        frames.push(step.value)
+      }
     }
-    thrown = null
-    sent = undefined
-    if (step.done) {
-      frames.pop()
-      if (frames.length === 0) return
-      sent = step.value
-    } else if ('until' in step.value) {
-      yield step.value
-    } else if (frames.length > MAX_CALL_DEPTH) {
-      thrown = { error: new StackHeapCollision() }
-    } else {
-      frames.push(step.value)
-    }
+  } finally {
+    while (frames.length > 0) frames.pop()!.return(undefined)
   }
 }
 
@@ -538,7 +542,7 @@ function* evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Exe
   // User-defined function?
   const userFn = ctx.userFunctions.get(call.callee)
   if (userFn) {
-    return yield callUserFunction(ctx, userFn, evalArgs)
+    return (yield callUserFunction(ctx, userFn, evalArgs)) as EvalResult
   }
   // Builtin (real, generated stub, or user-mocked).
   const spec = specFor(call.callee)

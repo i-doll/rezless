@@ -707,7 +707,6 @@ export class Script {
     }
   }
 
-  /** Run to the end, moving the clock to each wake time the script asks for. */
   private complete(run: Run<void>): void {
     for (let step = run.next(); !step.done; step = run.next()) this.clockView.advanceTo(step.value.until)
   }

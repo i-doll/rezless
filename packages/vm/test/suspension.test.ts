@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { parse } from '@rezless/parser'
 import { Script } from '../src/script.js'
+import { execHandler } from '../src/interpreter.js'
+import type { InterpreterContext } from '../src/interpreter.js'
+import type { ScriptState } from '../src/runtime.js'
 
 function load(source: string): Script {
   const { script: ast, diagnostics } = parse(source, '<test>')
@@ -33,5 +36,43 @@ describe('suspension', () => {
     s.start()
     expect(s.global('bottom')).toBe(1)
     expect(s.now).toBe(1000)
+  })
+
+  it('returns a user function’s value after it sleeps', () => {
+    const s = load(`
+      integer got;
+      integer g() { llSleep(1.0); return 7; }
+      default { state_entry() { got = g() * 2 + 1; } }
+    `)
+    s.start()
+    expect(s.global('got')).toBe(15)
+    expect(s.now).toBe(1000)
+  })
+
+  it('abandoning a suspended handler gives back its frames and locals', () => {
+    const s = load(`
+      f(integer d) { string pad = "abc"; if (d > 0) f(d - 1); else llSleep(1.0); }
+      default { state_entry() { list l = [1, 2, 3]; f(50); } }
+    `)
+    const state = s['state'] as ScriptState
+    const ctx: InterpreterContext = {
+      state,
+      mocks: s['mocks'],
+      globals: s['globals'],
+      userFunctions: s['userFunctions'],
+      functions: s['functions'],
+      invalidPrograms: s['invalidPrograms'],
+      script: s,
+      prim: s.host,
+      linkset: s.linkset,
+    }
+    const memory = state.memory
+    const before = { locals: memory.locals, stack: memory['stack'] }
+    const run = execHandler(ctx, s['handlersByState'].get('default')!.get('state_entry')!)
+    expect(run.next().done).toBe(false)
+    expect(memory.locals).toBeGreaterThan(before.locals)
+    expect(memory['stack']).toBeGreaterThan(before.stack)
+    run.return(undefined)
+    expect({ locals: memory.locals, stack: memory['stack'] }).toEqual(before)
   })
 })

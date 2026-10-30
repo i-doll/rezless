@@ -61,7 +61,6 @@ export class LinksetClock {
     this.now += ms
   }
 
-  /** Move the clock forward to exactly `at`. */
   advanceTo(at: number): void {
     if (at < this.now) throw new Error('cannot advance time backwards')
     this.now = at
@@ -191,7 +190,6 @@ export class ScriptClockView {
     this.linksetClock.advance(ms)
   }
 
-  /** Advances the linkset clock to exactly `at`. */
   advanceTo(at: number): void {
     this.linksetClock.advanceTo(at)
   }
