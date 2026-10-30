@@ -1,7 +1,8 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { faceIndices, numberOfSides } from '../prim-params.js'
+import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides } from '../prim-params.js'
+import { sayError } from './debug.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
 import type { Linkset } from '../linkset.js'
@@ -271,15 +272,30 @@ export const llSetLinkTextureAnim: BuiltinImpl = (ctx, args) => {
 export const llSetLinkTextureAnimOverrideMe: BuiltinImpl = (ctx, args) =>
   llSetLinkTextureAnim(ctx, args)
 
+/** Faces without a render material ignore glTF overrides. */
+export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
+  const link = num(args[0]) | 0
+  const face = num(args[1]) | 0
+  const params = args[2] as ReadonlyArray<LslValue>
+  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
+    for (const f of faceIndices(p.params, face)) {
+      const fa = p.params.faces[f]!
+      if (fa.renderMaterial !== NULL_KEY) setGltfOverrides(fa.gltf, params)
+    }
+  }
+  return undefined
+}
+
 export const llSetRenderMaterial: BuiltinImpl = (ctx, args) => {
   const material = str(args[0])
   const face = num(args[1], ALL_SIDES) | 0
+  if (renderMaterialKey(ctx.prim, material) === null) sayError(ctx, `Could not find render material '${material}'.`)
   ctx.prim.setPrimParam(PRIM_RENDER_MATERIAL, [face, material], 0)
   return undefined
 }
 export const llGetRenderMaterial: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
-  if (!hasFace(ctx.prim, face)) return ''
+  const face = Math.max(0, num(args[0], 0) | 0)
+  if (!hasFace(ctx.prim, face)) return NULL_KEY
   return ctx.prim.params.faces[face]!.renderMaterial
 }
 

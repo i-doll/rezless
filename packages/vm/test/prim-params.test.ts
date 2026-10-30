@@ -72,6 +72,7 @@ function freshPrim(): Prim {
 }
 
 const v = (x: number, y: number, z: number) => ({ x, y, z })
+const MAT = 'f35823e6-40dc-d992-f4cc-85a4cb5464c0'
 const r = (x: number, y: number, z: number, s: number) => ({ x, y, z, s })
 
 describe('prim-params helpers', () => {
@@ -178,12 +179,13 @@ describe('prim-params helpers', () => {
       writePrimParam(p, PRIM_GLOW, [2, 0.4], 0)
       writePrimParam(p, PRIM_BUMP_SHINY, [0, PRIM_SHINY_HIGH, PRIM_BUMP_BRICKS], 0)
       writePrimParam(p, PRIM_TEXGEN, [1, PRIM_TEXGEN_PLANAR], 0)
-      writePrimParam(p, PRIM_RENDER_MATERIAL, [4, 'mat-key'], 0)
+      // In-world: a material name that is neither a key nor an inventory item reads NULL_KEY (probe p4 bad_name_rm), so this uses a key.
+      writePrimParam(p, PRIM_RENDER_MATERIAL, [4, MAT], 0)
       expect(readPrimParam(p, PRIM_FULLBRIGHT, [0], 0)?.values).toEqual([1])
       expect(readPrimParam(p, PRIM_GLOW, [2], 0)?.values).toEqual([0.4])
       expect(readPrimParam(p, PRIM_BUMP_SHINY, [0], 0)?.values).toEqual([PRIM_SHINY_HIGH, PRIM_BUMP_BRICKS])
       expect(readPrimParam(p, PRIM_TEXGEN, [1], 0)?.values).toEqual([PRIM_TEXGEN_PLANAR])
-      expect(readPrimParam(p, PRIM_RENDER_MATERIAL, [4], 0)?.values).toEqual(['mat-key'])
+      expect(readPrimParam(p, PRIM_RENDER_MATERIAL, [4], 0)?.values).toEqual([MAT])
     })
     it('PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE round-trip', () => {
       const p = freshPrim()
@@ -208,8 +210,10 @@ describe('prim-params helpers', () => {
       writePrimParam(p, PRIM_SPECULAR, [0, 's-tex', v(1, 1, 0), v(0, 0, 0), 0, v(-0.5, 2, 1), 51, 0], 0)
       expect(readPrimParam(p, PRIM_SPECULAR, [0], 0)?.values[4]).toEqual(v(0, 1, 1))
     })
-    it('PRIM_GLTF_* round-trips', () => {
+    it('PRIM_GLTF_* round-trips on a face with a render material', () => {
+      // In-world: overrides on a face without a material read back as "" (probe p1 nomat_bc_full).
       const p = freshPrim()
+      writePrimParam(p, PRIM_RENDER_MATERIAL, [0, MAT], 0)
       writePrimParam(p, PRIM_GLTF_BASE_COLOR, [
         0, 'bc', v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.5, 1,
       ], 0)
