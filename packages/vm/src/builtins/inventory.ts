@@ -188,12 +188,9 @@ export const llGetNumberOfNotecardLines: BuiltinImpl = (ctx, args) => {
   return notecardRequest(ctx, 'notecard_lines', [name], (lines) => String(lines.length))
 }
 
-/** Thrown when a script that removed itself yields; the handler stops there. */
-export class ScriptRemovedSignal {}
-
 /**
  * llRemoveInventory(string name) — deletes the item, stopping it if it is
- * a script. A script that removes itself runs on until it next yields.
+ * a script. A script that removes itself halts at once.
  */
 export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''

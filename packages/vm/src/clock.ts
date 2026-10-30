@@ -2,9 +2,9 @@
  * Virtual clock + event queue.
  *
  * The clock is the only source of "time" in the VM. Tests advance it
- * explicitly (`vm.advanceTime` / `linkset.advanceTime`); LSL scripts advance
- * it by calling `llSleep` or `llSetTimerEvent`. Real wall-clock time is
- * never read.
+ * explicitly (`vm.advanceTime` / `linkset.advanceTime`); a script in
+ * `llSleep` or a builtin delay is suspended until its wake time while the
+ * clock runs other scripts' events. Real wall-clock time is never read.
  *
  * The queue is **linkset-wide**, or world-wide for linksets in a `World`:
  * every script shares one `now` and one event queue. Each queued event carries a `target: Script`
@@ -63,8 +63,11 @@ export class LinksetClock {
 
   /**
    * Pop and return the next due event (`at <= horizon`, default `now`) considering all queued
-   * one-shots and every script's recurring timer. Returns `null` when no
-   * event is ready.
+   * one-shots, every script's recurring timer and every sleeping script's wake
+   * (a synthetic `__wake` event). Returns `null` when no event is ready. A
+   * sleeping script gets no events but `__reset` until it finishes, and wakes
+   * at its wake time or, if paused past it, on resume. At the same instant a
+   * queued event comes first, then a timer, then a wake.
    *
    * Recurring timers fire once per script per interval; their next fire
    * timestamp is advanced by `at + interval` (not `now + interval`) so that
@@ -77,18 +80,30 @@ export class LinksetClock {
     let bestAt = Infinity
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
-      if (e.at <= horizon && e.at < bestAt) {
-        bestAt = e.at
+      // An event that waited for its target's handler is due when that handler finished.
+      const due = Math.max(e.at, e.target.clockView.busyUntilMs)
+      if (due <= horizon && due < bestAt && (e.event === '__reset' || e.target.wakeAt === undefined)) {
+        bestAt = due
         bestIdx = i
       }
     }
     let bestTimerScript: Script | null = null
     let bestTimerAt = Infinity
+    let waking: Script | null = null
+    let wakeAt = Infinity
     for (const s of scripts) {
       // Per LSL: dead and stopped scripts don't generate timer events. Skip
       // their timer state so we don't waste catch-up iterations or accumulate
       // back-logged events that flood the script on resume.
       if (s.dead || !s.running) continue
+      const w = s.wakeAt === undefined ? undefined : Math.max(s.wakeAt, this.now)
+      if (w !== undefined) {
+        if (w <= horizon && w < wakeAt) {
+          wakeAt = w
+          waking = s
+        }
+        continue
+      }
       const v = s.clockView
       if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon) {
         const due = Math.max(v.timerNextFireMs, v.busyUntilMs)
@@ -99,22 +114,35 @@ export class LinksetClock {
       }
     }
 
-    if (bestIdx === -1 && bestTimerScript === null) return null
-
-    if (bestTimerScript && bestTimerAt <= bestAt) {
+    if (bestIdx !== -1 && bestAt <= bestTimerAt && bestAt <= wakeAt) {
+      const ev = this.queue[bestIdx]!
+      this.queue.splice(bestIdx, 1)
+      return ev
+    }
+    if (bestTimerScript && bestTimerAt <= wakeAt) {
       const at = bestTimerAt
       const v = bestTimerScript.clockView
       v.timerNextFireMs = at + v.timerIntervalMs
       return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
-    const ev = this.queue[bestIdx]!
-    this.queue.splice(bestIdx, 1)
-    return ev
+    return waking && { at: wakeAt, target: waking, event: '__wake', payload: {} }
   }
 
   /** Snapshot of the pending one-shot queue. Read-only; for inspection/tests. */
   pendingEvents(): readonly QueuedEvent[] {
     return this.queue.slice()
+  }
+
+  /**
+   * Move `script`'s events that are due by now behind every other queued
+   * event, in their order. Called when a handler that took time finishes,
+   * so the events that waited for it follow other scripts' events at that
+   * instant.
+   */
+  requeue(script: Script): void {
+    const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
+    this.purgeTarget(script, this.now)
+    this.queue.push(...waited)
   }
 
   /**
@@ -180,7 +208,7 @@ export class ScriptClockView {
     this.timerNextFireMs = this.now + intervalMs
   }
 
-  /** Advances the linkset clock — used by `llSleep`. */
+  /** Advances the linkset clock. */
   advance(ms: number): void {
     this.linksetClock.advance(ms)
   }

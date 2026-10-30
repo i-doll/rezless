@@ -37,15 +37,19 @@ export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.prim.description
  * llDie() — deletes the entire linked object. In real LSL this kills
  * every prim and every script in the linkset, not just the calling one.
  * We mark every script in the linkset as dead and cancel their timers;
- * subsequent events on any of them are dropped silently. (Real LSL takes
- * a frame to actually delete, but for tests we mark immediately.)
+ * subsequent events on any of them are dropped silently. The caller halts
+ * once its next builtin call returns or at its next loop iteration.
  */
 export const llDie: BuiltinImpl = (ctx) => {
   for (const s of ctx.linkset.allScripts()) {
     s.markDead()
   }
+  ctx.state.lifecycle.dying = true
   return undefined
 }
+
+/** Thrown where a script that called llDie or removed itself halts. */
+export class HaltSignal {}
 
 /**
  * llResetScript() — reset globals to their initial values, return to the
@@ -53,6 +57,7 @@ export const llDie: BuiltinImpl = (ctx) => {
  * the builtin throws a sentinel that runHandler / drainQueue catch.
  */
 export class ResetScriptSignal {}
-export const llResetScript: BuiltinImpl = () => {
+export const llResetScript: BuiltinImpl = (ctx) => {
+  if (ctx.state.lifecycle.dying) return undefined
   throw new ResetScriptSignal()
 }

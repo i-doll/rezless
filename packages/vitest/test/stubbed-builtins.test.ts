@@ -359,7 +359,7 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.host.inventory).toHaveLength(1)
   })
 
-  it('removing the calling script runs on until it yields, then the script is gone', async () => {
+  it('removing the calling script stops it at its next call other than llOwnerSay, and the script is gone', async () => {
     const s = await loadScript({
       source: `default {
         state_entry() {
@@ -373,6 +373,8 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       scriptName: 'self',
     })
     s.start()
+    // In-world: rm.iw / rm2.iw (Aditi, two runs) no other call after the removal took effect (rm1, rm5, rm8) and the script was gone;
+    // llRemoveInventory(llGetScriptName()); llOwnerSay("next"); showed "next" in the owner's viewer.
     expect(s.chat.map((c) => c.text)).toEqual(['next'])
     expect(s.host.inventory).toHaveLength(0)
     expect(s.host.scripts).toHaveLength(0)
@@ -380,7 +382,7 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.chat.map((c) => c.text)).toEqual(['next'])
   })
 
-  it('a self-removed script stops at its next delaying call', async () => {
+  it('a self-removed script still runs llOwnerSay, then stops at its next call', async () => {
     const s = await loadScript({
       source: `default { state_entry() {
         llRemoveInventory(llGetScriptName());
@@ -390,10 +392,36 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       } }`,
     })
     s.start()
+    // In-world: rm.iw / rm2.iw (Aditi, two runs) no other call after the removal took effect (rm3, rm8);
+    // llOwnerSay("next") right after the removal showed in the owner's viewer.
     expect(s.chat.map((c) => c.text)).toEqual(['next'])
+    expect(s.text).toBeNull()
   })
 
-  it('a script that removes itself in state_exit and sleeps just stops', async () => {
+  it('nothing after a self-removal takes effect except llOwnerSay', async () => {
+    const run = async (body: string) => {
+      const s = await loadScript({
+        source: `default { state_entry() { llSetTimerEvent(3.0); } timer() { llSetTimerEvent(0); ${body} } }`,
+      })
+      s.start()
+      s.advanceTime(3_000)
+      return { heard: s.chat.map((c) => c.text), desc: s.objectDesc, inventory: s.host.inventory.length }
+    }
+    const rm = 'llRemoveInventory(llGetScriptName());'
+    // In-world: rm.iw (two runs) heard only "vN before" for rm1-rm5.
+    expect((await run(`llSay(7777, "v1 before"); ${rm} llSay(7777, "v1 s1"); llSay(7777, "v1 s2");`)).heard).toEqual(['v1 before'])
+    expect((await run(`llSay(7777, "v2 before"); ${rm} llRegionSay(7777, "v2 r1"); llSay(7777, "v2 s1");`)).heard).toEqual(['v2 before'])
+    expect((await run(`llSay(7777, "v4 before"); ${rm} integer i; for (i = 0; i < 1000; ++i) ; llSay(7777, "v4 s1");`)).heard).toEqual(['v4 before'])
+    expect((await run(`llSay(7777, "v5 before"); ${rm} llSay(7777, "v5 s1"); llSleep(0.1); llSay(7777, "v5 after sleep");`)).heard).toEqual(['v5 before'])
+    // In-world: rm2.iw (two runs) the description stayed at "vN before" and the prim's contents were empty for rm6-rm9.
+    expect(await run(`llSetObjectDesc("v6 before"); ${rm} llSetObjectDesc("v6 d1"); llSetObjectDesc("v6 d2");`)).toEqual({ heard: [], desc: 'v6 before', inventory: 0 })
+    expect(await run(`llSetObjectDesc("v7 before"); ${rm} integer x = 5; x++; llSetObjectDesc("v7 d1");`)).toEqual({ heard: [], desc: 'v7 before', inventory: 0 })
+    expect(await run(`llSetObjectDesc("v9 before"); ${rm} llSay(7777, "v9 s1"); llSetObjectDesc("v9 d1");`)).toEqual({ heard: [], desc: 'v9 before', inventory: 0 })
+    // In-world: rm2.iw rm8 kept "v8 before"; the owner's viewer showed llOwnerSay("next") right after a self-removal.
+    expect(await run(`llSetObjectDesc("v8 before"); ${rm} llOwnerSay("next"); llSetObjectDesc("v8 d1");`)).toEqual({ heard: ['next'], desc: 'v8 before', inventory: 0 })
+  })
+
+  it('a script that removes itself in state_exit just stops', async () => {
     const s = await loadScript({
       source: `default {
         state_entry() { state other; }
@@ -407,6 +435,7 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       state other { state_entry() { llOwnerSay("other"); } }`,
     })
     expect(() => s.start()).not.toThrow()
+    // llOwnerSay still runs after a self-removal (seen in the owner's viewer); the sleep then stops the script.
     expect(s.chat.map((c) => c.text)).toEqual(['exit'])
   })
 
@@ -421,6 +450,33 @@ describe('llRemoveInventory (measured in Second Life)', () => {
     expect(s.chat).toEqual([])
   })
 
+  it('a self-removed script stops at its next loop iteration', async () => {
+    const s = await loadScript({
+      source: `default { state_entry() {
+        llRemoveInventory(llGetScriptName());
+        integer i;
+        for (i = 0; i < 3; ++i) llOwnerSay((string)i);
+        while (TRUE) ++i;
+      } }`,
+    })
+    s.start()
+    // Not measured: owner chat after a removal is only visible in the owner's viewer. This follows the measured llDie rule
+    // (a loop iteration halts) and keeps a removed script from looping forever.
+    expect(s.chat.map((c) => c.text)).toEqual(['0'])
+    expect(s.host.scripts).toHaveLength(0)
+  })
+  it('a removal at the end of state_exit skips the new state_entry', async () => {
+    const s = await loadScript({
+      source: `default {
+        state_entry() { state other; }
+        state_exit() { llRemoveInventory(llGetScriptName()); }
+      }
+      state other { state_entry() { llOwnerSay("other"); } }`,
+    })
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual([])
+    expect(s.host.scripts).toHaveLength(0)
+  })
   it('a removal before a state change skips state_exit and the new state_entry', async () => {
     const s = await loadScript({
       source: `default {
@@ -430,6 +486,7 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       state other { state_entry() { llOwnerSay("other"); } }`,
     })
     s.start()
+    // llOwnerSay still runs after a self-removal (seen in the owner's viewer); the state change then stops the script.
     expect(s.chat.map((c) => c.text)).toEqual(['next'])
   })
 

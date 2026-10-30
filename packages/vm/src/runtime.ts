@@ -91,12 +91,14 @@ export interface ScriptState {
     readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
   }
   /**
-   * Lifecycle flags — `dead` is set when llDie runs; `removed` when the
-   * script removes itself from inventory, so it stops at its next yield.
+   * Lifecycle flags — `dead` is set when llDie runs or the script is removed
+   * from inventory; `dying` when the script itself called llDie; `removed`
+   * when it removed itself.
    */
   lifecycle: {
     dead: boolean
-    removed?: boolean
+    dying: boolean
+    removed: boolean
   }
   /** Source filename used for coverage attribution. "<inline>" for inline-source loads. */
   readonly filename: string
@@ -110,10 +112,18 @@ export interface ScriptState {
 
 export type BuiltinImpl = (ctx: CallContext, args: ReadonlyArray<LslValue>) => LslValue | undefined
 
+export interface Suspension {
+  readonly until: number
+}
+
+export type Run<T> = Generator<Suspension, T, unknown>
+
 export interface CallContext {
   readonly state: ScriptState
   readonly spec: BuiltinSpec | undefined
   readonly script: Script
   readonly prim: Prim
   readonly linkset: Linkset
+  /** Suspend the calling script for `ms` virtual milliseconds once the builtin returns. */
+  sleep(ms: number): void
 }

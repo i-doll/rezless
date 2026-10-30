@@ -1,4 +1,4 @@
-import type { BuiltinImpl, CallContext, ScriptState } from './runtime.js'
+import type { BuiltinImpl, CallContext, Run, ScriptState } from './runtime.js'
 import type { LslValue } from './values/types.js'
 import { defaultValueFor } from './values/types.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
@@ -6,7 +6,7 @@ import type { BuiltinSpec } from './generated/functions.js'
 import { REAL_BUILTINS } from './builtins/index.js'
 import type { Script } from './script.js'
 import { own } from './own.js'
-import { ScriptRemovedSignal } from './builtins/inventory.js'
+import { HaltSignal } from './builtins/object.js'
 
 /** Look up the generated spec for a function name, if any. */
 export function specFor(name: string): BuiltinSpec | undefined {
@@ -24,30 +24,33 @@ export interface DispatchContext {
  *
  * Resolution order: user mock > real built-in > generated stub > error.
  * Every successful call (including stubs) is appended to ScriptState.calls.
+ * A builtin that sleeps or has a delay suspends the script after it returns.
  */
-export function callBuiltin(
+export function* callBuiltin(
   dctx: DispatchContext,
   name: string,
   args: ReadonlyArray<LslValue>,
-): LslValue | undefined {
+): Run<LslValue | undefined> {
   const spec = specFor(name)
   const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(dctx.script, name)
+  let sleptMs: number | null = null
   const ctx: CallContext = {
     state: dctx.state,
     spec,
     script: dctx.script,
     prim: dctx.script.host,
     linkset: dctx.script.linkset,
+    sleep: (ms) => {
+      sleptMs = (sleptMs ?? 0) + ms
+    },
   }
-  const startedAt = dctx.state.clock.now
+  const dying = dctx.state.lifecycle.dying
+  if (dctx.state.lifecycle.removed && name !== 'llOwnerSay') throw new HaltSignal()
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
-  // Call log timestamps when the script invoked the function (pre-delay);
-  // advance the clock after the push so subsequent calls see the throttle.
-  if (spec && spec.delay > 0) {
-    dctx.state.clock.advance(spec.delay * 1000)
-  }
-  if (dctx.state.lifecycle.removed && dctx.state.clock.now > startedAt) throw new ScriptRemovedSignal()
+  if (dying) throw new HaltSignal()
+  const delayMs = spec ? spec.delay * 1000 : 0
+  if (sleptMs !== null || delayMs > 0) yield { until: dctx.state.clock.now + (sleptMs ?? 0) + delayMs }
   return result
 }
 

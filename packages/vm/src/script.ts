@@ -6,7 +6,7 @@ import type {
   Node,
   TypeName,
 } from '@rezless/parser'
-import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity } from './runtime.js'
+import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity, Suspension } from './runtime.js'
 import type { HttpRequestEntry } from './builtins/http.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { ListenEntry } from './builtins/listen.js'
@@ -15,8 +15,7 @@ import type { DataserverRequestEntry } from './builtins/dataserver.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import type { PermissionRequestEntry } from './builtins/permissions.js'
-import { ResetScriptSignal } from './builtins/object.js'
-import { ScriptRemovedSignal } from './builtins/inventory.js'
+import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
 import { NULL_KEY } from './values/types.js'
@@ -129,6 +128,8 @@ export class Script {
   running = true
   /** Events parked while `running === false`; replayed when re-enabled. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
+  /** The handler chain suspended in llSleep or a builtin delay, if any. */
+  private task: Task | null = null
 
   constructor(private readonly ast: Ast, options: ScriptOptions = {}) {
     // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
@@ -204,6 +205,8 @@ export class Script {
       permissions: { granted: 0, agent: NULL_KEY, requests: [] },
       lifecycle: {
         dead: false,
+        dying: false,
+        removed: false,
       },
       filename,
       source,
@@ -313,8 +316,9 @@ export class Script {
           : typedList([HTTP_BODY_TRUNCATED, req.bodyMaxLength], ['integer', 'integer']),
       body: cut,
     }
+    const started = this.host.scripts.filter((s) => s.handles('http_response'))
     for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'http_response', payload)
-    this.linkset.drainQueue()
+    this.linkset.settle(started)
   }
 
   /** Convenience: respond to the most recent HTTP request. */
@@ -358,8 +362,9 @@ export class Script {
     if (!req) throw new Error(`unknown dataserver request key: ${key}`)
     req.fulfilled = true
     const payload = { queryid: key, data: value }
+    const started = this.host.scripts.filter((s) => s.handles('dataserver'))
     for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'dataserver', payload)
-    this.linkset.drainQueue()
+    this.linkset.settle(started)
   }
 
   /** Convenience: respond to the most recent dataserver request. */
@@ -386,8 +391,9 @@ export class Script {
     const granted = req.permissions & (permissions ?? req.permissions)
     this.state.permissions.granted = granted
     this.state.permissions.agent = req.agent
+    const started = this.handles('run_time_permissions') ? [this] : []
     this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
-    this.linkset.drainQueue()
+    this.linkset.settle(started)
   }
 
   /** Answer the most recent unanswered permission request with No. */
@@ -434,7 +440,7 @@ export class Script {
 
   /**
    * Match chat against this script's listens and queue one `listen` event
-   * if any of them match. Does not drain — caller does that. Used by Linkset.deliverChat
+   * if any of them match; returns whether one did. Does not drain — caller does that. Used by Linkset.deliverChat
    * for cross-script delivery.
    */
   matchChatListens(opts: {
@@ -442,7 +448,7 @@ export class Script {
     name: string
     key: string
     message: string
-  }): void {
+  }): boolean {
     for (const l of this.state.listens) {
       if (!l.active) continue
       if (l.channel !== opts.channel) continue
@@ -455,8 +461,9 @@ export class Script {
         id: opts.key,
         msg: opts.message,
       })
-      return
+      return true
     }
+    return false
   }
 
   /**
@@ -469,8 +476,7 @@ export class Script {
     key: string
     message: string
   }): void {
-    this.matchChatListens(opts)
-    this.linkset.drainQueue()
+    this.linkset.settle(this.matchChatListens(opts) && this.handles('listen') ? [this] : [])
   }
 
   /**
@@ -511,7 +517,10 @@ export class Script {
    *
    * Synchronous: runs the handler to completion before returning, including
    * any state transitions triggered by `state foo;` (state_exit / change /
-   * state_entry chain runs before fire() returns).
+   * state_entry chain runs before fire() returns). A handler that sleeps
+   * moves the clock to its wake time, running every other script's due
+   * events on the way. A script already sleeping handles the event after
+   * its current handler.
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events.
@@ -526,16 +535,14 @@ export class Script {
       this.started = true
       const entry = this.handlersByState.get(this.state.currentState)?.get('state_entry')
       if (entry && eventName !== 'state_entry') {
-        this.runHandler(entry, [])
-        this.linkset.drainQueue()
+        this.begin(entry, [], {})
+        this.linkset.settle([this])
       }
     }
-    const handler = this.handlersByState.get(this.state.currentState)?.get(eventName)
-    if (handler) {
-      const args = bindPayload(eventName, payload)
-      this.withDetected(payload, () => this.runHandler(handler, args))
-    }
-    this.linkset.drainQueue()
+    const started = this.handles(eventName) ? [this] : []
+    if (this.task) this.clockView.schedule(this.now, eventName, payload)
+    else this.deliver(eventName, payload)
+    this.linkset.settle(started)
   }
 
   /**
@@ -545,12 +552,14 @@ export class Script {
   start(): void {
     if (this.state.lifecycle.dead) return
     if (this.started) return
+    this.boot()
+    this.linkset.settle([this])
+  }
+
+  private boot(): void {
     this.started = true
     const entry = this.handlersByState.get('default')?.get('state_entry')
-    if (entry) {
-      this.runHandler(entry, [])
-    }
-    this.linkset.drainQueue()
+    if (entry) this.begin(entry, [], {})
   }
 
   /**
@@ -558,8 +567,15 @@ export class Script {
    * reseed them from the AST initializers, return to the default state,
    * cancel timers, and run state_entry. Used internally when llResetScript
    * is invoked from inside a handler; tests can also call it directly.
+   * A sleeping handler is abandoned.
    */
   reset(): void {
+    this.restart()
+    this.linkset.settle([this])
+  }
+
+  private restart(): void {
+    this.abandon()
     this.state.memory.releaseStack()
     this.globals.clear()
     try {
@@ -570,6 +586,8 @@ export class Script {
     }
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
+    this.state.lifecycle.dying = false
+    this.state.lifecycle.removed = false
     this.state.listens.length = 0
     this.state.permissions.granted = 0
     this.state.permissions.agent = NULL_KEY
@@ -585,9 +603,8 @@ export class Script {
     // → default raises no signal), so credit it explicitly here.
     if (this.state.coverage) this.state.coverage.hitState('default')
     // Per LSL: if the script is stopped, reset just clears state — no
-    // state_entry runs until it's restarted. If it's running, fire
-    // state_entry now via start().
-    if (this.running) this.start()
+    // state_entry runs until it's restarted.
+    if (this.running) this.boot()
   }
 
   /**
@@ -598,32 +615,61 @@ export class Script {
   deliver(event: string, payload: Record<string, unknown>): void {
     if (this.state.lifecycle.dead) return
     if (event === '__reset') {
-      this.reset()
+      this.restart()
       return
     }
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
-    if (!handler) return
-    const args = bindPayload(event, payload)
-    this.withDetected(payload, () => this.runHandler(handler, args))
+    if (handler) this.begin(handler, bindPayload(event, payload), payload)
   }
 
-  /**
-   * Push a detected context (if the payload includes `detected`) for the
-   * duration of `fn`, so llDetectedKey / Name / Pos / etc. inside the
-   * handler resolve to the right entries.
-   */
-  private withDetected(payload: Record<string, unknown>, fn: () => void): void {
-    const detected = payload['detected']
-    if (!Array.isArray(detected) || detected.length === 0) {
-      fn()
+  /** Whether the current state has a handler for `event`. */
+  handles(event: string): boolean {
+    return this.handlersByState.get(this.state.currentState)!.has(event)
+  }
+
+  /** Virtual time a sleeping handler wakes at, or undefined when the script is idle. */
+  get wakeAt(): number | undefined {
+    return this.task?.wakeAt
+  }
+
+  /** Internal: invoked by `Linkset.drainQueue` when a sleeping handler's wake time comes. */
+  wake(): void {
+    const task = this.task
+    if (!task) return
+    this.task = null
+    this.step(task)
+  }
+
+  private begin(handler: EventHandler, args: ReadonlyArray<EvalResult>, payload: Record<string, unknown>): void {
+    this.step({ run: this.runHandler(handler, args, payload), startedAt: this.now, wakeAt: 0 })
+  }
+
+  private step(task: Task): void {
+    let r: IteratorResult<Suspension, boolean>
+    try {
+      r = task.run.next()
+    } catch (e) {
+      this.finish(task)
+      throw e
+    }
+    if (!r.done) {
+      this.task = { ...task, wakeAt: r.value.until }
       return
     }
-    this.state.detectedStack.push({ entries: detected as ReadonlyArray<DetectedEntry> })
-    try {
-      fn()
-    } finally {
-      this.state.detectedStack.pop()
-    }
+    this.finish(task)
+    if (r.value) this.restart()
+  }
+
+  private finish(task: Task): void {
+    if (this.now === task.startedAt) return
+    this.clockView.busyUntilMs = this.now
+    this.linkset.clock.requeue(this)
+  }
+
+  private abandon(): void {
+    const task = this.task
+    this.task = null
+    task?.run.return(false)
   }
 
   /**
@@ -635,21 +681,30 @@ export class Script {
    * with a small loop so that a `state_exit` or `state_entry` that itself
    * does `state foo;` continues the chain correctly.
    */
-  private runHandler(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
-    if (this.state.lifecycle.dead) return
-    const startedAt = this.now
+  private *runHandler(
+    handler: EventHandler,
+    args: ReadonlyArray<EvalResult>,
+    payload: Record<string, unknown>,
+  ): Generator<Suspension, boolean, unknown> {
+    const detected = payload['detected']
+    const pushed = Array.isArray(detected) && detected.length > 0
+    if (pushed) this.state.detectedStack.push({ entries: detected as ReadonlyArray<DetectedEntry> })
     try {
       this.state.memory.startEvent()
-      this.runHandlerChain(handler, args)
+      return yield* this.runHandlerChain(handler, args)
     } catch (e) {
       if (e instanceof RuntimeError) this.crash(e)
       throw e
     } finally {
-      if (this.now > startedAt) this.clockView.busyUntilMs = this.now
+      if (pushed) this.state.detectedStack.pop()
     }
   }
 
-  private runHandlerChain(handler: EventHandler, args: ReadonlyArray<EvalResult>): void {
+  /** Returns true when the chain ended in llResetScript. */
+  private *runHandlerChain(
+    handler: EventHandler,
+    args: ReadonlyArray<EvalResult>,
+  ): Generator<Suspension, boolean, unknown> {
     const ctx = {
       state: this.state,
       mocks: this.mocks,
@@ -669,22 +724,20 @@ export class Script {
       const { handler: h, args: a } = pending
       pending = null
       try {
-        execHandler(ctx, h, a)
+        yield* execHandler(ctx, h, a)
       } catch (e) {
-        if (e instanceof ResetScriptSignal) {
-          this.reset()
-          return
-        }
-        if (e instanceof ScriptRemovedSignal) return
+        if (e instanceof ResetScriptSignal) return true
+        if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
+        if (this.state.lifecycle.removed) return false
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
           try {
-            execHandler(ctx, exit, [])
+            yield* execHandler(ctx, exit, [])
           } catch (e2) {
-            if (e2 instanceof ScriptRemovedSignal) return
+            if (e2 instanceof HaltSignal) return false
             if (e2 instanceof StateChangeSignal) {
               // Discard further changes inside state_exit per LSL convention.
             } else {
@@ -705,6 +758,7 @@ export class Script {
         }
       }
     }
+    return false
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
@@ -725,6 +779,7 @@ export class Script {
   markDead(): void {
     this.state.lifecycle.dead = true
     this.clockView.cancelTimer()
+    this.abandon()
   }
 
   /**
@@ -740,6 +795,12 @@ export class Script {
       this.clockView.schedule(at, e.event, e.payload)
     }
   }
+}
+
+interface Task {
+  readonly run: Generator<Suspension, boolean, unknown>
+  readonly startedAt: number
+  readonly wakeAt: number
 }
 
 function bindPayload(

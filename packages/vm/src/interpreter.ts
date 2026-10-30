@@ -22,7 +22,7 @@ import type {
   Node,
   TypeName,
 } from '@rezless/parser'
-import type { BuiltinImpl, ScriptState } from './runtime.js'
+import type { BuiltinImpl, Run, ScriptState, Suspension } from './runtime.js'
 import type { FunctionSignature, Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
@@ -33,6 +33,7 @@ import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js
 import { Env } from './env.js'
 import { own } from './own.js'
 import { RuntimeError, StackHeapCollision, frameBytes } from './memory.js'
+import { HaltSignal } from './builtins/object.js'
 
 /** Mono can't run a function or handler that uses the value of a key print. */
 class InvalidProgram extends RuntimeError {
@@ -82,11 +83,62 @@ export class StateChangeSignal {
   constructor(public readonly target: string) {}
 }
 
+/** A user function call, run by `trampoline` so recursion doesn't use the host stack. */
+interface UserCall extends Generator<Suspension | UserCall, EvalResult, unknown> {}
+
+type Exec<T> = Generator<Suspension | UserCall, T, unknown>
+
+/** Calls nested deeper than this are a Stack-Heap Collision even without the memory model. */
+const MAX_CALL_DEPTH = 10_000
+
 export function execHandler(
   ctx: InterpreterContext,
   handler: EventHandler,
   args: ReadonlyArray<EvalResult> = [],
-): void {
+): Run<void> {
+  return trampoline(runHandler(ctx, handler, args))
+}
+
+function* trampoline(root: Exec<void>): Run<void> {
+  const frames: Exec<unknown>[] = [root]
+  let sent: unknown
+  let thrown: { error: unknown } | null = null
+  try {
+    for (;;) {
+      const frame = frames[frames.length - 1]!
+      let step: IteratorResult<Suspension | UserCall, unknown>
+      try {
+        step = thrown ? frame.throw(thrown.error) : frame.next(sent)
+      } catch (error) {
+        frames.pop()
+        if (frames.length === 0) throw error
+        thrown = { error }
+        continue
+      }
+      thrown = null
+      sent = undefined
+      if (step.done) {
+        frames.pop()
+        if (frames.length === 0) return
+        sent = step.value
+      } else if ('until' in step.value) {
+        yield step.value
+      } else if (frames.length > MAX_CALL_DEPTH) {
+        thrown = { error: new StackHeapCollision() }
+      } else {
+        frames.push(step.value)
+      }
+    }
+  } finally {
+    while (frames.length > 0) frames.pop()!.return(undefined)
+  }
+}
+
+function* runHandler(
+  ctx: InterpreterContext,
+  handler: EventHandler,
+  args: ReadonlyArray<EvalResult>,
+): Exec<void> {
   if (ctx.invalidPrograms.has(handler)) throw new InvalidProgram(handler.name)
   if (ctx.state.coverage) {
     ctx.state.coverage.hitFunction(handler.loc)
@@ -102,7 +154,7 @@ export function execHandler(
       const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
       env.declare(p.name, p.typeName as LslType, a)
     })
-    execBlock(ctx, env, handler.body)
+    yield* execBlock(ctx, env, handler.body)
   } catch (e) {
     if (e instanceof ReturnSignal) return
     throw e
@@ -116,11 +168,11 @@ export function execHandler(
  * functions see globals only), binds args to params, runs the body,
  * and unwraps a ReturnSignal into the function's return value.
  */
-export function callUserFunction(
+function* callUserFunction(
   ctx: InterpreterContext,
   fn: FunctionDeclaration,
   args: ReadonlyArray<EvalResult>,
-): EvalResult {
+): UserCall {
   if (ctx.invalidPrograms.has(fn)) throw new InvalidProgram(fn.name)
   if (ctx.state.coverage) {
     ctx.state.coverage.hitFunction(fn.loc)
@@ -136,7 +188,7 @@ export function callUserFunction(
       const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
       env.declare(p.name, p.typeName as LslType, a)
     })
-    execBlock(ctx, env, fn.body)
+    yield* execBlock(ctx, env, fn.body)
   } catch (e) {
     if (e instanceof ReturnSignal) {
       if (fn.returnType === null) return { type: 'void', value: 0 }
@@ -161,7 +213,7 @@ export function callUserFunction(
   return fn.returnType ? defaultEvalFor(fn.returnType as LslType) : { type: 'void', value: 0 }
 }
 
-function execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): void {
+function* execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): Exec<void> {
   const child = env.push()
   // Pre-scan: collect label positions and detect duplicate variable names.
   // Duplicate-decl detection has to run upfront because we use
@@ -187,12 +239,13 @@ function execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): vo
     while (i < block.body.length) {
       const stmt = block.body[i]!
       try {
-        execStatement(ctx, child, stmt)
+        yield* execStatement(ctx, child, stmt)
         i++
       } catch (e) {
         if (e instanceof JumpSignal && labels && labels.has(e.label)) {
-          // Resume execution at the label.
-          i = labels.get(e.label)! + 1
+          const at = labels.get(e.label)!
+          if (at < i) iterate(ctx)
+          i = at + 1
           continue
         }
         throw e
@@ -203,38 +256,38 @@ function execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): vo
   }
 }
 
-function execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): void {
+function* execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): Exec<void> {
   if (ctx.state.coverage) ctx.state.coverage.hitStatement(stmt.loc)
   switch (stmt.kind) {
     case 'BlockStatement':
-      execBlock(ctx, env, stmt)
+      yield* execBlock(ctx, env, stmt)
       return
     case 'EmptyStatement':
       return
     case 'VariableDeclaration':
-      execVariableDeclaration(ctx, env, stmt)
+      yield* execVariableDeclaration(ctx, env, stmt)
       return
     case 'ExpressionStatement':
-      evalExpression(
+      yield* evalExpression(
         ctx,
         env,
         stmt.expression.kind === 'PrintExpression' ? stmt.expression.argument : stmt.expression,
       )
       return
     case 'IfStatement':
-      execIf(ctx, env, stmt)
+      yield* execIf(ctx, env, stmt)
       return
     case 'WhileStatement':
-      execWhile(ctx, env, stmt)
+      yield* execWhile(ctx, env, stmt)
       return
     case 'DoWhileStatement':
-      execDoWhile(ctx, env, stmt)
+      yield* execDoWhile(ctx, env, stmt)
       return
     case 'ForStatement':
-      execFor(ctx, env, stmt)
+      yield* execFor(ctx, env, stmt)
       return
     case 'ReturnStatement': {
-      const value = stmt.argument ? evalExpression(ctx, env, stmt.argument) : null
+      const value = stmt.argument ? (yield* evalExpression(ctx, env, stmt.argument)) : null
       throw new ReturnSignal(value)
     }
     case 'StateChangeStatement':
@@ -247,70 +300,78 @@ function execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): void
   }
 }
 
-function execVariableDeclaration(
+function* execVariableDeclaration(
   ctx: InterpreterContext,
   env: Env,
   stmt: VariableDeclaration,
-): void {
-  const init = stmt.init ? evalExpression(ctx, env, stmt.init) : undefined
+): Exec<void> {
+  const init = stmt.init ? (yield* evalExpression(ctx, env, stmt.init)) : undefined
   // declareOrReset lets a backward `jump` re-execute a VariableDeclaration —
   // the second pass updates the existing slot's value rather than throwing
   // "already declared". The duplicate-source guard runs upfront in execBlock.
   env.declareOrReset(stmt.name, stmt.typeName as LslType, init)
 }
 
-function execIf(ctx: InterpreterContext, env: Env, stmt: IfStatement): void {
+function* execIf(ctx: InterpreterContext, env: Env, stmt: IfStatement): Exec<void> {
   const cov = ctx.state.coverage
-  if (truthy(evalExpression(ctx, env, stmt.test))) {
+  if (truthy(yield* evalExpression(ctx, env, stmt.test))) {
     if (cov) cov.hitBranch(stmt.loc, true)
-    execStatement(ctx, env, stmt.consequent)
+    yield* execStatement(ctx, env, stmt.consequent)
   } else {
     if (cov) cov.hitBranch(stmt.loc, false)
-    if (stmt.alternate) execStatement(ctx, env, stmt.alternate)
+    if (stmt.alternate) yield* execStatement(ctx, env, stmt.alternate)
   }
 }
 
-function execWhile(ctx: InterpreterContext, env: Env, stmt: WhileStatement): void {
+function* execWhile(ctx: InterpreterContext, env: Env, stmt: WhileStatement): Exec<void> {
   const cov = ctx.state.coverage
   while (true) {
-    const t = truthy(evalExpression(ctx, env, stmt.test))
+    const t = truthy(yield* evalExpression(ctx, env, stmt.test))
     if (cov) cov.hitBranch(stmt.loc, t)
     if (!t) break
-    execStatement(ctx, env, stmt.body)
+    yield* execStatement(ctx, env, stmt.body)
+    iterate(ctx)
   }
 }
 
-function execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement): void {
+function* execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement): Exec<void> {
   const cov = ctx.state.coverage
   while (true) {
-    execStatement(ctx, env, stmt.body)
-    const t = truthy(evalExpression(ctx, env, stmt.test))
+    yield* execStatement(ctx, env, stmt.body)
+    const t = truthy(yield* evalExpression(ctx, env, stmt.test))
     if (cov) cov.hitBranch(stmt.loc, t)
     if (!t) break
+    iterate(ctx)
   }
 }
 
-function execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): void {
+function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): Exec<void> {
   const child = env.push()
   const cov = ctx.state.coverage
-  for (const e of stmt.init) evalExpression(ctx, child, e)
+  for (const e of stmt.init) yield* evalExpression(ctx, child, e)
   while (true) {
     if (stmt.test) {
-      const t = truthy(evalExpression(ctx, child, stmt.test))
+      const t = truthy(yield* evalExpression(ctx, child, stmt.test))
       if (cov) cov.hitBranch(stmt.loc, t)
       if (!t) break
     } else if (cov) {
       // Infinite loop: still useful to record "body entered".
       cov.hitBranch(stmt.loc, true)
     }
-    execStatement(ctx, child, stmt.body)
-    for (const e of stmt.update) evalExpression(ctx, child, e)
+    yield* execStatement(ctx, child, stmt.body)
+    for (const e of stmt.update) yield* evalExpression(ctx, child, e)
+    iterate(ctx)
   }
+}
+
+/** A loop's back-edge, where a script that called llDie or removed itself halts. */
+function iterate(ctx: InterpreterContext): void {
+  if (ctx.state.lifecycle.dying || ctx.state.lifecycle.removed) throw new HaltSignal()
 }
 
 // ---- Expressions ----
 
-function evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): EvalResult {
+function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): Exec<EvalResult> {
   switch (expr.kind) {
     case 'IntegerLiteral':
       return { type: 'integer', value: expr.value | 0 }
@@ -319,49 +380,50 @@ function evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): Ev
     case 'StringLiteral':
       return { type: 'string', value: expr.value }
     case 'VectorLiteral':
-      return evalVectorLiteral(ctx, env, expr)
+      return yield* evalVectorLiteral(ctx, env, expr)
     case 'RotationLiteral':
-      return evalRotationLiteral(ctx, env, expr)
+      return yield* evalRotationLiteral(ctx, env, expr)
     case 'ListLiteral':
-      return evalListLiteral(ctx, env, expr)
+      return yield* evalListLiteral(ctx, env, expr)
     case 'Identifier':
       return env.get(expr.name)
     case 'CallExpression':
-      return evalCall(ctx, env, expr)
+      return yield* evalCall(ctx, env, expr)
     case 'UnaryExpression':
-      return applyUnary(expr.operator, evalExpression(ctx, env, expr.argument))
+      return applyUnary(expr.operator, yield* evalExpression(ctx, env, expr.argument))
     case 'BinaryExpression':
-      return evalBinary(ctx, env, expr)
+      return yield* evalBinary(ctx, env, expr)
     case 'AssignmentExpression':
-      return evalAssignment(ctx, env, expr)
+      return yield* evalAssignment(ctx, env, expr)
     case 'CastExpression':
-      return coerce(evalExpression(ctx, env, expr.argument), expr.targetType as LslType)
+      return coerce(yield* evalExpression(ctx, env, expr.argument), expr.targetType as LslType)
     case 'MemberExpression':
-      return evalMember(ctx, env, expr)
+      return yield* evalMember(ctx, env, expr)
     case 'UpdateExpression':
-      return evalUpdate(ctx, env, expr)
+      return yield* evalUpdate(ctx, env, expr)
     case 'PrintExpression':
-      return defaultEvalFor(evalExpression(ctx, env, expr.argument).type)
+      return defaultEvalFor((yield* evalExpression(ctx, env, expr.argument)).type)
   }
 }
 
-function evalVectorLiteral(ctx: InterpreterContext, env: Env, e: VectorLiteral): EvalResult {
-  const x = coerce(evalExpression(ctx, env, e.x), 'float').value as number
-  const y = coerce(evalExpression(ctx, env, e.y), 'float').value as number
-  const z = coerce(evalExpression(ctx, env, e.z), 'float').value as number
+function* evalVectorLiteral(ctx: InterpreterContext, env: Env, e: VectorLiteral): Exec<EvalResult> {
+  const x = coerce(yield* evalExpression(ctx, env, e.x), 'float').value as number
+  const y = coerce(yield* evalExpression(ctx, env, e.y), 'float').value as number
+  const z = coerce(yield* evalExpression(ctx, env, e.z), 'float').value as number
   return { type: 'vector', value: { x, y, z } }
 }
 
-function evalRotationLiteral(ctx: InterpreterContext, env: Env, e: RotationLiteral): EvalResult {
-  const x = coerce(evalExpression(ctx, env, e.x), 'float').value as number
-  const y = coerce(evalExpression(ctx, env, e.y), 'float').value as number
-  const z = coerce(evalExpression(ctx, env, e.z), 'float').value as number
-  const s = coerce(evalExpression(ctx, env, e.s), 'float').value as number
+function* evalRotationLiteral(ctx: InterpreterContext, env: Env, e: RotationLiteral): Exec<EvalResult> {
+  const x = coerce(yield* evalExpression(ctx, env, e.x), 'float').value as number
+  const y = coerce(yield* evalExpression(ctx, env, e.y), 'float').value as number
+  const z = coerce(yield* evalExpression(ctx, env, e.z), 'float').value as number
+  const s = coerce(yield* evalExpression(ctx, env, e.s), 'float').value as number
   return { type: 'rotation', value: { x, y, z, s } }
 }
 
-function evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): EvalResult {
-  const elements = e.elements.map((el) => evalExpression(ctx, env, el))
+function* evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): Exec<EvalResult> {
+  const elements: EvalResult[] = []
+  for (const el of e.elements) elements.push(yield* evalExpression(ctx, env, el))
   return {
     type: 'list',
     value: typedList(
@@ -371,19 +433,19 @@ function evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): Eva
   }
 }
 
-function evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): EvalResult {
+function* evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): Exec<EvalResult> {
   // LSL: && and || are NOT short-circuit, and the right operand runs first.
-  const right = evalExpression(ctx, env, e.right)
-  const left = evalExpression(ctx, env, e.left)
+  const right = yield* evalExpression(ctx, env, e.right)
+  const left = yield* evalExpression(ctx, env, e.left)
   return applyBinary(e.operator, left, right)
 }
 
-function evalAssignment(
+function* evalAssignment(
   ctx: InterpreterContext,
   env: Env,
   e: AssignmentExpression,
-): EvalResult {
-  const newValue = evalExpression(ctx, env, e.value)
+): Exec<EvalResult> {
+  const newValue = yield* evalExpression(ctx, env, e.value)
   return assignTo(ctx, env, e.target, e.operator, newValue)
 }
 
@@ -454,8 +516,8 @@ function assignToMember(
   return newField
 }
 
-function evalMember(ctx: InterpreterContext, env: Env, e: MemberExpression): EvalResult {
-  const obj = evalExpression(ctx, env, e.object)
+function* evalMember(ctx: InterpreterContext, env: Env, e: MemberExpression): Exec<EvalResult> {
+  const obj = yield* evalExpression(ctx, env, e.object)
   if (!isVector(obj.value) && !isRotation(obj.value)) {
     throw new Error(`cannot access member on ${obj.type}`)
   }
@@ -470,12 +532,12 @@ function evalMember(ctx: InterpreterContext, env: Env, e: MemberExpression): Eva
   return { type: 'float', value: (v as unknown as Record<string, number>)[member]! }
 }
 
-function evalUpdate(ctx: InterpreterContext, env: Env, e: UpdateExpression): EvalResult {
+function* evalUpdate(ctx: InterpreterContext, env: Env, e: UpdateExpression): Exec<EvalResult> {
   if (e.argument.kind !== 'Identifier' && e.argument.kind !== 'MemberExpression') {
     throw new Error('++/-- only valid on identifiers or member expressions')
   }
   // Get current value
-  const current = evalExpression(ctx, env, e.argument)
+  const current = yield* evalExpression(ctx, env, e.argument)
   const delta: EvalResult = { type: 'integer', value: e.operator === '++' ? 1 : -1 }
   const updated = reduceCompound('+=', current, delta)
   // Write back
@@ -483,13 +545,14 @@ function evalUpdate(ctx: InterpreterContext, env: Env, e: UpdateExpression): Eva
   return e.prefix ? updated : current
 }
 
-function evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): EvalResult {
+function* evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Exec<EvalResult> {
   // Evaluate args eagerly (matches LSL semantics).
-  const evalArgs = call.args.map((a) => evalExpression(ctx, env, a))
+  const evalArgs: EvalResult[] = []
+  for (const a of call.args) evalArgs.push(yield* evalExpression(ctx, env, a))
   // User-defined function?
   const userFn = ctx.userFunctions.get(call.callee)
   if (userFn) {
-    return callUserFunction(ctx, userFn, evalArgs)
+    return (yield callUserFunction(ctx, userFn, evalArgs)) as EvalResult
   }
   // Builtin (real, generated stub, or user-mocked).
   const spec = specFor(call.callee)
@@ -500,7 +563,7 @@ function evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Eval
       ? coerce(r, 'float').value
       : r.value,
   )
-  const result = callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
+  const result = yield* callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
   const returnType = (spec?.returnType ?? declared?.returns ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }
   // Builtins and mocks compute in doubles.
