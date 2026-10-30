@@ -52,9 +52,11 @@ function fits(ctx: CallContext, name: string, entry: LinksetDataEntry): boolean 
  * SL compares and matches keys as UTF-8 bytes. Each byte becomes one char; bytes from 0x80 map into
  * the private use area so that a JS RegExp never case-folds them.
  */
+const byteChar = (b: number) => String.fromCharCode(b < 0x80 ? b : 0xe000 + b)
+
 function utf8Chars(s: string): string {
   let out = ''
-  for (const b of Buffer.from(s, 'utf8')) out += String.fromCharCode(b < 0x80 ? b : 0xe000 + b)
+  for (const b of Buffer.from(s, 'utf8')) out += byteChar(b)
   return out
 }
 
@@ -200,6 +202,12 @@ function compilePattern(pattern: string): ((key: string) => boolean) | null {
         if (code > 0x10ffff) return null
         atom(escapeLiteral(String.fromCodePoint(code)))
         i = close + 1
+        continue
+      }
+      const hexByte = next === 'x' ? /^[0-9A-Fa-f]{2}/.exec(p.slice(i + 2)) : null
+      if (hexByte) {
+        atom(escapeLiteral(byteChar(parseInt(hexByte[0], 16))))
+        i += 4
         continue
       }
       if (next === 'p' || next === 'P') {
