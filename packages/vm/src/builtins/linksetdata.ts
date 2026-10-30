@@ -48,8 +48,20 @@ function fits(ctx: CallContext, name: string, entry: LinksetDataEntry): boolean 
   return before + entryCost(name, entry) <= LSD_AVAILABLE_BYTES
 }
 
+/**
+ * SL compares and matches keys as UTF-8 bytes. Each byte becomes one char; bytes from 0x80 map into
+ * the private use area so that a JS RegExp never case-folds them.
+ */
+function utf8Chars(s: string): string {
+  let out = ''
+  for (const b of Buffer.from(s, 'utf8')) out += String.fromCharCode(b < 0x80 ? b : 0xe000 + b)
+  return out
+}
+
+const byUtf8 = (a: string, b: string) => Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
+
 function sortedKeys(ctx: CallContext): string[] {
-  return [...ctx.state.linksetData.keys()].sort()
+  return [...ctx.state.linksetData.keys()].sort(byUtf8)
 }
 
 const POSIX_CLASSES: Record<string, string> = {
@@ -145,8 +157,8 @@ function translateBracket(p: string, i: number): [string, number] | null {
  * dropped. Anything SL rejects or does not support returns null so it matches
  * no key.
  */
-function compilePattern(pattern: string): RegExp | null {
-  let p = pattern
+function compilePattern(pattern: string): ((key: string) => boolean) | null {
+  let p = utf8Chars(pattern)
   let flags = ''
   if (p.startsWith('(?i)')) {
     flags = 'i'
@@ -267,7 +279,8 @@ function compilePattern(pattern: string): RegExp | null {
   }
   if (groupStarts.length !== 0 || out === '') return null
   try {
-    return new RegExp(out, flags)
+    const re = new RegExp(out, flags)
+    return (key) => re.test(utf8Chars(key))
   } catch {
     return null
   }
@@ -383,13 +396,13 @@ export const llLinksetDataDeleteProtected: BuiltinImpl = (ctx, args) => {
 export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
   const pattern = (args[0] as string | undefined) ?? ''
   const password = (args[1] as string | undefined) ?? ''
-  const re = compilePattern(pattern)
-  if (!re) return uniformList([0, 0], 'integer')
+  const matches = compilePattern(pattern)
+  if (!matches) return uniformList([0, 0], 'integer')
   const store = ctx.state.linksetData
   const deletedKeys: string[] = []
   let notDeleted = 0
   for (const [name, entry] of [...store.entries()]) {
-    if (!re.test(name)) continue
+    if (!matches(name)) continue
     if (entry.password !== password) {
       notDeleted += 1
       continue
@@ -399,7 +412,7 @@ export const llLinksetDataDeleteFound: BuiltinImpl = (ctx, args) => {
   }
   if (deletedKeys.length > 0) {
     // SL emits MULTIDELETE.name in ASCII-lex order, not insertion order.
-    deletedKeys.sort()
+    deletedKeys.sort(byUtf8)
     fireEvent(ctx, LINKSETDATA_MULTIDELETE, deletedKeys.join(','), '')
   }
   return uniformList([deletedKeys.length, notDeleted], 'integer')
@@ -428,17 +441,16 @@ export const llLinksetDataFindKeys: BuiltinImpl = (ctx, args) => {
   const pattern = (args[0] as string | undefined) ?? ''
   const start = (args[1] as number | undefined) ?? 0
   const count = (args[2] as number | undefined) ?? -1
-  const re = compilePattern(pattern)
-  if (!re) return []
-  const matches = sortedKeys(ctx).filter((k) => re.test(k))
-  return uniformList(slice(matches, start, count), 'string')
+  const matches = compilePattern(pattern)
+  if (!matches) return []
+  return uniformList(slice(sortedKeys(ctx).filter(matches), start, count), 'string')
 }
 
 export const llLinksetDataCountFound: BuiltinImpl = (ctx, args) => {
   const pattern = (args[0] as string | undefined) ?? ''
-  const re = compilePattern(pattern)
-  if (!re) return 0
+  const matches = compilePattern(pattern)
+  if (!matches) return 0
   let n = 0
-  for (const k of ctx.state.linksetData.keys()) if (re.test(k)) n += 1
+  for (const k of ctx.state.linksetData.keys()) if (matches(k)) n += 1
   return n
 }
