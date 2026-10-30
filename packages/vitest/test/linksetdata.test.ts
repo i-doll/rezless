@@ -626,3 +626,80 @@ describe('Linkset Data regex dialect (SL parity)', () => {
     expect(count).toBe(new Set(expected).size)
   })
 })
+
+describe('Linkset Data with non-ASCII keys (measured in-world)', () => {
+  const KEYS = ['é', 'aé', '日本', 'x', 'É', '😀']
+
+  async function probe(pattern: string) {
+    const s = await load(`
+      list all = [];
+      list found = [];
+      integer count = -1;
+      default {
+        state_entry() {
+          list keys = [${KEYS.map(lslString).join(', ')}];
+          integer i;
+          for (i = 0; i < llGetListLength(keys); i++) llLinksetDataWrite(llList2String(keys, i), "v");
+          all = llLinksetDataListKeys(0, -1);
+          found = llLinksetDataFindKeys(${lslString(pattern)}, 0, 100);
+          count = llLinksetDataCountFound(${lslString(pattern)});
+        }
+      }
+    `)
+    s.start()
+    return s
+  }
+
+  it('ListKeys orders keys by their UTF-8 bytes', async () => {
+    const s = await probe('x')
+    expect(s.global('all')).toEqual(['aé', 'x', 'É', 'é', '日本', '😀'])
+  })
+
+  it.each([
+    ['^.$', ['x']],
+    ['^..$', ['É', 'é']],
+    ['^...$', ['aé']],
+    ['^....$', ['😀']],
+    ['^.{2}$', ['É', 'é']],
+    ['é', ['aé', 'é']],
+    ['[é]', ['aé', 'É', 'é']],
+    ['^[^x]$', []],
+    ['^\\w$', ['x']],
+    ['[[:alpha:]]', ['aé', 'x']],
+    ['^\\W+$', ['É', 'é', '日本', '😀']],
+    ['(?i)é', ['aé', 'é']],
+    ['\\xE9', []],
+    ['\\x{E9}', []],
+    ['\\xC3\\xA9', ['aé', 'é']],
+    ['\\xC3', ['aé', 'É', 'é']],
+    ['^\\xE6\\x97\\xA5', ['日本']],
+    ['\\xF0', ['😀']],
+    ['\\x{C3}\\x{A9}', []],
+    ['[\\x80-\\xFF]', ['x']],
+    ['^[\\x00-\\x7F]+$', ['x']],
+    ['[\\xC3][\\xA9]', []],
+    ['日', ['日本']],
+    ['[日本]', ['日本']],
+    ['😀', ['😀']],
+  ])('/%s/ matches UTF-8 bytes', async (pattern, expected) => {
+    const s = await probe(pattern)
+    expect(s.global('found')).toEqual(expected)
+    expect(s.global('count')).toBe(expected.length)
+  })
+
+  it('DeleteFound matches UTF-8 bytes', async () => {
+    const s = await load(`
+      list res = [];
+      default {
+        state_entry() {
+          llLinksetDataWrite("é", "v");
+          llLinksetDataWrite("x", "v");
+          res = llLinksetDataDeleteFound("^..$", "");
+        }
+      }
+    `)
+    s.start()
+    expect(s.global('res')).toEqual([1, 0])
+    expect([...s.linksetData.keys()]).toEqual(['x'])
+  })
+})

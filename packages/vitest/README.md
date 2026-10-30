@@ -194,6 +194,12 @@ names across prims throw to prevent silent overwrites. Each `Script` is the
 same handle described above, so all matchers, mocks, and inspectors keep
 working — they're just scoped to one script in a larger system.
 
+Chat a script sends with `llSay`, `llShout`, `llWhisper` or `llRegionSay`, and
+its `DEBUG_CHANNEL` errors, reach matching `listen` handlers in the other prims
+of the linkset, named and keyed after the sending prim. `llRegionSayTo` reaches
+only the prim with that key. A prim never hears its own chat, and `llOwnerSay`
+and `llInstantMessage` never trigger a `listen`.
+
 `loadScript` continues to work for single-script tests; under the hood it
 auto-allocates a 1-prim/1-script linkset, so existing tests are unaffected.
 

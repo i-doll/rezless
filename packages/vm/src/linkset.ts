@@ -165,6 +165,18 @@ export class Linkset {
   }
 
   /**
+   * Queue chat a script in prim `from` sent on the listens of every other
+   * prim, or only the prim keyed `to` for llRegionSayTo. A prim never hears
+   * its own chat.
+   */
+  routeChat(from: Prim, channel: number, message: string, to?: string): void {
+    for (const p of this.prims) {
+      if (p === from || (to !== undefined && (to === NULL_KEY || p.key !== to))) continue
+      for (const s of p.scripts) s.matchChatListens({ channel, name: from.name, key: from.key, message })
+    }
+  }
+
+  /**
    * Advance the shared clock by `ms` and drain every event that becomes
    * due, dispatching each to its target script. The clock steps to each
    * event's due time before its handler runs, so handlers see the time the
