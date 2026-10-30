@@ -125,5 +125,5 @@ export interface CallContext {
   readonly prim: Prim
   readonly linkset: Linkset
   /** Suspend the calling script for `ms` virtual milliseconds once the builtin returns. */
-  sleep?(ms: number): void
+  sleep(ms: number): void
 }

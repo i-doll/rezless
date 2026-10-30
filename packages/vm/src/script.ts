@@ -316,8 +316,9 @@ export class Script {
           : typedList([HTTP_BODY_TRUNCATED, req.bodyMaxLength], ['integer', 'integer']),
       body: cut,
     }
+    const started = this.host.scripts.filter((s) => s.handles('http_response'))
     for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'http_response', payload)
-    this.linkset.settle(this.host.scripts, 'http_response')
+    this.linkset.settle(started)
   }
 
   /** Convenience: respond to the most recent HTTP request. */
@@ -361,8 +362,9 @@ export class Script {
     if (!req) throw new Error(`unknown dataserver request key: ${key}`)
     req.fulfilled = true
     const payload = { queryid: key, data: value }
+    const started = this.host.scripts.filter((s) => s.handles('dataserver'))
     for (const s of this.host.scripts) this.clockView.scheduleOn(s, this.now, 'dataserver', payload)
-    this.linkset.settle(this.host.scripts, 'dataserver')
+    this.linkset.settle(started)
   }
 
   /** Convenience: respond to the most recent dataserver request. */
@@ -389,8 +391,9 @@ export class Script {
     const granted = req.permissions & (permissions ?? req.permissions)
     this.state.permissions.granted = granted
     this.state.permissions.agent = req.agent
+    const started = this.handles('run_time_permissions') ? [this] : []
     this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
-    this.linkset.settle([this], 'run_time_permissions')
+    this.linkset.settle(started)
   }
 
   /** Answer the most recent unanswered permission request with No. */
@@ -473,8 +476,7 @@ export class Script {
     key: string
     message: string
   }): void {
-    this.matchChatListens(opts)
-    this.linkset.settle([this], 'listen')
+    this.linkset.settle(this.matchChatListens(opts) && this.handles('listen') ? [this] : [])
   }
 
   /**
@@ -537,9 +539,10 @@ export class Script {
         this.linkset.settle([this])
       }
     }
+    const started = this.handles(eventName) ? [this] : []
     if (this.task) this.clockView.schedule(this.now, eventName, payload)
     else this.deliver(eventName, payload)
-    this.linkset.settle([this], eventName)
+    this.linkset.settle(started)
   }
 
   /**
@@ -631,7 +634,8 @@ export class Script {
 
   /** Internal: invoked by `Linkset.drainQueue` when a sleeping handler's wake time comes. */
   wake(): void {
-    const task = this.task!
+    const task = this.task
+    if (!task) return
     this.task = null
     this.step(task)
   }

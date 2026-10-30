@@ -245,6 +245,17 @@ describe('after a script wakes', () => {
     expect(log).toEqual(['0 sleep', '1000 tick', '2000 tick', '2500 woke'])
   })
 
+  it('llDie or a self-removal in state_exit after a sleep halts the chain', async () => {
+    for (const end of ['llDie(); llOwnerSay("exit"); say("after");', 'llRemoveInventory(llGetScriptName()); say("after");']) {
+      const { log, scripts } = await pair(
+        ['e_a', `default { touch_start(integer n) { state two; } state_exit() { llSleep(1.0); ${end} } } state two { state_entry() { say("two"); } }`],
+        ['e_b', `default { state_entry() { } }`],
+      )
+      scripts['e_a']!.fire('touch_start', { num_detected: 1 })
+      expect(log.filter((l) => l.endsWith('after') || l.endsWith('two'))).toEqual([])
+    }
+  })
+
   it('a state change, a reset and a run-time error all work after a sleep', async () => {
     const { log, scripts } = await pair(
       [
@@ -338,6 +349,61 @@ describe('driving a sleeping script from a test', () => {
     b.linkset.deliverChat({ channel: 5, name: 'av', key: '', message: 'hi' })
     expect(a.now).toBe(before)
     expect(a.wakeAt).toBe(31000)
+  })
+
+  it('fire() waits for a state change whose state_entry sleeps', async () => {
+    const { scripts } = await pair(
+      ['c_a', `integer x; default { touch_start(integer n) { state two; } } state two { state_entry() { llSleep(1.0); x = 1; } }`],
+      ['ticker', ticker],
+    )
+    const s = scripts['c_a']!
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.global('x')).toBe(1)
+    expect(s.now).toBe(1000)
+  })
+
+  it('a reply waits for a state change whose state_entry has a builtin delay', async () => {
+    const { scripts } = await pair(
+      [
+        'c_a',
+        `integer x; default { touch_start(integer n) { llHTTPRequest("https://example.com", [], ""); }
+          http_response(key k, integer st, list m, string b) { state two; } }
+        state two { state_entry() { llSetPrimitiveParams([PRIM_GLOW, ALL_SIDES, 0.0]); x = 1; } }`,
+      ],
+      ['ticker', ticker],
+    )
+    const s = scripts['c_a']!
+    s.fire('touch_start', { num_detected: 1 })
+    s.respondToLastHttp({ status: 200, body: '' })
+    expect(s.global('x')).toBe(1)
+    expect(s.now).toBe(200)
+  })
+
+  it('fire() waits for llResetScript into a state_entry that sleeps', async () => {
+    const { scripts } = await pair(
+      [
+        'c_a',
+        `default { state_entry() { if (llLinksetDataRead("go") == "1") { llSleep(1.0); llLinksetDataWrite("x", "1"); } else state two; } }
+        state two { touch_end(integer n) { llLinksetDataWrite("go", "1"); llResetScript(); } }`,
+      ],
+      ['ticker', ticker],
+    )
+    const s = scripts['c_a']!
+    s.fire('touch_end', { num_detected: 1 })
+    expect(s.linksetData.get('x')?.value).toBe('1')
+    expect(s.now).toBe(1000)
+  })
+
+  it('deliverChat does not wait for a sleeper no listen matched', async () => {
+    const listener = `default { state_entry() { llListen(5, "", NULL_KEY, ""); } listen(integer c, string n, key id, string m) { }
+      touch_start(integer n) { llSleep(5.0); } }`
+    const { scripts } = await pair(['l_a', listener], ['ticker', ticker])
+    const s = scripts['l_a']!
+    s.linkset.clock.schedule(s, 0, 'touch_start', { num_detected: 1 })
+    s.advanceTime(1_000)
+    s.deliverChat({ channel: 6, name: 'av', key: '', message: 'hi' })
+    expect(s.now).toBe(1000)
+    expect(s.wakeAt).toBe(5000)
   })
 
   it('reset() of a sleeping script abandons its handler', async () => {

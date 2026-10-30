@@ -80,8 +80,10 @@ export class LinksetClock {
     let bestAt = Infinity
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
-      if (e.at <= horizon && e.at < bestAt && (e.event === '__reset' || e.target.wakeAt === undefined)) {
-        bestAt = e.at
+      // An event that waited for its target's handler is due when that handler finished.
+      const due = Math.max(e.at, e.target.clockView.busyUntilMs)
+      if (due <= horizon && due < bestAt && (e.event === '__reset' || e.target.wakeAt === undefined)) {
+        bestAt = due
         bestIdx = i
       }
     }
@@ -133,14 +135,14 @@ export class LinksetClock {
 
   /**
    * Move `script`'s events that are due by now behind every other queued
-   * event, in their order, due now. Called when a handler that took time
-   * finishes, so the events that waited for it follow other scripts' events
-   * at that instant.
+   * event, in their order. Called when a handler that took time finishes,
+   * so the events that waited for it follow other scripts' events at that
+   * instant.
    */
   requeue(script: Script): void {
     const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
     this.purgeTarget(script, this.now)
-    for (const e of waited) this.queue.push({ ...e, at: this.now })
+    this.queue.push(...waited)
   }
 
   /**

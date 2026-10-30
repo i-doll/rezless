@@ -255,6 +255,26 @@ describe('Phase 3 — object lifecycle and appearance', () => {
     })
   })
 
+  it('llResetOtherScript on itself resets at once', async () => {
+    // In-world: selfreset_nan.iw (two runs) "reset self" was followed straight away by "entry n=1"; "after reset call" was never heard.
+    const s = await run(`integer n;
+      default { state_entry() { n++; llSay(7777, "entry n=" + (string)n); if (n == 1) llSetTimerEvent(2.0); }
+        timer() { llSetTimerEvent(0); llSay(7777, "reset self"); llResetOtherScript(llGetScriptName()); llSay(7777, "after reset call"); llSleep(1.0); llSay(7777, "after sleep"); } }`)
+    s.advanceTime(2_000)
+    expect(s.chat.map((c) => c.text)).toEqual(['entry n=1', 'reset self', 'entry n=1'])
+    expect(s.now).toBe(2000)
+  })
+
+  it('llSleep of NaN sleeps one frame', async () => {
+    // In-world: selfreset_nan.iw (two runs) llSleep((float)"nan") took 0.044 s and llSleep((float)"-nan") 0.0 s.
+    // A JS NaN has no sign, so -nan can't be told apart and sleeps one frame too.
+    const s = await run(`float a; float b;
+      default { touch_start(integer n) { float t0 = llGetTime(); llSleep((float)"nan"); a = llGetTime() - t0; t0 = llGetTime(); llSleep((float)"-nan"); b = llGetTime() - t0; } }`)
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.global('a')).toBeCloseTo(1 / 45)
+    expect(s.global('b')).toBeCloseTo(1 / 45)
+  })
+
   it('llDie inside a queue-dispatched handler stops further drains', async () => {
     // A timer that calls llDie on its 2nd fire — without the dead-check
     // in drainQueue, advanceTime(2_500) would still fire ticks 3, 4, 5.

@@ -141,12 +141,19 @@ s.seedLinksetData(entries)                      // pre-populate LSD without firi
 s.text                                          // current llSetText: { text, color, alpha } or null
 s.objectDesc                                    // current llSetObjectDesc value
 s.dead                                          // true once llDie has run
+s.wakeAt                                        // virtual ms a sleeping handler wakes at, or undefined when idle
 
 // Multi-script context (auto-allocated for single-script tests)
 s.host                                          // the Prim instance hosting this script
 s.linkset                                       // the Linkset (shared clock, LSD, link_message bus)
 s.scriptName                                    // inventory name; backs llGetScriptName
 ```
+
+`start`, `fire`, `reset`, `deliverChat`, `grantPermissions` and the `respondTo*` calls return only after the handlers they started have finished; if one sleeps, the clock moves to its wake time while the other scripts keep running.
+
+`advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
+
+A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses for that long after the mock returns.
 
 ### `loadLinkset(input)` → `Promise<LoadedLinkset>`
 

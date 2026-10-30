@@ -49,6 +49,12 @@ describe('suspension', () => {
     expect(s.now).toBe(1000)
   })
 
+  it('waking an idle script does nothing', () => {
+    const s = load('integer n; default { state_entry() { n = 1; } }')
+    s.wake()
+    expect(s.global('n')).toBe(0)
+  })
+
   it('abandoning a suspended handler gives back its frames and locals', () => {
     const s = load(`
       f(integer d) { string pad = "abc"; if (d > 0) f(d - 1); else llSleep(1.0); }
