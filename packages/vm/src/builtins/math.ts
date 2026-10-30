@@ -203,3 +203,7 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   const m = Math.hypot(u.x, u.y, u.z)
   return rot(u.x / m, u.y / m, u.z / m, 0)
 }
+
+export const llModPow: BuiltinImpl = () => {
+  throw new Error('llModPow: not implemented')
+}

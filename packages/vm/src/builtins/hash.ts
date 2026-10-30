@@ -37,3 +37,7 @@ export const llHMAC: BuiltinImpl = (_ctx, args) => {
   // hash builtins which return lowercase hex.
   return createHmac(algo, key).update(message, 'utf8').digest('base64')
 }
+
+export const llComputeHash: BuiltinImpl = () => {
+  throw new Error('llComputeHash: not implemented')
+}

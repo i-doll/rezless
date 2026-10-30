@@ -197,3 +197,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   }
   return undefined
 }
+
+export const llGetNotecardLineSync: BuiltinImpl = () => {
+  throw new Error('llGetNotecardLineSync: not implemented')
+}

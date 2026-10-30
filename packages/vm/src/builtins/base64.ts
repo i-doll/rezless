@@ -110,3 +110,7 @@ export const llBase64ToInteger: BuiltinImpl = (_ctx, args) => {
   if (buf.length < 4) return 0
   return buf.readInt32BE(0)
 }
+
+export const llXorBase64StringsCorrect: BuiltinImpl = () => {
+  throw new Error('llXorBase64StringsCorrect: not implemented')
+}

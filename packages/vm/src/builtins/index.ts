@@ -50,6 +50,7 @@ import {
   llRot2Angle,
   llAxisAngle2Rot,
   llRotBetween,
+  llModPow,
 } from './math.js'
 import {
   llStringLength,
@@ -63,6 +64,9 @@ import {
   llReplaceSubString,
   llEscapeURL,
   llUnescapeURL,
+  llOrd,
+  llChar,
+  llHash,
 } from './strings.js'
 import {
   llGetListLength,
@@ -78,6 +82,9 @@ import {
   llListInsertList,
   llListReplaceList,
   llListFindList,
+  llListStatistics,
+  llListFindListNext,
+  llListFindStrided,
   llDumpList2String,
   llList2CSV,
   llCSV2List,
@@ -134,13 +141,14 @@ import {
   llDetectedGrab,
   llDetectedTouchPos,
 } from './detected.js'
-import { llMD5String, llSHA1String, llSHA256String, llHMAC } from './hash.js'
+import { llMD5String, llSHA1String, llSHA256String, llHMAC, llComputeHash } from './hash.js'
 import {
   llStringToBase64,
   llBase64ToString,
   llIntegerToBase64,
   llBase64ToInteger,
   llXorBase64,
+  llXorBase64StringsCorrect,
 } from './base64.js'
 import {
   llSetText,
@@ -165,6 +173,7 @@ import {
   llGetInventoryAcquireTime,
   llGetInventoryPermMask,
   llGetNotecardLine,
+  llGetNotecardLineSync,
   llGetNumberOfNotecardLines,
   llRemoveInventory,
 } from './inventory.js'
@@ -305,6 +314,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llRot2Angle,
   llAxisAngle2Rot,
   llRotBetween,
+  llModPow,
   // strings
   llStringLength,
   llSubStringIndex,
@@ -317,6 +327,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llReplaceSubString,
   llEscapeURL,
   llUnescapeURL,
+  llOrd,
+  llChar,
+  llHash,
   // lists
   llGetListLength,
   llList2Integer,
@@ -331,6 +344,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llListInsertList,
   llListReplaceList,
   llListFindList,
+  llListStatistics,
+  llListFindListNext,
+  llListFindStrided,
   llDumpList2String,
   llList2CSV,
   llCSV2List,
@@ -380,12 +396,14 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llSHA1String,
   llSHA256String,
   llHMAC,
+  llComputeHash,
   // base64
   llStringToBase64,
   llBase64ToString,
   llIntegerToBase64,
   llBase64ToInteger,
   llXorBase64,
+  llXorBase64StringsCorrect,
   // object
   llSetText,
   llSetObjectDesc,
@@ -407,6 +425,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetInventoryAcquireTime,
   llGetInventoryPermMask,
   llGetNotecardLine,
+  llGetNotecardLineSync,
   llGetNumberOfNotecardLines,
   llRemoveInventory,
   // permissions

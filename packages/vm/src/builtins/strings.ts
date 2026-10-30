@@ -141,3 +141,15 @@ function deleteLslSubString(src: string, start: number, end: number): string {
   }
   return chars.slice(Math.max(b + 1, 0), Math.min(a, len)).join('')
 }
+
+export const llOrd: BuiltinImpl = () => {
+  throw new Error('llOrd: not implemented')
+}
+
+export const llChar: BuiltinImpl = () => {
+  throw new Error('llChar: not implemented')
+}
+
+export const llHash: BuiltinImpl = () => {
+  throw new Error('llHash: not implemented')
+}

@@ -409,3 +409,15 @@ export const llListRandomize: BuiltinImpl = (ctx, args) => {
   }
   return pick(src, blocks.flatMap((b) => Array.from({ length: stride }, (_, k) => b * stride + k)))
 }
+
+export const llListStatistics: BuiltinImpl = () => {
+  throw new Error('llListStatistics: not implemented')
+}
+
+export const llListFindListNext: BuiltinImpl = () => {
+  throw new Error('llListFindListNext: not implemented')
+}
+
+export const llListFindStrided: BuiltinImpl = () => {
+  throw new Error('llListFindStrided: not implemented')
+}
