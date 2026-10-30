@@ -110,10 +110,20 @@ export interface ScriptState {
 
 export type BuiltinImpl = (ctx: CallContext, args: ReadonlyArray<LslValue>) => LslValue | undefined
 
+/** A running script asks to be resumed once the virtual clock reaches `until` (ms). */
+export interface Suspension {
+  readonly until: number
+}
+
+/** Resumable execution: yields suspensions, returns the result. */
+export type Run<T> = Generator<Suspension, T, unknown>
+
 export interface CallContext {
   readonly state: ScriptState
   readonly spec: BuiltinSpec | undefined
   readonly script: Script
   readonly prim: Prim
   readonly linkset: Linkset
+  /** Suspend the calling script for `ms` virtual milliseconds once the builtin returns. */
+  sleep(ms: number): void
 }

@@ -1,4 +1,4 @@
-import type { BuiltinImpl, CallContext, ScriptState } from './runtime.js'
+import type { BuiltinImpl, CallContext, Run, ScriptState } from './runtime.js'
 import type { LslValue } from './values/types.js'
 import { defaultValueFor } from './values/types.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
@@ -24,29 +24,31 @@ export interface DispatchContext {
  *
  * Resolution order: user mock > real built-in > generated stub > error.
  * Every successful call (including stubs) is appended to ScriptState.calls.
+ * A builtin that sleeps or has a delay suspends the script after it returns.
  */
-export function callBuiltin(
+export function* callBuiltin(
   dctx: DispatchContext,
   name: string,
   args: ReadonlyArray<LslValue>,
-): LslValue | undefined {
+): Run<LslValue | undefined> {
   const spec = specFor(name)
   const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(dctx.script, name)
+  let sleptMs = 0
   const ctx: CallContext = {
     state: dctx.state,
     spec,
     script: dctx.script,
     prim: dctx.script.host,
     linkset: dctx.script.linkset,
+    sleep: (ms) => {
+      sleptMs += ms
+    },
   }
   const startedAt = dctx.state.clock.now
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
-  // Call log timestamps when the script invoked the function (pre-delay);
-  // advance the clock after the push so subsequent calls see the throttle.
-  if (spec && spec.delay > 0) {
-    dctx.state.clock.advance(spec.delay * 1000)
-  }
+  const delayMs = spec ? spec.delay * 1000 : 0
+  if (sleptMs > 0 || delayMs > 0) yield { until: dctx.state.clock.now + sleptMs + delayMs }
   if (dctx.state.lifecycle.removed && dctx.state.clock.now > startedAt) throw new ScriptRemovedSignal()
   return result
 }

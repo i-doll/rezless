@@ -22,7 +22,7 @@ export const llSetTimerEvent: BuiltinImpl = (ctx, args) => {
 const FRAME_MS = 1000 / 45
 
 /**
- * llSleep(float sec) — synchronously advances the virtual clock.
+ * llSleep(float sec) — suspends the script on the virtual clock.
  *
  * Per LSL:
  *   - `sec <= 0` is a no-op; the script does not sleep at all.
@@ -30,15 +30,14 @@ const FRAME_MS = 1000 / 45
  *     at 45 Hz), so e.g. `llSleep(0.001)` actually waits ~22 ms.
  *
  * Events that arrive while the script is sleeping queue up but don't fire
- * on the calling script until the current handler returns. We model that
- * by advancing the linkset clock; the queue drain happens at the handler
- * boundary (inside Script.runHandler).
+ * on the calling script until the current handler returns; the queue drain
+ * happens at the handler boundary (inside Script.runHandler).
  */
 export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0
   if (seconds <= 0) return undefined
   const ms = Math.max(FRAME_MS, seconds * 1000)
-  ctx.state.clock.advance(ms)
+  ctx.sleep(ms)
   return undefined
 }
 

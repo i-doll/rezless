@@ -6,7 +6,7 @@ import type {
   Node,
   TypeName,
 } from '@rezless/parser'
-import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity } from './runtime.js'
+import type { BuiltinImpl, ChatEntry, CallEntry, Run, ScriptState, ScriptIdentity } from './runtime.js'
 import type { HttpRequestEntry } from './builtins/http.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { ListenEntry } from './builtins/listen.js'
@@ -669,7 +669,7 @@ export class Script {
       const { handler: h, args: a } = pending
       pending = null
       try {
-        execHandler(ctx, h, a)
+        this.complete(execHandler(ctx, h, a))
       } catch (e) {
         if (e instanceof ResetScriptSignal) {
           this.reset()
@@ -682,7 +682,7 @@ export class Script {
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
           try {
-            execHandler(ctx, exit, [])
+            this.complete(execHandler(ctx, exit, []))
           } catch (e2) {
             if (e2 instanceof ScriptRemovedSignal) return
             if (e2 instanceof StateChangeSignal) {
@@ -705,6 +705,11 @@ export class Script {
         }
       }
     }
+  }
+
+  /** Run to the end, moving the clock to each wake time the script asks for. */
+  private complete(run: Run<void>): void {
+    for (let step = run.next(); !step.done; step = run.next()) this.clockView.advanceTo(step.value.until)
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */

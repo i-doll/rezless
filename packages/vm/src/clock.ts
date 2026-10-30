@@ -61,6 +61,12 @@ export class LinksetClock {
     this.now += ms
   }
 
+  /** Move the clock forward to exactly `at`. */
+  advanceTo(at: number): void {
+    if (at < this.now) throw new Error('cannot advance time backwards')
+    this.now = at
+  }
+
   /**
    * Pop and return the next due event (`at <= horizon`, default `now`) considering all queued
    * one-shots and every script's recurring timer. Returns `null` when no
@@ -180,9 +186,14 @@ export class ScriptClockView {
     this.timerNextFireMs = this.now + intervalMs
   }
 
-  /** Advances the linkset clock — used by `llSleep`. */
+  /** Advances the linkset clock. */
   advance(ms: number): void {
     this.linksetClock.advance(ms)
+  }
+
+  /** Advances the linkset clock to exactly `at`. */
+  advanceTo(at: number): void {
+    this.linksetClock.advanceTo(at)
   }
 
   /** Wall-clock time in microseconds since the Unix epoch, floored. */
