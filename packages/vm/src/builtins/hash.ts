@@ -8,6 +8,8 @@ import type { BuiltinImpl } from '../runtime.js'
 
 const lowerHex = (h: import('node:crypto').Hash | import('node:crypto').Hmac) => h.digest('hex')
 
+const HASH_ALGORITHMS = new Set(['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512'])
+
 export const llMD5String: BuiltinImpl = (_ctx, args) => {
   const message = (args[0] as string | undefined) ?? ''
   const nonce = (args[1] as number | undefined) ?? 0
@@ -31,13 +33,15 @@ export const llHMAC: BuiltinImpl = (_ctx, args) => {
   const key = (args[0] as string | undefined) ?? ''
   const message = (args[1] as string | undefined) ?? ''
   const algo = ((args[2] as string | undefined) ?? 'sha256').toLowerCase()
-  const supported = new Set(['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512'])
-  if (!supported.has(algo)) return ''
+  if (!HASH_ALGORITHMS.has(algo)) return ''
   // Per the LSL definitions: llHMAC returns the *Base64*-encoded HMAC, unlike the other
   // hash builtins which return lowercase hex.
   return createHmac(algo, key).update(message, 'utf8').digest('base64')
 }
 
-export const llComputeHash: BuiltinImpl = () => {
-  throw new Error('llComputeHash: not implemented')
+export const llComputeHash: BuiltinImpl = (_ctx, args) => {
+  const message = (args[0] as string | undefined) ?? ''
+  const algo = ((args[1] as string | undefined) ?? '').toLowerCase()
+  if (!HASH_ALGORITHMS.has(algo)) return ''
+  return lowerHex(createHash(algo).update(message, 'utf8'))
 }

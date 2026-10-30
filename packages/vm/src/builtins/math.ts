@@ -13,14 +13,18 @@ export const llFabs: BuiltinImpl = (_ctx, args) => {
   return Math.abs((args[0] as number | undefined) ?? 0)
 }
 
+/** Second Life gives -2147483648 for a rounded result outside int32, NaN and infinity. */
+const saturate = (n: number): number =>
+  n >= -2147483648 && n <= 2147483647 ? n | 0 : -2147483648
+
 /** llRound(float val) — floor(val + 0.5), so halves round up. */
 export const llRound: BuiltinImpl = (_ctx, args) =>
-  Math.floor(((args[0] as number | undefined) ?? 0) + 0.5) | 0
+  saturate(Math.floor(((args[0] as number | undefined) ?? 0) + 0.5))
 
 export const llCeil: BuiltinImpl = (_ctx, args) =>
-  Math.ceil((args[0] as number | undefined) ?? 0) | 0
+  saturate(Math.ceil((args[0] as number | undefined) ?? 0))
 export const llFloor: BuiltinImpl = (_ctx, args) =>
-  Math.floor((args[0] as number | undefined) ?? 0) | 0
+  saturate(Math.floor((args[0] as number | undefined) ?? 0))
 
 export const llPow: BuiltinImpl = (_ctx, args) =>
   Math.pow((args[0] as number) ?? 0, (args[1] as number) ?? 0)
@@ -32,8 +36,14 @@ export const llAsin: BuiltinImpl = (_ctx, args) => Math.asin((args[0] as number)
 export const llAcos: BuiltinImpl = (_ctx, args) => Math.acos((args[0] as number) ?? 0)
 export const llAtan2: BuiltinImpl = (_ctx, args) =>
   Math.atan2((args[0] as number) ?? 0, (args[1] as number) ?? 0)
-export const llLog: BuiltinImpl = (_ctx, args) => Math.log((args[0] as number) ?? 0)
-export const llLog10: BuiltinImpl = (_ctx, args) => Math.log10((args[0] as number) ?? 0)
+export const llLog: BuiltinImpl = (_ctx, args) => {
+  const x = (args[0] as number | undefined) ?? 0
+  return x <= 0 ? 0 : Math.log(x)
+}
+export const llLog10: BuiltinImpl = (_ctx, args) => {
+  const x = (args[0] as number | undefined) ?? 0
+  return x <= 0 ? 0 : Math.log10(x)
+}
 
 /** llFrand(float mag) — seeded uniform [0, mag). Negative mag → [mag, 0). */
 export const llFrand: BuiltinImpl = (ctx, args) => {
@@ -204,6 +214,18 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   return rot(u.x / m, u.y / m, u.z / m, 0)
 }
 
-export const llModPow: BuiltinImpl = () => {
-  throw new Error('llModPow: not implemented')
+/** llModPow(base, exponent, modulus) — operands are read as unsigned 32-bit. */
+export const llModPow: BuiltinImpl = (_ctx, args) => {
+  const u = (i: number) => BigInt(((args[i] as number | undefined) ?? 0) >>> 0)
+  const m = u(2)
+  if (m === 0n) return 0
+  let result = 1n
+  let base = u(0) % m
+  let exp = u(1)
+  while (exp > 0n) {
+    if (exp & 1n) result = (result * base) % m
+    base = (base * base) % m
+    exp >>= 1n
+  }
+  return Number(result) | 0
 }

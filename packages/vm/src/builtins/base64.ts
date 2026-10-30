@@ -18,7 +18,7 @@ export const llBase64ToString: BuiltinImpl = (_ctx, args) => {
 }
 
 /** UTF-8 decode where NUL and each byte of an invalid sequence become `?`. */
-function decodeUtf8Lenient(bytes: Uint8Array): string {
+export function decodeUtf8Lenient(bytes: Uint8Array): string {
   const strict = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
   let out = ''
   let i = 0
@@ -101,16 +101,15 @@ export const llXorBase64: BuiltinImpl = (_ctx, args) => {
 }
 
 /**
- * llBase64ToInteger(string s) — inverse of llIntegerToBase64.
- * Returns 0 if the input doesn't decode to at least 4 bytes.
+ * llBase64ToInteger(string s) — inverse of llIntegerToBase64. Missing bytes
+ * are zero-padded on the right; input longer than 8 characters gives 0.
  */
 export const llBase64ToInteger: BuiltinImpl = (_ctx, args) => {
   const s = (args[0] as string | undefined) ?? ''
-  const buf = Buffer.from(s, 'base64')
-  if (buf.length < 4) return 0
+  if (s.length > 8) return 0
+  const buf = Buffer.alloc(4)
+  Buffer.from(s, 'base64').copy(buf, 0, 0, 4)
   return buf.readInt32BE(0)
 }
 
-export const llXorBase64StringsCorrect: BuiltinImpl = () => {
-  throw new Error('llXorBase64StringsCorrect: not implemented')
-}
+export const llXorBase64StringsCorrect: BuiltinImpl = llXorBase64
