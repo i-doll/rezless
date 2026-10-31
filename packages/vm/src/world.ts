@@ -1,6 +1,7 @@
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
 import type { Script } from './script.js'
+import type { Rotation } from './values/types.js'
 
 export interface WorldOptions {
   /** Unix time in seconds at virtual time 0, read by llGetUnixTime and friends. Default 0. */
@@ -29,7 +30,17 @@ export interface RegionSettings {
   readonly dayLength?: number
   /** Seconds added to Unix time before finding the time of day. Default 57600. */
   readonly dayOffset?: number
+  /** The sun's rotation, read by llGetRegionSunRotation and llGetSunRotation. Default a measured morning sun. */
+  readonly sunRotation?: SkyRotation
+  /** The moon's rotation, read by llGetRegionMoonRotation and llGetMoonRotation. Default the moon opposite that sun. */
+  readonly moonRotation?: SkyRotation
 }
+
+/**
+ * A unit rotation held fixed, or a function of the day fraction: seconds
+ * into the region's day divided by the day length, from 0 up to 1.
+ */
+export type SkyRotation = Rotation | ((dayFraction: number) => Rotation)
 
 export interface Region extends RegionSettings {
   readonly name: string
