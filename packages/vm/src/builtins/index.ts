@@ -1,4 +1,5 @@
 import { llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia } from './media.js'
+import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
 import {
   llPlaySound,
   llLoopSound,
@@ -400,6 +401,7 @@ import {
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
+  llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
   llAdjustDamage,
   llGetHealth,

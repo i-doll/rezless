@@ -1,3 +1,4 @@
+import { stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
   leaveDamageEvent,
@@ -874,6 +875,7 @@ export class Script {
     for (const r of this.state.permissions.requests) r.answered = true
     for (const r of this.state.experienceRequests) r.answered = true
     this.state.controls.taken = null
+    stopSensors(this)
     this.clockView.cancelTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
@@ -1039,6 +1041,7 @@ export class Script {
         if (!this.handlersByState.has(target)) {
           throw new Error(`unknown state '${target}' in state change`)
         }
+        stopSensors(this)
         this.state.listens.length = 0
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
         this.state.currentState = target
@@ -1070,6 +1073,7 @@ export class Script {
   markDead(): void {
     this.state.lifecycle.dead = true
     this.state.urls.length = 0
+    stopSensors(this)
     this.clockView.cancelTimer()
     this.abandon()
   }
