@@ -54,6 +54,16 @@ export interface ScriptState {
   readonly httpRequests: import('./builtins/http.js').HttpRequestEntry[]
   /** Monotonic counter feeding deterministic HTTP request keys. */
   httpKeyCounter: number
+  /** URLs held from llRequestURL / llRequestSecureURL, oldest first. Cleared on reset. */
+  readonly urls: string[]
+  /** Whether llRequestURL is granted or denied; set by script.grantUrls / denyUrls. */
+  urlPolicy: 'grant' | 'deny'
+  /** Monotonic counter feeding deterministic URL keys. */
+  urlCounter: number
+  /** Requests tests sent to this script's URLs, oldest first. */
+  readonly incomingHttp: import('./builtins/http.js').IncomingHttpRequest[]
+  /** Monotonic counter feeding deterministic incoming request keys. */
+  httpInCounter: number
   readonly listens: import('./builtins/listen.js').ListenEntry[]
   /** Monotonic counter for llListen handles. */
   listenHandleCounter: number
