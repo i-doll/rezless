@@ -36,7 +36,6 @@ class PatternError extends Error {
 }
 
 const utf8 = new TextEncoder()
-const decoder = new TextDecoder('utf-8', { ignoreBOM: true })
 
 /** A byte as one UTF-16 unit: ASCII as itself, anything higher in the private use area so no JS class or case fold touches it. */
 const byteChar = (b: number) => (b < 0x80 ? String.fromCharCode(b) : String.fromCharCode(0xe000 + b))
@@ -241,7 +240,8 @@ function translateSet(p: Uint8Array, s: string, start: number): [string, number]
 interface Search {
   text: string
   bytes: Uint8Array
-  regex: RegExp
+  source: string
+  flags: string
 }
 
 /** Compile `pattern` against the notecard, or say the regex error and return undefined. */
@@ -259,21 +259,59 @@ function compile(ctx: CallContext, lines: ReadonlyArray<string>, pattern: string
   }
   const bytes = utf8.encode(lines.join('\n'))
   const text = Array.from(bytes, byteChar).join('')
-  return { text, bytes, regex: new RegExp(source, caseless ? 'gmi' : 'gm') }
+  return { text, bytes, source, flags: caseless ? 'mi' : 'm' }
 }
 
-const characters = (bytes: Uint8Array) => [...decoder.decode(bytes)].length
+/**
+ * Every match as [byte index, byte length]. The simulator takes the longest match at each start, where
+ * JS alternation takes the first branch that matches, so a pattern with alternatives retries each match
+ * for a longer end.
+ */
+function* matches(search: Search): Generator<[number, number]> {
+  const regex = new RegExp(search.source, `g${search.flags}`)
+  const alternation = search.source.includes('|')
+  for (let m = regex.exec(search.text); m; m = regex.exec(search.text)) {
+    const length = alternation ? longest(search, m.index, m[0].length) : m[0].length
+    yield [m.index, length]
+    regex.lastIndex = m.index + Math.max(length, 1)
+  }
+}
 
-/** [line, column, length] of a match, counting columns and length in characters as the simulator does. */
-function locate(search: Search, index: number, length: number): number[] {
-  const lineStart = search.text.lastIndexOf('\n', index - 1) + 1
-  let line = 0
-  for (let k = search.text.indexOf('\n'); k !== -1 && k < index; k = search.text.indexOf('\n', k + 1)) line++
-  return [
-    line,
-    characters(search.bytes.subarray(lineStart, index)),
-    characters(search.bytes.subarray(index, index + length)),
-  ]
+function longest(search: Search, index: number, length: number): number {
+  // One character of context keeps ^, \b and \A right at the start; the lookbehind requires a longer end.
+  const offset = index > 0 ? 1 : 0
+  const tail = search.text.slice(index - offset)
+  for (;;) {
+    const longer = new RegExp(`(?:${search.source})(?<=(?<![\\s\\S])[\\s\\S]{${offset + length + 1},})`, `y${search.flags}`)
+    longer.lastIndex = offset
+    const m = longer.exec(tail)
+    if (!m) return length
+    length = m[0].length
+  }
+}
+
+const isContinuation = (b: number) => (b & 0xc0) === 0x80
+
+/**
+ * Returns [line, column, length] for a byte range, counting columns and length in characters as the simulator
+ * does: a character cut off at either end of the range still counts as one.
+ */
+function locator(bytes: Uint8Array): (index: number, length: number) => number[] {
+  const leads = new Int32Array(bytes.length + 1)
+  const lines = new Int32Array(bytes.length + 1)
+  const lineStarts = new Int32Array(bytes.length + 1)
+  for (let k = 0; k < bytes.length; k++) {
+    const b = bytes[k]!
+    leads[k + 1] = leads[k]! + (isContinuation(b) ? 0 : 1)
+    lines[k + 1] = lines[k]! + (b === 0x0a ? 1 : 0)
+    lineStarts[k + 1] = b === 0x0a ? k + 1 : lineStarts[k]!
+  }
+  return (index, length) => {
+    const end = index + length
+    let cut = 0
+    while (index + cut < end && isContinuation(bytes[index + cut]!)) cut++
+    return [lines[index]!, leads[index]! - leads[lineStarts[index]!]!, leads[end]! - leads[index]! + cut]
+  }
 }
 
 /**
@@ -292,11 +330,12 @@ export const llFindNotecardTextSync: BuiltinImpl = (ctx, args) => {
   const search = compile(ctx, notecard.lines, pattern)
   if (!search) return []
   const limit = count === 0 ? MAX_DEFAULT_MATCHES : count < 0 ? 1 : count
+  const locate = locator(search.bytes)
   const out: number[] = []
   let seen = 0
-  for (const m of search.text.matchAll(search.regex)) {
+  for (const [index, length] of matches(search)) {
     if (seen++ < start) continue
-    out.push(...locate(search, m.index, m[0].length))
+    out.push(...locate(index, length))
     if (out.length / 3 >= limit) break
   }
   return out
@@ -316,7 +355,7 @@ export const llFindNotecardTextCount: BuiltinImpl = (ctx, args) => {
   if (notecard !== 'unknown-key') {
     const search = compile(ctx, notecard.lines, pattern)
     if (!search) return NULL_KEY
-    data = String(Array.from(search.text.matchAll(search.regex)).length)
+    data = String(Array.from(matches(search)).length)
   }
   const key = nextDataserverKey(ctx)
   ctx.state.dataserverRequests.push({ key, source: 'notecard_text_count', args: [name, pattern], fulfilled: true })

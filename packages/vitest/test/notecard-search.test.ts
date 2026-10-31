@@ -217,6 +217,27 @@ describe('llFindNotecardTextSync', () => {
     expect(await sync('a\\e', 0, 0, ['a\x1b'])).toEqual([0, 0, 2])
   })
 
+  // In-world (Aditi, SLua Tideland, 2026-10-31): "l|ll" and "ll|l" -> [0,2,2, 0,9,1, 1,2,2, 1,14,2];
+  // "hel|hello" and "hello|hel" -> [1,0,5, 1,12,5]; "(l|ll)o" -> [0,2,3, 1,2,3, 1,14,3];
+  // "o|o w" -> [0,4,3, 0,7,1, 1,4,1, 1,16,1]; Count "l|ll" -> 4.
+  it('takes the longest match at each start, whatever order the alternatives are in', async () => {
+    expect(await sync('l|ll')).toEqual([0, 2, 2, 0, 9, 1, 1, 2, 2, 1, 14, 2])
+    expect(await sync('ll|l')).toEqual([0, 2, 2, 0, 9, 1, 1, 2, 2, 1, 14, 2])
+    expect(await sync('hel|hello')).toEqual([1, 0, 5, 1, 12, 5])
+    expect(await sync('hello|hel')).toEqual([1, 0, 5, 1, 12, 5])
+    expect(await sync('(l|ll)o')).toEqual([0, 2, 3, 1, 2, 3, 1, 14, 3])
+    expect(await sync('o|o w')).toEqual([0, 4, 3, 0, 7, 1, 1, 4, 1, 1, 16, 1])
+    expect((await count('l|ll')).data).toBe('4')
+  })
+
+  it('locates every match on a long line without slowing down', async () => {
+    const started = Date.now()
+    const r = await sync('.', 0, 100000, ['x'.repeat(65536)])
+    expect(r.length).toBe(65536 * 3)
+    expect(r.slice(-3)).toEqual([0, 65535, 1])
+    expect(Date.now() - started).toBeLessThan(5000)
+  })
+
   // In-world (Aditi, SLua Tideland, 2026-10-31): "l\\Q\\E+" -> [0,2,2, 0,9,1, 1,2,2, 1,14,2];
   // "\\Q\\Ea" -> the matches of "a".
   it('lets a quantifier after an empty \\Q\\E repeat what came before it', async () => {
