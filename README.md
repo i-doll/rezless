@@ -266,7 +266,7 @@ four-hour day offset by 57600 s), and `sunRotation` and `moonRotation`, each a
 rotation or a function of the fraction of the day gone (default a morning
 sun with the moon opposite), `ground` (a height, or a function giving the
 height at each whole-metre grid point from -1 to 256; default 22 m), `water` (default 20 m) and
-`wind` (a vector, or a function of x and y). `llEdgeOfWorld` treats the world's other regions as
+`wind` (a vector, or a function of x and y) and `scriptDanger` (a boolean, or a function of x and y; default false). `llEdgeOfWorld` treats the world's other regions as
 the neighbours. A linkset outside a world is alone in a region named
 `Rezless`.
 
@@ -301,7 +301,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
 * **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
-* **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`
+* **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
 * **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatars aren't modelled yet, so their keys read like unknown keys), `llGetObjectPermMask`
 * **environment**: `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
 * **ground, water and wind**: `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings

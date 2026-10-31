@@ -46,6 +46,8 @@ export interface RegionSettings {
   readonly water?: number
   /** Wind velocity, read by llWind: one vector, or a function of region x and y. Default a measured breeze held fixed. */
   readonly wind?: Vector | ((x: number, y: number) => Vector)
+  /** llScriptDanger: one answer for the whole region, or a function of region x and y from 0 to 256. Default false. */
+  readonly scriptDanger?: boolean | ((x: number, y: number) => boolean)
 }
 
 /**
