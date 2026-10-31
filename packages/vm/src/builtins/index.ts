@@ -1,3 +1,4 @@
+import { llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia } from './media.js'
 import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
 import {
   llPlaySound,
@@ -399,6 +400,7 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
   llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
   llAdjustDamage,
