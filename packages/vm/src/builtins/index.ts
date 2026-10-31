@@ -1,3 +1,4 @@
+import { llParticleSystem, llLinkParticleSystem } from './particles.js'
 import { llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia } from './media.js'
 import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
 import {
@@ -400,6 +401,7 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llParticleSystem, llLinkParticleSystem,
   llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
   llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
