@@ -71,7 +71,7 @@ const BASE64_ALPHABET =
  * 'base64')` is more lenient (skips spaces, accepts `-` `_`), so it can't be
  * used here.
  */
-function decodeBase64Strict(s: string): Uint8Array {
+export function decodeBase64Strict(s: string): Uint8Array {
   const bytes: number[] = []
   let bits = 0
   let nbits = 0

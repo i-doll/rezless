@@ -186,6 +186,7 @@ import {
   llDetectedDamage,
 } from './detected.js'
 import { llMD5String, llSHA1String, llSHA256String, llHMAC, llComputeHash } from './hash.js'
+import { llSignRSA, llVerifyRSA } from './rsa.js'
 import {
   llStringToBase64,
   llBase64ToString,
@@ -486,6 +487,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llSHA256String,
   llHMAC,
   llComputeHash,
+  // rsa
+  llSignRSA,
+  llVerifyRSA,
   // base64
   llStringToBase64,
   llBase64ToString,
