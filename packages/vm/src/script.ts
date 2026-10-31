@@ -9,6 +9,8 @@ import type {
 import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity, Suspension } from './runtime.js'
 import type { HttpRequestEntry, IncomingHttpInit, IncomingHttpRequest } from './builtins/http.js'
 import { sendIncomingHttp } from './builtins/http.js'
+import type { IncomingEmail, IncomingEmailInit, SentEmail, SentTargetedEmail } from './builtins/email.js'
+import { deliverEmail, emailQueue } from './builtins/email.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
@@ -211,6 +213,8 @@ export class Script {
       urlCounter: 0,
       incomingHttp: [],
       httpInCounter: 0,
+      emails: [],
+      targetedEmails: [],
       listens: [],
       listenHandleCounter: 0,
       random: new Mulberry32(options.randomSeed ?? 1),
@@ -374,6 +378,30 @@ export class Script {
    */
   sendHttpRequest(url: string, init: IncomingHttpInit = {}): IncomingHttpRequest {
     return sendIncomingHttp(this, this.state, url, init)
+  }
+
+  /** Mail the script sent with llEmail, oldest first. */
+  get emails(): ReadonlyArray<SentEmail> {
+    return this.state.emails
+  }
+
+  /** Mail the script sent with llTargetedEmail, oldest first. */
+  get targetedEmails(): ReadonlyArray<SentTargetedEmail> {
+    return this.state.targetedEmails
+  }
+
+  /** Mail queued on the script's prim, oldest first, waiting for llGetNextEmail. */
+  get inbox(): ReadonlyArray<IncomingEmail> {
+    return emailQueue(this.host)
+  }
+
+  /**
+   * Queue mail on the script's prim. It fires `email` only when a script in
+   * the prim asks for it with llGetNextEmail. Returns false, queuing
+   * nothing, when the prim already holds 101 mails.
+   */
+  deliverEmail(init: IncomingEmailInit): boolean {
+    return deliverEmail(this, init)
   }
 
   /** Currently active listen registrations (from `llListen`). */
