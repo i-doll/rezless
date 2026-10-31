@@ -30,7 +30,7 @@ export interface DetectedEntry {
   /** Who rezzed the detected object. Defaults to `owner`, then `key`. */
   readonly rezzer?: string
   /** What `on_damage` / `final_damage` read. `original` defaults to `amount`. */
-  readonly damage?: { readonly amount: number; readonly type: number; readonly original?: number }
+  readonly damage?: { amount: number; readonly type: number; readonly original?: number }
 }
 
 /**
@@ -38,6 +38,7 @@ export interface DetectedEntry {
  * a touch / sensor / collision handler and clears it on return.
  */
 export interface DetectedContext {
+  readonly event?: string
   readonly entries: ReadonlyArray<DetectedEntry>
 }
 

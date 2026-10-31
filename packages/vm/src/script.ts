@@ -1,3 +1,10 @@
+import {
+  enterDamageEvent,
+  leaveDamageEvent,
+  cancelledDamageEvent,
+  combatAvatars,
+  type CombatAvatar,
+} from './builtins/damage.js'
 import type {
   Script as Ast,
   EventHandler,
@@ -280,6 +287,11 @@ export class Script {
     if (!host.scripts.includes(this)) {
       host.addScript(this)
     }
+  }
+
+  /** Configure an avatar's combat health, parcel and attachment scripts. */
+  setCombatAvatar(id: string, avatar: CombatAvatar): void {
+    combatAvatars(this).set(id.toLowerCase(), { ...avatar, region: this.linkset.region })
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
@@ -848,6 +860,7 @@ export class Script {
    * (scheduled by `llResetOtherScript`).
    */
   deliver(event: string, payload: Record<string, unknown>): void {
+    if (cancelledDamageEvent(payload)) return
     if (this.state.lifecycle.dead) return
     if (event === '__reset') {
       this.restart()
@@ -924,9 +937,12 @@ export class Script {
     args: ReadonlyArray<EvalResult>,
     payload: Record<string, unknown>,
   ): Generator<Suspension, boolean, unknown> {
+    enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
-    if (pushed) this.state.detectedStack.push({ entries: detected as ReadonlyArray<DetectedEntry> })
+    if (pushed) this.state.detectedStack.push({
+      entries: detected as ReadonlyArray<DetectedEntry>, event: handler.name,
+    })
     try {
       this.state.memory.startEvent()
       return yield* this.runHandlerChain(handler, args)
@@ -935,6 +951,7 @@ export class Script {
       throw e
     } finally {
       if (pushed) this.state.detectedStack.pop()
+      leaveDamageEvent(payload)
     }
   }
 
