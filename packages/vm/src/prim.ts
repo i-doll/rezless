@@ -35,6 +35,9 @@ export interface PrimSoundState {
   preloads: string[]
 }
 
+/** Media values indexed by PRIM_MEDIA_* parameter, for one face. */
+export type PrimMediaParams = ReadonlyArray<number | string>
+
 export interface PrimOptions {
   /** The prim's key. Defaults to a distinct key, so other scripts can look the prim up. */
   readonly key?: string
@@ -75,6 +78,8 @@ export class Prim {
   payPrice: { price: number; buttons: LslValue[] } | null = null
   /** UUIDs of the object animations this prim's scripts started. */
   readonly objectAnimations = new Set<string>()
+  /** Shared media state per face; absent entries have no media. */
+  readonly media = new Map<number, PrimMediaParams>()
 
   /** Last attached request and one-shot history, shared by this prim's scripts. */
   readonly sound: PrimSoundState = {

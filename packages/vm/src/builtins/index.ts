@@ -1,5 +1,6 @@
 import { llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop } from './give.js'
 import { llLoadURL, llMapDestination, llMapBeacon, llOpenFloater } from './viewer.js'
+import { llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia } from './media.js'
 import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
 import {
   llPlaySound,
@@ -403,6 +404,7 @@ import {
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,
   llLoadURL, llMapDestination, llMapBeacon, llOpenFloater,
+  llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
   llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
   llAdjustDamage,
