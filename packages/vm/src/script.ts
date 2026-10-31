@@ -653,7 +653,7 @@ export class Script {
 
   /** Override whether an avatar is present in this region, for every script sharing it. */
   setAgentInRegion(agent: string, present = true): void {
-    this.state.agentPresence.set(agent, present)
+    this.state.agentPresence.set(agent.toLowerCase(), present)
   }
 
   /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */

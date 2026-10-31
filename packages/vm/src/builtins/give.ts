@@ -1,5 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
+import { InventoryType } from '../inventory.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
@@ -24,6 +25,7 @@ const allowedDrop = new WeakSet<Prim>()
 
 /** Foreign-owned prims must explicitly permit inventory drops. */
 export const llAllowInventoryDrop: BuiltinImpl = (ctx, args) => {
+  if (ctx.prim !== ctx.linkset.prims[0]) return undefined
   if (args[0]) allowedDrop.add(ctx.prim)
   else allowedDrop.delete(ctx.prim)
   return undefined
@@ -41,10 +43,15 @@ function snapshot(item: InventoryItem, foreign: boolean): InventoryItem {
 }
 
 function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string, items: InventoryItem[], prim: Prim | undefined, folder: string | null, rootPath: string[] = []): void {
-  const foreign = (prim?.linkset?.owner ?? target) !== ctx.linkset.owner
-  if (prim && foreign && !allowedDrop.has(prim)) {
+  const foreign = (prim?.linkset?.owner ?? target).toLowerCase() !== ctx.linkset.owner.toLowerCase()
+  if (prim && foreign && !allowedDrop.has(prim.linkset!.prims[0]!)) {
     sayError(ctx, "Unable to give inventory: 'Blocked by permissions'.")
     return
+  }
+  if (prim && foreign && items.some(i => i.type === InventoryType.SCRIPT)) {
+    sayError(ctx, "Unable to give inventory: 'Blocked by permissions'.")
+    items = items.filter(i => i.type !== InventoryType.SCRIPT)
+    if (!items.length) return
   }
   const copies = items.map(i => snapshot(i, foreign))
   if (prim) {
@@ -64,7 +71,7 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
 }
 
 export const llGiveInventory: BuiltinImpl = (ctx, args) => {
-  const target = args[0] as string
+  const target = (args[0] as string).toLowerCase()
   const name = args[1] as string
   const item = ctx.prim.inventory.find(i => i.name === name)
   if (!item) {
@@ -74,7 +81,7 @@ export const llGiveInventory: BuiltinImpl = (ctx, args) => {
   if (!isKey(target) || target === NULL_KEY) return undefined
   const prim = findPrim(ctx, target)
   if (prim && prim.linkset!.region !== ctx.linkset.region) return undefined
-  const foreign = (prim?.linkset?.owner ?? target) !== ctx.linkset.owner
+  const foreign = (prim?.linkset?.owner ?? target).toLowerCase() !== ctx.linkset.owner.toLowerCase()
   if (foreign && !(item.permMask.owner & PERM_TRANSFER)) {
     sayError(ctx, "Unable to give inventory: 'Permissions do not allow transfer'.")
     return undefined
@@ -95,13 +102,13 @@ function listItems(ctx: CallContext, values: ReadonlyArray<LslValue>, foreign: b
 }
 
 export const llGiveInventoryList: BuiltinImpl = (ctx, args) => {
-  const target = args[0] as string
+  const target = (args[0] as string).toLowerCase()
   const prim = findPrim(ctx, target)
   if (prim ? prim.linkset!.region !== ctx.linkset.region : !isAgentInRegion(ctx, target)) {
     sayError(ctx, 'Unable to give inventory list: Cannot find destination')
     return undefined
   }
-  const foreign = (prim?.linkset?.owner ?? target) !== ctx.linkset.owner
+  const foreign = (prim?.linkset?.owner ?? target).toLowerCase() !== ctx.linkset.owner.toLowerCase()
   const items = listItems(ctx, args[2] as ReadonlyArray<LslValue>, foreign)
   if (!items.length) sayError(ctx, 'Unable to give inventory list: No items passed filter')
   else deliver(ctx, 'inventoryList', target, items, prim, (args[1] as string) || 'New Inventory')
@@ -112,12 +119,14 @@ function rootPath(options: ReadonlyArray<LslValue>): string[] | number {
   let path: string[] = []
   for (let i = 0; i < options.length; i += 2) {
     const rule = options[i]
+    const ruleType = listElementType(options, i)
+    if (typeof rule !== 'number' || !Number.isInteger(rule) || (ruleType !== undefined && ruleType !== 'integer')) return -1
     const value = options[i + 1]
     const type = listElementType(options, i + 1)
     if (rule === TRANSFER_DEST) {
       if (typeof value !== 'string' || (type !== undefined && type !== 'string')) return -1
       path = value.split('|').filter(Boolean)
-      if (path.length > 4 || path[0] === 'Trash') return -5
+      if (path.length > 4 || path.some(p => ['trash', 'lost and found', 'current outfit', 'inbox', 'outbox'].includes(p.trim().toLowerCase()))) return -5
     } else if (rule === TRANSFER_FLAGS) {
       if (typeof value !== 'number' || !Number.isInteger(value) || (type !== undefined && type !== 'integer')) return -1
     } else return -1
@@ -128,9 +137,9 @@ function rootPath(options: ReadonlyArray<LslValue>): string[] | number {
 export const llGiveAgentInventory: BuiltinImpl = (ctx, args) => {
   const path = rootPath(args[3] as ReadonlyArray<LslValue>)
   if (typeof path === 'number') return path
-  const target = args[0] as string
+  const target = (args[0] as string).toLowerCase()
   if (findPrim(ctx, target) || !isAgentInRegion(ctx, target)) return -2
-  const items = listItems(ctx, args[2] as ReadonlyArray<LslValue>, target !== ctx.linkset.owner)
+  const items = listItems(ctx, args[2] as ReadonlyArray<LslValue>, target !== ctx.linkset.owner.toLowerCase())
   if (!items.length) return -4
   deliver(ctx, 'agentInventory', target, items, undefined, (args[1] as string) || 'New Inventory', path)
   return 0

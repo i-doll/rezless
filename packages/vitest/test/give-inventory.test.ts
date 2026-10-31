@@ -211,3 +211,72 @@ it('does not mutate the offer history when the recipient edits an item', async (
   s.host.inventory.find(i => i.name === 'gift')!.description = 'changed'
   expect(s.inventoryOffers[0]!.items[0]).toMatchObject({ name: 'gift', description: '' })
 })
+
+it.each([
+  ['[0.0, "root"]', -1],
+  ['[TRANSFER_FLAGS, 1.0]', -1],
+  ['[TRANSFER_DEST, "trash"]', -5],
+  ['[TRANSFER_DEST, " trash "]', -5],
+  ['[TRANSFER_DEST, "root|Trash"]', -5],
+  ['[TRANSFER_DEST, "Lost And Found"]', -5],
+  ['[TRANSFER_DEST, "Current Outfit"]', -5],
+  ['[TRANSFER_DEST, "Current Outfit|child"]', -5],
+  ['[TRANSFER_DEST, "Inbox"]', -5],
+  ['[TRANSFER_DEST, "Outbox"]', -5],
+  ['[TRANSFER_DEST, "Objects"]', 0],
+  ['[TRANSFER_DEST, "Outfits"]', 0],
+  ['[TRANSFER_DEST, "||"]', 0],
+  ['[TRANSFER_DEST, "a|b|c|d", TRANSFER_DEST, ""]', 0],
+])('validates measured root/options boundary %s -> %i', async (options, expected) => {
+  // In-world: validation.lsl / rootcase.lsl -> these codes, Aditi, SLua Tideland, 2026-10-31.
+  const s = await load(`result = llGiveAgentInventory(llGetOwner(), "folder", ["gift"], ${options});`)
+  expect(s.global('result')).toBe(expected)
+  expect(errors(s)).toEqual([])
+  expect(s.inventoryOffers).toHaveLength(expected === 0 ? 1 : 0)
+})
+
+it.each(['single', 'list'])('rejects %s script delivery to a foreign prim even with inventory drop enabled', async kind => {
+  // https://wiki.secondlife.com/wiki/LlAllowInventoryDrop#Caveats
+  // Needs a second avatar to measure a destination without modify rights.
+  const { s, receiver } = await pair(true, true)
+  s.host.addInventory(gift({ name: 'script', type: InventoryType.SCRIPT, permMask: perms(PERM_ALL & ~PERM_COPY) }))
+  s.host.addInventory(gift({ name: 'copy-script', type: InventoryType.SCRIPT }))
+  const call = kind === 'single' ? `llGiveInventory("${TARGET}", "script")` : `llGiveInventoryList("${TARGET}", "folder", ["gift", "copy-script"])`
+  const giver = await loadScript({ host: s.host, scriptName: 'script-giver', source: `default { state_entry() { ${call}; } }` })
+  giver.start()
+  expect(receiver.prims[0]!.inventory.filter(i => i.name === 'script' || i.name === 'copy-script')).toEqual([])
+  expect(s.host.inventory.map(i => i.name)).toContain('script')
+  if (kind === 'single') expect(giver.inventoryOffers).toEqual([])
+  else expect(giver.inventoryOffers[0]!.items.map(i => i.name)).toEqual(['gift'])
+})
+
+it('treats an uppercase owner UUID as the same no-transfer recipient', async () => {
+  // In-world: review-upper.lsl -> uppercase owner URL/list offers succeed, no error (Aditi, SLua Tideland, 2026-10-31).
+  const s = await load('llGiveInventory((key)llToUpper((string)llGetOwner()), "gift");', [gift({ permMask: perms(PERM_ALL & ~PERM_TRANSFER) })])
+  expect(s.inventoryOffers).toHaveLength(1)
+  expect(errors(s)).toEqual([])
+})
+
+it('only lets the root change the linkset inventory-drop setting', async () => {
+  // llAllowInventoryDrop wiki caveat: child calls fail silently. Foreign receipt needs another avatar to measure.
+  const world = new World(); world.addRegion('test', { x: 0, y: 0 })
+  const recipient = await loadLinkset({ owner: OTHER, world, region: 'test', prims: [
+    { scripts: [{ name: 'root', source: { source: 'default { touch_start(integer n) { llAllowInventoryDrop(TRUE); } }' } }] },
+    { key: TARGET, scripts: [{ name: 'child', source: { source: 'default { state_entry() { llAllowInventoryDrop(TRUE); } }' } }] },
+  ] })
+  recipient.scripts.child!.start()
+  const giver = await loadLinkset({ owner: OWNER, world, region: 'test', prims: [{ inventory: [gift()], scripts: [{ name: 'giver', source: { source: `default { touch_start(integer n) { llGiveInventory("${TARGET}", "gift"); } }` } }] }] })
+  const s = giver.scripts.giver!
+  s.linkset.touch(0)
+  expect(recipient.prims[1]!.inventory.map(i => i.name)).not.toContain('gift')
+  recipient.linkset.touch(1)
+  s.linkset.touch(0)
+  expect(recipient.prims[1]!.inventory.map(i => i.name)).toContain('gift')
+})
+
+it.each(['llGiveInventoryList', 'llGiveAgentInventory'])('%s accepts an uppercase spelling of the owner key', async fn => {
+  // In-world: review-upper.lsl -> both uppercase list destinations succeed (Aditi, SLua Tideland, 2026-10-31). Actual no-transfer owner masks need another avatar.
+  const s = await load(`${fn}((key)llToUpper((string)llGetOwner()), "folder", ["gift"]${fn === 'llGiveAgentInventory' ? ', []' : ''});`, [gift({ permMask: perms(PERM_ALL & ~PERM_TRANSFER) })])
+  expect(s.inventoryOffers).toHaveLength(1)
+  expect(errors(s)).toEqual([])
+})

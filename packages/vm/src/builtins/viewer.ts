@@ -24,13 +24,14 @@ export function agentPresence(linkset: Linkset): Map<string, boolean> {
 }
 
 export function isAgentInRegion(ctx: CallContext, agent: string): boolean {
+  agent = agent.toLowerCase()
   if (agent === NULL_KEY || !isKey(agent)) return false
   const explicit = ctx.state.agentPresence.get(agent)
   if (explicit !== undefined) return explicit
   const avatar = ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === agent.toLowerCase())
   if (avatar) return avatar.region === ctx.linkset.region
-  if (agent === ctx.linkset.owner) return true
-  return ctx.state.detectedStack.at(-1)?.entries.some(e => e.key === agent && ((e.type ?? 1) & 1) !== 0) ?? false
+  if (agent === ctx.linkset.owner.toLowerCase()) return true
+  return ctx.state.detectedStack.at(-1)?.entries.some(e => e.key.toLowerCase() === agent && ((e.type ?? 1) & 1) !== 0) ?? false
 }
 
 export function isKey(key: string): boolean {
@@ -38,7 +39,7 @@ export function isKey(key: string): boolean {
 }
 
 export const llLoadURL: BuiltinImpl = (ctx, args) => {
-  const agent = args[0] as string
+  const agent = (args[0] as string).toLowerCase()
   const message = truncateUtf8(args[1] as string, 255)
   const url = truncateUtf8(args[2] as string, 255)
   if (!isAgentInRegion(ctx, agent)) sayError(ctx, 'llLoadURL - cannot find avatar')
@@ -49,7 +50,7 @@ export const llLoadURL: BuiltinImpl = (ctx, args) => {
 
 function mapAgent(ctx: CallContext): string {
   const detected = ctx.state.detectedStack.at(-1)
-  return detected?.event?.startsWith('touch') ? (detected.entries[0]?.key ?? ctx.linkset.owner) : ctx.linkset.owner
+  return (detected?.event?.startsWith('touch') ? (detected.entries[0]?.key ?? ctx.linkset.owner) : ctx.linkset.owner).toLowerCase()
 }
 
 export const llMapDestination: BuiltinImpl = (ctx, args) => {

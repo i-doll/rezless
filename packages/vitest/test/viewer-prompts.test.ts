@@ -145,10 +145,31 @@ it('uses World avatar locations and shares presence overrides between scripts', 
   avatar.region = 'away'
   s.linkset.touch(0)
   expect(s.viewerRequests).toHaveLength(1)
+  // In-world: away.lsl still addressed the owner 25 s after an adjacent-region teleport.
+  // Explicit presence models child/recent presence; automatic retention is not simulated.
   sibling.setAgentInRegion(owner, true)
   s.linkset.touch(0)
   expect(s.viewerRequests).toHaveLength(2)
   sibling.setAgentInRegion(owner, false)
   s.linkset.touch(0)
   expect(s.viewerRequests).toHaveLength(2)
+})
+
+it('recognizes uppercase UUIDs in the owner, detected context and presence overrides', async () => {
+  // In-world: review-upper.lsl -> uppercase owner URL/list offers succeed, no error (Aditi, SLua Tideland, 2026-10-31).
+  const owner = '00000000-0000-0000-0000-00000000000a'
+  const other = '00000000-0000-0000-0000-00000000000b'
+  const s = await loadScript({ owner, source: `default { touch_start(integer n) {
+    llLoadURL((key)llToUpper((string)llGetOwner()), "m", "https://example.com");
+    llLoadURL("${other.toUpperCase()}", "m", "https://example.com");
+  } }` })
+  s.linkset.touch(0, { avatar: { key: other, name: 'Other' } })
+  expect(s.viewerRequests).toHaveLength(2)
+  s.setAgentInRegion(owner.toUpperCase(), false)
+  s.setAgentInRegion(other.toUpperCase(), false)
+  s.linkset.touch(0)
+  expect(s.viewerRequests).toHaveLength(2)
+  s.setAgentInRegion(owner.toUpperCase(), true)
+  s.linkset.touch(0)
+  expect(s.viewerRequests).toHaveLength(3)
 })
