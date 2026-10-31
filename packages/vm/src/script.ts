@@ -17,6 +17,9 @@ import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import type { PermissionRequestEntry } from './builtins/permissions.js'
 import type { DialogEntry } from './builtins/dialog.js'
+import type { TakenControls } from './builtins/controls.js'
+import type { Camera } from './builtins/camera.js'
+import { defaultCamera } from './builtins/camera.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
@@ -222,6 +225,9 @@ export class Script {
       linksetData: this.linkset.linksetData,
       appearance: this.host.appearance,
       permissions: { granted: 0, agent: NULL_KEY, requests: [] },
+      controls: { taken: null, level: 0 },
+      camera: defaultCamera(),
+      cameraParams: new Map(),
       dialogs: [],
       lifecycle: {
         dead: false,
@@ -443,6 +449,46 @@ export class Script {
   /** Answer the most recent unanswered permission request with No. */
   denyPermissions(): void {
     this.grantPermissions(0)
+  }
+
+  /** Controls taken with llTakeControls, or null when none are. */
+  get controls(): TakenControls | null {
+    return this.state.controls.taken
+  }
+
+  /**
+   * Have the permission agent hold exactly the controls in `level` (CONTROL_*
+   * bits; 0 lets go of all). Fires `control` with the held and just-changed
+   * bits among those taken, if the script took controls with accept TRUE and
+   * any of them is held or changed.
+   */
+  sendControl(level: number): void {
+    const edge = level ^ this.state.controls.level
+    this.state.controls.level = level
+    const taken = this.state.controls.taken
+    if (!taken?.accept) return
+    const held = level & taken.controls
+    const changed = edge & taken.controls
+    if (held === 0 && changed === 0) return
+    const started = this.handles('control') ? [this] : []
+    this.clockView.schedule(this.now, 'control', { id: this.state.permissions.agent, level: held, edge: changed })
+    this.linkset.settle(started)
+  }
+
+  /** Set the permission agent's camera that llGetCameraPos / Rot / FOV / Aspect report. */
+  setCamera(camera: Partial<Camera>): void {
+    const { pos, rot: r, fov, aspect } = { ...this.state.camera, ...camera }
+    this.state.camera = {
+      pos: vec(pos.x, pos.y, pos.z),
+      rot: rot(r.x, r.y, r.z, r.s),
+      fov: Math.fround(fov),
+      aspect: Math.fround(aspect),
+    }
+  }
+
+  /** Camera rules set with llSetCameraParams, by rule. */
+  get cameraParams(): ReadonlyMap<number, LslValue> {
+    return this.state.cameraParams
   }
 
   /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */
@@ -682,6 +728,7 @@ export class Script {
     this.state.permissions.granted = 0
     this.state.permissions.agent = NULL_KEY
     for (const r of this.state.permissions.requests) r.answered = true
+    this.state.controls.taken = null
     this.clockView.cancelTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0

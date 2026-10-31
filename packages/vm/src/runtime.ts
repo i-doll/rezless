@@ -100,6 +100,15 @@ export interface ScriptState {
     agent: string
     readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
   }
+  /** Controls taken with llTakeControls, and the control levels last sent by the test. */
+  readonly controls: {
+    taken: import('./builtins/controls.js').TakenControls | null
+    level: number
+  }
+  /** The permission agent's camera, set by the test and read by llGetCamera*. */
+  camera: import('./builtins/camera.js').Camera
+  /** Camera rules set with llSetCameraParams, by rule. */
+  readonly cameraParams: Map<number, LslValue>
   /** Dialogs and text boxes shown with llDialog / llTextBox, oldest first. */
   readonly dialogs: import('./builtins/dialog.js').DialogEntry[]
   /**

@@ -122,6 +122,8 @@ s.respondToLastDataserver(value)                // same, for the most recent
 s.grantPermissions(perms?)                      // answer the latest llRequestPermissions; fires `run_time_permissions`
 s.denyPermissions()                             // answer it with No
 s.answerDialog(text, { name? })                 // answer the latest llDialog / llTextBox as its avatar; fires `listen`
+s.sendControl(level)                            // the permission agent holds exactly these CONTROL_* bits; fires `control`
+s.setCamera({ pos?, rot?, fov?, aspect? })      // set the camera llGetCameraPos / Rot / FOV / Aspect report
 s.mock(name, impl)                              // override any ll* function (real or stubbed) per-test
 s.reset()                                       // re-init globals + return to default + state_entry
 
@@ -140,6 +142,8 @@ s.urls                                          // URLs the script holds from ll
 s.dataserverRequests                            // [{ key, source, args, fulfilled }]
 s.permissionRequests                            // [{ agent, permissions, answered }]
 s.dialogs                                       // [{ kind, agent, message, buttons, channel, objectKey, answered }]
+s.controls                                      // llTakeControls arguments: { controls, accept, passOn } or null
+s.cameraParams                                  // ReadonlyMap of llSetCameraParams rule -> value
 s.listens                                       // [{ handle, channel, name, key, message, active }]
 s.linkedMessages                                // [{ target, num, str, id }] sent by THIS script
 s.clearLinkedMessages()                         // drop captured llMessageLinked entries
@@ -305,6 +309,8 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llSetTouchText`, `llSetSitText`, `llSetPayPrice` (stored on the prim for tests to read), `llDie` (kills every script in the linkset), `llResetScript`
 * **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; `llRemoveInventory` (a script that removes itself halts at once)
 * **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`
+* **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
+* **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` (zero values without `PERMISSION_TRACK_CAMERA`; set them with `s.setCamera`), `llSetCameraParams`, `llClearCameraParams` (rules recorded in `s.cameraParams`)
 * **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.
 * **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
 * **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
