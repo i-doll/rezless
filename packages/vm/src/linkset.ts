@@ -84,6 +84,8 @@ export class Linkset {
     this.linkedMessages.length = 0
   }
   readonly owner: string
+  /** True once a script in the linkset has called llDie. */
+  dead = false
   readonly world?: World
   readonly region: string | undefined
   readonly startParameter: number
@@ -107,6 +109,7 @@ export class Linkset {
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */
   addPrim(prim: Prim): Prim {
     prim.linkset = this
+    prim.createdAt = this.clock.now
     this.prims.push(prim)
     this.recomputeLinkNumbers()
     return prim

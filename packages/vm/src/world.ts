@@ -25,6 +25,10 @@ export interface RegionSettings {
   readonly simStats?: Readonly<Record<number, number>>
   /** llGetEnv values by name, over the defaults. */
   readonly env?: Readonly<Record<string, string>>
+  /** Seconds in the region's day cycle, read by llGetRegionDayLength and llGetDayLength. Default 14400. */
+  readonly dayLength?: number
+  /** Seconds added to Unix time before finding the time of day. Default 57600. */
+  readonly dayOffset?: number
 }
 
 export interface Region extends RegionSettings {

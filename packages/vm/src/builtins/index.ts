@@ -35,6 +35,22 @@ import {
   llEdgeOfWorld,
 } from './region.js'
 import {
+  llKey2Name,
+  llGetObjectDetails,
+  llGetObjectLinkKey,
+  llGetObjectMass,
+  llGetObjectPrimCount,
+  llGetBoundingBox,
+  llGetGeometricCenter,
+} from './object-reads.js'
+import {
+  llGetDayLength,
+  llGetDayOffset,
+  llGetRegionDayLength,
+  llGetRegionDayOffset,
+  llGetRegionTimeOfDay,
+} from './environment.js'
+import {
   llHTTPRequest,
   llHTTPResponse,
   llRequestURL,
@@ -179,6 +195,7 @@ import {
   llDetectedDamage,
 } from './detected.js'
 import { llMD5String, llSHA1String, llSHA256String, llHMAC, llComputeHash } from './hash.js'
+import { llSignRSA, llVerifyRSA } from './rsa.js'
 import {
   llStringToBase64,
   llBase64ToString,
@@ -334,6 +351,20 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetEnv,
   llGetSimulatorHostname,
   llEdgeOfWorld,
+  // object reads
+  llKey2Name,
+  llGetObjectDetails,
+  llGetObjectLinkKey,
+  llGetObjectMass,
+  llGetObjectPrimCount,
+  llGetBoundingBox,
+  llGetGeometricCenter,
+  // environment
+  llGetDayLength,
+  llGetDayOffset,
+  llGetRegionDayLength,
+  llGetRegionDayOffset,
+  llGetRegionTimeOfDay,
   llHTTPRequest,
   llHTTPResponse,
   llRequestURL,
@@ -471,6 +502,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llSHA256String,
   llHMAC,
   llComputeHash,
+  // rsa
+  llSignRSA,
+  llVerifyRSA,
   // base64
   llStringToBase64,
   llBase64ToString,

@@ -501,6 +501,11 @@ export class Script {
     }
   }
 
+  /** The script's memory limit in bytes, as llGetMemoryLimit reads it. */
+  get memoryLimit(): number {
+    return this.state.memory.limit
+  }
+
   /** True once `llDie()` has been called. Subsequent fire() calls are no-ops. */
   get dead(): boolean {
     return this.state.lifecycle.dead

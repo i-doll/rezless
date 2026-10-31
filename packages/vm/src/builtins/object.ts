@@ -41,6 +41,7 @@ export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.prim.description
  * once its next builtin call returns or at its next loop iteration.
  */
 export const llDie: BuiltinImpl = (ctx) => {
+  ctx.linkset.dead = true
   for (const s of ctx.linkset.allScripts()) {
     s.markDead()
   }
