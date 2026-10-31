@@ -18,6 +18,9 @@ import {
   llGetTimestamp,
   llGetDate,
   llGetRegionTimeDilation,
+  llGetGMTclock,
+  llGetWallclock,
+  llGetTimeOfDay,
 } from './time.js'
 import {
   llGetRegionName,
@@ -304,6 +307,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetTimestamp,
   llGetDate,
   llGetRegionTimeDilation,
+  llGetGMTclock,
+  llGetWallclock,
+  llGetTimeOfDay,
   // region
   llGetRegionName,
   llGetRegionCorner,

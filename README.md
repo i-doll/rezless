@@ -275,7 +275,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
 * **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
-* **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate` (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0)
+* **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (the default four-hour day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0)
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llEdgeOfWorld`
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
