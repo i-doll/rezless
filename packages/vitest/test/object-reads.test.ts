@@ -552,3 +552,28 @@ describe('looking up objects', () => {
     expect(scripts.probe!.global('out')).toEqual(['Bee', 1, '', 0])
   })
 })
+
+describe('OBJECT_PERMS_COMBINED', () => {
+  // In-world, the two-prim box with full next-owner permissions: OBJECT_PERMS
+  // and OBJECT_PERMS_COMBINED both read next 581632. A notecard in the root
+  // whose next owner can't copy -> combined next 548864; another in the child
+  // whose next owner can't modify -> 532480. Root and child keys read the
+  // same, and OBJECT_PERMS stays 581632. The combined masks are the object's
+  // ANDed with each item's. Only next-owner masks were measured: i doll
+  // creates every item it holds, so it always has full owner rights, and
+  // testing a restricted owner mask needs an item from another avatar.
+  it("ANDs the object's masks with every item's in the linkset", async () => {
+    const noTransfer = makeInventoryItem({
+      name: 'kept',
+      type: InventoryType.NOTECARD,
+      permMask: { base: 2147483647, owner: 2147483647, group: 0, everyone: 0, next: 0x7fffffff & ~0x2000 },
+    })
+    const flags = '[OBJECT_PERMS, OBJECT_PERMS_COMBINED]'
+    expect(await probe(`out = llGetObjectDetails(ROOT, ${flags}) + llGetObjectDetails(CHILD, ${flags});`, '', { inventory: [noTransfer] })).toEqual([
+      ...PERMS,
+      2147483647, 2147483647, 0, 0, 524288,
+      ...PERMS,
+      2147483647, 2147483647, 0, 0, 524288,
+    ])
+  })
+})

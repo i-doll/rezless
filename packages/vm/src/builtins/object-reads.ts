@@ -233,7 +233,18 @@ export const llGetGeometricCenter: BuiltinImpl = (ctx) => {
 
 type Entry = readonly [LslValue, LslType]
 
-const PERMS: Entry[] = [PERM_ALL, PERM_ALL, 0, 0, PERM_MOVE | PERM_TRANSFER].map((m) => [m, 'integer'])
+/** The object's own base, owner, group, everyone and next-owner masks. */
+const PERMS = [PERM_ALL, PERM_ALL, 0, 0, PERM_MOVE | PERM_TRANSFER]
+
+/** The object's masks ANDed with those of every item in every prim's inventory. */
+function combinedPerms(prim: Prim): number[] {
+  return primsOf(prim)
+    .flatMap((p) => p.inventory)
+    .reduce(
+      (masks, { permMask: m }) => [masks[0]! & m.base, masks[1]! & m.owner, masks[2]! & m.group, masks[3]! & m.everyone, masks[4]! & m.next],
+      PERMS,
+    )
+}
 
 function regionRotation(prim: Prim): Rotation {
   const root = rootOf(prim)
@@ -349,8 +360,9 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
     case OBJECT_SCALE:
       return [[prim.params.size, 'vector']]
     case OBJECT_PERMS:
+      return PERMS.map((m) => [m, 'integer'])
     case OBJECT_PERMS_COMBINED:
-      return PERMS
+      return combinedPerms(prim).map((m) => [m, 'integer'])
     default:
       return undefined
   }
