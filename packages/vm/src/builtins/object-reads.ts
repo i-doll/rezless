@@ -37,6 +37,7 @@ import {
   OBJECT_OMEGA,
   OBJECT_OWNER,
   OBJECT_PATHFINDING_TYPE,
+  MASK_COMBINED,
   OBJECT_PERMS,
   OBJECT_PERMS_COMBINED,
   OBJECT_PHANTOM,
@@ -399,6 +400,17 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
  * the last entry so far into OBJECT_UNKNOWN_DETAIL. A key with no prim in
  * the region gives [].
  */
+/**
+ * llGetObjectPermMask(integer category) — one of the object's five masks,
+ * ANDed with its contents' masks when MASK_COMBINED is set. Only the low five
+ * bits of the category count.
+ */
+export const llGetObjectPermMask: BuiltinImpl = (ctx, args) => {
+  const category = (typeof args[0] === 'number' ? args[0] : 0) & 0x1f
+  const masks = category & MASK_COMBINED ? combinedPerms(ctx.prim) : PERMS
+  return masks[category & ~MASK_COMBINED] ?? 0
+}
+
 export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
   const prim = findObjectPrim(ctx, keyArg(args))
   if (!prim) return []

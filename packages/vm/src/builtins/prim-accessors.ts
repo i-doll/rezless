@@ -11,6 +11,8 @@ import {
   DENSITY,
   FRICTION,
   GRAVITY_MULTIPLIER,
+  LINK_ROOT,
+  LINK_THIS,
   PRIM_CLICK_ACTION,
   PRIM_OMEGA,
   PRIM_POSITION,
@@ -40,6 +42,11 @@ const hasFace = (prim: Prim, face: number): boolean => face >= 0 && face < prim.
 
 function targets(linkset: Linkset, sender: number, link: number): Prim[] {
   return linkset.resolveTargets(sender, link)
+}
+
+/** The one prim a link number names: LINK_THIS or a link number, never a multi-prim LINK_* flag. */
+function linkPrim(linkset: Linkset, sender: number, link: number): Prim | undefined {
+  return link < 0 && link !== LINK_THIS ? undefined : targets(linkset, sender, link)[0]
 }
 
 /* ------------------------------------------------------------------ */
@@ -106,6 +113,10 @@ export const llGetMaxScaleFactor: BuiltinImpl = (ctx) => {
 export const llGetMinScaleFactor: BuiltinImpl = (ctx) =>
   Math.max(...ctx.linkset.prims.map((p) => 0.01 / Math.min(p.params.size.x, p.params.size.y, p.params.size.z)))
 export const llGetNumberOfSides: BuiltinImpl = (ctx) => numberOfSides(ctx.prim.params.shape)
+export const llGetLinkNumberOfSides: BuiltinImpl = (ctx, args) => {
+  const prim = linkPrim(ctx.linkset, ctx.prim.linkNumber, num(args[0]) | 0)
+  return prim ? numberOfSides(prim.params.shape) : 0
+}
 
 /* ------------------------------------------------------------------ */
 /*  Color / alpha / texture                                            */
@@ -294,14 +305,27 @@ export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-export const llSetRenderMaterial: BuiltinImpl = (ctx, args) => {
-  const material = str(args[0])
-  const face = num(args[1], ALL_SIDES) | 0
-  const key = renderMaterialKey(ctx.prim, material)
-  if (key === null) sayError(ctx, `Could not find render material '${material}'.`)
-  ctx.prim.setPrimParam(PRIM_RENDER_MATERIAL, [face, key ?? NULL_KEY], 0)
+export const llSetLinkRenderMaterial: BuiltinImpl = (ctx, args) => {
+  const link = num(args[0]) | 0
+  const material = str(args[1])
+  const face = num(args[2], ALL_SIDES) | 0
+  const key = material === '' ? null : renderMaterialKey(ctx.prim, material)
+  if (key === null) {
+    sayError(ctx, `Could not find render material '${material}'.`)
+    return undefined
+  }
+  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) p.setPrimParam(PRIM_RENDER_MATERIAL, [face, key], 0)
   return undefined
 }
+export const llIsLinkGLTFMaterial: BuiltinImpl = (ctx, args) => {
+  const link = num(args[0]) | 0
+  const lone = ctx.linkset.prims.length === 1 && link === LINK_ROOT
+  const prim = linkPrim(ctx.linkset, ctx.prim.linkNumber, lone ? LINK_THIS : link)
+  const faces = prim ? faceIndices(prim.params, num(args[1]) | 0) : []
+  return faces.length > 0 && faces.every((f) => prim!.params.faces[f]!.renderMaterial !== NULL_KEY) ? 1 : 0
+}
+export const llSetRenderMaterial: BuiltinImpl = (ctx, args) =>
+  llSetLinkRenderMaterial(ctx, [LINK_THIS, args[0] ?? '', args[1] ?? ALL_SIDES])
 export const llGetRenderMaterial: BuiltinImpl = (ctx, args) => {
   const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return NULL_KEY
