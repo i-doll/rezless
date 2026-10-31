@@ -27,7 +27,6 @@ interface Delivery {
   readonly payload: Record<string, unknown>
   readonly complete: () => void
   active: boolean
-  cancelled: boolean
 }
 const deliveries = new WeakMap<LinksetClock, Set<Delivery>>()
 
@@ -43,9 +42,6 @@ export function leaveDamageEvent(payload: Record<string, unknown>): void {
   deliveries.get(delivery.script.linkset.clock)?.delete(delivery)
   delivery.complete()
 }
-export function cancelledDamageEvent(payload: Record<string, unknown>): boolean {
-  return (payload['__damageDelivery'] as Delivery | undefined)?.cancelled ?? false
-}
 
 /** Release a barrier when reset, state change, death or queue overflow drops its event. */
 export function flushDamageEvents(clock: LinksetClock): void {
@@ -53,8 +49,8 @@ export function flushDamageEvents(clock: LinksetClock): void {
   if (!pending?.size) return
   const queued = new Set(clock.pendingEvents().map((e) => e.payload))
   for (const delivery of [...pending]) {
-    if (delivery.active || queued.has(delivery.payload)) continue
-    delivery.cancelled = true
+    const parked = delivery.script.parkedEvents.some((event) => event.payload === delivery.payload)
+    if (!delivery.script.dead && (delivery.active || queued.has(delivery.payload) || parked)) continue
     pending.delete(delivery)
     delivery.complete()
   }
@@ -85,7 +81,6 @@ function dispatch(ctx: CallContext, scripts: readonly Script[], entry: DetectedE
       script: s,
       payload,
       active: false,
-      cancelled: false,
       complete: () => {
         if (--remaining === 0) notify()
       },
@@ -170,7 +165,17 @@ export const llDamage: BuiltinImpl = (ctx, args) => {
   // Object health belongs to its scripts. The simulator only changes avatar health.
   const scripts = prim ? prim.linkset!.allScripts() : avatar!.scripts ?? []
   dispatch(ctx, scripts, entry, () => {
-    if (!prim && avatar) avatar.health = Math.max(0, Math.min(100, avatar.health - entry.damage!.amount))
+    if (!prim && avatar) {
+      const before = avatar.health
+      avatar.health = Math.max(0, Math.min(100, avatar.health - entry.damage!.amount))
+      if (before > 0 && avatar.health === 0) {
+        for (const attachment of avatar.scripts ?? []) {
+          if (attachment.running && !attachment.dead && attachment.handles('on_death')) {
+            ctx.linkset.clock.schedule(attachment, ctx.linkset.clock.now, 'on_death')
+          }
+        }
+      }
+    }
   }, ownAttachment)
   return undefined
 }

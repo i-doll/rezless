@@ -38,7 +38,7 @@ export interface DetectedEntry {
  * a touch / sensor / collision handler and clears it on return.
  */
 export interface DetectedContext {
-  readonly event?: string
+  event?: string
   readonly entries: ReadonlyArray<DetectedEntry>
 }
 

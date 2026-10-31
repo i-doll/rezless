@@ -126,7 +126,9 @@ export class Linkset {
       this.clock = new LinksetClock(opts.startUnixTime)
       this.peers = []
     }
-    this.damageEnabled = ((opts.world?.region(opts.region).flags ?? 0) & REGION_FLAG_ALLOW_DAMAGE) !== 0
+    this.damageEnabled = from?.damageEnabled
+      ?? (((opts.world?.region(opts.region).flags ?? 0) & REGION_FLAG_ALLOW_DAMAGE) !== 0)
+    this.damageThrottleExempt = from?.damageThrottleExempt ?? false
     this.peers.push(this)
   }
 

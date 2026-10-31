@@ -359,3 +359,119 @@ it('reports physical scripted damageable sources in llDetectedType', async () =>
   s.start()
   expect(s.global('detectedType')).toBe(42)
 })
+
+// Review regressions below need damage-enabled land for simulator comparison.
+// The same unavailable-land limitation at the top applies.
+it('keeps parked on_damage pending until the stopped script resumes', async () => {
+  const { scripts, linkset } = await loadLinkset({ prims: [{ scripts: [
+    { name: 'source', source: { source: `list hits; default {
+      touch_start(integer n) { llDamage(llGetKey(), 12.0, 5); llSetScriptState("armor", FALSE); }
+      touch_end(integer n) { llSetScriptState("armor", TRUE); }
+      final_damage(integer n) { hits += llDetectedDamage(0); }
+    }` } },
+    { name: 'armor', source: { source: `default { on_damage(integer n) { llAdjustDamage(0, 3.0); } }` } },
+  ] }] })
+  linkset.damageEnabled = true
+  scripts.source!.start(); scripts.armor!.start()
+  scripts.source!.fire('touch_start', { num_detected: 1 })
+  expect(scripts.source!.global('hits')).toEqual([])
+  expect(scripts.armor!.parkedEvents).toHaveLength(1)
+  scripts.source!.fire('touch_end', { num_detected: 1 })
+  expect(scripts.source!.global('hits')).toEqual([3, 5, 12])
+})
+
+it.each(['llBreakLink(2);', 'llBreakAllLinks();'])('keeps parcel damage settings after %s', async (unlink) => {
+  const { scripts, linkset } = await loadLinkset({ prims: [
+    { scripts: [{ name: 'root', source: { source: `default {
+      state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+      touch_start(integer n) { ${unlink} }
+    }` } }] },
+    { scripts: [{ name: 'child', source: { source: `integer hits; default {
+      touch_start(integer n) { integer i; for(i=0;i<20;++i) llDamage(llGetKey(), 1.0, 0); }
+      final_damage(integer n) { ++hits; }
+    }` } }] },
+  ] })
+  linkset.damageEnabled = true
+  linkset.damageThrottleExempt = true
+  scripts.root!.start(); scripts.child!.start()
+  scripts.root!.grantPermissions(128)
+  scripts.root!.fire('touch_start', { num_detected: 1 })
+  expect(scripts.child!.linkset).not.toBe(linkset)
+  scripts.child!.fire('touch_start', { num_detected: 1 })
+  expect(scripts.child!.global('hits')).toBe(20)
+  expect(scripts.child!.chat).toEqual([])
+})
+
+// https://wiki.secondlife.com/wiki/On_death
+it('sends on_death to attachments once per transition from positive health to zero', async () => {
+  const s = await loadScript({ owner: AVATAR, source: `integer deaths; list health; default {
+    touch_start(integer n) { llDamage(llGetOwner(), 200.0, 5); }
+    touch_end(integer n) { llDamage(llGetOwner(), -50.0, 101); }
+    on_death() { ++deaths; }
+    final_damage(integer n) { health += [llGetHealth(llGetOwner())]; }
+  }` })
+  const observer = await loadScript({ host: s.host, source: `integer deaths; default { on_death() { ++deaths; } }` })
+  observer.start()
+  s.linkset.damageEnabled = true
+  s.setCombatAvatar(AVATAR, { health: 75, damageEnabled: true, scripts: [s, observer] })
+  s.start()
+  s.fire('touch_start', { num_detected: 1 })
+  expect(s.global('deaths')).toBe(1)
+  expect(observer.global('deaths')).toBe(1)
+  expect(s.global('health')).toEqual([0])
+  s.fire('touch_start', { num_detected: 1 })
+  expect(s.global('deaths')).toBe(1)
+  expect(observer.global('deaths')).toBe(1)
+  s.fire('touch_end', { num_detected: 1 })
+  s.fire('touch_start', { num_detected: 1 })
+  expect(s.global('deaths')).toBe(2)
+  expect(observer.global('deaths')).toBe(2)
+  expect(s.global('health')).toEqual([0, 0, 50, 0])
+})
+
+it('does not allow lifecycle handlers entered by state change to adjust pending damage', async () => {
+  const s = await loadScript({ source: `list hits; default {
+    state_entry() { llDamage(llGetKey(), 12.0, 5); }
+    on_damage(integer n) { state next; }
+    state_exit() { llAdjustDamage(0, 99.0); }
+  }
+  state next {
+    state_entry() { llAdjustDamage(0, 98.0); }
+    final_damage(integer n) { hits += llDetectedDamage(0); }
+  }` })
+  s.linkset.damageEnabled = true
+  s.start()
+  expect(s.global('hits')).toEqual([12, 5, 12])
+})
+
+it('releases parked damage when the stopped recipient is deleted', async () => {
+  const { scripts, linkset } = await loadLinkset({ prims: [{ scripts: [
+    { name: 'source', source: { source: `list hits; default {
+      touch_start(integer n) { llDamage(llGetKey(), 12.0, 5); llSetScriptState("armor", FALSE); }
+      final_damage(integer n) { hits += llDetectedDamage(0); }
+    }` } },
+    { name: 'armor', source: { source: `default { on_damage(integer n) { llAdjustDamage(0, 3.0); } }` } },
+  ] }] })
+  linkset.damageEnabled = true
+  scripts.source!.start(); scripts.armor!.start()
+  scripts.source!.fire('touch_start', { num_detected: 1 })
+  expect(scripts.source!.global('hits')).toEqual([])
+  scripts.armor!.markDead()
+  linkset.advanceTime(0)
+  expect(scripts.source!.global('hits')).toEqual([12, 5, 12])
+})
+
+it('keeps an explicit safe-parcel override when detaching in a damage-enabled region', async () => {
+  const world = new World()
+  world.addRegion('combat', { x: 0, y: 0 }, { flags: REGION_FLAG_ALLOW_DAMAGE })
+  const { scripts, linkset, prims } = await loadLinkset({ world, region: 'combat', prims: [
+    {}, { scripts: [{ name: 'child', source: { source: `integer hits; default {
+      state_entry() { llDamage(llGetKey(), 1.0, 0); }
+      final_damage(integer n) { ++hits; }
+    }` } }] },
+  ] })
+  linkset.damageEnabled = false
+  linkset.breakOff(prims[1]!)
+  scripts.child!.start()
+  expect(scripts.child!.global('hits')).toBe(0)
+})
