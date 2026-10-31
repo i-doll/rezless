@@ -117,6 +117,7 @@ s.respondToDataserver(key, value)               // fire `dataserver` for a captu
 s.respondToLastDataserver(value)                // same, for the most recent
 s.grantPermissions(perms?)                      // answer the latest llRequestPermissions; fires `run_time_permissions`
 s.denyPermissions()                             // answer it with No
+s.answerDialog(text, { name? })                 // answer the latest llDialog / llTextBox as its avatar; fires `listen`
 s.mock(name, impl)                              // override any ll* function (real or stubbed) per-test
 s.reset()                                       // re-init globals + return to default + state_entry
 
@@ -133,6 +134,7 @@ s.callsOf(name)                                 // filter call log by ll* name
 s.httpRequests                                  // [{ key, url, method, body, headers, mimetype, ... }]
 s.dataserverRequests                            // [{ key, source, args, fulfilled }]
 s.permissionRequests                            // [{ agent, permissions, answered }]
+s.dialogs                                       // [{ kind, agent, message, buttons, channel, objectKey, answered }]
 s.listens                                       // [{ handle, channel, name, key, message, active }]
 s.linkedMessages                                // [{ target, num, str, id }] sent by THIS script
 s.clearLinkedMessages()                         // drop captured llMessageLinked entries
@@ -262,6 +264,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
+* **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate` (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0)
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
@@ -351,6 +354,7 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 * **greeter** — touch + name greeting + state transition + reminder timer.
 * **long-press** — a lamp that tells a short tap from a long press with `linkset.touch`'s `hold`.
 * **keypad** — a door keypad that reads which key was clicked from `llDetectedTouchST`.
+* **menu** — a lamp with a colour menu, answered with `s.answerDialog`.
 * **remote** — owner-only listen on a custom channel + command dispatch.
 * **fetcher** — `llHTTPRequest` + `http_response` + status handling.
 * **nametag** — `llRequestAgentData` + `dataserver` + floating text.
