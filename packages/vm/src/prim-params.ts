@@ -341,7 +341,7 @@ export function defaultPrimParams(): PrimParams {
     projector: { texture: NULL_KEY, fov: 0, focus: 0, ambiance: 0 },
     clickAction: CLICK_ACTION_TOUCH,
     damage: { amount: 0, type: 0 },
-    health: 1,
+    health: 0,
     reflectionProbe: { enabled: false, ambiance: 0, clipDistance: 0, flags: 0 },
     physicsMaterial: { gravityMultiplier: 1, restitution: 0.5, friction: Math.fround(0.6), density: 1000 },
     textureAnim: { mode: 0, face: 0, sizex: 0, sizey: 0, start: 0, length: 0, rate: 0 },
@@ -525,9 +525,16 @@ export function writePrimParam(
     case PRIM_DAMAGE:
       p.damage = { amount: num(rules[cursor]), type: num(rules[cursor + 1]) | 0 }
       return 2
-    case PRIM_OMEGA:
-      p.omega = { axis: asVec(rules[cursor]), spinrate: num(rules[cursor + 1]), gain: num(rules[cursor + 2]) }
+    case PRIM_OMEGA: {
+      const axis = asVec(rules[cursor])
+      const length = Math.hypot(axis.x, axis.y, axis.z) || 1
+      p.omega = {
+        axis: { x: axis.x / length, y: axis.y / length, z: axis.z / length },
+        spinrate: num(rules[cursor + 1]) * length,
+        gain: num(rules[cursor + 2]),
+      }
       return 3
+    }
     case PRIM_POINT_LIGHT:
       p.pointLight = {
         enabled: num(rules[cursor]) !== 0,
