@@ -25,11 +25,12 @@ export { Prim } from './prim.js'
 export { Experience } from './experience.js'
 export type { ExperienceOptions } from './experience.js'
 export type { ExperienceRequestEntry } from './builtins/experience.js'
-export type { PrimOptions } from './prim.js'
+export type { PrimOptions, AttachedSound, SoundTrigger, PrimSoundState } from './prim.js'
 export { InventoryType, makeInventoryItem } from './inventory.js'
 export type { Character, CharacterCommand, NavigationResults } from './builtins/pathfinding.js'
 export type { TakenControls } from './builtins/controls.js'
 export type { Camera } from './builtins/camera.js'
+export type { AnimationState } from './builtins/animation.js'
 export type { InventoryItem, InventoryTypeValue, PermMask } from './inventory.js'
 export type {
   BuiltinImpl,

@@ -11,6 +11,30 @@ import type { Linkset } from './linkset.js'
 
 let primsMade = 0
 
+export interface AttachedSound {
+  sound: string
+  volume: number
+  loop: boolean
+  sync: 'none' | 'master' | 'slave'
+}
+
+export interface SoundTrigger {
+  sound: string
+  volume: number
+  position: Vector
+  topNorthEast?: Vector
+  bottomSouthWest?: Vector
+}
+
+/** Requested sound state; no audio decoding, playback clock or listener simulation. */
+export interface PrimSoundState {
+  current: AttachedSound | null
+  queueing: boolean
+  radius: number
+  triggers: SoundTrigger[]
+  preloads: string[]
+}
+
 export interface PrimOptions {
   /** The prim's key. Defaults to a distinct key, so other scripts can look the prim up. */
   readonly key?: string
@@ -51,6 +75,11 @@ export class Prim {
   payPrice: { price: number; buttons: LslValue[] } | null = null
   /** UUIDs of the object animations this prim's scripts started. */
   readonly objectAnimations = new Set<string>()
+
+  /** Last attached request and one-shot history, shared by this prim's scripts. */
+  readonly sound: PrimSoundState = {
+    current: null, queueing: false, radius: 0, triggers: [], preloads: [],
+  }
 
   /** Set when this prim joins a linkset. */
   linkset?: Linkset

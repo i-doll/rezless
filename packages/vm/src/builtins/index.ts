@@ -1,4 +1,23 @@
 import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
+import {
+  llPlaySound,
+  llLoopSound,
+  llLoopSoundMaster,
+  llLoopSoundSlave,
+  llPlaySoundSlave,
+  llTriggerSound,
+  llTriggerSoundLimited,
+  llPreloadSound,
+  llStopSound,
+  llAdjustSoundVolume,
+  llSetSoundQueueing,
+  llSetSoundRadius,
+  llLinkPlaySound,
+  llLinkStopSound,
+  llLinkAdjustSoundVolume,
+  llLinkSetSoundQueueing,
+  llLinkSetSoundRadius
+} from './sound.js'
 import { llDamage, llAdjustDamage, llGetHealth, llSetDamage } from './damage.js'
 import type { BuiltinImpl } from '../runtime.js'
 import {
@@ -259,6 +278,15 @@ import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-sear
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
 import { llTakeControls, llReleaseControls } from './controls.js'
 import {
+  llStartAnimation,
+  llStopAnimation,
+  llGetAnimation,
+  llGetAnimationList,
+  llGetAnimationOverride,
+  llSetAnimationOverride,
+  llResetAnimationOverride,
+} from './animation.js'
+import {
   llGetCameraPos,
   llGetCameraRot,
   llGetCameraFOV,
@@ -421,6 +449,23 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llBreakLink,
   llBreakAllLinks,
   // object animations
+  llPlaySound,
+  llLoopSound,
+  llLoopSoundMaster,
+  llLoopSoundSlave,
+  llPlaySoundSlave,
+  llTriggerSound,
+  llTriggerSoundLimited,
+  llPreloadSound,
+  llStopSound,
+  llAdjustSoundVolume,
+  llSetSoundQueueing,
+  llSetSoundRadius,
+  llLinkPlaySound,
+  llLinkStopSound,
+  llLinkAdjustSoundVolume,
+  llLinkSetSoundQueueing,
+  llLinkSetSoundRadius,
   llStartObjectAnimation,
   llStopObjectAnimation,
   llGetObjectAnimationNames,
@@ -648,6 +693,14 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   // controls
   llTakeControls,
   llReleaseControls,
+  // avatar animations
+  llStartAnimation,
+  llStopAnimation,
+  llGetAnimation,
+  llGetAnimationList,
+  llGetAnimationOverride,
+  llSetAnimationOverride,
+  llResetAnimationOverride,
   // camera
   llGetCameraPos,
   llGetCameraRot,
