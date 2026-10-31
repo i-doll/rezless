@@ -8,6 +8,9 @@ import { listElementType, typedList } from '../values/list-types.js'
 import { formatTimestamp } from './time.js'
 import {
   LINK_THIS,
+  PRIM_HOLE_CIRCLE,
+  PRIM_HOLE_DEFAULT,
+  PRIM_HOLE_TRIANGLE,
   OBJECT_ACCOUNT_LEVEL,
   OBJECT_ANIMATED_COUNT,
   OBJECT_ANIMATED_SLOTS_AVAILABLE,
@@ -97,37 +100,59 @@ const keyArg = (args: Parameters<BuiltinImpl>[1]) => (args[0] as string | undefi
 const rootOf = (prim: Prim): Prim => prim.linkset?.prims[0] ?? prim
 const primsOf = (prim: Prim): readonly Prim[] => prim.linkset?.prims ?? [prim]
 
-function profileArea(shape: PrimShape): number | undefined {
-  switch (shape.kind) {
-    case PRIM_TYPE_BOX:
-      return 1
+const TRIANGLE = (3 * Math.sqrt(3)) / 16
+/** Second Life's physics draws a hollow's circle as a nine-sided polygon. */
+const NONAGON = 4.5 * 0.25 * Math.sin((2 * Math.PI) / 9)
+
+/** A box, cylinder or prism: a profile extruded along a straight path. */
+type Extrusion = Extract<PrimShape, { topSize: Vector }>
+
+/** Area of a hole of each PRIM_HOLE_* shape, in a unit profile. */
+function holeArea(shape: Extrusion): number {
+  switch (shape.hole === PRIM_HOLE_DEFAULT ? shape.kind : shape.hole) {
+    case PRIM_HOLE_CIRCLE:
     case PRIM_TYPE_CYLINDER:
-      return Math.PI / 4
+      return NONAGON
+    case PRIM_HOLE_TRIANGLE:
     case PRIM_TYPE_PRISM:
-      return (3 * Math.sqrt(3)) / 16
+      return TRIANGLE
     default:
-      return undefined
+      return 1
+  }
+}
+
+/** Area of a unit profile: a solid cylinder is a true circle, a hollow one a nonagon. */
+function profileArea(shape: Extrusion): number {
+  switch (shape.kind) {
+    case PRIM_TYPE_CYLINDER:
+      return shape.hollow > 0 ? NONAGON : Math.PI / 4
+    case PRIM_TYPE_PRISM:
+      return TRIANGLE
+    default:
+      return 1
   }
 }
 
 /**
  * Volume of a prim's physics shape in cubic metres. Boxes, cylinders and
- * prisms are extrusions, so a hollow, a path cut and a taper scale the
- * volume by their share of the profile. A sphere is a whole ellipsoid,
- * whatever its cut, hollow or dimple. Other shapes read as a solid box of
- * their size.
+ * prisms are extrusions, so a path cut and a taper scale the volume by
+ * their share of the profile, and a hollow takes out its hole: the hole's
+ * shape scaled by the hollow, or by half the hollow in a prism. Two axes
+ * tapering toward opposite ends leave less volume than two tapering toward
+ * the same end. A sphere is a whole ellipsoid, whatever its cut, hollow or
+ * dimple. Other shapes read as a solid box of their size.
  */
 function volume(prim: Prim): number {
   const { size, shape } = prim.params
   const box = size.x * size.y * size.z
-  const area = profileArea(shape)
-  if (area !== undefined && 'topSize' in shape) {
-    const hollow = 1 - shape.hollow * shape.hollow
+  if ('topSize' in shape) {
+    const scale = shape.kind === PRIM_TYPE_PRISM ? shape.hollow / 2 : shape.hollow
+    const solid = profileArea(shape) - scale * scale * holeArea(shape)
     const cut = shape.cut.y - shape.cut.x
-    const tx = Math.abs(1 - shape.topSize.x)
-    const ty = Math.abs(1 - shape.topSize.y)
-    const taper = 1 - (tx + ty) / 2 + (tx * ty) / 3
-    return box * area * hollow * cut * taper
+    const tx = 1 - shape.topSize.x
+    const ty = 1 - shape.topSize.y
+    const taper = 1 - (Math.abs(tx) + Math.abs(ty)) / 2 + (tx * ty >= 0 ? Math.abs(tx * ty) / 3 : Math.abs(tx * ty) / 6)
+    return box * solid * cut * taper
   }
   if (shape.kind === PRIM_TYPE_SPHERE) return (box * Math.PI) / 6
   return box

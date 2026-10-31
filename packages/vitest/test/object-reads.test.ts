@@ -142,6 +142,53 @@ describe('llGetObjectMass', () => {
       expect(m).toBeCloseTo(mass, 5)
     }
   })
+  // In-world, the 0.4 x 0.6 x 0.8 m box with taper <0, 2> -> 0.32, <0.5, 1.5>
+  // -> 1.04, <0.5, 0.5> -> 1.12, <2, 2> -> 0.64 and <1.5, 0> -> 0.64, the
+  // volumes of linear tapers integrated along the height.
+  it('keeps the direction of each taper', async () => {
+    const tapers: [string, number][] = [
+      ['<0, 2, 0>', 0.32],
+      ['<0.5, 1.5, 0>', 1.04],
+      ['<0.5, 0.5, 0>', 1.12],
+      ['<2, 2, 0>', 0.64],
+      ['<1.5, 0, 0>', 0.64],
+    ]
+    for (const [top, mass] of tapers) {
+      const [m] = await probe(
+        `llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_SIZE, <0.4, 0.6, 0.8>, PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0,1,0>, 0.0, <0,0,0>, ${top}, <0,0,0>]); out = [llGetObjectMass(ROOT) - llGetObjectMass(CHILD)];`,
+      )
+      expect(m).toBeCloseTo(mass, 5)
+    }
+  })
+
+  // In-world, the same prim hollowed 0.5 (0.8 where marked): box with a
+  // square hole 1.44, circle 1.572897 (0.8: 1.031412), triangle 1.764117;
+  // cylinder with its own hole 1.041315, triangle 1.232536; prism with its
+  // own hole 0.584567, square 0.503538, circle 0.536762. These fit a hole of
+  // the chosen shape scaled by the hollow (half the hollow in a prism), with
+  // circles drawn as nonagons and a hollow cylinder's outside a nonagon too.
+  // A square hole in a cylinder read 0.96 (0.8: 0.499199) and doesn't fit;
+  // rezless reads 0.908421 (0.159621).
+  it('takes out a hole of the chosen shape', async () => {
+    const holes: [string, string, number][] = [
+      ['PRIM_TYPE_BOX', 'PRIM_HOLE_SQUARE, <0,1,0>, 0.5', 1.44],
+      ['PRIM_TYPE_BOX', 'PRIM_HOLE_CIRCLE, <0,1,0>, 0.5', 1.572897],
+      ['PRIM_TYPE_BOX', 'PRIM_HOLE_CIRCLE, <0,1,0>, 0.8', 1.031412],
+      ['PRIM_TYPE_BOX', 'PRIM_HOLE_TRIANGLE, <0,1,0>, 0.5', 1.764117],
+      ['PRIM_TYPE_CYLINDER', 'PRIM_HOLE_DEFAULT, <0,1,0>, 0.5', 1.041315],
+      ['PRIM_TYPE_CYLINDER', 'PRIM_HOLE_TRIANGLE, <0,1,0>, 0.5', 1.232536],
+      ['PRIM_TYPE_PRISM', 'PRIM_HOLE_DEFAULT, <0,1,0>, 0.5', 0.584567],
+      ['PRIM_TYPE_PRISM', 'PRIM_HOLE_SQUARE, <0,1,0>, 0.5', 0.503538],
+      ['PRIM_TYPE_PRISM', 'PRIM_HOLE_CIRCLE, <0,1,0>, 0.5', 0.536762],
+    ]
+    for (const [kind, hole, mass] of holes) {
+      const [m] = await probe(
+        `llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_SIZE, <0.4, 0.6, 0.8>, PRIM_TYPE, ${kind}, ${hole}, <0,0,0>, <1,1,0>, <0,0,0>]); out = [llGetObjectMass(ROOT) - llGetObjectMass(CHILD)];`,
+      )
+      expect(m).toBeCloseTo(mass, 4)
+    }
+  })
+
   // In-world, the same prim as a default torus -> 0.753013. rezless doesn't
   // model torus, tube, ring or sculpt volumes and reads them as a solid box
   // of their size, 1.92 here.
