@@ -99,6 +99,7 @@ export class Linkset {
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */
   addPrim(prim: Prim): Prim {
     prim.linkset = this
+    prim.createdAt = this.clock.now
     this.prims.push(prim)
     this.recomputeLinkNumbers()
     return prim

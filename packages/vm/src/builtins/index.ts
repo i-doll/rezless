@@ -29,6 +29,15 @@ import {
   llGetEnv,
   llEdgeOfWorld,
 } from './region.js'
+import {
+  llKey2Name,
+  llGetObjectDetails,
+  llGetObjectLinkKey,
+  llGetObjectMass,
+  llGetObjectPrimCount,
+  llGetBoundingBox,
+  llGetGeometricCenter,
+} from './object-reads.js'
 import { llHTTPRequest, llHTTPResponse } from './http.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
 import { llDialog, llTextBox } from './dialog.js'
@@ -313,6 +322,14 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetSimStats,
   llGetEnv,
   llEdgeOfWorld,
+  // object reads
+  llKey2Name,
+  llGetObjectDetails,
+  llGetObjectLinkKey,
+  llGetObjectMass,
+  llGetObjectPrimCount,
+  llGetBoundingBox,
+  llGetGeometricCenter,
   llHTTPRequest,
   llHTTPResponse,
   llListen,

@@ -41,6 +41,8 @@ export class Prim {
 
   /** Set when this prim joins a linkset. */
   linkset?: Linkset
+  /** Virtual time in ms when the prim joined its linkset. */
+  createdAt = 0
 
   constructor(opts: PrimOptions = {}) {
     this.key = opts.key ?? NULL_KEY

@@ -381,7 +381,7 @@ function opMod(a: EvalResult, b: EvalResult): EvalResult {
 // ---- Quaternion math ----
 
 /** LSL `a * b`: rotate by a, then by b. */
-function mulRotation(a: Rotation, b: Rotation): Rotation {
+export function mulRotation(a: Rotation, b: Rotation): Rotation {
   return hamilton(b, a)
 }
 
