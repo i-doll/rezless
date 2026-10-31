@@ -100,6 +100,10 @@ export interface ScriptState {
     agent: string
     readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
   }
+  /** The experience the script was compiled with, or null. */
+  readonly experience: import('./experience.js').Experience | null
+  /** llRequestExperiencePermissions calls waiting for the test to answer, oldest first. */
+  readonly experienceRequests: import('./builtins/experience.js').ExperienceRequestEntry[]
   /** Dialogs and text boxes shown with llDialog / llTextBox, oldest first. */
   readonly dialogs: import('./builtins/dialog.js').DialogEntry[]
   /**

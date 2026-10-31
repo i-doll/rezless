@@ -246,6 +246,19 @@ import {
 import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-search.js'
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
 import {
+  llAgentInExperience,
+  llGetExperienceDetails,
+  llGetExperienceErrorMessage,
+  llRequestExperiencePermissions,
+  llCreateKeyValue,
+  llReadKeyValue,
+  llUpdateKeyValue,
+  llDeleteKeyValue,
+  llKeyCountKeyValue,
+  llKeysKeyValue,
+  llDataSizeKeyValue,
+} from './experience.js'
+import {
   llResetOtherScript,
   llSetScriptState,
   llGetScriptState,
@@ -570,6 +583,18 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llRequestPermissions,
   llGetPermissions,
   llGetPermissionsKey,
+  // experiences
+  llAgentInExperience,
+  llGetExperienceDetails,
+  llGetExperienceErrorMessage,
+  llRequestExperiencePermissions,
+  llCreateKeyValue,
+  llReadKeyValue,
+  llUpdateKeyValue,
+  llDeleteKeyValue,
+  llKeyCountKeyValue,
+  llKeysKeyValue,
+  llDataSizeKeyValue,
   // script control
   llResetOtherScript,
   llSetScriptState,

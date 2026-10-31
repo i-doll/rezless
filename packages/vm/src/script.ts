@@ -34,11 +34,13 @@ import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
-import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED } from './generated/constants.js'
+import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED, XP_ERROR_NOT_PERMITTED } from './generated/constants.js'
 import { own } from './own.js'
 import { deterministicKey } from './keys.js'
 import { Memory, RuntimeError, codeBytes } from './memory.js'
 import { invalidPrograms } from './typecheck.js'
+import type { Experience } from './experience.js'
+import type { ExperienceRequestEntry } from './builtins/experience.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -110,6 +112,11 @@ export interface ScriptOptions {
    * measured, but the script keeps running.
    */
   readonly memoryLimit?: boolean
+  /**
+   * The experience the script is compiled with. Scripts given the same
+   * Experience share its key-value store. Default: none.
+   */
+  readonly experience?: Experience
 }
 
 /**
@@ -222,6 +229,8 @@ export class Script {
       linksetData: this.linkset.linksetData,
       appearance: this.host.appearance,
       permissions: { granted: 0, agent: NULL_KEY, requests: [] },
+      experience: options.experience ?? null,
+      experienceRequests: [],
       dialogs: [],
       lifecycle: {
         dead: false,
@@ -443,6 +452,49 @@ export class Script {
   /** Answer the most recent unanswered permission request with No. */
   denyPermissions(): void {
     this.grantPermissions(0)
+  }
+
+  /** The experience the script was compiled with, or null. */
+  get experience(): Experience | null {
+    return this.state.experience
+  }
+
+  /** llRequestExperiencePermissions calls waiting for an answer, oldest first. */
+  get experienceRequests(): ReadonlyArray<ExperienceRequestEntry> {
+    return this.state.experienceRequests
+  }
+
+  /**
+   * Accept the most recent unanswered llRequestExperiencePermissions: the
+   * agent joins the experience and `experience_permissions` fires.
+   */
+  grantExperiencePermissions(): void {
+    const req = this.answerExperienceRequest()
+    this.state.experience!.agents.add(req.agent)
+    this.fireAndSettle('experience_permissions', { agent_id: req.agent })
+  }
+
+  /**
+   * Decline the most recent unanswered llRequestExperiencePermissions:
+   * `experience_permissions_denied` fires with `reason`
+   * (XP_ERROR_NOT_PERMITTED by default).
+   */
+  denyExperiencePermissions(reason: number = XP_ERROR_NOT_PERMITTED): void {
+    const req = this.answerExperienceRequest()
+    this.fireAndSettle('experience_permissions_denied', { agent_id: req.agent, reason })
+  }
+
+  private answerExperienceRequest(): ExperienceRequestEntry {
+    const req = [...this.state.experienceRequests].reverse().find((r) => !r.answered)
+    if (!req) throw new Error('no pending experience permission request')
+    req.answered = true
+    return req
+  }
+
+  private fireAndSettle(event: string, payload: Record<string, unknown>): void {
+    const started = this.handles(event) ? [this] : []
+    this.clockView.schedule(this.now, event, payload)
+    this.linkset.settle(started)
   }
 
   /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */
@@ -682,6 +734,7 @@ export class Script {
     this.state.permissions.granted = 0
     this.state.permissions.agent = NULL_KEY
     for (const r of this.state.permissions.requests) r.answered = true
+    for (const r of this.state.experienceRequests) r.answered = true
     this.clockView.cancelTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
