@@ -214,6 +214,18 @@ describe('llVerifyRSA', () => {
     expect(await verify('A', strings, 'NOEND')).toBe(0)
   })
 
+  // In-world: a 1025-bit key signed with sha256 gave 172 characters (129 bytes), and
+  // llVerifyRSA accepted the signature.
+  it('accepts signatures from a key whose size is not a whole number of bytes', async () => {
+    const pair = generateKeyPairSync('rsa', { modulusLength: 1025 })
+    const strings = {
+      P: pair.privateKey.export({ type: 'pkcs1', format: 'pem' }) as string,
+      Q: pair.publicKey.export({ type: 'spki', format: 'pem' }) as string,
+    }
+    expect(await lsl('llStringLength(llSignRSA(P, MSG, "sha256"))', strings)).toBe(172)
+    expect(await lsl('llVerifyRSA(Q, MSG, llSignRSA(P, MSG, "sha256"), "sha256")', strings)).toBe(1)
+  })
+
   // In-world, signature A with: padding removed -> 1; "QUJD", "A", "!!" or "\n" after the
   // padding -> 1; the last data character "g" changed to "h" (only unused bits differ),
   // with or without its padding -> 1; a space in place of the padding -> 1.

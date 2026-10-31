@@ -37,6 +37,6 @@ export const llVerifyRSA: BuiltinImpl = (_ctx, args) => {
   const key = readPem((args[0] as string | undefined) ?? '', ['PUBLIC KEY'], createPublicKey)
   if (!key || !DIGESTS.has(algorithm)) return 0
   const signature = decodeBase64Strict((args[2] as string | undefined) ?? '')
-  if (signature.length * 8 !== key.asymmetricKeyDetails!.modulusLength) return 0
+  if (signature.length !== Math.ceil(key.asymmetricKeyDetails!.modulusLength! / 8)) return 0
   return verify(algorithm, Buffer.from((args[1] as string | undefined) ?? '', 'utf8'), key, signature) ? 1 : 0
 }
