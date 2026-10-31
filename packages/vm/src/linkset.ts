@@ -84,6 +84,8 @@ export class Linkset {
     this.linkedMessages.length = 0
   }
   readonly owner: string
+  /** True once a script in the linkset has called llDie. */
+  dead = false
   readonly world?: World
   readonly region: string | undefined
   readonly startParameter: number

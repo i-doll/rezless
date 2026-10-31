@@ -503,3 +503,43 @@ describe('llGetObjectDetails on a changed linkset', () => {
     expect(scripts.probe!.global('out')).toEqual(['', 0, 0, 0, NULL_KEY, 0])
   })
 })
+
+describe('looking up objects', () => {
+  it('finds a prim loaded without a key', async () => {
+    const { scripts } = await loadLinkset({
+      prims: [{ scripts: [{ name: 'probe', source: { source: 'list out; default { state_entry() { out = llGetObjectDetails(llGetKey(), [OBJECT_NAME, OBJECT_PRIM_COUNT]); } }' } }] }, {}],
+    })
+    scripts.probe!.start()
+    expect(scripts.probe!.global('out')).toEqual(['Object', 2])
+  })
+
+  it('stops finding an object once it calls llDie', async () => {
+    const world = new World()
+    world.addRegion('Here', { x: 0, y: 0 })
+    const doomed = await loadLinkset({
+      world,
+      region: 'Here',
+      prims: [{ key: BEE, name: 'Bee', scripts: [{ name: 'die', source: { source: 'default { touch_start(integer n) { llDie(); } }' } }] }],
+    })
+    const { scripts } = await loadLinkset({
+      world,
+      region: 'Here',
+      prims: [
+        {
+          scripts: [
+            {
+              name: 'probe',
+              source: { source: `list out; default { touch_start(integer n) { out += [llKey2Name("${BEE}"), llGetObjectPrimCount("${BEE}")]; } }` },
+            },
+          ],
+        },
+      ],
+    })
+    doomed.scripts.die!.start()
+    scripts.probe!.start()
+    scripts.probe!.linkset.touch(0)
+    doomed.linkset.touch(0)
+    scripts.probe!.linkset.touch(0)
+    expect(scripts.probe!.global('out')).toEqual(['Bee', 1, '', 0])
+  })
+})

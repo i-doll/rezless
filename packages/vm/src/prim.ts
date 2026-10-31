@@ -4,10 +4,14 @@ import { InventoryType, inventoryItemName } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Vector } from './values/types.js'
 import { NULL_KEY } from './values/types.js'
+import { deterministicKey } from './keys.js'
 import { PERM_ALL } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
 
+let primsMade = 0
+
 export interface PrimOptions {
+  /** The prim's key. Defaults to a distinct key, so other scripts can look the prim up. */
   readonly key?: string
   readonly name?: string
   readonly description?: string
@@ -45,7 +49,7 @@ export class Prim {
   createdAt = 0
 
   constructor(opts: PrimOptions = {}) {
-    this.key = opts.key ?? NULL_KEY
+    this.key = opts.key ?? deterministicKey(`prim/${++primsMade}`)
     this.name = opts.name ?? 'Object'
     this.description = opts.description ?? ''
     this.appearance.description = this.description

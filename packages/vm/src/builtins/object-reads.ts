@@ -80,12 +80,12 @@ import {
 
 const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** The prim with key `id` in the caller's region, matched without regard to case. */
+/** The prim with key `id` in a live linkset in the caller's region, matched without regard to case. */
 function findPrim(ctx: CallContext, id: string): Prim | undefined {
   if (!KEY_PATTERN.test(id) || id === NULL_KEY) return undefined
   const wanted = id.toLowerCase()
   const { world, region } = ctx.linkset
-  const linksets = world ? world.linksets.filter((l) => l.region === region) : [ctx.linkset]
+  const linksets = world ? world.linksets.filter((l) => l.region === region && !l.dead) : [ctx.linkset]
   for (const linkset of linksets) {
     const prim = linkset.prims.find((p) => p.key.toLowerCase() === wanted)
     if (prim) return prim
