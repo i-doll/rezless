@@ -369,6 +369,34 @@ describe('changed events from several link changes in one handler', () => {
 describe('link changes outside a world', () => {
   // A broken-off prim stays in the region, so the URL it holds still counts
   // against the region's 20000 (see http-in.test.ts).
+  it('keeps counting a broken-off prim\'s running scripts in the region', async () => {
+    const { scripts } = await loadLinkset({
+      owner: OWNER,
+      prims: [
+        {
+          key: A1,
+          scripts: [
+            {
+              name: 'conductor',
+              source: {
+                source: `list out;
+                  default {
+                    state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+                    run_time_permissions(integer p) { out = [llGetSimStats(SIM_STAT_ACTIVE_SCRIPT_COUNT)]; llBreakLink(2); out += llGetSimStats(SIM_STAT_ACTIVE_SCRIPT_COUNT); }
+                  }`,
+              },
+            },
+          ],
+        },
+        { key: A2, scripts: [{ name: 'idle', source: { source: 'default { state_entry() { } }' } }] },
+      ],
+    })
+    scripts.idle!.start()
+    scripts.conductor!.start()
+    scripts.conductor!.grantPermissions()
+    expect(scripts.conductor!.global('out')).toEqual([2, 2])
+  })
+
   it('keeps counting a broken-off prim\'s URLs', async () => {
     const { scripts } = await loadLinkset({
       owner: OWNER,

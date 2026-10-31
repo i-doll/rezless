@@ -77,9 +77,9 @@ export const llGetSimStats: BuiltinImpl = (ctx, args) => {
     case SIM_STAT_SCRIPT_RUN_PCT:
       return 100
     case SIM_STAT_ACTIVE_SCRIPT_COUNT: {
-      const { world, region: name } = ctx.linkset
-      const linksets = world ? world.linksets.filter((l) => l.region === name) : [ctx.linkset]
-      return linksets.flatMap((l) => l.allScripts()).filter((s) => s.running && !s.dead).length
+      const { peers, region: name } = ctx.linkset
+      return peers
+        .filter((l) => l.region === name).flatMap((l) => l.allScripts()).filter((s) => s.running && !s.dead).length
     }
     default:
       return 0
