@@ -239,6 +239,16 @@ script or linkset runs every script's events in time order. Whisper, say and
 shout cross region borders; `llRegionSay` and `llRegionSayTo` stay in the
 sender's region.
 
+A third argument to `addRegion` sets what scripts read about the region:
+`flags`, `agentCount`, `fps`, `simStats` (by `SIM_STAT_*` number) and `env`
+(by `llGetEnv` name). `llEdgeOfWorld` treats the world's other regions as
+the neighbours. A linkset outside a world is alone in a region named
+`Rezless`.
+
+```ts
+world.addRegion('Sandbox', { x: 256000, y: 256000 }, { flags: REGION_FLAG_SANDBOX, agentCount: 3 })
+```
+
 `loadScript` continues to work for single-script tests; under the hood it
 auto-allocates a 1-prim/1-script linkset, so existing tests are unaffected.
 
@@ -266,6 +276,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
 * **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate` (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0)
+* **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llEdgeOfWorld`
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
 * **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
