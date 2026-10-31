@@ -186,6 +186,39 @@ describe('sendHttpRequest', () => {
     )
   })
 
+  const LENGTH_AND_TAIL = server(
+    'llHTTPResponse(id, 200, (string)llStringLength(body) + " " + llEscapeURL(llGetSubString(body, -3, -1)));',
+  )
+  const UTF8 = { 'Content-Type': 'text/plain; charset=utf-8' }
+
+  // In-world, with Content-Type "text/plain; charset=utf-8": 1100 "é" (2200
+  // bytes) -> 1024 characters; "x" + 1024 "é" (2049 bytes) -> 1025
+  // characters ending "éé?" (Aditi, SLua Tombolo, 2026-10-31)
+  it('cuts a UTF-8 body to 2048 bytes and marks a split character with "?"', async () => {
+    const s = await loadScript({ source: LENGTH_AND_TAIL })
+    s.start()
+    const url = s.urls[0]!
+    const send = (body: string) => s.sendHttpRequest(url, { method: 'POST', headers: UTF8, body }).response?.body
+    expect(send('é'.repeat(1100))).toBe('1024 %C3%A9%C3%A9%C3%A9')
+    expect(send('x' + 'é'.repeat(1024))).toBe('1025 %C3%A9%C3%A9%3F')
+  })
+
+  // In-world: "éé" sent as text/plain, application/json, octet-stream,
+  // form-encoded, iso-8859-1 or with no Content-Type arrived as the four
+  // characters "Ã©Ã©"; with "application/json; charset=UTF-8" as "éé". 1000
+  // "é" form-encoded arrived as 1024 characters (Aditi, SLua Tombolo, 2026-10-31)
+  it('reads the body byte by byte unless the Content-Type says charset=utf-8', async () => {
+    const s = await loadScript({ source: LENGTH_AND_TAIL })
+    s.start()
+    const url = s.urls[0]!
+    const send = (body: string, headers?: Record<string, string>) =>
+      s.sendHttpRequest(url, { method: 'POST', headers, body }).response?.body
+    expect(send('éé')).toBe('4 %C2%A9%C3%83%C2%A9')
+    expect(send('éé', { 'Content-Type': 'application/json' })).toBe('4 %C2%A9%C3%83%C2%A9')
+    expect(send('éé', { 'Content-Type': 'application/json; charset=UTF-8' })).toBe('2 %C3%A9%C3%A9')
+    expect(send('é'.repeat(1000))).toBe('1024 %C2%A9%C3%83%C2%A9')
+  })
+
   // In-world: a request to a released URL -> 404 "cap not found: '<uuid>'\n"
   // with no Content-Type (Aditi, SLua Tombolo, 2026-10-31)
   it('a URL the script does not hold gets a 404', async () => {
@@ -215,6 +248,62 @@ describe('sendHttpRequest', () => {
       body: 'Timed out waiting for response from internal server.',
       contentType: 'text/plain',
     })
+  })
+
+  // In-world: a script that answered from a timer 32 s after the request
+  // read "" from llGetHTTPHeader and the client had already had the 504
+  // (Aditi, SLua Tombolo, 2026-10-31)
+  it('ignores an answer and reads no headers after the timeout', async () => {
+    const s = await loadScript({
+      source: `
+        key held;
+        default {
+          state_entry() { llRequestURL(); }
+          http_request(key id, string method, string body) {
+            if (method == URL_REQUEST_GRANTED) return;
+            held = id;
+            llSetTimerEvent(32.0);
+          }
+          timer() {
+            llSetTimerEvent(0);
+            llSay(0, "[" + llGetHTTPHeader(held, "x-path-info") + "]");
+            llHTTPResponse(held, 200, "late");
+          }
+        }
+      `,
+    })
+    s.start()
+    const req = s.sendHttpRequest(s.urls[0]! + '/hold')
+    s.advanceTime(32_000)
+    expect(s.chat.map((c) => c.text)).toEqual(['[]'])
+    expect(req.response?.status).toBe(504)
+  })
+
+  // In-world: a script that reset while holding a request could still read
+  // its headers and answer it from the new state_entry; the client got that
+  // answer (Aditi, SLua Tombolo, 2026-10-31)
+  it('a request pending over a reset can still be answered', async () => {
+    const s = await loadScript({
+      source: `
+        default {
+          state_entry() {
+            string held = llLinksetDataRead("held");
+            if (held != "") {
+              llLinksetDataDelete("held");
+              llHTTPResponse((key)held, 200, "after reset " + llGetHTTPHeader((key)held, "x-path-info"));
+            }
+            llRequestURL();
+          }
+          http_request(key id, string method, string body) {
+            if (method == URL_REQUEST_GRANTED) return;
+            llLinksetDataWrite("held", (string)id);
+            llResetScript();
+          }
+        }
+      `,
+    })
+    s.start()
+    expect(s.sendHttpRequest(s.urls[0]! + '/r').response?.body).toBe('after reset /r')
   })
 
   // In-world: a script that answered from a timer 2 s later got its answer

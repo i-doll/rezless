@@ -271,6 +271,10 @@ export interface IncomingHttpInit {
    * address in `x-remote-ip`. Names are case-insensitive.
    */
   readonly headers?: Readonly<Record<string, string>>
+  /**
+   * Sent as UTF-8. The script reads it as UTF-8 only when the Content-Type
+   * header has `charset=utf-8`; otherwise each byte becomes one character.
+   */
   readonly body?: string
   /** The sender's address, read through `x-remote-ip`. Default `127.0.0.1`. */
   readonly remoteIp?: string
@@ -446,13 +450,27 @@ export function sendIncomingHttp(
   ])
   state.httpInCounter += 1
   const key = deterministicKey(`${script.host.key}/${script.scriptName}/http-in/${state.httpInCounter}`)
-  const body = method === 'DELETE' ? '' : truncateUtf8(init.body ?? '', MAX_INCOMING_BODY_BYTES)
+  const body = method === 'DELETE' ? '' : incomingBody(init.body ?? '', given.get('content-type') ?? '')
   const req = new IncomingHttpRequest(key, url, method, body, headers, clock, clock.now)
   state.incomingHttp.push(req)
   const started = script.handles('http_request') ? [script] : []
   script.clockView.schedule(clock.now, 'http_request', { request_id: key, method, body })
   script.linkset.settle(started)
   return req
+}
+
+/**
+ * The body as the script receives it. Without `charset=utf-8` in its
+ * Content-Type, each byte of the body becomes one character. The result is
+ * cut to MAX_INCOMING_BODY_BYTES, and a character the cut splits becomes "?".
+ */
+function incomingBody(body: string, contentType: string): string {
+  const text = /charset\s*=\s*utf-8/i.test(contentType)
+    ? body
+    : Buffer.from(body, 'utf8').toString('latin1')
+  const cut = truncateUtf8(text, MAX_INCOMING_BODY_BYTES)
+  const split = cut.length < text.length && Buffer.byteLength(cut, 'utf8') < MAX_INCOMING_BODY_BYTES
+  return split ? cut + '?' : cut
 }
 
 export { NULL_KEY as HTTP_NULL_KEY }
