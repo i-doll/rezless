@@ -1,5 +1,25 @@
 import { llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop } from './give.js'
 import { llLoadURL, llMapDestination, llMapBeacon, llOpenFloater } from './viewer.js'
+import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
+import {
+  llPlaySound,
+  llLoopSound,
+  llLoopSoundMaster,
+  llLoopSoundSlave,
+  llPlaySoundSlave,
+  llTriggerSound,
+  llTriggerSoundLimited,
+  llPreloadSound,
+  llStopSound,
+  llAdjustSoundVolume,
+  llSetSoundQueueing,
+  llSetSoundRadius,
+  llLinkPlaySound,
+  llLinkStopSound,
+  llLinkAdjustSoundVolume,
+  llLinkSetSoundQueueing,
+  llLinkSetSoundRadius
+} from './sound.js'
 import { llDamage, llAdjustDamage, llGetHealth, llSetDamage } from './damage.js'
 import type { BuiltinImpl } from '../runtime.js'
 import {
@@ -383,6 +403,7 @@ import {
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,
   llLoadURL, llMapDestination, llMapBeacon, llOpenFloater,
+  llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
   llAdjustDamage,
   llGetHealth,
@@ -432,6 +453,23 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llBreakLink,
   llBreakAllLinks,
   // object animations
+  llPlaySound,
+  llLoopSound,
+  llLoopSoundMaster,
+  llLoopSoundSlave,
+  llPlaySoundSlave,
+  llTriggerSound,
+  llTriggerSoundLimited,
+  llPreloadSound,
+  llStopSound,
+  llAdjustSoundVolume,
+  llSetSoundQueueing,
+  llSetSoundRadius,
+  llLinkPlaySound,
+  llLinkStopSound,
+  llLinkAdjustSoundVolume,
+  llLinkSetSoundQueueing,
+  llLinkSetSoundRadius,
   llStartObjectAnimation,
   llStopObjectAnimation,
   llGetObjectAnimationNames,
