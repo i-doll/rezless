@@ -247,6 +247,15 @@ import {
 } from './inventory.js'
 import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-search.js'
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
+import { llTakeControls, llReleaseControls } from './controls.js'
+import {
+  llGetCameraPos,
+  llGetCameraRot,
+  llGetCameraFOV,
+  llGetCameraAspect,
+  llSetCameraParams,
+  llClearCameraParams,
+} from './camera.js'
 import {
   llResetOtherScript,
   llSetScriptState,
@@ -583,6 +592,16 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llRequestPermissions,
   llGetPermissions,
   llGetPermissionsKey,
+  // controls
+  llTakeControls,
+  llReleaseControls,
+  // camera
+  llGetCameraPos,
+  llGetCameraRot,
+  llGetCameraFOV,
+  llGetCameraAspect,
+  llSetCameraParams,
+  llClearCameraParams,
   // script control
   llResetOtherScript,
   llSetScriptState,
