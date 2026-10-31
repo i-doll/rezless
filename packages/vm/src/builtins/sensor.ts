@@ -31,10 +31,10 @@ function query(args: Parameters<BuiltinImpl>[1]): Scan {
 }
 
 function targets(ctx: CallContext): WorldEntity[] {
-  const world = ctx.linkset.world
+  const world = ctx.script.linkset.world
   const out = [...(world?.objects ?? []), ...(world?.avatars ?? [])]
-  for (const linkset of ctx.linkset.peers) {
-    if (linkset === ctx.linkset || linkset.dead || !linkset.prims.length) continue
+  for (const linkset of ctx.script.linkset.peers) {
+    if (linkset === ctx.script.linkset || linkset.dead || !linkset.prims.length) continue
     const root = linkset.prims[0]!
     const scripts = linkset.allScripts().filter((s) => !s.dead)
     const properties = world?.sensorProperties.get(linkset)
@@ -54,12 +54,12 @@ function scan(ctx: CallContext, q: Scan): void {
   if (!ctx.script.running || ctx.script.dead || q.radius <= 0 || q.type === 0) return
   const origin = ctx.prim.regionPosition()
   const forward = rotateVector({ x: 1, y: 0, z: 0 }, ctx.prim.regionRotation())
-  const group = ctx.linkset.world?.sensorProperties.get(ctx.linkset)?.group ?? NULL_KEY
+  const group = ctx.script.linkset.world?.sensorProperties.get(ctx.script.linkset)?.group ?? NULL_KEY
   const found: { distance: number; entry: DetectedEntry }[] = []
   for (const target of targets(ctx)) {
     // DAMAGEABLE matched nothing on the measured Aditi simulator, even with health and handlers.
     if (q.type & 32) continue
-    if (target.region !== (ctx.linkset.region ?? '')) continue
+    if (target.region !== (ctx.script.linkset.region ?? '')) continue
     if (q.key !== NULL_KEY && target.key.toLowerCase() !== q.key) continue
     const avatar = target.username !== undefined
     if (q.name && q.name !== (avatar && (q.type & 16) !== 0 ? target.username : target.name)) continue
@@ -89,14 +89,14 @@ function scan(ctx: CallContext, q: Scan): void {
   }
   const detected = found.sort((a, b) => a.distance - b.distance).slice(0, 32).map((f) => f.entry)
   // A busy handler holds the latest completed result, rather than a backlog of scans.
-  ctx.linkset.clock.purgeEvent(ctx.script, detected.length ? 'sensor' : 'no_sensor')
+  ctx.script.linkset.clock.purgeEvent(ctx.script, detected.length ? 'sensor' : 'no_sensor')
   ctx.state.clock.schedule(ctx.state.clock.now, detected.length ? 'sensor' : 'no_sensor', { num_detected: detected.length, detected })
 }
 
 export const llSensor: BuiltinImpl = (ctx, args) => {
   stopSensors(ctx.script)
   const q = query(args)
-  sensors.set(ctx.script, ctx.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now, () => {
+  sensors.set(ctx.script, ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now, () => {
     sensors.delete(ctx.script)
     scan(ctx, q)
   }))
@@ -110,14 +110,14 @@ export const llSensorRepeat: BuiltinImpl = (ctx, args) => {
   const q = query(args)
   const tick = () => {
     scan(ctx, q)
-    sensors.set(ctx.script, ctx.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + rate * 1000, tick))
+    sensors.set(ctx.script, ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + rate * 1000, tick))
   }
-  sensors.set(ctx.script, ctx.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + rate * 1000, tick))
+  sensors.set(ctx.script, ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + rate * 1000, tick))
 }
 
 export const llSensorRemove: BuiltinImpl = (ctx) => {
   stopSensors(ctx.script)
-  for (const event of ctx.linkset.clock.pendingEvents()) {
+  for (const event of ctx.script.linkset.clock.pendingEvents()) {
     if (event.target === ctx.script && event.event === 'sensor') event.payload['detected'] = []
   }
   const stack = ctx.state.detectedStack

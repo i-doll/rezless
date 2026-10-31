@@ -316,3 +316,26 @@ it('detects only another linkset root and uses its supplied group and motion dat
   expect(script.global('groups')).toEqual([0])
   expect(script.global('links')).toEqual([0])
 })
+
+// In-world: resume-unlink.py -> no_sensor at link 2, then former-root detection at link 0
+// after unlinking (Aditi, SLua Tideland, 2026-10-31).
+it('uses the current linkset for repeat exclusion and group comparison after unlinking', async () => {
+  const world = new World(); world.addRegion('unlink', { x: 0, y: 0 })
+  const loaded = await loadLinkset({ world, region: 'unlink', prims: [
+    { name: 'former root' }, { name: 'scanner', scripts: [{ name: 'scan', source: { source: `
+      list names; list groups; integer misses;
+      default {state_entry(){llSensorRepeat("",NULL_KEY,PASSIVE,20,PI,1);}
+        sensor(integer n){names += [llDetectedName(0)];groups += [llDetectedGroup(0)];}
+        no_sensor(){++misses;}}
+    ` } }] },
+  ] })
+  world.sensorProperties.set(loaded.linkset, { group: '11111111-1111-1111-1111-111111111111' })
+  loaded.prims[1]!.params.position = { x: 2, y: 0, z: 0 }
+  const s = loaded.scripts['scan']!; s.start(); s.advanceTime(1000)
+  expect(s.global('misses')).toBe(1)
+  loaded.linkset.breakOff(loaded.prims[1]!)
+  world.sensorProperties.set(s.linkset, { group: '22222222-2222-2222-2222-222222222222' })
+  s.advanceTime(1000)
+  expect(s.global('names')).toEqual(['former root'])
+  expect(s.global('groups')).toEqual([0])
+})
