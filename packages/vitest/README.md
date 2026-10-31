@@ -255,7 +255,9 @@ A third argument to `addRegion` sets what scripts read about the region:
 (by `llGetEnv` name), `dayLength` and `dayOffset` in seconds (default a
 four-hour day offset by 57600 s), and `sunRotation` and `moonRotation`, each a
 rotation or a function of the fraction of the day gone (default a morning
-sun with the moon opposite). `llEdgeOfWorld` treats the world's other regions as
+sun with the moon opposite), `ground` (a height, or a function giving the
+height at each whole-metre grid point from -1 to 256; default 22 m), `water` (default 20 m) and
+`wind` (a vector, or a function of x and y). `llEdgeOfWorld` treats the world's other regions as
 the neighbours. A linkset outside a world is alone in a region named
 `Rezless`.
 
@@ -289,13 +291,15 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
 * **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
-* **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (the default four-hour day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
+* **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`
 * **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatars aren't modelled yet, so their keys read like unknown keys), `llGetObjectPermMask`
 * **environment**: `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
+* **ground, water and wind**: `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
 * **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
+* **link changes**: `llCreateLink`, `llBreakLink`, `llBreakAllLinks` (need `PERMISSION_CHANGE_LINKS`; each raises `changed(CHANGED_LINK)` in the prims it touches; linked prims stay where they were, and the root keeps the linkset data)
 * **dataserver**: `llRequestAgentData`, `llRequestInventoryData`, `llRequestSimulatorData`, `llRequestUsername`, `llRequestDisplayName`
 * **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`/`TouchFace`/`TouchST`/`TouchUV`/`TouchNormal`/`TouchBinormal`/`Rezzer`/`Damage`
 * **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`, `llRot2Fwd`/`Left`/`Up`, `llRot2Axis`/`Angle`, `llAxisAngle2Rot`, `llRotBetween`, `llAngleBetween`, `llAxes2Rot`, `llLinear2sRGB`/`llsRGB2Linear`

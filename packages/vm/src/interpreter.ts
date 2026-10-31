@@ -68,7 +68,6 @@ export interface InterpreterContext {
   /** Owning script — passed through to builtins via dispatch. */
   readonly script: Script
   readonly prim: import('./prim.js').Prim
-  readonly linkset: import('./linkset.js').Linkset
 }
 
 class ReturnSignal {

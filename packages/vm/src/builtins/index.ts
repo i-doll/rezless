@@ -20,7 +20,6 @@ import {
   llGetRegionTimeDilation,
   llGetGMTclock,
   llGetWallclock,
-  llGetTimeOfDay,
   llMinEventDelay,
 } from './time.js'
 import {
@@ -44,12 +43,14 @@ import {
   llGetBoundingBox,
   llGetGeometricCenter,
 } from './object-reads.js'
+import { llCreateLink, llBreakLink, llBreakAllLinks } from './links.js'
 import {
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
   llGetRegionDayOffset,
   llGetRegionTimeOfDay,
+  llGetTimeOfDay,
   llGetSunDirection,
   llGetSunRotation,
   llGetMoonDirection,
@@ -59,6 +60,7 @@ import {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
 } from './environment.js'
+import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind } from './ground.js'
 import {
   llHTTPRequest,
   llHTTPResponse,
@@ -385,6 +387,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetObjectPrimCount,
   llGetBoundingBox,
   llGetGeometricCenter,
+  // link changes
+  llCreateLink,
+  llBreakLink,
+  llBreakAllLinks,
   // environment
   llGetDayLength,
   llGetDayOffset,
@@ -399,6 +405,13 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionSunRotation,
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
+  // ground, water and wind
+  llGround,
+  llGroundNormal,
+  llGroundSlope,
+  llGroundContour,
+  llWater,
+  llWind,
   llHTTPRequest,
   llHTTPResponse,
   llRequestURL,
