@@ -1,3 +1,4 @@
+import { flushDamageEvents } from './builtins/damage.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
@@ -17,6 +18,7 @@ import {
   PASS_ALWAYS,
   PASS_NEVER,
   CHANGED_LINK,
+  REGION_FLAG_ALLOW_DAMAGE,
 } from './generated/constants.js'
 
 // Re-export so `import { LINK_* } from '@rezless/vm'` keeps working.
@@ -87,6 +89,10 @@ export class Linkset {
   clearLinkedMessages(): void {
     this.linkedMessages.length = 0
   }
+  /** Whether this object is on damage-enabled land. Defaults to the region damage flag. */
+  damageEnabled = false
+  /** Parcel-owner/group sources bypass the llDamage throttle. */
+  damageThrottleExempt = false
   readonly owner: string
   /** True once a script in the linkset has called llDie. */
   dead = false
@@ -120,6 +126,9 @@ export class Linkset {
       this.clock = new LinksetClock(opts.startUnixTime)
       this.peers = []
     }
+    this.damageEnabled = from?.damageEnabled
+      ?? (((opts.world?.region(opts.region).flags ?? 0) & REGION_FLAG_ALLOW_DAMAGE) !== 0)
+    this.damageThrottleExempt = from?.damageThrottleExempt ?? false
     this.peers.push(this)
   }
 
@@ -484,6 +493,7 @@ export class Linkset {
     const scripts = this.peers.flatMap((l) => l.allScripts())
     if (scripts.length === 0) return
     while (true) {
+      flushDamageEvents(this.clock)
       const next = this.clock.takeNextDue(scripts, Math.max(until, this.clock.now))
       if (!next) return
       if (next.at > this.clock.now) this.clock.now = next.at
