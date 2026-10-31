@@ -127,3 +127,15 @@ export const llEdgeOfWorld: BuiltinImpl = (ctx, args) => {
   const { corner } = regionOf(ctx)
   return world.regionAt(corner.x + 128 + 256 * ex, corner.y + 128 + 256 * ey) ? 0 : 1
 }
+
+const inRegion = (v: number) => Math.min(Math.max(v, 0), 256)
+
+/**
+ * llScriptDanger(vector pos) — the region's scriptDanger setting at pos. A
+ * position off the region reads the nearest point on its edge, and z is ignored.
+ */
+export const llScriptDanger: BuiltinImpl = (ctx, args) => {
+  const pos = (args[0] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
+  const danger = regionOf(ctx).scriptDanger ?? false
+  return (typeof danger === 'function' ? danger(inRegion(pos.x), inRegion(pos.y)) : danger) ? 1 : 0
+}

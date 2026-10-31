@@ -32,6 +32,7 @@ import {
   llGetEnv,
   llGetSimulatorHostname,
   llEdgeOfWorld,
+  llScriptDanger,
 } from './region.js'
 import {
   llKey2Name,
@@ -44,6 +45,7 @@ import {
   llGetGeometricCenter,
 } from './object-reads.js'
 import { llCreateLink, llBreakLink, llBreakAllLinks } from './links.js'
+import { llStartObjectAnimation, llStopObjectAnimation, llGetObjectAnimationNames } from './object-animation.js'
 import {
   llGetDayLength,
   llGetDayOffset,
@@ -397,6 +399,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetEnv,
   llGetSimulatorHostname,
   llEdgeOfWorld,
+  llScriptDanger,
   // object reads
   llKey2Name,
   llGetObjectDetails,
@@ -410,6 +413,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llCreateLink,
   llBreakLink,
   llBreakAllLinks,
+  // object animations
+  llStartObjectAnimation,
+  llStopObjectAnimation,
+  llGetObjectAnimationNames,
   // environment
   llGetDayLength,
   llGetDayOffset,
