@@ -14,6 +14,16 @@ export const llSetTimerEvent: BuiltinImpl = (ctx, args) => {
 }
 
 /**
+ * llMinEventDelay(float delay) — timer and touch_start events start at
+ * least `delay` seconds apart, counted from the call and then from the
+ * start of each of them. A reset clears it; a state change keeps it.
+ */
+export const llMinEventDelay: BuiltinImpl = (ctx, args) => {
+  ctx.state.clock.setMinEventDelay(((args[0] as number | undefined) ?? 0) * 1000)
+  return undefined
+}
+
+/**
  * Minimum llSleep advance for positive durations: one server frame at the
  * LSL-canonical 45 Hz tick (~22.222 ms). `llSleep(0)` and negative values
  * are no-ops per the LSL wiki — they are early-returned before this floor

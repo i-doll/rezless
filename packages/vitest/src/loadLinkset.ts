@@ -70,6 +70,8 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
   if (input.startUnixTime !== undefined) linksetOpts.startUnixTime = input.startUnixTime
   if (input.world !== undefined) linksetOpts.world = input.world
   if (input.region !== undefined) linksetOpts.region = input.region
+  if (input.startParameter !== undefined) linksetOpts.startParameter = input.startParameter
+  if (input.startString !== undefined) linksetOpts.startString = input.startString
   const linkset = new Linkset(linksetOpts)
   // Object.create(null) avoids prototype keys ('toString', 'constructor', …)
   // false-positive-tripping the duplicate-name check below.

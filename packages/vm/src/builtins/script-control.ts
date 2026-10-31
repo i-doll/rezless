@@ -52,3 +52,9 @@ export const llGetScriptState: BuiltinImpl = (ctx, args) => {
   if (!target) sayError(ctx, `Could not find script '${name}'.`)
   return target && target.running ? 1 : 0
 }
+
+/** llGetStartParameter() — the object's rez parameter; 0 once the script has reset. */
+export const llGetStartParameter: BuiltinImpl = (ctx) => ctx.script.startParameter
+
+/** llGetStartString() — the object's rez string; a reset keeps it. */
+export const llGetStartString: BuiltinImpl = (ctx) => ctx.linkset.startString

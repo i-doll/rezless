@@ -86,9 +86,7 @@ export const llGetSimStats: BuiltinImpl = (ctx, args) => {
   }
 }
 
-/** llGetEnv(string name) — "" for a name the region does not know; names match exactly. */
-export const llGetEnv: BuiltinImpl = (ctx, args) => {
-  const name = (args[0] as string | undefined) ?? ''
+function env(ctx: CallContext, name: string): string {
   const region = regionOf(ctx)
   const set = region.env && Object.hasOwn(region.env, name) ? region.env[name] : undefined
   if (set !== undefined) return set
@@ -96,6 +94,12 @@ export const llGetEnv: BuiltinImpl = (ctx, args) => {
   if (name === 'region_start_time') return String(Math.floor(ctx.linkset.clock.startUnixTime))
   return Object.hasOwn(ENV, name) ? ENV[name]! : ''
 }
+
+/** llGetEnv(string name) — "" for a name the region does not know; names match exactly. */
+export const llGetEnv: BuiltinImpl = (ctx, args) => env(ctx, (args[0] as string | undefined) ?? '')
+
+/** llGetSimulatorHostname() — the same as llGetEnv("simulator_hostname"). */
+export const llGetSimulatorHostname: BuiltinImpl = (ctx) => env(ctx, 'simulator_hostname')
 
 /**
  * llEdgeOfWorld(vector pos, vector dir) — TRUE when a ray from `pos` along
