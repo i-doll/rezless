@@ -56,3 +56,6 @@ export * from './generated/constants.js'
 export { CONSTANT_TABLE } from './generated/constants_table.js'
 export type { ConstantEntry } from './generated/constants_table.js'
 export type { CombatAvatar } from './builtins/damage.js'
+
+export type { InventoryOffer } from './builtins/give.js'
+export type { ViewerRequest } from './builtins/viewer.js'
