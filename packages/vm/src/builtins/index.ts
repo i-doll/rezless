@@ -43,6 +43,7 @@ import {
   llGetBoundingBox,
   llGetGeometricCenter,
 } from './object-reads.js'
+import { llCreateLink, llBreakLink, llBreakAllLinks } from './links.js'
 import {
   llGetDayLength,
   llGetDayOffset,
@@ -377,6 +378,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetObjectPrimCount,
   llGetBoundingBox,
   llGetGeometricCenter,
+  // link changes
+  llCreateLink,
+  llBreakLink,
+  llBreakAllLinks,
   // environment
   llGetDayLength,
   llGetDayOffset,
