@@ -23,6 +23,9 @@ export interface QueuedEvent {
   readonly payload: Record<string, unknown>
 }
 
+/** Events llMinEventDelay spaces out; other events are not delayed. */
+export const DELAYED_EVENTS: ReadonlySet<string> = new Set(['timer', 'touch_start'])
+
 /** Events a script can hold in its queue; more are dropped, as in Second Life. */
 export const MAX_PENDING_EVENTS = 64
 
@@ -55,6 +58,11 @@ export class LinksetClock {
     this.queue.push({ at, target, event, payload })
   }
 
+  /** Whether `target` has a queued `event` that has not been delivered yet. */
+  hasPending(target: Script, event: string): boolean {
+    return this.queue.some((e) => e.target === target && e.event === event)
+  }
+
   /** Move the clock forward unconditionally; does not drain queues. */
   advance(ms: number): void {
     if (ms < 0) throw new Error('cannot advance time backwards')
@@ -74,14 +82,26 @@ export class LinksetClock {
    * long advances catch up on every missed fire. Ticks that fall due while
    * the script is busy (e.g. in llSleep) collapse into one event delivered
    * when it finishes, and the interval restarts from there.
+   *
+   * Under llMinEventDelay, a timer or touch_start waits until the delay since
+   * the last of them has passed, and the events queued behind it wait too.
    */
   takeNextDue(scripts: ReadonlyArray<Script>, horizon = this.now): QueuedEvent | null {
+    const heldFrom = new Map<Script, number>()
+    for (let i = 0; i < this.queue.length; i++) {
+      const e = this.queue[i]!
+      if (DELAYED_EVENTS.has(e.event) && e.target.clockView.delayedUntilMs > e.at && !heldFrom.has(e.target)) {
+        heldFrom.set(e.target, i)
+      }
+    }
     let bestIdx = -1
     let bestAt = Infinity
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
+      const v = e.target.clockView
       // An event that waited for its target's handler is due when that handler finished.
-      const due = Math.max(e.at, e.target.clockView.busyUntilMs)
+      let due = Math.max(e.at, v.busyUntilMs)
+      if (e.event !== '__reset' && i >= (heldFrom.get(e.target) ?? Infinity)) due = Math.max(due, v.delayedUntilMs)
       if (due <= horizon && due < bestAt && (e.event === '__reset' || e.target.wakeAt === undefined)) {
         bestAt = due
         bestIdx = i
@@ -106,8 +126,8 @@ export class LinksetClock {
       }
       const v = s.clockView
       if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon) {
-        const due = Math.max(v.timerNextFireMs, v.busyUntilMs)
-        if (due < bestTimerAt) {
+        const due = Math.max(v.timerNextFireMs, v.busyUntilMs, v.delayedUntilMs)
+        if (due <= horizon && due < bestTimerAt) {
           bestTimerAt = due
           bestTimerScript = s
         }
@@ -117,7 +137,7 @@ export class LinksetClock {
     if (bestIdx !== -1 && bestAt <= bestTimerAt && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
-      return ev
+      return bestAt > ev.at ? { ...ev, at: bestAt } : ev
     }
     if (bestTimerScript && bestTimerAt <= wakeAt) {
       const at = bestTimerAt
@@ -172,6 +192,10 @@ export class ScriptClockView {
   timerNextFireMs = 0
   /** Virtual time at which the script's last handler finished, when it took time (llSleep, delays). */
   busyUntilMs = 0
+  /** llMinEventDelay in ms; 0 = none. */
+  minEventDelayMs = 0
+  /** Earliest virtual time the next timer or touch_start may start, under llMinEventDelay. */
+  delayedUntilMs = 0
 
   constructor(
     private readonly linksetClock: LinksetClock,
@@ -206,6 +230,12 @@ export class ScriptClockView {
     }
     this.timerIntervalMs = intervalMs
     this.timerNextFireMs = this.now + intervalMs
+  }
+
+  /** llMinEventDelay: `ms` below 0 counts as 0, and the delay starts now. */
+  setMinEventDelay(ms: number): void {
+    this.minEventDelayMs = Math.max(0, ms)
+    this.delayedUntilMs = this.now + this.minEventDelayMs
   }
 
   /** Advances the linkset clock. */

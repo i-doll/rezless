@@ -18,6 +18,10 @@ import {
   llGetTimestamp,
   llGetDate,
   llGetRegionTimeDilation,
+  llGetGMTclock,
+  llGetWallclock,
+  llGetTimeOfDay,
+  llMinEventDelay,
 } from './time.js'
 import {
   llGetRegionName,
@@ -27,6 +31,7 @@ import {
   llGetRegionAgentCount,
   llGetSimStats,
   llGetEnv,
+  llGetSimulatorHostname,
   llEdgeOfWorld,
 } from './region.js'
 import {
@@ -214,6 +219,8 @@ import {
   llResetOtherScript,
   llSetScriptState,
   llGetScriptState,
+  llGetStartParameter,
+  llGetStartString,
 } from './script-control.js'
 import {
   llLinksetDataWrite,
@@ -313,6 +320,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetTimestamp,
   llGetDate,
   llGetRegionTimeDilation,
+  llGetGMTclock,
+  llGetWallclock,
+  llGetTimeOfDay,
+  llMinEventDelay,
   // region
   llGetRegionName,
   llGetRegionCorner,
@@ -321,6 +332,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionAgentCount,
   llGetSimStats,
   llGetEnv,
+  llGetSimulatorHostname,
   llEdgeOfWorld,
   // object reads
   llKey2Name,
@@ -500,6 +512,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llResetOtherScript,
   llSetScriptState,
   llGetScriptState,
+  llGetStartParameter,
+  llGetStartString,
   // linkset data
   llLinksetDataWrite,
   llLinksetDataWriteProtected,

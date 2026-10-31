@@ -32,6 +32,10 @@ export interface LinksetOptions {
   readonly world?: World
   /** Region of `world` the linkset is in. */
   readonly region?: string
+  /** Start parameter the object was rezzed with, read by llGetStartParameter. Default 0. */
+  readonly startParameter?: number
+  /** Start string the object was rezzed with, read by llGetStartString. Default "". */
+  readonly startString?: string
 }
 
 export interface TouchOptions {
@@ -82,10 +86,14 @@ export class Linkset {
   readonly owner: string
   readonly world?: World
   readonly region: string | undefined
+  readonly startParameter: number
+  readonly startString: string
 
   constructor(opts: LinksetOptions = {}) {
     this.owner = opts.owner ?? NULL_KEY
     this.region = opts.region
+    this.startParameter = opts.startParameter ?? 0
+    this.startString = opts.startString ?? ''
     if (opts.world) {
       opts.world.corner(opts.region)
       this.world = opts.world
@@ -281,8 +289,13 @@ export class Linkset {
         ...(opts.uv && { touchUV: opts.uv }),
       },
     ]
+    // Under llMinEventDelay a script holds one waiting click; it drops the others.
+    const dropped = new Set(
+      receivers.filter((s) => s.clockView.minEventDelayMs > 0 && this.clock.hasPending(s, 'touch_start')),
+    )
     const queue = (events: ReadonlyArray<string>) => {
       for (const s of receivers) {
+        if (dropped.has(s)) continue
         if (!s.running || s.dead) continue
         for (const e of events) {
           if (s.handles(e)) this.clock.schedule(s, this.clock.now, e, { num_detected: 1, detected })
