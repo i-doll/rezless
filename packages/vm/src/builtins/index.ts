@@ -1,4 +1,6 @@
 import { llParticleSystem, llLinkParticleSystem } from './particles.js'
+import { llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop } from './give.js'
+import { llLoadURL, llMapDestination, llMapBeacon, llOpenFloater } from './viewer.js'
 import { llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia } from './media.js'
 import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
 import {
@@ -70,6 +72,9 @@ import {
 import { llCreateLink, llBreakLink, llBreakAllLinks } from './links.js'
 import { llStartObjectAnimation, llStopObjectAnimation, llGetObjectAnimationNames } from './object-animation.js'
 import {
+  llGetEnvironment,
+  llSetEnvironment,
+  llReplaceEnvironment,
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
@@ -85,7 +90,7 @@ import {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
 } from './environment.js'
-import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind } from './ground.js'
+import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind, llModifyLand, llSetGroundTexture } from './ground.js'
 import {
   llHTTPRequest,
   llHTTPResponse,
@@ -402,6 +407,8 @@ import {
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llParticleSystem, llLinkParticleSystem,
+  llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,
+  llLoadURL, llMapDestination, llMapBeacon, llOpenFloater,
   llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
   llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
@@ -474,6 +481,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llStopObjectAnimation,
   llGetObjectAnimationNames,
   // environment
+  llGetEnvironment,
+  llSetEnvironment,
+  llReplaceEnvironment,
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
@@ -488,6 +498,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
   // ground, water and wind
+  llModifyLand,
+  llSetGroundTexture,
   llGround,
   llGroundNormal,
   llGroundSlope,
