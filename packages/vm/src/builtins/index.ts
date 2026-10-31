@@ -51,6 +51,10 @@ import {
   llRot2Angle,
   llAxisAngle2Rot,
   llRotBetween,
+  llAngleBetween,
+  llAxes2Rot,
+  llLinear2sRGB,
+  llsRGB2Linear,
   llModPow,
 } from './math.js'
 import {
@@ -92,6 +96,7 @@ import {
   llParseString2List,
   llParseStringKeepNulls,
   llListSort,
+  llListSortStrided,
   llList2ListStrided,
   llList2ListSlice,
   llListRandomize,
@@ -323,6 +328,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llRot2Angle,
   llAxisAngle2Rot,
   llRotBetween,
+  llAngleBetween,
+  llAxes2Rot,
+  llLinear2sRGB,
+  llsRGB2Linear,
   llModPow,
   // strings
   llStringLength,
@@ -362,6 +371,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llParseString2List,
   llParseStringKeepNulls,
   llListSort,
+  llListSortStrided,
   llList2ListStrided,
   llList2ListSlice,
   llListRandomize,

@@ -305,10 +305,28 @@ function delimiters(list: ReadonlyArray<LslValue>): string[] {
  * Vectors compare by magnitude and rotations never compare. A list whose
  * length isn't a multiple of stride comes back unsorted.
  */
-export const llListSort: BuiltinImpl = (_ctx, args) => {
-  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
-  const stride = Math.max(1, (args[1] as number | undefined) ?? 1)
-  const descending = ((args[2] as number | undefined) ?? 0) !== 1
+export const llListSort: BuiltinImpl = (_ctx, args) =>
+  sortStrided(args[0], args[1], 0, args[2])
+
+/**
+ * llListSortStrided(list src, integer stride, integer stride_index, integer ascending)
+ * — llListSort keyed on the element at stride_index in each stride. A
+ * negative index counts from the end of the stride; one outside it gives [].
+ */
+export const llListSortStrided: BuiltinImpl = (_ctx, args) =>
+  sortStrided(args[0], args[1], (args[2] as number | undefined) ?? 0, args[3])
+
+function sortStrided(
+  list: LslValue | undefined,
+  strideArg: LslValue | undefined,
+  index: number,
+  ascending: LslValue | undefined,
+): ReadonlyArray<LslValue> {
+  const src = (list as ReadonlyArray<LslValue> | undefined) ?? []
+  const stride = Math.max(1, (strideArg as number | undefined) ?? 1)
+  const descending = ((ascending as number | undefined) ?? 0) !== 1
+  if (index < 0) index += stride
+  if (index < 0 || index >= stride) return []
   const len = src.length
   if (len % stride !== 0) return src
   const values = [...src]
@@ -321,7 +339,9 @@ export const llListSort: BuiltinImpl = (_ctx, args) => {
   }
   for (let i = 0; i < len - stride; i += stride) {
     for (let j = i + stride; j < len; j += stride) {
-      if (sortsAfter(values[i]!, types[i], values[j]!, types[j]) !== descending) swap(i, j)
+      const a = i + index
+      const b = j + index
+      if (sortsAfter(values[a]!, types[a], values[b]!, types[b]) !== descending) swap(i, j)
     }
   }
   return typedList(values, types)

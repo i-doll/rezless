@@ -1,5 +1,5 @@
 import type { BuiltinImpl } from '../runtime.js'
-import type { Vector, Rotation } from '../values/types.js'
+import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, rot, vec } from '../values/types.js'
 import { rotateVector } from '../values/ops.js'
 
@@ -213,6 +213,88 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   const m = Math.hypot(u.x, u.y, u.z)
   return rot(u.x / m, u.y / m, u.z / m, 0)
 }
+
+const f32 = Math.fround
+
+/**
+ * Second Life's quaternion normalise, in single precision: it leaves a
+ * rotation within 1e-6 of unit length as it is, and turns a near-zero or NaN
+ * one into ZERO_ROTATION.
+ */
+function normalizeRotation(q: Rotation): Rotation {
+  const m = f32(Math.sqrt(f32(f32(f32(f32(q.x * q.x) + f32(q.y * q.y)) + f32(q.z * q.z)) + f32(q.s * q.s))))
+  if (!(m > f32(1e-7))) return rot(0, 0, 0, 1)
+  if (Math.abs(f32(1 - m)) <= 1e-6) return q
+  const k = f32(1 / m)
+  return rot(f32(q.x * k), f32(q.y * k), f32(q.z * k), f32(q.s * k))
+}
+
+/**
+ * llAngleBetween(rotation a, rotation b) — the angle in [0, PI] of the turn
+ * from a to b: 2 * acos of the dot product, folded back below PI, all in
+ * single precision. Angles under about 0.002 lose most of their digits.
+ */
+export const llAngleBetween: BuiltinImpl = (_ctx, args) => {
+  const toF32 = (q: Rotation) => rot(f32(q.x), f32(q.y), f32(q.z), f32(q.s))
+  const a = normalizeRotation(toF32((args[0] as Rotation | undefined) ?? rot(0, 0, 0, 1)))
+  const b = normalizeRotation(toF32((args[1] as Rotation | undefined) ?? rot(0, 0, 0, 1)))
+  const dot = f32(f32(f32(f32(a.x * b.x) + f32(a.y * b.y)) + f32(a.z * b.z)) + f32(a.s * b.s))
+  const angle = f32(2 * f32(Math.acos(Math.min(1, Math.max(-1, dot)))))
+  return angle > f32(Math.PI) ? f32(f32(2 * Math.PI) - angle) : angle
+}
+
+/**
+ * llAxes2Rot(vector fwd, vector left, vector up) — converts the matrix whose
+ * rows are the three axes, as Second Life does. With a positive trace the
+ * result isn't normalised, so scaled or skewed axes give a non-unit rotation.
+ */
+export const llAxes2Rot: BuiltinImpl = (_ctx, args) => {
+  const row = (v: LslValue | undefined) => {
+    const u = (v as Vector | undefined) ?? vec(0, 0, 0)
+    return [u.x, u.y, u.z]
+  }
+  const m = [row(args[0]), row(args[1]), row(args[2])]
+  const tr = m[0]![0]! + m[1]![1]! + m[2]![2]!
+  if (tr > 0) {
+    const s = Math.sqrt(tr + 1)
+    const k = 0.5 / s
+    return rot((m[1]![2]! - m[2]![1]!) * k, (m[2]![0]! - m[0]![2]!) * k, (m[0]![1]! - m[1]![0]!) * k, s / 2)
+  }
+  let i = 0
+  if (m[1]![1]! > m[0]![0]!) i = 1
+  if (m[2]![2]! > m[i]![i]!) i = 2
+  const j = (i + 1) % 3
+  const k = (j + 1) % 3
+  const q = [0, 0, 0, 0]
+  let s = Math.sqrt(m[i]![i]! - (m[j]![j]! + m[k]![k]!) + 1)
+  q[i] = s * 0.5
+  if (s !== 0) s = 0.5 / s
+  q[3] = (m[j]![k]! - m[k]![j]!) * s
+  q[j] = (m[i]![j]! + m[j]![i]!) * s
+  q[k] = (m[i]![k]! + m[k]![i]!) * s
+  return normalizeRotation(rot(q[0]!, q[1]!, q[2]!, q[3]!))
+}
+
+const mapColour = (v: LslValue | undefined, fn: (c: number) => number): Vector => {
+  const c = (v as Vector | undefined) ?? vec(0, 0, 0)
+  return vec(fn(f32(c.x)), fn(f32(c.y)), fn(f32(c.z)))
+}
+
+/** llLinear2sRGB(vector color) — the sRGB transfer curve per channel in single precision, without clamping. */
+export const llLinear2sRGB: BuiltinImpl = (_ctx, args) =>
+  mapColour(args[0], (c) =>
+    c <= f32(0.0031308)
+      ? f32(c * f32(12.92))
+      : f32(f32(f32(1.055) * f32(Math.pow(c, f32(f32(1) / f32(2.4))))) - f32(0.055)),
+  )
+
+/** llsRGB2Linear(vector color) — the inverse sRGB transfer curve per channel in single precision, without clamping. */
+export const llsRGB2Linear: BuiltinImpl = (_ctx, args) =>
+  mapColour(args[0], (c) =>
+    c <= f32(0.04045)
+      ? f32(c / f32(12.92))
+      : f32(Math.pow(f32(f32(c + f32(0.055)) / f32(1.055)), f32(2.4))),
+  )
 
 /** llModPow(base, exponent, modulus) — operands are read as unsigned 32-bit. */
 export const llModPow: BuiltinImpl = (_ctx, args) => {
