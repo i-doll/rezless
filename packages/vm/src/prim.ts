@@ -38,6 +38,13 @@ export interface PrimSoundState {
 /** Media values indexed by PRIM_MEDIA_* parameter, for one face. */
 export type PrimMediaParams = ReadonlyArray<number | string>
 
+/** Accepted particle request; numeric values retain their requested magnitude. */
+export interface PrimParticleState {
+  readonly rules: ReadonlyArray<LslValue>
+  /** Resolved asset UUID; NULL_KEY selects the default particle texture. */
+  readonly texture: string
+}
+
 export interface PrimOptions {
   /** The prim's key. Defaults to a distinct key, so other scripts can look the prim up. */
   readonly key?: string
@@ -80,6 +87,9 @@ export class Prim {
   readonly objectAnimations = new Set<string>()
   /** Shared media state per face; absent entries have no media. */
   readonly media = new Map<number, PrimMediaParams>()
+
+  /** Last particle request, or null after clearing/rejecting it. No renderer simulation. */
+  particles: PrimParticleState | null = null
 
   /** Last attached request and one-shot history, shared by this prim's scripts. */
   readonly sound: PrimSoundState = {
