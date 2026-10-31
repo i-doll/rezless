@@ -142,6 +142,15 @@ describe('llGetObjectMass', () => {
       expect(m).toBeCloseTo(mass, 5)
     }
   })
+  // In-world, the same prim as a default torus -> 0.753013. rezless doesn't
+  // model torus, tube, ring or sculpt volumes and reads them as a solid box
+  // of their size, 1.92 here.
+  it('reads a torus as a solid box of its size', async () => {
+    const [m] = await probe(
+      'llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_SIZE, <0.4, 0.6, 0.8>, PRIM_TYPE, PRIM_TYPE_TORUS, PRIM_HOLE_DEFAULT, <0,1,0>, 0.0, <0,0,0>, <1,0.25,0>, <0,0,0>, <0,1,0>, <0,0,0>, 0.0, 0.0, 0.0]); out = [llGetObjectMass(ROOT) - llGetObjectMass(CHILD)];',
+    )
+    expect(m).toBeCloseTo(1.92, 5)
+  })
 })
 
 describe('llGetObjectMass density and physics shape', () => {
