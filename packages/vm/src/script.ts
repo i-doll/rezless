@@ -1,3 +1,9 @@
+import {
+  enterDamageEvent,
+  leaveDamageEvent,
+  combatAvatars,
+  type CombatAvatar,
+} from './builtins/damage.js'
 import type {
   Script as Ast,
   EventHandler,
@@ -282,6 +288,17 @@ export class Script {
     if (!host.scripts.includes(this)) {
       host.addScript(this)
     }
+  }
+
+  /** A state transition leaves on_damage before lifecycle handlers execute. */
+  private clearDamageAdjustment(): void {
+    const context = this.state.detectedStack.at(-1)
+    if (context?.event === 'on_damage') context.event = ''
+  }
+
+  /** Configure an avatar's combat health, parcel and attachment scripts. */
+  setCombatAvatar(id: string, avatar: CombatAvatar): void {
+    combatAvatars(this).set(id.toLowerCase(), { ...avatar, region: this.linkset.region })
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
@@ -941,9 +958,12 @@ export class Script {
     args: ReadonlyArray<EvalResult>,
     payload: Record<string, unknown>,
   ): Generator<Suspension, boolean, unknown> {
+    enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
-    if (pushed) this.state.detectedStack.push({ entries: detected as ReadonlyArray<DetectedEntry> })
+    if (pushed) this.state.detectedStack.push({
+      entries: detected as ReadonlyArray<DetectedEntry>, event: handler.name,
+    })
     try {
       this.state.memory.startEvent()
       return yield* this.runHandlerChain(handler, args)
@@ -952,6 +972,7 @@ export class Script {
       throw e
     } finally {
       if (pushed) this.state.detectedStack.pop()
+      leaveDamageEvent(payload)
     }
   }
 
@@ -983,6 +1004,7 @@ export class Script {
         if (e instanceof ResetScriptSignal) return true
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
+        this.clearDamageAdjustment()
         if (this.state.lifecycle.removed) return false
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue

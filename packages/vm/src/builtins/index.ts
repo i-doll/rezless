@@ -1,3 +1,4 @@
+import { llDamage, llAdjustDamage, llGetHealth, llSetDamage } from './damage.js'
 import type { BuiltinImpl } from '../runtime.js'
 import {
   llSay,
@@ -369,6 +370,10 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llDamage,
+  llAdjustDamage,
+  llGetHealth,
+  llSetDamage,
   llSay,
   llShout,
   llWhisper,
