@@ -419,3 +419,53 @@ it('allows more than thirty animation UUIDs to be reported', async () => {
   s.linkset.touch(0)
   expect(s.global('got')).toEqual([32])
 })
+
+// In-world: review-collision-repeat.lsl -> stand present while Standing after
+// llStartAnimation("stand"), absent after walking (Aditi, SLua Tideland, 2026-10-31).
+it('removes the old locomotion UUID even when explicitly started', async () => {
+  const stand = '2408fe9e-df1d-1d7d-f4ff-1384fa7b350f'
+  const s = await load('llStartAnimation("stand");')
+  s.setAnimationState(AGENT, 'Standing')
+  s.linkset.touch(0)
+  expect(s.getPlayingAnimations(AGENT)).toEqual([stand])
+  s.setAnimationState(AGENT, 'Walking')
+  expect(s.getPlayingAnimations(AGENT)).toEqual([WALK])
+})
+
+// In-world: review-collision-repeat.lsl -> explicitly started sit disappeared
+// when Standing's sit override was replaced with walk or reset to stand
+// (Aditi, SLua Tideland, 2026-10-31).
+it.each([
+  ['llSetAnimationOverride("Standing", "walk");', WALK],
+  ['llResetAnimationOverride("Standing");', '2408fe9e-df1d-1d7d-f4ff-1384fa7b350f'],
+])('removes a colliding explicit animation on %s', async (change, expected) => {
+  const s = await load(`
+    llSetAnimationOverride("Standing", "sit");
+    llStartAnimation("sit");
+    got = llGetAnimationList(llGetOwner());
+    ${change}
+  `)
+  s.setAnimationState(AGENT, 'Standing')
+  s.linkset.touch(0)
+  expect(s.global('got')).toEqual([SIT])
+  expect(s.getPlayingAnimations(AGENT)).toEqual([expected])
+})
+
+// In-world: review-uuid-confirmed.lsl -> stopping inventory name equal to the
+// sit UUID removed uploaded loop d0802c92-eb48-129c-768c-6b71f285b7bc, while
+// built-in sit kept playing (Aditi, SLua Tideland, 2026-10-31).
+it('resolves UUID-shaped inventory animation names before raw stop UUIDs', async () => {
+  const s = await load(`
+    llStartAnimation("sit");
+    llStartAnimation("${SIT}");
+    got = llGetAnimationList(llGetOwner());
+    llStopAnimation("${SIT}");
+  `)
+  addAnimation(s, SIT)
+  s.linkset.touch(0)
+  expect(s.global('got')).toContain(CUSTOM)
+  expect(s.global('got')).toContain(SIT)
+  expect(s.getPlayingAnimations(AGENT)).toContain(SIT)
+  expect(s.getPlayingAnimations(AGENT)).not.toContain(CUSTOM)
+  expect(errors(s)).toEqual([])
+})

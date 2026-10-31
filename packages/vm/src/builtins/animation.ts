@@ -216,7 +216,9 @@ function avatarFor(avatars: Map<string, AvatarAnimations>, agent: string): Avata
   return avatar
 }
 
-/** Register an avatar and set its locomotion state, keeping script-started animations. */
+// In-world: review-collision-repeat.lsl -> explicitly starting stand does not
+// preserve it across walking (Aditi, SLua Tideland, 2026-10-31).
+/** Set locomotion, keeping script-started animations with unrelated UUIDs. */
 export function setAnimationState(avatars: Map<string, AvatarAnimations>, agent: string, state: AnimationState): void {
   if (!Object.hasOwn(DEFAULT_ANIMATIONS, state)) throw new Error(`Unknown animation state '${state}'`)
   const avatar = avatarFor(avatars, agent)
@@ -264,7 +266,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export const llStopAnimation: BuiltinImpl = (ctx, args) => {
   if (!permitted(ctx, PERMISSION_TRIGGER_ANIMATION)) return undefined
   const name = args[0] as string
-  const key = UUID.test(name) ? name.toLowerCase() : resolveAnimation(ctx, name)
+  // In-world: review-uuid-confirmed.lsl -> UUID-shaped inventory name stops
+  // its asset, not the raw UUID (Aditi, SLua Tideland, 2026-10-31).
+  const key = resolveAnimation(ctx, name) ?? (UUID.test(name) ? name.toLowerCase() : undefined)
   if (key === undefined) sayError(ctx, `Could not find animation '${name}'.`)
   else permissionAvatar(ctx).playing.delete(key)
   return undefined
