@@ -1,3 +1,4 @@
+import { llParticleSystem, llLinkParticleSystem } from './particles.js'
 import { llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop } from './give.js'
 import { llLoadURL, llMapDestination, llMapBeacon, llOpenFloater } from './viewer.js'
 import { llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia } from './media.js'
@@ -405,6 +406,7 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llParticleSystem, llLinkParticleSystem,
   llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,
   llLoadURL, llMapDestination, llMapBeacon, llOpenFloater,
   llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
