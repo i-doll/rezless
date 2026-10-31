@@ -136,8 +136,8 @@ describe('llSignRSA', () => {
 
   // In-world: "x", "", the body without its BEGIN and END lines, the public key, an EC
   // private key (SEC 1 or PKCS #8), a passphrase-protected PKCS #8 key, the key with its
-  // second-to-last body line removed, and the key with "!" in its body all returned ""
-  // with no error.
+  // second-to-last body line removed, the key with "!" in its body, the key without its
+  // END line and the key ending in a bare "-----END" all returned "" with no error.
   it.each([
     ['x', 'x'],
     ['an empty key', ''],
@@ -148,6 +148,8 @@ describe('llSignRSA', () => {
     ['an EC key in PKCS #8', generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).privateKey.export({ type: 'pkcs8', format: 'pem' }) as string],
     ['a cut key', [...WIKI_PRIVATE.split('\n').slice(0, -2), '-----END RSA PRIVATE KEY-----'].join('\n')],
     ['a key with "!" in it', WIKI_PRIVATE.replace('MIIEog', 'MIIE!og')],
+    ['a key without its END line', WIKI_PRIVATE.split('\n').slice(0, -1).join('\n')],
+    ['a key ending in a bare END', WIKI_PRIVATE.split('\n').slice(0, -1).join('\n') + '\n-----END'],
   ])('returns "" for %s', async (_label, key) => {
     expect(await lsl('fp(llSignRSA(K, MSG, "sha1"))', { K: key })).toBe(EMPTY)
   })
@@ -192,7 +194,7 @@ describe('llVerifyRSA', () => {
 
   // In-world: the public key with every newline removed -> 1; "BEGIN RSA PUBLIC KEY"
   // (PKCS #1) -> 0; the private key -> 0; "x" -> 0; an EC key with an ECDSA signature -> 0;
-  // the public key with "MIIBIjAN" changed to "MIIBIjAA" -> 0.
+  // the public key with "MIIBIjAN" changed to "MIIBIjAA" -> 0; without its END line -> 0.
   it('takes only an RSA public key in "BEGIN PUBLIC KEY" form', async () => {
     const ec = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
     const strings = {
@@ -201,6 +203,7 @@ describe('llVerifyRSA', () => {
       ECPUB: ec.publicKey.export({ type: 'spki', format: 'pem' }) as string,
       ECSIG: sign('sha256', Buffer.from(MSG), ec.privateKey).toString('base64'),
       BAD: WIKI_PUBLIC.replace('MIIBIjAN', 'MIIBIjAA'),
+      NOEND: WIKI_PUBLIC.split('\n').slice(0, -1).join('\n'),
     }
     expect(await verify('A', strings, 'ONE')).toBe(1)
     expect(await verify('A', strings, 'P1')).toBe(0)
@@ -208,6 +211,7 @@ describe('llVerifyRSA', () => {
     expect(await verify('A', strings, '"x"')).toBe(0)
     expect(await verify('ECSIG', strings, 'ECPUB', 'sha256')).toBe(0)
     expect(await verify('A', strings, 'BAD')).toBe(0)
+    expect(await verify('A', strings, 'NOEND')).toBe(0)
   })
 
   // In-world, signature A with: padding removed -> 1; "QUJD", "A", "!!" or "\n" after the
