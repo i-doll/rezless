@@ -2,7 +2,8 @@ import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
 import { InventoryType, inventoryItemName } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
-import type { LslValue, Vector } from './values/types.js'
+import type { LslValue, Rotation, Vector } from './values/types.js'
+import { mulRotation } from './values/ops.js'
 import { NULL_KEY } from './values/types.js'
 import { deterministicKey } from './keys.js'
 import { PERM_ALL } from './generated/constants.js'
@@ -145,6 +146,16 @@ export class Prim {
       y: origin.y + local.y + s * ty + (z * tx - x * tz),
       z: origin.z + local.z + s * tz + (x * ty - y * tx),
     }
+  }
+
+  /**
+   * Rotation in region coordinates. `params.rotation` is the region rotation
+   * of a root or lone prim and the rotation relative to the root of a child.
+   */
+  regionRotation(): Rotation {
+    const root = this.linkset?.prims[0]
+    if (!root || root === this) return this.params.rotation
+    return mulRotation(this.params.rotation, root.params.rotation)
   }
 
   /** llSetStatus seam. STATUS_* is a bit value; sets or clears it. */

@@ -20,7 +20,6 @@ import {
   llGetRegionTimeDilation,
   llGetGMTclock,
   llGetWallclock,
-  llGetTimeOfDay,
   llMinEventDelay,
 } from './time.js'
 import {
@@ -44,12 +43,14 @@ import {
   llGetBoundingBox,
   llGetGeometricCenter,
 } from './object-reads.js'
+import { llCreateLink, llBreakLink, llBreakAllLinks } from './links.js'
 import {
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
   llGetRegionDayOffset,
   llGetRegionTimeOfDay,
+  llGetTimeOfDay,
   llGetSunDirection,
   llGetSunRotation,
   llGetMoonDirection,
@@ -59,6 +60,7 @@ import {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
 } from './environment.js'
+import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind } from './ground.js'
 import {
   llHTTPRequest,
   llHTTPResponse,
@@ -69,6 +71,7 @@ import {
   llGetHTTPHeader,
   llSetContentType,
 } from './http.js'
+import { llEmail, llGetNextEmail, llTargetedEmail } from './email.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
 import { llDialog, llTextBox } from './dialog.js'
 import {
@@ -245,6 +248,15 @@ import {
 } from './inventory.js'
 import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-search.js'
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
+import { llTakeControls, llReleaseControls } from './controls.js'
+import {
+  llGetCameraPos,
+  llGetCameraRot,
+  llGetCameraFOV,
+  llGetCameraAspect,
+  llSetCameraParams,
+  llClearCameraParams,
+} from './camera.js'
 import {
   llAgentInExperience,
   llGetExperienceDetails,
@@ -389,6 +401,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetObjectPrimCount,
   llGetBoundingBox,
   llGetGeometricCenter,
+  // link changes
+  llCreateLink,
+  llBreakLink,
+  llBreakAllLinks,
   // environment
   llGetDayLength,
   llGetDayOffset,
@@ -403,6 +419,13 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionSunRotation,
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
+  // ground, water and wind
+  llGround,
+  llGroundNormal,
+  llGroundSlope,
+  llGroundContour,
+  llWater,
+  llWind,
   llHTTPRequest,
   llHTTPResponse,
   llRequestURL,
@@ -411,6 +434,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetFreeURLs,
   llGetHTTPHeader,
   llSetContentType,
+  // email
+  llEmail,
+  llGetNextEmail,
+  llTargetedEmail,
   llListen,
   llListenRemove,
   llListenControl,
@@ -595,6 +622,16 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llKeyCountKeyValue,
   llKeysKeyValue,
   llDataSizeKeyValue,
+  // controls
+  llTakeControls,
+  llReleaseControls,
+  // camera
+  llGetCameraPos,
+  llGetCameraRot,
+  llGetCameraFOV,
+  llGetCameraAspect,
+  llSetCameraParams,
+  llClearCameraParams,
   // script control
   llResetOtherScript,
   llSetScriptState,

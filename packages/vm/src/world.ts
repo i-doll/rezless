@@ -1,7 +1,7 @@
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
 import type { Script } from './script.js'
-import type { Rotation } from './values/types.js'
+import type { Rotation, Vector } from './values/types.js'
 
 export interface WorldOptions {
   /** Unix time in seconds at virtual time 0, read by llGetUnixTime and friends. Default 0. */
@@ -34,6 +34,18 @@ export interface RegionSettings {
   readonly sunRotation?: SkyRotation
   /** The moon's rotation, read by llGetRegionMoonRotation and llGetMoonRotation. Default the moon opposite that sun. */
   readonly moonRotation?: SkyRotation
+  /**
+   * Terrain height in metres, read by llGround, llGroundNormal, llGroundSlope
+   * and llGroundContour: one height, or a function giving the height at each
+   * whole-metre grid point from -1 to 256. Heights between grid points are
+   * interpolated.
+   * Default 22, flat.
+   */
+  readonly ground?: number | ((x: number, y: number) => number)
+  /** Water height in metres across the whole region, read by llWater. Default 20. */
+  readonly water?: number
+  /** Wind velocity, read by llWind: one vector, or a function of region x and y. Default a measured breeze held fixed. */
+  readonly wind?: Vector | ((x: number, y: number) => Vector)
 }
 
 /**

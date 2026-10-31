@@ -64,6 +64,10 @@ export interface ScriptState {
   readonly incomingHttp: import('./builtins/http.js').IncomingHttpRequest[]
   /** Monotonic counter feeding deterministic incoming request keys. */
   httpInCounter: number
+  /** Mail sent with llEmail, oldest first. */
+  readonly emails: import('./builtins/email.js').SentEmail[]
+  /** Mail sent with llTargetedEmail, oldest first. */
+  readonly targetedEmails: import('./builtins/email.js').SentTargetedEmail[]
   readonly listens: import('./builtins/listen.js').ListenEntry[]
   /** Monotonic counter for llListen handles. */
   listenHandleCounter: number
@@ -104,6 +108,15 @@ export interface ScriptState {
   readonly experience: import('./experience.js').Experience | null
   /** llRequestExperiencePermissions calls waiting for the test to answer, oldest first. */
   readonly experienceRequests: import('./builtins/experience.js').ExperienceRequestEntry[]
+  /** Controls taken with llTakeControls, and the control levels last sent by the test. */
+  readonly controls: {
+    taken: import('./builtins/controls.js').TakenControls | null
+    level: number
+  }
+  /** The permission agent's camera, set by the test and read by llGetCamera*. */
+  camera: import('./builtins/camera.js').Camera
+  /** Camera rules set with llSetCameraParams, by rule. */
+  readonly cameraParams: Map<number, LslValue>
   /** Dialogs and text boxes shown with llDialog / llTextBox, oldest first. */
   readonly dialogs: import('./builtins/dialog.js').DialogEntry[]
   /**

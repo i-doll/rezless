@@ -61,6 +61,7 @@ export const llGetRegionMoonDirection: BuiltinImpl = (ctx) => rotateVector(X_AXI
 // Parcels have no environment of their own here, so the parcel reads give the region's.
 export const llGetDayLength = llGetRegionDayLength
 export const llGetDayOffset = llGetRegionDayOffset
+export const llGetTimeOfDay = llGetRegionTimeOfDay
 export const llGetSunRotation = llGetRegionSunRotation
 export const llGetSunDirection = llGetRegionSunDirection
 export const llGetMoonRotation = llGetRegionMoonRotation

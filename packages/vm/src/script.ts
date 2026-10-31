@@ -9,6 +9,8 @@ import type {
 import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity, Suspension } from './runtime.js'
 import type { HttpRequestEntry, IncomingHttpInit, IncomingHttpRequest } from './builtins/http.js'
 import { sendIncomingHttp } from './builtins/http.js'
+import type { IncomingEmail, IncomingEmailInit, SentEmail, SentTargetedEmail } from './builtins/email.js'
+import { deliverEmail, emailQueue } from './builtins/email.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
@@ -17,6 +19,9 @@ import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import type { PermissionRequestEntry } from './builtins/permissions.js'
 import type { DialogEntry } from './builtins/dialog.js'
+import type { TakenControls } from './builtins/controls.js'
+import type { Camera } from './builtins/camera.js'
+import { defaultCamera } from './builtins/camera.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
@@ -34,7 +39,12 @@ import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
-import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED, XP_ERROR_NOT_PERMITTED } from './generated/constants.js'
+import {
+  DEBUG_CHANNEL,
+  HTTP_BODY_TRUNCATED,
+  PERMISSION_TAKE_CONTROLS,
+  XP_ERROR_NOT_PERMITTED,
+} from './generated/constants.js'
 import { own } from './own.js'
 import { deterministicKey } from './keys.js'
 import { Memory, RuntimeError, codeBytes } from './memory.js'
@@ -138,7 +148,6 @@ export class Script {
   /** Per-script clock facade (timer state + time reference). */
   readonly clockView: ScriptClockView
   readonly host: Prim
-  readonly linkset: Linkset
   readonly scriptName: string
   /** When false, drainQueue parks events instead of delivering them. */
   running = true
@@ -148,6 +157,8 @@ export class Script {
   startParameter: number
   /** The handler chain suspended in llSleep or a builtin delay, if any. */
   private task: Task | null = null
+  /** Virtual time this script last started a handler or woke from a sleep. */
+  resumedAt = 0
 
   constructor(private readonly ast: Ast, options: ScriptOptions = {}) {
     // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
@@ -172,19 +183,17 @@ export class Script {
     if (!host.linkset) {
       throw new Error('Script host prim must belong to a Linkset')
     }
-    this.linkset = host.linkset
     this.startParameter = this.linkset.startParameter
     this.scriptName = inventoryItemName(options.scriptName ?? deriveScriptName(options.filename))
 
     this.clockView = new ScriptClockView(this.linkset.clock, () => this)
 
-    const linkset = this.linkset
     const prim = host
     const scriptName = this.scriptName
 
     const identity: ScriptIdentity = {
       get owner() {
-        return linkset.owner
+        return prim.linkset!.owner
       },
       get objectKey() {
         return prim.key
@@ -218,6 +227,8 @@ export class Script {
       urlCounter: 0,
       incomingHttp: [],
       httpInCounter: 0,
+      emails: [],
+      targetedEmails: [],
       listens: [],
       listenHandleCounter: 0,
       random: new Mulberry32(options.randomSeed ?? 1),
@@ -226,11 +237,16 @@ export class Script {
       dataserverRequests: [],
       dataserverKeyCounter: 0,
       detectedStack: [],
-      linksetData: this.linkset.linksetData,
+      get linksetData() {
+        return prim.linkset!.linksetData
+      },
       appearance: this.host.appearance,
       permissions: { granted: 0, agent: NULL_KEY, requests: [] },
       experience: options.experience ?? null,
       experienceRequests: [],
+      controls: { taken: null, level: 0 },
+      camera: defaultCamera(),
+      cameraParams: new Map(),
       dialogs: [],
       lifecycle: {
         dead: false,
@@ -266,6 +282,11 @@ export class Script {
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
+  /** The linkset holding this script's prim; it changes when the prim is linked or unlinked. */
+  get linkset(): Linkset {
+    return this.host.linkset!
+  }
+
   get now(): number {
     return this.linkset.clock.now
   }
@@ -385,6 +406,30 @@ export class Script {
     return sendIncomingHttp(this, this.state, url, init)
   }
 
+  /** Mail the script sent with llEmail, oldest first. */
+  get emails(): ReadonlyArray<SentEmail> {
+    return this.state.emails
+  }
+
+  /** Mail the script sent with llTargetedEmail, oldest first. */
+  get targetedEmails(): ReadonlyArray<SentTargetedEmail> {
+    return this.state.targetedEmails
+  }
+
+  /** Mail queued on the script's prim, oldest first, waiting for llGetNextEmail. */
+  get inbox(): ReadonlyArray<IncomingEmail> {
+    return emailQueue(this.host)
+  }
+
+  /**
+   * Queue mail on the script's prim. It fires `email` only when a script in
+   * the prim asks for it with llGetNextEmail. Returns false, queuing
+   * nothing, when the prim already holds 101 mails.
+   */
+  deliverEmail(init: IncomingEmailInit): boolean {
+    return deliverEmail(this, init)
+  }
+
   /** Currently active listen registrations (from `llListen`). */
   get listens(): ReadonlyArray<ListenEntry> {
     return this.state.listens
@@ -444,6 +489,7 @@ export class Script {
     const granted = req.permissions & (permissions ?? req.permissions)
     this.state.permissions.granted = granted
     this.state.permissions.agent = req.agent
+    if (!(granted & PERMISSION_TAKE_CONTROLS)) this.state.controls.taken = null
     const started = this.handles('run_time_permissions') ? [this] : []
     this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
     this.linkset.settle(started)
@@ -495,6 +541,46 @@ export class Script {
     const started = this.handles(event) ? [this] : []
     this.clockView.schedule(this.now, event, payload)
     this.linkset.settle(started)
+  }
+
+  /** Controls taken with llTakeControls, or null when none are. */
+  get controls(): TakenControls | null {
+    return this.state.controls.taken
+  }
+
+  /**
+   * Have the permission agent hold exactly the controls in `level` (CONTROL_*
+   * bits; 0 lets go of all). Fires `control` with the held and just-changed
+   * bits among those taken, if the script took controls with accept TRUE and
+   * any of them is held or changed.
+   */
+  sendControl(level: number): void {
+    const edge = level ^ this.state.controls.level
+    this.state.controls.level = level
+    const taken = this.state.controls.taken
+    if (!taken?.accept) return
+    const held = level & taken.controls
+    const changed = edge & taken.controls
+    if (held === 0 && changed === 0) return
+    const started = this.handles('control') ? [this] : []
+    this.clockView.schedule(this.now, 'control', { id: this.state.permissions.agent, level: held, edge: changed })
+    this.linkset.settle(started)
+  }
+
+  /** Set the permission agent's camera that llGetCameraPos / Rot / FOV / Aspect report. */
+  setCamera(camera: Partial<Camera>): void {
+    const { pos, rot: r, fov, aspect } = { ...this.state.camera, ...camera }
+    this.state.camera = {
+      pos: vec(pos.x, pos.y, pos.z),
+      rot: rot(r.x, r.y, r.z, r.s),
+      fov: Math.fround(fov),
+      aspect: Math.fround(aspect),
+    }
+  }
+
+  /** Camera rules set with llSetCameraParams, by rule. */
+  get cameraParams(): ReadonlyMap<number, LslValue> {
+    return this.state.cameraParams
   }
 
   /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */
@@ -735,6 +821,7 @@ export class Script {
     this.state.permissions.agent = NULL_KEY
     for (const r of this.state.permissions.requests) r.answered = true
     for (const r of this.state.experienceRequests) r.answered = true
+    this.state.controls.taken = null
     this.clockView.cancelTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
@@ -792,6 +879,7 @@ export class Script {
   }
 
   private step(task: Task): void {
+    this.resumedAt = this.now
     let r: IteratorResult<Suspension, boolean>
     try {
       r = task.run.next()
@@ -861,7 +949,6 @@ export class Script {
       invalidPrograms: this.invalidPrograms,
       script: this,
       prim: this.host,
-      linkset: this.linkset,
     }
     let pending: { handler: EventHandler; args: ReadonlyArray<EvalResult> } | null = {
       handler,

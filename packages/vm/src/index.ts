@@ -27,6 +27,8 @@ export type { ExperienceOptions } from './experience.js'
 export type { ExperienceRequestEntry } from './builtins/experience.js'
 export type { PrimOptions } from './prim.js'
 export { InventoryType, makeInventoryItem } from './inventory.js'
+export type { TakenControls } from './builtins/controls.js'
+export type { Camera } from './builtins/camera.js'
 export type { InventoryItem, InventoryTypeValue, PermMask } from './inventory.js'
 export type {
   BuiltinImpl,
@@ -36,6 +38,7 @@ export type {
   ChatType,
   ScriptState,
 } from './runtime.js'
+export type { SentEmail, SentTargetedEmail, IncomingEmail, IncomingEmailInit } from './builtins/email.js'
 export type { LslType, LslValue, Vector, Rotation } from './values/types.js'
 export {
   ZERO_VECTOR,
