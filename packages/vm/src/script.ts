@@ -7,7 +7,8 @@ import type {
   TypeName,
 } from '@rezless/parser'
 import type { BuiltinImpl, ChatEntry, CallEntry, ScriptState, ScriptIdentity, Suspension } from './runtime.js'
-import type { HttpRequestEntry } from './builtins/http.js'
+import type { HttpRequestEntry, IncomingHttpInit, IncomingHttpRequest } from './builtins/http.js'
+import { sendIncomingHttp } from './builtins/http.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
@@ -205,6 +206,11 @@ export class Script {
       clock: this.clockView,
       httpRequests: [],
       httpKeyCounter: 0,
+      urls: [],
+      urlPolicy: 'grant',
+      urlCounter: 0,
+      incomingHttp: [],
+      httpInCounter: 0,
       listens: [],
       listenHandleCounter: 0,
       random: new Mulberry32(options.randomSeed ?? 1),
@@ -344,6 +350,30 @@ export class Script {
     const req = this.state.httpRequests[this.state.httpRequests.length - 1]
     if (!req) throw new Error('no HTTP request to respond to')
     this.respondToHttp(req.key, response)
+  }
+
+  /** URLs the script holds from llRequestURL / llRequestSecureURL, oldest first. */
+  get urls(): ReadonlyArray<string> {
+    return this.state.urls
+  }
+
+  /** Grant later llRequestURL / llRequestSecureURL calls (the default). */
+  grantUrls(): void {
+    this.state.urlPolicy = 'grant'
+  }
+
+  /** Deny later llRequestURL / llRequestSecureURL calls with URL_REQUEST_DENIED. */
+  denyUrls(): void {
+    this.state.urlPolicy = 'deny'
+  }
+
+  /**
+   * Send a request to one of the script's URLs, with a path and query after
+   * it if you like, and fire `http_request`. The returned request's
+   * `response` holds what the script answered with llHTTPResponse.
+   */
+  sendHttpRequest(url: string, init: IncomingHttpInit = {}): IncomingHttpRequest {
+    return sendIncomingHttp(this, this.state, url, init)
   }
 
   /** Currently active listen registrations (from `llListen`). */
@@ -633,6 +663,7 @@ export class Script {
     this.state.lifecycle.dying = false
     this.state.lifecycle.removed = false
     this.state.listens.length = 0
+    this.state.urls.length = 0
     this.state.permissions.granted = 0
     this.state.permissions.agent = NULL_KEY
     for (const r of this.state.permissions.requests) r.answered = true
@@ -826,6 +857,7 @@ export class Script {
    */
   markDead(): void {
     this.state.lifecycle.dead = true
+    this.state.urls.length = 0
     this.clockView.cancelTimer()
     this.abandon()
   }

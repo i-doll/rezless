@@ -50,7 +50,16 @@ import {
   llGetRegionDayOffset,
   llGetRegionTimeOfDay,
 } from './environment.js'
-import { llHTTPRequest, llHTTPResponse } from './http.js'
+import {
+  llHTTPRequest,
+  llHTTPResponse,
+  llRequestURL,
+  llRequestSecureURL,
+  llReleaseURL,
+  llGetFreeURLs,
+  llGetHTTPHeader,
+  llSetContentType,
+} from './http.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
 import { llDialog, llTextBox } from './dialog.js'
 import {
@@ -358,6 +367,12 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionTimeOfDay,
   llHTTPRequest,
   llHTTPResponse,
+  llRequestURL,
+  llRequestSecureURL,
+  llReleaseURL,
+  llGetFreeURLs,
+  llGetHTTPHeader,
+  llSetContentType,
   llListen,
   llListenRemove,
   llListenControl,
