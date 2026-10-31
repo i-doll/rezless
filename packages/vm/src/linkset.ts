@@ -7,6 +7,7 @@ import type { DetectedEntry } from './builtins/detected.js'
 import type { ChatType } from './runtime.js'
 import type { World } from './world.js'
 import { NULL_KEY, type Vector } from './values/types.js'
+import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import {
   LINK_ROOT,
   LINK_SET,
@@ -15,6 +16,7 @@ import {
   LINK_THIS,
   PASS_ALWAYS,
   PASS_NEVER,
+  CHANGED_LINK,
 } from './generated/constants.js'
 
 // Re-export so `import { LINK_* } from '@rezless/vm'` keeps working.
@@ -90,8 +92,14 @@ export class Linkset {
   readonly region: string | undefined
   readonly startParameter: number
   readonly startString: string
+  /**
+   * The linksets that share this one's clock and hear its chat: its world's,
+   * or, outside a world, this one and every linkset broken off it.
+   */
+  readonly peers: Linkset[]
 
-  constructor(opts: LinksetOptions = {}) {
+  /** `from` is the linkset this one breaks off; outside a world, they share a clock. */
+  constructor(opts: LinksetOptions = {}, from?: Linkset) {
     this.owner = opts.owner ?? NULL_KEY
     this.region = opts.region
     this.startParameter = opts.startParameter ?? 0
@@ -100,10 +108,15 @@ export class Linkset {
       opts.world.corner(opts.region)
       this.world = opts.world
       this.clock = opts.world.clock
-      opts.world.linksets.push(this)
+      this.peers = opts.world.linksets
+    } else if (from) {
+      this.clock = from.clock
+      this.peers = from.peers
     } else {
       this.clock = new LinksetClock(opts.startUnixTime)
+      this.peers = []
     }
+    this.peers.push(this)
   }
 
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */
@@ -123,6 +136,105 @@ export class Linkset {
     }
     for (let i = 0; i < this.prims.length; i++) {
       this.prims[i]!.linkNumber = i + 1
+    }
+  }
+
+  /**
+   * llCreateLink: link `other`'s prims in from link 2, behind this linkset's
+   * root, each staying where it is. The root's linkset data stays and keys
+   * only `other` holds move over; `other` is left empty and leaves its world.
+   * Every script in the result gets changed(CHANGED_LINK).
+   */
+  absorb(other: Linkset): void {
+    if (other !== this) {
+      this.place([this.prims[0]!, ...other.prims, ...this.prims.slice(1)])
+      for (const [k, v] of other.linksetData) if (!this.linksetData.has(k)) this.linksetData.set(k, v)
+      other.prims.length = 0
+      other.linksetData.clear()
+      other.peers.splice(other.peers.indexOf(other), 1)
+    }
+    this.raiseLinkChanged(this.prims)
+  }
+
+  /**
+   * llBreakLink: take `prim` out into a linkset of its own. The root prim
+   * keeps the linkset data; when `prim` is the root, the rest stay linked
+   * under the next prim with no data. Every prim of both parts gets
+   * changed(CHANGED_LINK). A lone prim is left alone.
+   */
+  breakOff(prim: Prim): void {
+    if (this.prims.length < 2) return
+    const rest = this.prims.filter((p) => p !== prim)
+    const all = [...this.prims]
+    if (prim === this.prims[0]) {
+      this.splitOff(rest)
+      this.place([prim])
+    } else {
+      this.splitOff([prim])
+      this.place(rest)
+    }
+    this.raiseLinkChanged(all)
+  }
+
+  /** llBreakAllLinks: break every prim apart; each gets changed(CHANGED_LINK). */
+  breakAll(): void {
+    if (this.prims.length < 2) return
+    const all = [...this.prims]
+    for (const p of all.slice(1)) this.splitOff([p])
+    this.place([all[0]!])
+    this.raiseLinkChanged(all)
+  }
+
+  /** Move `prims` into a new linkset in this one's world and region, with no linkset data. */
+  private splitOff(prims: Prim[]): void {
+    const opts: { -readonly [K in keyof LinksetOptions]: LinksetOptions[K] } = {
+      owner: this.owner,
+      startParameter: this.startParameter,
+      startString: this.startString,
+    }
+    if (this.world) opts.world = this.world
+    if (this.region !== undefined) opts.region = this.region
+    new Linkset(opts, this).place(prims)
+  }
+
+  /**
+   * Make `prims` this linkset's prims, the first as root, keeping each prim
+   * at its region position and rotation.
+   */
+  private place(prims: Prim[]): void {
+    const placed = prims.map((p) => ({ p, pos: p.regionPosition(), rot: p.regionRotation() }))
+    this.prims.splice(0, this.prims.length, ...prims)
+    const root = placed[0]!
+    const inverse = conjugate(root.rot)
+    for (const { p, pos, rot } of placed) {
+      p.linkset = this
+      if (p === root.p) {
+        p.params.position = pos
+        p.params.rotation = rot
+      } else {
+        const offset = { x: pos.x - root.pos.x, y: pos.y - root.pos.y, z: pos.z - root.pos.z }
+        p.params.position = rotateVector(offset, inverse)
+        p.params.rotation = mulRotation(rot, inverse)
+      }
+    }
+    this.recomputeLinkNumbers()
+  }
+
+  /**
+   * Queue changed(CHANGED_LINK) on every script in `prims`. As in Second
+   * Life, a script skips it while one queued since it last started or woke
+   * is still waiting, or while two are.
+   */
+  private raiseLinkChanged(prims: ReadonlyArray<Prim>): void {
+    const pending = this.clock
+      .pendingEvents()
+      .filter((e) => e.event === 'changed' && e.payload['changes'] === CHANGED_LINK)
+    for (const p of prims) {
+      for (const s of p.scripts) {
+        const waiting = pending.filter((e) => e.target === s)
+        if (waiting.length >= 2 || waiting.some((e) => e.at >= s.resumedAt)) continue
+        this.clock.schedule(s, this.clock.now, 'changed', { changes: CHANGED_LINK })
+      }
     }
   }
 
@@ -247,7 +359,7 @@ export class Linkset {
     chat: { channel: number; name: string; key: string; message: string },
   ): Script[] {
     const matched: Script[] = []
-    for (const linkset of this.world?.linksets ?? [this]) {
+    for (const linkset of this.peers) {
       for (const p of linkset.prims) {
         if (!reaches(linkset, p)) continue
         for (const s of p.scripts) if (s.matchChatListens(chat)) matched.push(s)
@@ -364,7 +476,7 @@ export class Linkset {
    * allocation per event.
    */
   drainQueue(until = this.clock.now): void {
-    const scripts = this.world?.allScripts() ?? this.allScripts()
+    const scripts = this.peers.flatMap((l) => l.allScripts())
     if (scripts.length === 0) return
     while (true) {
       const next = this.clock.takeNextDue(scripts, Math.max(until, this.clock.now))

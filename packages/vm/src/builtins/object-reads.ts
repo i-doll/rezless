@@ -84,12 +84,11 @@ import {
 const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** The prim with key `id` in a live linkset in the caller's region, matched without regard to case. */
-function findPrim(ctx: CallContext, id: string): Prim | undefined {
+export function findObjectPrim(ctx: CallContext, id: string): Prim | undefined {
   if (!KEY_PATTERN.test(id) || id === NULL_KEY) return undefined
   const wanted = id.toLowerCase()
-  const { world, region } = ctx.linkset
-  const linksets = world ? world.linksets.filter((l) => l.region === region && !l.dead) : [ctx.linkset]
-  for (const linkset of linksets) {
+  const { peers, region } = ctx.linkset
+  for (const linkset of peers.filter((l) => l.region === region && !l.dead)) {
     const prim = linkset.prims.find((p) => p.key.toLowerCase() === wanted)
     if (prim) return prim
   }
@@ -201,11 +200,11 @@ function boundingBox(prim: Prim): [Vector, Vector] {
 }
 
 /** llKey2Name(key id) — the prim's name, or "" for a key with no prim in the region. */
-export const llKey2Name: BuiltinImpl = (ctx, args) => findPrim(ctx, keyArg(args))?.name ?? ''
+export const llKey2Name: BuiltinImpl = (ctx, args) => findObjectPrim(ctx, keyArg(args))?.name ?? ''
 
 /** llGetObjectPrimCount(key id) — prims in the linkset holding `id`, or 0. */
 export const llGetObjectPrimCount: BuiltinImpl = (ctx, args) => {
-  const prim = findPrim(ctx, keyArg(args))
+  const prim = findObjectPrim(ctx, keyArg(args))
   return prim ? primsOf(prim).length : 0
 }
 
@@ -215,7 +214,7 @@ export const llGetObjectPrimCount: BuiltinImpl = (ctx, args) => {
  * the prim `id` itself.
  */
 export const llGetObjectLinkKey: BuiltinImpl = (ctx, args) => {
-  const prim = findPrim(ctx, keyArg(args))
+  const prim = findObjectPrim(ctx, keyArg(args))
   if (!prim) return NULL_KEY
   const link = (args[1] as number | undefined) ?? 0
   if (link === LINK_THIS) return prim.key
@@ -230,14 +229,14 @@ export const llGetObjectLinkKey: BuiltinImpl = (ctx, args) => {
  * linked; here it follows the child's current shape.
  */
 export const llGetObjectMass: BuiltinImpl = (ctx, args) => {
-  const prim = findPrim(ctx, keyArg(args))
+  const prim = findObjectPrim(ctx, keyArg(args))
   if (!prim) return 0
   return (rootOf(prim) === prim ? linksetMass(prim) : primMass(prim)) / 100
 }
 
 /** llGetBoundingBox(key id) — [min, max] of the linkset holding `id`, or [] for no prim. */
 export const llGetBoundingBox: BuiltinImpl = (ctx, args) => {
-  const prim = findPrim(ctx, keyArg(args))
+  const prim = findObjectPrim(ctx, keyArg(args))
   return prim ? boundingBox(prim) : []
 }
 
@@ -401,7 +400,7 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
  * the region gives [].
  */
 export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
-  const prim = findPrim(ctx, keyArg(args))
+  const prim = findObjectPrim(ctx, keyArg(args))
   if (!prim) return []
   const flags = (args[1] as LslValue[] | undefined) ?? []
   const out: Entry[] = []

@@ -131,7 +131,6 @@ export class Script {
   /** Per-script clock facade (timer state + time reference). */
   readonly clockView: ScriptClockView
   readonly host: Prim
-  readonly linkset: Linkset
   readonly scriptName: string
   /** When false, drainQueue parks events instead of delivering them. */
   running = true
@@ -141,6 +140,8 @@ export class Script {
   startParameter: number
   /** The handler chain suspended in llSleep or a builtin delay, if any. */
   private task: Task | null = null
+  /** Virtual time this script last started a handler or woke from a sleep. */
+  resumedAt = 0
 
   constructor(private readonly ast: Ast, options: ScriptOptions = {}) {
     // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
@@ -165,19 +166,17 @@ export class Script {
     if (!host.linkset) {
       throw new Error('Script host prim must belong to a Linkset')
     }
-    this.linkset = host.linkset
     this.startParameter = this.linkset.startParameter
     this.scriptName = inventoryItemName(options.scriptName ?? deriveScriptName(options.filename))
 
     this.clockView = new ScriptClockView(this.linkset.clock, () => this)
 
-    const linkset = this.linkset
     const prim = host
     const scriptName = this.scriptName
 
     const identity: ScriptIdentity = {
       get owner() {
-        return linkset.owner
+        return prim.linkset!.owner
       },
       get objectKey() {
         return prim.key
@@ -219,7 +218,9 @@ export class Script {
       dataserverRequests: [],
       dataserverKeyCounter: 0,
       detectedStack: [],
-      linksetData: this.linkset.linksetData,
+      get linksetData() {
+        return prim.linkset!.linksetData
+      },
       appearance: this.host.appearance,
       permissions: { granted: 0, agent: NULL_KEY, requests: [] },
       dialogs: [],
@@ -257,6 +258,11 @@ export class Script {
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
+  /** The linkset holding this script's prim; it changes when the prim is linked or unlinked. */
+  get linkset(): Linkset {
+    return this.host.linkset!
+  }
+
   get now(): number {
     return this.linkset.clock.now
   }
@@ -724,6 +730,7 @@ export class Script {
   }
 
   private step(task: Task): void {
+    this.resumedAt = this.now
     let r: IteratorResult<Suspension, boolean>
     try {
       r = task.run.next()
@@ -793,7 +800,6 @@ export class Script {
       invalidPrograms: this.invalidPrograms,
       script: this,
       prim: this.host,
-      linkset: this.linkset,
     }
     let pending: { handler: EventHandler; args: ReadonlyArray<EvalResult> } | null = {
       handler,

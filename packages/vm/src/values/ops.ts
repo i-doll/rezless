@@ -394,7 +394,7 @@ function hamilton(a: Rotation, b: Rotation): Rotation {
   )
 }
 
-function conjugate(q: Rotation): Rotation {
+export function conjugate(q: Rotation): Rotation {
   return rot(-q.x, -q.y, -q.z, q.s)
 }
 
