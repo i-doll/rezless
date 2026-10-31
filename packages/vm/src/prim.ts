@@ -42,6 +42,12 @@ export class Prim {
     text: { text: string; color: { x: number; y: number; z: number }; alpha: number } | null
     description: string
   } = { text: null, description: '' }
+  /** llSetTouchText; '' is the viewer's default. */
+  touchText = ''
+  /** llSetSitText; '' is the viewer's default. */
+  sitText = ''
+  /** llSetPayPrice arguments as the script passed them, or null if never called. */
+  payPrice: { price: number; buttons: LslValue[] } | null = null
 
   /** Set when this prim joins a linkset. */
   linkset?: Linkset
