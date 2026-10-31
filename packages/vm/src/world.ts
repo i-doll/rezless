@@ -1,7 +1,51 @@
+import { deterministicKey } from './keys.js'
+import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
 import type { Script } from './script.js'
 import type { Rotation, Vector } from './values/types.js'
+
+/** A placeable sensor target. Positions use its region's coordinates. */
+export interface WorldObjectOptions {
+  readonly region: string
+  readonly key?: string
+  readonly name?: string
+  readonly position?: Vector
+  readonly rotation?: Rotation
+  readonly velocity?: Vector
+  readonly owner?: string
+  readonly group?: string
+  readonly physical?: boolean
+  readonly scripted?: boolean
+  /** Whether its script is currently using simulator resources. */
+  readonly active?: boolean
+}
+
+export interface WorldAvatarOptions extends WorldObjectOptions {
+  readonly username: string
+}
+
+export interface WorldEntity {
+  key: string
+  name: string
+  region: string
+  position: Vector
+  rotation: Rotation
+  velocity: Vector
+  owner: string
+  group: string
+  physical: boolean
+  scripted: boolean
+  active: boolean
+  username?: string
+}
+
+/** Sensor properties absent from the live prim model. */
+export interface SensorObjectProperties {
+  readonly group?: string
+  readonly velocity?: Vector
+  readonly active?: boolean
+}
 
 export interface WorldOptions {
   /** Unix time in seconds at virtual time 0, read by llGetUnixTime and friends. Default 0. */
@@ -70,10 +114,43 @@ export interface Region extends RegionSettings {
 export class World {
   readonly clock: LinksetClock
   readonly linksets: Linkset[] = []
+  /** Targets without scripts to execute. Returned entities may be moved between scans. */
+  readonly objects: WorldEntity[] = []
+  readonly avatars: WorldEntity[] = []
+  /** Optional sensor metadata for linksets loaded with loadLinkset. */
+  readonly sensorProperties = new Map<Linkset, SensorObjectProperties>()
   private readonly regions = new Map<string, Region>()
 
   constructor(opts: WorldOptions = {}) {
     this.clock = new LinksetClock(opts.startUnixTime)
+  }
+
+  addObject(opts: WorldObjectOptions): WorldEntity {
+    const object = this.entity(opts)
+    this.objects.push(object)
+    return object
+  }
+
+  addAvatar(opts: WorldAvatarOptions): WorldEntity {
+    const avatar = this.entity(opts)
+    avatar.username = opts.username
+    avatar.owner = avatar.key
+    this.avatars.push(avatar)
+    return avatar
+  }
+
+  private entity(opts: WorldObjectOptions): WorldEntity {
+    this.region(opts.region)
+    return {
+      key: opts.key ?? deterministicKey(`world/entity/${this.objects.length + this.avatars.length}`),
+      name: opts.name ?? 'Object', region: opts.region,
+      position: { ...(opts.position ?? ZERO_VECTOR) },
+      rotation: { ...(opts.rotation ?? ZERO_ROTATION) },
+      velocity: { ...(opts.velocity ?? ZERO_VECTOR) },
+      owner: opts.owner ?? NULL_KEY, group: opts.group ?? NULL_KEY,
+      physical: opts.physical ?? false, scripted: opts.scripted ?? false,
+      active: opts.active ?? false,
+    }
   }
 
   addRegion(name: string, corner: RegionCorner, settings: RegionSettings = {}): void {

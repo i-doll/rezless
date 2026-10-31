@@ -1,3 +1,4 @@
+import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
 import {
   llPlaySound,
   llLoopSound,
@@ -398,6 +399,7 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
   llAdjustDamage,
   llGetHealth,
