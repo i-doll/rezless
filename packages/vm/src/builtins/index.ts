@@ -239,6 +239,7 @@ import {
   llGetNumberOfNotecardLines,
   llRemoveInventory,
 } from './inventory.js'
+import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-search.js'
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
 import {
   llResetOtherScript,
@@ -551,6 +552,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetNotecardLine,
   llGetNotecardLineSync,
   llGetNumberOfNotecardLines,
+  llFindNotecardTextCount,
+  llFindNotecardTextSync,
   llRemoveInventory,
   // permissions
   llRequestPermissions,
