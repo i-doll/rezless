@@ -19,6 +19,16 @@ import {
   llGetDate,
   llGetRegionTimeDilation,
 } from './time.js'
+import {
+  llGetRegionName,
+  llGetRegionCorner,
+  llGetRegionFlags,
+  llGetRegionFPS,
+  llGetRegionAgentCount,
+  llGetSimStats,
+  llGetEnv,
+  llEdgeOfWorld,
+} from './region.js'
 import { llHTTPRequest, llHTTPResponse } from './http.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
 import { llDialog, llTextBox } from './dialog.js'
@@ -294,6 +304,15 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetTimestamp,
   llGetDate,
   llGetRegionTimeDilation,
+  // region
+  llGetRegionName,
+  llGetRegionCorner,
+  llGetRegionFlags,
+  llGetRegionFPS,
+  llGetRegionAgentCount,
+  llGetSimStats,
+  llGetEnv,
+  llEdgeOfWorld,
   llHTTPRequest,
   llHTTPResponse,
   llListen,

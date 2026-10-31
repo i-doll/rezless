@@ -13,6 +13,25 @@ export interface RegionCorner {
   readonly y: number
 }
 
+/** What a region's scripts read about it. Every field is optional. */
+export interface RegionSettings {
+  /** llGetRegionFlags, a mask of REGION_FLAG_*. Default REGION_FLAG_ALLOW_DIRECT_TELEPORT. */
+  readonly flags?: number
+  /** llGetRegionAgentCount and SIM_STAT_AGENT_COUNT. Default 1. */
+  readonly agentCount?: number
+  /** llGetRegionFPS and SIM_STAT_PHYSICS_FPS. Default 45. */
+  readonly fps?: number
+  /** llGetSimStats values by SIM_STAT_* number, over the defaults. */
+  readonly simStats?: Readonly<Record<number, number>>
+  /** llGetEnv values by name, over the defaults. */
+  readonly env?: Readonly<Record<string, string>>
+}
+
+export interface Region extends RegionSettings {
+  readonly name: string
+  readonly corner: RegionCorner
+}
+
 /**
  * Named regions holding several linksets. Every linkset in a world shares the
  * world's clock, and chat reaches prims in other linksets by the in-world
@@ -22,21 +41,36 @@ export interface RegionCorner {
 export class World {
   readonly clock: LinksetClock
   readonly linksets: Linkset[] = []
-  private readonly regions = new Map<string, RegionCorner>()
+  private readonly regions = new Map<string, Region>()
 
   constructor(opts: WorldOptions = {}) {
     this.clock = new LinksetClock(opts.startUnixTime)
   }
 
-  addRegion(name: string, corner: RegionCorner): void {
-    this.regions.set(name, corner)
+  addRegion(name: string, corner: RegionCorner, settings: RegionSettings = {}): void {
+    this.regions.set(name, { ...settings, name, corner })
+  }
+
+  /** Region `name`; throws for a region this world does not have. */
+  region(name: string | undefined): Region {
+    const region = name === undefined ? undefined : this.regions.get(name)
+    if (!region) throw new Error(`World: no region named '${name}'`)
+    return region
   }
 
   /** The corner of region `name`; throws for a region this world does not have. */
   corner(name: string | undefined): RegionCorner {
-    const corner = name === undefined ? undefined : this.regions.get(name)
-    if (!corner) throw new Error(`World: no region named '${name}'`)
-    return corner
+    return this.region(name).corner
+  }
+
+  /** The region covering global position (`x`, `y`), if this world has one there. */
+  regionAt(x: number, y: number): Region | undefined {
+    for (const region of this.regions.values()) {
+      const dx = x - region.corner.x
+      const dy = y - region.corner.y
+      if (dx >= 0 && dx < 256 && dy >= 0 && dy < 256) return region
+    }
+    return undefined
   }
 
   allScripts(): Script[] {
