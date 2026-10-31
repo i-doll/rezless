@@ -280,3 +280,60 @@ it.each(['llGiveInventoryList', 'llGiveAgentInventory'])('%s accepts an uppercas
   expect(s.inventoryOffers).toHaveLength(1)
   expect(errors(s)).toEqual([])
 })
+
+it.each(['single', 'list'])('reads and resets a delivered %s script as an inert inventory asset', async kind => {
+  // In-world: script-payload/script-receiver -> get=0, reset silent, set TRUE/FALSE errors.
+  // Aditi, SLua Tideland, 2026-10-31; source was running when given.
+  const { s, receiver } = await pair()
+  const source = await loadScript({ host: s.host, scriptName: 'payload', source: 'integer count = 7; default { state_entry() { count += 1; } }' })
+  source.start(); source.setGlobal('count', 99)
+  const call = kind === 'single' ? `llGiveInventory("${TARGET}", "payload")` : `llGiveInventoryList("${TARGET}", "folder", ["payload"])`
+  const giver = await loadScript({ host: s.host, scriptName: 'payload-giver', source: `default { state_entry() { ${call}; } }` })
+  giver.start()
+  const reader = await loadScript({ host: receiver.prims[0]!, scriptName: 'reader', source: `integer value; default { state_entry() {
+    value = llGetScriptState("payload"); llResetOtherScript("payload");
+  } }` })
+  reader.start()
+  expect(reader.global('value')).toBe(0)
+  expect(errors(reader)).toEqual([])
+  expect(source.global('count')).toBe(99)
+  expect(source.running).toBe(true)
+  expect(receiver.prims[0]!.inventory.find(i => i.name === 'payload')?.type).toBe(InventoryType.SCRIPT)
+  expect(giver.inventoryOffers[0]!.items[0]!.script).toBeUndefined()
+})
+
+it('moves a no-copy script asset and lets the recipient query it without errors', async () => {
+  // No-copy masks need a second avatar to measure. The inert-asset queries were measured above.
+  const { s, receiver } = await pair()
+  const source = await loadScript({ host: s.host, scriptName: 'payload', source: 'default { state_entry() {} }' })
+  source.start()
+  const item = s.host.inventory.find(i => i.script === source)!
+  item.permMask = perms(PERM_ALL & ~PERM_COPY); item.key = OTHER; item.description = 'script asset'
+  const giver = await loadScript({ host: s.host, scriptName: 'payload-giver', source: `default { state_entry() { llGiveInventory("${TARGET}", "payload"); } }` })
+  giver.start()
+  const reader = await loadScript({ host: receiver.prims[0]!, scriptName: 'reader', source: 'default { state_entry() { llGetScriptState("payload"); llResetOtherScript("payload"); } }' })
+  reader.start()
+  expect(errors(reader)).toEqual([])
+  expect(source.dead).toBe(true)
+  expect(s.host.inventory.map(i => i.name)).not.toContain('payload')
+  expect(receiver.prims[0]!.inventory.find(i => i.name === 'payload')).toMatchObject({ key: OTHER, description: 'script asset', permMask: { owner: PERM_ALL & ~PERM_COPY } })
+})
+
+it.each([InventoryType.SCRIPT, InventoryType.NOTECARD])('reads/reset inert inventory type %i silently, but cannot set its state', async type => {
+  // In-world: script-receiver and script-other -> these results for given script and notecard.
+  // Aditi, SLua Tideland, 2026-10-31.
+  const s = await loadScript({ owner: OWNER, source: `integer value; default { state_entry() {
+    value = llGetScriptState("asset"); llResetOtherScript("asset");
+    llSetScriptState("asset", TRUE); llSetScriptState("asset", FALSE);
+  } }` })
+  s.host.addInventory(gift({ name: 'asset', type })); s.start()
+  expect(s.global('value')).toBe(0)
+  expect(errors(s)).toEqual(["Could not find script 'asset'.", "Could not find script 'asset'."])
+})
+
+it('still reports a missing item in script read/reset calls', async () => {
+  // In-world: script-other steps 3/4 -> missing get/reset errors, with this punctuation.
+  const s = await loadScript({ source: 'default { state_entry() { llGetScriptState("missing"); llResetOtherScript("missing"); } }' })
+  s.start()
+  expect(errors(s)).toEqual(["Could not find script 'missing'.", "Could not find script 'missing'"])
+})
