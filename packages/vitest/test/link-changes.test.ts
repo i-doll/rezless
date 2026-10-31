@@ -30,7 +30,10 @@ const WATCHER = `list seen; default {
  * watcher script in every prim records its changed events. The conductor in
  * A1 asks for PERMISSION_CHANGE_LINKS and runs `body` once it is answered.
  */
-async function scene(body: string, opts: { grant?: boolean; loneB?: boolean; conductorIn?: 'A1' | 'A2' } = {}) {
+async function scene(
+  body: string,
+  opts: { grant?: boolean; loneB?: boolean; conductorIn?: 'A1' | 'A2'; seedB?: string[] } = {},
+) {
   const world = new World({ startUnixTime: 1_793_474_000 })
   world.addRegion('SLua Tideland', { x: 40960, y: 23296 })
   const conductor = {
@@ -74,7 +77,9 @@ async function scene(body: string, opts: { grant?: boolean; loneB?: boolean; con
     b.prims[1]!.params.position = { x: 0, y: -1, z: 0 }
     b.prims[1]!.params.rotation = { x: 0, y: 0, z: -Math.SQRT1_2, s: Math.SQRT1_2 }
   }
-  b.scripts.wB1!.seedLinksetData([['b1', { value: 'B' }]])
+  b.scripts.wB1!.seedLinksetData(
+    opts.seedB ? opts.seedB.map((k) => [k, { value: 'x'.repeat(4000) }] as const) : [['b1', { value: 'B' }]],
+  )
   const scripts: Record<string, Script> = { ...a.scripts, ...b.scripts }
   for (const s of Object.values(scripts)) s.start()
   const c = scripts.conductor!
@@ -313,6 +318,24 @@ describe('linkset data across link changes', () => {
   })
 })
 
+describe('linkset data over capacity on a merge', () => {
+  // https://wiki.secondlife.com/wiki/Category:LSL_LinksetData — when the
+  // merged data does not fit, some of the old root's pairs are discarded,
+  // and which ones may be arbitrary. In-world: 17 keys of 4000 bytes on each
+  // side (63004 bytes free each) linked -> 32 keys, all 17 of the new root's
+  // and 15 of the other's, 2944 bytes free; Second Life dropped q108 and
+  // q113. rezless keeps the other side's keys in write order while they fit.
+  it('moves over only the pairs that fit', async () => {
+    const fill = (prefix: string) =>
+      `string v = "${'x'.repeat(4000)}"; integer i; for (i = 100; i < 117; i++) llLinksetDataWrite("${prefix}" + (string)i, v);`
+    const { out } = await scene(
+      `${fill('p')} out = [llLinksetDataAvailable()]; llCreateLink("${B1}", TRUE); out += [llLinksetDataCountKeys(), llLinksetDataAvailable(), llGetListLength(llLinksetDataFindKeys("^p", 0, -1))];`,
+      { loneB: true, seedB: Array.from({ length: 17 }, (_, i) => `q${100 + i}`) },
+    )
+    expect(out).toEqual([63004, 32, 2944, 17])
+  })
+})
+
 describe('changed events from several link changes in one handler', () => {
   const count = async (body: string, watch: string) => {
     const { scripts } = await scene(body)
@@ -332,9 +355,48 @@ describe('changed events from several link changes in one handler', () => {
     expect(await count(`llCreateLink("${B1}", TRUE); llBreakLink(2); llSleep(1.0); llBreakLink(2);`, 'conductor')).toBe(2)
     expect(await count(`llCreateLink("${B1}", TRUE); llSleep(1.0); llBreakLink(3); llBreakLink(3);`, 'wA1')).toBe(2)
   })
+
+  // In-world: a watcher stopped with llSetScriptState through llBreakLink,
+  // llCreateLink and llBreakLink, with a second's sleep between each, got no
+  // changed events once it was running again; its next link raised one as
+  // usual (Aditi, SLua Tideland, 2026-10-31).
+  it('drops link changes for a stopped script', async () => {
+    const body = `llSetScriptState("wA1", FALSE); llCreateLink("${B1}", TRUE); llSleep(1.0); llBreakLink(2); llSleep(1.0); llBreakLink(2); llSleep(1.0); llSetScriptState("wA1", TRUE);`
+    expect(await count(body, 'wA1')).toBe(0)
+  })
 })
 
 describe('link changes outside a world', () => {
+  // A broken-off prim stays in the region, so the URL it holds still counts
+  // against the region's 20000 (see http-in.test.ts).
+  it('keeps counting a broken-off prim\'s URLs', async () => {
+    const { scripts } = await loadLinkset({
+      owner: OWNER,
+      prims: [
+        {
+          key: A1,
+          scripts: [
+            {
+              name: 'conductor',
+              source: {
+                source: `list out;
+                  default {
+                    state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+                    run_time_permissions(integer p) { out = [llGetFreeURLs()]; llBreakLink(2); out += llGetFreeURLs(); }
+                  }`,
+              },
+            },
+          ],
+        },
+        { key: A2, scripts: [{ name: 'url', source: { source: 'default { state_entry() { llRequestURL(); } }' } }] },
+      ],
+    })
+    scripts.url!.start()
+    scripts.conductor!.start()
+    scripts.conductor!.grantPermissions()
+    expect(scripts.conductor!.global('out')).toEqual([19999, 19999])
+  })
+
   // The same rules as above; a prim broken off a linkset with no world keeps
   // its clock, so its scripts still get their events and it can link back.
   it('keeps a broken-off prim on the same clock and linkable', async () => {

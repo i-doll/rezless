@@ -1,7 +1,7 @@
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
-import type { LinksetDataEntry } from './builtins/linksetdata.js'
+import { mergeLinksetData, type LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import type { ChatType } from './runtime.js'
@@ -148,7 +148,7 @@ export class Linkset {
   absorb(other: Linkset): void {
     if (other !== this) {
       this.place([this.prims[0]!, ...other.prims, ...this.prims.slice(1)])
-      for (const [k, v] of other.linksetData) if (!this.linksetData.has(k)) this.linksetData.set(k, v)
+      mergeLinksetData(this.linksetData, other.linksetData)
       other.prims.length = 0
       other.linksetData.clear()
       other.peers.splice(other.peers.indexOf(other), 1)
@@ -222,8 +222,8 @@ export class Linkset {
 
   /**
    * Queue changed(CHANGED_LINK) on every script in `prims`. As in Second
-   * Life, a script skips it while one queued since it last started or woke
-   * is still waiting, or while two are.
+   * Life, a stopped script never gets it, and a script skips it while one
+   * queued since it last started or woke is still waiting, or while two are.
    */
   private raiseLinkChanged(prims: ReadonlyArray<Prim>): void {
     const pending = this.clock
@@ -231,6 +231,7 @@ export class Linkset {
       .filter((e) => e.event === 'changed' && e.payload['changes'] === CHANGED_LINK)
     for (const p of prims) {
       for (const s of p.scripts) {
+        if (!s.running) continue
         const waiting = pending.filter((e) => e.target === s)
         if (waiting.length >= 2 || waiting.some((e) => e.at >= s.resumedAt)) continue
         this.clock.schedule(s, this.clock.now, 'changed', { changes: CHANGED_LINK })
