@@ -91,6 +91,12 @@ describe('llStartObjectAnimation', () => {
     ])
   })
 
+  it('finds no built-in animation in JavaScript property names', async () => {
+    const { p, out } = await run(`llStartObjectAnimation("constructor"); llStartObjectAnimation("__proto__"); out += names();`)
+    expect(out).toEqual([''])
+    expect(errors(p)).toEqual(["Could not find animation 'constructor'", "Could not find animation '__proto__'"])
+  })
+
   it('plays nothing in an object that is not animated, with the same errors', async () => {
     // In-world (box): "stand", "sit", "pa" -> [] every time; "nosuch" -> the same error.
     const { p, out } = await run(
@@ -147,6 +153,13 @@ describe('llStopObjectAnimation', () => {
       '',
     ])
     expect(errors(p)).toEqual([])
+  })
+
+  it('stops an inventory animation by key whatever the case of its fixture key', async () => {
+    const { out } = await run(`llStartObjectAnimation("pa"); out += names(); llStopObjectAnimation("${PA}"); out += names();`, {
+      inventory: [anim('pa', PA.toUpperCase())],
+    })
+    expect(out).toEqual(['pa', ''])
   })
 
   it('does nothing for an animation that is not playing', async () => {

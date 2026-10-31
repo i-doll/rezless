@@ -7,7 +7,7 @@ import { sayError } from './debug.js'
 const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** The simulator's built-in animations, by name. */
-const BUILTIN_ANIMATIONS: Readonly<Record<string, string>> = {
+const BUILTIN_ANIMATIONS: ReadonlyMap<string, string> = new Map(Object.entries({
   aim_l_bow: '46bb4359-de38-4ed8-6a22-f1f52fe8f506',
   aim_r_bazooka: 'b5b4a67d-0aee-30d2-72cd-77b333e932ef',
   aim_r_handgun: '3147d815-6338-b932-f011-16b56d9ac18b',
@@ -147,14 +147,14 @@ const BUILTIN_ANIMATIONS: Readonly<Record<string, string>> = {
   yes_happy: 'b8c8b2a3-9008-1771-3bfc-90924955ab2d',
   yes_head: '15dd911d-be82-2856-26db-27659b142875',
   yoga_float: '42ecd00b-9947-a97c-400a-bbc9174c7aeb',
-}
+}))
 
 const animations = (ctx: CallContext) =>
   ctx.prim.inventory.filter((it) => it.type === InventoryType.ANIMATION).sort((a, b) => compareNames(a.name, b.name))
 
 /** An inventory animation by exact name first, then a built-in name in any case. */
 function lookup(ctx: CallContext, name: string): string | undefined {
-  return animations(ctx).find((it) => it.name === name)?.key ?? BUILTIN_ANIMATIONS[name.toLowerCase()]
+  return (animations(ctx).find((it) => it.name === name)?.key ?? BUILTIN_ANIMATIONS.get(name.toLowerCase()))?.toLowerCase()
 }
 
 /**
@@ -192,5 +192,5 @@ export const llStopObjectAnimation: BuiltinImpl = (ctx, args) => {
  */
 export const llGetObjectAnimationNames: BuiltinImpl = (ctx) => {
   const inventory = animations(ctx)
-  return [...ctx.prim.objectAnimations].sort().map((id) => inventory.find((it) => it.key === id)?.name ?? id)
+  return [...ctx.prim.objectAnimations].sort().map((id) => inventory.find((it) => it.key.toLowerCase() === id)?.name ?? id)
 }
