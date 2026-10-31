@@ -364,8 +364,8 @@ export const llReleaseURL: BuiltinImpl = (ctx, args) => {
 export const llGetFreeURLs: BuiltinImpl = (ctx) => freeUrls(ctx)
 
 function freeUrls(ctx: CallContext): number {
-  const { world, region } = ctx.linkset
-  const linksets = world ? world.linksets.filter((l) => l.region === region) : [ctx.linkset]
+  const { peers, region } = ctx.linkset
+  const linksets = peers.filter((l) => l.region === region)
   let held = 0
   for (const l of linksets) for (const s of l.allScripts()) held += s.urls.length
   return Math.max(0, DEFAULT_FREE_URLS - held)

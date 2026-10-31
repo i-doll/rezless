@@ -61,6 +61,26 @@ describe('day cycle', () => {
     const day = await inRegion(world)
     expect(day).toEqual([10_800, 3_600, 10_800, 3_600, 4_600.25])
   })
+
+  // In-world: llGetTimeOfDay read the same as llGetRegionTimeOfDay (SLua
+  // Tombolo, 2026-10-31). Wiki: https://wiki.secondlife.com/wiki/LlGetTimeOfDay
+  it('llGetTimeOfDay follows the region day length and offset', async () => {
+    const world = new World({ startUnixTime: 1000.25 })
+    world.addRegion('Sandbox', { x: 256000, y: 256000 }, { dayLength: 3 * 3600, dayOffset: 3600 })
+    const { scripts } = await loadLinkset({
+      world,
+      region: 'Sandbox',
+      position: { x: 128, y: 128, z: 20 },
+      prims: [
+        {
+          name: 'probe',
+          scripts: [{ source: { source: `float tod; default { state_entry() { tod = llGetTimeOfDay(); } }` }, name: 'probe' }],
+        },
+      ],
+    })
+    scripts.probe!.start()
+    expect(scripts.probe!.global('tod')).toBe(4_600.25)
+  })
 })
 
 // Wiki: https://wiki.secondlife.com/wiki/LlGetSunDirection, LlGetSunRotation,

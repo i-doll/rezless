@@ -20,7 +20,6 @@ import {
   llGetRegionTimeDilation,
   llGetGMTclock,
   llGetWallclock,
-  llGetTimeOfDay,
   llMinEventDelay,
 } from './time.js'
 import {
@@ -44,12 +43,14 @@ import {
   llGetBoundingBox,
   llGetGeometricCenter,
 } from './object-reads.js'
+import { llCreateLink, llBreakLink, llBreakAllLinks } from './links.js'
 import {
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
   llGetRegionDayOffset,
   llGetRegionTimeOfDay,
+  llGetTimeOfDay,
   llGetSunDirection,
   llGetSunRotation,
   llGetMoonDirection,
@@ -59,6 +60,7 @@ import {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
 } from './environment.js'
+import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind } from './ground.js'
 import {
   llHTTPRequest,
   llHTTPResponse,
@@ -246,6 +248,15 @@ import {
 } from './inventory.js'
 import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-search.js'
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
+import { llTakeControls, llReleaseControls } from './controls.js'
+import {
+  llGetCameraPos,
+  llGetCameraRot,
+  llGetCameraFOV,
+  llGetCameraAspect,
+  llSetCameraParams,
+  llClearCameraParams,
+} from './camera.js'
 import {
   llResetOtherScript,
   llSetScriptState,
@@ -377,6 +388,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetObjectPrimCount,
   llGetBoundingBox,
   llGetGeometricCenter,
+  // link changes
+  llCreateLink,
+  llBreakLink,
+  llBreakAllLinks,
   // environment
   llGetDayLength,
   llGetDayOffset,
@@ -391,6 +406,13 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionSunRotation,
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
+  // ground, water and wind
+  llGround,
+  llGroundNormal,
+  llGroundSlope,
+  llGroundContour,
+  llWater,
+  llWind,
   llHTTPRequest,
   llHTTPResponse,
   llRequestURL,
@@ -575,6 +597,16 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llRequestPermissions,
   llGetPermissions,
   llGetPermissionsKey,
+  // controls
+  llTakeControls,
+  llReleaseControls,
+  // camera
+  llGetCameraPos,
+  llGetCameraRot,
+  llGetCameraFOV,
+  llGetCameraAspect,
+  llSetCameraParams,
+  llClearCameraParams,
   // script control
   llResetOtherScript,
   llSetScriptState,

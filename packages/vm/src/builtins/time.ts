@@ -92,9 +92,6 @@ export const llGetRegionTimeDilation: BuiltinImpl = () => 1
 
 const DAY_SECONDS = 86_400
 
-/** Default environment day length: four hours. */
-const ENVIRONMENT_DAY_SECONDS = 14_400
-
 const PACIFIC = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/Los_Angeles',
   hourCycle: 'h23',
@@ -113,9 +110,4 @@ export const llGetWallclock: BuiltinImpl = (ctx) => {
   const parts = PACIFIC.formatToParts(Math.floor(ctx.state.clock.unixMicros() / 1000))
   const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)!.value)
   return part('hour') * 3600 + part('minute') * 60 + part('second')
-}
-
-/** llGetTimeOfDay() — seconds into the default four-hour environment day. */
-export const llGetTimeOfDay: BuiltinImpl = (ctx) => {
-  return toFloat32((ctx.state.clock.unixMicros() % (ENVIRONMENT_DAY_SECONDS * 1e6)) / 1e6)
 }

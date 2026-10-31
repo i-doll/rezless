@@ -176,6 +176,14 @@ export class LinksetClock {
       if (e.target === script && e.at <= upTo && e.event !== keep) this.queue.splice(i, 1)
     }
   }
+
+  /** Remove every queued `event` whose target is `script`. */
+  purgeEvent(script: Script, event: string): void {
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      const e = this.queue[i]!
+      if (e.target === script && e.event === event) this.queue.splice(i, 1)
+    }
+  }
 }
 
 /**

@@ -41,6 +41,24 @@ function bytesUsed(store: ReadonlyMap<string, LinksetDataEntry>): number {
   return used
 }
 
+/**
+ * Move into `store` each pair of `from` whose key it lacks, while the pair
+ * still fits in the 131072 bytes; the rest are dropped.
+ */
+export function mergeLinksetData(
+  store: Map<string, LinksetDataEntry>,
+  from: ReadonlyMap<string, LinksetDataEntry>,
+): void {
+  let used = bytesUsed(store)
+  for (const [name, entry] of from) {
+    if (store.has(name)) continue
+    const cost = entryCost(name, entry)
+    if (used + cost > LSD_AVAILABLE_BYTES) continue
+    store.set(name, entry)
+    used += cost
+  }
+}
+
 function fits(ctx: CallContext, name: string, entry: LinksetDataEntry): boolean {
   const store = ctx.state.linksetData
   const existing = store.get(name)
