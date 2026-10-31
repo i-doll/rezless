@@ -24,6 +24,8 @@ import type { DialogEntry } from './builtins/dialog.js'
 import type { TakenControls } from './builtins/controls.js'
 import type { Camera } from './builtins/camera.js'
 import { defaultCamera } from './builtins/camera.js'
+import type { AnimationState } from './builtins/animation.js'
+import { animationAvatars, playingAnimations, setAnimationState } from './builtins/animation.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
@@ -250,6 +252,9 @@ export class Script {
       controls: { taken: null, level: 0 },
       camera: defaultCamera(),
       cameraParams: new Map(),
+      get animations() {
+        return animationAvatars(prim.linkset!)
+      },
       dialogs: [],
       lifecycle: {
         dead: false,
@@ -601,6 +606,16 @@ export class Script {
   /** Camera rules set with llSetCameraParams, by rule. */
   get cameraParams(): ReadonlyMap<number, LslValue> {
     return this.state.cameraParams
+  }
+
+  /** Register an avatar in this region and set its default locomotion animation. */
+  setAnimationState(agent: string, state: AnimationState): void {
+    setAnimationState(this.state.animations, agent, state)
+  }
+
+  /** Playing animation UUIDs for an avatar, in UUID order. Returns a fresh array. */
+  getPlayingAnimations(agent: string): ReadonlyArray<string> {
+    return playingAnimations(this.state.animations, agent)
   }
 
   /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */

@@ -257,6 +257,15 @@ import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-sear
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
 import { llTakeControls, llReleaseControls } from './controls.js'
 import {
+  llStartAnimation,
+  llStopAnimation,
+  llGetAnimation,
+  llGetAnimationList,
+  llGetAnimationOverride,
+  llSetAnimationOverride,
+  llResetAnimationOverride,
+} from './animation.js'
+import {
   llGetCameraPos,
   llGetCameraRot,
   llGetCameraFOV,
@@ -641,6 +650,14 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   // controls
   llTakeControls,
   llReleaseControls,
+  // avatar animations
+  llStartAnimation,
+  llStopAnimation,
+  llGetAnimation,
+  llGetAnimationList,
+  llGetAnimationOverride,
+  llSetAnimationOverride,
+  llResetAnimationOverride,
   // camera
   llGetCameraPos,
   llGetCameraRot,

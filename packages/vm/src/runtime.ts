@@ -117,6 +117,8 @@ export interface ScriptState {
   camera: import('./builtins/camera.js').Camera
   /** Camera rules set with llSetCameraParams, by rule. */
   readonly cameraParams: Map<number, LslValue>
+  /** Avatar animations in this region, shared across scripts and preserved on reset. */
+  readonly animations: Map<string, import('./builtins/animation.js').AvatarAnimations>
   /** Dialogs and text boxes shown with llDialog / llTextBox, oldest first. */
   readonly dialogs: import('./builtins/dialog.js').DialogEntry[]
   /**

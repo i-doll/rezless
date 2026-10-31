@@ -128,6 +128,7 @@ s.denyExperiencePermissions(reason?)            // decline it; fires `experience
 s.answerDialog(text, { name? })                 // answer the latest llDialog / llTextBox as its avatar; fires `listen`
 s.sendControl(level)                            // the permission agent holds exactly these CONTROL_* bits; fires `control`
 s.setCamera({ pos?, rot?, fov?, aspect? })      // set the camera llGetCameraPos / Rot / FOV / Aspect report
+s.setAnimationState(avatar, "Standing")          // register an avatar in this region and set its locomotion state
 s.mock(name, impl)                              // override any ll* function (real or stubbed) per-test
 s.reset()                                       // re-init globals + return to default + state_entry
 
@@ -153,6 +154,7 @@ s.experienceRequests                            // [{ agent, answered }] from ll
 s.dialogs                                       // [{ kind, agent, message, buttons, channel, objectKey, answered }]
 s.controls                                      // llTakeControls arguments: { controls, accept, passOn } or null
 s.cameraParams                                  // ReadonlyMap of llSetCameraParams rule -> value
+s.getPlayingAnimations(avatar)                   // snapshot of playing animation UUIDs, sorted by UUID
 s.listens                                       // [{ handle, channel, name, key, message, active }]
 s.linkedMessages                                // [{ target, num, str, id }] sent by THIS script
 s.clearLinkedMessages()                         // drop captured llMessageLinked entries
@@ -287,6 +289,12 @@ expect(s).toHaveSentHTTP({ url: '...', method: 'POST', body: '...' })
 expect(s).toHaveListened(7, { key: ownerKey })
 ```
 
+### Avatar animations
+
+Use `s.setAnimationState(avatar, "Standing")` to register an avatar and choose its locomotion state. `s.getPlayingAnimations(avatar)` returns the same UUIDs as `llGetAnimationList`. Animation state is shared by scripts in the same region of a `World`, or the same linkset when no world is supplied. It survives script reset and removal. Permission-granted animation calls also register their target avatar, initially standing.
+
+`llGetAnimation` reports locomotion, even while a script plays another animation. Overrides change the animation used for that state. Playback records animation UUIDs; it does not simulate asset duration, blending or priorities. Tests drive locomotion changes explicitly with `setAnimationState`.
+
 ### Implemented `ll*` functions
 
 The real-impl set covers the most common use cases. Anything outside it
@@ -328,6 +336,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **experiences**: `llGetExperienceDetails`, `llGetExperienceErrorMessage`, `llAgentInExperience`, `llRequestExperiencePermissions` (an agent who already accepted is granted at once; answer others with `s.grantExperiencePermissions` / `s.denyExperiencePermissions`), and the key-value store: `llCreateKeyValue`, `llReadKeyValue`, `llUpdateKeyValue`, `llDeleteKeyValue`, `llKeyCountKeyValue`, `llKeysKeyValue`, `llDataSizeKeyValue`, which answer through `dataserver` on every script in the prim with `1,<result>` or `0,<XP_ERROR_*>`. Without an experience they answer `0,5`. Seed or inspect the store with `experience.seed([['k', 'v']])` and `experience.store`; pass `allowedHere: false` for land that doesn't allow the experience.
 * **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
 * **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` (zero values without `PERMISSION_TRACK_CAMERA`; set them with `s.setCamera`), `llSetCameraParams`, `llClearCameraParams` (rules recorded in `s.cameraParams`)
+* **avatar animations**: `llStartAnimation`, `llStopAnimation`, `llGetAnimation`, `llGetAnimationList`, `llGetAnimationOverride`, `llSetAnimationOverride`, `llResetAnimationOverride`. Start/stop require `PERMISSION_TRIGGER_ANIMATION`; set/reset overrides require `PERMISSION_OVERRIDE_ANIMATIONS`; reading overrides accepts either. Inventory animation names take priority over built-ins. Raw UUIDs work for stop only.
 * **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.
 * **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
 * **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
