@@ -194,6 +194,29 @@ describe('llFindNotecardTextSync', () => {
     expect(await sync('[[:space:]]+')).toEqual(await sync('\\s+'))
   })
 
+  // In-world (Aditi, SLua Tideland, 2026-10-31): "\\u+" -> [0,0,1, 1,6,5]; "\\U+" -> [0,1,17, 1,11,43];
+  // "\\l+" starts [0,1,4, 0,6,5, 1,0,5]; "\\L+" starts [0,0,1, 0,5,1, 0,11,1, 1,5,7]; "[[:l:]]+" and "[\\l]+"
+  // match as "\\l+"; "[[:u:]]+" and "[\\u]+" as "\\u+"; "[[:d:]]+" as "\\d+"; "\\<hello" -> [1,0,5, 1,12,5];
+  // "o\\>" -> [0,4,1, 1,4,1, 1,16,1]; "o\\<" -> []; "a\\e" -> [] with no error.
+  it('supports the case classes, short class names and word-start and word-end anchors', async () => {
+    expect(await sync('\\u+')).toEqual([0, 0, 1, 1, 6, 5])
+    expect(await sync('\\U+')).toEqual([0, 1, 17, 1, 11, 43])
+    expect((await sync('\\l+')).slice(0, 9)).toEqual([0, 1, 4, 0, 6, 5, 1, 0, 5])
+    expect((await sync('\\L+')).slice(0, 12)).toEqual([0, 0, 1, 0, 5, 1, 0, 11, 1, 1, 5, 7])
+    expect(await sync('[[:l:]]+')).toEqual(await sync('\\l+'))
+    expect(await sync('[\\l]+')).toEqual(await sync('\\l+'))
+    expect(await sync('[[:u:]]+')).toEqual([0, 0, 1, 1, 6, 5])
+    expect(await sync('[\\u]+')).toEqual([0, 0, 1, 1, 6, 5])
+    expect(await sync('[[:d:]]+')).toEqual([3, 3, 3, 3, 9, 3])
+    expect(await sync('[[:s:]]+')).toEqual(await sync('\\s+'))
+    expect(await sync('[[:w:]]+')).toEqual(await sync('\\w+'))
+    expect(await sync('\\<hello')).toEqual([1, 0, 5, 1, 12, 5])
+    expect(await sync('o\\>')).toEqual([0, 4, 1, 1, 4, 1, 1, 16, 1])
+    expect(await sync('o\\<')).toEqual([])
+    expect(await sync('a\\e')).toEqual([])
+    expect(await sync('a\\e', 0, 0, ['a\x1b'])).toEqual([0, 0, 2])
+  })
+
   // In-world (Aditi, SLua Tideland, 2026-10-31): "l\\Q\\E+" -> [0,2,2, 0,9,1, 1,2,2, 1,14,2];
   // "\\Q\\Ea" -> the matches of "a".
   it('lets a quantifier after an empty \\Q\\E repeat what came before it', async () => {
@@ -228,6 +251,12 @@ describe('llFindNotecardTextSync', () => {
     const p = await run(`r = llFindNotecardTextSync("${NC_KEY}", "hello", 0, 0, []);`)
     expect(p.global('r')).toEqual([1, 0, 5, 1, 12, 5])
     expect(p.chat).toEqual([])
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-10-31): llToUpper of the key finds the notecard too.
+  it('matches the notecard key in any case', async () => {
+    const p = await run(`r = llFindNotecardTextSync("${NC_KEY.toUpperCase()}", "hello", 0, 0, []);`)
+    expect(p.global('r')).toEqual([1, 0, 5, 1, 12, 5])
   })
 
   // In-world: "nope", "" and a script's name say "Could not find notecard '<name>'." and return [NAK].
@@ -323,6 +352,8 @@ describe('llFindNotecardTextCount', () => {
   it('accepts the notecard key as the name', async () => {
     const c = await count('hello', NC_KEY)
     expect(c.data).toBe('2')
+    // In-world (Aditi, SLua Tideland, 2026-10-31): the upper-case key also counts 2.
+    expect((await count('hello', NC_KEY.toUpperCase())).data).toBe('2')
   })
 
   // In-world: Count with a random key returns a key, and dataserver delivers EOF.

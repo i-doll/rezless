@@ -19,7 +19,7 @@ function findNotecard(ctx: CallContext, name: string): Notecard {
   const inventory = ctx.prim.inventory
   const byName = inventory.find((it) => it.name === name)
   const item =
-    byName ?? (UUID.test(name) ? inventory.find((it) => it.type === InventoryType.NOTECARD && it.key === name) : undefined)
+    byName ?? (UUID.test(name) ? inventory.find((it) => it.type === InventoryType.NOTECARD && it.key.toLowerCase() === name.toLowerCase()) : undefined)
   if (item && item.type === InventoryType.NOTECARD && item.notecardLines) return { lines: item.notecardLines }
   if (!byName && UUID.test(name)) return 'unknown-key'
   sayError(ctx, `Could not find notecard '${name}'.`)
@@ -59,13 +59,30 @@ const POSIX_CLASSES: Record<string, string> = {
   punct: '!-\\/:-@\\[-`{-~',
   xdigit: '0-9A-Fa-f',
   word: '\\w',
+  d: '0-9',
+  l: 'a-z',
+  s: '\\t\\n\\v\\f\\r ',
+  u: 'A-Z',
+  w: '\\w',
   cntrl: '\\x00-\\x1f\\x7f',
   print: '\\x20-\\x7e',
   graph: '\\x21-\\x7e',
 }
 
-const CLASS_ESCAPES = new Set(['d', 'D', 'w', 'W', 's', 'S'])
-const CONTROL_ESCAPES: Record<string, string> = { n: '\\n', t: '\\t', r: '\\r', f: '\\f', v: '\\v' }
+const CLASS_ESCAPES: Record<string, string> = {
+  d: '\\d',
+  D: '\\D',
+  w: '\\w',
+  W: '\\W',
+  s: '\\s',
+  S: '\\S',
+  l: '[a-z]',
+  L: '[^a-z]',
+  u: '[A-Z]',
+  U: '[^A-Z]',
+}
+const SET_CLASS_ESCAPES: Record<string, string> = { d: '\\d', D: '\\D', w: '\\w', W: '\\W', s: '\\s', S: '\\S', l: 'a-z', u: 'A-Z' }
+const CONTROL_ESCAPES: Record<string, string> = { e: '\\x1b', n: '\\n', t: '\\t', r: '\\r', f: '\\f', v: '\\v' }
 const ANCHOR_ESCAPES: Record<string, string> = {
   A: '(?<![\\s\\S])',
   G: '(?<![\\s\\S])',
@@ -73,6 +90,8 @@ const ANCHOR_ESCAPES: Record<string, string> = {
   Z: '(?=\\n?(?![\\s\\S]))',
   b: '\\b',
   B: '\\B',
+  '<': '(?<!\\w)(?=\\w)',
+  '>': '(?<=\\w)(?!\\w)',
 }
 
 const isDigit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9'
@@ -123,9 +142,9 @@ function translate(p: Uint8Array): string {
         i += 2 + hex.length
         continue
       }
-      if (e in ANCHOR_ESCAPES) emit(ANCHOR_ESCAPES[e]!, 'anchor')
-      else if (CLASS_ESCAPES.has(e)) emit(`\\${e}`, 'atom')
-      else emit(CONTROL_ESCAPES[e] ?? byteSource(p[i + 1]!), 'atom')
+      const anchor = own(ANCHOR_ESCAPES, e)
+      if (anchor) emit(anchor, 'anchor')
+      else emit(own(CLASS_ESCAPES, e) ?? own(CONTROL_ESCAPES, e) ?? byteSource(p[i + 1]!), 'atom')
       i += 2
       continue
     }
@@ -200,8 +219,9 @@ function translateSet(p: Uint8Array, s: string, start: number): [string, number]
       i = close + 2
       continue
     }
-    if (c === '\\' && CLASS_ESCAPES.has(s[i + 1] ?? '')) {
-      out += `\\${s[i + 1]}`
+    const setClass = c === '\\' ? own(SET_CLASS_ESCAPES, s[i + 1] ?? '') : undefined
+    if (setClass) {
+      out += setClass
       i += 2
       continue
     }
