@@ -37,7 +37,7 @@ import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
-import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED } from './generated/constants.js'
+import { DEBUG_CHANNEL, HTTP_BODY_TRUNCATED, PERMISSION_TAKE_CONTROLS } from './generated/constants.js'
 import { own } from './own.js'
 import { deterministicKey } from './keys.js'
 import { Memory, RuntimeError, codeBytes } from './memory.js'
@@ -441,6 +441,7 @@ export class Script {
     const granted = req.permissions & (permissions ?? req.permissions)
     this.state.permissions.granted = granted
     this.state.permissions.agent = req.agent
+    if (!(granted & PERMISSION_TAKE_CONTROLS)) this.state.controls.taken = null
     const started = this.handles('run_time_permissions') ? [this] : []
     this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
     this.linkset.settle(started)

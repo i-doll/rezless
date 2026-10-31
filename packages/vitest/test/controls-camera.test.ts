@@ -156,6 +156,41 @@ describe('llReleaseControls', () => {
     expect(perms(s)).toBe(0)
   })
 
+  it('drops the control events still queued', async () => {
+    const s = await loadScript({
+      owner: AGENT,
+      source: `
+        list got = [];
+        default {
+          state_entry() { llRequestPermissions(llGetOwner(), ${PERMISSION_TAKE_CONTROLS}); }
+          run_time_permissions(integer p) { llTakeControls(${CONTROL_FWD}, TRUE, FALSE); }
+          control(key id, integer level, integer edge) { got += [level, edge]; llReleaseControls(); }
+        }
+      `,
+    })
+    s.start()
+    s.grantPermissions()
+    s.running = false
+    s.sendControl(CONTROL_FWD)
+    s.sendControl(0)
+    s.running = true
+    s.resumeParked()
+    s.advanceTime(0)
+    // llReleaseControls dequeues the remaining control events (lsl_definitions.yaml tooltip).
+    expect(s.global('got')).toEqual([CONTROL_FWD, CONTROL_FWD])
+  })
+
+  it('happens when a later grant leaves out PERMISSION_TAKE_CONTROLS', async () => {
+    const s = await load(
+      `if (llGetPermissions() & ${PERMISSION_TAKE_CONTROLS}) { llTakeControls(${CONTROL_FWD}, TRUE, FALSE); llRequestPermissions(llGetOwner(), ${PERMISSION_TRACK_CAMERA}); }`,
+    )
+    s.linkset.touch(0)
+    s.grantPermissions()
+    s.sendControl(CONTROL_FWD)
+    expect(s.controls).toBeNull()
+    expect(s.global('got')).toEqual([])
+  })
+
   it('happens on reset too', async () => {
     const s = await load(`llTakeControls(${CONTROL_FWD}, TRUE, FALSE);`)
     s.linkset.touch(0)

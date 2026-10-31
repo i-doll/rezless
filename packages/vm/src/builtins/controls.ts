@@ -23,9 +23,13 @@ export const llTakeControls: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-/** llReleaseControls() — lets the controls go and drops PERMISSION_TAKE_CONTROLS, taken or not. */
+/**
+ * llReleaseControls() — lets the controls go, drops the control events still
+ * queued, and drops PERMISSION_TAKE_CONTROLS, taken or not.
+ */
 export const llReleaseControls: BuiltinImpl = (ctx) => {
   ctx.state.controls.taken = null
+  ctx.linkset.clock.purgeEvent(ctx.script, 'control')
   ctx.state.permissions.granted &= ~PERMISSION_TAKE_CONTROLS
   return undefined
 }
