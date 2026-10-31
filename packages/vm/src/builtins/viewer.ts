@@ -27,9 +27,7 @@ export function isAgentInRegion(ctx: CallContext, agent: string): boolean {
   if (agent === NULL_KEY || !isKey(agent)) return false
   const explicit = ctx.state.agentPresence.get(agent)
   if (explicit !== undefined) return explicit
-  // World avatar fixtures, when available, take precedence over the implicit owner.
-  const avatars = (ctx.linkset.world as { avatars?: ReadonlyArray<{ key: string; region: string }> } | undefined)?.avatars
-  const avatar = avatars?.find(a => a.key.toLowerCase() === agent.toLowerCase())
+  const avatar = ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === agent.toLowerCase())
   if (avatar) return avatar.region === ctx.linkset.region
   if (agent === ctx.linkset.owner) return true
   return ctx.state.detectedStack.at(-1)?.entries.some(e => e.key === agent && ((e.type ?? 1) & 1) !== 0) ?? false

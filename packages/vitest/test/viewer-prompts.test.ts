@@ -129,3 +129,26 @@ it('addresses a touch map request to the toucher, and other events to the owner'
   s.fire('sensor', { num_detected: 1, detected: [{ key: toucher, name: 'Toucher' }] })
   expect(s.viewerRequests.map(r => r.agent)).toEqual([toucher, owner])
 })
+
+it('uses World avatar locations and shares presence overrides between scripts', async () => {
+  const { World, loadLinkset } = await import('../src/index.js')
+  const owner = '00000000-0000-0000-0000-00000000000a'
+  const world = new World()
+  world.addRegion('test', { x: 0, y: 0 }); world.addRegion('away', { x: 256, y: 0 })
+  const avatar = world.addAvatar({ key: owner, username: 'owner.resident', region: 'test' })
+  const source = { source: 'default { touch_start(integer n) { llLoadURL(llGetOwner(), "m", "https://example.com"); } }' }
+  const a = await loadLinkset({ owner, world, region: 'test', prims: [{ scripts: [{ name: 'a', source }] }] })
+  const b = await loadLinkset({ owner, world, region: 'test', prims: [{ scripts: [{ name: 'b', source }] }] })
+  const s = a.scripts.a!; const sibling = b.scripts.b!
+  s.linkset.touch(0)
+  expect(s.viewerRequests).toHaveLength(1)
+  avatar.region = 'away'
+  s.linkset.touch(0)
+  expect(s.viewerRequests).toHaveLength(1)
+  sibling.setAgentInRegion(owner, true)
+  s.linkset.touch(0)
+  expect(s.viewerRequests).toHaveLength(2)
+  sibling.setAgentInRegion(owner, false)
+  s.linkset.touch(0)
+  expect(s.viewerRequests).toHaveLength(2)
+})
