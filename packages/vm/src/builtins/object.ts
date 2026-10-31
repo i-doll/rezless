@@ -1,5 +1,5 @@
 import type { BuiltinImpl } from '../runtime.js'
-import type { Vector } from '../values/types.js'
+import type { LslValue, Vector } from '../values/types.js'
 import { PRIM_DESC, PRIM_TEXT } from '../generated/constants.js'
 
 /**
@@ -32,6 +32,27 @@ export const llSetObjectDesc: BuiltinImpl = (ctx, args) => {
 
 /** llGetObjectDesc() */
 export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.prim.description
+
+/** llSetTouchText(string text) */
+export const llSetTouchText: BuiltinImpl = (ctx, args) => {
+  ctx.prim.touchText = (args[0] as string | undefined) ?? ''
+  return undefined
+}
+
+/** llSetSitText(string text) */
+export const llSetSitText: BuiltinImpl = (ctx, args) => {
+  ctx.prim.sitText = (args[0] as string | undefined) ?? ''
+  return undefined
+}
+
+/** llSetPayPrice(integer price, list quick_pay_buttons) */
+export const llSetPayPrice: BuiltinImpl = (ctx, args) => {
+  ctx.prim.payPrice = {
+    price: (args[0] as number | undefined) ?? 0,
+    buttons: [...((args[1] as LslValue[] | undefined) ?? [])],
+  }
+  return undefined
+}
 
 /**
  * llDie() — deletes the entire linked object. In real LSL this kills
