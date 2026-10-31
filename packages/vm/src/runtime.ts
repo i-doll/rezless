@@ -90,6 +90,8 @@ export interface ScriptState {
     agent: string
     readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
   }
+  /** Dialogs and text boxes shown with llDialog / llTextBox, oldest first. */
+  readonly dialogs: import('./builtins/dialog.js').DialogEntry[]
   /**
    * Lifecycle flags — `dead` is set when llDie runs or the script is removed
    * from inventory; `dying` when the script itself called llDie; `removed`

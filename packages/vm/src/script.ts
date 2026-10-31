@@ -15,6 +15,7 @@ import type { DataserverRequestEntry } from './builtins/dataserver.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import type { PermissionRequestEntry } from './builtins/permissions.js'
+import type { DialogEntry } from './builtins/dialog.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
@@ -203,6 +204,7 @@ export class Script {
       linksetData: this.linkset.linksetData,
       appearance: this.host.appearance,
       permissions: { granted: 0, agent: NULL_KEY, requests: [] },
+      dialogs: [],
       lifecycle: {
         dead: false,
         dying: false,
@@ -399,6 +401,30 @@ export class Script {
   /** Answer the most recent unanswered permission request with No. */
   denyPermissions(): void {
     this.grantPermissions(0)
+  }
+
+  /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */
+  get dialogs(): ReadonlyArray<DialogEntry> {
+    return this.state.dialogs
+  }
+
+  /**
+   * Answer a dialog as its avatar: the most recent unanswered one, or
+   * `opts.dialog`. The avatar says `text` on the dialog's channel, heard by
+   * listens within 20 m of the prim that showed it. A llDialog answer must
+   * be one of its buttons; a text box takes any text.
+   */
+  answerDialog(text: string, opts: { name?: string; dialog?: DialogEntry } = {}): void {
+    const dialog = opts.dialog ?? [...this.state.dialogs].reverse().find((d) => !d.answered)
+    if (!dialog) throw new Error('no unanswered dialog')
+    if (!this.state.dialogs.includes(dialog)) throw new Error('that dialog was not shown by this script')
+    if (dialog.answered) throw new Error('that dialog was already answered')
+    if (dialog.kind === 'dialog' && !dialog.buttons.includes(text)) {
+      throw new Error(`'${text}' is not a button on the dialog: ${dialog.buttons.join(', ')}`)
+    }
+    dialog.answered = true
+    const chat = { channel: dialog.channel, name: opts.name ?? '', key: dialog.agent, message: text }
+    this.linkset.settle(this.linkset.routeAvatarChat(this.host, chat).filter((s) => s.handles('listen')))
   }
 
   /** Currently displayed floating text (from llSetText). null if unset. */

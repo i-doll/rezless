@@ -212,16 +212,37 @@ export class Linkset {
     const origin = this.globalPosition(from)
     const range = CHAT_RANGE[type] ?? 0
     const reaches = (linkset: Linkset, p: Prim): boolean => {
+      if (p === from) return false
       if (type === 'regionSay') return linkset.region === this.region
       if (type === 'regionSayTo') return linkset.region === this.region && to !== NULL_KEY && p.key === to
       return distanceSquared(origin, linkset.globalPosition(p)) <= range * range
     }
+    this.broadcast(reaches, { channel, name: from.name, key: from.key, message })
+  }
+
+  /**
+   * Queue an avatar's dialog answer on the listens of every prim within
+   * 20 m of `from`, the prim that showed the dialog, including `from`
+   * itself. Returns the scripts that matched.
+   */
+  routeAvatarChat(from: Prim, chat: { channel: number; name: string; key: string; message: string }): Script[] {
+    const origin = this.globalPosition(from)
+    const range = CHAT_RANGE.say!
+    return this.broadcast((linkset, p) => distanceSquared(origin, linkset.globalPosition(p)) <= range * range, chat)
+  }
+
+  private broadcast(
+    reaches: (linkset: Linkset, p: Prim) => boolean,
+    chat: { channel: number; name: string; key: string; message: string },
+  ): Script[] {
+    const matched: Script[] = []
     for (const linkset of this.world?.linksets ?? [this]) {
       for (const p of linkset.prims) {
-        if (p === from || !reaches(linkset, p)) continue
-        for (const s of p.scripts) s.matchChatListens({ channel, name: from.name, key: from.key, message })
+        if (!reaches(linkset, p)) continue
+        for (const s of p.scripts) if (s.matchChatListens(chat)) matched.push(s)
       }
     }
+    return matched
   }
 
   /**

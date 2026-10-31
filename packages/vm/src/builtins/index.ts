@@ -21,6 +21,7 @@ import {
 } from './time.js'
 import { llHTTPRequest, llHTTPResponse } from './http.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
+import { llDialog, llTextBox } from './dialog.js'
 import {
   llAbs,
   llFabs,
@@ -291,6 +292,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llListen,
   llListenRemove,
   llListenControl,
+  llDialog,
+  llTextBox,
   // math
   llAbs,
   llFabs,
