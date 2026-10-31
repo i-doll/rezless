@@ -71,6 +71,7 @@ import {
   llGetHTTPHeader,
   llSetContentType,
 } from './http.js'
+import { llEmail, llGetNextEmail, llTargetedEmail } from './email.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
 import { llDialog, llTextBox } from './dialog.js'
 import {
@@ -420,6 +421,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetFreeURLs,
   llGetHTTPHeader,
   llSetContentType,
+  // email
+  llEmail,
+  llGetNextEmail,
+  llTargetedEmail,
   llListen,
   llListenRemove,
   llListenControl,

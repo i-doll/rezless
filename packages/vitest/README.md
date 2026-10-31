@@ -117,6 +117,7 @@ s.respondToHttp(key, { status, body })          // fire `http_response` for a ca
 s.respondToLastHttp({ status, body })           // same, for the most recent
 s.sendHttpRequest(url, { method, headers, body }) // fire `http_request` on a URL from llRequestURL; returns { key, response }
 s.grantUrls() / s.denyUrls()                    // grant (default) or deny later llRequestURL / llRequestSecureURL calls
+s.deliverEmail({ from, subject, message })      // queue mail on the prim for llGetNextEmail; false when the queue is full
 s.respondToDataserver(key, value)               // fire `dataserver` for a captured llRequest*
 s.respondToLastDataserver(value)                // same, for the most recent
 s.grantPermissions(perms?)                      // answer the latest llRequestPermissions; fires `run_time_permissions`
@@ -139,6 +140,9 @@ s.calls                                         // [{ name, args, returned }, ..
 s.callsOf(name)                                 // filter call log by ll* name
 s.httpRequests                                  // [{ key, url, method, body, headers, mimetype, ... }]
 s.urls                                          // URLs the script holds from llRequestURL / llRequestSecureURL
+s.emails                                        // [{ address, subject, message, time }] sent with llEmail
+s.targetedEmails                                // [{ target, subject, message, time }] sent with llTargetedEmail
+s.inbox                                         // mail queued on the prim, oldest first
 s.dataserverRequests                            // [{ key, source, args, fulfilled }]
 s.permissionRequests                            // [{ agent, permissions, answered }]
 s.dialogs                                       // [{ kind, agent, message, buttons, channel, objectKey, answered }]
@@ -297,6 +301,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **environment**: `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
 * **ground, water and wind**: `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
+* **email**: `llEmail`, `llGetNextEmail`, `llTargetedEmail` (each send sleeps 20 seconds) — mail to `<key>@lsl.secondlife.com` reaches that prim's queue, which holds 101 mails; queue a test's mail with `s.deliverEmail`
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
 * **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
 * **link changes**: `llCreateLink`, `llBreakLink`, `llBreakAllLinks` (need `PERMISSION_CHANGE_LINKS`; each raises `changed(CHANGED_LINK)` in the prims it touches; linked prims stay where they were, and the root keeps the linkset data)

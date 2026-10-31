@@ -35,6 +35,7 @@ export type {
   ChatType,
   ScriptState,
 } from './runtime.js'
+export type { SentEmail, SentTargetedEmail, IncomingEmail, IncomingEmailInit } from './builtins/email.js'
 export type { LslType, LslValue, Vector, Rotation } from './values/types.js'
 export {
   ZERO_VECTOR,

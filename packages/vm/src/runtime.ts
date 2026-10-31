@@ -64,6 +64,10 @@ export interface ScriptState {
   readonly incomingHttp: import('./builtins/http.js').IncomingHttpRequest[]
   /** Monotonic counter feeding deterministic incoming request keys. */
   httpInCounter: number
+  /** Mail sent with llEmail, oldest first. */
+  readonly emails: import('./builtins/email.js').SentEmail[]
+  /** Mail sent with llTargetedEmail, oldest first. */
+  readonly targetedEmails: import('./builtins/email.js').SentTargetedEmail[]
   readonly listens: import('./builtins/listen.js').ListenEntry[]
   /** Monotonic counter for llListen handles. */
   listenHandleCounter: number
