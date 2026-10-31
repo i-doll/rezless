@@ -1,3 +1,22 @@
+import {
+  llPlaySound,
+  llLoopSound,
+  llLoopSoundMaster,
+  llLoopSoundSlave,
+  llPlaySoundSlave,
+  llTriggerSound,
+  llTriggerSoundLimited,
+  llPreloadSound,
+  llStopSound,
+  llAdjustSoundVolume,
+  llSetSoundQueueing,
+  llSetSoundRadius,
+  llLinkPlaySound,
+  llLinkStopSound,
+  llLinkAdjustSoundVolume,
+  llLinkSetSoundQueueing,
+  llLinkSetSoundRadius
+} from './sound.js'
 import { llDamage, llAdjustDamage, llGetHealth, llSetDamage } from './damage.js'
 import type { BuiltinImpl } from '../runtime.js'
 import {
@@ -428,6 +447,23 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llBreakLink,
   llBreakAllLinks,
   // object animations
+  llPlaySound,
+  llLoopSound,
+  llLoopSoundMaster,
+  llLoopSoundSlave,
+  llPlaySoundSlave,
+  llTriggerSound,
+  llTriggerSoundLimited,
+  llPreloadSound,
+  llStopSound,
+  llAdjustSoundVolume,
+  llSetSoundQueueing,
+  llSetSoundRadius,
+  llLinkPlaySound,
+  llLinkStopSound,
+  llLinkAdjustSoundVolume,
+  llLinkSetSoundQueueing,
+  llLinkSetSoundRadius,
   llStartObjectAnimation,
   llStopObjectAnimation,
   llGetObjectAnimationNames,
