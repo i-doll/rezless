@@ -32,6 +32,7 @@ import {
   llGetEnv,
   llGetSimulatorHostname,
   llEdgeOfWorld,
+  llScriptDanger,
 } from './region.js'
 import {
   llKey2Name,
@@ -379,6 +380,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetEnv,
   llGetSimulatorHostname,
   llEdgeOfWorld,
+  llScriptDanger,
   // object reads
   llKey2Name,
   llGetObjectDetails,
