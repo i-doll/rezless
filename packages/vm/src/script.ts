@@ -484,6 +484,21 @@ export class Script {
     return this.state.appearance.text
   }
 
+  /** The prim's llSetTouchText text, '' if unset. */
+  get touchText(): string {
+    return this.host.touchText
+  }
+
+  /** The prim's llSetSitText text, '' if unset. */
+  get sitText(): string {
+    return this.host.sitText
+  }
+
+  /** The prim's llSetPayPrice arguments, null if unset. */
+  get payPrice(): { price: number; buttons: LslValue[] } | null {
+    return this.host.payPrice
+  }
+
   /** Object description from llSetObjectDesc. */
   get objectDesc(): string {
     return this.state.appearance.description
