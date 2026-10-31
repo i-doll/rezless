@@ -194,6 +194,21 @@ describe('llFindNotecardTextSync', () => {
     expect(await sync('[[:space:]]+')).toEqual(await sync('\\s+'))
   })
 
+  // In-world (Aditi, SLua Tideland, 2026-10-31): "l\\Q\\E+" -> [0,2,2, 0,9,1, 1,2,2, 1,14,2];
+  // "\\Q\\Ea" -> the matches of "a".
+  it('lets a quantifier after an empty \\Q\\E repeat what came before it', async () => {
+    expect(await sync('l\\Q\\E+')).toEqual([0, 2, 2, 0, 9, 1, 1, 2, 2, 1, 14, 2])
+    expect(await sync('\\Q\\Ea')).toEqual([3, 0, 1, 4, 1, 1, 4, 7, 1, 5, 0, 1])
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-10-31), notecard "a﻿b\n﻿xb": "b" -> [0,2,1, 1,2,1];
+  // "\\xEF\\xBB\\xBF" -> [0,1,1, 1,0,1].
+  it('counts U+FEFF as a character, also at the start of a line', async () => {
+    const lines = ['a﻿b', '﻿xb']
+    expect(await sync('b', 0, 0, lines)).toEqual([0, 2, 1, 1, 2, 1])
+    expect(await sync('\\xEF\\xBB\\xBF', 0, 0, lines)).toEqual([0, 1, 1, 1, 0, 1])
+  })
+
   // In-world: "" and "x*" match empty at every byte; "(?i)" alone behaves like "".
   it('reports empty matches at every byte offset', async () => {
     const empty = await sync('')
@@ -269,6 +284,12 @@ describe('llFindNotecardTextSync', () => {
     ['[[:bogus:]]', 'Invalid character class name was specified in a [[:name:]] block in "[[:bogus:]]" at position 3'],
     ['[z-a]', 'Invalid character class name was specified in a [[:name:]] block in "[z-a]" at position 5'],
     ['[[:alpha:]', 'Mismatched \'(\' and \')\' in "[[:alpha:]" at position 10'],
+    // In-world (Aditi, SLua Tideland, 2026-10-31). The listener cut "[[:constructor:]]"'s message off before
+    // its position; position 3 is where "[[:bogus:]]" reported the same error.
+    ['\\Q\\E*', 'Invalid repetition in "\\Q\\E*" at position 5'],
+    ['a*\\Q\\E*', 'Invalid repetition in "a*\\Q\\E*" at position 7'],
+    ['[[:constructor:]]', 'Invalid character class name was specified in a [[:name:]] block in "[[:constructor:]]" at position 3'],
+    ['[[:__proto__:]]', 'Invalid character class name was specified in a [[:name:]] block in "[[:__proto__:]]" at position 3'],
   ])('rejects %j', async (pattern, error) => {
     const p = await run(`r = llFindNotecardTextSync("nc", ${lsl(pattern)}, 0, 0, []);`)
     expect(p.global('r')).toEqual([])

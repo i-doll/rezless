@@ -4,6 +4,7 @@ import { sayError } from './debug.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
 import { EOF, NAK } from '../generated/constants.js'
+import { own } from '../own.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_DEFAULT_MATCHES = 64
@@ -35,7 +36,7 @@ class PatternError extends Error {
 }
 
 const utf8 = new TextEncoder()
-const decoder = new TextDecoder()
+const decoder = new TextDecoder('utf-8', { ignoreBOM: true })
 
 /** A byte as one UTF-16 unit: ASCII as itself, anything higher in the private use area so no JS class or case fold touches it. */
 const byteChar = (b: number) => (b < 0x80 ? String.fromCharCode(b) : String.fromCharCode(0xe000 + b))
@@ -109,7 +110,8 @@ function translate(p: Uint8Array): string {
         const close = s.indexOf('\\E', i + 2)
         const end = close === -1 ? s.length : close
         for (let k = i + 2; k < end; k++) out += byteSource(p[k]!)
-        last = 'atom'
+        if (end > i + 2) last = 'atom'
+        else if (last === 'none') last = 'anchor'
         i = close === -1 ? end : end + 2
         continue
       }
@@ -191,8 +193,9 @@ function translateSet(p: Uint8Array, s: string, start: number): [string, number]
     const close = c === '[' && s[i + 1] === ':' ? s.indexOf(':]', i + 2) : -1
     if (close !== -1) {
       const name = s.slice(i + 2, close)
-      if (!(name in POSIX_CLASSES)) throw new PatternError(BAD_CLASS, i + 2)
-      out += POSIX_CLASSES[name]
+      const members = own(POSIX_CLASSES, name)
+      if (members === undefined) throw new PatternError(BAD_CLASS, i + 2)
+      out += members
       posix = true
       i = close + 2
       continue
