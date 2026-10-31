@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadLinkset, loadScript } from '../src/index.js'
+import { loadLinkset, loadScript, World } from '../src/index.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const CAP = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -468,6 +468,54 @@ describe('llGetFreeURLs', () => {
     linkset.touch(2)
     expect(a!.chat.map((c) => c.text)).toEqual(['20000', '19998', '19998'])
     expect(b!.chat.map((c) => c.text)).toEqual(['19998'])
+  })
+
+  it('shares the count with every linkset in the same region, and only that region', async () => {
+    const world = new World()
+    world.addRegion('Here', { x: 256000, y: 256000 })
+    world.addRegion('There', { x: 256256, y: 256000 })
+    const place = async (region: string, name: string, source: string) => {
+      const { scripts } = await loadLinkset({ world, region, prims: [{ scripts: [{ source: { source }, name }] }] })
+      scripts[name]!.start()
+      return scripts[name]!
+    }
+    const report = `default { touch_start(integer n) { llSay(0, (string)llGetFreeURLs()); } }`
+    await place('Here', 'taker', `default { state_entry() { llRequestURL(); } }`)
+    const here = await place('Here', 'here', report)
+    const there = await place('There', 'there', report)
+    here.linkset.touch(1)
+    there.linkset.touch(1)
+    expect(here.chat.map((c) => c.text)).toEqual(['19999'])
+    expect(there.chat.map((c) => c.text)).toEqual(['20000'])
+  })
+
+  // In-world: removing a script from the prim put its URLs back in
+  // llGetFreeURLs (20000 again) (Aditi, SLua Tombolo, 2026-10-31)
+  it('a removed script gives its URLs back', async () => {
+    const { scripts } = await loadLinkset({
+      prims: [
+        {
+          scripts: [
+            { source: { source: `default { state_entry() { llRequestURL(); } }` }, name: 'server' },
+            {
+              source: {
+                source: `default { touch_start(integer n) { llRemoveInventory("server"); llSay(0, (string)llGetFreeURLs()); } }`,
+              },
+              name: 'remover',
+            },
+          ],
+        },
+      ],
+    })
+    const server = scripts['server']!
+    const remover = scripts['remover']!
+    server.start()
+    remover.start()
+    const url = server.urls[0]!
+    remover.linkset.touch(1)
+    expect(remover.chat.map((c) => c.text)).toEqual(['20000'])
+    expect(server.urls).toEqual([])
+    expect(server.sendHttpRequest(url).response?.status).toBe(404)
   })
 
   it('runs out after 20000 URLs, and later requests are not granted', async () => {

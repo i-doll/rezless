@@ -852,6 +852,7 @@ export class Script {
    */
   markDead(): void {
     this.state.lifecycle.dead = true
+    this.state.urls.length = 0
     this.clockView.cancelTimer()
     this.abandon()
   }
