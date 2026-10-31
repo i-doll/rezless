@@ -4,7 +4,7 @@ import { llResetScript } from './object.js'
 
 /**
  * llResetOtherScript(string name) — reset a sibling script in the same prim.
- * Says an error if no script of that name exists; a script that is not running is left alone, and one
+ * Says an error if no inventory item of that name exists; an inactive asset is left alone, and one
  * naming itself resets at once as with llResetScript. The reset is scheduled via a
  * synthetic `__reset` event so it runs on the next drain step rather than
  * re-entering the target while the caller's handler is still on the stack.
@@ -13,7 +13,7 @@ export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const target = ctx.prim.findScript(name)
   if (!target) {
-    sayError(ctx, `Could not find script '${name}'`)
+    if (!ctx.prim.inventory.some(item => item.name === name)) sayError(ctx, `Could not find script '${name}'`)
     return undefined
   }
   if (!target.running) return undefined
@@ -45,11 +45,11 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-/** llGetScriptState(string name) — 1 if sibling is running, else 0; a missing script says an error. */
+/** llGetScriptState(string name) — 1 if running, 0 for an inactive asset; a missing item says an error. */
 export const llGetScriptState: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const target = ctx.prim.findScript(name)
-  if (!target) sayError(ctx, `Could not find script '${name}'.`)
+  if (!target && !ctx.prim.inventory.some(item => item.name === name)) sayError(ctx, `Could not find script '${name}'.`)
   return target && target.running ? 1 : 0
 }
 
