@@ -258,6 +258,19 @@ import {
   llClearCameraParams,
 } from './camera.js'
 import {
+  llAgentInExperience,
+  llGetExperienceDetails,
+  llGetExperienceErrorMessage,
+  llRequestExperiencePermissions,
+  llCreateKeyValue,
+  llReadKeyValue,
+  llUpdateKeyValue,
+  llDeleteKeyValue,
+  llKeyCountKeyValue,
+  llKeysKeyValue,
+  llDataSizeKeyValue,
+} from './experience.js'
+import {
   llResetOtherScript,
   llSetScriptState,
   llGetScriptState,
@@ -597,6 +610,18 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llRequestPermissions,
   llGetPermissions,
   llGetPermissionsKey,
+  // experiences
+  llAgentInExperience,
+  llGetExperienceDetails,
+  llGetExperienceErrorMessage,
+  llRequestExperiencePermissions,
+  llCreateKeyValue,
+  llReadKeyValue,
+  llUpdateKeyValue,
+  llDeleteKeyValue,
+  llKeyCountKeyValue,
+  llKeysKeyValue,
+  llDataSizeKeyValue,
   // controls
   llTakeControls,
   llReleaseControls,
