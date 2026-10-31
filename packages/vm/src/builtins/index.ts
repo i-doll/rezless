@@ -20,7 +20,6 @@ import {
   llGetRegionTimeDilation,
   llGetGMTclock,
   llGetWallclock,
-  llGetTimeOfDay,
   llMinEventDelay,
 } from './time.js'
 import {
@@ -49,6 +48,7 @@ import {
   llGetRegionDayLength,
   llGetRegionDayOffset,
   llGetRegionTimeOfDay,
+  llGetTimeOfDay,
   llGetSunDirection,
   llGetSunRotation,
   llGetMoonDirection,
