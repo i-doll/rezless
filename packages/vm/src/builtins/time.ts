@@ -73,8 +73,10 @@ export const llGetUnixTime: BuiltinImpl = (ctx) => {
 }
 
 /** llGetTimestamp() — UTC time as `YYYY-MM-DDThh:mm:ss.ffffffZ`. */
-export const llGetTimestamp: BuiltinImpl = (ctx) => {
-  const micros = ctx.state.clock.unixMicros()
+export const llGetTimestamp: BuiltinImpl = (ctx) => formatTimestamp(ctx.state.clock.unixMicros())
+
+/** Microseconds since the Unix epoch as `YYYY-MM-DDThh:mm:ss.ffffffZ`. */
+export function formatTimestamp(micros: number): string {
   const ms = Math.floor(micros / 1000)
   const fraction = String(micros - Math.floor(micros / 1e6) * 1e6).padStart(6, '0')
   return `${new Date(ms).toISOString().slice(0, 19)}.${fraction}Z`
