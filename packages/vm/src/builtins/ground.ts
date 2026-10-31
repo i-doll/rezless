@@ -2,6 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { RegionSettings } from '../world.js'
 import type { LslValue, Vector } from '../values/types.js'
 import { toFloat32, vec } from '../values/types.js'
+import { sayError } from './debug.js'
 
 // Measured in SLua Tombolo and SLua Tideland on Aditi (2026-10-31).
 const DEFAULT_GROUND = 22
@@ -87,4 +88,14 @@ export const llWind: BuiltinImpl = (ctx, args) => {
   const [x, y] = point(ctx, args)
   const w = wind(x, y)
   return vec(w.x, w.y, w.z)
+}
+
+
+/** llModifyLand(integer action, integer brush). No terraform rights are modelled. */
+export const llModifyLand: BuiltinImpl = () => undefined
+
+/** llSetGroundTexture(list changes). No estate management rights are modelled. */
+export const llSetGroundTexture: BuiltinImpl = (ctx) => {
+  sayError(ctx, 'llSetGroundTexture object owner must be able to manage estate.')
+  return 0
 }
