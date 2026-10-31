@@ -28,7 +28,7 @@ function find(items: ReadonlyArray<InventoryItem>, name: string): InventoryItem 
 const nameTokens = (name: string) => name.toLowerCase().match(/\d+|\D/g) ?? []
 const isDigits = (token: string) => /^\d/.test(token)
 
-function compareNames(a: string, b: string): number {
+export function compareNames(a: string, b: string): number {
   const folded = compareFolded(a, b)
   if (folded !== 0) return folded
   return a < b ? -1 : a > b ? 1 : 0

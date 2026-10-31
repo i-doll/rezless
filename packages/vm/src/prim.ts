@@ -49,6 +49,8 @@ export class Prim {
   sitText = ''
   /** llSetPayPrice arguments as the script passed them, or null if never called. */
   payPrice: { price: number; buttons: LslValue[] } | null = null
+  /** UUIDs of the object animations this prim's scripts started. */
+  readonly objectAnimations = new Set<string>()
 
   /** Set when this prim joins a linkset. */
   linkset?: Linkset

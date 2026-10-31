@@ -38,6 +38,8 @@ export interface LinksetOptions {
   readonly startParameter?: number
   /** Start string the object was rezzed with, read by llGetStartString. Default "". */
   readonly startString?: string
+  /** Whether the object is an animated mesh, so llStartObjectAnimation plays. Default false. */
+  readonly animesh?: boolean
 }
 
 export interface TouchOptions {
@@ -92,6 +94,7 @@ export class Linkset {
   readonly region: string | undefined
   readonly startParameter: number
   readonly startString: string
+  readonly animesh: boolean
   /**
    * The linksets that share this one's clock and hear its chat: its world's,
    * or, outside a world, this one and every linkset broken off it.
@@ -104,6 +107,7 @@ export class Linkset {
     this.region = opts.region
     this.startParameter = opts.startParameter ?? 0
     this.startString = opts.startString ?? ''
+    this.animesh = opts.animesh ?? false
     if (opts.world) {
       opts.world.corner(opts.region)
       this.world = opts.world
