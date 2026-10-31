@@ -71,6 +71,9 @@ import {
 import { llCreateLink, llBreakLink, llBreakAllLinks } from './links.js'
 import { llStartObjectAnimation, llStopObjectAnimation, llGetObjectAnimationNames } from './object-animation.js'
 import {
+  llGetEnvironment,
+  llSetEnvironment,
+  llReplaceEnvironment,
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
@@ -86,7 +89,7 @@ import {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
 } from './environment.js'
-import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind } from './ground.js'
+import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind, llModifyLand, llSetGroundTexture } from './ground.js'
 import {
   llHTTPRequest,
   llHTTPResponse,
@@ -476,6 +479,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llStopObjectAnimation,
   llGetObjectAnimationNames,
   // environment
+  llGetEnvironment,
+  llSetEnvironment,
+  llReplaceEnvironment,
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
@@ -490,6 +496,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
   // ground, water and wind
+  llModifyLand,
+  llSetGroundTexture,
   llGround,
   llGroundNormal,
   llGroundSlope,

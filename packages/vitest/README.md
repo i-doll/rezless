@@ -279,6 +279,28 @@ the neighbours. A linkset outside a world is alone in a region named
 world.addRegion('Sandbox', { x: 256000, y: 256000 }, { flags: REGION_FLAG_SANDBOX, agentCount: 3 })
 ```
 
+`environment` supplies `llGetEnvironment` result tuples by parameter number:
+
+```ts
+world.addRegion('Sandbox', { x: 0, y: 0 }, {
+  environment: { [SKY_GAMMA]: [2.5], [WATER_FOG]: [{ x: 0, y: 0.1, z: 0.2 }, 16, 0.25] },
+})
+```
+
+Unspecified parameters use fixed samples measured on Aditi. Sun and moon
+rotations and directions come from `sunRotation` and `moonRotation`, including
+when their other tuple values are supplied through `environment`.
+`ENVIRONMENT_DAYINFO` follows `dayLength`, `dayOffset` and the virtual clock.
+Each region has one environment, with no parcel or altitude-specific settings.
+Lighting and cloud samples stay fixed as time advances.
+
+Land edit rights are not modelled. `llSetEnvironment` and
+`llReplaceEnvironment` return `ENV_NO_PERMISSIONS`; `llModifyLand` leaves the
+terrain unchanged; `llSetGroundTexture` returns 0 and reports the missing
+estate permission on `DEBUG_CHANNEL`. Attempts remain in `script.calls`.
+Successful land edits and both agent environment functions remain unfinished
+under [#157](https://github.com/i-doll/rezless/issues/157).
+
 `loadScript` continues to work for single-script tests; under the hood it
 auto-allocates a 1-prim/1-script linkset, so existing tests are unaffected.
 
@@ -314,8 +336,8 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
 * **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatars aren't modelled yet, so their keys read like unknown keys), `llGetObjectPermMask`
-* **environment**: `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
-* **ground, water and wind**: `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
+* **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
+* **ground, water and wind**: `llModifyLand` and `llSetGroundTexture` (permission refusal only), `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
 * **email**: `llEmail`, `llGetNextEmail`, `llTargetedEmail` (each send sleeps 20 seconds) — mail to `<key>@lsl.secondlife.com` reaches that prim's queue, which holds 101 mails; queue a test's mail with `s.deliverEmail`
 * **pathfinding**: `llCreateCharacter`, `llUpdateCharacter`, `llDeleteCharacter`, `llEvade`, `llExecCharacterCmd`, `llFleeFrom`, `llNavigateTo`, `llPatrolPoints`, `llPursue`, `llWanderWithin`, `llGetClosestNavPoint`, `llGetStaticPath`. Inspect `s.character.options` for explicit requested configuration and `s.character.commands` for command history. The character belongs to the object and survives script resets. `s.pathUpdate(type)` sends an event with an empty reserved list to the root prim's scripts. Movement, capsule fitting, option clamping and navmesh baking are not simulated. Set fixed query answers with `s.setNavigationResults({ closestNavPoint: [point], staticPath: [start, end, 0] })`, or use `s.mock` for answers that depend on query arguments. Without fixtures, closest-point queries return `[]` and static-path queries return `[PU_FAILURE_INVALID_GOAL]`; an out-of-range static-path radius returns `[]`.

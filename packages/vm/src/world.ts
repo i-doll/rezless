@@ -3,7 +3,7 @@ import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
 import type { Script } from './script.js'
-import type { Rotation, Vector } from './values/types.js'
+import type { LslValue, Rotation, Vector } from './values/types.js'
 
 /** A placeable sensor target. Positions use its region's coordinates. */
 export interface WorldObjectOptions {
@@ -70,6 +70,13 @@ export interface RegionSettings {
   readonly simStats?: Readonly<Record<number, number>>
   /** llGetEnv values by name, over the defaults. */
   readonly env?: Readonly<Record<string, string>>
+  /**
+   * llGetEnvironment result tuples by SKY_* / WATER_* parameter. Defaults
+   * are fixed Aditi samples. Sun/moon rotations and directions always come
+   * from sunRotation/moonRotation; day info comes from dayLength/dayOffset.
+   * This world has one environment per region and no land edit permissions.
+   */
+  readonly environment?: Readonly<Record<number, readonly LslValue[]>>
   /** Seconds in the region's day cycle, read by llGetRegionDayLength and llGetDayLength. Default 14400. */
   readonly dayLength?: number
   /** Seconds added to Unix time before finding the time of day. Default 57600. */
