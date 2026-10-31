@@ -35,6 +35,15 @@ import {
   llEdgeOfWorld,
 } from './region.js'
 import {
+  llKey2Name,
+  llGetObjectDetails,
+  llGetObjectLinkKey,
+  llGetObjectMass,
+  llGetObjectPrimCount,
+  llGetBoundingBox,
+  llGetGeometricCenter,
+} from './object-reads.js'
+import {
   llGetDayLength,
   llGetDayOffset,
   llGetRegionDayLength,
@@ -332,6 +341,14 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetEnv,
   llGetSimulatorHostname,
   llEdgeOfWorld,
+  // object reads
+  llKey2Name,
+  llGetObjectDetails,
+  llGetObjectLinkKey,
+  llGetObjectMass,
+  llGetObjectPrimCount,
+  llGetBoundingBox,
+  llGetGeometricCenter,
   // environment
   llGetDayLength,
   llGetDayOffset,

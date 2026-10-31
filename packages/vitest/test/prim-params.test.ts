@@ -1003,3 +1003,33 @@ describe('llSetPos 10 m cap', () => {
     expect(scripts.child!.global('local')).toEqual({ x: 20, y: 0, z: 0 })
   })
 })
+
+describe('PRIM_HEALTH, PRIM_DAMAGE and PRIM_OMEGA', () => {
+  const run = async (body: string) => {
+    const s = await loadScript({ source: `list out; default { state_entry() { ${body} } }` })
+    s.start()
+    return s.global('out')
+  }
+
+  // In-world, a new box: llGetPrimitiveParams([PRIM_HEALTH, PRIM_DAMAGE]) -> [0.0, 0.0, 0].
+  it('start at no health and no damage', async () => {
+    expect(await run('out = llGetPrimitiveParams([PRIM_HEALTH, PRIM_DAMAGE]);')).toEqual([0, 0, 0])
+  })
+
+  // In-world: llTargetOmega(<0, 0, 2>, 1.5, 1.0) -> PRIM_OMEGA [<0, 0, 1>, 3.0, 1.0];
+  // llTargetOmega(<3, 4, 0>, 1.0, 1.0) -> [<0.6, 0.8, 0>, 5.0, 1.0]; PRIM_OMEGA
+  // [<0, 0.5, 0>, 4.0, 0.5] -> [<0, 1, 0>, 2.0, 0.5]; llTargetOmega(ZERO_VECTOR,
+  // 2.0, 1.0) -> [<0, 0, 0>, 2.0, 1.0].
+  it('reads the spin axis back as a unit vector with the rate scaled by its length', async () => {
+    expect(
+      await run(
+        'llTargetOmega(<0, 0, 2>, 1.5, 1.0); out = llGetPrimitiveParams([PRIM_OMEGA]); llTargetOmega(<3, 4, 0>, 1.0, 1.0); out += llGetPrimitiveParams([PRIM_OMEGA]); llSetPrimitiveParams([PRIM_OMEGA, <0, 0.5, 0>, 4.0, 0.5]); out += llGetPrimitiveParams([PRIM_OMEGA]); llTargetOmega(ZERO_VECTOR, 2.0, 1.0); out += llGetPrimitiveParams([PRIM_OMEGA]);',
+      ),
+    ).toEqual([
+      { x: 0, y: 0, z: 1 }, 3, 1,
+      { x: expect.closeTo(0.6, 6), y: expect.closeTo(0.8, 6), z: 0 }, 5, 1,
+      { x: 0, y: 1, z: 0 }, 2, 0.5,
+      { x: 0, y: 0, z: 0 }, 2, 1,
+    ])
+  })
+})
