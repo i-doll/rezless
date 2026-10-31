@@ -2,6 +2,7 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { Vector, Rotation } from '../values/types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from '../values/types.js'
 import { TOUCH_INVALID_TEXCOORD } from '../generated/constants.js'
+import { typedList } from '../values/list-types.js'
 
 /**
  * One entry in the per-handler "detected" context — the data exposed to
@@ -26,6 +27,10 @@ export interface DetectedEntry {
   readonly touchUV?: Vector
   readonly touchNormal?: Vector
   readonly touchBinormal?: Vector
+  /** Who rezzed the detected object. Defaults to `owner`, then `key`. */
+  readonly rezzer?: string
+  /** What `on_damage` / `final_damage` read. `original` defaults to `amount`. */
+  readonly damage?: { readonly amount: number; readonly type: number; readonly original?: number }
 }
 
 /**
@@ -82,3 +87,13 @@ export const llDetectedTouchNormal: BuiltinImpl = (ctx, args) =>
   entry(ctx, args)?.touchNormal ?? ZERO_VECTOR
 export const llDetectedTouchBinormal: BuiltinImpl = (ctx, args) =>
   entry(ctx, args)?.touchBinormal ?? ZERO_VECTOR
+
+export const llDetectedRezzer: BuiltinImpl = (ctx, args) => {
+  const e = entry(ctx, args)
+  return e?.rezzer ?? e?.owner ?? e?.key ?? NULL_KEY
+}
+export const llDetectedDamage: BuiltinImpl = (ctx, args) => {
+  const d = entry(ctx, args)?.damage
+  if (!d) return []
+  return typedList([d.amount, d.type, d.original ?? d.amount], ['float', 'integer', 'float'])
+}

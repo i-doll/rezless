@@ -254,3 +254,80 @@ describe('request keys', () => {
     expect(s1.dataserverRequests[0]!.key).toBe(s2.dataserverRequests[0]!.key)
   })
 })
+
+const NULL_KEY = '00000000-0000-0000-0000-000000000000'
+
+describe('llDetectedRezzer', () => {
+  const src = `
+    list got = [];
+    default {
+      state_entry() { got += [llDetectedRezzer(0)]; }
+      touch_start(integer n) { got += [llDetectedRezzer(0), llDetectedRezzer(1), llDetectedRezzer(-1)]; }
+      sensor(integer n) { got += [llDetectedRezzer(0)]; }
+    }
+  `
+  const AVATAR = 'af576265-1cc4-46de-98d1-1d0d64d10d3b'
+  const BOX = '19ae7120-6135-e7e8-6902-1de0eee1ce9a'
+
+  it('reads an avatar as its own rezzer; NULL_KEY past the count and outside an event', async () => {
+    // In-world: Aditi, SLua Tideland. An avatar's click gave llDetectedRezzer(0) =
+    // the avatar's key, and NULL_KEY for indexes 1 and -1 and in a timer.
+    const s = await load(src)
+    s.start()
+    s.fire('touch_start', { num_detected: 1, detected: [{ key: AVATAR, name: 'i Doll' }] })
+    expect(s.global('got')).toEqual([NULL_KEY, AVATAR, NULL_KEY, NULL_KEY])
+  })
+
+  it('reads the rezzer passed to fire(), else the owner', async () => {
+    // In-world: a sensor saw a prim the avatar rezzed with rezzer = the avatar,
+    // and a prim rezzed by llRezObject with rezzer = the rezzing object.
+    const s = await load(src)
+    s.fire('sensor', { num_detected: 1, detected: [{ key: 'k1', name: 'rz', owner: AVATAR, rezzer: BOX }] })
+    s.fire('sensor', { num_detected: 1, detected: [{ key: 'k2', name: 'Object', owner: AVATAR }] })
+    expect(s.global('got')).toEqual([NULL_KEY, BOX, AVATAR])
+  })
+})
+
+describe('llDetectedDamage', () => {
+  const src = `
+    list got = [];
+    string d(integer i) {
+      list l = llDetectedDamage(i);
+      string out = (string)llGetListLength(l);
+      integer j;
+      for (j = 0; j < llGetListLength(l); ++j) out += "|" + (string)llGetListEntryType(l, j) + ":" + llList2String(l, j);
+      return out;
+    }
+    default {
+      state_entry() { got += [d(0)]; }
+      touch_start(integer n) { got += [d(0), d(1), d(-1)]; }
+      on_damage(integer n) { got += [d(0), d(1)]; }
+    }
+  `
+
+  it('is an empty list outside a damage event, in a touch, and past the count', async () => {
+    // In-world: Aditi, SLua Tideland. llDetectedDamage had length 0 in a timer,
+    // in touch_start for indexes 0, 1 and -1, and in a sensor event.
+    const s = await load(src)
+    s.start()
+    s.fire('touch_start', { num_detected: 1, detected: [{ key: 'k', name: 'Alice' }] })
+    expect(s.global('got')).toEqual(['0', '0', '0', '0'])
+  })
+
+  it('reads the damage passed to fire() as [float damage, integer type, float original]', async () => {
+    // Not measured: llDamage only raises on_damage on damage-enabled land, and
+    // no damage-enabled parcel on Aditi was reachable from the probe avatar. The shape follows the LSL portal.
+    const s = await load(src)
+    s.fire('on_damage', {
+      num_detected: 1,
+      detected: [{ key: 'k', name: 'Gun', damage: { amount: 7.5, type: 4, original: 10 } }],
+    })
+    expect(s.global('got')).toEqual(['0', '3|2:7.500000|1:4|2:10.000000', '0'])
+  })
+
+  it('defaults the original damage to the damage', async () => {
+    const s = await load(src)
+    s.fire('on_damage', { num_detected: 1, detected: [{ key: 'k', name: 'Gun', damage: { amount: 10, type: 0 } }] })
+    expect(s.global('got')).toEqual(['0', '3|2:10.000000|1:0|2:10.000000', '0'])
+  })
+})
