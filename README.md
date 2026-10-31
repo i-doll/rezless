@@ -147,6 +147,8 @@ s.linksetData                                   // ReadonlyMap<string, { value, 
 s.seedLinksetData(entries)                      // pre-populate LSD without firing events
 s.text                                          // current llSetText: { text, color, alpha } or null
 s.objectDesc                                    // current llSetObjectDesc value
+s.touchText, s.sitText                          // current llSetTouchText / llSetSitText text, "" if unset
+s.payPrice                                      // llSetPayPrice arguments: { price, buttons } or null
 s.dead                                          // true once llDie has run
 s.wakeAt                                        // virtual ms a sleeping handler wakes at, or undefined when idle
 
@@ -300,7 +302,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **hash**: `llMD5String`, `llSHA1String`, `llSHA256String`, `llHMAC`
 * **RSA**: `llSignRSA`, `llVerifyRSA` (sha1, sha224, sha256, sha384 or sha512; RSA keys only)
 * **base64**: `llStringToBase64`/`Base64ToString`, `llIntegerToBase64`/`Base64ToInteger`, `llXorBase64`
-* **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llDie` (kills every script in the linkset), `llResetScript`
+* **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llSetTouchText`, `llSetSitText`, `llSetPayPrice` (stored on the prim for tests to read), `llDie` (kills every script in the linkset), `llResetScript`
 * **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; `llRemoveInventory` (a script that removes itself halts at once)
 * **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`
 * **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.

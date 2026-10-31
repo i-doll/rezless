@@ -216,6 +216,9 @@ import {
   llSetText,
   llSetObjectDesc,
   llGetObjectDesc,
+  llSetTouchText,
+  llSetSitText,
+  llSetPayPrice,
   llDie,
   llResetScript,
 } from './object.js'
@@ -533,6 +536,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llSetText,
   llSetObjectDesc,
   llGetObjectDesc,
+  llSetTouchText,
+  llSetSitText,
+  llSetPayPrice,
   llDie,
   llResetScript,
   // link info
