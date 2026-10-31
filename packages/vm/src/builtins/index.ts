@@ -75,6 +75,11 @@ import {
   llSetContentType,
 } from './http.js'
 import { llEmail, llGetNextEmail, llTargetedEmail } from './email.js'
+import {
+  llCreateCharacter, llDeleteCharacter, llUpdateCharacter, llEvade,
+  llExecCharacterCmd, llFleeFrom, llGetClosestNavPoint, llGetStaticPath,
+  llNavigateTo, llPatrolPoints, llPursue, llWanderWithin,
+} from './pathfinding.js'
 import { llListen, llListenRemove, llListenControl } from './listen.js'
 import { llDialog, llTextBox } from './dialog.js'
 import {
@@ -446,6 +451,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetFreeURLs,
   llGetHTTPHeader,
   llSetContentType,
+  // pathfinding
+  llCreateCharacter, llDeleteCharacter, llUpdateCharacter, llEvade,
+  llExecCharacterCmd, llFleeFrom, llGetClosestNavPoint, llGetStaticPath,
+  llNavigateTo, llPatrolPoints, llPursue, llWanderWithin,
   // email
   llEmail,
   llGetNextEmail,

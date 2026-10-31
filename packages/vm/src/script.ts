@@ -18,6 +18,8 @@ import type { HttpRequestEntry, IncomingHttpInit, IncomingHttpRequest } from './
 import { sendIncomingHttp } from './builtins/http.js'
 import type { IncomingEmail, IncomingEmailInit, SentEmail, SentTargetedEmail } from './builtins/email.js'
 import { deliverEmail, emailQueue } from './builtins/email.js'
+import type { Character, NavigationResults } from './builtins/pathfinding.js'
+import { characterFor, pathUpdate, setNavigationResults } from './builtins/pathfinding.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
@@ -348,6 +350,21 @@ export class Script {
   /** Filtered call log: only entries for `name`. */
   callsOf(name: string): ReadonlyArray<CallEntry> {
     return this.state.calls.filter((c) => c.name === name)
+  }
+
+  /** The object's character, or null before creation and after deletion. */
+  get character(): Character | null {
+    return characterFor(this)
+  }
+
+  /** Set fixed navigation query answers. These fixtures survive script resets. */
+  setNavigationResults(results: NavigationResults): void {
+    setNavigationResults(this, results)
+  }
+
+  /** Raise path_update on every script in the character's root prim. */
+  pathUpdate(type: number, reserved: ReadonlyArray<LslValue> = []): void {
+    pathUpdate(this, type, reserved)
   }
 
   /** Captured outgoing HTTP requests from `llHTTPRequest`. */
