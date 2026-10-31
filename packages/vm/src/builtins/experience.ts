@@ -54,6 +54,7 @@ export function experienceErrorMessage(error: number): string {
 
 const MAX_KEY_BYTES = 1011
 const MAX_VALUE_BYTES = 4095
+const MAX_KEYS_RESPONSE_BYTES = 4097
 
 const bytes = (s: string): number => Buffer.byteLength(s, 'utf8')
 
@@ -210,7 +211,8 @@ export const llKeyCountKeyValue: BuiltinImpl = (ctx) =>
 /**
  * llKeysKeyValue(integer first, integer count) — `count` keys from index
  * `first` in the order they were added, comma-separated; a count of 0
- * lists every key from `first`.
+ * lists every key from `first`. The listing stops before the first key that
+ * would take the answer past 4097 UTF-8 bytes.
  */
 export const llKeysKeyValue: BuiltinImpl = (ctx, args) => {
   const first = (args[0] as number | undefined) ?? 0
@@ -220,7 +222,14 @@ export const llKeysKeyValue: BuiltinImpl = (ctx, args) => {
     if (first < 0) return ''
     const keys = [...store.keys()]
     if (first >= keys.length) return XP_ERROR_KEY_NOT_FOUND
-    return keys.slice(first, count === 0 ? undefined : first + count).join(',')
+    const listed: string[] = []
+    let size = 1
+    for (const k of keys.slice(first, count === 0 ? undefined : first + count)) {
+      size += 1 + bytes(k)
+      if (size > MAX_KEYS_RESPONSE_BYTES) break
+      listed.push(k)
+    }
+    return listed.join(',')
   })
 }
 

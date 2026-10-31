@@ -271,6 +271,37 @@ describe('listing and sizing the store', () => {
     expect(await answers(`llKeysKeyValue(${range});`, x)).toEqual([data])
   })
 
+  // In-world (Aditi, SLua Tideland, 2026-10-31): four 1000-character keys, then a fifth. llKeysKeyValue(0, 0) and (0, 10) list all five
+  // while the answer is at most 4097 bytes, "1," and commas included: a 91-character fifth key -> 4097
+  // characters with 5 keys; 92 to 95 characters -> only the first 4 (4005 characters). A fifth key of
+  // "p" + 45 "é" (4097 bytes) is listed; "p" + 46 "é" (4099 bytes, 4053 characters) and up to
+  // "p" + 92 "é" (4099 characters) are not, so the limit is in UTF-8 bytes.
+  it.each([
+    ['a 91-character fifth key', 'p'.padEnd(91, 'x'), 5],
+    ['a 92-character fifth key', 'p'.padEnd(92, 'x'), 4],
+    ['a fifth key making 4097 bytes', 'p' + 'é'.repeat(45), 5],
+    ['a fifth key making 4099 bytes', 'p' + 'é'.repeat(46), 4],
+  ])('stops before a key that takes the answer past 4097 bytes: %s', async (_, last, n) => {
+    const x = xp()
+    const keys = [1, 2, 3, 4].map((i) => `k${i}`.padEnd(1000, 'x')).concat(last)
+    x.seed(keys.map((k) => [k, 'v']))
+    const listed = `1,${keys.slice(0, n).join(',')}`
+    expect(await answers('llKeysKeyValue(0, 0); llKeysKeyValue(0, 10);', x)).toEqual([listed, listed])
+  })
+
+  // In-world: four 1000-character keys, a 92-character key, then "p158u". (0, 0) and (0, 10) list the
+  // first 4 keys only; (1, 0) lists the other 5.
+  it('stops at the first key that does not fit, even when a later one would', async () => {
+    const x = xp()
+    const keys = [1, 2, 3, 4].map((i) => `k${i}`.padEnd(1000, 'x')).concat('p'.padEnd(92, 'x'), 'u')
+    x.seed(keys.map((k) => [k, 'v']))
+    expect(await answers('llKeysKeyValue(0, 0); llKeysKeyValue(0, 10); llKeysKeyValue(1, 0);', x)).toEqual([
+      `1,${keys.slice(0, 4).join(',')}`,
+      `1,${keys.slice(0, 4).join(',')}`,
+      `1,${keys.slice(1).join(',')}`,
+    ])
+  })
+
   // In-world: on an empty store llKeysKeyValue(0, 0) and (0, 1) -> "0,14"; llKeyCountKeyValue() -> "1,0"
   it('has no keys to list when empty', async () => {
     expect(await answers('llKeysKeyValue(0, 0); llKeysKeyValue(0, 1); llKeyCountKeyValue();', xp())).toEqual([
