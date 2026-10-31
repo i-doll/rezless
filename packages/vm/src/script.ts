@@ -51,6 +51,7 @@ import { Memory, RuntimeError, codeBytes } from './memory.js'
 import { invalidPrograms } from './typecheck.js'
 import type { Experience } from './experience.js'
 import type { ExperienceRequestEntry } from './builtins/experience.js'
+import { grantExperience } from './builtins/experience.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -512,12 +513,14 @@ export class Script {
 
   /**
    * Accept the most recent unanswered llRequestExperiencePermissions: the
-   * agent joins the experience and `experience_permissions` fires.
+   * agent joins the experience, the script holds the experience permissions
+   * for that agent, and `experience_permissions` fires.
    */
   grantExperiencePermissions(): void {
     const req = this.answerExperienceRequest()
-    this.state.experience!.agents.add(req.agent)
-    this.fireAndSettle('experience_permissions', { agent_id: req.agent })
+    const started = this.handles('experience_permissions') ? [this] : []
+    grantExperience(this.state, req.agent)
+    this.linkset.settle(started)
   }
 
   /**

@@ -1,4 +1,4 @@
-import type { BuiltinImpl, CallContext } from '../runtime.js'
+import type { BuiltinImpl, CallContext, ScriptState } from '../runtime.js'
 import { typedList } from '../values/list-types.js'
 import { NULL_KEY } from '../values/types.js'
 import { entrySize } from '../experience.js'
@@ -12,6 +12,12 @@ import {
   XP_ERROR_QUOTA_EXCEEDED,
   XP_ERROR_RETRY_UPDATE,
   XP_ERROR_STORAGE_EXCEPTION,
+  PERMISSION_ATTACH,
+  PERMISSION_CONTROL_CAMERA,
+  PERMISSION_TAKE_CONTROLS,
+  PERMISSION_TELEPORT,
+  PERMISSION_TRACK_CAMERA,
+  PERMISSION_TRIGGER_ANIMATION,
 } from '../generated/constants.js'
 
 /** A llRequestExperiencePermissions call waiting for the test to answer it. */
@@ -78,6 +84,22 @@ export const llAgentInExperience: BuiltinImpl = (ctx, args) => {
   return xp && xp.allowedHere && xp.agents.has(agent) ? 1 : 0
 }
 
+const EXPERIENCE_PERMISSIONS =
+  PERMISSION_TAKE_CONTROLS |
+  PERMISSION_TRIGGER_ANIMATION |
+  PERMISSION_ATTACH |
+  PERMISSION_TRACK_CAMERA |
+  PERMISSION_CONTROL_CAMERA |
+  PERMISSION_TELEPORT
+
+/** Grant the experience permissions for `agent` and schedule `experience_permissions`. */
+export function grantExperience(state: ScriptState, agent: string): void {
+  state.experience!.agents.add(agent)
+  state.permissions.granted = EXPERIENCE_PERMISSIONS
+  state.permissions.agent = agent
+  state.clock.schedule(state.clock.now, 'experience_permissions', { agent_id: agent })
+}
+
 /**
  * llRequestExperiencePermissions(key agent, string name) — an agent who
  * already accepted is granted at once; otherwise the request waits for
@@ -93,7 +115,7 @@ export const llRequestExperiencePermissions: BuiltinImpl = (ctx, args) => {
     const reason = xp ? XP_ERROR_NOT_PERMITTED_LAND : XP_ERROR_NO_EXPERIENCE
     ctx.state.clock.schedule(now, 'experience_permissions_denied', { agent_id: agent, reason })
   } else if (xp.agents.has(agent)) {
-    ctx.state.clock.schedule(now, 'experience_permissions', { agent_id: agent })
+    grantExperience(ctx.state, agent)
   } else {
     ctx.state.experienceRequests.push({ agent, answered: false })
   }

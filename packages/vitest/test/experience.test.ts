@@ -353,6 +353,33 @@ describe('experience permissions', () => {
     expect(again.experienceRequests).toEqual([])
   })
 
+  // Not measured: needs land that allows the experience (see the top of the file). The wiki lists the
+  // permissions an experience grants: take controls, trigger animation, attach, track camera,
+  // control camera and teleport.
+  it('grant the experience permissions for the agent, whether accepted now or before', async () => {
+    const x = xp()
+    const source = `
+      list got;
+      default {
+        state_entry() { llRequestExperiencePermissions(llGetOwner(), ""); }
+        experience_permissions(key a) {
+          llTakeControls(CONTROL_FWD, TRUE, FALSE);
+          got = [llGetPermissions(), llGetPermissionsKey()];
+        }
+      }
+    `
+    const s = await loadScript({ source, owner: OWNER, experience: x })
+    s.start()
+    s.grantExperiencePermissions()
+    const bits = 0x4 | 0x10 | 0x20 | 0x400 | 0x800 | 0x1000
+    expect(s.global('got')).toEqual([bits, OWNER])
+    expect(s.controls).not.toBeNull()
+    const again = await loadScript({ source, owner: OWNER, experience: x })
+    again.start()
+    expect(again.global('got')).toEqual([bits, OWNER])
+    expect(again.controls).not.toBeNull()
+  })
+
   it('can be declined, by default with XP_ERROR_NOT_PERMITTED', async () => {
     const x = xp()
     const s = await load('llRequestExperiencePermissions(llGetOwner(), ""); llRequestExperiencePermissions(llGetOwner(), "");', x)
