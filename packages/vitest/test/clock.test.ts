@@ -269,6 +269,83 @@ describe('wall-clock time from the virtual clock', () => {
   })
 })
 
+describe('clock reads', () => {
+  const SOURCE = `
+    float gmt;
+    float wall;
+    float tod;
+    default {
+      state_entry() {
+        gmt = llGetGMTclock();
+        wall = llGetWallclock();
+        tod = llGetTimeOfDay();
+      }
+    }
+  `
+
+  async function readAt(startUnixTime: number) {
+    const s = await loadScript({ source: SOURCE, startUnixTime })
+    s.start()
+    return { gmt: s.global('gmt'), wall: s.global('wall'), tod: s.global('tod') }
+  }
+
+  // In-world: llGetTimestamp 2026-10-31T06:54:54.506190Z -> llGetUnixTime 1793429694,
+  // llGetGMTclock 24894.000000 (SLua Tideland, Aditi).
+  it('llGetGMTclock reads whole seconds since UTC midnight', async () => {
+    expect((await readAt(1_793_429_694.50619)).gmt).toBe(24_894)
+  })
+
+  // In-world: same sample -> llGetWallclock 86094.000000, 23:54:54 on the previous
+  // Pacific day, seven hours behind UTC while daylight time is on.
+  it('llGetWallclock reads whole seconds since Pacific midnight in daylight time', async () => {
+    expect((await readAt(1_793_429_694.50619)).wall).toBe(86_094)
+  })
+
+  // Not measured: the probe ran on 2026-10-31, before daylight time ended on
+  // 2026-11-01, so only the UTC-7 offset could be observed. This follows the
+  // US Pacific zone, which Second Life time is defined as.
+  it('llGetWallclock reads Pacific standard time in winter', async () => {
+    // 2026-11-15T12:00:00Z is 04:00 PST.
+    expect((await readAt(1_794_744_000)).wall).toBe(14_400)
+  })
+
+  it('llGetWallclock wraps at Pacific midnight', async () => {
+    // 2026-10-31T07:00:00Z is 00:00 PDT.
+    expect((await readAt(1_793_430_000)).wall).toBe(0)
+  })
+
+  // In-world: llGetTimeOfDay sampled beside llGetTimestamp 06:56:35.869952Z read
+  // 10595 + 0.870117, llGetUnixTime mod 14400 to float precision. llGetDayLength
+  // was 14400, the default four-hour day.
+  it('llGetTimeOfDay reads seconds into the four-hour day with sub-second precision', async () => {
+    expect((await readAt(1_793_429_795.869952)).tod).toBe(Math.fround(10_595.869952))
+  })
+
+  it('every clock read moves with the virtual clock', async () => {
+    const s = await loadScript({
+      source: `
+        float gmt;
+        float wall;
+        float tod;
+        default {
+          state_entry() { llSetTimerEvent(1.5); }
+          timer() {
+            gmt = llGetGMTclock();
+            wall = llGetWallclock();
+            tod = llGetTimeOfDay();
+          }
+        }
+      `,
+      startUnixTime: 14_400 * 2 + 10,
+    })
+    s.start()
+    s.advanceTime(1_500)
+    expect(s.global('gmt')).toBe(28_811)
+    expect(s.global('wall')).toBe(11)
+    expect(s.global('tod')).toBe(11.5)
+  })
+})
+
 describe('timer after a long handler', () => {
   // In-world: llSleep(5) with a 1 s timer, then ticks at ~0.04, 1.07, 2.05, 3.05 s after the sleep.
   it('delivers one pending timer event after llSleep, not a burst', async () => {
