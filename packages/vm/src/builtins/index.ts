@@ -58,6 +58,7 @@ import {
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
 } from './environment.js'
+import { llGround, llGroundContour, llGroundNormal, llGroundSlope, llWater, llWind } from './ground.js'
 import {
   llHTTPRequest,
   llHTTPResponse,
@@ -382,6 +383,13 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetRegionSunRotation,
   llGetRegionMoonDirection,
   llGetRegionMoonRotation,
+  // ground, water and wind
+  llGround,
+  llGroundNormal,
+  llGroundSlope,
+  llGroundContour,
+  llWater,
+  llWind,
   llHTTPRequest,
   llHTTPResponse,
   llRequestURL,
