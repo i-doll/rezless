@@ -292,10 +292,16 @@ it.each(['single', 'list'])('reads and resets a delivered %s script as an inert 
   giver.start()
   const reader = await loadScript({ host: receiver.prims[0]!, scriptName: 'reader', source: `integer value; default { state_entry() {
     value = llGetScriptState("payload"); llResetOtherScript("payload");
+  } touch_start(integer n) {
+    llSetScriptState("payload", TRUE); value = llGetScriptState("payload");
+    llSetScriptState("payload", FALSE); value = llGetScriptState("payload");
   } }` })
   reader.start()
   expect(reader.global('value')).toBe(0)
   expect(errors(reader)).toEqual([])
+  reader.linkset.touch(0)
+  expect(reader.global('value')).toBe(0)
+  expect(errors(reader)).toEqual(["Could not find script 'payload'.", "Could not find script 'payload'."])
   expect(source.global('count')).toBe(99)
   expect(source.running).toBe(true)
   expect(receiver.prims[0]!.inventory.find(i => i.name === 'payload')?.type).toBe(InventoryType.SCRIPT)
