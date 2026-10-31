@@ -14,7 +14,7 @@ export interface DetectedEntry {
   readonly key: string
   readonly name: string
   readonly owner?: string
-  readonly group?: string
+  readonly group?: number
   readonly pos?: Vector
   readonly rot?: Rotation
   readonly vel?: Vector
@@ -60,7 +60,7 @@ export const llDetectedKey: BuiltinImpl = (ctx, args) => entry(ctx, args)?.key ?
 export const llDetectedName: BuiltinImpl = (ctx, args) => entry(ctx, args)?.name ?? NULL_KEY
 export const llDetectedOwner: BuiltinImpl = (ctx, args) =>
   entry(ctx, args)?.owner ?? entry(ctx, args)?.key ?? NULL_KEY
-export const llDetectedGroup: BuiltinImpl = (ctx, args) => entry(ctx, args)?.group ?? NULL_KEY
+export const llDetectedGroup: BuiltinImpl = (ctx, args) => entry(ctx, args)?.group ?? 0
 export const llDetectedPos: BuiltinImpl = (ctx, args) => entry(ctx, args)?.pos ?? ZERO_VECTOR
 export const llDetectedRot: BuiltinImpl = (ctx, args) => entry(ctx, args)?.rot ?? ZERO_ROTATION
 export const llDetectedVel: BuiltinImpl = (ctx, args) => entry(ctx, args)?.vel ?? ZERO_VECTOR

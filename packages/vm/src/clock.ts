@@ -42,6 +42,15 @@ export class LinksetClock {
     return Math.floor(this.startUnixTime * 1e6 + this.now * 1000)
   }
 
+  private readonly tasks = new Set<{ target: Script; at: number; run: () => void }>()
+
+  /** Simulator work that completes even while its script's handler sleeps. */
+  scheduleTask(target: Script, at: number, run: () => void): () => void {
+    const task = { target, at, run }
+    this.tasks.add(task)
+    return () => { this.tasks.delete(task) }
+  }
+
   private readonly queue: QueuedEvent[] = []
 
   /**
@@ -87,6 +96,13 @@ export class LinksetClock {
    * the last of them has passed, and the events queued behind it wait too.
    */
   takeNextDue(scripts: ReadonlyArray<Script>, horizon = this.now): QueuedEvent | null {
+    for (;;) {
+      const next = this.takeNextEventOrTask(scripts, horizon)
+      if (next !== 'task') return next
+    }
+  }
+
+  private takeNextEventOrTask(scripts: ReadonlyArray<Script>, horizon: number): QueuedEvent | 'task' | null {
     const heldFrom = new Map<Script, number>()
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
@@ -132,6 +148,18 @@ export class LinksetClock {
           bestTimerScript = s
         }
       }
+    }
+
+    let task: { target: Script; at: number; run: () => void } | undefined
+    for (const candidate of this.tasks) {
+      if (candidate.target.dead) { this.tasks.delete(candidate); continue }
+      if (candidate.at <= horizon && (!task || candidate.at < task.at)) task = candidate
+    }
+    if (task && task.at <= Math.min(bestAt, bestTimerAt, wakeAt)) {
+      this.tasks.delete(task)
+      this.now = Math.max(this.now, task.at)
+      task.run()
+      return 'task'
     }
 
     if (bestIdx !== -1 && bestAt <= bestTimerAt && bestAt <= wakeAt) {
