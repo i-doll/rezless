@@ -27,7 +27,7 @@ import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { typedList } from './values/list-types.js'
 import { Env } from './env.js'
-import { ScriptClockView } from './clock.js'
+import { DELAYED_EVENTS, ScriptClockView } from './clock.js'
 import { Linkset } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
@@ -63,6 +63,13 @@ export interface ScriptOptions {
    * set it on the Linkset instead.
    */
   readonly startUnixTime?: number
+  /**
+   * Start parameter and string the object was rezzed with, read by
+   * llGetStartParameter and llGetStartString. Default 0 and "". Ignored when
+   * `host` is given; set them on the Linkset instead.
+   */
+  readonly startParameter?: number
+  readonly startString?: string
   /** Prim key returned by llGetKey. Defaults to a deterministic per-script key. */
   readonly objectKey?: string
   /** Prim name returned by llGetObjectName. Defaults to "Object". */
@@ -129,6 +136,8 @@ export class Script {
   running = true
   /** Events parked while `running === false`; replayed when re-enabled. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
+  /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
+  startParameter: number
   /** The handler chain suspended in llSleep or a builtin delay, if any. */
   private task: Task | null = null
 
@@ -139,6 +148,8 @@ export class Script {
       const linkset = new Linkset({
         owner: options.owner ?? NULL_KEY,
         startUnixTime: options.startUnixTime ?? 0,
+        startParameter: options.startParameter ?? 0,
+        startString: options.startString ?? '',
       })
       const prim = new Prim({
         key:
@@ -154,6 +165,7 @@ export class Script {
       throw new Error('Script host prim must belong to a Linkset')
     }
     this.linkset = host.linkset
+    this.startParameter = this.linkset.startParameter
     this.scriptName = inventoryItemName(options.scriptName ?? deriveScriptName(options.filename))
 
     this.clockView = new ScriptClockView(this.linkset.clock, () => this)
@@ -566,8 +578,9 @@ export class Script {
       }
     }
     const started = this.handles(eventName) ? [this] : []
-    if (this.task) this.clockView.schedule(this.now, eventName, payload)
-    else this.deliver(eventName, payload)
+    if (this.task || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
+      this.clockView.schedule(this.now, eventName, payload)
+    } else this.deliver(eventName, payload)
     this.linkset.settle(started)
   }
 
@@ -619,6 +632,8 @@ export class Script {
     this.state.permissions.agent = NULL_KEY
     for (const r of this.state.permissions.requests) r.answered = true
     this.clockView.cancelTimer()
+    this.clockView.setMinEventDelay(0)
+    this.startParameter = 0
     this.clockView.resetReference()
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
@@ -645,7 +660,9 @@ export class Script {
       return
     }
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
-    if (handler) this.begin(handler, bindPayload(event, payload), payload)
+    if (!handler) return
+    if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+    this.begin(handler, bindPayload(event, payload), payload)
   }
 
   /** Whether the current state has a handler for `event`. */
