@@ -30,6 +30,7 @@ export { InventoryType, makeInventoryItem } from './inventory.js'
 export type { Character, CharacterCommand, NavigationResults } from './builtins/pathfinding.js'
 export type { TakenControls } from './builtins/controls.js'
 export type { Camera } from './builtins/camera.js'
+export type { AnimationState } from './builtins/animation.js'
 export type { InventoryItem, InventoryTypeValue, PermMask } from './inventory.js'
 export type {
   BuiltinImpl,
@@ -54,3 +55,4 @@ export type { EventSpec, EventName, EventPayloads } from './generated/events.js'
 export * from './generated/constants.js'
 export { CONSTANT_TABLE } from './generated/constants_table.js'
 export type { ConstantEntry } from './generated/constants_table.js'
+export type { CombatAvatar } from './builtins/damage.js'

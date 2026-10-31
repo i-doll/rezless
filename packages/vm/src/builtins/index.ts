@@ -17,6 +17,7 @@ import {
   llLinkSetSoundQueueing,
   llLinkSetSoundRadius
 } from './sound.js'
+import { llDamage, llAdjustDamage, llGetHealth, llSetDamage } from './damage.js'
 import type { BuiltinImpl } from '../runtime.js'
 import {
   llSay,
@@ -276,6 +277,15 @@ import { llFindNotecardTextCount, llFindNotecardTextSync } from './notecard-sear
 import { llRequestPermissions, llGetPermissions, llGetPermissionsKey } from './permissions.js'
 import { llTakeControls, llReleaseControls } from './controls.js'
 import {
+  llStartAnimation,
+  llStopAnimation,
+  llGetAnimation,
+  llGetAnimationList,
+  llGetAnimationOverride,
+  llSetAnimationOverride,
+  llResetAnimationOverride,
+} from './animation.js'
+import {
   llGetCameraPos,
   llGetCameraRot,
   llGetCameraFOV,
@@ -388,6 +398,10 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llDamage,
+  llAdjustDamage,
+  llGetHealth,
+  llSetDamage,
   llSay,
   llShout,
   llWhisper,
@@ -677,6 +691,14 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   // controls
   llTakeControls,
   llReleaseControls,
+  // avatar animations
+  llStartAnimation,
+  llStopAnimation,
+  llGetAnimation,
+  llGetAnimationList,
+  llGetAnimationOverride,
+  llSetAnimationOverride,
+  llResetAnimationOverride,
   // camera
   llGetCameraPos,
   llGetCameraRot,

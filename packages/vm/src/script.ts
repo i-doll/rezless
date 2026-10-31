@@ -1,3 +1,9 @@
+import {
+  enterDamageEvent,
+  leaveDamageEvent,
+  combatAvatars,
+  type CombatAvatar,
+} from './builtins/damage.js'
 import type {
   Script as Ast,
   EventHandler,
@@ -24,6 +30,8 @@ import type { DialogEntry } from './builtins/dialog.js'
 import type { TakenControls } from './builtins/controls.js'
 import type { Camera } from './builtins/camera.js'
 import { defaultCamera } from './builtins/camera.js'
+import type { AnimationState } from './builtins/animation.js'
+import { animationAvatars, playingAnimations, setAnimationState } from './builtins/animation.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
@@ -250,6 +258,9 @@ export class Script {
       controls: { taken: null, level: 0 },
       camera: defaultCamera(),
       cameraParams: new Map(),
+      get animations() {
+        return animationAvatars(prim.linkset!)
+      },
       dialogs: [],
       lifecycle: {
         dead: false,
@@ -282,6 +293,17 @@ export class Script {
     if (!host.scripts.includes(this)) {
       host.addScript(this)
     }
+  }
+
+  /** A state transition leaves on_damage before lifecycle handlers execute. */
+  private clearDamageAdjustment(): void {
+    const context = this.state.detectedStack.at(-1)
+    if (context?.event === 'on_damage') context.event = ''
+  }
+
+  /** Configure an avatar's combat health, parcel and attachment scripts. */
+  setCombatAvatar(id: string, avatar: CombatAvatar): void {
+    combatAvatars(this).set(id.toLowerCase(), { ...avatar, region: this.linkset.region })
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
@@ -601,6 +623,16 @@ export class Script {
   /** Camera rules set with llSetCameraParams, by rule. */
   get cameraParams(): ReadonlyMap<number, LslValue> {
     return this.state.cameraParams
+  }
+
+  /** Register an avatar in this region and set its default locomotion animation. */
+  setAnimationState(agent: string, state: AnimationState): void {
+    setAnimationState(this.state.animations, agent, state)
+  }
+
+  /** Playing animation UUIDs for an avatar, in UUID order. Returns a fresh array. */
+  getPlayingAnimations(agent: string): ReadonlyArray<string> {
+    return playingAnimations(this.state.animations, agent)
   }
 
   /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */
@@ -941,9 +973,12 @@ export class Script {
     args: ReadonlyArray<EvalResult>,
     payload: Record<string, unknown>,
   ): Generator<Suspension, boolean, unknown> {
+    enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
-    if (pushed) this.state.detectedStack.push({ entries: detected as ReadonlyArray<DetectedEntry> })
+    if (pushed) this.state.detectedStack.push({
+      entries: detected as ReadonlyArray<DetectedEntry>, event: handler.name,
+    })
     try {
       this.state.memory.startEvent()
       return yield* this.runHandlerChain(handler, args)
@@ -952,6 +987,7 @@ export class Script {
       throw e
     } finally {
       if (pushed) this.state.detectedStack.pop()
+      leaveDamageEvent(payload)
     }
   }
 
@@ -983,6 +1019,7 @@ export class Script {
         if (e instanceof ResetScriptSignal) return true
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
+        this.clearDamageAdjustment()
         if (this.state.lifecycle.removed) return false
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
