@@ -119,6 +119,12 @@ export interface ScriptState {
   readonly cameraParams: Map<number, LslValue>
   /** Avatar animations in this region, shared across scripts and preserved on reset. */
   readonly animations: Map<string, import('./builtins/animation.js').AvatarAnimations>
+  /** Inventory offers and completed deliveries, oldest first. */
+  readonly inventoryOffers: import('./builtins/give.js').InventoryOffer[]
+  /** Viewer requests, including denied floaters, oldest first. */
+  readonly viewerRequests: import('./builtins/viewer.js').ViewerRequest[]
+  /** Region-presence overrides shared with scripts in the region. */
+  readonly agentPresence: Map<string, boolean>
   /** Dialogs and text boxes shown with llDialog / llTextBox, oldest first. */
   readonly dialogs: import('./builtins/dialog.js').DialogEntry[]
   /**

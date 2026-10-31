@@ -29,6 +29,8 @@ import type { DetectedEntry } from './builtins/detected.js'
 import type { PermissionRequestEntry } from './builtins/permissions.js'
 import type { DialogEntry } from './builtins/dialog.js'
 import type { TakenControls } from './builtins/controls.js'
+import { agentPresence, type ViewerRequest } from './builtins/viewer.js'
+import type { InventoryOffer } from './builtins/give.js'
 import type { Camera } from './builtins/camera.js'
 import { defaultCamera } from './builtins/camera.js'
 import type { AnimationState } from './builtins/animation.js'
@@ -262,6 +264,9 @@ export class Script {
       get animations() {
         return animationAvatars(prim.linkset!)
       },
+      inventoryOffers: [],
+      viewerRequests: [],
+      agentPresence: agentPresence(prim.linkset!),
       dialogs: [],
       lifecycle: {
         dead: false,
@@ -634,6 +639,21 @@ export class Script {
   /** Playing animation UUIDs for an avatar, in UUID order. Returns a fresh array. */
   getPlayingAnimations(agent: string): ReadonlyArray<string> {
     return playingAnimations(this.state.animations, agent)
+  }
+
+  /** Inventory offers and completed prim deliveries, oldest first. */
+  get inventoryOffers(): ReadonlyArray<InventoryOffer> {
+    return this.state.inventoryOffers
+  }
+
+  /** URL/map requests and rejected floater calls, oldest first. */
+  get viewerRequests(): ReadonlyArray<ViewerRequest> {
+    return this.state.viewerRequests
+  }
+
+  /** Override whether an avatar is present in this region, for every script sharing it. */
+  setAgentInRegion(agent: string, present = true): void {
+    this.state.agentPresence.set(agent.toLowerCase(), present)
   }
 
   /** Dialogs and text boxes this script showed with llDialog / llTextBox, oldest first. */
