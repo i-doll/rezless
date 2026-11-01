@@ -1227,6 +1227,45 @@ target occupancy; gestures and folder-link occupancy are outside their covered f
 
 ### Viewer sessions
 
+Viewer delivery controls are opt-in and shared by all scripts using an avatar.
+They leave normal query and force-action handling unchanged until called:
+
+```ts
+avatar.viewer.dropNext(command => command.startsWith('@getinv='))
+avatar.viewer.answerNext('', command => command.startsWith('@getpath'))
+avatar.viewer.hold()
+// Drive scripts: query replies and forced inventory actions wait in one queue.
+avatar.viewer.release(1) // schedule the oldest delivery; keep holding new work
+script.advanceTime(0)
+avatar.viewer.release() // schedule everything remaining and resume automatic delivery
+script.advanceTime(0)
+```
+
+`dropNext(predicate?)` suppresses one matching query reply;
+`answerNext(text, predicate?)` replaces one with the supplied text. The predicate
+receives the individual RLV command string, including `@`, option and channel.
+Omitting it matches any query. Overrides stack in registration order: each query
+consumes the first matching override, leaving nonmatching ones for later queries.
+They are selected when the query arrives, before holding; forced actions and
+restriction notifications do not consume them. Chosen text follows the profile's
+reply length and channel rules. An empty `getpath` answer is an empty chat
+message on the requested channel, with the avatar as speaker, without separators
+or an added folder prefix.
+
+`hold()` queues replies and forced inventory actions, including folder wear and
+removal and `detachme`. `release(count)` accepts a nonnegative safe integer and schedules at most
+that many deliveries in send order; zero does nothing, and an oversized count
+drains the queue while continuing to hold new work. With no count, `release()`
+drains it and resumes automatic delivery. New replies stay behind released work
+until it dispatches. Released work runs on the scheduler,
+never inside the handler that sent it. Advance a linkset in the world to dispatch
+it. Query values and accepted force-action plans are captured when sent; the
+queued actions apply when dispatched. Released replies use the listeners present
+at delivery: reset scripts can hear them through a newly installed listener,
+removed scripts cannot, and a removed listener receives nothing. Other listening
+scripts can still hear the reply. Viewer session reset cancels held replies.
+Accepted forced actions survive removal of their issuing script.
+
 Viewers default to ready. Pass `viewer: { profile: 'rlva', ready: false }` to
 `World.addAvatar`, or `viewer: { ready: false }` to `loadRlvPair`, to retain startup
 commands. `setRlvViewerReady(avatar)` releases them in wire order. Command logs

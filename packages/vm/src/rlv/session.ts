@@ -217,6 +217,11 @@ export class RlvSession {
     } else if (this.profile === 'rlv') this.scheduleRecovery(Math.max(this.clock!.now, this.recoveryStarted + 15000))
   }
 
+  /** @internal Held replies retain the session lifetime and share viewer delivery order. */
+  deliverReply(run: () => void): void {
+    this.avatar!.viewer.deliver(this.clock!, this.taskLifetime, () => this.captureReplies(run), true)
+  }
+
   /** Track queued listener payloads so session reset cannot deliver old viewer output. */
   captureReplies<T>(run: () => T): T {
     const clock = this.clock

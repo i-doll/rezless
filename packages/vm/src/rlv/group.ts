@@ -54,7 +54,7 @@ export function dispatchGroupCommand(avatar: WorldAvatar, prim: Prim, parsed: Rl
     if (channel === undefined || !isValidReplyChannel(viewer.profile, channel)) return false
     const text = avatar.group.toLowerCase() === NULL_KEY ? 'none'
       : avatar.groups.find(group => group.key.toLowerCase() === avatar.group.toLowerCase())?.name ?? ''
-    const reply = sendViewerReply(prim.linkset!, avatar, channel, text)!
+    const reply = sendViewerReply(prim.linkset!, avatar, channel, text, command)!
     viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply })
     return true
   }

@@ -262,7 +262,7 @@ export function dispatchEnvironmentCommand(avatar: WorldAvatar, prim: Prim, pars
     if ((viewer.profile === 'rlva' && parsed.kind !== 'query') || channel === undefined || !isValidReplyChannel(viewer.profile, channel)) return false
     if (viewer.profile === 'rlva' && !names(viewer.profile).includes(name)) return false
     const known = names(viewer.profile).includes(name) || viewer.profile === 'rlv' && ['asset', 'preset'].includes(name)
-    const reply = sendViewerReply(prim.linkset!, avatar, channel, known ? viewer.environment.reply(name) : '')!
+    const reply = sendViewerReply(prim.linkset!, avatar, channel, known ? viewer.environment.reply(name) : '', command)!
     viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply })
     return true
   }

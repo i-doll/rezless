@@ -2,6 +2,7 @@ import { RlvEnvironment, type RlvEnvironmentConfig } from './environment.js'
 import { RlvDebugSettings, type RlvDebugSettingsConfig } from './debug.js'
 import { RlvBlacklist } from './blacklist.js'
 import { RlvInventory, type RlvInventoryConfig } from './inventory.js'
+import { RlvViewerControls } from './controls.js'
 import { RlvSession } from './session.js'
 import { RlvRestrictions } from './restrictions.js'
 import type { RlvParsedCommand } from './classifier.js'
@@ -85,7 +86,7 @@ export type RlvCommandRecord = {
 } | { readonly status: 'action'; readonly action: 'fly' | 'adjustheight'; readonly actionOutcome: 'applied' | 'unchanged' | 'refused'; readonly reason?: 'restriction' | 'target-unavailable' | 'world-constraint' } | import('./teleport.js').RlvTeleportAction)
 
 /** Per-avatar emulator state shared by commands from all owned prims. */
-export interface ViewerState {
+export interface ViewerState extends RlvViewerControls {
   readonly profile: ViewerProfile
   readonly reference: RlvReference | null
   readonly diagnostics: RlvDiagnostic[]
@@ -101,5 +102,5 @@ export interface ViewerState {
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
   const session = new RlvSession(profile, config)
-  return { debugSettings: new RlvDebugSettings(profile, config), environment: new RlvEnvironment(profile, config?.environment), blacklist: new RlvBlacklist(profile, config), session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) }
+  return Object.assign(new RlvViewerControls(), { debugSettings: new RlvDebugSettings(profile, config), environment: new RlvEnvironment(profile, config?.environment), blacklist: new RlvBlacklist(profile, config), session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) })
 }

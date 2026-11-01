@@ -71,7 +71,7 @@ export function dispatchDebugCommand(avatar: WorldAvatar, prim: Prim, parsed: Rl
     if (viewer.profile === 'disabled' || !isValidReplyChannel(viewer.profile, channel)) return false
     const setting = parsed.behaviour.slice(9)
     if (!setting && viewer.profile === 'rlva') return false
-    const reply = sendViewerReply(prim.linkset!, avatar, channel, getDebug(avatar, setting))!
+    const reply = sendViewerReply(prim.linkset!, avatar, channel, getDebug(avatar, setting), command)!
     viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply })
     return true
   }
