@@ -185,7 +185,8 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
     const acceptedLayers = new Set<string>()
     for (const plan of clothing) {
       const { entry } = plan
-      const replace = isRlvBodypart(entry) || plan.replace && (profile === 'rlv' || !acceptedLayers.has(entry.wearableType!))
+      const singleSlot = isRlvBodypart(entry) || profile === 'rlva' && entry.wearableType === 'physics'
+      const replace = singleSlot || plan.replace && (profile === 'rlv' || !acceptedLayers.has(entry.wearableType!))
       const worn = inventory.wornWearables()
       if (worn.includes(entry.id)) {
         acceptedLayers.add(entry.wearableType!)
@@ -199,7 +200,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
         results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue
       }
       if (replace && !removeLocked) for (const previous of profile === 'rlv' && !isRlvBodypart(entry) ? occupants.slice(-1) : occupants) {
-        if (isRlvBodypart(entry) || isRlvStrippable(profile, inventory, previous, true)) inventory.setWearableWorn(previous.id, false)
+        if (singleSlot || isRlvStrippable(profile, inventory, previous, true)) inventory.setWearableWorn(previous.id, false)
       }
       if (addLocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
       inventory.setWearableWorn(entry.id, true)

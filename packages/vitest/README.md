@@ -1750,7 +1750,10 @@ the top item sequentially. Kokua checks replacement removal before the add
 lock, so a denied add can still remove an unprotected top item. A removal lock
 retains that occupant but permits adding the new clothing. RLVa denies replacement
 when an occupied layer is removal-locked. Replacement preserves clothing protected by profile-specific
-nostrip names. Layer and attachment locks constrain every form.
+nostrip names for ordinary clothing. RLVa physics has one slot: add replaces its
+occupant unless layer removal is locked, including automatic replacement of
+nostrip physics. Kokua permits multiple physics items. Layer and attachment locks
+constrain every form.
 
 Folder options select one path. Kokua strips a pipe annotation from each path
 component, so `Base|33/Child|30` selects `Base/Child`. RLVa resolves the literal

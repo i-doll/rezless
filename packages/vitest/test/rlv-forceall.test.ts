@@ -278,3 +278,31 @@ it('RLVa denied queued replacement cannot enable a later add on that layer', asy
   { itemId: 'later2', outcome: 'blocked', reason: 'layer-lock' },
  ]))
 })
+
+// Firestorm RLVa 2.4.2: LLWearableData::canAddWearable limits physics to one item.
+// Kokua RLV 2.09.35.00 uses the ordinary clothing capacity for physics.
+for (const locked of [false, true]) it(`physics add follows profile occupancy and removal locks: ${locked}`, async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(),
+   { id: 'new', parentId: 'base', kind: 'item', name: 'New physics', wearableType: 'physics' },
+   { id: 'old', parentId: null, kind: 'item', name: 'Old physics', wearableType: 'physics' },
+  ], wornWearables: ['old'] })
+  if (locked) send(f, '@remoutfit:physics=n')
+  send(f, '@attachallover:base=force')
+  expect(inv.wornWearables()).toEqual(profile === 'rlv' ? ['old', 'new'] : locked ? ['old'] : ['new'])
+  expect(result(f).wearResults).toContainEqual(profile === 'rlva' && locked
+   ? { itemId: 'new', outcome: 'blocked', reason: 'layer-lock' } : { itemId: 'new', outcome: 'worn' })
+ }
+})
+it('RLVa physics automatic slot replacement differs from ordinary nostrip clothing', async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(),
+   { id: 'new', parentId: 'base', kind: 'item', name: 'New physics', wearableType: 'physics' },
+   { id: 'old', parentId: null, kind: 'item', name: 'nostrip physics', wearableType: 'physics' },
+  ], wornWearables: ['old'] })
+  send(f, '@attachallover:base=force')
+  expect(inv.wornWearables()).toEqual(profile === 'rlv' ? ['old', 'new'] : ['new'])
+ }
+})
