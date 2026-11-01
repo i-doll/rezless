@@ -827,7 +827,10 @@ profile-specific path matching and visibility filters.
 traversal, hidden-folder and separator rules. `getpath` and `getpathnew` query
 existing worn attachment paths through optional `wornAttachments` item-to-root
 mappings in `seedRlvInventory`. They observe attachment changes without spawning
-or wearing objects. Outfit-layer path selectors remain unsupported.
+or wearing objects. Clothing and bodypart layer selectors read `wornWearables`
+in fixture worn-item order, returning the first shared folder for `getpath` or
+all shared folders for `getpathnew`, including duplicates. RLVa collapses folded
+folders and omits leading empty shared-root paths; Kokua preserves them.
 
 RLV/RLVa outfit reads include `getoutfit` and `getinvworn`. RLVa also answers
 `getoutfitnames`, `getaddoutfitnames` and `getremoutfitnames` using worn layers

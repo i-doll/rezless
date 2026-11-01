@@ -143,10 +143,10 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [findfolder](#findfolder) | Kokua RLV 2.09.35.00 | <code>@findfolders[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
 | [findfolder](#findfolder) | Firestorm RLVa 2.4.2 | <code>@findfolder[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
 | [findfolder](#findfolder) | Firestorm RLVa 2.4.2 | <code>@findfolders[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
-| [getpath](#getpath) | Kokua RLV 2.09.35.00 | <code>@getpath[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
-| [getpath](#getpath) | Kokua RLV 2.09.35.00 | <code>@getpathnew[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
-| [getpath](#getpath) | Firestorm RLVa 2.4.2 | <code>@getpath[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
-| [getpath](#getpath) | Firestorm RLVa 2.4.2 | <code>@getpathnew[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
+| [getpath](#getpath) | Kokua RLV 2.09.35.00 | <code>@getpath[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts) |
+| [getpath](#getpath) | Kokua RLV 2.09.35.00 | <code>@getpathnew[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts) |
+| [getpath](#getpath) | Firestorm RLVa 2.4.2 | <code>@getpath[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts) |
+| [getpath](#getpath) | Firestorm RLVa 2.4.2 | <code>@getpathnew[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts) |
 | [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
 | [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attachover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
 | [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attachoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
@@ -1796,29 +1796,31 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 ### getpath
 
-Forms: <code>@getpath[:&lt;attachment-point-or-object-uuid&gt;]=&lt;channel&gt;</code>, <code>@getpathnew[:&lt;attachment-point-or-object-uuid&gt;]=&lt;channel&gt;</code>.
+Forms: <code>@getpath[:&lt;layer-or-attachment-point-or-object-uuid&gt;]=&lt;channel&gt;</code>, <code>@getpathnew[:&lt;layer-or-attachment-point-or-object-uuid&gt;]=&lt;channel&gt;</code>.
 
-Comparison: confirmed difference. Both query the containing shared path of a worn attachment by issuer, point or object UUID. Inventory UUIDs never select an attachment. getpath selects the first point result and getpathnew lists all, preserving live attachment order. Unshared items expose no path. Kokua retains empty positions for point attachments without shared items; RLVa omits them. Outfit-layer selectors remain unsupported until an outfit fixture exists.
+Comparison: confirmed difference. Both query the containing shared path of a worn attachment by issuer, point or object UUID. Inventory UUIDs never select an attachment. getpath selects the first point result and getpathnew lists all, preserving live attachment order. Unshared items expose no path. Kokua retains empty positions for point attachments without shared items; RLVa omits them. Clothing and bodypart layer selectors list worn item folders in fixture worn-item order, skipping unshared items in both profiles. Duplicate paths remain. Kokua retains empty shared-root positions; RLVa omits leading empty positions and collapses folded containing folders.
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Uses explicit item-to-root mappings and current avatar attachment state. Point getpath stops at the first attachment, including an empty unshared slot; getpathnew retains those slots. Item identity is independent of repeated names. Fixtures describe modifiable attachments; no-mod folder-name inference and inventory links are outside the covered forms.
+Support depth: enforced. Uses explicit item-to-root mappings and current avatar attachment state. Point getpath stops at the first attachment, including an empty unshared slot; getpathnew retains those slots. Item identity is independent of repeated names. Layer queries read wornWearables order, skip unshared clothing and retain shared-root empty positions. getpath selects the first shared layer item; getpathnew lists every shared layer item without deduplication. Fixtures describe modifiable attachments; no-mod folder-name inference and inventory links are outside the covered forms.
 
 - Modifiable attachment issuer, point and object UUID queries with shared-root containment
 - Live attachment order and lifecycle, duplicate item names and empty results
+- All 17 clothing/bodypart layers, worn item order, duplicate folders, shared-root empty paths and live wear changes
 
-Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::getFullPath</code>, <code>RRInterface::getItem</code>, <code>RRInterface::getItemAux</code>.
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::getFullPath</code>, <code>RRInterface::getItem</code>, <code>RRInterface::getItemAux</code>, <code>RRInterface::getOutfitLayerAsType</code>.
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Uses the same explicit mapping and live attachment order. Only shared inventory items contribute paths. An effectively folded containing folder contributes its parent path. Invalid selectors return empty with failed-option. Outfit layers and inventory links remain outside the fixture.
+Support depth: enforced. Uses the same explicit mapping and live attachment order. Only shared inventory items contribute paths. An effectively folded containing folder contributes its parent path. Invalid selectors return empty with failed-option. Layer queries read wornWearables as current-outfit item order and skip unshared clothing. getpath selects the first shared item. getpathnew retains duplicates and inserts a comma only after a nonempty reply, omitting leading empty shared-root paths. Inventory links remain outside the fixture.
 
 - Attachment issuer, named point and owned object UUID queries with shared-root containment
 - Live attachment order and lifecycle, duplicate names, effective folded folders and empty results
+- All 17 clothing/bodypart layers, current-outfit item order, duplicate folders, folded and shared-root paths and live wear changes
 
-Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetPath</code>, <code>RlvCommandOptionGetPath</code>, <code>RlvInventory::getPath</code>.
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetPath</code>, <code>RlvCommandOptionGetPath::getItemIDs (rlvhelper.cpp)</code>, <code>RlvInventory::getPath (rlvinventory.cpp)</code>.
 
-Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts).
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts).
 
 ### forcewear
 
