@@ -882,14 +882,14 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [blacklist](#blacklist) | Kokua RLV 2.09.35.00 | <code>@getblacklist[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-blacklist.test.ts](../packages/vitest/test/rlv-blacklist.test.ts) |
 | [blacklist](#blacklist) | Kokua RLV 2.09.35.00 | <code>@versionnumbl=&lt;channel&gt;</code><br><code>@getblacklist[:&lt;filter&gt;]=&lt;channel&gt;</code><br><code>Kokua blacklisted add and force; RLVa disabled setenv add/remove</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-blacklist.test.ts](../packages/vitest/test/rlv-blacklist.test.ts) |
 | [blacklist](#blacklist) | Firestorm RLVa 2.4.2 | <code>@versionnumbl=&lt;channel&gt;</code><br><code>@getblacklist[:&lt;filter&gt;]=&lt;channel&gt;</code><br><code>Kokua blacklisted add and force; RLVa disabled setenv add/remove</code> | unsupported | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-blacklist.test.ts](../packages/vitest/test/rlv-blacklist.test.ts) |
-| [viewer-session](#viewer-session) | Kokua RLV 2.09.35.00 | <code>Startup command retention and ready-state release</code><br><code>Viewer session reset</code><br><code>Issuer lookup, detach and orphan collection</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-session.test.ts](../packages/vitest/test/rlv-session.test.ts) |
-| [viewer-session](#viewer-session) | Firestorm RLVa 2.4.2 | <code>Startup command retention and ready-state release</code><br><code>Viewer session reset</code><br><code>Issuer lookup, detach and orphan collection</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-session.test.ts](../packages/vitest/test/rlv-session.test.ts) |
+| [viewer-session](#viewer-session) | Kokua RLV 2.09.35.00 | <code>Startup command retention and ready-state release</code><br><code>Viewer session reset</code><br><code>Issuer lookup, detach and orphan collection</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-session.test.ts](../packages/vitest/test/rlv-session.test.ts)<br>[rlv-kokua-collection.test.ts](../packages/vitest/test/rlv-kokua-collection.test.ts) |
+| [viewer-session](#viewer-session) | Firestorm RLVa 2.4.2 | <code>Startup command retention and ready-state release</code><br><code>Viewer session reset</code><br><code>Issuer lookup, detach and orphan collection</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-session.test.ts](../packages/vitest/test/rlv-session.test.ts)<br>[rlv-kokua-collection.test.ts](../packages/vitest/test/rlv-kokua-collection.test.ts) |
 
 ## Profile settings
 
 ### Kokua RLV 2.09.35.00
 
-- doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. An explicit per-avatar blacklist preserves wire order and uses %f for force entries; query and notify commands remain available.
+- doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. useNewGarbageCollectionTiming defaults true; false collects after 200 eligible frames and every frame thereafter. garbageCollectionFramesPerSecond defaults 60. garbageCollectionIgnoreFirstFullyVisible defaults true; false waits until firstFullyVisibleAt plus garbageCollectionFirstFullyVisibleDelay (15000 ms) or garbageCollectionFirstFullyVisibleTimeout (45000 ms after readiness), then starts the initial wait. Visibility and initial deadlines use the next strictly later virtual viewer frame. Frame mode ignores time and visibility settings. An explicit per-avatar blacklist preserves wire order and uses %f for force entries; query and notify commands remain available.
 
 ### Firestorm RLVa 2.4.2
 
@@ -2919,13 +2919,14 @@ Comparison: confirmed difference. Wiki warns that version replies can be delayed
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Startup retains commands in wire order; version requests bypass retention unless doNotQueueVersionRequests is false. Explicit readiness releases retained work. Time-based maintenance uses configurable additions to its initial 5-second wait and later 2-second interval; defaults produce 10-second delays. Missing issuers, including detached and never-resolved prims, lose rules and registrations on the next maintenance pass. Pending attachment recovery pauses collection and retains commands as described by attachment-recovery. Reset silently clears rules, retained commands and undelivered viewer replies.
+Support depth: enforced. Startup retains commands in wire order; version requests bypass retention unless doNotQueueVersionRequests is false. Explicit readiness releases retained work. Time-based maintenance uses configurable additions to its initial 5-second wait and later 2-second interval; defaults produce 10-second delays. useNewGarbageCollectionTiming=false selects a counter starting at -100: the first pass is frame 200, then every eligible frame because the counter never resets. Frames advance at garbageCollectionFramesPerSecond (default 60), only while ready and not recovering attachments, including with no issuers. This mode ignores time and visibility settings. Time mode optionally waits for the avatar to de-cloud: garbageCollectionIgnoreFirstFullyVisible=false gates the initial wait until firstFullyVisibleAt plus a configurable delay (default 15000 ms), or a readiness-relative timeout (default 45000 ms), whichever is earlier. Missing firstFullyVisibleAt means still clouded. Visibility and first-collection strict deadlines run on the next virtual frame. Missing issuers, including detached and never-resolved prims, lose rules and registrations on the next maintenance pass. Pending attachment recovery pauses collection and retains commands as described by attachment-recovery. Reset silently clears rules, retained commands and undelivered viewer replies.
 
 - Ready/not-ready fixtures and startup version-query setting
-- Time-based maintenance with initial and interval additions
+- Time-based maintenance with initial and interval additions, optional de-cloud delay and timeout
+- Legacy frame counter with configurable virtual frame rate and readiness/recovery pauses
 - Session reset, object-list membership and orphan notifications; locked-attachment recovery uses the attachment-recovery contract
 
-Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>, <code>RRInterface::fireCommands</code>, <code>RRInterface::garbageCollector</code>.
+Reference symbols: <code>indra/newview/llappviewer.cpp</code>: <code>LLAppViewer::mainLoop</code>, <code>garbage_collector_cnt</code>, <code>gNextGarbageCollection</code>, <code>gFrameTimeForStateStarted</code>, <code>RRInterface::garbageCollector</code>, <code>RRInterface::fireCommands</code>.
 
 #### Firestorm RLVa 2.4.2
 
@@ -2937,7 +2938,7 @@ Support depth: enforced. Startup retains commands in wire order. From misc start
 
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::processCommand</code>, <code>RlvHandler::processRetainedCommands</code>, <code>RlvHandler::onIdleStartup</code>, <code>RlvHandler::onGC</code>, <code>RlvHandler::onDetach</code>.
 
-Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-session.test.ts](../packages/vitest/test/rlv-session.test.ts).
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-session.test.ts](../packages/vitest/test/rlv-session.test.ts)<br>[rlv-kokua-collection.test.ts](../packages/vitest/test/rlv-kokua-collection.test.ts).
 
 ## Explicit exclusions
 

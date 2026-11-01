@@ -1226,8 +1226,24 @@ Kokua uses time-based maintenance after readiness. The default first wait and
 interval are both 10000 ms. `initialGarbageCollectionAdditionalWait`, default
 5000 ms, adds to a 5000 ms minimum. `garbageCollectionAdditionalInterval`, default
 8000 ms, adds to a 2000 ms minimum. These additions must be finite and nonnegative.
-This fixture uses the default scheduling that ignores first-fully-visible state;
-frame-based scheduling and avatar-visibility delays are unsupported. All missing
+`useNewGarbageCollectionTiming` defaults true. Set it false for the legacy frame
+counter: the first collection runs after 200 eligible frames, then every frame
+(the counter never resets). `garbageCollectionFramesPerSecond` maps virtual time
+to viewer frames, defaults to 60 and must be finite and positive. Frames count
+only while ready and not waiting for attachment recovery, even with no issuers.
+Frame mode ignores the time and visibility settings.
+
+Time mode defaults to `garbageCollectionIgnoreFirstFullyVisible=true`. Set it
+false to delay scheduling until the avatar first de-clouds plus
+`garbageCollectionFirstFullyVisibleDelay` (default 15000 ms), or until
+`garbageCollectionFirstFullyVisibleTimeout` (default 45000 ms after readiness),
+whichever comes first. `firstFullyVisibleAt` supplies the de-cloud moment in
+milliseconds from session binding; absent means still clouded. This represents
+the avatar becoming fully loaded, independently of whether it is hidden by a
+restriction. The visibility gate and first collection use strict deadlines,
+executed on the next virtual viewer frame; the initial 5000 ms plus configured
+additional wait starts after the gate opens. Visibility times must be finite
+and nonnegative. These settings do not change RLVa's collection schedule. All missing
 Kokua issuers, including never-resolved or detached prims, expire on a maintenance
 pass. Collection sends `/clear`, with individual removal notices only for Kokua.
 
