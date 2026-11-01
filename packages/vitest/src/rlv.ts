@@ -1,4 +1,4 @@
-import { World, avatarChatLog, type AvatarChatAction, type RlvProfile, type Script, type WorldAvatar } from '@rezless/vm'
+import { World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type WorldAvatar } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
 export interface RlvFixture {
@@ -35,4 +35,9 @@ export type RlvExpectations<T> =
 
 export function rlvExpectationFor<T>(expectations: RlvExpectations<T>, profile: RlvProfile): RlvExpectation<T> {
   return 'shared' in expectations ? expectations.shared : expectations[profile]
+}
+
+/** Replace only this avatar's shared-inventory fixture; prim contents and offers stay separate. */
+export function seedRlvInventory(avatar: WorldAvatar, inventory: RlvInventoryConfig): void {
+  avatar.viewer.inventory.seed(inventory)
 }
