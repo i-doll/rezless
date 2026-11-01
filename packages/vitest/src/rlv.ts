@@ -33,7 +33,7 @@ export function rlvExpectationFor<T>(expectations: RlvExpectations<T>, profile: 
   return 'shared' in expectations ? expectations.shared : expectations[profile]
 }
 
-/** Replace only this avatar's shared-inventory fixture; prim contents and offers stay separate. */
+/** Replace the avatar tree and optional item-to-attachment mappings without wearing objects. */
 export function seedRlvInventory(avatar: WorldAvatar, inventory: RlvInventoryConfig): void {
   avatar.viewer.inventory.seed(inventory)
 }
