@@ -50,9 +50,9 @@ describe('explicit per-avatar viewer configuration', () => {
 })
 
 describe('paired LSL fixture', () => {
-  it('runs identical source in independent profiles and keeps unsupported queries inert', async () => {
+  it('runs identical source in independent profiles with queued version replies', async () => {
     const pair = await loadRlvPair({ source })
-    const expected: RlvExpectations<number> = { shared: { kind: 'expected', value: 0 } }
+    const expected: RlvExpectations<number> = { shared: { kind: 'expected', value: 1 } }
     for (const profile of ['rlv', 'rlva'] as const) {
       const fixture = pair[profile]
       fixture.script.start()
@@ -82,8 +82,8 @@ describe('paired LSL fixture', () => {
       expect(pair[profile].avatar.viewer.reference?.implementationVersion).toBe(expected.value)
     }
     const pending: RlvExpectations<string> = {
-      rlv: { kind: 'not-measured', reason: 'Kokua runtime unavailable; code-derived contract only' },
-      rlva: { kind: 'unsupported', reason: 'Version query engine belongs to #214' },
+      rlv: { kind: 'not-measured', reason: 'Kokua reference contract is code-derived' },
+      rlva: { kind: 'unsupported', reason: 'Per-object compatibility settings are not implemented' },
     }
     expect(rlvExpectationFor(pending, 'rlv')).toEqual(pending.rlv)
     expect(rlvExpectationFor(pending, 'rlva')).toEqual(pending.rlva)
@@ -110,11 +110,11 @@ it('identifies the reference versions and exposes unsupported command forms hone
     expect(entry.forms.length).toBeGreaterThan(0)
     expect(entry.tests).toContain('packages/vitest/test/rlv-profiles.test.ts')
     for (const profile of ['rlv', 'rlva'] as const) {
-      expect(entry.profiles[profile].support).toBe('unsupported')
+      expect(entry.profiles[profile].support).toBe(entry.id === 'version' ? 'enforced' : 'unsupported')
       const evidence = entry.profiles[profile].evidence
       const reference = RLV_PROFILES[profile]
       expect(evidence).toEqual({
-        kind: 'code-derived',
+        kind: entry.id === 'version' && profile === 'rlva' ? 'measured' : 'code-derived',
         implementation: `${reference.implementation} ${reference.implementationVersion}`,
         file: expect.stringMatching(/^indra\/newview\/\w+\.(cpp|h)$/),
         symbols: expect.arrayContaining([expect.any(String)]),
