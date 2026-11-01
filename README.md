@@ -943,3 +943,11 @@ and their `_except` forms constrain user inventory actions and force wear/remova
 Node and subtree locks share the existing clothing and attachment checks;
 exceptions grant only their issuer's locks. The paired fixture documentation
 covers profile selector and exception precedence differences.
+
+RLV payment fixtures expose `world.attemptAvatarPay` and
+`world.attemptAvatarBuy`, with frozen action logs and explicit root sale information
+from `world.setObjectSale`. RLVa `pay` blocks avatar payments, while `buy` blocks
+object payments and original, copy or contents purchase requests. Kokua keeps
+both commands unsupported. Allowed injected object payments deliver `money` events;
+attachment payments go to the wearer. Purchases capture requests without money
+events. Balances, settlement and purchase inventory delivery are outside the fixture.
