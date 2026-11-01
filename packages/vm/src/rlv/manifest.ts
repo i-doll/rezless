@@ -432,6 +432,31 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-viewstate.test.ts'],
     },
     {
+      id: 'viewer-render', forms: ['@setcam_textures|camtextures[:<uuid>]=n|y', '@setoverlay|setoverlay_touch=n|y', '@setoverlay_alpha|texture|tint[:<value>]=force', '@setsphere=n|y', '@setsphere_mode|origin|color|distmin|distmax|distextend|param|tween|valuemin|valuemax[:<value>]=force'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Render configuration is exposed through the viewer-state query. Texture aliases share Firestorm state; Kokua retains both wire names. Firestorm overlays are issuer-local and selected by object hierarchy. Firestorm spheres are independent (at most six); Kokua combines spheres by mode and retains parameter restrictions, including force aliases. Tween parameters describe configured targets; pixel rendering and animation are outside this query.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::refreshCachedVariable', 'RRInterface::updateSetsphere', 'RRInterface::force', 'RRInterface::remove'],
+          'Texture replacement uses the last changed texture rule, including removals. Sphere parameters are retained as restrictions, can precede activation, and are removed with setsphere. Spheres combine by mode: minimum distances, origin, extension and tween, maximum values, multiplied blend RGB, maximum kernel size or component-wise maxima. Negative numeric parameters clamp to zero. Overlay and sphere color commands remain unsupported.'),
+          support: 'enforced', coveredForms: ['Texture restrictions and aliases', 'Sphere activation, retained parameter add/remove and force aliases', 'Mode aggregation, clear and session cleanup'],
+          commandForms: [
+            ...['setcam_textures', 'camtextures', 'setsphere'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['mode', 'origin', 'distmin', 'distmax', 'distextend', 'param', 'tween', 'valuemin', 'valuemax'].flatMap(field => (['add', 'force'] as const).map(type => ({ behaviour: 'setsphere_' + field, type, support: 'enforced' as const, option: 'any' as const }))),
+            ...['setoverlay', 'setoverlay_touch', 'setsphere_color'].map(behaviour => ({ behaviour, type: behaviour === 'setsphere_color' ? 'force' as const : 'add' as const, support: 'unsupported' as const, option: 'any' as const })),
+          ] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary', 'RlvBehaviourInfo::processModifier', 'RlvBehaviourHandler<RLV_BHVR_SETOVERLAY>::onCommand', 'RlvBehaviourHandler<RLV_BHVR_SETSPHERE>::onCommand', 'RlvOverlayEffect', 'RlvSphereEffect'],
+          'Texture restrictions select the first retained UUID modifier, defaulting to the viewer default texture. Overlays expose alpha, texture, tint and per-issuer touch blocking; one object hierarchy is enabled at a time. Spheres expose per-issuer mode, origin, color/param, distance, extension, values and tween targets. Local modifiers require that issuer to hold the base behaviour; an empty modifier restores its default. Removal, clear and session cleanup release local parameters. At most six sphere issuers are accepted.'),
+          support: 'enforced', coveredForms: ['Texture UUID restrictions and canonical alias', 'Overlay activation, local alpha/texture/tint and touch state', 'Six independent spheres with typed local modifiers and default restoration'],
+          commandForms: [
+            ...['setcam_textures', 'camtextures'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['setoverlay', 'setoverlay_touch', 'setsphere'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+            ...['alpha', 'texture', 'tint'].map(field => ({ behaviour: 'setoverlay_' + field, type: 'force' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['mode', 'origin', 'color', 'distmin', 'distmax', 'distextend', 'param', 'tween', 'valuemin', 'valuemax'].map(field => ({ behaviour: 'setsphere_' + field, type: 'force' as const, support: 'enforced' as const, option: 'any' as const })),
+          ] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-viewstate-camera.test.ts'],
+    },
+    {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
       comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
       profiles: {

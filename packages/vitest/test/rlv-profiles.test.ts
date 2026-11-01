@@ -102,13 +102,13 @@ it('identifies the reference versions and exposes unsupported command forms hone
   expect(RLV_MANIFEST.schemaVersion).toBe(3)
   expect(RLV_MANIFEST.wiki).toEqual({ url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' })
   expect(RLV_MANIFEST.commands.map(entry => entry.id)).toEqual([
-    'version', 'channel-policy', 'add-remove-clear', 'sendchannel', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'getattachnames', 'detach', 'seating', 'teleport', 'camera-fov', 'viewer-ui', 'discovery', 'notifications', 'blacklist', 'viewer-session',
+    'version', 'channel-policy', 'add-remove-clear', 'sendchannel', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'getattachnames', 'detach', 'seating', 'teleport', 'camera-fov', 'viewer-ui', 'viewer-render', 'discovery', 'notifications', 'blacklist', 'viewer-session',
   ])
   for (const entry of RLV_MANIFEST.commands) {
     expect(entry.forms.length).toBeGreaterThan(0)
     expect(entry.tests).toContain('packages/vitest/test/rlv-profiles.test.ts')
     for (const profile of ['rlv', 'rlva'] as const) {
-      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchannel', 'notifications', 'viewer-session', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'detach', 'seating', 'teleport', 'camera-fov', 'viewer-ui'].includes(entry.id) || ['getattachnames', 'discovery'].includes(entry.id) && profile === 'rlva' || entry.id === 'blacklist' && profile === 'rlv') ? 'enforced' : entry.id === 'add-remove-clear' ? 'state-only' : 'unsupported')
+      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchannel', 'notifications', 'viewer-session', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'detach', 'seating', 'teleport', 'camera-fov', 'viewer-ui', 'viewer-render'].includes(entry.id) || ['getattachnames', 'discovery'].includes(entry.id) && profile === 'rlva' || entry.id === 'blacklist' && profile === 'rlv') ? 'enforced' : entry.id === 'add-remove-clear' ? 'state-only' : 'unsupported')
       const evidence = entry.profiles[profile].evidence
       const reference = RLV_PROFILES[profile]
       expect(evidence).toEqual({

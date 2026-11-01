@@ -782,6 +782,12 @@ nametag hiding has no exception and also follows name hiding with the default
 settings. Its self visibility, transparent/wireframe controls, strict nametag
 forms and nametag distance modifiers remain inspectably unsupported.
 
+Camera render effects share `getRlvViewerState`: texture replacement, overlay
+alpha/texture/tint and touch blocking, and sphere mode/origin/distance/value/param
+configuration are exposed as frozen `parameters`. Firestorm keeps independent
+sphere issuers and selects overlay hierarchies; Kokua combines spheres by mode
+and leaves overlays unsupported. See the [render effect contract](packages/vitest/README.md#camera-render-effects).
+
 ## License
 
 The rezless project is licensed under the **Apache License, Version 2.0** —
