@@ -22,7 +22,7 @@ function channelOption(option: string): number | undefined {
 
 type RestrictionCommand = Omit<RlvParsedCommand, 'kind'> & { readonly kind: 'add' | 'remove' | 'clear' }
 
-const STATE_ONLY = new Set(['detach', 'sendchat', 'sit', 'unsit', 'tploc', 'tplm'])
+const STATE_ONLY = new Set(['sendchat', 'sit', 'unsit', 'tploc', 'tplm'])
 
 export interface RlvRestriction {
   readonly sourcePrim: string
@@ -57,7 +57,7 @@ export class RlvRestrictions {
     }
     if (this.profile === 'rlv' && (KOKUA_REPLIES.has(behaviour) ||
       /^(version|getenv_|getdebug_)/.test(behaviour))) return 'unsupported'
-    const support = this.notifySupport(behaviour, option) ?? this.chatSupport(behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported')
+    const support = this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced' : this.chatSupport(behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
     if (this.profile === 'rlva' && support === 'unsupported') {

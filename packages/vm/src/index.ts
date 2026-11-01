@@ -92,3 +92,6 @@ export type { RlvInventoryConfig, RlvInventoryEntry, RlvWornAttachment } from '.
 export { RLV_ATTACHMENT_POINTS, RLVA_ATTACHMENT_SETTINGS, getRlvAttachmentReply, setRlvAttachmentBridge } from './rlv/attachments.js'
 export { sendAvatarChat, avatarChatLog } from './rlv/chat-actions.js'
 export type { AvatarChatAction } from './rlv/chat-actions.js'
+
+export { attemptViewerDetach } from './rlv/detach.js'
+export type { RlvDetachOutcome } from './rlv/detach.js'
