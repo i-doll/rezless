@@ -16,6 +16,10 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 
 | Contract | Profile and version | Command form or operation | Support depth | Comparison | Tests |
 | --- | --- | --- | --- | --- | --- |
+| [pay](#pay) | Kokua RLV 2.09.35.00 | <code>@pay=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
+| [pay](#pay) | Firestorm RLVa 2.4.2 | <code>@pay=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
+| [buy](#buy) | Kokua RLV 2.09.35.00 | <code>@buy=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
+| [buy](#buy) | Firestorm RLVa 2.4.2 | <code>@buy=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
 | [setgroup](#setgroup) | Kokua RLV 2.09.35.00 | <code>@setgroup=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
 | [setgroup](#setgroup) | Kokua RLV 2.09.35.00 | <code>@setgroup[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
 | [setgroup](#setgroup) | Firestorm RLVa 2.4.2 | <code>@setgroup=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
@@ -896,6 +900,52 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 - Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.
 
 ## Contracts and limits
+
+### pay
+
+Forms: <code>@pay=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. RLVa pay blocks avatar payments, including payments through attachments to their wearer. Object payments use buy. Kokua has no pay handler.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No payment or purchase restriction handler. Unknown wire rules remain inspectably unsupported and do not block these actions.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>, <code>RRInterface::add</code>, <code>RRInterface::remove</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option pay denies avatar payments. Attachment payments target their wearer without money events on the attachment. Add/remove aliases and per-issuer clear apply; options, secure variants and force forms are unsupported.
+
+- @pay=n|add|y|rem
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canBuyObject</code>, <code>RlvActions::canPayObject</code>, <code>RlvActions::canPayAvatar</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts).
+
+### buy
+
+Forms: <code>@buy=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. RLVa buy blocks object payments and all object sale types, including free purchases. Avatar payments use pay. Kokua has no buy handler.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No payment or purchase restriction handler. Unknown wire rules remain inspectably unsupported and do not block these actions.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>, <code>RRInterface::add</code>, <code>RRInterface::remove</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option buy denies payments to objects and purchase requests for original, copy and contents sale types at every price. Allowed injected object payments deliver money to the selected prim. Purchases capture sale type and price without money events; balances, settlement and inventory transfers are external. Options, secure variants and force forms are unsupported.
+
+- @buy=n|add|y|rem
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canBuyObject</code>, <code>RlvActions::canPayObject</code>, <code>RlvActions::canPayAvatar</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts).
 
 ### setgroup
 

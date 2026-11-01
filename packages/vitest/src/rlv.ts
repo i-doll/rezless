@@ -1,3 +1,4 @@
+import { avatarPayLog, avatarBuyLog, type AvatarPayAction, type AvatarBuyAction } from '@rezless/vm'
 import { avatarMovementLog, type AvatarMovement, type AvatarMovementAction } from '@rezless/vm'
 import { avatarEditLog, avatarRezLog, type AvatarEditAction, type AvatarRezAction } from '@rezless/vm'
 import { teleportRequestLog, type AvatarTeleportRequest, teleportOfferLog, type TeleportOffer, type TeleportOfferDecision } from '@rezless/vm'
@@ -19,6 +20,10 @@ export { respondRlvInventoryOffer } from '@rezless/vm'
 export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from '@rezless/vm'
 
 export interface RlvFixture {
+  readonly payActions: readonly AvatarPayAction[]
+  pay(target: Prim | WorldAvatar, amount: number): AvatarPayAction
+  readonly buyActions: readonly AvatarBuyAction[]
+  buy(prim: Prim): AvatarBuyAction
   readonly movementActions: readonly AvatarMovementAction[]
   move(action: AvatarMovement): AvatarMovementAction
   readonly world: World
@@ -64,7 +69,12 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
     const loaded = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
       prims: [{ name: 'RLV fixture', scripts: [{ name: 'fixture', source: { source: input.source } }] }] })
     avatar.viewer.session.bind(loaded.linkset, avatar)
-    return { world, avatar, script: loaded.scripts['fixture']!,
+    return { world, avatar,
+      get payActions() { return avatarPayLog(avatar) },
+      pay: (target, amount) => world.attemptAvatarPay(avatar, target, amount),
+      get buyActions() { return avatarBuyLog(avatar) },
+      buy: prim => world.attemptAvatarBuy(avatar, prim),
+      script: loaded.scripts['fixture']!,
       get movementActions() { return avatarMovementLog(avatar) },
       move: action => world.attemptAvatarMovement(avatar, action),
       attemptDetach: (attachment = loaded.linkset) => attemptViewerDetach(avatar, attachment),

@@ -937,3 +937,12 @@ LSL function/event/constant signatures come from Linden Lab's official
 [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
 vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
+
+
+RLV payment fixtures expose `world.attemptAvatarPay` and
+`world.attemptAvatarBuy`, with frozen action logs and explicit root sale information
+from `world.setObjectSale`. RLVa `pay` blocks avatar payments, while `buy` blocks
+object payments and original, copy or contents purchase requests. Kokua keeps
+both commands unsupported. Allowed injected object payments deliver `money` events;
+attachment payments go to the wearer. Purchases capture requests without money
+events. Balances, settlement and purchase inventory delivery are outside the fixture.
