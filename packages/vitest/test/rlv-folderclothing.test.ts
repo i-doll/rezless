@@ -225,3 +225,41 @@ it('rejects links with an independent wearable definition and keeps invalid user
   expect(f.attemptWearable('object-link', true)).toBe('no-op')
  }
 })
+it('preserves mapped-object classification through links without an asset type', async () => {
+ for (const f of Object.values(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  const definition = inv.snapshot().find(e => e.id === 'object')!.object!
+  const object = definition.copy({ world: f.world, region: f.avatar.region, owner: f.avatar.key })
+  object.attachToAvatar(f.avatar.key, 1)
+  inv.seed({ sharedRootId: 'root', entries: inv.snapshot().map(e => e.id === 'object'
+   ? { id: e.id, parentId: e.parentId, kind: e.kind, name: e.name } : e),
+   wornAttachments: [{ itemId: 'object', rootKey: object.prims[0]!.key }] })
+  send(f, '@getinvworn:linked=773282,attach:linked=force')
+  expect(result(f).wearResults).toContainEqual({ itemId: 'object-link', outcome: 'already-worn', point: 1 })
+  send(f, '@getinvworn:linked=773282,detach:linked=force')
+  expect(f.script.global('replies')).toEqual(['|20', '|30'])
+  expect(result(f).removeResults).toContainEqual({ itemId: 'object-link', outcome: 'removed' })
+  expect(object.attachment).toBeNull()
+  send(f, '@attach:linked=force')
+  expect(object.attachment?.point).toBe(1)
+  expect(result(f).wearResults).toContainEqual({ itemId: 'object-link', outcome: 'attached', point: 1 })
+ }
+})
+
+// Firestorm RLVa 2.4.2: LLInventoryModel::collectDescendentsIf visits every category;
+// RlvWearableItemCollector::onCollectItem discovers folder links by base ancestry.
+for (const name of ['Child', '.Hidden']) it(`RLVa discovers folder links inside ${name} for direct wear and removal`, async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot().filter(e => e.parentId !== 'linked'),
+   { id: 'child', parentId: 'linked', kind: 'folder', name },
+   { id: 'folder-link', parentId: 'child', kind: 'item', name: 'Alias', linkTargetId: 'targets' },
+  ] })
+  send(f, '@attach:linked=force')
+  expect(inv.wornWearables()).toEqual(profile === 'rlva' ? ['target'] : [])
+  expect(inv.attachmentMappings().map(m => m.itemId)).toEqual(profile === 'rlva' ? ['object'] : [])
+  send(f, '@detach:linked=force')
+  expect(inv.wornWearables()).toEqual([])
+  expect(f.world.linksets.filter(l => l.attachment)).toEqual([])
+ }
+})

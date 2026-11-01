@@ -123,7 +123,10 @@ export class RlvInventory {
   /** Keep the link's folder and ID while exposing its target's wearable metadata. */
   effectiveItem(entry: RlvInventoryEntry): RlvInventoryEntry {
     const target = this.resolveItem(entry)
-    return target && target !== entry ? { ...target, id: entry.id, parentId: entry.parentId, linkTargetId: entry.linkTargetId! } : entry
+    if (!target || target === entry) return entry
+    const mappedObject = this.attachments.some(mapping => mapping.itemId === target.id)
+    return { ...target, ...(mappedObject ? { assetType: 'object' as const } : {}),
+      id: entry.id, parentId: entry.parentId, linkTargetId: entry.linkTargetId! }
   }
 
   /** Change one existing wearable without replacing inventory or attachment state. */
@@ -312,6 +315,7 @@ export function collectRlvWearItems(profile: RlvProfile, inventory: RlvInventory
       }
       return false
     }
+    // Link discovery visits all descendants, independently of ordinary item traversal.
     // Folder links contribute one target level, including its folded children.
     // A target inside the selected subtree or an outfit category is excluded.
     for (const link of entries.filter(e => folderLink(e) && descendant(e.parentId))) {

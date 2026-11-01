@@ -2025,8 +2025,9 @@ item links using target occupancy. Layer, attachment, folder and shared-wear
 locks remain effective. RLVa removal checks the target folder and all shared
 item-link folders, so another locked link can protect the same worn target.
 
-RLVa follows a folder link for one target level, including eligible folded
-children. Ordinary target descendants, further folder links, hidden targets,
+RLVa discovers folder links throughout the selected subtree, including ordinary
+children during direct wear and hidden descendants. It follows each link for one
+target level, including eligible folded children. Ordinary target descendants, further folder links, hidden targets,
 `outfitFolder: true` categories and targets within the selected subtree are
 excluded. Kokua keeps folder links inspectably unsupported. Folder-link
 occupancy queries and live inventory fetching remain outside this fixture.
