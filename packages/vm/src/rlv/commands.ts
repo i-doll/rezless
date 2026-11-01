@@ -1,4 +1,6 @@
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
+import { classifyRlvUnsupported } from './classifier.js'
+import { getRlvCommands } from './getcommand.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
@@ -49,6 +51,16 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
         parsed.behaviour === 'getstatus' ? prim.key : undefined)
     }
+    if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva' &&
+      channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
+      const type = parsed.option.split(';')[1] ?? ''
+      const invalid = !['', 'any', 'add', 'force', 'reply'].includes(type)
+      const reply = sendViewerReply(linkset, avatar, channel, getRlvCommands(viewer.profile, parsed.option)!)!
+      viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
+        ...(invalid ? { outcome: 'invalid-option' as const } : {}) })
+      if (invalid) viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'invalid-option: Unknown discovery type; the viewer delivers an empty reply.' })
+      continue
+    }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) && parsed.behaviour === 'getinv') {
       text = getRlvInventoryList(viewer.profile, viewer.inventory, parsed.option)
     }
@@ -61,6 +73,25 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         const reply = sendViewerReply(linkset, avatar, channel, attachmentText)!
         viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
           ...(failedOption ? { outcome: 'failed-option' as const } : {}) })
+        continue
+      }
+    }
+    if (text === undefined && parsed && !malformed && viewer.restrictions.supportsChatCommand(parsed)) {
+      dispatchRestrictionCommand(viewer, prim, parsed, command)
+      continue
+    }
+    if (text === undefined && parsed && !malformed) {
+      const outcome = classifyRlvUnsupported(viewer.profile, parsed)
+      if (outcome !== 'state-only') {
+        if (dispatchRestrictionCommand(viewer, prim, parsed, command)) {
+          const last = viewer.commandLog.length - 1
+          viewer.commandLog[last] = { ...viewer.commandLog[last]!, outcome }
+          const diagnostic = viewer.diagnostics.length - 1
+          viewer.diagnostics[diagnostic] = { ...viewer.diagnostics[diagnostic]!, detail: outcome + ': ' + viewer.diagnostics[diagnostic]!.detail }
+        } else {
+          viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', outcome })
+          viewer.diagnostics.push({ command, reason: 'unsupported', detail: outcome + ': This command form has no implemented effect.' })
+        }
         continue
       }
     }

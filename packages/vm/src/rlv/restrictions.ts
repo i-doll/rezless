@@ -1,6 +1,6 @@
 import type { Prim } from '../prim.js'
 import type { LinksetClock } from '../clock.js'
-import { rlvIntegerPrefix, type RlvParsedCommand } from './classifier.js'
+import type { RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
 
 // Kokua routes these named replies before add/remove parameter dispatch.
@@ -10,6 +10,14 @@ const KOKUA_REPLIES = new Set([
   'getcam_avdistmin', 'getcam_avdistmax', 'getcam_zoommin', 'getcam_zoommax',
   'getcam_fovmin', 'getcam_fovmax', 'getcam_zoom', 'getcam_fov', 'getcam_textures',
 ])
+
+/** Decimal option prefixes, limited to the viewer's signed 32-bit channel range. */
+function channelOption(option: string): number | undefined {
+  const prefix = /^[\t\n\v\f\r ]*([+-]?[0-9]+)/.exec(option)
+  if (!prefix) return undefined
+  const channel = Number(prefix[1])
+  return channel >= -2147483648 && channel <= 2147483647 ? channel : undefined
+}
 
 type RestrictionCommand = Omit<RlvParsedCommand, 'kind'> & { readonly kind: 'add' | 'remove' | 'clear' }
 
@@ -74,9 +82,14 @@ export class RlvRestrictions {
     if (behaviour === 'permissive' && !option) return 'enforced'
     if (behaviour !== 'sendchannel' && behaviour !== 'sendchannel_sec') return undefined
     if (!option) return 'enforced'
-    const channel = rlvIntegerPrefix(option)
+    const channel = channelOption(option)
     if (this.profile === 'rlv' && String(channel) !== option) return 'unsupported'
     return channel !== undefined && channel > 0 ? 'enforced' : 'unsupported'
+  }
+
+  /** Enforced chat forms dispatch before unsupported-command classification. */
+  supportsChatCommand(parsed: RlvParsedCommand): boolean {
+    return (parsed.kind === 'add' || parsed.kind === 'remove') && this.chatSupport(parsed.behaviour, parsed.option) === 'enforced'
   }
 
   /** Rules whose issuing prims have not granted this private channel. */
@@ -86,7 +99,7 @@ export class RlvRestrictions {
     const family = rules.filter(rule => rule.behaviour === 'sendchannel' || rule.behaviour === 'sendchannel_sec')
     const blocks = family.filter(rule => !rule.option)
     const exceptions = family.filter(rule => rule.option && (this.profile === 'rlva'
-      ? rlvIntegerPrefix(rule.option) === channel : rule.option === String(channel)))
+      ? channelOption(rule.option) === channel : rule.option === String(channel)))
     const strict = rules.some(rule => rule.behaviour === 'permissive' && !rule.option)
     const missing = blocks.filter(rule => (strict || rule.behaviour === 'sendchannel_sec') &&
       !exceptions.some(exception => exception.sourcePrim === rule.sourcePrim))

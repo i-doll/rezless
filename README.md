@@ -661,6 +661,10 @@ These rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
 Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
+RLVa `getcommand` discovers implemented manifest forms with substring, type and
+separator options. Frozen form metadata distinguishes state-only restrictions
+from enforced replies; unsupported forms stay out of discovery. Command logs
+expose unsupported outcomes without adding wire acknowledgements.
 `getattach` reads current attachment point occupancy, including HUDs, using
 the canonical 55-point table. RLVa also supports occupied point names and group
 filters through `getattachnames`; Kokua leaves that query unsupported.

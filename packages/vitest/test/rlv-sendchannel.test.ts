@@ -232,3 +232,27 @@ it('logs enforced command forms as applied and leaves other effects unsupported'
     expect(f.avatar.viewer.restrictions.snapshot().filter(r => r.behaviour.startsWith('sendchannel')).every(r => r.support === 'enforced')).toBe(true)
   }
 })
+
+it('discovers enforced sendchannel forms without routing them through unsupported diagnostics', async () => {
+  const { getRlvCommandCoverage } = await import('../src/index.js')
+  const pair = await loadRlvPair({ source: `integer replies; string channels; string permissive;
+    default {
+      state_entry() {
+        llListen(22103,"",llGetOwner(),""); llListen(22104,"",llGetOwner(),"");
+        llOwnerSay("@getcommand:sendchannel;add=22103,getcommand:permissive;add=22104");
+      }
+      listen(integer c,string n,key id,string m) { ++replies; if(c==22103) channels=m; else permissive=m; }
+    }` })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]
+    f.script.start()
+    expect(f.script.global('replies')).toBe(profile === 'rlva' ? 2 : 0)
+    expect(f.script.global('channels')).toBe(profile === 'rlva' ? 'sendchannel;sendchannel_sec' : '')
+    expect(f.script.global('permissive')).toBe(profile === 'rlva' ? 'permissive' : '')
+    expect(getRlvCommandCoverage(profile).filter(form => ['sendchannel', 'sendchannel_sec', 'permissive'].includes(form.behaviour))).toEqual([
+      { behaviour: 'permissive', type: 'add', support: 'enforced', option: 'none' },
+      { behaviour: 'sendchannel', type: 'add', support: 'enforced', option: 'any' },
+      { behaviour: 'sendchannel_sec', type: 'add', support: 'enforced', option: 'any' },
+    ])
+  }
+})
