@@ -106,6 +106,39 @@ Parse errors and type errors SL would refuse to compile (such as `!` on a key) t
 
 Calls to functions that aren't built in or defined by the script fail to load, as they do in Second Life. If the script calls a function the LSL definitions don't list yet, declare it in `functions` and give it an implementation with `s.mock`.
 
+### Experience key-value controls
+
+An `Experience` shares its store and request controls across every script given
+that instance. Without controls, key-value calls apply immediately and schedule
+`dataserver` answers at the current virtual time.
+
+```ts
+const experience = new Experience()
+experience.failNext(17) // next key-value request answers "0,17" without changing the store
+experience.failNext(1, (request) =>
+  request.source === 'read_key_value' && request.args[0] === 'score',
+) // fail the next matching request; other requests proceed normally
+
+experience.hold()
+// Start or drive scripts using this experience: operations and answers now wait.
+experience.release(1) // apply and answer the oldest request; keep holding new requests
+s.advanceTime(0)      // dispatch its dataserver event
+experience.release() // apply and answer all remaining requests, then resume automatic answers
+s.advanceTime(0)
+```
+
+`failNext` accepts a positive integer XP_ERROR code and an optional predicate over
+`{ key, source, args }`, using the same source names and arguments as
+`s.dataserverRequests`. Failures are selected when a request arrives; the first
+matching failure is consumed once. A held failed request never applies its store
+operation. A held successful request reads or changes the store when released,
+so competing checked updates see earlier released writes and can answer `0,15`
+(`XP_ERROR_RETRY_UPDATE`). `release(count)` accepts a nonnegative integer and
+releases at most that many requests in arrival order. Until release, their
+`dataserverRequests` entries have `fulfilled: false`. Release schedules answers
+at each requesting script's current virtual time; advance each affected linkset
+with `advanceTime(0)` to dispatch them to the scripts in its prim.
+
 ### `Script` handle
 
 ```ts
