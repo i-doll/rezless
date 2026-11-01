@@ -166,7 +166,7 @@ it('broadcasts user-key dataserver answers to every script in the prim', async (
 })
 
 it('returns false for an unknown friendship target and compares the null group directly', async () => {
-  const { script } = await fixture(`integer friend; integer group; integer unknown; default {state_entry(){friend=llIsFriend("${OTHER}");group=llSameGroup(NULL_KEY);unknown=llSameGroup("${OTHER}");}}`)
+  const { script } = await fixture(`integer friend; integer group; integer unknown; default {state_entry(){friend=llIsFriend("44444444-4444-4444-4444-444444444444");group=llSameGroup(NULL_KEY);unknown=llSameGroup("${OTHER}");}}`)
   script.start()
   expect(script.global('friend')).toBe(0)
   expect(script.global('group')).toBe(1)
@@ -296,4 +296,12 @@ it('uses group membership for friendship when deeded to a group', async () => {
   world.sensorProperties.set(linkset, { group: GROUP })
   scripts.test!.start()
   expect(scripts.test!.global('friend')).toBe(1)
+})
+
+// https://wiki.secondlife.com/wiki/llIsFriend
+// Offline friendship needs a second avatar for in-world comparison.
+it('recognizes a known friend who has no presence fixture when the owner is local', async () => {
+  const { script } = await fixture(`integer friend;default{state_entry(){friend=llIsFriend("${OTHER}");}}`)
+  script.start()
+  expect(script.global('friend')).toBe(1)
 })

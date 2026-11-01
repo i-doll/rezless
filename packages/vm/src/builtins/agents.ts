@@ -111,6 +111,6 @@ export const llIsFriend: BuiltinImpl = (ctx, args) => {
   const avatars = ctx.linkset.world?.avatars ?? []
   const owner = avatars.find(a => sameKey(a.key, ctx.linkset.owner))
   const target = avatars.find(a => sameKey(a.key, key))
-  if (!target || (owner?.region !== ctx.linkset.region && target.region !== ctx.linkset.region)) return 0
-  return Number(owner?.friends.has(key.toLowerCase()) || target.friends.has(ctx.linkset.owner.toLowerCase()))
+  if (!(owner && owner.region === ctx.linkset.region) && !(target && target.region === ctx.linkset.region)) return 0
+  return owner?.friends.has(key.toLowerCase()) || target?.friends.has(ctx.linkset.owner.toLowerCase()) ? 1 : 0
 }
