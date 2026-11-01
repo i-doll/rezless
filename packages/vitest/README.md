@@ -1564,3 +1564,22 @@ attachments and direct region chat, and consume owner commands. Firestorm also
 supports `_sec` aliases for the targeted rules; Kokua leaves those unsupported.
 Alternate OOC/ellipsis settings, emote extensions and object-to-avatar name
 impersonation are outside this fixture.
+
+
+`fixture.receivedIM` and `receivedIMLog(avatar)` expose frozen snapshots of IMs
+with the same copied `speaker` identity as received chat, `text`, and `type: 'im'`.
+`llInstantMessage` delivers object IMs to matching avatars anywhere in the World,
+using the builtin's truncated text and preserving the script's send record.
+Object IMs bypass `recvim` and `recvimfrom` in both profiles.
+
+`world.sendAvatarIM(sender, recipientKey, text)` delivers online one-to-one
+avatar IMs independently of sender-side restrictions. `recvim` has sender UUID
+exceptions; `recvim_sec` and `permissive=n` require issuer-scoped exceptions.
+`recvimfrom:<uuid>` independently denies the sender. Kokua displays `...` for
+restricted avatar IMs; Firestorm displays `*** IM blocked by your viewer`.
+Firestorm also supports `recvimfrom_sec`: each secure issuer must list the sender;
+`permissive=n` requires every targeted issuer to list it. Kokua leaves that alias
+inspectably unsupported. Add/remove aliases and clear affect later deliveries.
+Distance options, group IMs, offline messages, privileged senders, automatic
+replies, custom viewer strings, name/location censoring and mute settings are
+outside this delivery contract.
