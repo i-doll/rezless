@@ -303,3 +303,32 @@ it('does not create an RLVa return origin for simulator seating', async () => {
   fixture.userStand()
   expect(avatar.position).toEqual(seated)
 })
+
+
+it.each(['rlv', 'rlva'] as const)('queues %s removed-seat travel without reading avatar properties', async profile => {
+  const { [profile]: { world, avatar, script } } = await setup()
+  const worn = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
+    prims: [{ scripts: [{ name: 'worn', source: { source } }] }] })
+  worn.linkset.attachToAvatar(avatar.key, 1); worn.scripts.worn!.start()
+  issue(script, '@standtp=n,sit:' + script.host.key + '=force')
+  script.host.params.position = { ...moved }
+  script.linkset.remove()
+  worn.linkset.advanceTime(0)
+  expect(worn.scripts.worn!.global('teleports')).toBe(1)
+  expect(avatar.position).toEqual(origin)
+})
+
+it.each(['same', 'other'] as const)('retains Kokua standing-clear behavior for an unrelated filter from %s issuer', async issuer => {
+  const { rlv: fixture } = await setup()
+  const { world, avatar, script } = fixture
+  issue(script, '@standtp=n')
+  const other = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
+    prims: [{ scripts: [{ name: 'other', source: { source } }] }] })
+  other.scripts.other!.start()
+  issue(issuer === 'same' ? script : other.scripts.other!, '@clear=unrelated')
+  expect(avatar.viewer.restrictions.snapshot().some(rule => rule.rule === 'standtp')).toBe(true)
+  world.sitAvatar(avatar, script.host)
+  script.host.params.position = { ...moved }
+  fixture.userStand()
+  expect(avatar.position).toEqual({ x: 0, y: 0, z: 0 })
+})
