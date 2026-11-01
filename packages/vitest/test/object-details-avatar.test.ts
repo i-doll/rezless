@@ -140,3 +140,20 @@ it('keeps mutable resource totals and animated attachment counts typed', async (
   expect(f.read()).toEqual([0.000075, 1, 2])
   expect(f.script.global('types')).toEqual([2, 1, 1])
 })
+
+// https://wiki.secondlife.com/wiki/LlGetLinkPrimitiveParams
+it('assigns avatar links in seating order and appends a reseated avatar', async () => {
+  const f = await fixture('out=llGetObjectDetails(A,[OBJECT_LINK_NUMBER]);')
+  const second = f.world.addAvatar({ region: 'home', username: 'second' })
+  const seat = await loadLinkset({ world: f.world, region: 'home', prims: [{}, {}] })
+  f.world.sitAvatar(second, seat.linkset.prims[1]!)
+  f.world.sitAvatar(f.avatar, seat.linkset.prims[0]!)
+  expect(f.read()).toEqual([4])
+  f.world.standAvatar(second)
+  expect(f.read()).toEqual([3])
+  f.world.sitAvatar(second, seat.linkset.prims[1]!)
+  expect(f.read()).toEqual([3])
+  f.world.standAvatar(f.avatar)
+  f.world.sitAvatar(f.avatar, seat.linkset.prims[0]!)
+  expect(f.read()).toEqual([4])
+})

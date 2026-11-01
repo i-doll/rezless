@@ -444,6 +444,7 @@ function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number): Entr
     case OBJECT_LINK_NUMBER: {
       if (!root) return int(0)
       const seated = ctx.linkset.world!.avatars.filter(a => a.sittingOn?.linkset === root.linkset)
+        .sort((a, b) => a.sittingOrder - b.sittingOrder)
       return int(primsOf(root).length + seated.indexOf(avatar) + 1)
     }
     case OBJECT_PATHFINDING_TYPE: return int(1)

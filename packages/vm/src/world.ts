@@ -113,6 +113,8 @@ export interface WorldAvatar extends WorldEntity {
   visualParams: Record<number, number>
   friends: Set<string>
   sittingOn: Prim | null
+  /** Sequence in which this avatar joined its seat, used for avatar link numbers. */
+  readonly sittingOrder: number
   /** Prim-local offsets captured on sitting; later prim edits affect the next sit. */
   readonly sittingCamera: { readonly eye: Vector; readonly at: Vector } | null
   /** A rotation requested while seated, applied when the avatar stands. */
@@ -295,6 +297,7 @@ export class World {
   /** Targets without scripts to execute. Returned entities may be moved between scans. */
   readonly objects: WorldEntity[] = []
   readonly avatars: WorldAvatar[] = []
+  private nextSittingOrder = 0
   /** Landmark asset UUID to destination. Inventory landmark items resolve through this map. */
   readonly landmarks = new Map<string, AvatarDestination>()
   readonly parcels: Parcel[] = []
@@ -370,6 +373,7 @@ export class World {
     let region = entity.region
     let info = opts.info ?? 0
     let seat: Prim | null = null
+    let sittingOrder = 0
     let seatOffset = ZERO_VECTOR
     let seatOrientation = ZERO_ROTATION
     let sittingCamera: WorldAvatar['sittingCamera'] = null
@@ -409,11 +413,13 @@ export class World {
       visualParams: { ...opts.visualParams },
       friends: new Set(opts.friends?.map(key => key.toLowerCase())),
       get sittingCamera() { clearRemovedSeat(); return sittingCamera },
+      get sittingOrder() { return sittingOrder },
       get sittingOn() { clearRemovedSeat(); return seat },
       set sittingOn(value) {
         cancelPendingSit(avatar)
         const changingSeat = value !== seat && !!(info & AGENT_SITTING)
         snapshotSeat()
+        if (value && value.linkset !== seat?.linkset) sittingOrder = ++world.nextSittingOrder
         seat = value
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
         if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
