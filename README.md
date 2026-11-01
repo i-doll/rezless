@@ -394,7 +394,8 @@ were measured on Aditi in SLua Tideland on 2026-11-01.
 ### Sitting and teleporting
 
 Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to simulate
-viewer seating. `avatar.sittingOn` identifies the occupied prim. Seating updates
+viewer seating. `avatar.sittingOn` identifies the occupied prim. Seated poses
+follow the current prim transform; deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
 `changed(CHANGED_LINK)` throughout the object. The sit-target readers return
 its sitter only while the target is enabled. `llSitOnLink` requires an allowed
@@ -409,7 +410,7 @@ Read attempts, including denials, through `s.teleportRequests`; `accepted`
 means script checks passed, not confirmation from a remote simulator. Local
 look-at vectors denote positions; cross-region vectors denote directions.
 Map landmark asset UUIDs to `{ region, position }` in `world.landmarks`.
-`llTeleportAgentHome` requires parcel ownership under the script and sleeps
+`llTeleportAgentHome` requires parcel ownership under both the script and target avatar and sleeps
 five seconds. Supply `avatar.home` or the `addAvatar` option `home` to move to
 a virtual destination; without it an authorized home request is recorded only.
 

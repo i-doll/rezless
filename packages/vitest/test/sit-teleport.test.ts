@@ -324,3 +324,42 @@ it('coalesces sit and stand changes that have not yet been delivered', async () 
   script.advanceTime(0)
   expect(script.global('changes')).toBe(1)
 })
+
+// In-world: seat-lifecycle.lsl + observer.lsl -> seat x +5 moves sitter x +5;
+// a 90-degree rotation rotates the sitter and its offset. Aditi, SLua Tideland, 2026-11-01.
+it('follows the current seat transform and preserves it when standing', async () => {
+  const { script, avatar, prims, world } = await fixture(`default{state_entry(){llSitTarget(<1,0,1>,ZERO_ROTATION);}touch_start(integer n){llSetPos(<15,20,30>);llSetRot(llEuler2Rot(<0,0,PI_BY_TWO>));}}`)
+  script.start(); world.sitAvatar(avatar, prims[0]!)
+  script.fire('touch_start', { num_detected: 1 })
+  expect(avatar.position.x).toBeCloseTo(15)
+  expect(avatar.position.y).toBeCloseTo(21)
+  expect(avatar.position.z).toBeCloseTo(31)
+  expect(avatar.rotation.z).toBeCloseTo(Math.SQRT1_2)
+  world.standAvatar(avatar)
+  expect(avatar.position.x).toBeCloseTo(15)
+  expect(avatar.position.y).toBeCloseTo(21)
+  expect(avatar.rotation.z).toBeCloseTo(Math.SQRT1_2)
+})
+// In-world: seat-lifecycle.lsl llDie -> info 54 then 262 while falling, then 6.
+// Aditi, SLua Tideland, 2026-11-01. Gravity/standing displacement are not simulated.
+it('clears seating when the object dies and refuses the dead seat', async () => {
+  const { script, avatar, prims, world } = await fixture(`default{state_entry(){llSitTarget(<0,0,1>,ZERO_ROTATION);}touch_start(integer n){llDie();}}`)
+  script.start(); world.sitAvatar(avatar, prims[0]!)
+  script.fire('touch_start', { num_detected: 1 })
+  expect(avatar.info).toBe(6)
+  expect(avatar.sittingOn).toBe(null)
+  expect(world.sitAvatar(avatar, prims[0]!)).toBe(false)
+})
+it('does not grant home authority over an avatar on someone else\'s parcel', async () => {
+  // Home success is deliberately not probed. Comparing owned parcels also needs
+  // land we control; the Tideland sandbox is owned by Linden Lab.
+  const { script, avatar, world } = await fixture(`default{state_entry(){llTeleportAgentHome(llGetOwner());}}`)
+  world.addParcel({ region: 'home', owner: OWNER, bounds: { min: { x: 0, y: 0 }, max: { x: 100, y: 256 } } })
+  world.addParcel({ region: 'home', owner: OTHER, bounds: { min: { x: 100, y: 0 }, max: { x: 256, y: 256 } } })
+  avatar.position = { x: 150, y: 20, z: 30 }
+  avatar.home = { region: 'away', position: { x: 1, y: 2, z: 3 } }
+  script.start()
+  expect(avatar.region).toBe('home')
+  expect(avatar.position).toEqual({ x: 150, y: 20, z: 30 })
+  expect(script.teleportRequests).toEqual([expect.objectContaining({ accepted: false })])
+})

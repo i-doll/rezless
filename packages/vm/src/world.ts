@@ -255,16 +255,45 @@ export class World {
   }
 
   addAvatar(opts: WorldAvatarOptions): WorldAvatar {
+    const world = this
+    const entity = this.entity(opts)
+    let position = entity.position
+    let rotation = entity.rotation
+    let region = entity.region
+    let info = opts.info ?? 0
+    let seat: Prim | null = null
+    const snapshotSeat = (): void => {
+      if (!seat) return
+      position = this.seatPosition(seat)
+      rotation = this.seatRotation(seat)
+      region = seat.linkset?.region ?? region
+    }
+    const clearRemovedSeat = (): void => {
+      if (!seat?.linkset?.dead) return
+      snapshotSeat()
+      seat = null
+      info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
+      if (avatar.standingRotation) rotation = avatar.standingRotation
+      avatar.standingRotation = null
+    }
     const avatar: WorldAvatar = {
-      ...this.entity(opts),
+      ...entity,
       username: opts.username.toLowerCase(),
       displayName: opts.displayName ?? opts.name ?? opts.username,
       size: { ...(opts.size ?? { x: 0.45, y: 0.6, z: 1.9 }) },
-      info: opts.info ?? 0,
+      get info() { clearRemovedSeat(); return info },
+      set info(value) { info = value },
+      get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat) : position },
+      set position(value) { position = value },
+      get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat) : rotation },
+      set rotation(value) { rotation = value },
+      get region() { clearRemovedSeat(); return seat?.linkset?.region ?? region },
+      set region(value) { region = value },
       language: opts.language ?? '',
       visualParams: { ...opts.visualParams },
       friends: new Set(opts.friends?.map(key => key.toLowerCase())),
-      sittingOn: null,
+      get sittingOn() { clearRemovedSeat(); return seat },
+      set sittingOn(value) { snapshotSeat(); seat = value },
       standingRotation: null,
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
     }
@@ -273,22 +302,29 @@ export class World {
     return avatar
   }
 
+  private seatPosition(prim: Prim): Vector {
+    const origin = prim.regionPosition()
+    const target = prim.params.sitTarget
+    const offset = target.enabled ? rotateVector(target.offset, prim.regionRotation()) : ZERO_VECTOR
+    // Target coordinates only; avatar skeleton and collision offsets are not simulated.
+    return { x: origin.x + offset.x, y: origin.y + offset.y, z: origin.z + offset.z }
+  }
+
+  private seatRotation(prim: Prim): Rotation {
+    return prim.params.sitTarget.enabled
+      ? mulRotation(prim.params.sitTarget.rotation, prim.regionRotation()) : { ...prim.regionRotation() }
+  }
+
   /** Seat a fixture avatar on a free prim, as a viewer sit would, without experience permissions. */
   sitAvatar(avatar: WorldAvatar, prim: Prim): boolean {
     const linkset = prim.linkset
-    if (!this.avatars.includes(avatar) || linkset?.world !== this || avatar.region !== linkset.region ||
+    if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || avatar.region !== linkset.region ||
       this.avatars.some(a => a !== avatar && a.sittingOn === prim)) return false
     if (avatar.sittingOn === prim) return true
     const previous = avatar.sittingOn?.linkset
     avatar.sittingOn = prim
     avatar.standingRotation = null
     avatar.info = (avatar.info & ~(AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING | AGENT_ON_OBJECT
-    const origin = prim.regionPosition()
-    const target = prim.params.sitTarget
-    const offset = target.enabled ? rotateVector(target.offset, prim.regionRotation()) : ZERO_VECTOR
-    // Target coordinates only; avatar skeleton and collision offsets are not simulated.
-    avatar.position = { x: origin.x + offset.x, y: origin.y + offset.y, z: origin.z + offset.z }
-    avatar.rotation = target.enabled ? mulRotation(target.rotation, prim.regionRotation()) : { ...prim.regionRotation() }
     if (previous && previous !== linkset) this.sitChanged(previous)
     this.sitChanged(linkset)
     return true

@@ -143,7 +143,9 @@ export const llTeleportAgentHome: BuiltinImpl = (ctx, args) => {
   const agent = avatar(ctx, key)
   const { world, region } = ctx.linkset
   const land = region === undefined ? undefined : world?.parcelAt(region, ctx.prim.regionPosition())
-  const accepted = agent !== undefined && land !== undefined && land.owner !== NULL_KEY && sameKey(land.owner, ctx.linkset.owner)
+  const targetLand = agent ? world?.parcelAt(agent.region, agent.position) : undefined
+  const accepted = land !== undefined && targetLand !== undefined && land.owner !== NULL_KEY &&
+    sameKey(land.owner, ctx.linkset.owner) && sameKey(targetLand.owner, ctx.linkset.owner)
   const destination = agent?.home
   ctx.state.teleportRequests.push({ kind: 'home', agent: key, time: ctx.state.clock.now, accepted,
     ...(destination ? { region: destination.region, position: { ...destination.position } } : {}) })
