@@ -860,11 +860,19 @@ export class Script {
     this.linkset.settle([this])
   }
 
-  /** Copy saved script data into a new prim without restarting its LSL state. */
-  copyTo(host: Prim): Script {
+  /** Queue a fresh inventory script's first event without waiting for its handler. */
+  queueStart(): void {
+    if (this.started || this.dead) return
+    this.started = true
+    this.clockView.schedule(this.now, 'state_entry')
+  }
+
+  /** Copy inventory code; fresh copies omit saved runtime state for remote loading. */
+  copyTo(host: Prim, opts: { fresh?: boolean } = {}): Script {
     const copy = new Script(this.ast, { ...this.options, host, coverage: false })
     Object.assign(copy.mocks, this.mocks)
     copy.state.coverage = this.state.coverage
+    if (opts.fresh) return copy
     for (const g of this.ast.globals) {
       const value = this.global(g.name)
       const saved = Array.isArray(value)

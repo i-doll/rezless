@@ -1,5 +1,7 @@
 import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
 import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
+import { llCastRay } from './raycast.js'
+import { llRemoteLoadScriptPin } from './remote-load.js'
 import { llSetParcelMusicURL, llAddToLandBanList, llAddToLandPassList, llRemoveFromLandBanList, llRemoveFromLandPassList, llResetLandBanList, llResetLandPassList, llEjectFromLand, llReturnObjectsByID, llReturnObjectsByOwner, llSetParcelForSale, llManageEstateAccess, llParcelMediaCommandList, llParcelMediaQuery, llGiveMoney, llTransferLindenDollars, llTransferOwnership } from './land.js'
 import { llGetDisplayName, llGetUsername, llName2Key, llRequestUserKey, llGetAgentInfo, llGetAgentLanguage, llGetAgentList, llGetAgentSize, llGetVisualParams, llIsFriend, llSameGroup } from './agents.js'
 import { llGetLandOwnerAt, llGetParcelDetails, llGetParcelFlags, llGetParcelMaxPrims, llGetParcelPrimCount, llGetParcelPrimOwners, llGetParcelMusicURL, llOverMyLand } from './land.js'
@@ -414,6 +416,8 @@ import {
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD,
+  llRemoteLoadScriptPin,
+  llCastRay,
   llGetDisplayName, llGetUsername, llName2Key, llRequestUserKey, llGetAgentInfo, llGetAgentLanguage, llGetAgentList, llGetAgentSize, llGetVisualParams, llIsFriend, llSameGroup,
   llParticleSystem, llLinkParticleSystem,
   llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,
