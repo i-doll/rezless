@@ -39,7 +39,7 @@ export function rlvExpectationFor<T>(expectations: RlvExpectations<T>, profile: 
   return 'shared' in expectations ? expectations.shared : expectations[profile]
 }
 
-/** Replace the avatar tree and optional item-to-attachment mappings without wearing objects. */
+/** Replace the avatar tree, worn wearable IDs and item-to-attachment mappings without wear operations. */
 export function seedRlvInventory(avatar: WorldAvatar, inventory: RlvInventoryConfig): void {
   avatar.viewer.inventory.seed(inventory)
 }
