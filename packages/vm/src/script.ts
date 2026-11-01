@@ -1,4 +1,6 @@
 import { clearTargetMotion } from './builtins/motion.js'
+import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
+import { PERMISSION_GAME_CONTROL } from './generated/constants.js'
 import { clearTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { stopSensors } from './builtins/sensor.js'
@@ -258,6 +260,7 @@ export class Script {
         return prim.linkset!.linksetData
       },
       appearance: this.host.appearance,
+      gameControlSnapshot: null,
       permissions: { granted: 0, agent: NULL_KEY, requests: [] },
       experience: options.experience ?? null,
       experienceRequests: [],
@@ -617,6 +620,26 @@ export class Script {
     const started = this.handles('control') ? [this] : []
     this.clockView.schedule(this.now, 'control', { id: this.state.permissions.agent, level: held, edge: changed })
     this.linkset.settle(started)
+  }
+
+  /** Set an avatar's semantic input fixture, shared by scripts in this World. */
+  setGameControl(agent: string, input: GameControlState | null): void {
+    const avatars = gameControlAvatars(this.linkset)
+    if (input === null) avatars.delete(agent.toLowerCase())
+    else avatars.set(agent.toLowerCase(), copyGameControl(input))
+  }
+
+  /** Queue raw input and a copy of the avatar's semantic fixture for this script. */
+  sendGameControl(agent: string, raw: { buttons?: number; axes?: readonly number[] } = {}): void {
+    if (!(this.state.permissions.granted & PERMISSION_GAME_CONTROL)
+      || agent.toLowerCase() !== this.state.permissions.agent.toLowerCase()) return
+    const input = gameControlAvatars(this.linkset).get(agent.toLowerCase())
+    const snapshot = input ? { ...copyGameControl(input), agent: agent.toLowerCase() } : null
+    this.fire('game_control', {
+      id: agent, button_levels: (raw.buttons ?? 0) | 0,
+      axes: typedList((raw.axes ?? []).map(Math.fround), (raw.axes ?? []).map(() => 'float')),
+      gameControlSnapshot: snapshot,
+    })
   }
 
   /** Set the permission agent's camera that llGetCameraPos / Rot / FOV / Aspect report. */
@@ -1057,6 +1080,8 @@ export class Script {
     args: ReadonlyArray<EvalResult>,
     payload: Record<string, unknown>,
   ): Generator<Suspension, boolean, unknown> {
+    this.state.gameControlSnapshot = handler.name === 'game_control'
+      ? (payload['gameControlSnapshot'] as GameControlSnapshot | null | undefined) ?? null : null
     enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
@@ -1071,6 +1096,7 @@ export class Script {
       throw e
     } finally {
       if (pushed) this.state.detectedStack.pop()
+      this.state.gameControlSnapshot = null
       leaveDamageEvent(payload)
     }
   }
@@ -1103,6 +1129,7 @@ export class Script {
         if (e instanceof ResetScriptSignal) return true
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
+        this.state.gameControlSnapshot = null
         this.clearDamageAdjustment()
         if (this.state.lifecycle.removed) return false
         const target = e.target

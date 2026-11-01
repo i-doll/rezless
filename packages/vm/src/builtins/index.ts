@@ -1,4 +1,5 @@
 import { llSitOnLink, llUnSit, llSetAgentRot, llTeleportAgent, llTeleportAgentGlobalCoords, llTeleportAgentHome, llAvatarOnSitTarget, llAvatarOnLinkSitTarget } from './sit.js'
+import { llGetGameControlMode, llGetGameControlModeAxes, llGetGameControlModeButtons } from './game-control.js'
 import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
 import { llSetKeyframedMotion, llSetRegionPos, llMoveToTarget, llStopMoveToTarget, llLookAt, llRotLookAt, llStopLookAt } from './motion.js'
 import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
@@ -838,6 +839,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llTeleportAgentHome,
   llAvatarOnSitTarget,
   llAvatarOnLinkSitTarget,
+  // game control
+  llGetGameControlMode,
+  llGetGameControlModeAxes,
+  llGetGameControlModeButtons,
   // script memory
   llGetUsedMemory,
   llGetFreeMemory,
