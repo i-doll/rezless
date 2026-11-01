@@ -262,10 +262,12 @@ export class World {
     let region = entity.region
     let info = opts.info ?? 0
     let seat: Prim | null = null
+    let seatOffset = ZERO_VECTOR
+    let seatOrientation = ZERO_ROTATION
     const snapshotSeat = (): void => {
       if (!seat) return
-      position = this.seatPosition(seat)
-      rotation = this.seatRotation(seat)
+      position = this.seatPosition(seat, seatOffset)
+      rotation = this.seatRotation(seat, seatOrientation)
       region = seat.linkset?.region ?? region
     }
     const clearRemovedSeat = (): void => {
@@ -283,9 +285,9 @@ export class World {
       size: { ...(opts.size ?? { x: 0.45, y: 0.6, z: 1.9 }) },
       get info() { clearRemovedSeat(); return info },
       set info(value) { info = value },
-      get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat) : position },
+      get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat, seatOffset) : position },
       set position(value) { position = value },
-      get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat) : rotation },
+      get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat, seatOrientation) : rotation },
       set rotation(value) { rotation = value },
       get region() { clearRemovedSeat(); return seat?.linkset?.region ?? region },
       set region(value) { region = value },
@@ -293,7 +295,13 @@ export class World {
       visualParams: { ...opts.visualParams },
       friends: new Set(opts.friends?.map(key => key.toLowerCase())),
       get sittingOn() { clearRemovedSeat(); return seat },
-      set sittingOn(value) { snapshotSeat(); seat = value },
+      set sittingOn(value) {
+        snapshotSeat()
+        seat = value
+        const target = seat?.params.sitTarget
+        seatOffset = { ...(target?.enabled ? target.offset : ZERO_VECTOR) }
+        seatOrientation = { ...(target?.enabled ? target.rotation : ZERO_ROTATION) }
+      },
       standingRotation: null,
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
     }
@@ -302,23 +310,21 @@ export class World {
     return avatar
   }
 
-  private seatPosition(prim: Prim): Vector {
+  private seatPosition(prim: Prim, local: Vector): Vector {
     const origin = prim.regionPosition()
-    const target = prim.params.sitTarget
-    const offset = target.enabled ? rotateVector(target.offset, prim.regionRotation()) : ZERO_VECTOR
+    const offset = rotateVector(local, prim.regionRotation())
     // Target coordinates only; avatar skeleton and collision offsets are not simulated.
     return { x: origin.x + offset.x, y: origin.y + offset.y, z: origin.z + offset.z }
   }
 
-  private seatRotation(prim: Prim): Rotation {
-    return prim.params.sitTarget.enabled
-      ? mulRotation(prim.params.sitTarget.rotation, prim.regionRotation()) : { ...prim.regionRotation() }
+  private seatRotation(prim: Prim, local: Rotation): Rotation {
+    return mulRotation(local, prim.regionRotation())
   }
 
   /** Seat a fixture avatar on a free prim, as a viewer sit would, without experience permissions. */
   sitAvatar(avatar: WorldAvatar, prim: Prim): boolean {
     const linkset = prim.linkset
-    if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || avatar.region !== linkset.region ||
+    if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region ||
       this.avatars.some(a => a !== avatar && a.sittingOn === prim)) return false
     if (avatar.sittingOn === prim) return true
     const previous = avatar.sittingOn?.linkset

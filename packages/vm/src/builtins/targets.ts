@@ -12,8 +12,21 @@ interface Targets {
   positions: Target<Vector>[]
   rotations: Target<Rotation>[]
   cancel: (() => void) | undefined
+  resume: (() => void) | undefined
 }
 const targets = new WeakMap<Script, Targets>()
+
+/** Inventory pauses checks while retaining values and handle numbers. */
+export function pauseTargets(script: Script): void {
+  const entries = targets.get(script)
+  entries?.cancel?.()
+  if (entries) entries.cancel = undefined
+}
+
+export function resumeTargets(script: Script): void {
+  const entries = targets.get(script)
+  if (entries && !entries.cancel && (entries.positions.length || entries.rotations.length)) entries.resume?.()
+}
 
 /** Reset/deletion clear registrations and their handle counter; state changes preserve them. */
 export function clearTargets(script: Script): void {
@@ -61,16 +74,21 @@ function check(ctx: CallContext, entries: Targets): void {
 function register(ctx: CallContext): Targets {
   let entries = targets.get(ctx.script)
   if (!entries) {
-    entries = { nextHandle: 1, positions: [], rotations: [], cancel: undefined }
+    entries = { nextHandle: 1, positions: [], rotations: [], cancel: undefined, resume: undefined }
     targets.set(ctx.script, entries)
   }
   if (!entries.cancel) {
     const current = entries
-    const tick = () => {
-      check(ctx, current)
+    const schedule = () => {
+      if (!ctx.script.linkset.peers.includes(ctx.script.linkset)) return
       current.cancel = ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + INTERVAL, tick)
     }
-    entries.cancel = ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + INTERVAL, tick)
+    const tick = () => {
+      check(ctx, current)
+      schedule()
+    }
+    current.resume = schedule
+    schedule()
   }
   return entries
 }

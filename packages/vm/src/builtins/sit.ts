@@ -45,6 +45,7 @@ export const llSitOnLink: BuiltinImpl = (ctx, args) => {
   if (![...xp.agents].some(key => sameKey(key, agent.key))) return -2
   const requested = prim(ctx, args[1] as number)
   if (!requested) return -5
+  if (ctx.linkset.attachment) return -7
   const targets = [requested, ...ctx.linkset.prims.filter(p => p !== requested)]
   const seat = targets.find(p => p.params.sitTarget.enabled &&
     !ctx.linkset.world!.avatars.some(a => a.sittingOn === p))
@@ -79,6 +80,10 @@ export const llSetAgentRot: BuiltinImpl = (ctx, args) => {
 }
 
 function mayTeleport(ctx: CallContext, key: string): boolean {
+  if (ctx.linkset.attachment?.temporary) {
+    sayError(ctx, 'Temporary attachments cannot teleport agents')
+    return false
+  }
   const xp = ctx.state.experience
   const experience = xp?.allowedHere && [...xp.agents].some(agent => sameKey(agent, key))
   const permission = (ctx.state.permissions.granted & PERMISSION_TELEPORT) &&

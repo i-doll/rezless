@@ -395,7 +395,8 @@ were measured on Aditi in SLua Tideland on 2026-11-01.
 
 Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to simulate
 viewer seating. `avatar.sittingOn` identifies the occupied prim. Seated poses
-follow the current prim transform; deleting the object clears occupancy. Seating updates
+follow the current prim transform with the offset captured at seating; editing
+the target affects future sits. Deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
 `changed(CHANGED_LINK)` throughout the object. The sit-target readers return
 its sitter only while the target is enabled. `llSitOnLink` requires an allowed
@@ -405,7 +406,8 @@ sitter on its own object. Land ownership also permits unsitting other sitters.
 `llSetAgentRot` requires animation permission and changes yaw. A rotation
 requested while sitting applies when standing. `llTeleportAgent` and
 `llTeleportAgentGlobalCoords` require teleport permission from the owner, or
-an accepted experience. They stand a sitter and move the avatar fixture.
+an accepted experience. Temporary attachments reject teleport calls and new
+teleport-permission requests. Accepted teleports stand a sitter and move the avatar fixture.
 Read attempts, including denials, through `s.teleportRequests`; `accepted`
 means script checks passed, not confirmation from a remote simulator. Local
 look-at vectors denote positions; cross-region vectors denote directions.
@@ -529,6 +531,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`
 * **experiences**: `llGetExperienceDetails`, `llGetExperienceErrorMessage`, `llAgentInExperience`, `llRequestExperiencePermissions` (an agent who already accepted is granted at once; answer others with `s.grantExperiencePermissions` / `s.denyExperiencePermissions`), and the key-value store: `llCreateKeyValue`, `llReadKeyValue`, `llUpdateKeyValue`, `llDeleteKeyValue`, `llKeyCountKeyValue`, `llKeysKeyValue`, `llDataSizeKeyValue`, which answer through `dataserver` on every script in the prim with `1,<result>` or `0,<XP_ERROR_*>`. Without an experience they answer `0,5`. Seed or inspect the store with `experience.seed([['k', 'v']])` and `experience.store`; pass `allowedHere: false` for land that doesn't allow the experience.
 * **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
+* **attachments**: `llAttachToAvatar`, `llAttachToAvatarTemp`, `llDetachFromAvatar`, `llGetAttached`, `llGetAttachedList`, `llGetAttachedListFiltered`, `llWorldPosToHUD`. Attach calls require `PERMISSION_ATTACH`; detach requires an avatar permission key but does not require the ATTACH bit. `linkset.attachToAvatar(avatar, point, temporary)` supplies a viewer-worn fixture without granting script permissions; inspect `linkset.attachment` for avatar, point and temporary status. Detach removes the object from region queries, preserves normal attachment script state, and destroys temporary attachments after their final event. Sleeping detach handlers and recurring sensor/target work pause in inventory until fixture rewear. Lists return root keys in attachment order and hide HUDs unless the caller and HUD share an allowed, accepted experience. Set projection camera settings with `s.setCamera`. Bone transforms, avatar inventory persistence and viewer attachment limits are not simulated; other-region avatar fixtures represent child agents for list errors.
 * **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` (zero values without `PERMISSION_TRACK_CAMERA`; set them with `s.setCamera`), `llSetCameraParams`, `llClearCameraParams` (rules recorded in `s.cameraParams`)
 * **sitting and teleporting**: `llSitOnLink`, `llUnSit`, `llSetAgentRot`, `llTeleportAgent`, `llTeleportAgentGlobalCoords`, `llTeleportAgentHome`, plus the sit-target readers. Configure World avatar fixtures and inspect `s.teleportRequests` as described above.
 

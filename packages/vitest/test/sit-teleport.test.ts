@@ -363,3 +363,51 @@ it('does not grant home authority over an avatar on someone else\'s parcel', asy
   expect(avatar.position).toEqual({ x: 150, y: 20, z: 30 })
   expect(script.teleportRequests).toEqual([expect.objectContaining({ accepted: false })])
 })
+
+// https://wiki.secondlife.com/wiki/llSitTarget
+// In-world: target-change.lsl -> changing or disabling the target preserves the
+// seated pose; moving the prim then moves the sitter. Aditi, SLua Tideland, 2026-11-01.
+it('keeps the occupied offset when a script edits or disables its sit target', async () => {
+  const { script, avatar, world, prims } = await fixture(`default{state_entry(){llSitTarget(<1,0,1>,ZERO_ROTATION);}touch_start(integer n){llSitTarget(<5,0,1>,llEuler2Rot(<0,0,PI_BY_TWO>));}touch_end(integer n){llSitTarget(ZERO_VECTOR,ZERO_ROTATION);llSetPos(<15,20,30>);}}`)
+  script.start(); world.sitAvatar(avatar, prims[0]!)
+  script.fire('touch_start', { num_detected: 1 })
+  expect(avatar.position).toEqual({ x: 11, y: 20, z: 31 })
+  expect(avatar.rotation).toEqual({ x: 0, y: 0, z: 0, s: 1 })
+  script.fire('touch_end', { num_detected: 1 })
+  expect(avatar.position).toEqual({ x: 16, y: 20, z: 31 })
+  expect(avatar.sittingOn).toBe(prims[0])
+})
+
+// In-world: temp-teleport.lsl -> permission 4128 granted before temporary attachment;
+// teleport rejected with 'Temporary attachments cannot teleport agents'.
+// Aditi, SLua Tideland, 2026-11-01.
+it.each(['llTeleportAgent(llGetOwner(),"",<30,40,50>,ZERO_VECTOR)',
+  'llTeleportAgentGlobalCoords(llGetOwner(),<1024,2048,0>,<30,40,50>,ZERO_VECTOR)'])('blocks temporary attachments calling %s', async call => {
+  const { script, avatar, linkset } = await fixture(`default{state_entry(){llRequestPermissions(llGetOwner(),PERMISSION_ATTACH|PERMISSION_TELEPORT);}touch_start(integer n){${call};}}`)
+  script.start(); script.grantPermissions(); linkset.attachToAvatar(OWNER, 5, true)
+  script.fire('touch_start', { num_detected: 1 })
+  expect(avatar.position).toEqual({ x: 10, y: 20, z: 30 })
+  expect(errors(script)).toEqual(['Temporary attachments cannot teleport agents'])
+  expect(script.teleportRequests).toEqual([expect.objectContaining({ accepted: false })])
+})
+it('rejects temporary attachment teleport permission requests without clearing an existing grant', async () => {
+  // In-world: temp-teleport.lsl -> the request error differs from the teleport
+  // error, and the existing 4128 grant persists. Aditi, SLua Tideland, 2026-11-01.
+  const { script, linkset } = await fixture(`integer granted;integer events;default{state_entry(){llRequestPermissions(llGetOwner(),PERMISSION_ATTACH|PERMISSION_TELEPORT);}run_time_permissions(integer p){++events;}touch_start(integer n){llRequestPermissions(llGetOwner(),PERMISSION_TELEPORT);granted=llGetPermissions();}}`)
+  script.start(); script.grantPermissions(); linkset.attachToAvatar(OWNER, 5, true)
+  script.fire('touch_start', { num_detected: 1 })
+  expect(script.permissionRequests).toHaveLength(1)
+  expect(script.global('granted')).toBe(4128)
+  expect(script.global('events')).toBe(1)
+  expect(errors(script)).toEqual(['Temporary attachments cannot request runtime permissions to teleport'])
+})
+it('rejects forced and viewer seating on attachments', async () => {
+  // Forced -7 needs an experience-enabled parcel to measure; attachments cannot be sat upon.
+  // https://wiki.secondlife.com/wiki/llSitOnLink
+  const { script, world, avatar, prims, linkset } = await fixture(`integer result;default{state_entry(){llSitTarget(<0,0,1>,ZERO_ROTATION);result=llSitOnLink(llGetOwner(),1);}}`, xp())
+  linkset.attachToAvatar(OWNER, 5)
+  script.start()
+  expect(script.global('result')).toBe(-7)
+  expect(world.sitAvatar(avatar, prims[0]!)).toBe(false)
+  expect(avatar.sittingOn).toBe(null)
+})
