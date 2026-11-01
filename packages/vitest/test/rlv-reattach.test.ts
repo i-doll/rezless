@@ -319,3 +319,52 @@ it('retains Kokua recovery when its inventory item disappears', async () => {
  send(other.scripts.other!, '@sendchat=n')
  expect(avatar.viewer.session.pendingCommands).toBe(1)
 })
+
+it('preserves Kokua issuer identities when recovering after a region change', async () => {
+ const pair = await fixtures()
+ for (const [profile, { script, avatar, world }] of Object.entries(pair)) {
+  const key = script.host.key
+  world.addRegion('Destination', { x: 256, y: 0 })
+  script.linkset.detachFromAvatar()
+  expect(world.teleportAvatar(avatar, { x: 270, y: 20, z: 30 })).toBe(true)
+  script.advanceTime(20000)
+  const recovered = avatar.viewer.inventory.attachmentObject('item')!
+  expect(recovered.region).toBe('Destination')
+  expect(recovered.attachment?.point).toBe(5)
+  expect(avatar.viewer.restrictions.snapshot().map(rule => rule.rule)).toEqual(profile === 'rlv' ? ['detach'] : [])
+  if (profile === 'rlv') {
+   expect(recovered).toBe(script.linkset)
+   expect(recovered.prims[0]!.key).toBe(key)
+  }
+ }
+})
+
+it('uses RLVa watchdog fallback after an acknowledged attempt fails', async () => {
+ const { rlva: { script, avatar, world } } = await fixtures()
+ script.linkset.detachFromAvatar()
+ script.linkset.remove()
+ avatar.viewer.session.savedAttachment('item')
+ script.advanceTime(19999)
+ const definition = await loadLinkset({ prims: [{}] })
+ seedRlvInventory(avatar, { sharedRootId: null, entries: [
+  { id: 'item', parentId: null, kind: 'item', name: 'Recovery', assetType: 'object', object: definition.linkset },
+ ] })
+ expect(world.linksets.filter(object => object.attachment)).toHaveLength(0)
+ script.advanceTime(1)
+ expect(world.linksets.filter(object => object.attachment).map(object => object.attachment!.point)).toEqual([5])
+})
+
+it('accepts another RLVa save acknowledgement before the watchdog fallback', async () => {
+ const { rlva: { script, avatar, world } } = await fixtures()
+ script.linkset.detachFromAvatar()
+ script.linkset.remove()
+ avatar.viewer.session.savedAttachment('item')
+ script.advanceTime(1000)
+ const definition = await loadLinkset({ prims: [{}] })
+ seedRlvInventory(avatar, { sharedRootId: null, entries: [
+  { id: 'item', parentId: null, kind: 'item', name: 'Recovery', assetType: 'object', object: definition.linkset },
+ ] })
+ avatar.viewer.session.savedAttachment('item')
+ script.advanceTime(0)
+ expect(world.linksets.filter(object => object.attachment).map(object => object.attachment!.point)).toEqual([5])
+})

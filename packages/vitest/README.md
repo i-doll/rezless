@@ -1124,14 +1124,15 @@ pauses collection and retains incoming commands, with the configured version
 query bypass. Failed recovery retries once elapsed whole seconds exceed 60;
 new commands then pass through, while earlier retained work waits for success.
 Successful recovery releases that work and preserves the recovered object's
-restrictions.
+restrictions and retained prim identities, including after a region change.
 
 Firestorm RLVa 2.4.2 adds recovered items alongside existing occupants, bypassing
 wear locks. `avatar.viewer.session.savedAttachment(itemId)` supplies an inventory
 save acknowledgement; advance the clock by zero to complete its queued request.
-Without that acknowledgement, a watchdog ticking every 10000 ms from the first
-pending detach requests recovery once more than 15000 ms have elapsed, then
-retries failed requests after more than 30000 ms. Missing inventory items cancel
+A watchdog ticking every 10000 ms from the first pending detach requests recovery
+once more than 15000 ms have elapsed, including after a failed acknowledged
+attempt. Later failed watchdog requests retry after more than 30000 ms. Further
+save acknowledgements can request recovery until the first watchdog attempt. Missing inventory items cancel
 pending recovery. Commands continue during recovery, and cleared self restrictions
 are not restored. The registered valid bridge is exempt.
 
