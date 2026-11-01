@@ -98,7 +98,7 @@ export const RLV_MANIFEST: {
           'Object queries require positive signed channels excluding DEBUG_CHANNEL. Replies use the current avatar global position, reach listeners within 100 m across regions, and truncate once to 1023 UTF-8 bytes without cutting a character. Valid empty query results still deliver one message. Console loopback and redirected-chat splitting are outside the covered forms.'),
           support: 'enforced', coveredForms: ['Positive version-query channels except DEBUG_CHANNEL', 'sendViewerReply: single-message payload truncation and avatar-origin routing'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-channels.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-channels.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'add-remove-clear', forms: ['@<behaviour>[:<option>]=n|add', '@<behaviour>[:<option>]=y|rem', '@clear', '@clear=', '@clear=<filter>'],
@@ -108,13 +108,13 @@ export const RLV_MANIFEST: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
           'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.'),
           commandForms: restrictionForms,
-          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
+          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
           'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.'),
           commandForms: restrictionForms,
-          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
+          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'sendchannel', forms: ['@sendchannel[:<channel>]=n|add|y|rem', '@sendchannel_sec[:<channel>]=n|add|y|rem', '@permissive=n|add|y|rem'],
@@ -151,7 +151,7 @@ export const RLV_MANIFEST: {
           commandForms: replyForms('getstatus', 'getstatusall'),
           support: 'enforced', coveredForms: ['Caller-prim getstatus and avatar-wide getstatusall on valid reply channels', 'Canonical rule substring filters, default and custom separators, empty replies', 'Per-prim insertion order and ascending emitter UUID order with duplicates retained'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-status.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-status.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'getinv', forms: ['@getinv[:<path>]=<channel>'], comparison: 'confirmed difference',
@@ -278,7 +278,7 @@ export const RLV_MANIFEST: {
             { behaviour: 'detachme', type: 'force', support: 'enforced', option: 'none' },
           ], coveredForms: ['No-option detach n/add and y/rem with root and child issuer locks', 'Explicit viewer detach attempt and queued root force self-detach', 'Child self-detach no-op, rejected nonempty options, attach events and llGetAttached state', 'Simulator detach remains independent of viewer locks'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-detach.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-detach.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'seating', forms: ['@getsitid[:<option>]=<channel>', '@sit[:<uuid>]=force', '@unsit=force', '@sit=n|y', '@unsit=n|y', '@sittp[:<distance>]=n|y'],
