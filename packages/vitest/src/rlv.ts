@@ -1,3 +1,4 @@
+import { avatarGestureLog, type AvatarGesture, type AvatarGestureAction } from '@rezless/vm'
 import { receivedChatLog, receivedIMLog, type ReceivedChat, type ReceivedIM } from '@rezless/vm'
 import { attemptRlvWearable, attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type AvatarChatVolume, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
@@ -16,6 +17,8 @@ export interface RlvFixture {
   readonly attemptDetach: (attachment?: Linkset) => RlvDetachOutcome
   readonly receivedIM: readonly ReceivedIM[]
   readonly receivedChat: readonly ReceivedChat[]
+  readonly gestureActions: readonly AvatarGestureAction[]
+  playGesture(gesture: AvatarGesture): AvatarGestureAction
   readonly chatActions: readonly AvatarChatAction[]
   readonly teleportActions: readonly (RlvTeleportAction & RlvCommandRecord)[]
   attemptWearable(itemId: string, wear: boolean): import('@rezless/vm').RlvWearableActionOutcome
@@ -39,6 +42,8 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
         entry.status === 'action' && entry.action === 'tpto') },
       get receivedIM() { return receivedIMLog(avatar) },
       get receivedChat() { return receivedChatLog(avatar) },
+      get gestureActions() { return avatarGestureLog(avatar) },
+      playGesture: gesture => world.playAvatarGesture(avatar, gesture),
       get chatActions() { return avatarChatLog(avatar) },
       attemptWearable: (itemId, wear) => attemptRlvWearable(avatar, itemId, wear),
       userSit: (prim, offset) => {

@@ -116,3 +116,6 @@ export type { RlvViewerContext, RlvViewerEffect, RlvRenderParameters } from './r
 
 export { receivedChatLog, receivedIMLog } from './rlv/received.js'
 export type { ReceivedChat, ReceivedChatSpeaker, ReceivedIM } from './rlv/received.js'
+
+export { playAvatarGesture, avatarGestureLog } from './rlv/gesture.js'
+export type { AvatarGesture, AvatarGestureAction } from './rlv/gesture.js'
