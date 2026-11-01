@@ -22,7 +22,8 @@ clearing particles, the position target and pulling. Tracking continues so it
 can resume when the endpoint returns.
 
 Post scans for nearby objects with `llSensor`. The dialog numbers up to nine
-results so even identical object names remain selectable. Selecting one aims
+results so even identical object names remain selectable. It shortens displayed
+names to keep the message within the dialog byte limit. Selecting one aims
 the chain and movement target at its key. Removing the post makes the leash
 slack. Unleash removes the endpoint, stops the timer and closes the menu too.
 

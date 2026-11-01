@@ -107,6 +107,25 @@ describe('collar leash', () => {
     expect(f.script.callsOf('llMoveToTarget')).toHaveLength(pulls)
   })
 
+  it('keeps nine long Unicode post names within the dialog byte limit', async () => {
+    const f = await scene()
+    const name = '界'.repeat(21)
+    f.post.prims[0]!.name = name
+    let lastPost = f.post
+    for (let i = 1; i <= 8; ++i) {
+      lastPost = await loadLinkset({ world: f.world, region: 'Garden', owner: f.wearer.key,
+        position: position(46, 70 + i / 10), prims: [{ name }] })
+    }
+    f.grab()
+    f.open()
+    f.script.answerDialog('Post')
+    const dialog = f.script.dialogs.at(-1)!
+    expect(dialog.buttons).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9'])
+    expect(Buffer.byteLength(dialog.message, 'utf8')).toBeLessThanOrEqual(511)
+    f.script.answerDialog('9')
+    expect(f.particleTarget()).toBe(lastPost.prims[0]!.key)
+  })
+
   it('reports an empty post scan without losing the holder', async () => {
     const f = await scene()
     f.grab()

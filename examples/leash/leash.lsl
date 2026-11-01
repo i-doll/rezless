@@ -139,7 +139,9 @@ default
             string number = (string)(i + 1);
             posts += [llDetectedKey(i)];
             choices += [number];
-            description += number + ": " + llDetectedName(i) + "\n";
+            string label = llDetectedName(i);
+            if (llStringLength(label) > 11) label = llGetSubString(label, 0, 10) + "...";
+            description += number + ": " + label + "\n";
         }
         choosingPost = TRUE;
         llDialog(menuUser, description, choices, MENU_CHANNEL);
