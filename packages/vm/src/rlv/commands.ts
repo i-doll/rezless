@@ -1,5 +1,6 @@
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
+import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
@@ -46,6 +47,9 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       (parsed.behaviour === 'getstatus' || parsed.behaviour === 'getstatusall')) {
       text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
         parsed.behaviour === 'getstatus' ? prim.key : undefined)
+    }
+    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) && parsed.behaviour === 'getinv') {
+      text = getRlvInventoryList(viewer.profile, viewer.inventory, parsed.option)
     }
     if (text === undefined && parsed && !malformed && dispatchRestrictionCommand(viewer, prim, parsed, command)) continue
     const entry = { command, sourcePrim: prim.key, ...(parsed ? { parsed } : {}) }

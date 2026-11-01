@@ -81,3 +81,6 @@ export type { RlvParameterKind, RlvParsedCommand } from './rlv/classifier.js'
 export { isValidReplyChannel, sendViewerReply } from './rlv/reply.js'
 export { getRlvStatus } from './rlv/status.js'
 export type { RlvRestriction } from './rlv/restrictions.js'
+
+export { RlvInventory, getRlvInventoryList } from './rlv/inventory.js'
+export type { RlvInventoryConfig, RlvInventoryEntry } from './rlv/inventory.js'

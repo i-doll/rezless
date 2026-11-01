@@ -582,6 +582,34 @@ Queries report only stored rules and do not extend restriction support.
 query handlers. Omit `sourcePrim` to include all prims. Snapshots retain their
 separate inspection order.
 
+`seedRlvInventory(avatar, { sharedRootId, entries })` replaces one avatar's
+inventory fixture. Each entry has a stable `id`, `parentId` (or `null`), `name`
+and `kind` (`folder` or `item`). Entry order defines direct-child order. The
+shared root is explicit; `null` means absent even if a folder is named `#RLV`.
+The same configuration can be supplied as `viewer.inventory` to `world.addAvatar`.
+`avatar.viewer.inventory.snapshot()` returns frozen copies. Duplicate IDs,
+missing or non-folder parents, invalid shared roots and cycles are rejected
+without replacing the previous fixture. Ordinary inventory can be seeded
+outside the shared root. Prim contents and inventory offers remain separate.
+Folder `folded: true` supplies the effective RLVa folded-folder state, including
+legacy naming; automatic naming and attachment-point inference are outside this fixture.
+
+`@getinv[:<path>]=<channel>` returns direct folder names through the existing
+reply queue and channel policy. Names retain fixture order, casing, commas and
+duplicates. Items, empty names and dot-prefixed names are omitted. An absent
+shared root, missing path or empty folder produces one empty message.
+
+Both profiles match paths without case sensitivity and prefer exact names over
+partial names. RLVa chooses the first exact duplicate and permits explicit
+hidden paths. Its listings also omit slash-bearing and effectively folded folders.
+Kokua excludes hidden paths, chooses the last exact duplicate, strips pipe suffixes
+from path segments, and matches the longest span of a slash-bearing folder name.
+Empty slash segments are ignored; a slash-only path selects the root for RLVa
+and yields an empty result for Kokua. Neither profile escapes the shared tree.
+`getRlvInventoryList(profile, avatar.viewer.inventory, path?)` returns the
+untruncated result from `@rezless/vm`. Wear operations, inventory links, live
+fetching, `getinvworn` and automatic naming remain unsupported.
+
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`
 means a reply is delivered; version reporting does not imply support for other

@@ -661,6 +661,9 @@ These rules are state-only. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
+`seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
+relations and an explicit shared root. `getinv` returns direct folder names with
+profile-specific path matching and visibility filters.
 
 ## License
 

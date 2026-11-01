@@ -107,6 +107,19 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-status.test.ts'],
     },
     {
+      id: 'getinv', forms: ['@getinv[:<path>]=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles list nonempty non-hidden direct folder names, preserve inventory order and duplicates, omit items, and return empty messages for absent roots, empty folders and unknown paths. Comma names pass through as wire text, as the wiki warns. Both use case-insensitive partial lookup with exact-name priority and skip empty path segments. Kokua excludes hidden paths, selects the last exact duplicate, supports slash-bearing folder names using longest path spans, and strips pipe suffixes. RLVa permits exact hidden paths, selects the first exact duplicate, and excludes slash-bearing and folded folders from listings. Folded state depends on legacy naming and is an explicit fixture flag.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::getInventoryList', 'RRInterface::getCategoryUnderRlvShare', 'match'],
+          'Queries enumerate only the explicit avatar shared root and descendants. Kokua filters empty and dot-prefixed names. Longest matching path spans win; equal spans prefer later exact matches. Slash-only nonempty paths return empty results. Prim inventory and inventory offers do not populate this fixture.'),
+          support: 'enforced', coveredForms: ['Root and nested getinv on valid reply channels, including empty replies', 'Case-insensitive partial paths, exact-name priority, duplicate names, slash names and pipe suffixes', 'Per-avatar seeded inventory with stable IDs, parents, explicit shared root and immutable snapshots'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetInv', 'RlvInventory::getSharedFolder', 'RlvInventory::isFoldedFolder', 'RLV_FOLDER_INVALID_CHARS'],
+          'Queries enumerate only the explicit avatar shared root and descendants. RLVa filters empty, hidden, slash-bearing and effectively folded names. Path segments choose the first exact match or first non-hidden partial match. Hidden exact paths remain queryable. Effective folded state is supplied per folder; naming inference and viewer setting overrides are outside the fixture.'),
+          support: 'enforced', coveredForms: ['Root and nested getinv on valid reply channels, including empty replies', 'Case-insensitive exact and partial paths, first exact duplicate, hidden exact paths and empty segments', 'Per-avatar seeded inventory with stable IDs, parents, explicit shared root, effective folded flags and immutable snapshots'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-getinv.test.ts'],
+    },
+    {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
       comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
       profiles: {
