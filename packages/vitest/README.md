@@ -2105,3 +2105,10 @@ It changes the query fixture without changing the avatar's body.
 RLVa also answers read-only `getdebug_aspectratio` with three decimal places;
 Kokua returns an empty reply for that setting. Settings persistence and renderer
 changes are outside this fixture.
+
+RLVa normalizes all folded ancestors when checking an item's folder policy.
+Its live selectors require items inside the shared inventory tree. At clothing
+capacity, a locked item anywhere on the incoming layer prevents a force add,
+even when the top item is unlocked. Kokua folder attach selectors compare the
+literal option to the canonical point name, so `root` does not alias
+`avatar center` in these restrictions.

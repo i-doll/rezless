@@ -358,6 +358,11 @@ export function isRlvFolderWearLocked(avatar: WorldAvatar, entry: RlvInventoryEn
   const relevant = rules.filter(rule => rule.support === 'enforced' && folderLockNames.has(rule.behaviour) && rule.behaviour.startsWith(family))
   if (!relevant.length) return false
   let folder = getRlvItemFolder(profile, inventory, entry)
+  if (profile === 'rlva') {
+    while (entries.find(parent => parent.id === folder)?.folded) {
+      folder = entries.find(parent => parent.id === folder)?.parentId ?? undefined
+    }
+  }
   if (!folder) return false
   const original = folder
   const targets = (rule: RlvRestriction): readonly string[] => {

@@ -206,3 +206,54 @@ it('keeps non-removable bodyparts classified as skipped under folder removal loc
     expect(f.avatar.viewer.commandLog.at(-1)?.removeResults).toContainEqual({ itemId: 'shape', outcome: 'skipped', reason: 'bodypart' })
   }
 })
+
+it('RLVa normalizes all folded ancestors before applying a node denial', async () => {
+  for (const [profile, f] of Object.entries(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot().map(e => e.id === 'shirt'
+      ? { ...e, parentId: 'fold2' } : e),
+      { id: 'fold1', parentId: 'base', kind: 'folder', name: '.Fold1', folded: true },
+      { id: 'fold2', parentId: 'fold1', kind: 'folder', name: '.Fold2', folded: true }],
+      wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@attachthis:base=n')
+    expect(f.attemptWearable('shirt', true)).toBe(profile === 'rlva' ? 'blocked' : 'allowed')
+  }
+})
+it('RLVa live folder selectors exclude inventory outside the shared tree', async () => {
+  for (const f of Object.values(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot().map(e => e.id === 'shirt' || e.id === 'other-shirt' || e.id === 'issuer'
+      ? { ...e, parentId: 'outside' } : e),
+      { id: 'outside', parentId: null, kind: 'folder', name: 'Outside' }],
+      wornWearables: ['shirt'], wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@attachthis:shirt=n,detachthis:shirt=n,attachthis=n,detachthis=n')
+    expect(f.attemptWearable('other-shirt', true)).toBe('allowed')
+    expect(f.attemptWearable('shirt', false)).toBe('allowed')
+  }
+})
+it('Kokua folder attach selectors retain the literal root option', async () => {
+  for (const recursive of [false, true]) for (const f of Object.values(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: inv.snapshot().map(e => e.id === 'a' ? { ...e, name: 'A (root)' } : e),
+      wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, `@attach${recursive ? 'all' : ''}this:root=n`)
+    expect(f.attemptWearable('shirt', true)).toBe('allowed')
+    f.attemptWearable('shirt', false)
+    send(f, `@attach${recursive ? 'all' : ''}this:avatar center=n`)
+    expect(f.attemptWearable('shirt', true)).toBe(f.avatar.viewer.profile === 'rlv' ? 'blocked' : 'allowed')
+  }
+})
+it('RLVa rejects capacity additions if any item on the incoming layer is removal locked', async () => {
+  for (const [profile, f] of Object.entries(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot(),
+      { id: 'incoming', parentId: 'child', kind: 'item', name: 'Incoming shirt', wearableType: 'shirt' },
+      ...Array.from({ length: 58 }, (_, i) => ({ id: 'filler-' + i, parentId: 'other', kind: 'item' as const, name: 'Filler', wearableType: 'pants' as const }))],
+      wornWearables: ['shirt', 'other-shirt', ...Array.from({ length: 58 }, (_, i) => 'filler-' + i)],
+      wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@detachthis:base=n,attachover:base/child=force')
+    expect(inv.wornWearables()).toContain('shirt')
+    expect(inv.wornWearables()).toContain(profile === 'rlva' ? 'other-shirt' : 'incoming')
+    expect(inv.wornWearables()).not.toContain(profile === 'rlva' ? 'incoming' : 'other-shirt')
+  }
+})
