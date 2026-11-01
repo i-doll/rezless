@@ -257,3 +257,16 @@ it('RLVa rejects capacity additions if any item on the incoming layer is removal
     expect(inv.wornWearables()).not.toContain(profile === 'rlva' ? 'incoming' : 'other-shirt')
   }
 })
+
+it('Kokua point-based folder locks use the rightmost recognized item point', async () => {
+  for (const f of Object.values(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: inv.snapshot().map(e => e.id === 'a' ? { ...e, name: 'A (left hand) (right hand)' } : e),
+      wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@attachthis:left hand=n')
+    expect(f.attemptWearable('shirt', true)).toBe('allowed')
+    f.attemptWearable('shirt', false)
+    send(f, '@attachthis:right hand=n')
+    expect(f.attemptWearable('shirt', true)).toBe(f.avatar.viewer.profile === 'rlv' ? 'blocked' : 'allowed')
+  }
+})

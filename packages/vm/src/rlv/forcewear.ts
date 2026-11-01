@@ -3,10 +3,10 @@ import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { RlvProfile } from './profiles.js'
-import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint, isRlvAttachmentBridge, getRlvSavedPoint, rlvForceDetachBlock } from './attachments.js'
+import { getRlvAttachmentPoint, isRlvAttachmentBridge, getRlvSavedPoint, rlvForceDetachBlock } from './attachments.js'
 import { isRlvBodypart, isRlvStrippable } from './outfit.js'
 import { isRlvDetachLocked as locked, isRlvPointLocked } from './detach.js'
-import { isRlvFolderWearLocked, collectRlvWearItems, getRlvInventoryFolder, resolveRlvThisFolders, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
+import { kokuaPoint, isRlvFolderWearLocked, collectRlvWearItems, getRlvInventoryFolder, resolveRlvThisFolders, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
 
 export interface RlvForceWearItemResult {
   readonly itemId: string
@@ -16,18 +16,6 @@ export interface RlvForceWearItemResult {
 }
 export type RlvForceWearOutcome = 'allowed' | 'blocked' | 'no-op' | 'partial' | 'failed-option' | 'unsupported-form'
 type WearItem = { entry: RlvInventoryEntry; point: number; replace: boolean }
-
-/** Kokua selects the rightmost recognized parenthesised point, without trimming. */
-function kokuaPoint(name: string): number {
-  name = name.toLowerCase().replaceAll('(root)', '(avatar center)')
-  let point = 0
-  let rightmost = -1
-  for (const candidate of RLV_ATTACHMENT_POINTS) {
-    const index = name.lastIndexOf('(' + candidate.name.toLowerCase() + ')')
-    if (index > rightmost) { point = candidate.id; rightmost = index }
-  }
-  return point
-}
 
 /** RLVa legacy folders accept bare names and first/last parenthesised forms. */
 function folderPoint(name: string): number {

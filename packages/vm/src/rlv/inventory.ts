@@ -326,6 +326,18 @@ export function resolveRlvThisFolders(profile: RlvProfile, avatar: WorldAvatar, 
 }
 
 
+/** Kokua selects the rightmost recognized parenthesised point, without trimming. */
+export function kokuaPoint(name: string): number {
+  name = name.toLowerCase().replaceAll('(root)', '(avatar center)')
+  let point = 0
+  let rightmost = -1
+  for (const candidate of RLV_ATTACHMENT_POINTS) {
+    const index = name.lastIndexOf('(' + candidate.name.toLowerCase() + ')')
+    if (index > rightmost) { point = candidate.id; rightmost = index }
+  }
+  return point
+}
+
 const folderPolicyContexts = new WeakMap<WorldAvatar, Linkset>()
 const folderLockNames = new Set(['attachthis', 'attachallthis', 'detachthis', 'detachallthis',
   'attachthis_except', 'attachallthis_except', 'detachthis_except', 'detachallthis_except'])
@@ -404,7 +416,7 @@ export function isRlvFolderWearLocked(avatar: WorldAvatar, entry: RlvInventoryEn
       const folders = rule.behaviour.includes('allthis') ? ancestors : [original]
       if (entries.some(item => item.kind === 'item' && folders.includes(getRlvItemFolder(profile, inventory, item) ?? '') &&
         (layer ? item.wearableType === rule.option && inventory.wornWearables().includes(item.id) :
-          wear ? item.name.toLowerCase().replaceAll('(root)', '(avatar center)').includes('(' + rule.option + ')') :
+          wear ? rule.option !== 'root' && kokuaPoint(item.name) === point :
             objects.some(object => object.attachment!.point === point && inventory.attachmentItem(object.prims[0]!.key)?.id === item.id)))) return true
     }
   }
