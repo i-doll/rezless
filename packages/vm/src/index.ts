@@ -18,7 +18,7 @@ export type {
   StateHit,
 } from './coverage.js'
 export { Linkset, LINK_THIS, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_ROOT } from './linkset.js'
-export type { LinksetOptions, TouchOptions } from './linkset.js'
+export type { LinksetOptions, TouchOptions, RezRecord } from './linkset.js'
 export { World } from './world.js'
 export type { WorldOptions, ParcelEffect, ParcelMedia, WorldParcelOptions, ParcelBounds, Parcel, WorldObjectOptions, WorldAvatarOptions, WorldAvatar, WorldEntity, SensorObjectProperties, RegionCorner, RegionSettings, Region, SkyRotation } from './world.js'
 export { Prim } from './prim.js'

@@ -301,15 +301,16 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
     case OBJECT_ROT:
       return [[regionRotation(prim), 'rotation']]
     case OBJECT_VELOCITY:
-      return [[ZERO_VECTOR, 'vector']]
+      return [[prim.linkset?.rez?.velocity ?? prim.linkset?.world?.sensorProperties.get(prim.linkset)?.velocity ?? ZERO_VECTOR, 'vector']]
     case OBJECT_OMEGA: {
       const { axis, spinrate } = root.params.omega
       return [[{ x: axis.x * spinrate, y: axis.y * spinrate, z: axis.z * spinrate }, 'vector']]
     }
     case OBJECT_OWNER:
     case OBJECT_CREATOR:
-    case OBJECT_REZZER_KEY:
       return [[owner, 'key']]
+    case OBJECT_REZZER_KEY:
+      return [[prim.linkset?.rez?.rezzerKey ?? owner, 'key']]
     case OBJECT_GROUP:
     case OBJECT_LAST_OWNER_ID:
       return [[NULL_KEY, 'key']]
