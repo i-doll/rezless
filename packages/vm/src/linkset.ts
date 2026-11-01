@@ -483,8 +483,9 @@ export class Linkset {
    * Queue chat a script in prim `from` sent on the listens of every prim it
    * reaches, in this linkset and the rest of its world. Whisper, say and
    * shout reach prims within 10, 20 and 100 m in any region; llRegionSay
-   * reaches the sender's region, and llRegionSayTo only the prim keyed `to`
-   * in that region. A prim never hears its own chat.
+   * reaches the sender's region. llRegionSayTo reaches the prim keyed `to`,
+   * or the target avatar's attachments on nonzero channels, in that region.
+   * A prim never hears its own chat.
    */
   routeChat(from: Prim, type: ChatType, channel: number, message: string, to?: string): void {
     deliverObjectReceivedChat(this, from, type, channel, message, to)
@@ -493,7 +494,9 @@ export class Linkset {
     const reaches = (linkset: Linkset, p: Prim): boolean => {
       if (p === from) return false
       if (type === 'regionSay') return linkset.region === this.region
-      if (type === 'regionSayTo') return linkset.region === this.region && to !== NULL_KEY && p.key === to
+      if (type === 'regionSayTo') return linkset.region === this.region && to !== NULL_KEY &&
+        (p.key === to || channel !== 0 && linkset.attachment !== null &&
+          linkset.attachment.avatar.toLowerCase() === to?.toLowerCase())
       return distanceSquared(origin, linkset.globalPosition(p)) <= range * range
     }
     this.broadcast(reaches, { channel, name: from.name, key: from.key, message })
