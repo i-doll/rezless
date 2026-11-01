@@ -702,6 +702,8 @@ the lines it changed) and project coverage vs the `main` baseline.
   that aggregate across multiple events.
 * **rlv-wear** — an outfit wearer with viewer reply retries and fallback,
   crafted and delayed replies, and detached inventory re-seeding.
+* **leash** — a worn collar with two avatars, dialog actions, particle targets,
+  movement requests, sensor-selected posts, and slack recovery.
 * **experience-kv** — an Experience visitor counter with checked updates,
   targeted request failures, and held `dataserver` answers.
 * **scoreboard** — Linkset Data: per-name counters, regex key lookup
