@@ -49,14 +49,21 @@ export class RlvSession {
   private taskLifetime = { dead: false }
   private nextVersion = 0
   private nextCollection = 0
+  private collectionUpdatedAt = 0
+  private sessionStartedAt = 0
   private collectionRunning = false
   private readonly replyPayloads = new WeakSet<object>()
   private readonly recipients = new Set<import('../script.js').Script>()
   private onReset: (() => void) | undefined
 
   constructor(private readonly profile: ViewerProfile, private readonly config: ViewerConfig | undefined) {
-    for (const value of [config?.initialGarbageCollectionAdditionalWait, config?.garbageCollectionAdditionalInterval]) {
+    for (const value of [config?.initialGarbageCollectionAdditionalWait, config?.garbageCollectionAdditionalInterval,
+      config?.firstFullyVisibleAt, config?.garbageCollectionFirstFullyVisibleTimeout, config?.garbageCollectionFirstFullyVisibleDelay]) {
       if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new RangeError('Viewer collection additions must be finite nonnegative milliseconds')
+    }
+    const frameRate = config?.garbageCollectionFramesPerSecond
+    if (frameRate !== undefined && (!Number.isFinite(frameRate) || frameRate <= 0)) {
+      throw new RangeError('Viewer frame rate must be finite and positive')
     }
     this.config = config ? { ...config } : undefined
     this.phase = config?.ready === false ? 'starting' : 'ready'
@@ -77,6 +84,7 @@ export class RlvSession {
     const restrictions = avatar.viewer.restrictions
     restrictions.bind(avatar)
     this.onReset = () => restrictions.reset()
+    this.sessionStartedAt = this.collectionUpdatedAt = this.clock.now
     this.nextVersion = this.clock.now + 2000
     this.nextCollection = this.clock.now + this.firstCollectionDelay()
     this.taskLifetime = { dead: false }
@@ -101,7 +109,7 @@ export class RlvSession {
     const wasReady = this.ready
     this.phase = phase
     if (this.ready && !wasReady) {
-      if (this.clock) this.nextCollection = this.clock.now + this.firstCollectionDelay()
+      if (this.clock && !this.frameCollection) this.nextCollection = this.clock.now + this.firstCollectionDelay()
       if (!this.recovery.size || this.profile !== 'rlv') this.flush(() => true)
     } else if (this.clock) this.update(this.clock.now)
     this.arm()
@@ -281,8 +289,26 @@ export class RlvSession {
     return [...this.issuers.values()].sort((a, b) => a.prim.key.localeCompare(b.prim.key))
   }
 
+  private get frameCollection(): boolean {
+    return this.profile === 'rlv' && this.config?.useNewGarbageCollectionTiming === false
+  }
+
+  private get frameInterval(): number { return 1000 / (this.config?.garbageCollectionFramesPerSecond ?? 60) }
+
   private firstCollectionDelay(): number {
-    return this.profile === 'rlva' ? 30000 : 5000 + (this.config?.initialGarbageCollectionAdditionalWait ?? 5000)
+    if (this.profile === 'rlva') return 30000
+    // The legacy counter starts at -100, increments before testing >=100 and never resets.
+    if (this.frameCollection) return 200 * this.frameInterval
+    const initial = 5000 + (this.config?.initialGarbageCollectionAdditionalWait ?? 5000)
+    if (this.config?.garbageCollectionIgnoreFirstFullyVisible !== false) return initial
+    const now = this.clock!.now
+    const timeout = now + (this.config.garbageCollectionFirstFullyVisibleTimeout ?? 45000)
+    const visible = this.config.firstFullyVisibleAt === undefined ? Infinity
+      : this.sessionStartedAt + this.config.firstFullyVisibleAt + (this.config.garbageCollectionFirstFullyVisibleDelay ?? 15000)
+    // Both the visibility gate and the first collection use strict > comparisons on viewer frames.
+    const gate = Math.max(0, Math.min(timeout, visible) - now)
+    const gateFrame = Math.floor(gate / this.frameInterval) + 1
+    return (gateFrame + Math.floor(initial / this.frameInterval) + 1) * this.frameInterval
   }
 
   private flush(matches: (command: RetainedCommand) => boolean): void {
@@ -296,6 +322,10 @@ export class RlvSession {
   private update(now: number): void {
     if (!this.avatar || this.profile === 'disabled') return
     if (!this.world?.avatars.includes(this.avatar)) { this.reset(); return }
+    if (this.frameCollection && (!this.ready || this.recovery.size)) {
+      this.nextCollection += now - this.collectionUpdatedAt
+    }
+    this.collectionUpdatedAt = now
     if (!this.ready) {
       if (this.profile === 'rlva' && this.phase === 'misc' && now >= this.nextVersion) {
         this.nextVersion += (Math.floor((now - this.nextVersion) / 2000) + 1) * 2000
@@ -306,7 +336,7 @@ export class RlvSession {
       return
     }
     if (this.profile === 'rlv' && this.recovery.size || now < this.nextCollection) return
-    const interval = this.profile === 'rlva' ? 30000 : 2000 + (this.config?.garbageCollectionAdditionalInterval ?? 8000)
+    const interval = this.profile === 'rlva' ? 30000 : this.frameCollection ? this.frameInterval : 2000 + (this.config?.garbageCollectionAdditionalInterval ?? 8000)
     const passes = Math.floor((now - this.nextCollection) / interval) + 1
     this.nextCollection += passes * interval
     this.captureReplies(() => {

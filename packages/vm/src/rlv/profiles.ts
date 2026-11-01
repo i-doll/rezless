@@ -24,6 +24,17 @@ export interface ViewerConfig {
   /** Kokua maintenance additions in virtual milliseconds; defaults 5000 and 8000. */
   readonly initialGarbageCollectionAdditionalWait?: number
   readonly garbageCollectionAdditionalInterval?: number
+  /** Kokua time-based scheduling defaults true; false selects its legacy frame counter. */
+  readonly useNewGarbageCollectionTiming?: boolean
+  /** Virtual viewer frame rate, default 60; finite and positive. Ignored by RLVa. */
+  readonly garbageCollectionFramesPerSecond?: number
+  /** Kokua defaults true. False gates time-based scheduling on visibility or timeout. */
+  readonly garbageCollectionIgnoreFirstFullyVisible?: boolean
+  /** Milliseconds from session binding until the avatar first de-clouds; absent means still clouded. */
+  readonly firstFullyVisibleAt?: number
+  /** Kokua visibility timeout and post-visibility delay in milliseconds; defaults 45000 and 15000. */
+  readonly garbageCollectionFirstFullyVisibleTimeout?: number
+  readonly garbageCollectionFirstFullyVisibleDelay?: number
 }
 
 export interface RlvReference {

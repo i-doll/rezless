@@ -845,7 +845,12 @@ retain commands; Kokua can bypass retention for version requests, while RLVa can
 flush version queries during its misc startup phase. Virtual-time collection
 separates known and never-resolved issuers, and completed RLVa detach clears rules
 immediately. Viewer object-list membership can be supplied independently of range
-or region. Session reset cancels retained work and undelivered viewer replies.
+or region. Kokua also supports its legacy frame counter (first pass after 200
+eligible frames, then every frame), with a configurable virtual frame rate.
+Its time mode can delay the initial collection wait until the avatar de-clouds
+plus a delay, or a visibility timeout. Defaults retain the 10-second time
+schedule and ignore visibility. RLVa keeps its 30-second schedule. Session reset
+cancels retained work and undelivered viewer replies.
 
 Force `tpto` resolves global or named-region coordinates through explicit World
 regions and records requested destinations, resulting avatar state and refusals.
