@@ -197,8 +197,7 @@ it('accepts RLVa boolean numeric prefixes and rejects invalid options', async ()
   }
   for (const option of ['2', '-1', '2147483648']) {
     issue(f.script, '@fly:' + option + '=force')
-    if (profile === 'rlv') expect(f.avatar.movement?.hoverOffset).toBe(2)
-    else expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'failed-option' })
+    expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'failed-option' })
   }
 })
 
