@@ -108,7 +108,7 @@ it('identifies the reference versions and exposes unsupported command forms hone
     expect(entry.forms.length).toBeGreaterThan(0)
     expect(entry.tests).toContain('packages/vitest/test/rlv-profiles.test.ts')
     for (const profile of ['rlv', 'rlva'] as const) {
-      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchannel', 'status', 'getinv', 'findfolder', 'getpath', 'getattach', 'detach', 'seating'].includes(entry.id) || ['getattachnames', 'discovery'].includes(entry.id) && profile === 'rlva') ? 'enforced' : entry.id === 'add-remove-clear' ? 'state-only' : 'unsupported')
+      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchannel', 'notifications', 'status', 'getinv', 'findfolder', 'getpath', 'getattach', 'detach', 'seating'].includes(entry.id) || ['getattachnames', 'discovery'].includes(entry.id) && profile === 'rlva') ? 'enforced' : entry.id === 'add-remove-clear' ? 'state-only' : 'unsupported')
       const evidence = entry.profiles[profile].evidence
       const reference = RLV_PROFILES[profile]
       expect(evidence).toEqual({
