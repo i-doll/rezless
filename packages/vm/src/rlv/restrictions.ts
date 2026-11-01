@@ -1,3 +1,4 @@
+import { movementSupport, movementRulesChanged } from './movement.js'
 import { permissionSupport } from './permissions.js'
 import { editSupport } from './edit.js'
 import { teleportOfferSupport, teleportRequestSupport } from './tpoffers.js'
@@ -70,6 +71,7 @@ export class RlvRestrictions {
   /** Apply classified wire commands; unsupported effects remain unsupported. */
   apply(prim: Prim, parsed: RestrictionCommand): RlvRestriction['support'] {
     this.avatar ??= prim.linkset!.world?.avatars.find(avatar => avatar.key.toLowerCase() === prim.linkset!.owner.toLowerCase())
+    const beforeMovement = this.snapshot()
     const { behaviour, option, parameter, kind } = parsed
     if (kind === 'clear') {
       this.clear(prim, parameter)
@@ -104,12 +106,13 @@ export class RlvRestrictions {
     }
     if (this.profile === 'rlva') this.notify(prim, rule, '=' +
       (kind === 'add' && existing ? this.parameters.get(existing)! : parameter))
+    if (this.avatar) movementRulesChanged(this.avatar, beforeMovement, this.snapshot())
     return support
   }
 
   /** How deeply an add/remove form is emulated; dispatch and rule storage share this decision. */
   support(behaviour: string, option: string): RlvRestriction['support'] {
-    return permissionSupport(this.profile, behaviour, option) ?? this.notifySupport(behaviour, option) ?? sharedWearSupport(this.profile, behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
+    return movementSupport(this.profile, behaviour, option) ?? permissionSupport(this.profile, behaviour, option) ?? this.notifySupport(behaviour, option) ?? sharedWearSupport(this.profile, behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
         teleportSupport(this.profile, behaviour, option) ?? teleportOfferSupport(this.profile, behaviour, option) ?? teleportRequestSupport(this.profile, behaviour, option) ?? editSupport(this.profile, behaviour, option) ?? touchSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ??
         viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? chatRedirectSupport(this.profile, behaviour, option) ?? chatVolumeSupport(behaviour, option) ?? gestureSupport(behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ?? receivedIMSupport(this.profile, behaviour, option) ?? avatarIMSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
@@ -127,8 +130,10 @@ export class RlvRestrictions {
       for (const rule of rules.keys()) {
         if (!rule.includes(filter)) continue
         if (this.profile === 'rlv') this.notify(prim, rule, '=y')
+        const beforeMovement = this.snapshot()
         rules.delete(rule)
         this.revision++
+        if (this.avatar) movementRulesChanged(this.avatar, beforeMovement, this.snapshot())
       }
       this.prune(prim.key)
     }

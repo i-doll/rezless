@@ -362,6 +362,18 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [viewer-render](#viewer-render) | Firestorm RLVa 2.4.2 | <code>@setsphere_tween[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate-camera.test.ts](../packages/vitest/test/rlv-viewstate-camera.test.ts) |
 | [viewer-render](#viewer-render) | Firestorm RLVa 2.4.2 | <code>@setsphere_valuemin[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate-camera.test.ts](../packages/vitest/test/rlv-viewstate-camera.test.ts) |
 | [viewer-render](#viewer-render) | Firestorm RLVa 2.4.2 | <code>@setsphere_valuemax[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate-camera.test.ts](../packages/vitest/test/rlv-viewstate-camera.test.ts) |
+| [movement](#movement) | Kokua RLV 2.09.35.00 | <code>@fly=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Kokua RLV 2.09.35.00 | <code>@alwaysrun=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Kokua RLV 2.09.35.00 | <code>@temprun=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Kokua RLV 2.09.35.00 | <code>@adjustheight[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Firestorm RLVa 2.4.2 | <code>@fly=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Firestorm RLVa 2.4.2 | <code>@jump=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Firestorm RLVa 2.4.2 | <code>@alwaysrun=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Firestorm RLVa 2.4.2 | <code>@temprun=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Firestorm RLVa 2.4.2 | <code>@fly[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [movement](#movement) | Firestorm RLVa 2.4.2 | <code>@adjustheight[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [allowidle](#allowidle) | Kokua RLV 2.09.35.00 | <code>@allowidle=n&#124;y</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
+| [allowidle](#allowidle) | Firestorm RLVa 2.4.2 | <code>@allowidle=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts) |
 | [discovery](#discovery) | Kokua RLV 2.09.35.00 | <code>@getcommand[:&lt;behaviour&gt;[;&lt;type&gt;[;&lt;separator&gt;]]]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [discovery](#discovery) | Firestorm RLVa 2.4.2 | <code>@getcommand[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [notifications](#notifications) | Kokua RLV 2.09.35.00 | <code>@notify[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-notify.test.ts](../packages/vitest/test/rlv-notify.test.ts)<br>[rlv-offers.test.ts](../packages/vitest/test/rlv-offers.test.ts) |
@@ -1831,6 +1843,58 @@ Support depth: enforced. Texture restrictions select the first retained modifier
 Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>, <code>RlvBehaviourInfo::processModifier</code>, <code>RlvBehaviourHandler&lt;RLV_BHVR_SETOVERLAY&gt;::onCommand</code>, <code>RlvBehaviourHandler&lt;RLV_BHVR_SETSPHERE&gt;::onCommand</code>, <code>RlvOverlayEffect</code>, <code>RlvSphereEffect</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate-camera.test.ts](../packages/vitest/test/rlv-viewstate-camera.test.ts).
+
+### movement
+
+Forms: <code>@fly=n&#124;y</code>, <code>@jump=n&#124;y</code>, <code>@alwaysrun=n&#124;y</code>, <code>@temprun=n&#124;y</code>, <code>@fly[:true&#124;false&#124;0&#124;1]=force</code>, <code>@adjustheight:&lt;centimetres&#124;reference;scalar[;offset]&gt;=force</code>.
+
+Comparison: confirmed difference. Flight locks stop flight immediately. Run locks clear current modes and constrain new user inputs. RLVa supports jump locks and forced flight with an issuing-prim exception; Kokua does not. Hover adjustment changes viewer offset without translating simulator position.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Fly stops flight and blocks takeoff. Temprun clears running and always-run together; alwaysrun clears both when always-run is active. Each new issuer fly lock stops flight. Jump and forced flight are unsupported. Adjustheight uses integer-prefix centimetres or float-prefix reference/scalar/offset with a nonzero scalar; zero scalar retains the centimetre fallback. Offset clamps to [-2,2]. Relative forms require explicit pelvisToFoot geometry.
+
+- Movement input outcomes, immediate mode clearing, removal and clear without restoring modes
+- Centimetre and relative hover forces with explicit skeleton distance
+- Unsupported jump and fly force outcomes
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::add</code>, <code>RRInterface::force</code>, <code>refreshCachedVariable</code>, <code>agent_handle_doubletap_run</code>, <code>LLWorldAlwaysRun::handleEvent</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Fly stops flight and blocks takeoff. Jump blocks upward input only while not flying. Alwaysrun and temprun clear and block their separate modes. Movement behaviour toggles recheck all three modes. Force fly defaults true, accepts bool names and 0/1 integer prefixes, exempts only its issuing prim, and refuses seated takeoff. Adjustheight accepts one to three numeric-prefix fields, clamps to [-2,2], and refuses disabled hover support; nonzero relative scalars require explicit pelvisToFoot geometry. Jump input does not simulate physics.
+
+- Movement inputs, forced flight and deciding restriction snapshots
+- Independent run modes and immediate flight clearing
+- Hover offset forces with explicit skeleton distance and hover support
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvForceHandler&lt;RLV_BHVR_FLY&gt;::onCommand</code>, <code>RlvCommandOptionAdjustHeight</code>, <code>RlvUIEnabler::onToggleMovement</code>, <code>RlvActions::canJump</code>, <code>LLAgent::setAlwaysRun</code>, <code>LLAgent::setTempRun</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts).
+
+### allowidle
+
+Forms: <code>@allowidle=n&#124;y</code>.
+
+Comparison: confirmed difference. RLVa substitutes a thirty-minute automatic-away threshold and preserves away state when its animation ends. The viewer state query exposes this policy without simulating idle timers or changing AGENT_AWAY.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. Allowidle has no handler. Wire rules remain inspectably unsupported and do not affect away state.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::add</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. The no-option rule sets idleTimeoutSeconds to 1800 and preserveAwayOnAnimationEnd to true in the viewer state query. Removing it restores the configured viewer policy, represented by a null timeout. Simulator away state is unchanged.
+
+- No-option add/remove and clear
+- Thirty-minute timeout and away-animation policy query
+
+Reference symbols: <code>indra/newview/llappviewer.cpp</code>: <code>idle_afk_check</code>, <code>LLAgent::onAnimStop</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-movement.test.ts](../packages/vitest/test/rlv-movement.test.ts).
 
 ### discovery
 

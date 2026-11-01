@@ -900,6 +900,35 @@ touches after `touchme`, leaving attachment touch checks unchanged. Forced sitti
 and simulator actions remain independent.
 
 
+
+### Avatar movement restrictions
+
+`fixture.move(action)` and `world.attemptAvatarMovement(avatar, action)` accept
+`fly`, `land`, `jump`, `alwaysrun`, `temprun` and `walk`. Results report `allowed`,
+a denial reason and deciding restrictions; `fixture.movementActions` retains them.
+Flight changes update `AGENT_FLYING` for `llGetAgentInfo`. Jump records upward
+input permission without simulating airborne motion. Seated avatars cannot take off.
+
+Both profiles stop flight on `fly=n`. Firestorm RLVa 2.4.2 separately clears and
+blocks always-run and temporary-run modes; `jump=n` blocks upward input while
+grounded. Kokua RLV 2.09.35.00 clears both run modes under `temprun=n`, and under
+`alwaysrun=n` when always-run is active. Removing locks never restores modes.
+Only RLVa supports `fly[:true|false|0|1]=force`, exempting the issuing prim from
+its own flight lock. Other issuers still block forced takeoff.
+
+`getAvatarMovementState(avatar)` initializes mutable `avatar.movement` state.
+`adjustheight` force changes its `hoverOffset`, clamped to -2 through 2 metres,
+without moving the avatar. Relative `reference;scalar[;offset]` forms with a
+nonzero scalar need an explicit `pelvisToFoot` skeleton distance. Kokua uses
+integer-prefix centimetres and retains that fallback for a zero scalar; RLVa
+accepts decimal numeric prefixes and validates every field. Set `hoverEnabled=false`
+to model an RLVa region without hover support for a server-baked avatar.
+
+`getRlvViewerState(avatar)` exposes `adjustheight`'s current hover offset and
+RLVa's `allowidle` policy: a 1800-second idle threshold and preservation of away
+state on away-animation completion. It does not run an idle timer or set
+`AGENT_AWAY`. Kokua keeps `jump`, `allowidle` and forced flight unsupported.
+
 ### Viewer seating
 
 Explicit user seating uses `fixture.userSit(prim, offset?)` and
