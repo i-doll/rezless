@@ -628,6 +628,11 @@ the lines it changed) and project coverage vs the `main` baseline.
 * **menu** — a lamp with a colour menu, answered with `s.answerDialog`.
 * **remote** — owner-only listen on a custom channel + command dispatch.
 * **fetcher** — `llHTTPRequest` + `http_response` + status handling.
+* **http-in** — a sign updated over HTTP: `llRequestURL`, `http_request`
+  routing on `x-path-info`, and requests sent with `s.sendHttpRequest`.
+* **hud** — a compass HUD that attaches itself with `llAttachToAvatar`,
+  points at a landmark with `llWorldPosToHUD`, and detaches on click.
+  The camera is set with `s.setCamera`.
 * **nametag** — `llRequestAgentData` + `dataserver` + floating text.
 * **mocking** — patterns for `script.mock(...)`: pinning a real built-in
   to a deterministic value, providing custom logic for an unimplemented
