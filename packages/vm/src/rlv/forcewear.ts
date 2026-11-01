@@ -92,11 +92,7 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWea
   if (replace) {
     for (const previous of [...issuer.peers]) {
       if (previous !== object && !previous.dead && previous.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
-        previous.attachment.point === actualPoint && !locked(avatar, previous)) {
-        const item = inventory.attachmentItem(previous.prims[0]!.key)
-        if (item) inventory.rememberAttachment(item.id, previous)
-        previous.detachFromAvatar()
-      }
+        previous.attachment.point === actualPoint && !locked(avatar, previous)) previous.detachFromAvatar()
     }
   }
   inventory.rememberAttachment(entry.id, object)

@@ -375,3 +375,50 @@ for (const command of ['attach', 'attachoverorreplace']) it(`${command}: missing
   ]) })
  }
 })
+
+for (const method of ['viewer', 'simulator', 'fixture'] as const) {
+ for (const hasDefinition of [false, true]) it(`${method} detach retains mapped runtime state before first force wear, definition=${hasDefinition}`, async () => {
+  const pair = await fixtures()
+  for (const fixture of Object.values(pair)) {
+   const { script, avatar, world } = fixture
+   const state = `integer counter; default {
+    state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_ATTACH); }
+    touch_start(integer n) { counter++; if(llGetObjectDesc() == "detach") llDetachFromAvatar(); }
+   }`
+   const old = await loadLinkset({ world, owner: avatar.key, region: avatar.region, prims: [{ scripts: [{ name: 'saved', source: { source: state } }] }] })
+   old.linkset.attachToAvatar(avatar.key, 1)
+   old.scripts.saved!.start(); old.scripts.saved!.grantPermissions()
+   old.scripts.saved!.fire('touch_start', { num_detected: 1 })
+   old.scripts.saved!.fire('touch_start', { num_detected: 1 })
+   const definition = await loadLinkset({ prims: [{ scripts: [{ name: 'saved', source: { source: state } }] }] })
+   const inventory = avatar.viewer.inventory
+   inventory.seed({ sharedRootId: 'root', entries: [
+    ...inventory.snapshot(),
+    { id: 'saved-folder', parentId: 'root', name: 'Saved', kind: 'folder' },
+    { id: 'saved', parentId: 'saved-folder', name: 'Saved (chest)', kind: 'item', assetType: 'object', ...(hasDefinition ? { object: definition.linkset } : {}) },
+   ], wornAttachments: [{ itemId: 'saved', rootKey: old.prims[0]!.key }] })
+   if (method === 'viewer') expect(fixture.attemptDetach(old.linkset)).toBe('allowed')
+   else if (method === 'fixture') old.linkset.detachFromAvatar()
+   else { old.prims[0]!.description = 'detach'; old.scripts.saved!.fire('touch_start', { num_detected: 1 }) }
+   expect(old.linkset.attachment).toBeNull()
+   send(script, '@attach:saved=force')
+   const worn = world.linksets.find(l => l.attachment && inventory.attachmentItem(l.prims[0]!.key)?.id === 'saved')!
+   expect(worn === old.linkset).toBe(true)
+   expect(worn.allScripts()[0]!.global('counter')).toBe(method === 'simulator' ? 3 : 2)
+  }
+ })
+}
+
+for (const inWorld of [false, true]) it(`keeps detach behavior unchanged without a configured viewer, World=${inWorld}`, async () => {
+ const world = new World(); world.addRegion('plain', { x: 0, y: 0 })
+ const avatar = world.addAvatar({ username: 'plain', region: 'plain' })
+ const loaded = await loadLinkset({ ...(inWorld ? { world, region: avatar.region } : {}), owner: avatar.key,
+  prims: [{ scripts: [{ name: 'plain', source: { source: 'list events; default { attach(key id) { events += [(string)id, llGetAttached()]; } }' } }] }] })
+ const script = loaded.scripts.plain!
+ script.start(); loaded.linkset.attachToAvatar(avatar.key, 1); script.advanceTime(0)
+ loaded.linkset.detachFromAvatar(); script.advanceTime(0)
+ expect(loaded.linkset.attachment).toBeNull()
+ expect(loaded.linkset.peers).not.toContain(loaded.linkset)
+ expect(script.global('events')).toEqual([avatar.key, 1, '00000000-0000-0000-0000-000000000000', 0])
+ expect(avatar.viewer.inventory.attachmentMappings()).toEqual([])
+})

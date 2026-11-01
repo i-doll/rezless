@@ -106,3 +106,15 @@ export function getRlvAttachmentReply(linkset: Linkset, viewer: ViewerState,
   }
   return '0' + RLV_ATTACHMENT_POINTS.map(point => occupied.has(point.id) ? '1' : '0').join('')
 }
+
+/** Save mapped live state before an attachment leaves its World's active objects. */
+export function retainRlvAttachment(linkset: Linkset): void {
+  const attachment = linkset.attachment
+  const rootKey = linkset.prims[0]?.key
+  if (!attachment || !rootKey) return
+  const avatar = linkset.world?.avatars.find(candidate => candidate.key.toLowerCase() === attachment.avatar.toLowerCase())
+  if (!avatar || avatar.viewer.profile === 'disabled') return
+  const inventory = avatar.viewer.inventory
+  const item = inventory.attachmentItem(rootKey)
+  if (item) inventory.rememberAttachment(item.id, linkset)
+}
