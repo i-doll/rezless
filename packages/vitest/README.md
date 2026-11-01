@@ -834,7 +834,7 @@ counts it normally. No bridge is synthesized or inferred from an object's name.
 `RLVA_ATTACHMENT_SETTINGS.hideLockedAttachments` is fixed at the reference
 default `false`, so self-locked attachments remain visible. Lock-filter setting
 overrides, `getaddattachnames` and `getremattachnames` remain outside the
-query forms. No-option detach lock enforcement has a separate contract.
+query forms. Attachment lock enforcement has a separate contract.
 
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`
@@ -1193,10 +1193,45 @@ parents. A registered valid RLVa bridge is protected. Folder removal results
 follow seed order for Kokua and inventory ID order for RLVa.
 
 Folder clothing, remoutfit folder forms, recursive and multiple-folder commands,
-point/group/UUID removal and comprehensive folder locks remain unsupported.
+group removal and comprehensive folder locks remain unsupported.
 Mixed folder contents retain unsupported items and report each result.
 Invalid layer/path force options are inert in Kokua and fail in RLVa.
 
+
+### Attachment point locks and removal
+
+`@detach:<point>=n|y` locks removal at that point in both profiles; Firestorm
+RLVa 2.4.2 also locks adding there. Kokua RLV 2.09.35.00 allows adding at a
+named detach-locked point. `@addattach[:<point>]=n|y` and
+`@remattach[:<point>]=n|y` lock adding and removal respectively, with an empty
+option applying globally. Canonical point names are case insensitive, and
+`root` aliases Avatar Center. Locks remain independent for each issuer.
+
+`attemptViewerAttach(avatar, object, point, replace = false)` attempts explicit
+user wear at a canonical point from 1 through 55, returning `allowed`, `blocked`
+or `no-op`. Replacement honors every occupant removal lock. The object must be
+unworn, live, owned by that avatar and in the avatar's World and region.
+`attemptViewerDetach` and `fixture.attemptDetach` enforce removal locks.
+Seeding attachment state through `attachToAvatar` stays unrestricted.
+
+`@detach[:<point|uuid>]=force` removes all removable attachments, attachments at
+a named point, or one root UUID. `remattach` is a force synonym, including the
+existing direct folder form. UUIDs identify world objects, rather than inventory
+items. Kokua resolves a child UUID to its root; RLVa child UUID removal remains
+unsupported. Point and UUID options take precedence over folder paths. Force
+removal checks every lock, nostrip protection and the registered RLVa bridge.
+Unmapped attachment results use the root UUID as `itemId`. Removals finish after
+the script yields, with normal attachment events. Point and all-point commands
+select currently attached targets when received; pending wear requests in the
+same command batch are not included. Group force removal remains
+unsupported.
+
+RLVa `@getaddattachnames[:<group>]=<channel>` returns points that allow adding,
+even when replacement is locked. `@getremattachnames[:<group>]=<channel>` returns
+points with at least one force-removable occupant. Both use canonical capitalized
+names, comma separators, attachment-ID order, and the group filters documented
+for `getattachnames`. Empty results produce an empty reply. Kokua leaves these
+queries inspectably unsupported. Both queries participate in RLVa `getcommand`.
 
 ### Inventory offer decisions
 

@@ -1,4 +1,7 @@
 import type { Linkset } from '../linkset.js'
+import type { WorldAvatar } from '../world.js'
+import { isRlvDetachLocked, isRlvPointLocked } from './detach.js'
+import { isRlvStrippable } from './outfit.js'
 import type { ViewerState } from './profiles.js'
 
 /** Firestorm RLVa 2.4.2 reference defaults. Lock-filter setting overrides are unsupported. */
@@ -68,6 +71,20 @@ const groups = new Map<string, readonly number[]>([
 ])
 const bridges = new WeakMap<ViewerState, string>()
 
+/** Last worn point retained when a fixture returns to inventory. */
+export function getRlvSavedPoint(object: Linkset | undefined): number {
+  return object?.savedAttachmentPoint ?? 6
+}
+
+/** Force actions protect locks, nostrip items and the registered bridge. */
+export function rlvForceDetachBlock(avatar: WorldAvatar, object: Linkset, rules = avatar.viewer.restrictions.snapshot()): 'detach-lock' | 'nostrip' | 'bridge' | undefined {
+  if (isRlvDetachLocked(avatar, object, rules)) return 'detach-lock'
+  if (isRlvAttachmentBridge(avatar.viewer, object)) return 'bridge'
+  const item = avatar.viewer.inventory.attachmentItem(object.prims[0]!.key)
+  if (item && avatar.viewer.profile !== 'disabled' && !isRlvStrippable(avatar.viewer.profile, avatar.viewer.inventory, item, true)) return 'nostrip'
+  return undefined
+}
+
 /** Identify an existing valid Firestorm bridge; no bridge object is fabricated. */
 export function setRlvAttachmentBridge(viewer: ViewerState, rootKey: string | undefined): void {
   if (rootKey === undefined) bridges.delete(viewer)
@@ -91,7 +108,7 @@ export function getRlvAttachmentReply(linkset: Linkset, viewer: ViewerState,
   behaviour: string, option = '', avatar = linkset.owner): string | undefined {
   const profile = viewer.profile
   if (profile === 'disabled') return undefined
-  if (behaviour !== 'getattach' && (behaviour !== 'getattachnames' || profile !== 'rlva')) return undefined
+  if (behaviour !== 'getattach' && (!['getattachnames', 'getaddattachnames', 'getremattachnames'].includes(behaviour) || profile !== 'rlva')) return undefined
   const avatarKey = avatar.toLowerCase()
   const bridge = profile === 'rlva' ? bridges.get(viewer) : undefined
   const occupied = new Set(linkset.peers.filter(worn => !worn.dead && worn.attachment &&
@@ -100,9 +117,13 @@ export function getRlvAttachmentReply(linkset: Linkset, viewer: ViewerState,
     // attachment with the same name or a missing bridge changes nothing.
     !(worn.attachment.point === 31 && worn.prims[0]!.key.toLowerCase() === bridge))
     .map(worn => worn.attachment!.point))
-  if (behaviour === 'getattachnames') {
+  if (behaviour !== 'getattach') {
     const selectedGroups = groups.get(option)
-    return RLV_ATTACHMENT_POINTS.filter(point => occupied.has(point.id) &&
+    const owner = linkset.world?.avatars.find(candidate => candidate.key.toLowerCase() === avatarKey)
+    return RLV_ATTACHMENT_POINTS.filter(point => (behaviour === 'getattachnames' ? occupied.has(point.id)
+      : behaviour === 'getaddattachnames' ? !!owner && !isRlvPointLocked(owner, point.id, 'add')
+      : !!owner && linkset.peers.some(object => !object.dead && object.attachment?.avatar.toLowerCase() === avatarKey &&
+        object.attachment.point === point.id && !rlvForceDetachBlock(owner, object))) &&
       (!selectedGroups || selectedGroups.includes(point.group)))
       .map(point => point.name).join(',')
   }

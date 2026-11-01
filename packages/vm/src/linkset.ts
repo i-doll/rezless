@@ -183,6 +183,9 @@ export class Linkset {
     return prim
   }
 
+  /** Point used when the next attachment request specifies point zero. */
+  get savedAttachmentPoint(): number { return this.lastAttachmentPoint }
+
   /** Wear a fixture without a script permission request, as a viewer does. */
   attachToAvatar(avatar: string, point: number, temporary = false): void {
     if (this.dead || this.attachment || !this.prims.length) return
