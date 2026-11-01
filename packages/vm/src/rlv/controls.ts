@@ -1,6 +1,9 @@
+import type { LinksetClock } from '../clock.js'
+
 /** Opt-in delivery controls shared by one avatar's viewer. */
 export class RlvViewerControls {
   private holding = false
+  private scheduled = 0
   private readonly pending: Array<() => void> = []
   private readonly overrides: Array<{ matches: (command: string) => boolean; text?: string }> = []
 
@@ -32,9 +35,17 @@ export class RlvViewerControls {
     return index < 0 ? text : this.overrides.splice(index, 1)[0]!.text
   }
 
-  /** @internal The callback schedules work rather than running a script or action inline. */
-  deliver(schedule: () => void, immediate = schedule): void {
-    if (this.holding) this.pending.push(schedule)
-    else immediate()
+  /** @internal Released work and subsequent deliveries share scheduler order. */
+  deliver(clock: LinksetClock, target: { readonly dead: boolean }, run: () => void, immediate = false): void {
+    const schedule = (ordered: boolean) => {
+      if (ordered) ++this.scheduled
+      // Even canceled work retires its ordering barrier when the clock drains.
+      clock.scheduleTask({ dead: false }, clock.now, () => {
+        try { if (!target.dead) run() } finally { if (ordered) --this.scheduled }
+      })
+    }
+    if (this.holding) this.pending.push(() => schedule(true))
+    else if (immediate && this.scheduled === 0) run()
+    else schedule(this.scheduled > 0)
   }
 }

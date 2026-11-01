@@ -23,7 +23,7 @@ export function sendViewerReply(linkset: Linkset, avatar: WorldAvatar, channel: 
   avatar.viewer.session.bind(linkset, avatar)
   if (answer !== undefined) {
     const route = () => linkset.routeViewerReply(avatar, channel, text)
-    avatar.viewer.deliver(avatar.viewer.session.deferReply(route), () => avatar.viewer.session.captureReplies(route))
+    avatar.viewer.session.deliverReply(route)
   }
   return { channel, text }
 }

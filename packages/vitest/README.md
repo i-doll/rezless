@@ -1256,7 +1256,8 @@ or an added folder prefix.
 removal and `detachme`. `release(count)` accepts a nonnegative safe integer and schedules at most
 that many deliveries in send order; zero does nothing, and an oversized count
 drains the queue while continuing to hold new work. With no count, `release()`
-drains it and resumes automatic delivery. Released work runs on the scheduler,
+drains it and resumes automatic delivery. New replies stay behind released work
+until it dispatches. Released work runs on the scheduler,
 never inside the handler that sent it. Advance a linkset in the world to dispatch
 it. Query values and accepted force-action plans are captured when sent; the
 queued actions apply when dispatched. Released replies use the listeners present

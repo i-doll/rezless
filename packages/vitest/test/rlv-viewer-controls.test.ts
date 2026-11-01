@@ -198,4 +198,17 @@ describe('opt-in viewer controls', () => {
   }
  })
 
+
+ it('keeps new automatic replies behind released work before the clock drains', async () => {
+  for (const f of Object.values(await fixtures())) {
+   f.avatar.viewer.hold()
+   send(f, '@getinv=773232')
+   f.avatar.viewer.release()
+   send(f, '@getinvworn:wear=773232')
+   expect(f.script.global('replies')).toEqual(['Wear', '|10'])
+   send(f, '@getinv=773232')
+   expect(f.script.global('replies')).toEqual(['Wear', '|10', 'Wear'])
+  }
+ })
+
 })
