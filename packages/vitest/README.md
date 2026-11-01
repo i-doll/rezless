@@ -1328,6 +1328,40 @@ expect(inventory.restricted).toBe(true)
 expect(inventory.rules[0]).toMatchObject({ sourcePrim: fixture.script.host.key, option: '' })
 ```
 
+### Camera render effects
+
+The same `getRlvViewerState` query includes `setcam_textures`, `setoverlay`,
+`setoverlay_touch` and `setsphere`. Their `parameters` contain the replacement
+`texture` UUID, `overlays`, or `spheres`. Each overlay includes its issuer,
+`enabled` hierarchy selection, `alpha`, `texture`, `tint` and `blockTouch`.
+Each sphere includes `mode`, `origin`, `param` (four components), `distmin`,
+`distmax`, `distextend`, `valuemin`, `valuemax` and `tween`. Firestorm spheres
+also identify `sourcePrim`; Kokua combines them by mode. All snapshots are frozen.
+
+```ts
+const sphere = getRlvViewerState(fixture.avatar).find(e => e.behaviour === 'setsphere')!
+expect(sphere.parameters?.spheres?.[0]).toMatchObject({ mode: 0, distmax: 8 })
+```
+
+Both profiles support `setcam_textures` and `camtextures`. Firestorm selects the
+first retained texture modifier and canonicalizes the alias. An unoptioned
+Firestorm rule inserts the default texture as a modifier with the same insertion
+priority as an explicit UUID, so a later UUID does not override it. Kokua selects the
+last changed texture, including removals. An unoptioned rule uses the viewer's
+default texture. Firestorm supports overlay alpha/texture/tint force modifiers
+and touch blocking; these effects remain inspectably unsupported in Kokua.
+
+Firestorm accepts up to six independent sphere issuers. Its local force
+modifiers require an active base restriction from the same issuer; an empty
+modifier restores its default. Kokua accepts sphere parameters as add/remove
+restrictions and force aliases, including before activation, and clears those
+parameters when that issuer removes `setsphere`. Kokua combines minimum distances,
+origin, extension and tween, maximum values, multiplied blend RGB, maximum blur
+kernel size or component-wise maxima according to mode. Negative numeric
+parameters clamp to zero. `setsphere_color` remains unsupported in Kokua.
+Tween values expose configured targets and duration; this query does not render
+pixels or interpolate animations. `setoverlay_tween` remains unsupported.
+
 ### Implemented `ll*` functions
 
 The real-impl set covers the most common use cases. Anything outside it
