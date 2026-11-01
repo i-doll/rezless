@@ -24,3 +24,6 @@ export { loadRlvPair, rlvExpectationFor, seedRlvInventory, setRlvViewerReady, re
 export type { RlvFixture, RlvExpectation, RlvExpectations } from './rlv.js'
 export { respondRlvInventoryOffer } from './rlv.js'
 export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv.js'
+
+export { receivedChatLog } from '@rezless/vm'
+export type { ReceivedChat, ReceivedChatSpeaker } from '@rezless/vm'

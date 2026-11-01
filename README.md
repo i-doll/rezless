@@ -677,7 +677,10 @@ respects every issuer lock; child self-detach resolves the attachment in Kokua
 and is inert in RLVa. Simulator detach remains separate, and forced reattachment
 recovery is excluded. `tploc` constrains forced location travel; `tplm` remains state-only. Public `sendchat` filtering rewrites speech and emotes per profile and blocks DEBUG_CHANNEL. `sendchannel_except` denies listed private channels; RLVa requires its no-option activation switch. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
-Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
+Denied attempts are logged; simulator chat builtins stay independent.
+Frozen per-avatar `receivedChatLog` snapshots expose received local chat and emotes.
+Receive restrictions apply speaker exceptions and targeted denials per profile,
+without changing simulator listens or the sender's action record. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
 RLVa `getcommand` discovers implemented manifest forms with substring, type and
 separator options. Frozen form metadata distinguishes state-only restrictions

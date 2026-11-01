@@ -1490,3 +1490,31 @@ LSL function/event/constant signatures come from Linden Lab's official
 [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
 vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
+
+### Received local chat and emotes
+
+`fixture.receivedChat` and `receivedChatLog(avatar)` return frozen per-avatar
+snapshots of displayed local chat. Each record includes `text`, chat `type`, and a
+copied `speaker` with `key`, `name`, `owner`, and `source` (`avatar` or `object`).
+Object whisper, say, shout, owner chat and avatar-directed region chat reach the
+record through their delivery routes. `world.sendAvatarChat` records nearby avatar
+speech, including the speaker's own view. Private channels and IMs are excluded.
+Script listens and original send-action records retain their simulator text.
+
+`recvchat` and `recvemote` accept speaker UUID exceptions. Ordinary exceptions may
+come from another issuer; `_sec` global locks and `permissive=n` require each
+restricting issuer's own exception. `recvchatfrom:<uuid>` and
+`recvemotefrom:<uuid>` independently deny that speaker. Add/remove aliases and clear
+update subsequent deliveries; existing snapshots remain unchanged.
+
+With the default OOC and ellipsis settings, restricted speech becomes `...` and
+restricted emotes become `/me ...`. Firestorm RLVa 2.4.2 leaves emotes unchanged
+under `recvchat`, exempts self chat and owner chat, and matches targeted rules
+against the speaker UUID. Kokua RLV 2.09.35.00 shortens emotes under `recvchat`,
+filters self chat and unattached owner chat, and also matches targeted rules
+against object owner UUIDs. Kokua replaces text from an embedded `/me` onward
+under `recvemote`; Firestorm requires a leading emote. Both exempt owned
+attachments and direct region chat, and consume owner commands. Firestorm also
+supports `_sec` aliases for the targeted rules; Kokua leaves those unsupported.
+Alternate OOC/ellipsis settings, emote extensions and object-to-avatar name
+impersonation are outside this fixture.
