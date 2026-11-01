@@ -548,3 +548,52 @@ it('honors direct fixture changes to temporary status before advancing time', as
   f.linkset.advanceTime(1)
   expect(f.world.linksets.includes(child)).toBe(false)
 })
+
+// In-world: controlled-snapshot.py -> DEREZ_TO_INVENTORY returns 1, freezes active
+// progress in inventory, and resumes the remaining translation/rotation from the rez pose.
+// Aditi, SLua Tideland, Mono, 2026-11-01. Viewer Take instead discards motion (snapshot.py).
+it('derezzes and rezzes active keyframed motion with independent playback state', async () => {
+  const payload=(await loadLinkset({prims:[{scripts:[{name:'mover',source:{source:`
+    default {on_rez(integer n){if(n==1){
+      llSetPrimitiveParams([PRIM_PHYSICS_SHAPE_TYPE,PRIM_PHYSICS_SHAPE_CONVEX]);
+      llSetKeyframedMotion([<8,0,0>,llEuler2Rot(<0,0,PI_BY_TWO>),8.0],[]);
+    }}}`}}]}]})).linkset
+  const f=await fixture(`result=llRezObjectWithParams("payload",[REZ_POS,<2,0,0>,TRUE,TRUE,REZ_PARAM,1]);
+    llSleep(1);integer ok=llDerezObject(result,DEREZ_TO_INVENTORY);llSleep(3);
+    result=llRezObjectWithParams("payload",[REZ_POS,<0,2,0>,TRUE,TRUE,REZ_PARAM,2]);`,payload)
+  f.parent.start()
+  expect(f.parent.calls.find(c=>c.name==='llDerezObject')!.returned).toBe(1)
+  const child=f.world.linksets[1]!,root=child.prims[0]!
+  expect(root.regionPosition()).toEqual({x:100.1,y:102,z:30})
+  f.parent.advanceTime(1000)
+  expect(root.regionPosition()).toEqual({x:101.1,y:102,z:30})
+  expect(root.params.rotation.z).toBeCloseTo(Math.sin(1.1*Math.PI/32))
+  f.parent.advanceTime(6000)
+  expect(root.regionPosition()).toEqual({x:107.1,y:102,z:30})
+  expect(root.params.rotation.z).toBeCloseTo(Math.sin(7.1*Math.PI/32))
+  // Advancing the world cannot advance the saved inventory controller.
+  expect(f.item.object!.prims[0]!.regionPosition()).toEqual({x:102.9,y:100,z:30})
+})
+
+// In-world: controlled-paused.log -> saved pause survives; play restarts full frames
+// at the new rez pose (Aditi, SLua Tideland, Mono, 2026-11-01).
+it('restores paused motion without automatically playing or retaining partial progress', async () => {
+  const payload=(await loadLinkset({prims:[{scripts:[{name:'mover',source:{source:`
+    default {on_rez(integer n){if(n==1){
+      llSetPrimitiveParams([PRIM_PHYSICS_SHAPE_TYPE,PRIM_PHYSICS_SHAPE_CONVEX]);
+      llSetKeyframedMotion([<8,0,0>,ZERO_ROTATION,8.0],[]);llSetTimerEvent(2);
+    }else llSetTimerEvent(0);}
+    timer(){llSetKeyframedMotion([],[KFM_COMMAND,KFM_CMD_PAUSE]);llSetTimerEvent(0);}
+    touch_start(integer n){llSetKeyframedMotion([],[KFM_COMMAND,KFM_CMD_PLAY]);}}`}}]}]})).linkset
+  const f=await fixture(`result=llRezObjectWithParams("payload",[REZ_PARAM,1]);llSleep(3);
+    integer ok=llDerezObject(result,DEREZ_TO_INVENTORY);llSleep(3);
+    result=llRezObjectWithParams("payload",[REZ_POS,<0,2,0>,TRUE,TRUE,REZ_PARAM,2]);`,payload)
+  f.parent.start()
+  expect(f.parent.calls.find(c=>c.name==='llDerezObject')!.returned).toBe(1)
+  const child=f.world.linksets[1]!,root=child.prims[0]!
+  f.parent.advanceTime(5000)
+  expect(root.regionPosition()).toEqual({x:100,y:102,z:30})
+  child.allScripts()[0]!.fire('touch_start',{num_detected:1})
+  f.parent.advanceTime(8000)
+  expect(root.regionPosition()).toEqual({x:108,y:102,z:30})
+})

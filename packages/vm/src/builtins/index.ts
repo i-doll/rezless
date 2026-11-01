@@ -1,4 +1,5 @@
 import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
+import { llSetKeyframedMotion, llSetRegionPos } from './motion.js'
 import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
 import { llCastRay } from './raycast.js'
 import { llRemoteLoadScriptPin } from './remote-load.js'
@@ -771,6 +772,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetPrimitiveParams,
   llGetLinkPrimitiveParams,
   // primitive params (alternative accessors)
+  llSetKeyframedMotion,
+  llSetRegionPos,
   llSetPos,
   llGetPos,
   llGetLocalPos,
