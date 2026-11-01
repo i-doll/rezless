@@ -73,7 +73,8 @@ function attachmentProblem(avatar: WorldAvatar, issuer: Linkset, entry: RlvInven
   return undefined
 }
 
-function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: ReturnType<WorldAvatar['viewer']['restrictions']['snapshot']>): RlvForceWearItemResult {
+function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: ReturnType<WorldAvatar['viewer']['restrictions']['snapshot']>,
+  retainIdentity = false): RlvForceWearItemResult {
   const inventory = avatar.viewer.inventory
   const { entry, point, replace } = plan
   let object = existingAttachment(avatar, issuer, entry.id)
@@ -90,7 +91,7 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: Retur
     peer.attachment.point === point && locked(avatar, peer, rules))) {
     return { itemId: entry.id, outcome: 'blocked', point, reason: 'detach-lock' }
   }
-  if (!object || object.dead || object.region !== avatar.region) {
+  if (!object || object.dead || !retainIdentity && object.region !== avatar.region) {
     if (!definition) return { itemId: entry.id, outcome: 'unsupported', reason: 'missing-definition' }
     object = definition.copy({ world: issuer.world!, region: avatar.region, owner: avatar.key })
   }
@@ -107,6 +108,16 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: Retur
   }
   inventory.rememberAttachment(entry.id, object)
   return { itemId: entry.id, outcome: 'attached', point: actualPoint }
+}
+
+/** Recover an inventory item at its original point, independently of wear locks.
+ * Kokua replaces the point; RLVa adds alongside its current occupants.
+ */
+export function recoverRlvAttachment(avatar: WorldAvatar, issuer: Linkset, itemId: string,
+  point: number): RlvForceWearItemResult | undefined {
+  const entry = avatar.viewer.inventory.snapshot().find(entry => entry.id === itemId && entry.kind === 'item')
+  if (!entry) return undefined
+  return wear(avatar, issuer, { entry, point, replace: avatar.viewer.profile === 'rlv' }, [], avatar.viewer.profile === 'rlv')
 }
 
 const recursiveWear = ['attachall', 'attachallover', 'attachalloverorreplace', 'addoutfitall', 'addoutfitallover', 'addoutfitalloverorreplace']

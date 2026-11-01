@@ -162,6 +162,8 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detachme=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [attachment-recovery](#attachment-recovery) | Kokua RLV 2.09.35.00 | <code>Simulator detach of an attachment protected by @detach or @remattach</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-reattach.test.ts](../packages/vitest/test/rlv-reattach.test.ts) |
+| [attachment-recovery](#attachment-recovery) | Firestorm RLVa 2.4.2 | <code>Simulator detach of an attachment protected by @detach or @remattach</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-reattach.test.ts](../packages/vitest/test/rlv-reattach.test.ts) |
 | [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@edit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@edit_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@editobj[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
@@ -1294,11 +1296,11 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@detach[:&lt;point&gt;]=n&#124;add</code>, <code>@detach[:&lt;point&gt;]=y&#124;rem</code>, <code>@detach[:&lt;point&#124;uuid&gt;]=force</code>, <code>@detachme[:&lt;option&gt;]=force</code>.
 
-Comparison: confirmed difference. Wiki describes attachment-local locks and ordered clear/self-detach, without specifying child emitter or malformed-option handling. No-option locks protect the containing attachment and remain scoped to the issuing prim. Self-detach respects every root and child lock, including its own. Kokua resolves a child emitter to its attachment and ignores detachme options. RLVa child self-detach is inert and nonempty options fail. Named detach locks deny removal in both profiles and additionally deny adding in RLVa. Bare, named point and UUID force removal preserve every issuer lock. Root is an alias for Avatar Center. Simulator detach is separate from a viewer detach attempt; forced reattachment recovery is excluded.
+Comparison: confirmed difference. Wiki describes attachment-local locks and ordered clear/self-detach, without specifying child emitter or malformed-option handling. No-option locks protect the containing attachment and remain scoped to the issuing prim. Self-detach respects every root and child lock, including its own. Kokua resolves a child emitter to its attachment and ignores detachme options. RLVa child self-detach is inert and nonempty options fail. Named detach locks deny removal in both profiles and additionally deny adding in RLVa. Bare, named point and UUID force removal preserve every issuer lock. Root is an alias for Avatar Center. Simulator detach is separate from a viewer detach attempt; locked inventory attachments use the attachment-recovery contract.
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named detach locks deny removal at the selected point; adding there remains allowed. Bare, point and object UUID force detach respect locks and nostrip protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUIDs resolve to the containing attachment. Forced reattachment recovery is unsupported. Direct shared-folder removal has a separate contract.
+Support depth: enforced. Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named detach locks deny removal at the selected point; adding there remains allowed. Bare, point and object UUID force detach respect locks and nostrip protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUIDs resolve to the containing attachment. Locked inventory attachments use the attachment-recovery contract. Direct shared-folder removal has a separate contract.
 
 - No-option and named point detach n/add and y/rem with per-prim locks
 - Bare and point force removal, root and child UUID selection with lock and nostrip checks; point locks deny removal only
@@ -1310,7 +1312,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named detach locks deny both adding and removing at the selected point. Bare, point and root UUID force detach respect locks, nostrip and bridge protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUID force removal, bridge exemption settings and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.
+Support depth: enforced. Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named detach locks deny both adding and removing at the selected point. Bare, point and root UUID force detach respect locks, nostrip and bridge protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUID force removal and bridge exemption settings are unsupported. Locked inventory attachments use the attachment-recovery contract. Direct shared-folder removal has a separate contract.
 
 - No-option and named point detach n/add and y/rem with root and child issuer locks
 - Bare, point and root UUID force removal with lock, nostrip and bridge checks; point locks deny add and remove
@@ -1321,6 +1323,34 @@ Support depth: enforced. Root and child no-option detach locks deny viewer attem
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourHandler&lt;RLV_BHVR_DETACH&gt;::onCommand</code>, <code>RlvForceHandler&lt;RLV_BHVR_DETACHME&gt;::onCommand</code>, <code>LLVOAvatarSelf::detachAttachmentIntoInventory</code>, <code>RlvAttachmentLocks::canDetach</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts).
+
+### attachment-recovery
+
+Forms: <code>Simulator detach of an attachment protected by @detach or @remattach</code>.
+
+Comparison: confirmed difference. Both profiles restore locked inventory attachments to their original point after a simulator detach. Kokua delays and replaces; RLVa adds after inventory saving or a watchdog timeout. User detach attempts still respect locks.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. A locked, nontemporary attachment with inventory identity queues recovery at its original point. At most one item per point is queued. Each new queued item resets the shared 15-second delay. Recovery replaces occupants without checking add or remove locks. Commands and collection wait while recovery is pending, except configured version-query bypass. Failed recovery retries after the elapsed whole seconds exceed 60; new commands then bypass retention, while earlier queued work waits for completion. Success preserves retained prim identities and attachment rules, including across a region change, and releases commands in order. Detach emits attach(NULL_KEY); restored inventory scripts receive on_rez and attach(owner). Notify subscribers receive detached illegally and reattached legally with the canonical point name. Reset and avatar removal cancel recovery. Reattach-delay overrides are unsupported.
+
+- Original point recovery through inventory wear, including add/remove locks and occupied points
+- One queued item per point, shared delay, ordered command retention and retry timeout
+- Detach, rez, attach and notify events; session cancellation
+
+Reference symbols: <code>indra/newview/llviewerjointattachment.cpp</code>: <code>LLViewerJointAttachment::removeObject</code>, <code>LLViewerJointAttachment::addObject</code>, <code>LLAppViewer::mainLoop</code>, <code>RRInterface::attachObjectByUUID</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. A locked, nontemporary attachment with inventory identity queues recovery at its original point. Inventory-save acknowledgement requests recovery immediately. The watchdog ticks every 10 seconds from the first pending detach; it requests recovery after more than 15 seconds, including after a failed acknowledged attempt. Later failed watchdog requests retry after more than 30 seconds. Further save acknowledgements can request recovery until the first watchdog attempt. Recovery bypasses wear locks and adds alongside existing occupants. Missing inventory items cancel pending recovery. Completed detach still clears attachment rules; recovery does not restore them. Commands remain available. Detach emits attach(NULL_KEY); restored inventory scripts receive on_rez and attach(owner). Notify subscribers receive detached illegally and reattached legally with the canonical point name. A registered bridge is exempt. Reset and avatar removal cancel recovery.
+
+- Original point recovery through inventory wear without replacing occupants
+- Inventory-save acknowledgement, watchdog fallback, retries and missing-item cancellation
+- Multiple locked items per point; detach, rez, attach and notify events; session cancellation
+
+Reference symbols: <code>indra/newview/rlvlocks.cpp</code>: <code>RlvAttachmentLockWatchdog::onDetach</code>, <code>RlvAttachmentLockWatchdog::onSavedAssetIntoInventory</code>, <code>RlvAttachmentLockWatchdog::onTimer</code>, <code>RlvAttachmentLockWatchdog::onAttach</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-reattach.test.ts](../packages/vitest/test/rlv-reattach.test.ts).
 
 ### edit-rez
 
@@ -1982,11 +2012,11 @@ Comparison: confirmed difference. Wiki warns that version replies can be delayed
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Startup retains commands in wire order; version requests bypass retention unless doNotQueueVersionRequests is false. Explicit readiness releases retained work. Time-based maintenance uses configurable additions to its initial 5-second wait and later 2-second interval; defaults produce 10-second delays. Missing issuers, including detached and never-resolved prims, lose rules and registrations on the next maintenance pass. Reset silently clears rules, retained commands and undelivered viewer replies.
+Support depth: enforced. Startup retains commands in wire order; version requests bypass retention unless doNotQueueVersionRequests is false. Explicit readiness releases retained work. Time-based maintenance uses configurable additions to its initial 5-second wait and later 2-second interval; defaults produce 10-second delays. Missing issuers, including detached and never-resolved prims, lose rules and registrations on the next maintenance pass. Pending attachment recovery pauses collection and retains commands as described by attachment-recovery. Reset silently clears rules, retained commands and undelivered viewer replies.
 
 - Ready/not-ready fixtures and startup version-query setting
 - Time-based maintenance with initial and interval additions
-- Session reset, object-list membership and orphan notifications; forced locked-attachment recovery excluded
+- Session reset, object-list membership and orphan notifications; locked-attachment recovery uses the attachment-recovery contract
 
 Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>, <code>RRInterface::fireCommands</code>, <code>RRInterface::garbageCollector</code>.
 
@@ -1996,7 +2026,7 @@ Support depth: enforced. Startup retains commands in wire order. From misc start
 
 - Ready/not-ready and misc startup phases with ordered version flushing
 - Known versus never-resolved issuer collection and immediate completed-detach cleanup
-- Session reset and orphan notifications; forced locked-attachment recovery excluded
+- Session reset and orphan notifications; locked-attachment recovery uses the attachment-recovery contract
 
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::processCommand</code>, <code>RlvHandler::processRetainedCommands</code>, <code>RlvHandler::onIdleStartup</code>, <code>RlvHandler::onGC</code>, <code>RlvHandler::onDetach</code>.
 
