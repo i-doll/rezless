@@ -278,11 +278,38 @@ it('restores the default after an unpersisted force and keeps unsupported forms 
   }
 })
 
+// In-world: force 0x1.8p-1 -> 0.750, min 0x.8p+1 -> 1.000, max 0x1.8p+0 -> 1.500
+// (Aditi, SLua Tideland, 2026-11-01, Firestorm RLVa 2.4.2, API 3.4.3).
 it('converts fractional hexadecimal angles without decimal reinterpretation', async () => {
   const pair = await loadRlvPair({ source })
   for (const profile of ['rlv', 'rlva'] as const) {
     const f = pair[profile]; f.script.start()
-    send(f, '@setcam_fov:0x1.8p-1=force,getcam_fov=22801,setcam_fovmin:0x.8p+1=n,getcam_fovmin=22801')
-    expect(replies(f)).toEqual(profile === 'rlva' ? ['0.750', '1.000'] : ['0.750000', '1.000000'])
+    send(f, '@setcam_fov:0x1.8p-1=force,getcam_fov=22801,setcam_fovmin:0x.8p+1=n,getcam_fovmin=22801,setcam_fovmax:0x1.8p+0=n,getcam_fovmax=22801')
+    expect(replies(f)).toEqual(profile === 'rlva' ? ['0.750', '1.000', '1.500'] : ['0.750000', '1.000000', '1.500000'])
+  }
+})
+
+// In-world: forces 0.8125/1.0625/1.1875 -> 0.812/1.062/1.188; min 1.0625 -> 1.062,
+// max 1.1875 -> 1.188, min -1.0625 -> -1.062; force 0.1328125 -> 0.133
+// (Aditi, SLua Tideland, 2026-11-01, Firestorm RLVa 2.4.2, API 3.4.3).
+it('rounds exact decimal half cases to the nearest even final digit', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start()
+    send(f, '@setcam_fov:0.8125=force,getcam_fov=22801,setcam_fov:1.0625=force,getcam_fov=22801,setcam_fov:1.1875=force,getcam_fov=22801,setcam_fov:0.1328125=force,getcam_fov=22801')
+    expect(replies(f)).toEqual(profile === 'rlva' ? ['0.812', '1.062', '1.188', '0.133'] : ['0.812500', '1.062500', '1.187500', '0.132812'])
+    send(f, '@setcam_fovmin:1.0625=n,getcam_fovmin=22801,setcam_fovmax:1.1875=n,getcam_fovmax=22801,clear,setcam_fovmin:-1.0625=n,getcam_fovmin=22801')
+    expect(replies(f).slice(-3)).toEqual(profile === 'rlva' ? ['1.062', '1.188', '-1.062'] : ['1.062500', '1.187500', '-1.062500'])
+  }
+})
+
+// In-world: max 1e30 -> 1000000015047466219876688855040.000; min -0 -> -0.000
+// (Aditi, SLua Tideland, 2026-11-01, Firestorm RLVa 2.4.2, API 3.4.3).
+it('preserves fixed decimal notation and negative zero', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start()
+    send(f, '@setcam_fovmax:1e30=n,getcam_fovmax=22801,clear,setcam_fovmin:-0=n,getcam_fovmin=22801')
+    expect(replies(f)).toEqual(profile === 'rlva' ? ['1000000015047466219876688855040.000', '-0.000'] : ['-0.000001', '0.000001'])
   }
 })

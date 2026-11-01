@@ -40,8 +40,17 @@ function format(value: number, profile: ViewerProfile): string {
     bits.setFloat64(0, value)
     return bits.getUint8(0) & 0x80 ? '-nan' : 'nan'
   }
-  return value === Infinity ? 'inf' : value === -Infinity ? '-inf'
-    : value.toFixed(profile === 'rlva' ? 3 : 6)
+  if (!Number.isFinite(value)) return value > 0 ? 'inf' : '-inf'
+  const digits = profile === 'rlva' ? 3 : 6
+  // Float32 values this large are integers; keep the full fixed-decimal reply.
+  if (Math.abs(value) >= 1e21) return BigInt(value).toString() + '.' + '0'.repeat(digits)
+  const scale = 10 ** digits
+  const scaled = value * scale
+  const lower = Math.floor(scaled)
+  // Decimal replies round exact halves to even, including negative values.
+  const rounded = scaled - lower === 0.5 ? (lower + Math.abs(lower % 2)) / scale : value
+  const negativeZero = rounded === 0 && (value < 0 || Object.is(value, -0))
+  return (negativeZero ? '-' : '') + rounded.toFixed(digits)
 }
 
 /** Per-avatar lens; simulator camera permission remains independent. */

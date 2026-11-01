@@ -949,7 +949,7 @@ the other camera fields retain their existing fixture behavior.
 
 | Case | Kokua RLV 2.09.35.00 | Firestorm RLVa 2.4.2 |
 | --- | --- | --- |
-| Query precision | Six decimals | Three decimals |
+| Query precision | Six decimals, exact halves to even | Three decimals, exact halves to even |
 | Unset limits | `0.000001` / `-0.000001` | Empty strings |
 | Empty force angle | Zero, clamped to physical minimum | Reset to pi/3 |
 | Empty limit angle | 1.5 radians | Rejected |
