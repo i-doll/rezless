@@ -82,7 +82,7 @@ export const llSetLocalRot: BuiltinImpl = (ctx, args) => {
   ctx.prim.setPrimParam(PRIM_ROT_LOCAL, [rotOf(args[0])], 0)
   return undefined
 }
-export const llGetRot: BuiltinImpl = (ctx) => ctx.prim.params.rotation
+export const llGetRot: BuiltinImpl = (ctx) => ctx.prim.getPrimParam(PRIM_ROTATION, [], 0)!.values[0]
 export const llGetLocalRot: BuiltinImpl = (ctx) => ctx.prim.params.rotation
 export const llGetRootRotation: BuiltinImpl = (ctx) => {
   const root = ctx.linkset.prims[0] ?? ctx.prim

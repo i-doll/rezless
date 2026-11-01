@@ -1,3 +1,4 @@
+import { mulRotation } from './values/ops.js'
 import {
   CLICK_ACTION_TOUCH,
   OVERRIDE_GLTF_BASE_ALPHA,
@@ -479,7 +480,20 @@ export function writePrimParam(
     case PRIM_POS_LOCAL:
       p.position = asVec(rules[cursor])
       return 1
-    case PRIM_ROTATION:
+    case PRIM_ROTATION: {
+      const requested = asRot(rules[cursor])
+      const root = prim.linkset?.prims[0]
+      // Compare the incoming LSL floats before normalization changes them.
+      if (Math.fround(requested.x) === Math.fround(p.rotation.x) &&
+          Math.fround(requested.y) === Math.fround(p.rotation.y) &&
+          Math.fround(requested.z) === Math.fround(p.rotation.z) &&
+          Math.fround(requested.s) === Math.fround(p.rotation.s)) return 1
+      const rotation = normalizeRot(requested)
+      p.rotation = root && root !== prim
+        ? normalizeRot(mulRotation(rotation, root.params.rotation))
+        : rotation
+      return 1
+    }
     case PRIM_ROT_LOCAL:
       p.rotation = normalizeRot(asRot(rules[cursor]))
       return 1
@@ -856,7 +870,16 @@ export function readPrimParam(
       return { values: [prim.regionPosition()], consumed: 0 }
     case PRIM_POS_LOCAL:
       return { values: [p.position], consumed: 0 }
-    case PRIM_ROTATION:
+    case PRIM_ROTATION: {
+      const linkset = prim.linkset
+      const wearer = linkset?.attachment
+        ? linkset.world?.avatars.find(avatar => avatar.key.toLowerCase() === linkset.attachment!.avatar.toLowerCase())
+        : undefined
+      const rotation = wearer
+        ? prim === linkset!.prims[0] ? wearer.rotation : mulRotation(p.rotation, wearer.rotation)
+        : prim.regionRotation()
+      return { values: [rotation], consumed: 0 }
+    }
     case PRIM_ROT_LOCAL:
       return { values: [p.rotation], consumed: 0 }
     case PRIM_SIZE:
