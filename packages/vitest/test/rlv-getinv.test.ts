@@ -96,8 +96,8 @@ it('rejects unsupported forms and uses existing profile channel policy', async (
   for (const profile of ['rlv', 'rlva'] as const) {
     const { script, avatar } = pair[profile]
     script.start()
-    expect(script.global('replies')).toEqual(profile === 'rlv' ? ['', ''] : [''])
-    expect(avatar.viewer.commandLog[4]!.status).toBe('unsupported')
+    expect(script.global('replies')).toEqual(profile === 'rlv' ? ['', '', ''] : ['', ''])
+    expect(avatar.viewer.commandLog[4]!.status).toBe('replied')
   }
 })
 

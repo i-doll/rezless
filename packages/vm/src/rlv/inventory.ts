@@ -1,5 +1,11 @@
 import type { RlvProfile } from './profiles.js'
 
+export const RLV_WEARABLE_TYPES = Object.freeze([
+  'gloves', 'jacket', 'pants', 'shirt', 'shoes', 'skirt', 'socks', 'underpants',
+  'undershirt', 'skin', 'eyes', 'hair', 'shape', 'alpha', 'tattoo', 'physics', 'universal',
+] as const)
+export type RlvWearableType = typeof RLV_WEARABLE_TYPES[number]
+
 /** Avatar inventory fixtures are separate from prim contents and inventory offers. */
 export interface RlvInventoryEntry {
   readonly id: string
@@ -8,6 +14,12 @@ export interface RlvInventoryEntry {
   readonly kind: 'folder' | 'item'
   /** Effective folded-folder state for the RLVa profile, including legacy naming. */
   readonly folded?: boolean
+  /** Wearable layer for clothing and bodyparts. No bodyparts are fabricated. */
+  readonly wearableType?: RlvWearableType
+  /** Explicit object type permits unworn attachments to count in folder queries. */
+  readonly assetType?: 'object'
+  /** Object modify permission, used by Kokua no-mod folder aggregation. */
+  readonly modifiable?: boolean
 }
 
 /** Inventory identity of an existing attachment; this never wears or spawns it. */
@@ -21,12 +33,15 @@ export interface RlvInventoryConfig {
   /** Direct-child order is the order of entries, independent of folder names. */
   readonly entries: readonly RlvInventoryEntry[]
   readonly wornAttachments?: readonly RlvWornAttachment[]
+  /** Inventory IDs of worn clothing and bodyparts, including items outside #RLV. */
+  readonly wornWearables?: readonly string[]
 }
 
 /** An owned copy of a seeded avatar tree; IDs and parent relations survive snapshots. */
 export class RlvInventory {
   private entries: readonly RlvInventoryEntry[] = Object.freeze([])
   private attachments: readonly RlvWornAttachment[] = Object.freeze([])
+  private wearables: readonly string[] = Object.freeze([])
   private rootId: string | null = null
 
   constructor(config?: RlvInventoryConfig) {
@@ -35,6 +50,8 @@ export class RlvInventory {
 
   get sharedRootId(): string | null { return this.rootId }
   snapshot(): readonly RlvInventoryEntry[] { return this.entries }
+  wornWearables(): readonly string[] { return this.wearables }
+  attachmentMappings(): readonly RlvWornAttachment[] { return this.attachments }
 
   /** Resolve item identity independently of whether the linkset is currently worn. */
   attachmentItem(rootKey: string): RlvInventoryEntry | undefined {
@@ -76,32 +93,40 @@ export class RlvInventory {
     const roots = new Set(attachments.map(entry => entry.rootKey))
     const items = new Set(attachments.map(entry => entry.itemId))
     if (roots.size !== attachments.length || items.size !== attachments.length ||
-      attachments.some(entry => !entry.rootKey || byId.get(entry.itemId)?.kind !== 'item')) {
+      attachments.some(entry => !entry.rootKey || byId.get(entry.itemId)?.kind !== 'item' || byId.get(entry.itemId)?.wearableType !== undefined)) {
       throw new Error('Attachment mappings require unique item IDs and root keys, and existing inventory items.')
     }
+    const wearables = [...config.wornWearables ?? []]
+    if (entries.some(entry => entry.wearableType !== undefined &&
+      (entry.kind !== 'item' || entry.assetType !== undefined || !RLV_WEARABLE_TYPES.includes(entry.wearableType))) ||
+      entries.some(entry => entry.assetType !== undefined && (entry.kind !== 'item' || entry.assetType !== 'object')) ||
+      new Set(wearables).size !== wearables.length || wearables.some(id => !byId.get(id)?.wearableType)) {
+      throw new Error('Worn wearables require unique existing wearable item IDs and valid layers.')
+    }
+    this.wearables = Object.freeze(wearables)
     this.attachments = Object.freeze(attachments)
     this.entries = Object.freeze(entries)
     this.rootId = config.sharedRootId
   }
 }
 
-/** Untruncated getinv wire text. Child order follows the seeded inventory. */
-export function getRlvInventoryList(profile: RlvProfile, inventory: RlvInventory, path = ''): string {
+/** Resolve the shared path using each profile's existing folder lookup policy. */
+export function getRlvInventoryFolder(profile: RlvProfile, inventory: RlvInventory, path = ''): string | undefined {
   const entries = inventory.snapshot()
   const children = (id: string) => entries.filter(entry => entry.kind === 'folder' && entry.parentId === id)
   let id = inventory.sharedRootId
-  if (id === null) return ''
+  if (id === null) return undefined
   const tokens = path.toLowerCase().split('/').filter(Boolean)
   if (profile === 'rlva') {
     for (const token of tokens) {
       const folders = children(id)
       const match = folders.find(folder => folder.name.toLowerCase() === token) ??
         folders.find(folder => !folder.name.startsWith('.') && folder.name.toLowerCase().includes(token))
-      if (!match) return ''
+      if (!match) return undefined
       id = match.id
     }
   } else {
-    if (path && tokens.length === 0) return ''
+    if (path && tokens.length === 0) return undefined
     const parts = tokens.map(token => token.split('|')[0]!)
     let offset = 0
     while (offset < parts.length) {
@@ -121,11 +146,19 @@ export function getRlvInventoryList(profile: RlvProfile, inventory: RlvInventory
           break
         }
       }
-      if (!best) return ''
+      if (!best) return undefined
       id = best.id
       offset += bestSize
     }
   }
+  return id
+}
+
+/** Untruncated getinv wire text. Child order follows the seeded inventory. */
+export function getRlvInventoryList(profile: RlvProfile, inventory: RlvInventory, path = ''): string {
+  const id = getRlvInventoryFolder(profile, inventory, path)
+  if (id === undefined) return ''
+  const children = (id: string) => inventory.snapshot().filter(entry => entry.kind === 'folder' && entry.parentId === id)
   return children(id).filter(folder => folder.name && !folder.name.startsWith('.') &&
     (profile === 'rlv' || !folder.folded && !folder.name.includes('/'))).map(folder => folder.name).join(',')
 }

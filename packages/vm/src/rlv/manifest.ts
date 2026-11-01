@@ -66,7 +66,8 @@ export const RLV_MANIFEST: {
   settings: {
     rlv: ['Reference startup version replies and blacklist depend on viewer settings; no emulator setting implemented.'],
     rlva: ['RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
-      'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.'],
+      'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.',
+      'Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.'],
   },
   commands: [
     {
@@ -166,6 +167,36 @@ export const RLV_MANIFEST: {
           support: 'enforced', coveredForms: ['Root and nested getinv on valid reply channels, including empty replies', 'Case-insensitive exact and partial paths, first exact duplicate, hidden exact paths and empty segments', 'Per-avatar seeded inventory with stable IDs, parents, explicit shared root, effective folded flags and immutable snapshots'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-getinv.test.ts'],
+    },
+    {
+      id: 'getoutfit', forms: ['@getoutfit[:<layer>]=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles return clothing and bodypart occupancy in the reference layer order, including universal after physics. There is no reserved leading bit. Named layers return one bit. Kokua falls back to the full bitmap for an invalid layer; RLVa sends an empty failed-option reply. Seeded state is explicit, including shape, skin, hair and eyes; no bodyparts are fabricated. RLVa uses RlvHideLockedLayers=false; setting overrides are unsupported.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::getOutfit', 'RRInterface::getOutfitLayerAsType'],
+          'Reads worn wearable IDs, including unshared items and multiple items per layer. Unknown selectors return the full 17-bit bitmap. No force wear, removal, rendering, baking or automatic bodypart replacement is modeled.'),
+          commandForms: replyForms('getoutfit'), support: 'enforced',
+          coveredForms: ['Full and named-layer occupancy, empty layers, bodyparts, universal and invalid selectors', 'Per-avatar explicit wearable type and worn item IDs, with immediate fixture updates'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetOutfit', 'RlvSettings::getHideLockedLayers'],
+          'Reads the same explicit wearable state with RlvHideLockedLayers=false. Invalid selectors return empty with failed-option. Lock-filter overrides, force wear and removal, rendering, baking and automatic bodypart replacement are unsupported.'),
+          commandForms: replyForms('getoutfit'), support: 'enforced',
+          coveredForms: ['Full and named-layer occupancy in reference order, including bodyparts and universal', 'Default locked-layer visibility and invalid-selector empty replies with failed-option'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-outfit.test.ts'],
+    },
+    {
+      id: 'getinvworn', forms: ['@getinvworn[:<path>]=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'Two digits describe direct and descendant wearable occupancy: 0 empty, 1 none worn, 2 some worn, 3 all worn. Clothing, bodyparts and mapped live attachments count together. Kokua preserves inventory order and ignores direct shared-root items; single no-mod named-point object folders use its 10/30 sentinel mapping. RLVa orders child folders by UUID, counts direct root items, and folds effective folders into their parents. Commas and slash-bearing child names remain unescaped. Inventory links and gestures are outside the fixture.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::getInventoryList', 'RRInterface::getWornItems', 'RRInterface::findAttachmentPointFromName'],
+          'Uses existing shared-path lookup and inventory child order. Hidden normal subtrees do not contribute, but no-mod named-point object children contribute directly to non-root parents and retain Kokua descendant scoring. Direct no-mod queries return 10 or 30. Missing paths and absent roots reply empty. Object type and modify permission are explicit; mapped objects also retain their existing identity.'),
+          commandForms: replyForms('getinvworn'), support: 'enforced',
+          coveredForms: ['Direct and recursive empty/none/some/all worn codes with mixed clothing and live attachments', 'Shared-root policy, hidden folders, no-mod sentinel aggregation, stable identities and wire names'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetInvWorn', 'RlvWearableItemCollector', 'RlvForceWear::isWearingItem'],
+          'Uses explicit effective folded flags and RLVaEnableSharedWear=true. A folded child with exactly one object contributes direct items to its parent, excluding clothing or bodyparts with nostrip in the item or folded ancestry through the first non-folded parent; other folded children and hidden normal subtrees do not contribute. Visible normal descendants contribute recursively. A directly selected folded folder becomes the collection root: its direct wearable items count normally, and its visible child folders retain their own scores. Missing paths reply empty with failed-option; absent roots reply empty. Automatic naming inference, setting overrides, gestures and inventory links are unsupported.'),
+          commandForms: replyForms('getinvworn'), support: 'enforced',
+          coveredForms: ['Direct and recursive worn codes, UUID child order, mixed live attachments and wearables', 'Explicit effective folding under the containing folder and direct folded-folder root queries'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-outfit.test.ts'],
     },
     {
       id: 'findfolder', forms: ['@findfolder:<criteria>=<channel>', '@findfolders:<criteria>[;<separator>]=<channel>'],

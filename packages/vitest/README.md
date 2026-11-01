@@ -1063,3 +1063,67 @@ RLVa collapses an effectively folded containing folder to its parent. These
 fixtures cover modifiable attachments; no-mod folder-name inference, inventory
 links, outfit layers and wear operations remain unsupported. Unsupported outfit
 selectors remain visible in the command log and produce no fabricated reply.
+
+
+### Outfit and worn inventory queries
+
+`seedRlvInventory(avatar, config)` accepts `wearableType` on item entries and
+`wornWearables`, an array of those item IDs. Layers are `gloves`, `jacket`,
+`pants`, `shirt`, `shoes`, `skirt`, `socks`, `underpants`, `undershirt`, `skin`,
+`eyes`, `hair`, `shape`, `alpha`, `tattoo`, `physics` and `universal`.
+Use `assetType: 'object'` for unworn object items; items in `wornAttachments`
+also count as objects. Set `modifiable: false` for Kokua no-mod folder scoring.
+IDs, layer names and wearable identity are validated before replacing a fixture.
+Snapshots own their copies, and replacing a fixture immediately changes replies.
+
+```ts
+seedRlvInventory(avatar, {
+  sharedRootId: 'root',
+  entries: [
+    { id: 'root', parentId: null, name: '#RLV', kind: 'folder' },
+    { id: 'outfit', parentId: 'root', name: 'Outfit', kind: 'folder' },
+    { id: 'shirt', parentId: 'outfit', name: 'Shirt', kind: 'item', wearableType: 'shirt' },
+    { id: 'jacket', parentId: 'outfit', name: 'Jacket', kind: 'item', wearableType: 'jacket' },
+  ],
+  wornWearables: ['shirt'],
+})
+// @getoutfit:shirt=<channel> replies "1".
+// @getinvworn:Outfit=<channel> replies "|20".
+```
+
+`getoutfit` returns 17 occupancy bits in the layer order above, without a
+reserved prefix, or one bit for a named layer. Bodyparts are explicit fixtures;
+an empty fixture has no implicit shape, skin, hair or eyes. Multiple worn items
+in one layer still occupy one bit. Unshared worn wearables count too. Invalid
+selectors return the full bitmap in Kokua RLV 2.09.35.00, or an empty reply with
+`failed-option` in Firestorm RLVa 2.4.2. RLVa uses `RlvHideLockedLayers=false`;
+lock-filter overrides are unsupported.
+
+`getinvworn` returns `|<direct><descendants>` for the selected folder, followed
+by comma-separated child names and their codes. Each digit is 0 for no wearable
+items, 1 for none worn, 2 for some worn, or 3 for all worn. Clothing, bodyparts
+and objects count together. Only current live attachments for that avatar make
+mapped object items worn. Ordinary nonwearable inventory does not count.
+Kokua preserves fixture child order and ignores items directly under the shared
+root. Its single no-mod object folders named with an attachment point use 10/30
+codes and contribute to their parent's direct count, including hidden no-mod
+folders. Normal hidden subtrees do not contribute.
+
+RLVa orders immediate children by UUID, includes direct root items, and retains
+slash names and unescaped commas in child listings. Effective `folded` child
+folders with exactly one object contribute their direct items to the containing
+folder instead of appearing as children. Folded clothing and bodyparts with
+`nostrip` in the item or folded ancestry through the first non-folded parent do
+not contribute.
+Folded children with any other object
+count do not contribute; normal hidden subtrees do not contribute. The fixture
+uses `RLVaEnableSharedWear=true`; naming inference and setting overrides are
+unsupported. A directly selected folded folder becomes the collection root in RLVa. Its
+direct items count normally, including clothing marked `nostrip`, and its visible
+children retain their own scores. Kokua retains its no-mod sentinel scoring for
+the same fixture. Missing paths and absent shared roots send
+empty replies. Both queries participate in RLVa `getcommand` discovery.
+
+These fixtures do not perform wear/removal, automatic bodypart replacement,
+baking or rendering. Inventory links and gestures are outside the covered forms.
+Outfit-layer `getpath` selectors remain unsupported.
