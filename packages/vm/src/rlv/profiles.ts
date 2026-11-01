@@ -77,7 +77,7 @@ export type RlvCommandRecord = {
 } & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'enforced' | 'applied' | 'unsupported' | 'malformed' | 'queued' | 'ignored' } | {
   readonly status: 'action'
   readonly action: 'sit' | 'unsit'
-  readonly actionOutcome: 'applied' | 'unchanged' | 'refused'
+  readonly actionOutcome: 'applied' | 'unchanged' | 'refused' | 'pending'
   readonly target: string
   /** Seat identity after the attempt, using the profile's getsitid policy. */
   readonly seat: string

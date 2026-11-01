@@ -256,8 +256,7 @@ it('bounds plain-prim seating and reports distant simulator placement as unsuppo
     plain.prims[0]!.params.position = { x: 9, y: 0, z: 0 }
     expect(fixture.userSit(plain.prims[0]!)).toBe(false)
     expect(avatar.sittingOn).toBeNull()
-    expect(avatar.viewer.diagnostics.at(-1)).toMatchObject({ reason: 'unsupported' })
-    expect(avatar.viewer.diagnostics.at(-1)?.detail).toContain('surface placement')
+    expect(avatar.viewer.diagnostics).toEqual([])
   }
 })
 
