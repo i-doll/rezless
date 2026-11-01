@@ -11,7 +11,7 @@ import { rlvIntegerPrefix as channelOption, type RlvCommandOutcome, type RlvPars
 import type { ViewerProfile, ViewerState } from './profiles.js'
 import { outfitSupport } from './outfit.js'
 import { cameraSupport, cameraDistanceSupport } from './camera.js'
-import { viewStateSupport } from './viewstate.js'
+import { renderSupport, viewStateSupport } from './viewstate.js'
 
 // Kokua routes these named replies before add/remove parameter dispatch.
 const KOKUA_REPLIES = new Set([
@@ -105,7 +105,7 @@ export class RlvRestrictions {
   support(behaviour: string, option: string): RlvRestriction['support'] {
     return this.notifySupport(behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
         teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ??
-        viewStateSupport(this.profile, behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ??
+        viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
   }
 
