@@ -337,8 +337,8 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
       const worn = !entry.wearableType ? object && !object.dead && object.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()
         : inventory.wornWearables().includes(entry.id)
       if (!worn) return { itemId: entry.id, outcome: 'not-worn' }
-      if (isRlvFolderWearLocked(avatar, entry, false, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
       if (isRlvBodypart(entry)) return { itemId: entry.id, outcome: 'skipped', reason: 'bodypart' }
+      if (isRlvFolderWearLocked(avatar, entry, false, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
       if (object && isRlvAttachmentBridge(viewer, object)) return { itemId: entry.id, outcome: 'blocked', reason: 'bridge' }
       if (!isRlvStrippable(profile, inventory, entry, folderRemoval)) return { itemId: entry.id, outcome: 'blocked', reason: 'nostrip' }
       if (object ? locked(avatar, object, rules)

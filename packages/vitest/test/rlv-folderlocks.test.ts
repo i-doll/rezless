@@ -194,3 +194,15 @@ it('Kokua force bodypart replacement also bypasses the outgoing folder lock', as
     expect(inv.wornWearables()).not.toContain(profile === 'rlv' ? 'old-shape' : 'shape')
   }
 })
+
+it('keeps non-removable bodyparts classified as skipped under folder removal locks', async () => {
+  for (const f of Object.values(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot(),
+      { id: 'shape', parentId: 'base', kind: 'item', name: 'Shape', wearableType: 'shape' }],
+      wornWearables: ['shape'], wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@detachthis:base=n,detach:base=force')
+    expect(inv.wornWearables()).toEqual(['shape'])
+    expect(f.avatar.viewer.commandLog.at(-1)?.removeResults).toContainEqual({ itemId: 'shape', outcome: 'skipped', reason: 'bodypart' })
+  }
+})
