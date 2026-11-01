@@ -238,3 +238,21 @@ it('applies distance clamping once after the preset pose, including contradictor
     expect(getRlvCameraPosition(f.avatar)).toEqual(f.script.global('position'))
   }
 })
+
+it('uses default modifiers for globally active limits excluded by exclusive control', async () => {
+  const pair = await setup()
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]
+    const loaded = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
+      prims: [{ scripts: [{ name: 'other', source: { source } }] }] })
+    const other = loaded.scripts.other!; other.start()
+    const emit = (command: string) => { other.setGlobal('command', command); other.fire('touch_start', { num_detected: 1 }) }
+    emit('@setcam_fovmin:1.2=n,setcam_origindistmax:1=n')
+    send(f, '@setcam=n,setcam_fov:0.5=force,getcam_fovmin=22921,getcam_fov=22921,setcam_avdistmax:8=n,setcam_eyeoffset:-20/0/0=force')
+    const replies = f.avatar.viewer.commandLog.filter(r => r.status === 'replied').map(r => r.reply.text)
+    expect(replies).toEqual(profile === 'rlva' ? ['', '1.047'] : ['1.200000', '1.200000'])
+    expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(-20, 0, 0) : vec(8, 0, 0))
+    emit('@clear'); send(f, '@version=22921')
+    expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(-8, 0, 0) : vec(8, 0, 0))
+  }
+})

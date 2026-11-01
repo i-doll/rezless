@@ -146,9 +146,9 @@ class RlvCamera {
   private limit(value: number): number {
     const physicalMax = Math.fround(MAX_FOV / ASPECT)
     if (this.viewer.profile === 'rlva') {
-      const active = (name: string) => this.previous.some(rule => lensFamily(rule) === name && cameraIssuerActive(this.viewer, rule))
-      value = clamp(value, active('setcam_fovmin') ? this.bound('setcam_fovmin')! : MIN_FOV,
-        active('setcam_fovmax') ? this.bound('setcam_fovmax')! : physicalMax)
+      const active = (name: string) => this.previous.some(rule => lensFamily(rule) === name)
+      value = clamp(value, active('setcam_fovmin') ? this.bound('setcam_fovmin') ?? DEFAULT_FOV : MIN_FOV,
+        active('setcam_fovmax') ? this.bound('setcam_fovmax') ?? DEFAULT_FOV : physicalMax)
       return clamp(value, MIN_FOV, physicalMax)
     }
     value = clamp(value, MIN_FOV, physicalMax)
@@ -332,7 +332,7 @@ class RlvDistanceCamera {
   pose(input: Vector): Vector {
     if (this.avatar.viewer.profile === 'disabled' || this.avatar.info & AGENT_MOUSELOOK) return input
     const limits = this.limits()
-    const active = (name: string) => this.previous.some(rule => distanceFamily(rule.behaviour) === name && cameraIssuerActive(this.avatar.viewer, rule))
+    const active = (name: string) => this.previous.some(rule => distanceFamily(rule.behaviour) === name)
     const avatarBounds = this.avatar.viewer.profile === 'rlva'
       ? [active('setcam_avdistmin') ? limits.avatar[0] : undefined, active('setcam_avdistmax') ? limits.avatar[1] : undefined] as const
       : limits.avatar
