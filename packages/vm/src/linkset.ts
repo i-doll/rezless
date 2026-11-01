@@ -45,6 +45,15 @@ export interface LinksetOptions {
   readonly animesh?: boolean
 }
 
+/** Attachment state shared by every prim in a worn linkset. */
+export interface Attachment {
+  readonly avatar: string
+  readonly point: number
+  readonly temporary: boolean
+  /** Sequence among this clock's currently worn objects. */
+  readonly order: number
+}
+
 export interface TouchOptions {
   /** Face of the prim that was clicked. Default 0. */
   readonly face?: number
@@ -106,7 +115,11 @@ export class Linkset {
   damageEnabled = false
   /** Parcel-owner/group sources bypass the llDamage throttle. */
   damageThrottleExempt = false
-  readonly owner: string
+  owner: string
+  /** Null while rezzed or detached; tests may attach fixtures with attachToAvatar. */
+  attachment: Attachment | null = null
+  private lastAttachmentPoint = 6
+  private deleteAfterDetach = false
   /** True once a script in the linkset has called llDie. */
   dead = false
   /** Provenance and initial motion of a script-rezzed object. */
@@ -159,9 +172,48 @@ export class Linkset {
     return prim
   }
 
+  /** Wear a fixture without a script permission request, as a viewer does. */
+  attachToAvatar(avatar: string, point: number, temporary = false): void {
+    if (this.dead || this.attachment || !this.prims.length) return
+    point &= 255
+    point = point === 0 ? this.lastAttachmentPoint : point > 55 ? 1 : point
+    const order = Math.max(0, ...this.peers.map(l => l.attachment?.order ?? 0)) + 1
+    if (!this.peers.includes(this)) this.peers.push(this)
+    this.lastAttachmentPoint = point
+    this.attachment = { avatar, point, temporary, order }
+    this.broadcastAttach(avatar)
+  }
+
+  /** Detach into inventory, preserving script state and the remembered point. */
+  detachFromAvatar(): void {
+    if (!this.attachment) return
+    this.deleteAfterDetach = this.attachment.temporary
+    this.attachment = null
+    const index = this.peers.indexOf(this)
+    if (index >= 0) this.peers.splice(index, 1)
+    // A detached object leaves region queries and recurring timers. The final
+    // attach event still runs from the shared clock's explicit event queue.
+    for (const script of this.allScripts()) this.clock.purgeTarget(script)
+    this.broadcastAttach(NULL_KEY)
+    this.finishTemporaryDetach()
+  }
+
+  private finishTemporaryDetach(): void {
+    if (!this.deleteAfterDetach || this.allScripts().some(s => this.clock.hasPending(s, 'attach'))) return
+    this.deleteAfterDetach = false
+    this.remove()
+  }
+
+  private broadcastAttach(avatar: string): void {
+    for (const script of this.allScripts()) {
+      if (script.running && !script.dead) this.clock.schedule(script, this.clock.now, 'attach', { avatar })
+    }
+  }
+
   /** Snapshot an inventory object, or instantiate it in the rezzer's world. */
   copy(opts: LinksetOptions = {}, from?: Linkset): Linkset {
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
+    copy.lastAttachmentPoint = this.lastAttachmentPoint
     for (const source of this.prims) {
       const prim = copy.addPrim(new Prim({ name: source.name }))
       for (const [name, value] of Object.entries(source)) {
@@ -596,6 +648,7 @@ export class Linkset {
       // ResetScriptSignal is caught inside `Script.runHandler`; it never
       // bubbles up to here, so no try/catch is needed.
       target.deliver(next.event, next.payload)
+      target.linkset.finishTemporaryDetach()
     }
   }
 }
