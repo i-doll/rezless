@@ -6,6 +6,7 @@ import type { WorldAvatar } from '../world.js'
 import type { RlvSession } from './session.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
+import { outfitSupport } from './outfit.js'
 import { cameraSupport } from './camera.js'
 
 // Kokua routes these named replies before add/remove parameter dispatch.
@@ -71,7 +72,7 @@ export class RlvRestrictions {
       return 'state-only'
     }
     if (this.profile === 'rlv' && isKokuaNamedReply(behaviour)) return 'unsupported'
-    const support = this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced' : this.chatSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
+    const support = this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced' : this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
     if (this.profile === 'rlva' && support === 'unsupported') {

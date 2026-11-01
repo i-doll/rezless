@@ -1,4 +1,4 @@
-import { attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
+import { attemptRlvWearable, attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
 /** Attempt a user lens change in radians, returning the enforced FOV. */
@@ -11,6 +11,7 @@ export interface RlvFixture {
   readonly attemptDetach: (attachment?: Linkset) => RlvDetachOutcome
   readonly chatActions: readonly AvatarChatAction[]
   readonly teleportActions: readonly (RlvTeleportAction & RlvCommandRecord)[]
+  attemptWearable(itemId: string, wear: boolean): import('@rezless/vm').RlvWearableActionOutcome
   userSit(prim: Prim, offset?: Vector): boolean
   userStand(): boolean
   sendChat(channel: number, message: string): AvatarChatAction
@@ -30,6 +31,7 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
       get teleportActions() { return avatar.viewer.commandLog.filter((entry): entry is RlvTeleportAction & RlvCommandRecord =>
         entry.status === 'action' && entry.action === 'tpto') },
       get chatActions() { return avatarChatLog(avatar) },
+      attemptWearable: (itemId, wear) => attemptRlvWearable(avatar, itemId, wear),
       userSit: (prim, offset) => {
         const accepted = world.userSitAvatar(avatar, prim, offset)
         loaded.linkset.advanceTime(0)

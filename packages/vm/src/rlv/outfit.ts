@@ -109,3 +109,43 @@ export function getRlvOutfitReply(profile: RlvProfile, inventory: RlvInventory, 
     .sort((a, b) => a.id.toLowerCase() < b.id.toLowerCase() ? -1 : 1)
     .map(child => `,${child.name}|${code(child)}`).join('') }
 }
+
+/** Recognized layer locks; all-layer locks have an empty option. */
+export function outfitSupport(behaviour: string, option: string): 'enforced' | undefined {
+  return (behaviour === 'addoutfit' || behaviour === 'remoutfit') &&
+    (!option || RLV_WEARABLE_TYPES.some(layer => layer === option)) ? 'enforced' : undefined
+}
+
+const bodyparts = new Set(['skin', 'eyes', 'hair', 'shape'])
+export function isRlvBodypart(entry: RlvInventoryEntry): boolean {
+  return bodyparts.has(entry.wearableType!)
+}
+
+/** Name protection differs between layer removal and shared-folder removal. */
+export function isRlvStrippable(profile: RlvProfile, inventory: RlvInventory, entry: RlvInventoryEntry,
+  folderRemoval = false): boolean {
+  const entries = inventory.snapshot()
+  const protectedName = (name: string) => (profile === 'rlv' ? name.toLowerCase() : name).includes('nostrip')
+  if ((profile === 'rlva' || folderRemoval) && protectedName(entry.name)) return false
+  let parent = entries.find(folder => folder.id === entry.parentId)
+  while (parent) {
+    if (protectedName(parent.name)) return false
+    if (profile === 'rlva' && !parent.folded) break
+    parent = entries.find(folder => folder.id === parent!.parentId)
+  }
+  return true
+}
+
+export type RlvWearableActionOutcome = 'allowed' | 'blocked' | 'no-op'
+
+/** Explicit clothing add/remove actions; seeding inventory remains unrestricted. */
+export function attemptRlvWearable(avatar: import('../world.js').WorldAvatar, itemId: string,
+  wear: boolean): RlvWearableActionOutcome {
+  const viewer = avatar.viewer
+  const entry = viewer.inventory.snapshot().find(entry => entry.id === itemId)
+  if (!entry?.wearableType || isRlvBodypart(entry) || viewer.inventory.wornWearables().includes(itemId) === wear) return 'no-op'
+  if (viewer.profile !== 'disabled' && viewer.restrictions.snapshot().some(rule =>
+    rule.behaviour === (wear ? 'addoutfit' : 'remoutfit') && (!rule.option || rule.option === entry.wearableType))) return 'blocked'
+  viewer.inventory.setWearableWorn(itemId, wear)
+  return 'allowed'
+}

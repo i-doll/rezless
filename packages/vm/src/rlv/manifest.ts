@@ -248,6 +248,30 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-forcewear.test.ts'],
     },
     {
+      id: 'forceremove', forms: ['@detach:<shared-path>=force', '@remoutfit[:<layer>]=force', '@addoutfit[:<layer>]=n|y', '@remoutfit[:<layer>]=n|y'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Shared: direct folder attachments and selected clothing layers are removable; skin, eyes, hair and shape remain worn. Both profiles respect every layer and attachment lock, including the force issuer. Confirmed difference: Kokua layer removal checks ancestor folder names for nostrip, case insensitively, but ignores item-name nostrip; RLVa checks the item and parent name case sensitively and ascends through folded parents. Wiki also describes folder clothing removal and recursive forms; those forms remain unsupported here.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::force', 'RRInterface::forceDetachByName', 'RRInterface::removeItemFromAvatar', 'RRInterface::canUnwear', 'RRInterface::canDetachCategoryAux'],
+          'Direct folder attachments plus single no-mod objects in point-named children can be removed. Ordinary descendants survive. Layer and bare removal affect clothing only, across shared and unshared inventory. Force commands do not bypass issuer locks. Folder removal honors item and ancestor nostrip names case insensitively; layer removal honors ancestor folders only. Invalid layer/path options are inert. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, point/UUID removal, folder locks, recursive forms and inventory links are unsupported.'),
+          support: 'enforced', commandForms: [
+            { behaviour: 'detach', type: 'force', support: 'enforced', option: 'any' },
+            { behaviour: 'remoutfit', type: 'force', support: 'enforced', option: 'any' },
+            { behaviour: 'addoutfit', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'remoutfit', type: 'add', support: 'enforced', option: 'any' },
+          ], coveredForms: ['Direct folder attachment removal with per-item results and subsequent query updates', 'Selected and all clothing layer removal; nonremovable bodyparts', 'Global and named add/remove layer locks, multiple issuers and no force-issuer exemption', 'Case-insensitive folder protection and layer item-name exemption'] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvForceWear::forceFolder', 'RlvForceWear::forceRemove', 'RlvForceWear::isForceDetachable', 'RlvForceWear::isForceRemovable', 'RlvForceWear::isStrippable'],
+          'Direct folder attachments plus object items in effective folded children can be removed; ordinary descendants survive. Folder item results follow inventory UUID order. Layer and bare removal affect clothing only, across shared and unshared inventory. Every issuer lock remains effective; a registered valid bridge stays attached. Item and parent nostrip names are case sensitive, ascending through folded parents. Invalid layer/path options fail. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, point/group/UUID removal, folder locks, recursive forms and inventory links are unsupported.'),
+          support: 'enforced', commandForms: [
+            { behaviour: 'detach', type: 'force', support: 'enforced', option: 'any' },
+            { behaviour: 'remoutfit', type: 'force', support: 'enforced', option: 'any' },
+            { behaviour: 'addoutfit', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'remoutfit', type: 'add', support: 'enforced', option: 'any' },
+          ], coveredForms: ['Direct and folded folder attachment removal with deterministic per-item results', 'Selected and all clothing layer removal; nonremovable bodyparts', 'Global and named add/remove layer locks, multiple issuers and no force-issuer exemption', 'Case-sensitive item and parent-folder protection; explicit unsupported mixed contents'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-forceremove.test.ts'],
+    },
+    {
       id: 'getattach', forms: ['@getattach[:<point>]=<channel>'],
       comparison: 'version/setting dependent',
       wikiComparison: 'Both profiles return a reserved leading zero followed by occupancy for points 1 through 55, or one bit for a named point. Duplicate objects occupy one bit. Root aliases Avatar Center. Invalid names return empty text; RLVa also records a failed-option outcome. The fixture uses the RLVa reference hide-locked default false; lock-filter setting overrides are unsupported.',
@@ -281,17 +305,15 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Wiki describes attachment-local locks and ordered clear/self-detach, without specifying child emitter or malformed-option handling. No-option locks protect the containing attachment and remain scoped to the issuing prim. Self-detach respects every root and child lock, including its own. Kokua resolves a child emitter to its attachment and ignores detachme options. RLVa child self-detach is inert and nonempty options fail. Simulator detach is separate from a viewer detach attempt; forced reattachment recovery is excluded.',
       profiles: {
         rlv: { ...kokua(['RRInterface::force', 'RRInterface::forceDetachByUuid', 'RRInterface::canDetachWithExplanation', 'RRInterface::detachObject'],
-          'Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named locks, detach=force, folder operations, nostrip and forced reattachment recovery are unsupported.'),
+          'Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named locks, bare detach=force and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.'),
           support: 'enforced', commandForms: [
             { behaviour: 'detach', type: 'add', support: 'enforced', option: 'none' },
-            { behaviour: 'detach', type: 'force', support: 'unsupported', option: 'any' },
             { behaviour: 'detachme', type: 'force', support: 'enforced', option: 'any' },
           ], coveredForms: ['No-option detach n/add and y/rem with per-prim locks', 'Explicit viewer detach attempt and queued force self-detach from root or child', 'Ignored detachme options, lock denial, attach events and llGetAttached state', 'Simulator detach remains independent of viewer locks'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvBehaviourHandler<RLV_BHVR_DETACH>::onCommand', 'RlvForceHandler<RLV_BHVR_DETACHME>::onCommand', 'LLVOAvatarSelf::detachAttachmentIntoInventory', 'RlvAttachmentLocks::canDetach'],
-          'Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named locks, detach=force, folder operations, bridge exemption settings and forced reattachment recovery are unsupported.'),
+          'Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named locks, bare detach=force, bridge exemption settings and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.'),
           support: 'enforced', commandForms: [
             { behaviour: 'detach', type: 'add', support: 'enforced', option: 'none' },
-            { behaviour: 'detach', type: 'force', support: 'unsupported', option: 'any' },
             { behaviour: 'detachme', type: 'force', support: 'enforced', option: 'none' },
           ], coveredForms: ['No-option detach n/add and y/rem with root and child issuer locks', 'Explicit viewer detach attempt and queued root force self-detach', 'Child self-detach no-op, rejected nonempty options, attach events and llGetAttached state', 'Simulator detach remains independent of viewer locks'] },
       },
