@@ -258,7 +258,7 @@ it('uses query channel policy and only advertises implemented outfit reply forms
   for (const profile of ['rlv', 'rlva'] as const) {
     const { avatar, script } = pair[profile]
     script.start()
-    expect(script.global('replies')).toEqual(profile === 'rlv' ? ['00000000000000000', ''] : ['getoutfit', 'getinvworn'])
+    expect(script.global('replies')).toEqual(profile === 'rlv' ? ['00000000000000000', ''] : ['getoutfit;getoutfitnames', 'getinvworn'])
     expect(avatar.viewer.commandLog[0]?.status).toBe('unsupported')
     expect(avatar.viewer.commandLog[5]?.status).toBe('unsupported')
     expect(avatar.viewer.commandLog[6]?.status).toBe('unsupported')

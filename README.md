@@ -743,7 +743,9 @@ existing worn attachment paths through optional `wornAttachments` item-to-root
 mappings in `seedRlvInventory`. They observe attachment changes without spawning
 or wearing objects. Outfit-layer path selectors remain unsupported.
 
-RLV/RLVa outfit reads include `getoutfit` and `getinvworn`. Seed wearable layers
+RLV/RLVa outfit reads include `getoutfit` and `getinvworn`. RLVa also answers
+`getoutfitnames`, `getaddoutfitnames` and `getremoutfitnames` using worn layers
+and active clothing locks; Kokua leaves these queries unsupported. Seed wearable layers
 and worn item IDs with `seedRlvInventory`; inventory replies combine clothing
 with mapped live attachments. The manifest describes profile differences and
 direct folded-folder queries. These reads do not wear or
