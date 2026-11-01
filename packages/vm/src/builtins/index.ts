@@ -1,3 +1,4 @@
+import { llSitOnLink, llUnSit, llSetAgentRot, llTeleportAgent, llTeleportAgentGlobalCoords, llTeleportAgentHome, llAvatarOnSitTarget, llAvatarOnLinkSitTarget } from './sit.js'
 import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
 import { llSetKeyframedMotion, llSetRegionPos } from './motion.js'
 import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
@@ -404,8 +405,6 @@ import {
   llPassTouches,
   llSitTarget,
   llLinkSitTarget,
-  llAvatarOnSitTarget,
-  llAvatarOnLinkSitTarget,
   llSetLinkSitFlags,
   llGetLinkSitFlags,
 } from './prim-accessors.js'
@@ -824,10 +823,16 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llPassTouches,
   llSitTarget,
   llLinkSitTarget,
-  llAvatarOnSitTarget,
-  llAvatarOnLinkSitTarget,
   llSetLinkSitFlags,
   llGetLinkSitFlags,
+  llSitOnLink,
+  llUnSit,
+  llSetAgentRot,
+  llTeleportAgent,
+  llTeleportAgentGlobalCoords,
+  llTeleportAgentHome,
+  llAvatarOnSitTarget,
+  llAvatarOnLinkSitTarget,
   // script memory
   llGetUsedMemory,
   llGetFreeMemory,
