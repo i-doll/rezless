@@ -210,3 +210,20 @@ it('does not log an old session cancellation when a new session requests a sit',
     expect(avatar.sittingOn).toBe(script.host)
   }
 })
+
+it('lets RLVa ground sitting replace autopilot while Kokua empty sit leaves it pending', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const profile of profiles) {
+    const fixture = pair[profile]
+    const { world, avatar, script } = fixture
+    const seat = await loadLinkset({ world, region: avatar.region, position: { x: 60, y: 0, z: 0 }, prims: [{}] })
+    world.setSitResponse(seat.prims[0]!, { position: { x: 0, y: 0, z: 1 }, autopilot: { durationMs: 1000, success: true } })
+    script.start(); send(fixture, '@sit:' + seat.prims[0]!.key + '=force')
+    send(fixture, '@sit=force')
+    expect(avatar.info & 16).toBe(profile === 'rlva' ? 16 : 0)
+    script.linkset.advanceTime(1000)
+    expect(avatar.sittingOn).toBe(profile === 'rlva' ? null : seat.prims[0])
+    expect(avatar.info & 48).toBe(profile === 'rlva' ? 16 : 48)
+    expect(avatar.position).toEqual(profile === 'rlva' ? { x: 0, y: 0, z: 0 } : { x: 60, y: 0, z: 1 })
+  }
+})
