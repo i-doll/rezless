@@ -906,7 +906,8 @@ and simulator actions remain independent.
 `fixture.move(action)` and `world.attemptAvatarMovement(avatar, action)` accept
 `fly`, `land`, `jump`, `alwaysrun`, `temprun` and `walk`. Results report `allowed`,
 a denial reason and deciding restrictions; `fixture.movementActions` retains them.
-Flight changes update `AGENT_FLYING` for `llGetAgentInfo`. Jump records upward
+Flight changes update `AGENT_FLYING` for `llGetAgentInfo`. Either run mode sets
+`AGENT_ALWAYS_RUN`; walking or clearing the final active mode removes that bit. Jump records upward
 input permission without simulating airborne motion. Seated avatars cannot take off.
 
 Both profiles stop flight on `fly=n`. Firestorm RLVa 2.4.2 separately clears and
@@ -917,6 +918,8 @@ Only RLVa supports `fly[:true|false|0|1]=force`, exempting the issuing prim from
 its own flight lock. Other issuers still block forced takeoff.
 
 `getAvatarMovementState(avatar)` initializes mutable `avatar.movement` state.
+An initial `AGENT_ALWAYS_RUN` info bit seeds always-run mode. Set the movement
+fields explicitly when a fixture needs to distinguish temporary running.
 `adjustheight` force changes its `hoverOffset`, clamped to -2 through 2 metres,
 without moving the avatar. Relative `reference;scalar[;offset]` forms with a
 nonzero scalar need an explicit `pelvisToFoot` skeleton distance. Kokua uses

@@ -245,3 +245,32 @@ it('keeps temporary running under an RLVa alwaysrun lock and clears it under Kok
     else expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'failed-option' })
   }
 })
+
+it('reports both run modes through LSL and preserves remaining modes when a lock clears one', async () => {
+  const { AGENT_ALWAYS_RUN } = await import('../src/index.js')
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = (await loadRlvPair({ source }))[profile]
+    f.script.start()
+    f.move('alwaysrun'); issue(f.script, '')
+    expect((f.script.global('info') as number) & AGENT_ALWAYS_RUN).toBe(AGENT_ALWAYS_RUN)
+    f.move('temprun'); issue(f.script, '@alwaysrun=n')
+    expect((f.script.global('info') as number) & AGENT_ALWAYS_RUN).toBe(profile === 'rlva' ? AGENT_ALWAYS_RUN : 0)
+    issue(f.script, '@temprun=n')
+    expect((f.script.global('info') as number) & AGENT_ALWAYS_RUN).toBe(0)
+    issue(f.script, '@clear')
+    f.move('temprun'); issue(f.script, '')
+    expect((f.script.global('info') as number) & AGENT_ALWAYS_RUN).toBe(AGENT_ALWAYS_RUN)
+    f.move('walk'); issue(f.script, '')
+    expect((f.script.global('info') as number) & AGENT_ALWAYS_RUN).toBe(0)
+  }
+})
+
+it('initializes an existing run-info flag as always-run and clears it under a run lock', async () => {
+  const { AGENT_ALWAYS_RUN } = await import('../src/index.js')
+  for (const f of Object.values(await loadRlvPair({ source }))) {
+    f.avatar.info |= AGENT_ALWAYS_RUN
+    f.script.start(); issue(f.script, '@alwaysrun=n')
+    expect(f.avatar.movement?.alwaysRun).toBe(false)
+    expect((f.script.global('info') as number) & AGENT_ALWAYS_RUN).toBe(0)
+  }
+})

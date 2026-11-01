@@ -1,4 +1,4 @@
-import { AGENT_FLYING, AGENT_SITTING } from '../generated/constants.js'
+import { AGENT_ALWAYS_RUN, AGENT_FLYING, AGENT_SITTING } from '../generated/constants.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Prim } from '../prim.js'
 import type { RlvParsedCommand } from './classifier.js'
@@ -28,7 +28,10 @@ export function avatarMovementLog(avatar: WorldAvatar): readonly AvatarMovementA
   return Object.freeze([...(logs.get(avatar) ?? [])])
 }
 export function getAvatarMovementState(avatar: WorldAvatar): AvatarMovementState {
-  return avatar.movement ??= { alwaysRun: false, tempRun: false, hoverOffset: 0, hoverEnabled: true }
+  return avatar.movement ??= { alwaysRun: !!(avatar.info & AGENT_ALWAYS_RUN), tempRun: false, hoverOffset: 0, hoverEnabled: true }
+}
+function syncRunInfo(avatar: WorldAvatar, state: AvatarMovementState): void {
+  avatar.info = state.alwaysRun || state.tempRun ? avatar.info | AGENT_ALWAYS_RUN : avatar.info & ~AGENT_ALWAYS_RUN
 }
 export function movementSupport(profile: ViewerProfile, behaviour: string, option: string): RlvRestriction['support'] | undefined {
   if (!['fly', 'jump', 'alwaysrun', 'temprun', 'allowidle'].includes(behaviour)) return undefined
@@ -51,6 +54,7 @@ export function attemptAvatarMovement(world: World, avatar: WorldAvatar, action:
     if (action === 'alwaysrun') state.alwaysRun = true
     if (action === 'temprun') state.tempRun = true
     if (action === 'walk') { state.alwaysRun = false; state.tempRun = false }
+    if (['alwaysrun', 'temprun', 'walk'].includes(action)) syncRunInfo(avatar, state)
   }
   let log = logs.get(avatar)
   if (!log) logs.set(avatar, log = [])
@@ -70,12 +74,14 @@ export function movementRulesChanged(avatar: WorldAvatar, before: readonly RlvRe
     if (has(after, 'temprun')) state.tempRun = false
   } else if (avatar.viewer.profile === 'rlv') {
     const changed = (name: string) => before.filter(r => r.behaviour === name && !r.option).length !== after.filter(r => r.behaviour === name && !r.option).length
+    if (!names.some(changed)) return
     if (changed('fly') && after.some(r => r.behaviour === 'fly' && !r.option && !before.includes(r))) avatar.info &= ~AGENT_FLYING
     if ((changed('temprun') && has(after, 'temprun') && (state.tempRun || state.alwaysRun)) ||
         (changed('alwaysrun') && has(after, 'alwaysrun') && state.alwaysRun)) {
       state.alwaysRun = false; state.tempRun = false
     }
   }
+  syncRunInfo(avatar, state)
 }
 
 const floatPrefix = (text: string) => {

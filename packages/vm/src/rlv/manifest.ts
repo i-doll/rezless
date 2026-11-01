@@ -925,7 +925,7 @@ export const RLV_MANIFEST: {
     {
       id: 'movement', forms: ['@fly=n|y', '@jump=n|y', '@alwaysrun=n|y', '@temprun=n|y', '@fly[:true|false|0|1]=force', '@adjustheight:<centimetres|reference;scalar[;offset]>=force'],
       comparison: 'confirmed difference',
-      wikiComparison: 'Flight locks stop flight immediately. Run locks clear current modes and constrain new user inputs. RLVa supports jump locks and forced flight with an issuing-prim exception; Kokua does not. Hover adjustment changes viewer offset without translating simulator position.',
+      wikiComparison: 'Flight locks stop flight immediately. Run locks clear current modes and constrain new user inputs. Either run mode sets AGENT_ALWAYS_RUN; clearing the last active mode clears it. RLVa supports jump locks and forced flight with an issuing-prim exception; Kokua does not. Hover adjustment changes viewer offset without translating simulator position.',
       profiles: {
         rlv: { ...kokua(['RRInterface::add', 'RRInterface::force', 'refreshCachedVariable', 'agent_handle_doubletap_run', 'LLWorldAlwaysRun::handleEvent'],
           'Fly stops flight and blocks takeoff. Temprun clears running and always-run together; alwaysrun clears both when always-run is active. Each new issuer fly lock stops flight. Jump and forced flight are unsupported. Adjustheight uses integer-prefix centimetres or float-prefix reference/scalar/offset with a nonzero scalar; zero scalar retains the centimetre fallback. Offset clamps to [-2,2]. Relative forms require explicit pelvisToFoot geometry.'),

@@ -1878,7 +1878,7 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@fly=n&#124;y</code>, <code>@jump=n&#124;y</code>, <code>@alwaysrun=n&#124;y</code>, <code>@temprun=n&#124;y</code>, <code>@fly[:true&#124;false&#124;0&#124;1]=force</code>, <code>@adjustheight:&lt;centimetres&#124;reference;scalar[;offset]&gt;=force</code>.
 
-Comparison: confirmed difference. Flight locks stop flight immediately. Run locks clear current modes and constrain new user inputs. RLVa supports jump locks and forced flight with an issuing-prim exception; Kokua does not. Hover adjustment changes viewer offset without translating simulator position.
+Comparison: confirmed difference. Flight locks stop flight immediately. Run locks clear current modes and constrain new user inputs. Either run mode sets AGENT_ALWAYS_RUN; clearing the last active mode clears it. RLVa supports jump locks and forced flight with an issuing-prim exception; Kokua does not. Hover adjustment changes viewer offset without translating simulator position.
 
 #### Kokua RLV 2.09.35.00
 
