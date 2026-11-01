@@ -96,3 +96,5 @@ export type { AvatarChatAction } from './rlv/chat-actions.js'
 
 export { attemptViewerDetach } from './rlv/detach.js'
 export type { RlvDetachOutcome } from './rlv/detach.js'
+
+export type { RlvTeleportAction } from './rlv/teleport.js'
