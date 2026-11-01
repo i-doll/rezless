@@ -972,8 +972,9 @@ the pilot before seating and `CHANGED_LINK`; failure leaves the avatar standing.
 Already seated on the same linkset, the viewer bypasses autopilot. Command logs
 record `pending` followed by the completion outcome. `world.cancelSitAutopilot(avatar)`
 cancels the pilot. New accepted sits replace pending ones; session reset discards
-them. Completion checks occupancy, target lifetime and the avatar's region and
-pose so stale requests cannot move an avatar after teleporting or changing seats.
+them. Position, region and parent changes cancel outstanding pilots, including a
+teleport back to the original coordinates. Completion rechecks occupancy and target
+lifetime before seating.
 
 `world.setSitResponse(seat, null)` refuses a request, and `undefined` restores the
 default. Responses snapshot their inputs. Positions and rotations follow the seat

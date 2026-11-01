@@ -106,7 +106,7 @@ it.each(profiles)('%s enforces user sittp before considering a far response', as
   expect(avatar.position).toEqual({ x: 60, y: 0, z: 1 })
 })
 
-it.each(['reset', 'teleport', 'occupied', 'deleted', 'replacement', 'cancel'] as const)(
+it.each(['reset', 'teleport', 'roundtrip', 'occupied', 'deleted', 'replacement', 'reparent', 'cancel'] as const)(
   'does not complete stale autopilot after %s', async event => {
     for (const fixture of Object.values(await loadRlvPair({ source }))) {
       const { world, avatar, script } = fixture
@@ -116,12 +116,17 @@ it.each(['reset', 'teleport', 'occupied', 'deleted', 'replacement', 'cancel'] as
       script.start(); send(fixture, '@sit:' + prim.key + '=force')
       if (event === 'reset') avatar.viewer.session.reset()
       if (event === 'teleport') world.teleportAvatar(avatar, { x: 10, y: 10, z: 10 })
+      if (event === 'roundtrip') {
+        world.teleportAvatar(avatar, { x: 10, y: 10, z: 10 })
+        world.teleportAvatar(avatar, { x: 0, y: 0, z: 0 })
+      }
       if (event === 'occupied') world.sitAvatar(world.addAvatar({ username: 'occupant', region: avatar.region }), prim)
       if (event === 'deleted') seat.linkset.dead = true
       if (event === 'replacement') send(fixture, '@sit:' + script.host.key + '=force')
+      if (event === 'reparent') avatar.sittingOn = script.host
       if (event === 'cancel') world.cancelSitAutopilot(avatar)
       script.linkset.advanceTime(1000)
-      expect(avatar.sittingOn).toBe(event === 'replacement' ? script.host : null)
+      expect(avatar.sittingOn).toBe(event === 'replacement' || event === 'reparent' ? script.host : null)
       if (event === 'teleport') expect(avatar.position).toEqual({ x: 10, y: 10, z: 10 })
     }
   })
@@ -186,5 +191,22 @@ it('turns flying off when a sit response starts an unsuccessful pilot', async ()
     expect(avatar.info & 1).toBe(0)
     script.linkset.advanceTime(1000)
     expect(avatar.info & 17).toBe(0)
+  }
+})
+
+it('does not log an old session cancellation when a new session requests a sit', async () => {
+  for (const fixture of Object.values(await loadRlvPair({ source }))) {
+    const { world, avatar, script } = fixture
+    const seat = await loadLinkset({ world, region: avatar.region, position: { x: 60, y: 0, z: 0 }, prims: [{}] })
+    world.setSitResponse(seat.prims[0]!, { position: { x: 0, y: 0, z: 1 }, autopilot: { durationMs: 1000, success: true } })
+    script.start(); send(fixture, '@sit:' + seat.prims[0]!.key + '=force')
+    avatar.viewer.session.reset()
+    avatar.viewer.session.setReady(true)
+    const count = avatar.viewer.commandLog.length
+    send(fixture, '@sit:' + script.host.key + '=force')
+    expect(avatar.viewer.commandLog).toHaveLength(count + 1)
+    expect(avatar.sittingOn).toBe(script.host)
+    script.linkset.advanceTime(1000)
+    expect(avatar.sittingOn).toBe(script.host)
   }
 })

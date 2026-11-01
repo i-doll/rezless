@@ -115,12 +115,12 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
   return requestViewerSit(world, avatar, seat) !== 'refused'
 }
 
-const pendingSits = new WeakMap<WorldAvatar, () => void>()
+const pendingSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
 
 /** A user Stop action or replacement request cancels the current pilot. */
 export function cancelPendingSit(avatar: WorldAvatar): void {
-  pendingSits.get(avatar)?.()
-  pendingSits.delete(avatar)
+  pendingSits.get(avatar.viewer.session.lifetime)?.()
+  pendingSits.delete(avatar.viewer.session.lifetime)
 }
 
 /** The simulator chooses the pose; the viewer sends AgentSit only after a successful pilot. */
@@ -136,19 +136,13 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
     !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
   if (!response.autopilot || previous?.linkset === seat.linkset) return sit()
   const { durationMs, success } = response.autopilot
-  const origin = { ...avatar.position }, region = avatar.region
   const lifetime = avatar.viewer.session.lifetime
   const cancel = world.clock.scheduleTask(lifetime, world.clock.now + durationMs, () => {
-    pendingSits.delete(avatar)
-    if (avatar.sittingOn !== previous || avatar.region !== region ||
-      avatar.position.x !== origin.x || avatar.position.y !== origin.y || avatar.position.z !== origin.z) {
-      complete?.('refused')
-      return
-    }
+    pendingSits.delete(avatar.viewer.session.lifetime)
     const outcome = success ? sit() : 'refused'
     complete?.(outcome)
   })
-  pendingSits.set(avatar, () => { cancel(); complete?.('refused') })
+  pendingSits.set(lifetime, () => { cancel(); complete?.('refused') })
   return 'pending'
 }
 

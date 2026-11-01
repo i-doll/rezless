@@ -376,17 +376,18 @@ export class World {
       get info() { clearRemovedSeat(); return info },
       set info(value) { info = value & AGENT_MOUSELOOK && !canRlvEnterMouselook(avatar) ? value & ~AGENT_MOUSELOOK : value },
       get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat, seatOffset) : position },
-      set position(value) { position = value },
+      set position(value) { cancelPendingSit(avatar); position = value },
       get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat, seatOrientation) : rotation },
       set rotation(value) { rotation = value },
       get region() { clearRemovedSeat(); return seat?.linkset?.region ?? region },
-      set region(value) { region = value },
+      set region(value) { cancelPendingSit(avatar); region = value },
       language: opts.language ?? '',
       visualParams: { ...opts.visualParams },
       friends: new Set(opts.friends?.map(key => key.toLowerCase())),
       get sittingCamera() { clearRemovedSeat(); return sittingCamera },
       get sittingOn() { clearRemovedSeat(); return seat },
       set sittingOn(value) {
+        cancelPendingSit(avatar)
         const changingSeat = value !== seat && !!(info & AGENT_SITTING)
         snapshotSeat()
         seat = value
