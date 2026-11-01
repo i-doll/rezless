@@ -547,9 +547,11 @@ string suffix is the fixed fixture viewer version `26.4.0`.
 `avatar.viewer.restrictions.snapshot()` returns a frozen array of frozen rules,
 optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule has
 `sourcePrim`, `behaviour`, `option`, canonical `rule`, and `support`. The no-option
-`sendchat`, `sit`, `unsit`, `tploc`, and `tplm` forms have `state-only`
-support. Their actions are not enforced. Command-log status remains `unsupported`
-for action effects; diagnostics distinguish updated state from unsupported forms.
+`sendchat`, `tploc`, and `tplm` forms have `state-only` support. Their actions
+are not enforced, and their command-log status remains `unsupported` for action
+effects. Seating forms `sit`, `unsit` and finite decimal `sittp[:distance]` have
+`enforced` support for explicit user actions and log `applied`. Diagnostics
+distinguish updated state from unsupported forms.
 
 No-option `detach` has `enforced` support. `fixture.attemptDetach(attachment)`
 attempts to remove an attachment worn by the fixture avatar; omitting the argument
@@ -751,6 +753,19 @@ script chat uses its existing routing and limits.
 
 ### Viewer seating
 
+Explicit user seating uses `fixture.userSit(prim, offset?)` and
+`fixture.userStand()`. Both return a boolean and drain due events. World callers
+can use `world.userSitAvatar(avatar, prim, offset?)` and
+`world.userStandAvatar(avatar)`, then advance virtual time to deliver events.
+These attempts enforce `sit`, seated `unsit`, and `sittp[:distance]` without issuer
+exemptions. The optional offset is a region-axis pick offset, independent of the
+configured sit target. The minimum finite decimal distance applies, defaults to
+1.5 m and excludes the exact boundary. Kokua compares signed limits; RLVa squares
+the combined limit. Non-finite, hexadecimal and overflow forms remain unsupported.
+`world.sitAvatar`, `world.standAvatar`, `llSitOnLink` and `llUnSit` retain their
+independent simulator behavior. Force-sit issuer rules remain profile specific.
+
+
 `getsitid` uses the existing reply-channel policy. It returns the null UUID
 standing and the linkset root UUID on an object, including child sit targets.
 Firestorm RLVa 2.4.2 reports the avatar UUID during ground sitting; Kokua RLV
@@ -772,14 +787,15 @@ operations produce normal `CHANGED_LINK` events; ground sitting adds no object l
 
 Object force sit obeys all no-option `sit` locks and, while already sitting, all
 `unsit` locks. RLVa force unsit and ground sit exempt only the issuing prim;
-Kokua force unsit exempts no emitter. These checks cover force commands; broader
-user sit/unsit/sittp enforcement and standtp remain outside this slice.
+Kokua force unsit exempts no emitter. Force commands retain these checks independently of user attempts. Standtp
+return teleport remains unsupported.
 
 Inspect `avatar.viewer.commandLog` records with `status: 'action'`: `action`,
 `actionOutcome` (`applied`, `unchanged`, or `refused`), requested `target`, resulting
 `seat`, and an optional refusal `reason`. These are synchronous fixture outcomes,
 not confirmations from a network simulator. Unsupported forms retain diagnostics.
-The manifest includes `getsitid`, force `sit` and force `unsit` in command discovery.
+The manifest includes `getsitid`, force `sit`/`unsit`, and add/remove
+`sit`/`unsit`/`sittp` forms in command discovery.
 
 ### Implemented `ll*` functions
 

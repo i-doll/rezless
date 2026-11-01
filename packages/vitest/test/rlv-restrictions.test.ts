@@ -20,7 +20,7 @@ describe('per-prim viewer restrictions', () => {
     const pair = await run('@detach=n,sendchat=n,sit=n,unsit=n,tploc=n,tplm=n,detach=add,sendchat=add,sit=add,unsit=add,tploc=add,tplm=add')
     for (const { avatar, script } of Object.values(pair)) {
       expect(avatar.viewer.restrictions.snapshot()).toEqual(names.map(rule => ({
-        sourcePrim: script.host.key, behaviour: rule, option: '', rule, support: rule === 'detach' ? 'enforced' : 'state-only',
+        sourcePrim: script.host.key, behaviour: rule, option: '', rule, support: ['detach', 'sit', 'unsit'].includes(rule) ? 'enforced' : 'state-only',
       })))
     }
   })
