@@ -69,3 +69,8 @@ export type { GameControlState } from './builtins/game-control.js'
 export type { PhysicsState, PhysicsRequest, PhysicsRequestName } from './builtins/physics.js'
 
 export type { VehicleSettings, VehicleRequest, VehicleRequestName } from './builtins/vehicles.js'
+
+export { RLV_PROFILES } from './rlv/profiles.js'
+export type { RlvProfile, ViewerProfile, ViewerConfig, ViewerState, RlvReference, RlvDiagnostic } from './rlv/profiles.js'
+export { RLV_MANIFEST } from './rlv/manifest.js'
+export type { RlvCommandContract, RlvCommandProfile, RlvEvidence, RlvComparison, RlvSupportDepth } from './rlv/manifest.js'

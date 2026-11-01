@@ -481,6 +481,56 @@ land/estate rights were unavailable, and actual parcel edits, returns, ejections
 payments and ownership transfers were prohibited. No debit permission was
 requested in-world. Group return powers remain unimplemented.
 
+### Paired RLV/RLVa fixtures
+
+Viewer emulation is opt-in per avatar through
+`world.addAvatar({ username, region, viewer: { profile: 'rlv' } })`.
+Omitting `viewer`, or selecting `disabled`, leaves script chat and avatar behavior
+unchanged. `avatar.viewer.reference` identifies the pinned implementation;
+`avatar.viewer.diagnostics` belongs to that avatar alone.
+
+`loadRlvPair({ source })` loads the same LSL into separate Worlds for `rlv` and
+`rlva`. Each fixture exposes `world`, `avatar`, and `script`. Scripts are not
+started, so tests can seed state before calling `script.start()`.
+
+```ts
+import { loadRlvPair, rlvExpectationFor, type RlvExpectations } from '@rezless/vitest'
+
+const pair = await loadRlvPair({ source: `
+  integer replies;
+  default {
+    state_entry() { llListen(42, "", NULL_KEY, ""); llOwnerSay("@version=42"); }
+    listen(integer channel, string name, key id, string message) { ++replies; }
+  }
+` })
+const expectations: RlvExpectations<number> = {
+  shared: { kind: 'expected', value: 0 },
+}
+for (const profile of ['rlv', 'rlva'] as const) {
+  const { script } = pair[profile]
+  script.start()
+  script.advanceTime(1000)
+  const result = rlvExpectationFor(expectations, profile)
+  if (result.kind !== 'expected') throw new Error(result.reason)
+  expect(script.global('replies')).toBe(result.value)
+}
+```
+
+For divergent cases, replace `shared` with named `rlv` and `rlva` expectations.
+An expectation can instead be `{ kind: 'unsupported', reason }` or
+`{ kind: 'not-measured', reason }`. These are inspectable data; the helper does
+not skip tests or turn pending cases into successful assertions.
+
+This initial slice configures profiles but processes no viewer commands. The
+example expects zero replies for that reason. `RLV_MANIFEST` lists parameter
+forms, pinned source evidence, wiki comparisons and probes for later slices.
+Every command currently has `support: 'unsupported'` and empty `coveredForms`.
+Later entries may report `state-only` or `enforced`; recording a rule alone does
+not enforce a viewer action. Reference contracts are code-derived, not runtime
+measurements. Settings are recorded separately from version metadata, with no
+setting overrides implemented yet.
+
+
 ### Implemented `ll*` functions
 
 The real-impl set covers the most common use cases. Anything outside it
