@@ -118,7 +118,9 @@ export function checkAvatarTouch(world: World, avatar: WorldAvatar, prim: Prim, 
   const touchme = blocks('touchme').some(rule => profile === 'rlv'
     ? rule.sourcePrim.toLowerCase() === root
     : linkset.prims.some(issuer => issuer.key.toLowerCase() === rule.sourcePrim.toLowerCase()))
+  if (profile === 'rlva' && !hud && blocks('interact').length) return deny(blocks('interact'))
   if (touchme) return result('allowed')
+  if (profile === 'rlv' && !attachment && blocks('interact').length) return deny(blocks('interact'))
   const touchthis = family('touchthis').filter(rule => rule.option === root)
   if (profile === 'rlva' && touchthis.length) return deny(touchthis)
   if (!hud && blocks('touchall').length) return deny(blocks('touchall'))

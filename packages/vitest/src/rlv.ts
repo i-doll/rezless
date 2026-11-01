@@ -1,3 +1,4 @@
+import { avatarEditLog, avatarRezLog, type AvatarEditAction, type AvatarRezAction } from '@rezless/vm'
 import { teleportRequestLog, type AvatarTeleportRequest, teleportOfferLog, type TeleportOffer, type TeleportOfferDecision } from '@rezless/vm'
 import { userTeleportLog, type UserTeleportAction } from '@rezless/vm'
 import { avatarTouchLog, type AvatarTouchAction, type AvatarTouchOptions } from '@rezless/vm'
@@ -30,6 +31,10 @@ export interface RlvFixture {
   readonly userTeleportActions: readonly UserTeleportAction[]
   userTeleportLandmark(destination: Vector): UserTeleportAction
   userTeleportMap(destination: Vector): UserTeleportAction
+  readonly editActions: readonly AvatarEditAction[]
+  edit(prim: Prim): AvatarEditAction
+  readonly rezActions: readonly AvatarRezAction[]
+  rez(itemId: string, position: Vector): AvatarRezAction
   readonly touchActions: readonly AvatarTouchAction[]
   touch(prim: Prim, options?: AvatarTouchOptions): AvatarTouchAction
   readonly imActions: readonly AvatarIMAction[]
@@ -68,6 +73,10 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
       get userTeleportActions() { return userTeleportLog(avatar) },
       userTeleportLandmark: destination => world.userTeleportAvatarViaLandmark(avatar, destination),
       userTeleportMap: destination => world.userTeleportAvatarViaMap(avatar, destination),
+      get editActions() { return avatarEditLog(avatar) },
+      edit: prim => world.attemptAvatarEdit(avatar, prim),
+      get rezActions() { return avatarRezLog(avatar) },
+      rez: (itemId, position) => world.attemptAvatarRez(avatar, itemId, position),
       get touchActions() { return avatarTouchLog(avatar) },
       touch: (prim, options) => world.attemptAvatarTouch(avatar, prim, options),
       get imActions() { return avatarIMLog(avatar) },

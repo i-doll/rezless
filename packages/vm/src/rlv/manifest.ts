@@ -525,6 +525,31 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-pointlocks.test.ts', 'packages/vitest/test/rlv-detach.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
+      id: 'edit-rez',
+      forms: ['@edit[:<root-uuid>]=n|add|y|rem', '@editobj:<root-uuid>=n|add|y|rem', '@editworld=n|y', '@editattach=n|y', '@rez=n|y', '@interact=n|y', '@edit_sec[:<root-uuid>]=n|y'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'edit UUID options grant root-linkset exceptions; editobj UUID options deny targets. Category locks remain independent. Kokua edit_sec and permissive scope edit exceptions by issuer; RLVa has no edit_sec and edit exceptions stay permissive. interact blocks inventory rez drops and user click sitting. HUDs bypass interaction locks. Direct editor selection is interaction restricted in Kokua, but not RLVa.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::canEdit', 'RRInterface::containsWithoutException', 'RRInterface::canTouch', 'RRInterface::canTouchFar'],
+          'Explicit editor actions return opened, blocked or unsupported with deciding restrictions. edit and edit_sec accept root UUID grants; secure locks and permissive=n require a grant from each restricting issuer. editobj targets a root UUID. editworld and editattach deny their respective categories, including HUDs for editattach. interact blocks editing non-HUD targets, world touches unless touchme grants access, user sit and inventory rez drops. Own and other attachments bypass the world-touch interaction check. Saved copyable inventory objects rez with fresh keys, retained script state and on_rez events. Missing definitions and no-copy inventory transfers remain unsupported.'),
+          support: 'enforced',
+          commandForms: [
+            ...['edit', 'edit_sec', 'editobj'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['editworld', 'editattach', 'rez', 'interact'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+          ],
+          coveredForms: ['Editor root grants, targeted denials and independent category locks', 'Secure and permissive edit issuer scope', 'Inventory rez outcomes, frozen action history and object placement', 'Interaction checks for touch, editor selection, inventory rez and user sit; force sit bypass'] },
+        rlva: { ...firestorm('rlvactions.cpp', ['RlvActions::canEdit', 'RlvActions::canInteract', 'RlvActions::canRez', 'RlvActions::canTouch', 'RlvBehaviourDictionary::RlvBehaviourDictionary', 'LLToolDragAndDrop::rezObject'],
+          'Explicit editor actions apply edit root UUID exceptions, editobj root UUID denials and independent editworld/editattach locks. edit exceptions remain permissive under permissive=n; edit_sec is unsupported. Direct editor selection is not interact restricted. User click touches and sit are interaction restricted before touchme overrides, except HUD touches. Inventory rez drops are denied by rez or interact. Saved copyable object definitions rez with fresh keys, retained script state and on_rez events. Missing definitions and no-copy inventory transfers remain unsupported. Bare editobj, malformed UUID options, switch options, force forms and other secure variants remain unsupported.'),
+          support: 'enforced',
+          commandForms: [
+            ...['edit', 'editobj'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['editworld', 'editattach', 'rez', 'interact'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+          ],
+          coveredForms: ['Editor root grants, targeted denials and independent category locks', 'Unsupported edit_sec and permissive edit grants', 'Inventory rez outcomes, frozen action history and object placement', 'Interaction checks before touch overrides and user sit; force sit bypass', 'Add/remove aliases, clear and getcommand discovery'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-edit.test.ts', 'packages/vitest/test/rlv-getcommand.test.ts'],
+    },
+    {
       id: 'touch',
       forms: ['@fartouch[:<metres>]=n|y', '@touchfar[:<metres>]=n|y', '@touchall=n|y', '@touchworld[:<root-uuid>]=n|y', '@touchattach[:<uuid>]=n|y', '@touchattachself=n|y', '@touchattachother[:<avatar-uuid>]=n|y', '@touchhud[:<root-uuid>]=n|y'],
       comparison: 'confirmed difference',
