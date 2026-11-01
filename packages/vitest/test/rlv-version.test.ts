@@ -92,9 +92,9 @@ describe('viewer reply routing and inspection', () => {
       script.advanceTime(100)
       expect(script.global('replies')).toBe(0)
       expect(avatar.viewer.commandLog.map(e => e.status)).toEqual([
-        'replied', 'replied', 'replied', 'replied', 'replied', 'unsupported', 'replied', 'replied', 'unsupported',
+        'replied', 'replied', 'replied', 'replied', 'replied', 'applied', 'replied', 'replied', 'unsupported',
       ])
-      expect(avatar.viewer.diagnostics.map(e => e.command)).toEqual(['@detach=n', '@unknown=214'])
+      expect(avatar.viewer.diagnostics.map(e => e.command)).toEqual(['@unknown=214'])
     }
   })
 

@@ -657,7 +657,10 @@ the lines it changed) and project coverage vs the `main` baseline.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
-These rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
+No-option detach locks enforce explicit viewer detach attempts. Root self-detach
+respects every issuer lock; child self-detach resolves the attachment in Kokua
+and is inert in RLVa. Simulator detach remains separate, and forced reattachment
+recovery is excluded. The other listed rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
 Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.

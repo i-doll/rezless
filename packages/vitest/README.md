@@ -547,9 +547,29 @@ string suffix is the fixed fixture viewer version `26.4.0`.
 `avatar.viewer.restrictions.snapshot()` returns a frozen array of frozen rules,
 optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule has
 `sourcePrim`, `behaviour`, `option`, canonical `rule`, and `support`. The no-option
-`detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm` forms have `state-only`
+`sendchat`, `sit`, `unsit`, `tploc`, and `tplm` forms have `state-only`
 support. Their actions are not enforced. Command-log status remains `unsupported`
 for action effects; diagnostics distinguish updated state from unsupported forms.
+
+No-option `detach` has `enforced` support. `fixture.attemptDetach(attachment)`
+attempts to remove an attachment worn by the fixture avatar; omitting the argument
+selects the fixture script's attachment. `attemptViewerDetach(avatar, linkset)`
+exposes the same action directly. Both return `allowed`, `blocked`, or `no-op`.
+Root and child locks protect the whole attachment until the last relevant issuer
+removes its rule. Allowed fixture actions remove the attachment immediately;
+advance its clock to deliver queued `attach(NULL_KEY)` events.
+
+`@detachme=force` respects all root and child locks, including the issuer's own.
+Kokua resolves child emitters to the containing attachment and ignores options.
+RLVa child self-detach is inert even unlocked; nonempty options fail. An allowed
+force command queues simulator completion after the LSL handler yields, so an
+immediate `llGetAttached` still reads the prior point. Accepted viewer work
+survives removal of the issuing script and ends when the linkset is removed. Command-log status is
+`enforced`, with an `allowed`, `blocked`, `no-op`, or `failed-option` outcome.
+Lock add/remove commands use `applied`. `llDetachFromAvatar` remains a separate
+simulator action and bypasses viewer locks, retaining its root/permission checks.
+Named-point locks, `detach=force`, folder forms, nostrip and forced reattachment
+recovery are excluded from these actions.
 
 Rules use emitter prim UUIDs, so scripts on one prim share state and separate
 prims remain independent. `n`/`add` and `y`/`rem` are aliases. Duplicates and absent
