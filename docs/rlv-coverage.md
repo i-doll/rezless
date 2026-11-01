@@ -221,6 +221,8 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [seating](#seating) | Firestorm RLVa 2.4.2 | <code>@sittp[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts) |
 | [seating](#seating) | Firestorm RLVa 2.4.2 | <code>@sit[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts) |
 | [seating](#seating) | Firestorm RLVa 2.4.2 | <code>@unsit=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts) |
+| [standtp](#standtp) | Kokua RLV 2.09.35.00 | <code>@standtp=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-standtp.test.ts](../packages/vitest/test/rlv-standtp.test.ts) |
+| [standtp](#standtp) | Firestorm RLVa 2.4.2 | <code>@standtp=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-standtp.test.ts](../packages/vitest/test/rlv-standtp.test.ts) |
 | [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tpto[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
 | [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tploc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
 | [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tplocal[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
@@ -1527,7 +1529,7 @@ Comparison: confirmed difference. Both profiles enforce user sit/stand locks wit
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Explicit user actions enforce sit, seated unsit and the minimum signed sittp limit at the clicked global point. Finite decimal prefixes use float precision; invalid decimal text means zero. Non-finite, hexadecimal and overflow distance forms remain unsupported. Simulator seating and llUnSit bypass viewer locks. getsitid ignores options and uses normal reply channels. Force sit bypasses sittp and uses free configured targets or nearby plain prims in the same region. Empty/null sit has no target and leaves state unchanged. Force unsit respects every unsit lock, including its emitter. No script permissions are granted. Plain-prim surface placement beyond an 8 m centre-distance fixture radius, collision, autopilot, cross-region seating and standtp are unsupported.
+Support depth: enforced. Explicit user actions enforce sit, seated unsit and the minimum signed sittp limit at the clicked global point. Finite decimal prefixes use float precision; invalid decimal text means zero. Non-finite, hexadecimal and overflow distance forms remain unsupported. Simulator seating and llUnSit bypass viewer locks. getsitid ignores options and uses normal reply channels. Force sit bypasses sittp and uses free configured targets or nearby plain prims in the same region. Empty/null sit has no target and leaves state unchanged. Force unsit respects every unsit lock, including its emitter. No script permissions are granted. Plain-prim surface placement beyond an 8 m centre-distance fixture radius, collision, autopilot, cross-region seating are unsupported. Standtp return travel has a separate contract.
 
 - Explicit user sit/stand, independent issuers and strict default/custom sittp boundaries
 - Simulator and force action separation
@@ -1541,7 +1543,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Explicit user actions enforce sit, seated unsit and the minimum sittp limit squared at the clicked global point. Finite decimal prefixes use float precision; malformed text and float underflow are unsupported. Non-finite, hexadecimal and overflow distance forms remain unsupported. Simulator seating and llUnSit bypass viewer locks. Force sit bypasses sittp. getsitid ignores options and uses normal reply channels; ground sitting returns the avatar UUID. Empty/null sit requests ground sitting. Force unsit and ground sit exempt only the issuing prim from locks; object force sit exempts no emitter. Same-region free configured targets and plain prims within an 8 m centre-distance fixture radius update world seating. Farther plain-prim surface placement, collision, autopilot, cross-region seating and standtp are unsupported. No script permissions are granted.
+Support depth: enforced. Explicit user actions enforce sit, seated unsit and the minimum sittp limit squared at the clicked global point. Finite decimal prefixes use float precision; malformed text and float underflow are unsupported. Non-finite, hexadecimal and overflow distance forms remain unsupported. Simulator seating and llUnSit bypass viewer locks. Force sit bypasses sittp. getsitid ignores options and uses normal reply channels; ground sitting returns the avatar UUID. Empty/null sit requests ground sitting. Force unsit and ground sit exempt only the issuing prim from locks; object force sit exempts no emitter. Same-region free configured targets and plain prims within an 8 m centre-distance fixture radius update world seating. Farther plain-prim surface placement, collision, autopilot, cross-region seating are unsupported. Standtp return travel has a separate contract. No script permissions are granted.
 
 - Explicit user sit/stand, independent issuers and strict default/custom sittp boundaries
 - Simulator and force action separation
@@ -1554,6 +1556,36 @@ Support depth: enforced. Explicit user actions enforce sit, seated unsit and the
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::processReplyCommand</code>, <code>RlvForceHandler&lt;RLV_BHVR_SIT&gt;::onCommand</code>, <code>RlvForceHandler&lt;RLV_BHVR_SITGROUND&gt;::onCommand</code>, <code>RlvHandler::processForceCommand</code>, <code>RlvActions::canSit</code>, <code>RlvActions::canGroundSit</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts).
+
+### standtp
+
+Forms: <code>@standtp=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Both profiles return after user stand, force unsit, llUnSit and seat deletion, bypassing teleport locks. Kokua also captures the current position when a new rule is added and requires direct parcel teleport routing. RLVa captures object-sit requests, rejects seated object-sit requests and ignores a zero global return origin.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Bare standtp add/remove aliases and clear control return travel. Each new issuer rule captures the current global position even while seated; duplicate adds do not refresh it. Viewer object-sit requests from standing capture a fresh origin. Replacing a seat while already sitting also triggers return travel. Standing while the restriction remains active queues return travel only on a parcel with direct teleport routing, defaulting to direct without a parcel fixture. Removal or clear while standing resets the saved origin; removal while seated preserves it. A zero origin is a real destination. Return travel preserves facing, bypasses unsit, sittp, tploc, tplocal and tplm locks, and uses normal attachment teleport and region events. User and force-unsit locks still decide whether a stand can begin. Session reset cancels pending returns and clears saved origins. Alternate defeat settings and persisted login recovery are outside this fixture.
+
+- Bare add/remove aliases, duplicate suppression, independent issuers and filtered clear
+- User stand, force unsit, llUnSit and removed-seat return paths
+- Sit-time and add-time origins, direct parcel routing and zero coordinates
+- Teleport restriction bypass, preserved facing and attachment changed events
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::add</code>, <code>RRInterface::remove</code>, <code>RRInterface::clear</code>, <code>force_sit</code>, <code>LLAgent::standUp</code>, <code>LLVOAvatar::sitDown</code>, <code>LLAgent::doTeleportViaLocationLookAt</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Bare standtp add/remove aliases and clear control return travel. Viewer object-sit requests while standing capture the global origin. Adding a rule after sitting does not capture a new origin. User and forced object-sit requests while seated are refused under standtp. Standing with an active rule and a nonzero saved origin queues a forced teleport after unparenting and clears that origin immediately. Removing the rule does not cancel an already queued return. Ground sit alone captures no origin; changing from an object to ground can trigger return travel. User and force-unsit locks still decide whether a stand can begin. Returns bypass unsit, sittp, tploc, tplocal and tplm locks, preserve facing and deliver normal attachment teleport and region events. Parcel routing does not inhibit the return. Session reset cancels pending returns and clears saved origins. Persisted login recovery is outside this fixture.
+
+- Bare add/remove aliases, independent issuers and filtered clear
+- User stand, force unsit, llUnSit and removed-seat return paths
+- Object-sit origin capture, seated sit denial and zero-origin guard
+- Queued returns independent of later unlock, teleport restriction bypass and attachment events
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onSitOrStand</code>, <code>RlvForceHandler&lt;RLV_BHVR_SIT&gt;::onCommand</code>, <code>RlvActions::canSit</code>, <code>handle_object_sit</code>, <code>RlvUtil::forceTp</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-standtp.test.ts](../packages/vitest/test/rlv-standtp.test.ts).
 
 ### teleport
 

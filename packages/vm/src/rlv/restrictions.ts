@@ -8,7 +8,7 @@ import { avatarIMSupport } from './im-actions.js'
 import { chatRedirectSupport, chatVolumeSupport } from './chat-actions.js'
 import { receivedChatSupport, receivedIMSupport } from './received.js'
 import { teleportSupport } from './teleport.js'
-import { seatingSupport } from './sit.js'
+import { standtpSupport, seatingSupport } from './sit.js'
 import { parseNotifyOption, sendRestrictionNotifications } from './notify.js'
 import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
@@ -109,7 +109,7 @@ export class RlvRestrictions {
 
   /** How deeply an add/remove form is emulated; dispatch and rule storage share this decision. */
   support(behaviour: string, option: string): RlvRestriction['support'] {
-    return permissionSupport(this.profile, behaviour, option) ?? this.notifySupport(behaviour, option) ?? sharedWearSupport(this.profile, behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
+    return permissionSupport(this.profile, behaviour, option) ?? this.notifySupport(behaviour, option) ?? sharedWearSupport(this.profile, behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? standtpSupport(this.profile, behaviour, option) ??
         teleportSupport(this.profile, behaviour, option) ?? teleportOfferSupport(this.profile, behaviour, option) ?? teleportRequestSupport(this.profile, behaviour, option) ?? editSupport(this.profile, behaviour, option) ?? touchSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ?? cameraControlSupport(this.profile, behaviour, option) ??
         viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? chatRedirectSupport(this.profile, behaviour, option) ?? chatVolumeSupport(behaviour, option) ?? gestureSupport(behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ?? receivedIMSupport(this.profile, behaviour, option) ?? avatarIMSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
