@@ -1157,3 +1157,53 @@ still use the global minimum. Foreign seated `unsit` blocks travel. `tplm` and U
 Non-finite, hexadecimal and overflowing teleport conversions remain inspectably
 unsupported. Landing-point routing, terrain/collision adjustments and camera pose
 are outside the fixture.
+### Force-wearing shared attachments
+
+`attach`, `attachover` and `attachoverorreplace` accept a shared folder path
+and `=force`. Give each object item an `object` definition from `loadLinkset`:
+
+```ts
+const cuff = await loadLinkset({ prims: [{ name: 'Cuff' }] })
+seedRlvInventory(avatar, {
+  sharedRootId: 'root',
+  entries: [
+    { id: 'root', parentId: null, name: '#RLV', kind: 'folder' },
+    { id: 'cuffs', parentId: 'root', name: 'Cuffs', kind: 'folder' },
+    { id: 'cuff', parentId: 'cuffs', name: 'Cuff (left hand)', kind: 'item',
+      assetType: 'object', object: cuff.linkset },
+  ],
+})
+// @attach:Cuffs=force copies the definition into the avatar's World at Left Hand.
+```
+
+Actions run when the issuing script yields. They preserve item IDs, copy
+script state without granting permissions, and use the existing attachment
+clock and events. Repeated wear keeps an already-worn object. Detaching and
+wearing again reuses its saved state. Source definitions stay in inventory.
+`getpath`, `getattach` and `getinvworn` read the resulting attachments.
+Existing `wornAttachments` mappings can identify live fixtures without a definition.
+
+Both profiles add for `attachover`. `attach` and `attachoverorreplace` replace
+named points, except that a folder beginning with `+` makes them add.
+Kokua RLV 2.09.35.00 always adds unnamed items at their saved point.
+Firestorm RLVa 2.4.2 replaces at the saved point for unnamed items. Set
+`sharedWear: false` in the inventory config to skip unnamed RLVa items.
+New definitions default to Right Hand. RLVa keeps the last named replacement
+per point and processes its pending requests in item UUID order; Kokua processes
+items in fixture order.
+
+Kokua uses the rightmost recognized parenthesised point in an item name.
+RLVa trims the last parenthesised item text, then falls back to the legacy
+folder point. A no-mod RLVa item prefers the folder point. For folded children,
+set `folded: true` and provide exactly one object in RLVa. Kokua collects a
+single no-mod object in a point-named child folder. Ordinary subfolders are
+not traversed.
+
+A named replacement cannot displace a no-option `detach=n` locked occupant.
+Add still works. Unnamed RLVa replacement keeps locked occupants and removes
+unlocked ones. Point and folder locks remain unsupported.
+Each command record exposes `wearResults` with item IDs, resolved points and
+attached, already-worn, blocked, skipped or unsupported outcomes. Unsupported
+contents or missing definitions do not prevent supported items from wearing.
+Clothing, recursive commands, multiple-folder options, inventory links and
+asset fetching remain unsupported.
