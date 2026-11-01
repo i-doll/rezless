@@ -1748,6 +1748,15 @@ the minimum active option wins, and the comparisons include equality. Distance u
 clicked child prim rather than the linkset root. UUID exceptions use the root.
 HUDs bypass `touchall`, attachment locks and distance limits.
 
+`touchthis:<root-uuid>=n` denies touches anywhere in that linkset, including HUDs.
+A child UUID does not lock its parent. Other touch exceptions and `permissive=n`
+do not override this denial. `touchme=n` overrides every touch restriction,
+including `touchthis`, for the issuing object. Kokua requires the root prim to issue
+it; Firestorm accepts a grant from any prim in the target linkset. The grant never
+allows unrelated targets. Both commands support add/remove aliases and issuer-scoped
+clear. Bare `touchthis`, `touchme` options and secure variants remain unsupported.
+
+
 Kokua RLV 2.09.35.00 checks distance only for world objects. Invalid distance text
 becomes zero, and negative limits block even zero-distance world touches.
 `touchworld` and `touchhud` support root UUID exceptions, `_sec` forms and
