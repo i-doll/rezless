@@ -1866,7 +1866,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Node and subtree locks resolve shared paths, issuing root attachments, worn attachment points and worn clothing layers. Exceptions require existing shared paths, never UUIDs, points, layers or empty options. Folder traversal applies grants before subsequent denials from the same issuer. Other issuers remain effective. Effective folded folders share the containing folder policy through all folded ancestors. Live selectors require shared inventory. At clothing capacity any removal-locked occupant on the incoming layer prevents force additions. Folder locks constrain user actions and force additions, removals and replacement occupants.
+Support depth: enforced. Node and subtree locks resolve shared paths, issuing root attachments, worn attachment points and worn clothing layers. Exceptions require existing shared paths, never UUIDs, points, layers or empty options. Folder traversal applies grants before subsequent denials from the same issuer. Other issuers remain effective. Action folders normalize all folded ancestors. Point and layer selector targets fold one containing folder; no-option issuer targets retain the immediate category. Live selectors require shared inventory. At clothing capacity any removal-locked occupant on the incoming layer prevents force additions. Folder locks constrain user actions and force additions, removals and replacement occupants.
 
 - Shared path, no-option root issuer and live point/layer selectors
 - Node/subtree locks, folded folders and issuer-local path exceptions

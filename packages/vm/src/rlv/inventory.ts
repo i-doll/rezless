@@ -389,6 +389,9 @@ export function isRlvFolderWearLocked(avatar: WorldAvatar, entry: RlvInventoryEn
       : objects.filter(object => point !== undefined ? object.attachment!.point === point :
         profile === 'rlva' ? object.prims[0]!.key === rule.sourcePrim : object.prims.some(p => p.key === rule.sourcePrim))
         .flatMap(object => { const item = inventory.attachmentItem(object.prims[0]!.key); return item ? [item] : [] })
+    if (profile === 'rlva' && !rule.option) {
+      return selected.flatMap(item => item.parentId && inventory.sharedPath(item.parentId) !== undefined ? [item.parentId] : [])
+    }
     return selected.flatMap(item => { const id = getRlvItemFolder(profile, inventory, item); return id ? [id] : [] })
   }
   const resolved = relevant.map(rule => ({ rule, folders: targets(rule) }))

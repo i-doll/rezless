@@ -2234,3 +2234,8 @@ and purchases. Both accept no-option `n`, `add`, `y`, and `rem`; clearing one is
 preserves other issuers' locks. Options, secure variants and force forms are
 unsupported. Kokua RLV 2.09.35.00 has neither restriction handler; its retained
 unknown rules remain inspectably unsupported and do not block these actions.
+
+RLVa action checks normalize all folded ancestors. Point and clothing selectors
+fold their containing folder once, while no-option attachment locks retain the
+issuing item's immediate folder. A selector target inside a folded category can
+therefore differ from the effective folder checked by a user action.

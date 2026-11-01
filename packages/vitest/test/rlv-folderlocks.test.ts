@@ -270,3 +270,27 @@ it('Kokua point-based folder locks use the rightmost recognized item point', asy
     expect(f.attemptWearable('shirt', true)).toBe(f.avatar.viewer.profile === 'rlv' ? 'blocked' : 'allowed')
   }
 })
+
+it('RLVa live point and layer selectors fold once rather than normalizing the action folder', async () => {
+  for (const selector of ['shirt', 'chest']) for (const f of Object.values(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot().map(e => e.id === 'issuer' || e.id === 'shirt'
+      ? { ...e, parentId: 'fold2' } : e.id === 'other-shirt' ? { ...e, parentId: 'base' } : e),
+      { id: 'fold1', parentId: 'base', kind: 'folder', name: '.Fold1', folded: true },
+      { id: 'fold2', parentId: 'fold1', kind: 'folder', name: '.Fold2', folded: true }],
+      wornWearables: ['shirt'], wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, `@attachthis:${selector}=n`)
+    expect(f.attemptWearable('other-shirt', true)).toBe('allowed')
+  }
+})
+it('RLVa no-option folder locks retain the immediate issuing attachment folder', async () => {
+  for (const f of Object.values(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot().map(e => e.id === 'issuer'
+      ? { ...e, parentId: 'fold', modifiable: true } : e),
+      { id: 'fold', parentId: 'base', kind: 'folder', name: '.Fold', folded: true }],
+      wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@attachthis=n')
+    expect(f.attemptWearable('shirt', true)).toBe('allowed')
+  }
+})
