@@ -1,7 +1,8 @@
 import type { Linkset } from '../linkset.js'
 import { RLV_ATTACHMENT_POINTS } from './attachments.js'
 import { getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventory, type RlvInventoryEntry } from './inventory.js'
-import type { RlvProfile, ViewerState } from './profiles.js'
+import type { WorldAvatar } from '../world.js'
+import type { RlvProfile, ViewerProfile, ViewerState } from './profiles.js'
 
 export interface RlvOutfitReply { readonly text: string; readonly failedOption?: boolean }
 type Counts = { total: number; worn: number }
@@ -126,6 +127,37 @@ export function isRlvStrippable(profile: RlvProfile, inventory: RlvInventory, en
   return true
 }
 
+/** The shared/unshared family accepts only no-option restrictions. */
+export function sharedWearSupport(profile: ViewerProfile, behaviour: string, option: string): 'enforced' | 'unsupported' | undefined {
+  if (!['sharedwear', 'sharedunwear', 'unsharedwear', 'unsharedunwear'].includes(behaviour)) return undefined
+  return profile !== 'disabled' && !option ? 'enforced' : 'unsupported'
+}
+
+/** User inventory actions classify the actual item's containing folder. */
+export function isRlvInventoryWearLocked(avatar: WorldAvatar, entry: RlvInventoryEntry | undefined, wear: boolean): boolean {
+  const viewer = avatar.viewer
+  if (viewer.profile === 'disabled' || !entry) return false
+  const inventory = viewer.inventory
+  const entries = inventory.snapshot()
+  let parent = entries.find(folder => folder.id === entry.parentId)
+  if (viewer.profile === 'rlva') {
+    while (parent?.folded) parent = entries.find(folder => folder.id === parent!.parentId)
+  }
+  if (!parent) return false
+  const shared = inventory.sharedPath(parent.id) !== undefined
+  const behaviour = wear ? 'sharedwear' : 'sharedunwear'
+  const allowedIssuers = new Set<string>()
+  for (const rule of viewer.restrictions.snapshot()) {
+    if (rule.option) continue
+    if (!shared && rule.behaviour === 'un' + behaviour) return true
+    if (!shared) continue
+    // RLVa processes folder grants and denials in insertion order per issuer.
+    if (viewer.profile === 'rlva' && rule.behaviour === 'un' + behaviour) allowedIssuers.add(rule.sourcePrim)
+    if (rule.behaviour === behaviour && !allowedIssuers.has(rule.sourcePrim)) return true
+  }
+  return false
+}
+
 export type RlvWearableActionOutcome = 'allowed' | 'blocked' | 'no-op'
 
 /** Explicit clothing add/remove actions; seeding inventory remains unrestricted. */
@@ -134,6 +166,7 @@ export function attemptRlvWearable(avatar: import('../world.js').WorldAvatar, it
   const viewer = avatar.viewer
   const entry = viewer.inventory.snapshot().find(entry => entry.id === itemId)
   if (!entry?.wearableType || isRlvBodypart(entry) || viewer.inventory.wornWearables().includes(itemId) === wear) return 'no-op'
+  if (isRlvInventoryWearLocked(avatar, entry, wear)) return 'blocked'
   if (viewer.profile !== 'disabled' && viewer.restrictions.snapshot().some(rule =>
     rule.behaviour === (wear ? 'addoutfit' : 'remoutfit') && (!rule.option || rule.option === entry.wearableType))) return 'blocked'
   viewer.inventory.setWearableWorn(itemId, wear)
