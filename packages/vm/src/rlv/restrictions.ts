@@ -1,3 +1,4 @@
+import { teleportSupport } from './teleport.js'
 import { seatingSupport } from './sit.js'
 import { parseNotifyOption, sendRestrictionNotifications } from './notify.js'
 import type { Prim } from '../prim.js'
@@ -66,7 +67,7 @@ export class RlvRestrictions {
     }
     if (this.profile === 'rlv' && (KOKUA_REPLIES.has(behaviour) ||
       /^(version|getenv_|getdebug_)/.test(behaviour))) return 'unsupported'
-    const support = this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced' : this.chatSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
+    const support = this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced' : this.chatSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
     if (this.profile === 'rlva' && support === 'unsupported') {

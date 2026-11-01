@@ -662,7 +662,7 @@ snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm
 The seating rules are enforced by explicit user actions. No-option detach locks enforce explicit viewer detach attempts. Root self-detach
 respects every issuer lock; child self-detach resolves the attachment in Kokua
 and is inert in RLVa. Simulator detach remains separate, and forced reattachment
-recovery is excluded. The other listed rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
+recovery is excluded. `tploc` constrains forced location travel; `sendchat` and `tplm` remain state-only. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
 Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
@@ -727,3 +727,10 @@ flush version queries during its misc startup phase. Virtual-time collection
 separates known and never-resolved issuers, and completed RLVa detach clears rules
 immediately. Viewer object-list membership can be supplied independently of range
 or region. Session reset cancels retained work and undelivered viewer replies.
+
+Force `tpto` resolves global or named-region coordinates through explicit World
+regions and records requested destinations, resulting avatar state and refusals.
+Kokua truncates coordinates and ignores the supplied angle; RLVa preserves
+fractions and supports radian facing. Teleport lock and issuer-exemption behavior
+is profile specific. Moves stand normally without granting simulator permissions.
+Landing-point routing, terrain/collision adjustments and camera pose are excluded.
