@@ -50,16 +50,27 @@ function locked(avatar: WorldAvatar, object: Linkset): boolean {
     object.prims.some(prim => prim.key === rule.sourcePrim))
 }
 
+function existingAttachment(avatar: WorldAvatar, issuer: Linkset, itemId: string): Linkset | undefined {
+  const inventory = avatar.viewer.inventory
+  const roots = inventory.attachmentMappings().filter(mapping => mapping.itemId === itemId).map(mapping => mapping.rootKey)
+  return issuer.peers.find(peer => !peer.dead && peer.prims[0] && roots.includes(peer.prims[0].key.toLowerCase()) &&
+    peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()) ?? inventory.attachmentObject(itemId)
+}
+
+function attachmentProblem(avatar: WorldAvatar, issuer: Linkset, entry: RlvInventoryEntry,
+  object: Linkset | undefined): 'unavailable-attachment' | 'missing-definition' | undefined {
+  if (object && !object.dead && (object.world !== issuer.world || object.owner.toLowerCase() !== avatar.key.toLowerCase() ||
+    object.attachment && object.attachment.avatar.toLowerCase() !== avatar.key.toLowerCase())) return 'unavailable-attachment'
+  if ((!object || object.dead) && !entry.object) return 'missing-definition'
+  return undefined
+}
+
 function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWearItemResult {
   const inventory = avatar.viewer.inventory
   const { entry, point, replace } = plan
-  const roots = inventory.attachmentMappings().filter(mapping => mapping.itemId === entry.id).map(mapping => mapping.rootKey)
-  let object = issuer.peers.find(peer => !peer.dead && peer.prims[0] && roots.includes(peer.prims[0].key.toLowerCase()) &&
-    peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()) ?? inventory.attachmentObject(entry.id)
-  if (object && !object.dead && (object.world !== issuer.world || object.owner.toLowerCase() !== avatar.key.toLowerCase() ||
-    object.attachment && object.attachment.avatar.toLowerCase() !== avatar.key.toLowerCase())) {
-    return { itemId: entry.id, outcome: 'unsupported', reason: 'unavailable-attachment' }
-  }
+  let object = existingAttachment(avatar, issuer, entry.id)
+  const problem = attachmentProblem(avatar, issuer, entry, object)
+  if (problem) return { itemId: entry.id, outcome: 'unsupported', reason: problem }
   if (object?.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() && !object.dead) {
     inventory.rememberAttachment(entry.id, object)
     return { itemId: entry.id, outcome: 'already-worn', point: object.attachment.point }
@@ -81,7 +92,11 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWea
   if (replace) {
     for (const previous of [...issuer.peers]) {
       if (previous !== object && !previous.dead && previous.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
-        previous.attachment.point === actualPoint && !locked(avatar, previous)) previous.detachFromAvatar()
+        previous.attachment.point === actualPoint && !locked(avatar, previous)) {
+        const item = inventory.attachmentItem(previous.prims[0]!.key)
+        if (item) inventory.rememberAttachment(item.id, previous)
+        previous.detachFromAvatar()
+      }
     }
   }
   inventory.rememberAttachment(entry.id, object)
@@ -129,6 +144,8 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
     if (profile === 'rlva' && !point && !inventory.sharedWear) {
       results.push({ itemId: entry.id, outcome: 'skipped', reason: 'shared-wear-disabled' }); continue
     }
+    const problem = attachmentProblem(avatar, issuer, entry, existingAttachment(avatar, issuer, entry.id))
+    if (problem) { results.push({ itemId: entry.id, outcome: 'unsupported', reason: problem }); continue }
     // Named RLVa replacements retain only the final pending item at a point.
     if (profile === 'rlva' && point && replace) {
       for (const previous of plans.filter(plan => plan.point === point)) results.push({

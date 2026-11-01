@@ -336,3 +336,42 @@ it('restores a saved attachment in the avatar current region', async () => {
   expect(object.attachment).toBeNull()
  }
 })
+
+for (const hasDefinition of [false, true]) it(`restores a displaced mapped attachment and its runtime state, definition=${hasDefinition}`, async () => {
+ const pair = await fixtures()
+ for (const { script, avatar, world } of Object.values(pair)) {
+  const state = 'integer counter; default { touch_start(integer n) { counter++; } }'
+  const old = await loadLinkset({ world, owner: avatar.key, region: avatar.region, prims: [{ scripts: [{ name: 'saved', source: { source: state } }] }] })
+  old.scripts.saved!.start()
+  old.scripts.saved!.fire('touch_start', { num_detected: 1 })
+  old.scripts.saved!.fire('touch_start', { num_detected: 1 })
+  old.linkset.attachToAvatar(avatar.key, 1)
+  const definition = await loadLinkset({ prims: [{ scripts: [{ name: 'saved', source: { source: state } }] }] })
+  const inventory = avatar.viewer.inventory
+  inventory.seed({ sharedRootId: 'root', entries: [
+   ...inventory.snapshot(),
+   { id: 'saved-folder', parentId: 'root', name: 'Saved', kind: 'folder' },
+   { id: 'saved', parentId: 'saved-folder', name: 'Saved (chest)', kind: 'item', assetType: 'object', ...(hasDefinition ? { object: definition.linkset } : {}) },
+  ], wornAttachments: [{ itemId: 'saved', rootKey: old.prims[0]!.key }] })
+  send(script, '@attach:direct=force')
+  expect(old.linkset.attachment).toBeNull()
+  send(script, '@attach:saved=force')
+  const worn = world.linksets.find(l => l.attachment && inventory.attachmentItem(l.prims[0]!.key)?.id === 'saved')!
+  expect(worn === old.linkset).toBe(true)
+  expect(worn.allScripts()[0]!.global('counter')).toBe(2)
+ }
+})
+
+for (const command of ['attach', 'attachoverorreplace']) it(`${command}: missing definitions cannot supersede usable same-point candidates`, async () => {
+ const pair = await fixtures()
+ for (const { script, world, avatar } of Object.values(pair)) {
+  const inventory = avatar.viewer.inventory
+  inventory.seed({ sharedRootId: 'root', entries: inventory.snapshot().map(e => e.id === 'b'
+   ? { id: e.id, parentId: e.parentId, name: 'Missing (chest)', kind: 'item', assetType: 'object' } : e) })
+  send(script, `@${command}:direct=force`)
+  expect(world.linksets.filter(l => l.attachment).map(l => inventory.attachmentItem(l.prims[0]!.key)?.id)).toEqual(['a'])
+  expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'partial', wearResults: expect.arrayContaining([
+   { itemId: 'b', outcome: 'unsupported', reason: 'missing-definition' },
+  ]) })
+ }
+})
