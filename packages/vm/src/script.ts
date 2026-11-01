@@ -38,6 +38,7 @@ import { agentPresence, type ViewerRequest } from './builtins/viewer.js'
 import type { InventoryOffer } from './builtins/give.js'
 import type { Camera } from './builtins/camera.js'
 import { defaultCamera } from './builtins/camera.js'
+import { changeRlvFov } from './rlv/camera.js'
 import type { AnimationState } from './builtins/animation.js'
 import { animationAvatars, playingAnimations, setAnimationState } from './builtins/animation.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
@@ -642,8 +643,14 @@ export class Script {
     })
   }
 
-  /** Set the permission agent's camera that llGetCameraPos / Rot / FOV / Aspect report. */
+  /**
+   * Set the permission agent's camera that llGetCameraPos / Rot / FOV / Aspect report.
+   * For an RLV-enabled agent the FOV is a user lens change, clamped by active RLV limits.
+   */
   setCamera(camera: Partial<Camera>): void {
+    const agent = this.state.permissions.agent.toLowerCase()
+    const avatar = camera.fov === undefined ? undefined : this.linkset.world?.avatars.find(a => a.key.toLowerCase() === agent)
+    if (avatar && avatar.viewer.profile !== 'disabled') changeRlvFov(avatar, camera.fov!)
     const { pos, rot: r, fov, aspect } = { ...this.state.camera, ...camera }
     this.state.camera = {
       pos: vec(pos.x, pos.y, pos.z),

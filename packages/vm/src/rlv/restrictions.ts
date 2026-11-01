@@ -4,7 +4,7 @@ import { parseNotifyOption, sendRestrictionNotifications } from './notify.js'
 import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvSession } from './session.js'
-import type { RlvParsedCommand } from './classifier.js'
+import { rlvIntegerPrefix as channelOption, type RlvCommandOutcome, type RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
 import { outfitSupport } from './outfit.js'
 import { cameraSupport } from './camera.js'
@@ -20,14 +20,6 @@ const KOKUA_REPLIES = new Set([
 /** Kokua dispatches these replies before parameter-kind handling. */
 export function isKokuaNamedReply(behaviour: string): boolean {
   return KOKUA_REPLIES.has(behaviour) || /^(version|getenv_|getdebug_)/.test(behaviour)
-}
-
-/** Decimal option prefixes, limited to the viewer's signed 32-bit channel range. */
-function channelOption(option: string): number | undefined {
-  const prefix = /^[\t\n\v\f\r ]*([+-]?[0-9]+)/.exec(option)
-  if (!prefix) return undefined
-  const channel = Number(prefix[1])
-  return channel >= -2147483648 && channel <= 2147483647 ? channel : undefined
 }
 
 type RestrictionCommand = Omit<RlvParsedCommand, 'kind'> & { readonly kind: 'add' | 'remove' | 'clear' }
@@ -48,6 +40,8 @@ export class RlvRestrictions {
   private readonly rules = new Map<string, Map<string, RlvRestriction>>()
   private avatar: WorldAvatar | undefined
   private readonly parameters = new WeakMap<RlvRestriction, string>()
+  /** Increases whenever a rule is added or removed. */
+  revision = 0
 
   constructor(private readonly profile: ViewerProfile, private readonly session: RlvSession) {}
 
@@ -55,7 +49,7 @@ export class RlvRestrictions {
   bind(avatar: WorldAvatar): void { this.avatar ??= avatar }
 
   /** Session reset releases state without command notifications. */
-  reset(): void { this.rules.clear(); this.avatar = undefined }
+  reset(): void { this.rules.clear(); this.avatar = undefined; this.revision++ }
 
   /** Frozen copies in emitter and rule insertion order, optionally for one prim. */
   snapshot(sourcePrim?: string): readonly RlvRestriction[] {
@@ -65,14 +59,14 @@ export class RlvRestrictions {
 
   /** Apply classified wire commands; unsupported effects remain unsupported. */
   apply(prim: Prim, parsed: RestrictionCommand): RlvRestriction['support'] {
-    this.avatar ??= prim.linkset!.world?.avatars.find(avatar => avatar.key === prim.linkset!.owner)
+    this.avatar ??= prim.linkset!.world?.avatars.find(avatar => avatar.key.toLowerCase() === prim.linkset!.owner.toLowerCase())
     const { behaviour, option, parameter, kind } = parsed
     if (kind === 'clear') {
       this.clear(prim, parameter)
       return 'state-only'
     }
     if (this.profile === 'rlv' && isKokuaNamedReply(behaviour)) return 'unsupported'
-    const support = this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced' : this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
+    const support = this.support(behaviour, option)
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
     if (this.profile === 'rlva' && support === 'unsupported') {
@@ -85,7 +79,7 @@ export class RlvRestrictions {
       this.notify(prim, rule, kind === 'add' ? '=n' : '=y')
     }
     if (kind === 'remove') {
-      this.rules.get(prim.key)?.delete(rule)
+      if (this.rules.get(prim.key)?.delete(rule)) this.revision++
       this.prune(prim.key)
     } else {
       let rules = this.rules.get(prim.key)
@@ -94,12 +88,21 @@ export class RlvRestrictions {
         const entry = Object.freeze({ sourcePrim: prim.key, behaviour, option, rule, support })
         rules.set(rule, entry)
         this.parameters.set(entry, parameter)
+        this.revision++
       }
       this.session.track(prim, () => this.clear(prim, ''))
     }
     if (this.profile === 'rlva') this.notify(prim, rule, '=' +
       (kind === 'add' && existing ? this.parameters.get(existing)! : parameter))
     return support
+  }
+
+  /** How deeply an add/remove form is emulated; dispatch and rule storage share this decision. */
+  support(behaviour: string, option: string): RlvRestriction['support'] {
+    return this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced'
+      : this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
+        teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ??
+        (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
   }
 
   private notify(prim: Prim, action: string, suffix = ''): void {
@@ -115,6 +118,7 @@ export class RlvRestrictions {
         if (!rule.includes(filter)) continue
         if (this.profile === 'rlv') this.notify(prim, rule, '=y')
         rules.delete(rule)
+        this.revision++
       }
       this.prune(prim.key)
     }
@@ -126,10 +130,6 @@ export class RlvRestrictions {
     return this.profile !== 'disabled' && parseNotifyOption(this.profile, option) ? 'enforced' : 'unsupported'
   }
 
-  supportsNotifyCommand(parsed: RlvParsedCommand): boolean {
-    return (parsed.kind === 'add' || parsed.kind === 'remove') && this.notifySupport(parsed.behaviour, parsed.option) === 'enforced'
-  }
-
   /** Restrict exception scope for this family only; other families stay state-only. */
   private chatSupport(behaviour: string, option: string): RlvRestriction['support'] | undefined {
     if (behaviour === 'permissive' && !option) return 'enforced'
@@ -138,11 +138,6 @@ export class RlvRestrictions {
     const channel = channelOption(option)
     if (this.profile === 'rlv' && String(channel) !== option) return 'unsupported'
     return channel !== undefined && channel > 0 ? 'enforced' : 'unsupported'
-  }
-
-  /** Enforced chat forms dispatch before unsupported-command classification. */
-  supportsChatCommand(parsed: RlvParsedCommand): boolean {
-    return (parsed.kind === 'add' || parsed.kind === 'remove') && this.chatSupport(parsed.behaviour, parsed.option) === 'enforced'
   }
 
   /** Rules whose issuing prims have not granted this private channel. */
@@ -168,18 +163,20 @@ export class RlvRestrictions {
 }
 
 /** State-only commands still report unsupported action effects in the command log. */
-export function dispatchRestrictionCommand(viewer: ViewerState, prim: Prim, parsed: RlvParsedCommand, command: string): boolean {
+export function dispatchRestrictionCommand(viewer: ViewerState, prim: Prim, parsed: RlvParsedCommand, command: string,
+  outcome?: RlvCommandOutcome): boolean {
   if (parsed.kind !== 'add' && parsed.kind !== 'remove' && parsed.kind !== 'clear') return false
   const support = viewer.restrictions.apply(prim, { ...parsed, kind: parsed.kind })
   if (support === 'enforced') {
-    viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'applied' })
+    viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'applied', ...(outcome ? { outcome } : {}) })
     return true
   }
-  viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported' })
-  viewer.diagnostics.push({ command, reason: 'unsupported', detail: support === 'state-only'
+  viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', ...(outcome ? { outcome } : {}) })
+  const detail = support === 'state-only'
     ? 'Viewer restriction state updated; action enforcement is unsupported.'
     : viewer.profile === 'rlv'
       ? 'Wire rule updated for this profile; its effects are unsupported.'
-      : 'This restriction form is outside the supported allowlist.' })
+      : 'This restriction form is outside the supported allowlist.'
+  viewer.diagnostics.push({ command, reason: 'unsupported', detail: outcome ? outcome + ': ' + detail : detail })
   return true
 }

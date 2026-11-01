@@ -1,6 +1,6 @@
 import { sendRestrictionNotifications } from './notify.js'
 import type { RlvParsedCommand } from './classifier.js'
-import { dispatchTeleportCommand, teleportSupport } from './teleport.js'
+import { dispatchTeleportCommand } from './teleport.js'
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommandCoverage, getRlvCommands } from './getcommand.js'
@@ -9,10 +9,10 @@ import { dispatchDetachCommand } from './detach.js'
 import { dispatchCameraCommand, getRlvCameraReply } from './camera.js'
 import { dispatchRestrictionCommand, isKokuaNamedReply } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
-import { getRlvOutfitReply, outfitSupport } from './outfit.js'
+import { getRlvOutfitReply } from './outfit.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
-import { dispatchSeatingCommand, getRlvSitId, seatingSupport } from './sit.js'
+import { dispatchSeatingCommand, getRlvSitId } from './sit.js'
 import { getRlvAttachmentPoint, getRlvAttachmentReply } from './attachments.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
@@ -42,7 +42,7 @@ function versionReply(profile: RlvProfile, behaviour: string, option: string): s
 /** Dispatch in token order; replies stay queued until the issuing script yields. */
 export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: string, recipient?: WorldAvatar): void {
   if (!message.startsWith('@')) return
-  const avatar = recipient ?? linkset.world?.avatars.find(avatar => avatar.key === linkset.owner)
+  const avatar = recipient ?? linkset.world?.avatars.find(avatar => avatar.key.toLowerCase() === linkset.owner.toLowerCase())
   if (!avatar) return
   const viewer = avatar.viewer
   if (viewer.profile === 'disabled' || viewer.profile === 'rlva' && !recipient && message.length <= 3) return
@@ -62,28 +62,25 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     const malformed = !parsed || viewer.profile === 'rlva' && parsed.kind === 'unknown'
     const channel = parsed ? rlvIntegerPrefix(parsed.parameter) : undefined
+    const replyChannel = !malformed && channel !== undefined && isValidReplyChannel(viewer.profile, channel)
+    const query = replyChannel && parsed?.kind === 'query'
     if (!malformed && parsed && dispatchBlacklistedCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchCameraCommand(avatar, prim, parsed, command)) continue
     // Kokua dispatches named version queries before testing parameter kinds.
-    let text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
-      channel !== undefined && isValidReplyChannel(viewer.profile, channel)
-      ? versionReply(viewer.profile, parsed.behaviour, parsed.option) : undefined
-    if (!malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
-      channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
+    let text: string | undefined
+    if (parsed && replyChannel && (viewer.profile === 'rlv' || query)) {
+      text = versionReply(viewer.profile, parsed.behaviour, parsed.option)
       text ??= viewer.blacklist.reply(parsed.behaviour, parsed.option, viewer.reference!.apiVersionNumber)
       text ??= getRlvCameraReply(viewer, parsed.behaviour, parsed.option)
     }
-    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
-      (parsed.behaviour === 'getstatus' || parsed.behaviour === 'getstatusall')) {
+    if (parsed && query && (parsed.behaviour === 'getstatus' || parsed.behaviour === 'getstatusall')) {
       text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
         parsed.behaviour === 'getstatus' ? prim.key : undefined)
     }
-    if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getsitid' &&
-      channel !== undefined && isValidReplyChannel(viewer.profile, channel)) text = getRlvSitId(avatar)
+    if (parsed && query && parsed.behaviour === 'getsitid') text = getRlvSitId(avatar)
     if (!malformed && parsed && dispatchTeleportCommand(linkset, prim, avatar, parsed, command)) continue
     if (!malformed && parsed && dispatchSeatingCommand(linkset, prim, avatar, parsed, command)) continue
-    if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva' &&
-      channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
+    if (parsed && query && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva') {
       const type = parsed.option.split(';')[1] ?? ''
       const invalid = !['', 'any', 'add', 'force', 'reply'].includes(type)
       const reply = sendViewerReply(linkset, avatar, channel, getRlvCommands(viewer.profile, parsed.option)!)!
@@ -92,8 +89,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       if (invalid) viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'invalid-option: Unknown discovery type; the viewer delivers an empty reply.' })
       continue
     }
-    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
-      ['findfolder', 'findfolders', 'getpath', 'getpathnew'].includes(parsed.behaviour)) {
+    if (parsed && query && ['findfolder', 'findfolders', 'getpath', 'getpathnew'].includes(parsed.behaviour)) {
       const result = parsed.behaviour.startsWith('find')
         ? findRlvFolders(viewer.profile, viewer.inventory, parsed.behaviour, parsed.option)
         : getRlvWornPath(viewer.profile, viewer.inventory, linkset, prim, parsed.behaviour, parsed.option, avatar.key)
@@ -107,19 +103,17 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       }
       continue
     }
-    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) && parsed.behaviour === 'getinv') {
+    if (parsed && query && parsed.behaviour === 'getinv') {
       text = getRlvInventoryList(viewer.profile, viewer.inventory, parsed.option)
     }
-    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
-      (parsed.behaviour === 'getoutfit' || parsed.behaviour === 'getinvworn')) {
+    if (parsed && query && (parsed.behaviour === 'getoutfit' || parsed.behaviour === 'getinvworn')) {
       const result = getRlvOutfitReply(viewer.profile, viewer.inventory, linkset, parsed.behaviour, parsed.option, avatar.key)
       const reply = sendViewerReply(linkset, avatar, channel, result.text)!
       viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
         ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
       continue
     }
-    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
-      (parsed.behaviour === 'getattach' || parsed.behaviour === 'getattachnames')) {
+    if (parsed && query && (parsed.behaviour === 'getattach' || parsed.behaviour === 'getattachnames')) {
       const attachmentText = getRlvAttachmentReply(linkset, viewer, parsed.behaviour, parsed.option, avatar.key)
       if (attachmentText !== undefined) {
         const failedOption = viewer.profile === 'rlva' && parsed.behaviour === 'getattach' &&
@@ -130,12 +124,8 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         continue
       }
     }
-    if (text === undefined && parsed && !malformed && (viewer.restrictions.supportsNotifyCommand(parsed) ||
-      (parsed.kind === 'add' || parsed.kind === 'remove') && (outfitSupport(parsed.behaviour, parsed.option) ?? seatingSupport(viewer.profile, parsed.behaviour, parsed.option) ?? teleportSupport(viewer.profile, parsed.behaviour, parsed.option)) === 'enforced')) {
-      dispatchRestrictionCommand(viewer, prim, parsed, command)
-      continue
-    }
-    if (text === undefined && parsed && !malformed && viewer.restrictions.supportsChatCommand(parsed)) {
+    if (text === undefined && parsed && !malformed && (parsed.kind === 'add' || parsed.kind === 'remove') &&
+      viewer.restrictions.support(parsed.behaviour, parsed.option) === 'enforced') {
       dispatchRestrictionCommand(viewer, prim, parsed, command)
       continue
     }
@@ -145,12 +135,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     if (text === undefined && parsed && !malformed) {
       const outcome = classifyRlvUnsupported(viewer.profile, parsed)
       if (outcome !== 'state-only') {
-        if (dispatchRestrictionCommand(viewer, prim, parsed, command)) {
-          const last = viewer.commandLog.length - 1
-          viewer.commandLog[last] = { ...viewer.commandLog[last]!, outcome }
-          const diagnostic = viewer.diagnostics.length - 1
-          viewer.diagnostics[diagnostic] = { ...viewer.diagnostics[diagnostic]!, detail: outcome + ': ' + viewer.diagnostics[diagnostic]!.detail }
-        } else {
+        if (!dispatchRestrictionCommand(viewer, prim, parsed, command, outcome)) {
           viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', outcome })
           viewer.diagnostics.push({ command, reason: 'unsupported', detail: outcome + ': This command form has no implemented effect.' })
         }

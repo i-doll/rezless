@@ -657,6 +657,8 @@ the lines it changed) and project coverage vs the `main` baseline.
   builtins, nested-object force-fit on `llJsonSetValue`, and the
   bare-word/sentinel round-trip on `llJsonGetValue`.
 
+## RLV/RLVa viewer fixtures
+
 The [RLV/RLVa coverage matrix](docs/rlv-coverage.md) lists delivered command
 forms, profile versions, support depths, test references and explicit exclusions.
 It is generated from the command manifest and checked by a test. The
@@ -707,23 +709,14 @@ unsupported. Simulator `llSitOnLink` and `llUnSit` bypass viewer locks.
 Camera fixtures support `setcam_fov=force`, `getcam_fov`, aggregated
 `setcam_fovmin/max` restrictions and their queries. `changeRlvFov(avatar, radians)`
 attempts a user lens change; `getRlvFov(avatar)` reads its effective angle.
-Enabled profiles share this lens with permission-gated `llGetCameraFOV` reads.
+Enabled profiles share this lens with permission-gated `llGetCameraFOV` reads,
+and a FOV passed to `script.setCamera` is a user lens change.
 RLVa uses three-decimal replies and empty unset bounds; Kokua uses six decimals
 and zoom-derived bounds. Rendering and exclusive camera control are outside this fixture.
 
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
 profile-specific path matching and visibility filters.
-
-## License
-
-The rezless project is licensed under the **Apache License, Version 2.0** —
-see [`LICENSE`](LICENSE).
-
-LSL function/event/constant signatures come from Linden Lab's official
-[secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
-vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
-License**; see [`NOTICE`](NOTICE) for the full attribution.
 
 `findfolder` and `findfolders` search the shared inventory with profile-specific
 traversal, hidden-folder and separator rules. `getpath` and `getpathnew` query
@@ -748,7 +741,9 @@ Force `tpto` resolves global or named-region coordinates through explicit World
 regions and records requested destinations, resulting avatar state and refusals.
 Kokua truncates coordinates and ignores the supplied angle; RLVa preserves
 fractions and supports radian facing. Teleport lock and issuer-exemption behavior
-is profile specific. Moves stand normally without granting simulator permissions.
+is profile specific. Moves stand normally without granting simulator permissions. Worn objects follow
+the avatar into the new region, keep hearing its viewer and get teleport and
+region `changed` events.
 Landing-point routing, terrain/collision adjustments and camera pose are excluded.
 
 RLV/RLVa force removal covers direct shared-folder attachments with
@@ -767,3 +762,13 @@ inventory, and `accept: false` adds nothing. The inventory fixture's
 `forbidGiveToRlv` setting also prevents shared routing. Acceptance appends frozen
 item metadata and queues profile-specific notify messages without wearing content.
 See the vitest inventory offer documentation for root and path differences.
+
+## License
+
+The rezless project is licensed under the **Apache License, Version 2.0** —
+see [`LICENSE`](LICENSE).
+
+LSL function/event/constant signatures come from Linden Lab's official
+[secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
+vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
+License**; see [`NOTICE`](NOTICE) for the full attribution.

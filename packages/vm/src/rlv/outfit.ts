@@ -70,16 +70,6 @@ export function getRlvOutfitReply(profile: RlvProfile, inventory: RlvInventory, 
       .map(child => `,${child.name}|${wire(info(child))}`).join('') }
   }
 
-  const strippable = (entry: RlvInventoryEntry): boolean => {
-    if (entry.name.includes('nostrip')) return false
-    let parent = entries.find(folder => folder.id === entry.parentId)
-    while (parent) {
-      if (parent.name.includes('nostrip')) return false
-      if (!parent.folded) break
-      parent = entries.find(folder => folder.id === parent!.parentId)
-    }
-    return true
-  }
   // RLVa folds direct items into the containing folder and skips hidden subtrees.
   const info = (current: RlvInventoryEntry): { own: Counts; descendants: Counts } => {
     const own = counts(items(current.id))
@@ -89,7 +79,7 @@ export function getRlvOutfitReply(profile: RlvProfile, inventory: RlvInventory, 
       if (child.folded) {
         const direct = items(child.id)
         if (direct.filter(isObject).length === 1) {
-          const folded = counts(direct.filter(entry => !entry.wearableType || strippable(entry)))
+          const folded = counts(direct.filter(entry => !entry.wearableType || isRlvStrippable('rlva', inventory, entry)))
           own.total += folded.total
           own.worn += folded.worn
         }

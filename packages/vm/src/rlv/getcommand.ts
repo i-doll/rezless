@@ -2,11 +2,17 @@ import { RLV_MANIFEST, type RlvCommandForm } from './manifest.js'
 import type { RlvProfile } from './profiles.js'
 
 /** Frozen form snapshots expose support depth without claiming action enforcement. */
+const coverage = new Map<RlvProfile, readonly RlvCommandForm[]>()
+
 export function getRlvCommandCoverage(profile: RlvProfile): readonly RlvCommandForm[] {
+  const cached = coverage.get(profile)
+  if (cached) return cached
   const rank = { add: 0, force: 1, reply: 2 }
-  return Object.freeze(RLV_MANIFEST.commands.flatMap(entry => entry.profiles[profile].commandForms ?? [])
+  const forms = Object.freeze(RLV_MANIFEST.commands.flatMap(entry => entry.profiles[profile].commandForms ?? [])
     .map(form => Object.freeze({ ...form }))
     .sort((a, b) => rank[a.type] - rank[b.type] || (a.behaviour < b.behaviour ? -1 : a.behaviour > b.behaviour ? 1 : 0)))
+  coverage.set(profile, forms)
+  return forms
 }
 
 /** Untruncated discovery text; undefined means this profile has no query handler. */

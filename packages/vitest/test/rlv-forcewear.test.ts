@@ -422,3 +422,30 @@ for (const inWorld of [false, true]) it(`keeps detach behavior unchanged without
  expect(script.global('events')).toEqual([avatar.key, 1, '00000000-0000-0000-0000-000000000000', 0])
  expect(avatar.viewer.inventory.attachmentMappings()).toEqual([])
 })
+
+it('finishes an accepted wear after the issuing object is gone', async () => {
+ const pair = await fixtures()
+ for (const { world, avatar } of Object.values(pair)) {
+  const trap = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{ name: 'Trap',
+   scripts: [{ name: 'trap', source: { source: 'default { state_entry() { llOwnerSay("@attach:direct=force"); llDie(); } }' } }] }] })
+  trap.scripts['trap']!.start()
+  trap.linkset.advanceTime(0)
+  expect(trap.linkset.dead).toBe(true)
+  expect(world.linksets.filter(l => l.attachment).map(l => l.attachment!.point)).toEqual([1, 5])
+  expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ command: '@attach:direct=force', outcome: 'allowed' })
+ }
+})
+
+// Kokua strips a leading #RLV/ from force options; RLVa resolves it as a folder name.
+it('accepts a shared-root prefix on wear and removal paths only for Kokua', async () => {
+ const pair = await fixtures()
+ for (const [profile, { script, world }] of Object.entries(pair)) {
+  send(script, '@attach:#RLV/direct=force')
+  expect(world.linksets.filter(l => l.attachment)).toHaveLength(profile === 'rlv' ? 2 : 0)
+  send(script, '@attach:direct=force')
+  send(script, '@detach:#RLV/direct=force')
+  expect(world.linksets.filter(l => l.attachment)).toHaveLength(profile === 'rlv' ? 0 : 2)
+ }
+ expect(pair.rlva.avatar.viewer.commandLog.filter(e => e.command.includes('#RLV/')).map(e => e.outcome))
+  .toEqual(['failed-option', 'failed-option'])
+})

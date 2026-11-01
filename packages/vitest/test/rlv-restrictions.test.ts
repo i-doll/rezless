@@ -155,3 +155,15 @@ describe('per-prim viewer restrictions', () => {
     expect(avatar.viewer.commandLog).toEqual([])
   })
 })
+
+it('matches the issuing object to its owner regardless of key case', async () => {
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const world = new World()
+    world.addRegion('test', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ username: 'upper.case', region: 'test', viewer: { profile } })
+    const { scripts } = await loadLinkset({ world, region: 'test', owner: avatar.key.toUpperCase(),
+      prims: [{ scripts: [{ name: 'probe', source: { source: source('@sit=n') } }] }] })
+    scripts['probe']!.start()
+    expect(avatar.viewer.restrictions.snapshot().map(rule => rule.rule)).toEqual(['sit'])
+  }
+})

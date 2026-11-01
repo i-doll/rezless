@@ -5,6 +5,7 @@ import type { RlvParsedCommand } from './classifier.js'
 import type { RlvProfile } from './profiles.js'
 import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint, isRlvAttachmentBridge } from './attachments.js'
 import { isRlvBodypart, isRlvStrippable } from './outfit.js'
+import { isRlvDetachLocked as locked } from './detach.js'
 import { getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
 
 export interface RlvForceWearItemResult {
@@ -46,9 +47,15 @@ function itemPoint(profile: RlvProfile, entry: RlvInventoryEntry, parent: RlvInv
   return entry.modifiable === false ? folder || own : own || folder
 }
 
-function locked(avatar: WorldAvatar, object: Linkset): boolean {
-  return avatar.viewer.restrictions.snapshot().some(rule => rule.behaviour === 'detach' && !rule.option &&
-    object.prims.some(prim => prim.key === rule.sourcePrim))
+/** Accepted viewer work completes even if its issuer is gone; it ends only with the avatar. */
+function viewerWork(issuer: Linkset, avatar: WorldAvatar): { readonly dead: boolean } {
+  const world = issuer.world
+  return { get dead() { return !world?.avatars.includes(avatar) } }
+}
+
+/** Kokua strips a leading shared-root prefix from force options; RLVa resolves the path as given. */
+function forceOption(profile: RlvProfile, option: string): string {
+  return profile === 'rlv' && option.startsWith('#rlv/') ? option.slice('#rlv/'.length) : option
 }
 
 function existingAttachment(avatar: WorldAvatar, issuer: Linkset, itemId: string): Linkset | undefined {
@@ -109,15 +116,16 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
   const profile = viewer.profile
   const inventory = viewer.inventory
   const entries = inventory.snapshot()
-  const folderId = getRlvInventoryFolder(profile, inventory, parsed.option)
+  const option = forceOption(profile, parsed.option)
+  const folderId = getRlvInventoryFolder(profile, inventory, option)
   const index = viewer.commandLog.length
   const record = (outcome: RlvForceWearOutcome, results: readonly RlvForceWearItemResult[] = []) => {
     viewer.commandLog[index] = { command, sourcePrim: prim.key, parsed,
       status: outcome === 'unsupported-form' ? 'unsupported' : 'enforced', outcome,
       wearResults: Object.freeze(results.map(result => Object.freeze(result))) }
   }
-  if (parsed.option.includes('|')) { record('unsupported-form'); return true }
-  if (!parsed.option || folderId === undefined || folderId === inventory.sharedRootId) {
+  if (option.includes('|')) { record('unsupported-form'); return true }
+  if (!option || folderId === undefined || folderId === inventory.sharedRootId) {
     record(profile === 'rlva' ? 'failed-option' : 'no-op'); return true
   }
   const folder = entries.find(entry => entry.id === folderId)!
@@ -153,7 +161,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
   }
   if (profile === 'rlva') plans.sort((a, b) => a.entry.id < b.entry.id ? -1 : a.entry.id > b.entry.id ? 1 : 0)
   record('no-op')
-  issuer.clock.scheduleTask(issuer, issuer.clock.now, () => {
+  issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
     for (const plan of plans) results.push(wear(avatar, issuer, plan))
     const successful = results.some(result => result.outcome === 'attached' || result.outcome === 'already-worn')
     const blocked = results.some(result => result.outcome === 'blocked')
@@ -186,23 +194,23 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
       status: outcome === 'unsupported-form' ? 'unsupported' : 'enforced', outcome,
       removeResults: Object.freeze(results.map(result => Object.freeze(result))) }
   }
-  const path = parsed.option.replace(/^#rlv\//, '')
-  const folderId = getRlvInventoryFolder(profile, inventory, path)
+  const option = forceOption(profile, parsed.option)
+  const folderId = getRlvInventoryFolder(profile, inventory, option)
   const folderRemoval = parsed.behaviour === 'detach'
-  if (parsed.option.includes('|') || folderRemoval && (!parsed.option || getRlvAttachmentPoint(parsed.option) !== undefined ||
-    profile === 'rlva' && folderId === undefined && ['head', 'torso', 'arms', 'legs', 'hud'].includes(parsed.option) || /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(parsed.option))) {
+  if (option.includes('|') || folderRemoval && (!option || getRlvAttachmentPoint(option) !== undefined ||
+    profile === 'rlva' && folderId === undefined && ['head', 'torso', 'arms', 'legs', 'hud'].includes(option) || /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(option))) {
     record('unsupported-form'); return true
   }
-  const layer = RLV_WEARABLE_TYPES.some(layer => layer === parsed.option)
-  if (!folderRemoval && parsed.option && !layer && folderId !== undefined) {
+  const layer = RLV_WEARABLE_TYPES.some(layer => layer === option)
+  if (!folderRemoval && option && !layer && folderId !== undefined) {
     record('unsupported-form'); return true
   }
   if (folderRemoval && (folderId === undefined || folderId === inventory.sharedRootId || profile === 'rlva' && layer) ||
-    !folderRemoval && parsed.option && !RLV_WEARABLE_TYPES.some(layer => layer === parsed.option)) {
+    !folderRemoval && option && !RLV_WEARABLE_TYPES.some(layer => layer === option)) {
     record(profile === 'rlva' ? 'failed-option' : 'no-op'); return true
   }
   let items = folderRemoval ? entries.filter(entry => entry.kind === 'item' && entry.parentId === folderId)
-    : entries.filter(entry => entry.wearableType && (!parsed.option || entry.wearableType === parsed.option))
+    : entries.filter(entry => entry.wearableType && (!option || entry.wearableType === option))
   if (folderRemoval) {
     for (const child of entries.filter(entry => entry.kind === 'folder' && entry.parentId === folderId)) {
       const contents = entries.filter(entry => entry.kind === 'item' && entry.parentId === child.id)
@@ -216,7 +224,7 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
   // Later lock changes cannot retroactively deny already accepted removals.
   const rules = viewer.restrictions.snapshot()
   record('no-op')
-  issuer.clock.scheduleTask(issuer, issuer.clock.now, () => {
+  issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
     const results: RlvForceRemoveItemResult[] = items.map(entry => {
       if (folderRemoval && entry.assetType !== 'object' && !inventory.attachmentMappings().some(m => m.itemId === entry.id)) {
         return { itemId: entry.id, outcome: 'unsupported', reason: 'unsupported-content' }
