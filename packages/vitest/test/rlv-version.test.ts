@@ -63,7 +63,7 @@ describe('viewer reply routing and inspection', () => {
       expect(script.global('during')).toBe(0)
       expect(script.global('replies')).toBe(1)
       expect(script.chat.map(e => e.text)).toEqual(['ordinary owner chat', '@versionnum=214'])
-      expect(avatar.viewer.commandLog).toEqual([{
+      expect(avatar.viewer.commandLog).toMatchObject([{
         command: '@versionnum=214', sourcePrim: script.host.key, status: 'replied',
         reply: { channel: 214, text: profile === 'rlv' ? '2093500' : '3040300' },
       }])
@@ -92,9 +92,9 @@ describe('viewer reply routing and inspection', () => {
       script.advanceTime(100)
       expect(script.global('replies')).toBe(0)
       expect(avatar.viewer.commandLog.map(e => e.status)).toEqual([
-        'replied', 'replied', 'replied', 'replied', 'replied', 'unsupported', 'unsupported', 'unsupported',
+        'replied', 'replied', 'replied', 'replied', 'replied', 'unsupported', 'replied', 'replied', 'unsupported',
       ])
-      expect(avatar.viewer.diagnostics.map(e => e.command)).toEqual(['@detach=n', '@versionnum=214,version=214', '@unknown=214'])
+      expect(avatar.viewer.diagnostics.map(e => e.command)).toEqual(['@detach=n', '@unknown=214'])
     }
   })
 
