@@ -55,10 +55,10 @@ export class LinksetClock {
     return Math.floor(this.startUnixTime * 1e6 + this.now * 1000)
   }
 
-  private readonly tasks = new Set<{ target: Script; at: number; run: () => void }>()
+  private readonly tasks = new Set<{ target: Pick<Script, 'dead'>; at: number; run: () => void }>()
 
-  /** Simulator work that completes even while its script's handler sleeps. */
-  scheduleTask(target: Script, at: number, run: () => void): () => void {
+  /** Simulator work follows its target's lifetime, even while script handlers sleep. */
+  scheduleTask(target: Pick<Script, 'dead'>, at: number, run: () => void): () => void {
     const task = { target, at, run }
     this.tasks.add(task)
     return () => { this.tasks.delete(task) }
@@ -163,7 +163,7 @@ export class LinksetClock {
       }
     }
 
-    let task: { target: Script; at: number; run: () => void } | undefined
+    let task: { target: Pick<Script, 'dead'>; at: number; run: () => void } | undefined
     for (const candidate of this.tasks) {
       if (candidate.target.dead) { this.tasks.delete(candidate); continue }
       if (candidate.at <= horizon && (!task || candidate.at < task.at)) task = candidate

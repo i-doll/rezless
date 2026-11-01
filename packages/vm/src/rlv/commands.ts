@@ -1,6 +1,7 @@
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommands } from './getcommand.js'
+import { dispatchDetachCommand } from './detach.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
 import { getRlvInventoryList } from './inventory.js'
@@ -96,8 +97,8 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         continue
       }
     }
-    if (text === undefined && parsed && !malformed &&
-      (parsed.kind === 'add' || parsed.kind === 'remove') && seatingSupport(viewer.profile, parsed.behaviour, parsed.option) === 'enforced') {
+    if (text === undefined && parsed && !malformed && (viewer.restrictions.supportsNotifyCommand(parsed) ||
+      (parsed.kind === 'add' || parsed.kind === 'remove') && seatingSupport(viewer.profile, parsed.behaviour, parsed.option) === 'enforced')) {
       dispatchRestrictionCommand(viewer, prim, parsed, command)
       continue
     }
@@ -105,6 +106,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       dispatchRestrictionCommand(viewer, prim, parsed, command)
       continue
     }
+    if (text === undefined && parsed && !malformed && dispatchDetachCommand(linkset, prim, avatar, parsed, command)) continue
     if (text === undefined && parsed && !malformed) {
       const outcome = classifyRlvUnsupported(viewer.profile, parsed)
       if (outcome !== 'state-only') {

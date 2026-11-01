@@ -659,8 +659,10 @@ the lines it changed) and project coverage vs the `main` baseline.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
-The seating rules are enforced by explicit user actions; the other listed rules
-are state-only. Explicit avatar chat actions enforce `sendchannel`,
+The seating rules are enforced by explicit user actions. No-option detach locks enforce explicit viewer detach attempts. Root self-detach
+respects every issuer lock; child self-detach resolves the attachment in Kokua
+and is inert in RLVa. Simulator detach remains separate, and forced reattachment
+recovery is excluded. The other listed rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
 Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
@@ -671,6 +673,9 @@ expose unsupported outcomes without adding wire acknowledgements.
 `getattach` reads current attachment point occupancy, including HUDs, using
 the canonical 55-point table. RLVa also supports occupied point names and group
 filters through `getattachnames`; Kokua leaves that query unsupported.
+`notify` registers emitter-scoped restriction notifications with substring filters.
+Both profiles deliver avatar-origin messages; aliases, duplicate operations and
+clear ordering follow the selected viewer profile.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
 Force `sit` and `unsit` update World seating and expose action outcomes in the

@@ -49,7 +49,7 @@ const tests = ['packages/vitest/test/rlv-profiles.test.ts']
 const replyForms = (...names: string[]): RlvCommandForm[] => names.map(behaviour => ({
   behaviour, type: 'reply', support: 'enforced', option: 'any',
 }))
-const restrictionForms: RlvCommandForm[] = ['detach', 'sendchat', 'tplm', 'tploc'].map(behaviour => ({
+const restrictionForms: RlvCommandForm[] = ['sendchat', 'tplm', 'tploc'].map(behaviour => ({
   behaviour, type: 'add', support: 'state-only', option: 'none',
 }))
 
@@ -105,12 +105,12 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Both profiles share prim-scoped rules, aliases, duplicate suppression and substring clear. Kokua retains unknown names and options; RLVa validates forms. Script reset, state change and removal preserve rules. Missing prims lose their rules during viewer garbage collection.',
       profiles: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
-          'No-option detach, sendchat, tploc and tplm are state-only. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
-          commandForms: [...restrictionForms, ...['detach'].map(behaviour => ({ behaviour, type: 'force' as const, support: 'unsupported' as const, option: 'any' as const }))],
+          'No-option sendchat, tploc and tplm are state-only. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
+          commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
-          'No-option detach, sendchat, tploc and tplm are state-only. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
-          commandForms: [...restrictionForms, ...['detach'].map(behaviour => ({ behaviour, type: 'force' as const, support: 'unsupported' as const, option: 'any' as const }))],
+          'No-option sendchat, tploc and tplm are state-only. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
+          commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts'],
@@ -228,6 +228,28 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-getattach.test.ts'],
     },
     {
+      id: 'detach', forms: ['@detach=n|add', '@detach=y|rem', '@detachme[:<option>]=force'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Wiki describes attachment-local locks and ordered clear/self-detach, without specifying child emitter or malformed-option handling. No-option locks protect the containing attachment and remain scoped to the issuing prim. Self-detach respects every root and child lock, including its own. Kokua resolves a child emitter to its attachment and ignores detachme options. RLVa child self-detach is inert and nonempty options fail. Simulator detach is separate from a viewer detach attempt; forced reattachment recovery is excluded.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::force', 'RRInterface::forceDetachByUuid', 'RRInterface::canDetachWithExplanation', 'RRInterface::detachObject'],
+          'Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named locks, detach=force, folder operations, nostrip and forced reattachment recovery are unsupported.'),
+          support: 'enforced', commandForms: [
+            { behaviour: 'detach', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'detach', type: 'force', support: 'unsupported', option: 'any' },
+            { behaviour: 'detachme', type: 'force', support: 'enforced', option: 'any' },
+          ], coveredForms: ['No-option detach n/add and y/rem with per-prim locks', 'Explicit viewer detach attempt and queued force self-detach from root or child', 'Ignored detachme options, lock denial, attach events and llGetAttached state', 'Simulator detach remains independent of viewer locks'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvBehaviourHandler<RLV_BHVR_DETACH>::onCommand', 'RlvForceHandler<RLV_BHVR_DETACHME>::onCommand', 'LLVOAvatarSelf::detachAttachmentIntoInventory', 'RlvAttachmentLocks::canDetach'],
+          'Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named locks, detach=force, folder operations, bridge exemption settings and forced reattachment recovery are unsupported.'),
+          support: 'enforced', commandForms: [
+            { behaviour: 'detach', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'detach', type: 'force', support: 'unsupported', option: 'any' },
+            { behaviour: 'detachme', type: 'force', support: 'enforced', option: 'none' },
+          ], coveredForms: ['No-option detach n/add and y/rem with root and child issuer locks', 'Explicit viewer detach attempt and queued root force self-detach', 'Child self-detach no-op, rejected nonempty options, attach events and llGetAttached state', 'Simulator detach remains independent of viewer locks'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-detach.test.ts'],
+    },
+    {
       id: 'seating', forms: ['@getsitid[:<option>]=<channel>', '@sit[:<uuid>]=force', '@unsit=force', '@sit=n|y', '@unsit=n|y', '@sittp[:<distance>]=n|y'],
       comparison: 'confirmed difference',
       wikiComparison: 'Both profiles enforce user sit/stand locks without issuer exceptions and combine sittp distances by minimum with a strict 1.5 m default boundary. Kokua compares signed distance; RLVa compares its square. Both profiles return null standing and the object root when seated. RLVa ground sitting reports the avatar UUID. Empty/null sit requests ground sitting in RLVa and does nothing in Kokua. Object force sit respects sit and seated unsit locks; RLVa force unsit and ground sit exempt the issuing prim.',
@@ -269,12 +291,14 @@ export const RLV_MANIFEST: {
       id: 'notifications', forms: ['@notify:<channel>[;<filter>]=n|add', '@notify:<channel>[;<filter>]=y|rem'],
       comparison: 'confirmed difference', wikiComparison: 'Wiki describes rule notifications. Alias preservation and clear event sequences require implementation-specific expectations.',
       profiles: {
-        rlv: { ...kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y; clear emits a clear notification and individual removals.'),
-          commandForms: [{ behaviour: 'notify', type: 'add', support: 'unsupported', option: 'any' }] },
-        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve input aliases; internal commands do not notify; compare duplicate and failed external commands separately.'),
-          commandForms: [{ behaviour: 'notify', type: 'add', support: 'unsupported', option: 'any' }] },
+        rlv: { ...kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y, suppress duplicate adds and report absent removes; clear reports itself before individual removals, including collection.'),
+          support: 'enforced', commandForms: [{ behaviour: 'notify', type: 'add', support: 'enforced', option: 'any' }],
+          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve aliases, with duplicate adds using the first stored alias. Failed external add/remove commands notify; clear reports after removing registrations, and collection reports clear without individual removals.'),
+          support: 'enforced', commandForms: [{ behaviour: 'notify', type: 'add', support: 'enforced', option: 'any' }],
+          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
       },
-      tests,
+      tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts'],
     },
   ],
 }

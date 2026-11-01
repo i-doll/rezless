@@ -547,17 +547,38 @@ string suffix is the fixed fixture viewer version `26.4.0`.
 `avatar.viewer.restrictions.snapshot()` returns a frozen array of frozen rules,
 optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule has
 `sourcePrim`, `behaviour`, `option`, canonical `rule`, and `support`. The no-option
-`detach`, `sendchat`, `tploc`, and `tplm` forms have `state-only` support.
-Seating forms `sit`, `unsit` and finite decimal `sittp[:distance]` have `enforced`
-support for explicit user actions. Enforced forms log `applied`; diagnostics
+`sendchat`, `tploc`, and `tplm` forms have `state-only` support. Their actions
+are not enforced, and their command-log status remains `unsupported` for action
+effects. Seating forms `sit`, `unsit` and finite decimal `sittp[:distance]` have
+`enforced` support for explicit user actions and log `applied`. Diagnostics
 distinguish updated state from unsupported forms.
+
+No-option `detach` has `enforced` support. `fixture.attemptDetach(attachment)`
+attempts to remove an attachment worn by the fixture avatar; omitting the argument
+selects the fixture script's attachment. `attemptViewerDetach(avatar, linkset)`
+exposes the same action directly. Both return `allowed`, `blocked`, or `no-op`.
+Root and child locks protect the whole attachment until the last relevant issuer
+removes its rule. Allowed fixture actions remove the attachment immediately;
+advance its clock to deliver queued `attach(NULL_KEY)` events.
+
+`@detachme=force` respects all root and child locks, including the issuer's own.
+Kokua resolves child emitters to the containing attachment and ignores options.
+RLVa child self-detach is inert even unlocked; nonempty options fail. An allowed
+force command queues simulator completion after the LSL handler yields, so an
+immediate `llGetAttached` still reads the prior point. Accepted viewer work
+survives removal of the issuing script and ends when the linkset is removed. Command-log status is
+`enforced`, with an `allowed`, `blocked`, `no-op`, or `failed-option` outcome.
+Lock add/remove commands use `applied`. `llDetachFromAvatar` remains a separate
+simulator action and bypasses viewer locks, retaining its root/permission checks.
+Named-point locks, `detach=force`, folder forms, nostrip and forced reattachment
+recovery are excluded from these actions.
 
 Rules use emitter prim UUIDs, so scripts on one prim share state and separate
 prims remain independent. `n`/`add` and `y`/`rem` are aliases. Duplicates and absent
 removes do not change state. `@clear`, `@clear=`, and `@clear=<substring>` affect
 only that emitter. Filters match canonical rule text, including options.
 Kokua retains unknown wire names and options with `unsupported` effects. Firestorm
-stores those no-option forms plus the sendchannel forms below; other families
+stores those no-option forms, notification registrations and the sendchannel forms below; other families
 and option forms remain unsupported. Neither profile stores query or force parameters.
 
 The `sendchannel` family has `enforced` support through explicit avatar actions.
@@ -599,6 +620,34 @@ retain every attempted channel, message, status and denying restrictions with
 issuer UUIDs. A denied action creates no listener event or synthetic chat notice.
 Script `llSay` and `llRegionSay` output and automatic viewer query replies remain
 independent of this action policy.
+
+`@notify:<channel>[;<filter>]=n|add` registers restriction notifications;
+`y|rem` removes the issuing prim's exact wire registration. Different prims may
+subscribe independently. Identical adds do not duplicate registrations. Substring
+filters match rule names and options, excluding the parameter suffix. Messages
+start with `/` and contain no issuer UUID. They enter ordinary LSL `listen`
+events as avatar-origin replies, using the query reply channel, range and length
+policy independently of sendchannel restrictions.
+
+Kokua normalizes notification suffixes to `=n` and `=y`, suppresses duplicate adds
+and reports absent removals. Firestorm preserves aliases, including the first
+stored alias when an add is repeated, and reports failed external add/remove
+commands. Kokua sends `/clear[:filter]` before removing matching rules, then sends
+individual `=y` notices while subscriptions remain. Firestorm removes matching
+rules before notifying remaining subscribers of `/clear[:filter]`; internal
+individual removals stay silent. Missing-emitter collection follows those clear
+sequences. Subscriptions persist through script reset and removal and are collected
+with other rules when their emitter disappears. Collection notifications retain
+the original viewer identity if the emitter changes owner.
+
+Both profiles accept numeric channel prefixes. RLVa requires a positive channel
+other than DEBUG_CHANNEL and at most one filter field; empty filters are accepted.
+Kokua also delivers on negative channels and DEBUG_CHANNEL, skips empty semicolon
+fields and uses the first nonempty filter field. Zero and nonnumeric channels
+never deliver. Kokua retains invalid wire registrations for inspection.
+Inventory-offer, clothing, attachment and seating action notifications are outside
+this notification fixture. Successful registration commands have `applied` status;
+unsupported forms remain visible in command logs and diagnostics.
 
 Script reset, state changes, and script removal preserve rules. Missing prims lose
 their rules on virtual-time viewer collection, every 30 seconds for RLVa and every

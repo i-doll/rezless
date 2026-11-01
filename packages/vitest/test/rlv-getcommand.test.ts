@@ -57,11 +57,11 @@ describe('RLVa implemented-command discovery', () => {
     for (const { script, avatar } of Object.values(pair)) {
       script.start()
       expect(script.global('replies')).toEqual([])
-      expect(avatar.viewer.commandLog.map(entry => entry.status)).toEqual(['unsupported', 'unsupported', 'unsupported'])
+      expect(avatar.viewer.commandLog.map(entry => entry.status)).toEqual(['unsupported', 'unsupported', 'applied'])
       expect(avatar.viewer.commandLog.map(entry => entry.outcome)).toEqual([
-        'unknown-behaviour', 'wrong-parameter-kind', 'unsupported-form',
+        'unknown-behaviour', 'wrong-parameter-kind', undefined,
       ])
-      expect(new Set(avatar.viewer.diagnostics.map(entry => entry.detail)).size).toBe(3)
+      expect(new Set(avatar.viewer.diagnostics.map(entry => entry.detail)).size).toBe(2)
     }
   })
 
@@ -74,9 +74,9 @@ describe('RLVa implemented-command discovery', () => {
     }` })
     pair.rlva.script.start(); pair.rlv.script.start()
     expect(pair.rlva.script.global('replies')).toEqual([
-      'detach;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;unsit;sit;unsit;findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum',
-      'detach;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;unsit',
-      'findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', 'sit;unsit',
+      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;unsit;detachme;sit;unsit;findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum',
+      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;unsit',
+      'findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', 'detachme;sit;unsit',
     ])
     expect(pair.rlv.script.global('replies')).toEqual([])
     const coverage = getRlvCommandCoverage('rlva')
@@ -101,7 +101,7 @@ describe('RLVa implemented-command discovery', () => {
     expect(pair.rlv.avatar.viewer.restrictions.snapshot().map(rule => rule.support)).toEqual(['unsupported'])
     expect(pair.rlv.avatar.viewer.commandLog.slice(0, 2).map(entry => entry.outcome)).toEqual(['unknown-behaviour', 'unknown-behaviour'])
     expect(pair.rlva.script.global('replies')).toEqual([
-      'detach;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;unsit;sit;unsit;findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', '',
+      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;unsit;detachme;sit;unsit;findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', '',
     ])
     expect(pair.rlva.avatar.viewer.commandLog[0]).toMatchObject({ status: 'unsupported', outcome: 'wrong-parameter-kind' })
     expect(pair.rlva.avatar.viewer.restrictions.snapshot()).toEqual([])
