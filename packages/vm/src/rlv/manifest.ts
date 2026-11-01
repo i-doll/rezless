@@ -440,6 +440,29 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-camera.test.ts'],
     },
     {
+      id: 'viewer-ui', forms: ['@showinv|showloc|showminimap|showworldmap|shownearby=n|y', '@shownames[_sec][:<uuid>]=n|y', '@shownametags[_sec][:<uuid>|<distance>]=n|y', '@showhovertext:<uuid>=n|y', '@showhovertextall|showhovertexthud|showhovertextworld=n|y', '@showself|showselfhead|viewtransparent|viewwireframe=n|y', '@viewnote|viewscript|viewtexture=n|y'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'The immutable viewer-state query exposes restriction policy with issuer and option details. RLVa supports self visibility, transparent/wireframe controls, strict name exceptions and nametag distance modifiers. Kokua has no effects for those four controls or distance modifiers; its name censor shares name/nametag exceptions and its nametag visibility has no exceptions. Window contents, rendered pixels and user preference overrides are outside this query.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::refreshCachedVariable', 'RRInterface::censor', 'RRInterface::add', 'RRInterface::remove'],
+          'Inventory, location, maps, names, nearby list, hover text and note/script/texture restrictions are queryable. Name censoring includes optioned shownames rules and shares UUID exceptions from shownames, shownames_sec and shownametags. Nametag hiding uses only unoptioned shownametags; name restrictions also hide nametags with the default settings. Hover text uses exact prim UUID and independent HUD/world/all scopes. showself, showselfhead, viewtransparent, viewwireframe, nametag distance and strict nametag forms remain unsupported.'),
+          support: 'enforced', coveredForms: ['Global UI restrictions, removal, clear and session cleanup', 'Name exceptions and exact-prim hover text scopes', 'Immutable per-avatar policy snapshots with issuer/option details'],
+          commandForms: [
+            ...['showinv', 'showloc', 'showminimap', 'showworldmap', 'shownearby', 'showhovertextall', 'showhovertexthud', 'showhovertextworld', 'viewnote', 'viewscript', 'viewtexture'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+            ...['shownames', 'shownames_sec', 'shownametags', 'showhovertext'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['showself', 'showselfhead', 'viewtransparent', 'viewwireframe', 'shownametags_sec'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'unsupported' as const, option: 'any' as const })),
+          ] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary', 'RlvBehaviourHandler<RLV_BHVR_SHOWNAMETAGS>::onCommand', 'RlvActions::canShowName', 'RlvActions::canShowNameTag', 'RlvActions::canShowHoverText'],
+          'All listed UI restrictions are queryable. Names and nametags exempt self and UUID exceptions; strict rules or permissive require exceptions from the corresponding issuers. Nametag modifiers choose the minimum distance (empty means zero), with a strict distance boundary. Object hover text is hidden by exact prim UUID or all/HUD/world scope. The query reports restriction policy rather than current window openness, pixel output or persistent user preferences.'),
+          support: 'enforced', coveredForms: ['All listed show/view restrictions, removal, clear and session cleanup', 'UUID exceptions, strict issuer scope, self exemptions and nametag distance modifiers', 'Exact-prim hover text scopes and immutable snapshots'],
+          commandForms: [
+            ...['showinv', 'showloc', 'showminimap', 'showworldmap', 'shownearby', 'showhovertextall', 'showhovertexthud', 'showhovertextworld', 'viewnote', 'viewscript', 'viewtexture', 'showself', 'showselfhead', 'viewtransparent', 'viewwireframe'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+            ...['shownames', 'shownames_sec', 'shownametags', 'shownametags_sec', 'showhovertext'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+          ] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-viewstate.test.ts'],
+    },
+    {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
       comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
       profiles: {

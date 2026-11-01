@@ -1245,6 +1245,20 @@ user lens attempts use the same lens setter as forces. Rendering, window resizin
 camera exclusivity, position/distance modes and deprecated zoom aliases are unsupported.
 
 
+### Viewer UI restrictions
+
+Use `getRlvViewerState(avatar, context?)` to assert on show/view restrictions.
+It returns frozen effects with support depth, resolved `restricted` state and
+issuer rules including options and exceptions. `restricted: null` identifies an
+unsupported effect. See the [viewer-state query contract](../../README.md#rlvrlva-viewer-fixtures)
+for target UUID, distance and HUD/world context and profile differences.
+
+```ts
+const inventory = getRlvViewerState(fixture.avatar).find(effect => effect.behaviour === 'showinv')!
+expect(inventory.restricted).toBe(true)
+expect(inventory.rules[0]).toMatchObject({ sourcePrim: fixture.script.host.key, option: '' })
+```
+
 ### Implemented `ll*` functions
 
 The real-impl set covers the most common use cases. Anything outside it
