@@ -102,13 +102,13 @@ it('identifies the reference versions and exposes unsupported command forms hone
   expect(RLV_MANIFEST.schemaVersion).toBe(3)
   expect(RLV_MANIFEST.wiki).toEqual({ url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' })
   expect(RLV_MANIFEST.commands.map(entry => entry.id)).toEqual([
-    'version', 'channel-policy', 'add-remove-clear', 'sendchannel', 'status', 'getinv', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'getattach', 'getattachnames', 'detach', 'seating', 'teleport', 'discovery', 'notifications',
+    'version', 'channel-policy', 'add-remove-clear', 'sendchannel', 'status', 'getinv', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'getattach', 'getattachnames', 'detach', 'seating', 'teleport', 'camera-fov', 'discovery', 'notifications',
   ])
   for (const entry of RLV_MANIFEST.commands) {
     expect(entry.forms.length).toBeGreaterThan(0)
     expect(entry.tests).toContain('packages/vitest/test/rlv-profiles.test.ts')
     for (const profile of ['rlv', 'rlva'] as const) {
-      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchannel', 'notifications', 'status', 'getinv', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'getattach', 'detach', 'seating', 'teleport'].includes(entry.id) || ['getattachnames', 'discovery'].includes(entry.id) && profile === 'rlva') ? 'enforced' : entry.id === 'add-remove-clear' ? 'state-only' : 'unsupported')
+      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchannel', 'notifications', 'status', 'getinv', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'getattach', 'detach', 'seating', 'teleport', 'camera-fov'].includes(entry.id) || ['getattachnames', 'discovery'].includes(entry.id) && profile === 'rlva') ? 'enforced' : entry.id === 'add-remove-clear' ? 'state-only' : 'unsupported')
       const evidence = entry.profiles[profile].evidence
       const reference = RLV_PROFILES[profile]
       expect(evidence).toEqual({

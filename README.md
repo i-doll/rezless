@@ -688,6 +688,13 @@ Distances use the clicked point in global coordinates, including the optional
 region-axis offset. Non-finite, hexadecimal and overflow options remain inspectably
 unsupported. Simulator `llSitOnLink` and `llUnSit` bypass viewer locks.
 
+Camera fixtures support `setcam_fov=force`, `getcam_fov`, aggregated
+`setcam_fovmin/max` restrictions and their queries. `changeRlvFov(avatar, radians)`
+attempts a user lens change; `getRlvFov(avatar)` reads its effective angle.
+Enabled profiles share this lens with permission-gated `llGetCameraFOV` reads.
+RLVa uses three-decimal replies and empty unset bounds; Kokua uses six decimals
+and zoom-derived bounds. Rendering and exclusive camera control are outside this fixture.
+
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
 profile-specific path matching and visibility filters.

@@ -1,6 +1,9 @@
 import { attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
+/** Attempt a user lens change in radians, returning the enforced FOV. */
+export { changeRlvFov } from '@rezless/vm'
+
 export interface RlvFixture {
   readonly world: World
   readonly avatar: WorldAvatar

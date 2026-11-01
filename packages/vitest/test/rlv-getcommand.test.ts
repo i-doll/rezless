@@ -74,9 +74,9 @@ describe('RLVa implemented-command discovery', () => {
     }` })
     pair.rlva.script.start(); pair.rlv.script.start()
     expect(pair.rlva.script.global('replies')).toEqual([
-      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;tplocal;unsit;detachme;sit;tpto;unsit;findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getinvworn;getoutfit;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum',
-      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;tplocal;unsit',
-      'findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getinvworn;getoutfit;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', 'detachme;sit;tpto;unsit',
+      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;setcam_fovmax;setcam_fovmin;sit;sittp;tplm;tploc;tplocal;unsit;detachme;setcam_fov;sit;tpto;unsit;findfolder;findfolders;getattach;getattachnames;getcam_fov;getcam_fovmax;getcam_fovmin;getcommand;getinv;getinvworn;getoutfit;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum',
+      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;setcam_fovmax;setcam_fovmin;sit;sittp;tplm;tploc;tplocal;unsit',
+      'findfolder;findfolders;getattach;getattachnames;getcam_fov;getcam_fovmax;getcam_fovmin;getcommand;getinv;getinvworn;getoutfit;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', 'detachme;setcam_fov;sit;tpto;unsit',
     ])
     expect(pair.rlv.script.global('replies')).toEqual([])
     const coverage = getRlvCommandCoverage('rlva')
@@ -101,7 +101,7 @@ describe('RLVa implemented-command discovery', () => {
     expect(pair.rlv.avatar.viewer.restrictions.snapshot().map(rule => rule.support)).toEqual(['unsupported'])
     expect(pair.rlv.avatar.viewer.commandLog.slice(0, 2).map(entry => entry.outcome)).toEqual(['unknown-behaviour', 'unknown-behaviour'])
     expect(pair.rlva.script.global('replies')).toEqual([
-      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;sit;sittp;tplm;tploc;tplocal;unsit;detachme;sit;tpto;unsit;findfolder;findfolders;getattach;getattachnames;getcommand;getinv;getinvworn;getoutfit;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', '',
+      'detach;notify;permissive;sendchannel;sendchannel_sec;sendchat;setcam_fovmax;setcam_fovmin;sit;sittp;tplm;tploc;tplocal;unsit;detachme;setcam_fov;sit;tpto;unsit;findfolder;findfolders;getattach;getattachnames;getcam_fov;getcam_fovmax;getcam_fovmin;getcommand;getinv;getinvworn;getoutfit;getpath;getpathnew;getsitid;getstatus;getstatusall;version;versionnew;versionnum', '',
     ])
     expect(pair.rlva.avatar.viewer.commandLog[0]).toMatchObject({ status: 'unsupported', outcome: 'wrong-parameter-kind' })
     expect(pair.rlva.avatar.viewer.restrictions.snapshot()).toEqual([])
