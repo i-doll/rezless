@@ -1226,7 +1226,7 @@ unlocked ones. Point and folder locks remain unsupported.
 Each command record exposes `wearResults` with item IDs, resolved points and
 attached, already-worn, blocked, skipped or unsupported outcomes. Unsupported
 contents or missing definitions do not prevent supported items from wearing.
-Clothing, recursive commands, multiple-folder options, inventory links and
+Inventory links and
 asset fetching remain unsupported.
 
 ### Blacklist fixtures
@@ -1266,13 +1266,12 @@ item and returns `allowed`, `blocked` or `no-op`. Global and named
 unrestricted. Bodypart changes and replacement layering are outside this helper.
 
 Kokua layer removal honors ancestor folder names containing `nostrip`, case
-insensitively; item-name protection applies only to folder attachment removal.
+insensitively; item-name protection applies only to folder removal.
 RLVa checks item and parent names case sensitively, walking through folded
 parents. A registered valid RLVa bridge is protected. Folder removal results
 follow seed order for Kokua and inventory ID order for RLVa.
 
-Folder clothing, remoutfit folder forms, recursive and multiple-folder commands,
-group removal and comprehensive folder locks remain unsupported.
+Multiple-folder delimiters, group removal and comprehensive folder locks remain unsupported.
 Mixed folder contents retain unsupported items and report each result.
 Invalid layer/path force options are inert in Kokua and fail in RLVa.
 
@@ -1771,6 +1770,41 @@ Add/remove aliases and clear affect subsequent attempts without changing snapsho
 Distance options, group/offline IMs, closing sessions, long-message
 truncation/splitting, automatic replies and custom viewer strings are outside
 this action contract.
+
+### Recursive force wear and folder removal
+
+`attachall`, `attachallover` and `attachalloverorreplace` include visible
+subfolders, and accept the `addoutfitall` and `addoutfitallover` aliases.
+Kokua also implements `addoutfitalloverorreplace`; RLVa leaves it unsupported.
+`detachall` removes attachments and clothing recursively. `remoutfit:<folder>`
+uses the direct folder removal rules, including clothing and folded objects.
+Bodyparts stay worn during removal. Frozen `wearResults` and `removeResults`
+record each selected item's outcome, including layer and attachment lock denials.
+Clothing wear reports `worn`; attachment wear reports `attached`.
+
+Kokua wear skips hidden descendants except single no-mod objects in point-named
+folders. Its recursive removal includes hidden descendants. RLVa skips hidden
+trees except effective folded children, which do not expose ordinary descendants.
+Folded clothing contributes on wear when strippable, but not on removal.
+A folder's `+` prefix requests add. Kokua evaluates each folder separately;
+RLVa descendants inherit the containing folder's action. RLVa replacement keeps
+all accepted clothing of a layer by adding after the first item; Kokua replaces
+the top item sequentially. Kokua checks replacement removal before the add
+lock, so a denied add can still remove an unprotected top item. A removal lock
+retains that occupant but permits adding the new clothing. RLVa denies replacement
+when an occupied layer is removal-locked. Replacement preserves clothing protected by profile-specific
+nostrip names for ordinary clothing. RLVa physics has one slot: add replaces its
+occupant unless layer removal is locked, including automatic replacement of
+nostrip physics. Kokua permits multiple physics items. Layer and attachment locks
+constrain every form. Both profiles limit clothing to 60 items. At capacity the
+appearance manager can replace an unlocked top item. Kokua preserves nostrip
+clothing during this fallback; RLVa automatically replaces it. If no slot can be freed the result reports a clothing-capacity denial.
+
+Folder options select one path. Kokua strips a pipe annotation from each path
+component, so `Base|33/Child|30` selects `Base/Child`. RLVa resolves the literal
+option. Neither profile interprets pipes or semicolons as multiple folder paths.
+Inventory links, gestures, environment settings and folder locks remain outside
+these force-wear fixtures.
 
 
 ### RLV/RLVa avatar touch

@@ -226,3 +226,52 @@ export function getRlvInventoryList(profile: RlvProfile, inventory: RlvInventory
   return children(id).filter(folder => folder.name && !folder.name.startsWith('.') &&
     (profile === 'rlv' || !folder.folded && !folder.name.includes('/'))).map(folder => folder.name).join(',')
 }
+
+export interface RlvCollectedWearItem {
+  readonly entry: RlvInventoryEntry
+  /** Folder whose wear prefix applies, after folding. */
+  readonly folder: RlvInventoryEntry
+  /** Kokua no-mod children take their point from this folder. */
+  readonly pointFolder?: RlvInventoryEntry
+}
+
+/** Shared force-wear traversal, with profile-specific hidden and folded folders. */
+export function collectRlvWearItems(profile: RlvProfile, inventory: RlvInventory, folderId: string,
+  recursive: boolean, removing: boolean, pointFromName: (name: string) => number): RlvCollectedWearItem[] {
+  const entries = inventory.snapshot()
+  const result = new Map<string, RlvCollectedWearItem>()
+  const visited = new Set<string>()
+  const items = (id: string) => entries.filter(e => e.kind === 'item' && e.parentId === id)
+  const object = (e: RlvInventoryEntry) => e.assetType === 'object' || inventory.attachmentMappings().some(m => m.itemId === e.id)
+  const add = (entry: RlvInventoryEntry, folder: RlvInventoryEntry, pointFolder?: RlvInventoryEntry) => {
+    if (!result.has(entry.id)) result.set(entry.id, { entry, folder, ...(pointFolder ? { pointFolder } : {}) })
+  }
+  const visit = (folder: RlvInventoryEntry) => {
+    if (visited.has(folder.id)) return
+    visited.add(folder.id)
+    const own = () => {
+      if (folder.id !== inventory.sharedRootId) for (const entry of items(folder.id)) add(entry, folder)
+    }
+    if (profile === 'rlv') own()
+    for (const child of entries.filter(e => e.kind === 'folder' && e.parentId === folder.id)) {
+      const contents = items(child.id)
+      if (profile === 'rlv' && recursive && removing) {
+        visit(child)
+      } else if (profile === 'rlva' && child.folded) {
+        if (removing || contents.filter(object).length === 1) {
+          for (const entry of contents.filter(e => object(e) || !removing && e.wearableType)) add(entry, folder)
+        }
+      } else {
+        if (profile === 'rlv' && folder.id !== inventory.sharedRootId && pointFromName(child.name) &&
+          contents.length === 1 && object(contents[0]!) && contents[0]!.modifiable === false) {
+          add(contents[0]!, folder, child)
+        }
+        if (recursive && child.name && !child.name.startsWith('.')) visit(child)
+      }
+    }
+    if (profile === 'rlva') own()
+  }
+  const folder = entries.find(e => e.id === folderId && e.kind === 'folder')
+  if (folder) visit(folder)
+  return [...result.values()]
+}
