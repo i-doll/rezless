@@ -452,11 +452,11 @@ export const RLV_MANIFEST: {
       profiles: {
         rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getaddoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.'),
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetOutfitNames', 'RlvWearableLocks::canWear', 'RlvForceWear::isForceRemovable', 'LLWearableData::canAddWearable'],
-          'Lists layers that permit replacement or addition. Global and named addoutfit locks deny a layer. A remoutfit lock on a worn layer permits addition only: bodyparts and physics cannot add a second item, and other clothing requires fewer than 60 worn clothing items in total. Unlocked replacement remains available at capacity.'),
+          'Lists layers that permit replacement or addition. Global and named addoutfit locks deny a layer. A remoutfit or folder removal lock on a worn layer permits addition only: bodyparts and physics cannot add a second item, and other clothing requires fewer than 60 worn clothing items in total. Unlocked replacement remains available at capacity.'),
           commandForms: [{ behaviour: 'getaddoutfitnames', type: 'reply', support: 'enforced', option: 'none' }],
           support: 'enforced', coveredForms: ['Global and named add locks, remove locks, bodypart and physics occupancy, clothing capacity and replacement', 'Wearable-type ordering, empty results and failed-option replies'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-outfitnames.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-outfitnames.test.ts', 'packages/vitest/test/rlv-folderlocks.test.ts'],
     },
     {
       id: 'getremoutfitnames', forms: ['@getremoutfitnames=<channel>'], comparison: 'confirmed difference',
@@ -464,11 +464,11 @@ export const RLV_MANIFEST: {
       profiles: {
         rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getremoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.'),
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetOutfitNames', 'RlvWearableLocks::canWear', 'RlvForceWear::isForceRemovable', 'LLWearableData::canAddWearable'],
-          'Lists layers with at least one worn clothing item that can be force-removed. Bodyparts are excluded. Global and named remoutfit locks from every issuer apply, including the querying issuer. Item and parent nostrip names are case sensitive, ascending through folded parents.'),
+          'Lists layers with at least one worn clothing item that can be force-removed. Bodyparts are excluded. Global and named remoutfit locks and folder removal locks from every issuer apply, including the querying issuer. Item and parent nostrip names are case sensitive, ascending through folded parents.'),
           commandForms: [{ behaviour: 'getremoutfitnames', type: 'reply', support: 'enforced', option: 'none' }],
           support: 'enforced', coveredForms: ['Global and named remove locks, every issuer, bodypart exclusion, multiple items and nostrip ancestry', 'Wearable-type ordering, empty results and failed-option replies'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-outfitnames.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-outfitnames.test.ts', 'packages/vitest/test/rlv-folderlocks.test.ts'],
     },
     {
       id: 'getinvworn', forms: ['@getinvworn[:<path>]=<channel>'], comparison: 'confirmed difference',
@@ -549,7 +549,7 @@ export const RLV_MANIFEST: {
           'Node and subtree locks resolve shared paths, issuing root attachments, worn attachment points and worn clothing layers. Exceptions require existing shared paths, never UUIDs, points, layers or empty options. Folder traversal applies grants before subsequent denials from the same issuer. Other issuers remain effective. Action folders normalize all folded ancestors. Point and layer selector targets fold one containing folder; no-option issuer targets retain the immediate category. Live selectors require shared inventory. At clothing capacity any removal-locked occupant on the incoming layer prevents force additions. Folder locks constrain user actions and force additions, removals and replacement occupants.'),
           support: 'enforced',
           commandForms: ['attachthis', 'attachallthis', 'detachthis', 'detachallthis', 'attachthis_except', 'attachallthis_except', 'detachthis_except', 'detachallthis_except'].map(behaviour => ({ behaviour, type: 'add', support: 'enforced', option: 'any' })),
-          coveredForms: ['Shared path, no-option root issuer and live point/layer selectors', 'Node/subtree locks, folded folders and issuer-local path exceptions', 'User inventory actions and force actions with replacement checks; inventory links excluded'] },
+          coveredForms: ['Shared path, no-option root issuer and live point/layer selectors', 'Node/subtree locks, folded folders and issuer-local path exceptions', 'User inventory actions, force actions and clothing availability replies with replacement checks; inventory links excluded'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-folderlocks.test.ts'],
     },

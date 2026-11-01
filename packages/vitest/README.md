@@ -1113,7 +1113,7 @@ Bodyparts never qualify. Every issuer's global and named `remoutfit` locks apply
 including the query issuer's own locks. Item and parent `nostrip` names are
 case sensitive, with ancestry followed through folded folders. These queries use
 the same explicit inventory and layer locks as the clothing actions; inventory
-links, folder locks and composite outfits remain outside the fixture.
+links and composite outfits remain outside the fixture. Folder removal locks also filter removal names and prevent replacement at clothing capacity.
 
 `getinvworn` returns `|<direct><descendants>` for the selected folder, followed
 by comma-separated child names and their codes. Each digit is 0 for no wearable
@@ -2246,3 +2246,8 @@ RLVa action checks normalize all folded ancestors. Point and clothing selectors
 fold their containing folder once, while no-option attachment locks retain the
 issuing item's immediate folder. A selector target inside a folded category can
 therefore differ from the effective folder checked by a user action.
+
+RLVa clothing availability replies share the action folder policy.
+`getremoutfitnames` omits a layer when every worn clothing item is protected.
+`getaddoutfitnames` permits addition below capacity but denies replacement when
+a folder-locked occupant prevents it, including at the 60-item limit.

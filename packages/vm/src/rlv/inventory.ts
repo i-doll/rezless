@@ -3,7 +3,7 @@ import type { WorldAvatar } from '../world.js'
 import type { Prim } from '../prim.js'
 import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint } from './attachments.js'
 import type { RlvRestriction } from './restrictions.js'
-import type { RlvProfile, ViewerProfile } from './profiles.js'
+import type { RlvProfile, ViewerProfile, ViewerState } from './profiles.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { PERM_MODIFY } from '../generated/constants.js'
@@ -338,7 +338,7 @@ export function kokuaPoint(name: string): number {
   return point
 }
 
-const folderPolicyContexts = new WeakMap<WorldAvatar, Linkset>()
+const folderPolicyContexts = new WeakMap<ViewerState, { avatar: WorldAvatar; issuer: Linkset }>()
 const folderLockNames = new Set(['attachthis', 'attachallthis', 'detachthis', 'detachallthis',
   'attachthis_except', 'attachallthis_except', 'detachthis_except', 'detachallthis_except'])
 
@@ -346,7 +346,7 @@ const folderLockNames = new Set(['attachthis', 'attachallthis', 'detachthis', 'd
 export function folderLockSupport(profile: ViewerProfile, behaviour: string, option: string,
   avatar?: WorldAvatar, prim?: Prim): 'enforced' | 'unsupported' | undefined {
   if (!folderLockNames.has(behaviour)) return undefined
-  if (avatar && prim?.linkset) folderPolicyContexts.set(avatar, prim.linkset)
+  if (avatar && prim?.linkset) folderPolicyContexts.set(avatar.viewer, { avatar, issuer: prim.linkset })
   if (profile === 'disabled') return 'unsupported'
   if (profile === 'rlv') return 'enforced'
   const selector = !behaviour.endsWith('_except') && (!option || getRlvAttachmentPoint(option) !== undefined ||
@@ -358,14 +358,17 @@ export function folderLockSupport(profile: ViewerProfile, behaviour: string, opt
 }
 
 /** Node/subtree denials and issuer-local exceptions constrain inventory actions. */
-export function isRlvFolderWearLocked(avatar: WorldAvatar, entry: RlvInventoryEntry | undefined, wear: boolean,
-  rules = avatar.viewer.restrictions.snapshot()): boolean {
-  const profile = avatar.viewer.profile
-  if (profile === 'disabled' || !entry) return false
-  const inventory = avatar.viewer.inventory
+export function isRlvFolderWearLocked(subject: WorldAvatar | ViewerState, entry: RlvInventoryEntry | undefined, wear: boolean,
+  rules?: readonly RlvRestriction[]): boolean {
+  const viewer = 'viewer' in subject ? subject.viewer : subject
+  const context = folderPolicyContexts.get(viewer)
+  const avatar = 'viewer' in subject ? subject : context?.avatar
+  const profile = viewer.profile
+  if (!avatar || profile === 'disabled' || !entry) return false
+  rules ??= viewer.restrictions.snapshot()
+  const inventory = viewer.inventory
   const entries = inventory.snapshot()
-  const context = folderPolicyContexts.get(avatar)
-  const objects = context?.peers.filter(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()) ?? []
+  const objects = context?.issuer.peers.filter(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()) ?? []
   const family = wear ? 'attach' : 'detach'
   const relevant = rules.filter(rule => rule.support === 'enforced' && folderLockNames.has(rule.behaviour) && rule.behaviour.startsWith(family))
   if (!relevant.length) return false

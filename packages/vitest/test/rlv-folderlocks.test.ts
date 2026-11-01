@@ -294,3 +294,31 @@ it('RLVa no-option folder locks retain the immediate issuing attachment folder',
     expect(f.attemptWearable('shirt', true)).toBe('allowed')
   }
 })
+
+it('RLVa removal-name queries exclude clothing protected by a folder lock', async () => {
+  for (const [profile, f] of Object.entries(await fixtures())) {
+    f.avatar.viewer.inventory.setWearableWorn('shirt', true)
+    send(f, '@detachthis:base=n,getremoutfitnames=213')
+    expect(f.attemptWearable('shirt', false)).toBe('blocked')
+    if (profile === 'rlva') expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ reply: { text: '' } })
+    else expect(f.avatar.viewer.commandLog.at(-1)?.status).toBe('unsupported')
+    send(f, '@detachthis:base=y,getremoutfitnames=213')
+    if (profile === 'rlva') expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ reply: { text: 'shirt' } })
+  }
+})
+it('RLVa add-name queries honor folder-locked occupants at clothing capacity', async () => {
+  for (const [profile, f] of Object.entries(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot(),
+      ...Array.from({ length: 59 }, (_, i) => ({ id: 'filler-' + i, parentId: 'other', kind: 'item' as const, name: 'Filler', wearableType: 'pants' as const }))],
+      wornWearables: ['shirt', ...Array.from({ length: 59 }, (_, i) => 'filler-' + i)],
+      wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@detachthis:base=n,getaddoutfitnames=213')
+    const record = f.avatar.viewer.commandLog.at(-1)!
+    if (profile === 'rlva' && record.status === 'replied') expect(record.reply.text.split(',')).not.toContain('shirt')
+    else expect(record.status).toBe('unsupported')
+    send(f, '@detachthis:base=y,getaddoutfitnames=213')
+    const released = f.avatar.viewer.commandLog.at(-1)!
+    if (profile === 'rlva' && released.status === 'replied') expect(released.reply.text.split(',')).toContain('shirt')
+  }
+})
