@@ -229,8 +229,11 @@ export interface WorldParcelOptions {
   readonly media?: Partial<ParcelMedia>
   /** Explicit fixture for land held in escrow. */
   readonly inEscrow?: boolean
+  /** Region-local arrival point; the zero vector clears it. */
   readonly landingPoint?: Vector
+  /** Facing direction for arrivals routed to landingPoint. */
   readonly landingLookAt?: Vector
+  /** 0 blocks, 1 uses the landing point if set, 2 allows anywhere. Default 1. */
   readonly tpRouting?: number
 }
 
@@ -530,15 +533,22 @@ export class World {
   }
 
   /** Move an avatar through explicitly registered regions; its attachments get teleport and region changes. */
-  teleportAvatar(avatar: WorldAvatar, globalPosition: Vector, lookAt?: Vector): boolean {
+  teleportAvatar(avatar: WorldAvatar, globalPosition: Vector, lookAt?: Vector, applyLanding = false): boolean {
     if (!this.avatars.includes(avatar) || !Object.values(globalPosition).every(Number.isFinite) ||
       lookAt && !Object.values(lookAt).every(Number.isFinite)) return false
     const region = this.regionAt(globalPosition.x, globalPosition.y)
     if (!region) return false
+    let position = { x: globalPosition.x - region.corner.x, y: globalPosition.y - region.corner.y, z: globalPosition.z }
+    if (applyLanding) {
+      const landing = this.teleportLanding(avatar, region, position)
+      if (!landing) return false
+      position = landing.position
+      lookAt = landing.lookAt ?? lookAt
+    }
     this.standAvatar(avatar)
     const changes = CHANGED_TELEPORT | (avatar.region === region.name ? 0 : CHANGED_REGION)
     avatar.region = region.name
-    avatar.position = { x: globalPosition.x - region.corner.x, y: globalPosition.y - region.corner.y, z: globalPosition.z }
+    avatar.position = position
     if (lookAt && (lookAt.x || lookAt.y)) {
       const half = Math.atan2(lookAt.y, lookAt.x) / 2
       avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
@@ -550,6 +560,51 @@ export class World {
       }
     }
     return true
+  }
+
+  /** Resolve forced location travel before changing seating or attachment state. */
+  private teleportLanding(avatar: WorldAvatar, region: Region, requested: Vector): { position: Vector; lookAt?: Vector } | undefined {
+    let position = { ...requested }
+    const estate = region.estateManagers?.some(key => key.toLowerCase() === avatar.key.toLowerCase())
+    const exempt = (parcel: Parcel | undefined) => estate || parcel?.owner.toLowerCase() === avatar.key.toLowerCase()
+    const blocked = (parcel: Parcel | undefined) => parcel?.tpRouting === 0 && !exempt(parcel)
+    let parcel = this.parcelAt(region.name, position)
+    if (blocked(parcel)) {
+      // Partition overlapping rectangular parcels into cells with a single effective policy.
+      const parcels = this.parcels.filter(p => p.region === region.name)
+      const boundaries = (axis: 'x' | 'y') => [...new Set([0, 256, ...parcels.flatMap(p =>
+        [p.bounds.min[axis], p.bounds.max[axis]].map(n => Math.max(0, Math.min(256, n))))])].sort((a, b) => a - b)
+      const xs = boundaries('x'), ys = boundaries('y')
+      let nearest: Vector | undefined
+      let distance = Infinity
+      for (let i = 1; i < xs.length; ++i) for (let j = 1; j < ys.length; ++j) {
+        // Upper edges are excluded by parcelAt, so land just inside them.
+        const x = Math.max(xs[i - 1]!, Math.min(xs[i]! - 0.000001, requested.x))
+        const y = Math.max(ys[j - 1]!, Math.min(ys[j]! - 0.000001, requested.y))
+        const candidate = { x, y, z: requested.z }
+        if (blocked(this.parcelAt(region.name, candidate))) continue
+        const squared = (x - requested.x) ** 2 + (y - requested.y) ** 2
+        if (squared < distance) { nearest = candidate; distance = squared }
+      }
+      if (!nearest) return undefined
+      position = nearest
+      parcel = this.parcelAt(region.name, position)
+    }
+    let lookAt: Vector | undefined
+    const point = parcel?.landingPoint
+    if (parcel && !exempt(parcel) && (parcel.tpRouting ?? 1) === 1 && point && (point.x || point.y || point.z)) {
+      position = { ...point }
+      lookAt = parcel.landingLookAt
+    }
+    const ground = region.ground ?? 22
+    const height = typeof ground === 'number' ? () => ground : ground
+    const x = Math.floor(position.x), y = Math.floor(position.y)
+    const u = position.x - x, v = position.y - y
+    const south = height(x, y) * (1 - u) + height(x + 1, y) * u
+    const north = height(x, y + 1) * (1 - u) + height(x + 1, y + 1) * u
+    // The settled location fixture keeps the avatar centre 0.975 m above terrain.
+    position.z = Math.max(position.z, south * (1 - v) + north * v + 0.975)
+    return { position, ...(lookAt ? { lookAt } : {}) }
   }
 
   /** The corner of region `name`; throws for a region this world does not have. */
