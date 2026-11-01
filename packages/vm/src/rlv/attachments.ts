@@ -143,5 +143,8 @@ export function retainRlvAttachment(linkset: Linkset): void {
   if (!avatar || avatar.viewer.profile === 'disabled') return
   const inventory = avatar.viewer.inventory
   const item = inventory.attachmentItem(rootKey)
-  if (item) inventory.rememberAttachment(item.id, linkset)
+  if (item) {
+    inventory.rememberAttachment(item.id, linkset)
+    avatar.viewer.session.recoverAttachment(linkset, item.id, attachment.point)
+  }
 }

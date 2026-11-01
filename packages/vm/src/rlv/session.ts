@@ -1,3 +1,7 @@
+import { recoverRlvAttachment } from './forcewear.js'
+import { RLV_ATTACHMENT_POINTS, isRlvAttachmentBridge } from './attachments.js'
+import { isRlvDetachLocked } from './detach.js'
+import { sendRestrictionNotifications } from './notify.js'
 import type { Linkset } from '../linkset.js'
 import type { LinksetClock } from '../clock.js'
 import type { Prim } from '../prim.js'
@@ -11,6 +15,14 @@ interface RetainedCommand {
   readonly query: boolean
   readonly replay: () => void
 }
+interface Recovery {
+  readonly object: Linkset
+  readonly itemId: string
+  readonly point: number
+  readonly detachedAt: number
+  attemptedAt: number | undefined
+  assetSaved: boolean
+}
 interface Issuer {
   readonly prim: Prim
   readonly clear: () => void
@@ -20,6 +32,10 @@ interface Issuer {
 
 /** Per-avatar startup work and viewer object references, driven only by virtual time. */
 export class RlvSession {
+  private readonly recovery = new Map<string, Recovery>()
+  private cancelRecovery: (() => void) | undefined
+  private recoveryTimeout = false
+  private recoveryStarted = 0
   private phase: RlvStartupPhase
   private readonly retained: RetainedCommand[] = []
   private replaying = false
@@ -49,6 +65,9 @@ export class RlvSession {
   get ready(): boolean { return this.phase === 'ready' }
   get pendingCommands(): number { return this.retained.length }
 
+  /** Deferred viewer actions and their state expire when this session ends. */
+  get lifetime(): Readonly<{ dead: boolean }> { return this.taskLifetime }
+
   /** Bind on the first command; fixtures may bind earlier to start the session clock. */
   bind(linkset: Linkset, avatar: WorldAvatar): void {
     if (this.clock) return
@@ -66,7 +85,8 @@ export class RlvSession {
 
   /** Kokua's version bypass defaults on. RLVa retains all incoming commands. */
   retain(parsed: RlvParsedCommand | undefined, replay: () => void): boolean {
-    if (this.ready || this.profile === 'disabled' || this.replaying) return false
+    const recovering = this.profile === 'rlv' && this.recovery.size > 0 && !this.recoveryTimeout
+    if (this.ready && !recovering || this.profile === 'disabled' || this.replaying) return false
     if (this.profile === 'rlv' && this.config?.doNotQueueVersionRequests !== false &&
       parsed?.behaviour.startsWith('version')) return false
     this.retained.push({ behaviour: parsed?.behaviour ?? '', query: parsed?.kind === 'query', replay })
@@ -82,7 +102,7 @@ export class RlvSession {
     this.phase = phase
     if (this.ready && !wasReady) {
       if (this.clock) this.nextCollection = this.clock.now + this.firstCollectionDelay()
-      this.flush(() => true)
+      if (!this.recovery.size || this.profile !== 'rlv') this.flush(() => true)
     } else if (this.clock) this.update(this.clock.now)
     this.arm()
   }
@@ -116,6 +136,79 @@ export class RlvSession {
     })
   }
 
+  /** Record a locked simulator detach before attachment rules are cleared. */
+  recoverAttachment(object: Linkset, itemId: string, point: number): void {
+    if (this.profile === 'disabled' || object.attachment?.temporary) return
+    const avatar = object.world?.avatars.find(candidate => candidate.key.toLowerCase() === object.attachment?.avatar.toLowerCase())
+    if (!avatar || isRlvAttachmentBridge(avatar.viewer, object) || !isRlvDetachLocked(avatar, object)) return
+    this.bind(object, avatar)
+    this.recoveryNotice(object, point, 'detached illegally')
+    if (this.recovery.has(itemId) || this.profile === 'rlv' && [...this.recovery.values()].some(entry => entry.point === point)) return
+    const now = this.clock!.now
+    this.recovery.set(itemId, { object, itemId, point, detachedAt: now, attemptedAt: undefined, assetSaved: false })
+    if (this.profile === 'rlv') {
+      this.recoveryStarted = now
+      const waitingForAttach = [...this.recovery.values()][0]!.attemptedAt !== undefined
+      this.scheduleRecovery(now + (waitingForAttach ? 61000 : 15000))
+    } else if (this.recovery.size === 1) this.scheduleRecovery(now + 10000)
+  }
+
+  /** Inject the inventory-save acknowledgement used by RLVa's watchdog. */
+  savedAttachment(itemId: string): void {
+    const entry = this.recovery.get(itemId)
+    if (this.profile !== 'rlva' || !entry || entry.assetSaved || !this.clock) return
+    this.clock.scheduleTask(this.taskLifetime, this.clock.now, () => {
+      if (this.recovery.get(itemId) === entry) this.performRecovery(entry)
+    })
+  }
+
+  private recoveryNotice(object: Linkset, point: number, action: string): void {
+    const avatar = this.avatar!
+    const name = RLV_ATTACHMENT_POINTS.find(candidate => candidate.id === point)!.name
+    this.captureReplies(() => sendRestrictionNotifications(object.prims[0]!, avatar,
+      avatar.viewer.restrictions.snapshot(), action + ' ' + name))
+  }
+
+  private scheduleRecovery(at: number): void {
+    this.cancelRecovery?.()
+    this.cancelRecovery = this.clock!.scheduleTask(this.taskLifetime, at, () => {
+      this.cancelRecovery = undefined
+      if (!this.world?.avatars.includes(this.avatar!)) { this.reset(); return }
+      const now = this.clock!.now
+      if (this.profile === 'rlv') {
+        const entry = [...this.recovery.values()][0]
+        if (entry?.attemptedAt !== undefined) this.recoveryTimeout = true
+        if (entry) this.performRecovery(entry)
+        if (entry && this.recovery.has(entry.itemId)) this.scheduleRecovery(this.recoveryStarted + 61000 > now ? this.recoveryStarted + 61000 : now + 61000)
+      } else {
+        for (const entry of this.recovery.values()) {
+          if (!this.avatar!.viewer.inventory.snapshot().some(item => item.id === entry.itemId)) this.recovery.delete(entry.itemId)
+          else if (!entry.assetSaved ? now > entry.detachedAt + 15000 : now > entry.attemptedAt! + 30000) {
+            entry.assetSaved = true
+            this.performRecovery(entry)
+          }
+        }
+        if (this.recovery.size) this.scheduleRecovery(now + 10000)
+      }
+    })
+  }
+
+  private performRecovery(entry: Recovery): void {
+    const avatar = this.avatar!
+    entry.attemptedAt = this.clock!.now
+    const result = recoverRlvAttachment(avatar, entry.object, entry.itemId, entry.point)
+    if (result?.outcome !== 'attached' && result?.outcome !== 'already-worn') return
+    this.recovery.delete(entry.itemId)
+    this.recoveryTimeout = false
+    this.recoveryNotice(avatar.viewer.inventory.attachmentObject(entry.itemId)!, entry.point, 'reattached legally')
+    if (!this.recovery.size) {
+      this.cancelRecovery?.()
+      this.cancelRecovery = undefined
+      if (this.ready && this.profile === 'rlv') this.flush(() => true)
+      this.arm()
+    } else if (this.profile === 'rlv') this.scheduleRecovery(Math.max(this.clock!.now, this.recoveryStarted + 15000))
+  }
+
   /** Track queued listener payloads so session reset cannot deliver old viewer output. */
   captureReplies<T>(run: () => T): T {
     const clock = this.clock
@@ -133,6 +226,10 @@ export class RlvSession {
   /** A new login clears rules, registrations, retained work and undelivered replies. */
   reset(): void {
     this.taskLifetime.dead = true
+    this.cancelRecovery?.()
+    this.cancelRecovery = undefined
+    this.recovery.clear()
+    this.recoveryTimeout = false
     this.cancelTask?.()
     this.cancelTask = undefined
     this.stop?.()
@@ -167,7 +264,7 @@ export class RlvSession {
     this.cancelTask?.()
     this.cancelTask = undefined
     if (!this.clock) return
-    const next = this.ready ? this.issuers.size || this.collectionRunning ? this.nextCollection : undefined
+    const next = this.ready ? this.profile === 'rlv' && this.recovery.size ? undefined : this.issuers.size || this.collectionRunning ? this.nextCollection : undefined
       : this.profile === 'rlva' && this.phase === 'misc' && this.retained.some(command => command.query &&
         ['version', 'versionnew', 'versionnum'].includes(command.behaviour)) ? this.nextVersion : undefined
     const clock = this.clock
@@ -208,7 +305,7 @@ export class RlvSession {
       }
       return
     }
-    if (now < this.nextCollection) return
+    if (this.profile === 'rlv' && this.recovery.size || now < this.nextCollection) return
     const interval = this.profile === 'rlva' ? 30000 : 2000 + (this.config?.garbageCollectionAdditionalInterval ?? 8000)
     const passes = Math.floor((now - this.nextCollection) / interval) + 1
     this.nextCollection += passes * interval

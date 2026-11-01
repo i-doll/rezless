@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AGENT_SITTING, CHANGED_REGION, CHANGED_TELEPORT, NULL_KEY, type Script } from '@rezless/vm'
-import { loadLinkset, loadRlvPair, World } from '../src/index.js'
+import { loadLinkset, loadRlvPair, resetRlvViewerSession, setRlvViewerReady, World } from '../src/index.js'
 
 // Kokua RLV 2.09.35.00: RRInterface::add, force_sit, LLAgent::standUp,
 // LLVOAvatar::sitDown, LLAgent::doTeleportViaLocationLookAt.
@@ -318,6 +318,17 @@ it.each(['rlv', 'rlva'] as const)('queues %s removed-seat travel without reading
   expect(avatar.position).toEqual(origin)
 })
 
+it.each(['rlv', 'rlva'] as const)('cancels queued %s returns on viewer session reset', async profile => {
+  const { [profile]: { world, avatar, script } } = await setup()
+  issue(script, '@standtp=n,sit:' + script.host.key + '=force')
+  script.host.params.position = { ...moved }
+  const seated = { ...avatar.position }
+  world.standAvatar(avatar)
+  resetRlvViewerSession(avatar)
+  script.advanceTime(0)
+  expect(avatar.position).toEqual(seated)
+})
+
 it.each(['same', 'other'] as const)('retains Kokua standing-clear behavior for an unrelated filter from %s issuer', async issuer => {
   const { rlv: fixture } = await setup()
   const { world, avatar, script } = fixture
@@ -331,4 +342,38 @@ it.each(['same', 'other'] as const)('retains Kokua standing-clear behavior for a
   script.host.params.position = { ...moved }
   fixture.userStand()
   expect(avatar.position).toEqual({ x: 0, y: 0, z: 0 })
+})
+
+
+it.each(['rlv', 'rlva'] as const)('starts a fresh %s return after cancelling pending travel', async profile => {
+  const { [profile]: fixture } = await setup()
+  const { world, avatar, script } = fixture
+  issue(script, '@standtp=n,sit:' + script.host.key + '=force')
+  script.host.params.position = { ...moved }
+  const nextOrigin = { ...avatar.position }
+  world.standAvatar(avatar)
+  resetRlvViewerSession(avatar)
+  setRlvViewerReady(avatar)
+  issue(script, '@standtp=n,sit:' + script.host.key + '=force')
+  script.host.params.position = { x: 100, y: 110, z: 60 }
+  fixture.userStand()
+  expect(avatar.position).toEqual(nextOrigin)
+  expect(script.global('teleports')).toBe(0)
+})
+
+it('clears saved origins when a seated viewer starts another session', async () => {
+  const pair = await setup()
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const fixture = pair[profile]
+    const { avatar, script } = fixture
+    issue(script, '@standtp=n,sit:' + script.host.key + '=force')
+    const whenAdded = { ...avatar.position }
+    resetRlvViewerSession(avatar)
+    setRlvViewerReady(avatar)
+    issue(script, '@standtp=n')
+    script.host.params.position = { ...moved }
+    const seated = { ...avatar.position }
+    fixture.userStand()
+    expect(avatar.position).toEqual(profile === 'rlv' ? whenAdded : seated)
+  }
 })

@@ -149,11 +149,12 @@ interface StandtpState {
   origin: Vector
   pending: boolean
 }
-const standtpStates = new WeakMap<WorldAvatar, StandtpState>()
+const standtpStates = new WeakMap<Readonly<{ dead: boolean }>, StandtpState>()
 
 function standtpState(avatar: WorldAvatar): StandtpState {
-  let state = standtpStates.get(avatar)
-  if (!state) standtpStates.set(avatar, state = { origin: { ...ZERO_VECTOR }, pending: false })
+  const lifetime = avatar.viewer.session.lifetime
+  let state = standtpStates.get(lifetime)
+  if (!state) standtpStates.set(lifetime, state = { origin: { ...ZERO_VECTOR }, pending: false })
   return state
 }
 
@@ -209,7 +210,7 @@ export function returnStandtpAvatar(world: World, avatar: WorldAvatar): void {
   state.pending = true
   // RLVa postpones the return until the avatar has been unparented. The
   // fixture delivers both profiles' teleport completion through virtual time.
-  world.clock.scheduleTask({ dead: false }, world.clock.now, () => {
+  world.clock.scheduleTask(avatar.viewer.session.lifetime, world.clock.now, () => {
     try {
       // Return travel bypasses unsit, sittp, tploc, tplocal and tplm policy.
       world.teleportAvatar(avatar, destination)
