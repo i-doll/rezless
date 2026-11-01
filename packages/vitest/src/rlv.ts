@@ -20,10 +20,10 @@ export async function loadRlvPair(input: { readonly source: string }): Promise<R
   return { rlv: await load('rlv'), rlva: await load('rlva') }
 }
 
-/** Pending cases carry a reason and are data, never an automatic test skip. */
+/** Unsupported cases carry a reason and are data, never an automatic test skip. */
 export type RlvExpectation<T> =
   | { readonly kind: 'expected'; readonly value: T }
-  | { readonly kind: 'unsupported' | 'not-measured'; readonly reason: string }
+  | { readonly kind: 'unsupported'; readonly reason: string }
 
 export type RlvExpectations<T> =
   | { readonly shared: RlvExpectation<T> }

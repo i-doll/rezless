@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { loadRlvPair, loadLinkset, loadScript, World } from '../src/index.js'
 
 // Wiki: https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI#Version_Checking
-// Code-derived: Kokua RLV 2.09.35.00, RRInterface.cpp,
+// Kokua RLV 2.09.35.00: RRInterface.cpp,
 // RRInterface::reallyHandleCommand/getVersion/getVersion2; RRInterfaceVersion.h.
-// Code-derived: Kokua VIEWER_VERSION.txt supplies the fixed fixture suffix 26.4.0.
+// Kokua VIEWER_VERSION.txt supplies the fixed fixture suffix 26.4.0.
 // Firestorm RLVa 2.4.2: rlvcommon.cpp, RlvStrings::getVersion/getVersionNum/getVersionImplNum;
 // rlvhandler.cpp, RlvHandler::processReplyCommand. Default compatibility settings.
 // In-world: version/versionnew -> the RLVa-tagged strings below; versionnum -> 3040300;
 // versionnum:impl -> 2040213; versionnum:unknown -> an empty listen reply;
 // version:unknown/versionnew:unknown -> unchanged strings. Owner UUID/name identify all replies.
-// Measured in Firestorm RLVa 2.4.2 (viewer 7.2.5.81978) on the Aditi beta grid, 2026-11-01.
+// Firestorm RLVa 2.4.2 (viewer 7.2.5.81978), Aditi beta grid, 2026-11-01.
 const cases = [
   { command: 'version', rlv: 'RestrainedLife viewer v2.09.35.00 (26.4.0)', rlva: 'RestrainedLife viewer v3.4.3 (RLVa 2.4.2)' },
   { command: 'versionnew', rlv: 'RestrainedLove viewer v2.09.35.00 (26.4.0)', rlva: 'RestrainedLove viewer v3.4.3 (RLVa 2.4.2)' },
