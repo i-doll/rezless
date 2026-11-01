@@ -1,4 +1,5 @@
 import { touchSupport } from './touch.js'
+import { attachmentLockSupport } from './detach.js'
 import { gestureSupport } from './gesture.js'
 import { avatarIMSupport } from './im-actions.js'
 import { chatRedirectSupport, chatVolumeSupport } from './chat-actions.js'
@@ -105,8 +106,7 @@ export class RlvRestrictions {
 
   /** How deeply an add/remove form is emulated; dispatch and rule storage share this decision. */
   support(behaviour: string, option: string): RlvRestriction['support'] {
-    return this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced'
-      : this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
+    return this.notifySupport(behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
         teleportSupport(this.profile, behaviour, option) ?? touchSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ??
         viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? chatRedirectSupport(this.profile, behaviour, option) ?? chatVolumeSupport(behaviour, option) ?? gestureSupport(behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ?? receivedIMSupport(this.profile, behaviour, option) ?? avatarIMSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))

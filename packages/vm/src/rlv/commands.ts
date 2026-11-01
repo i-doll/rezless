@@ -117,7 +117,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
       continue
     }
-    if (parsed && query && (parsed.behaviour === 'getattach' || parsed.behaviour === 'getattachnames')) {
+    if (parsed && query && ['getattach', 'getattachnames', 'getaddattachnames', 'getremattachnames'].includes(parsed.behaviour)) {
       const attachmentText = getRlvAttachmentReply(linkset, viewer, parsed.behaviour, parsed.option, avatar.key)
       if (attachmentText !== undefined) {
         const failedOption = viewer.profile === 'rlva' && parsed.behaviour === 'getattach' &&

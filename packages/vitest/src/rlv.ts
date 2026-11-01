@@ -5,6 +5,8 @@ import { receivedChatLog, receivedIMLog, type ReceivedChat, type ReceivedIM } fr
 import { attemptRlvWearable, attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type AvatarChatVolume, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
+export { attemptViewerAttach } from '@rezless/vm'
+
 /** Attempt a user lens change in radians, returning the enforced FOV. */
 export { changeRlvFov } from '@rezless/vm'
 
