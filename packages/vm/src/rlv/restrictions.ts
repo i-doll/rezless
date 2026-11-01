@@ -1,3 +1,4 @@
+import { folderLockSupport } from './inventory.js'
 import { paySupport } from './pay.js'
 import { environmentSupport } from './environment-forms.js'
 import { groupSupport } from './group.js'
@@ -82,7 +83,7 @@ export class RlvRestrictions {
       return 'state-only'
     }
     if (this.profile === 'rlv' && isKokuaNamedReply(behaviour)) return 'unsupported'
-    const support = this.support(behaviour, option)
+    const support = this.support(behaviour, option, prim)
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
     if (this.profile === 'rlva' && support === 'unsupported') {
@@ -115,8 +116,8 @@ export class RlvRestrictions {
   }
 
   /** How deeply an add/remove form is emulated; dispatch and rule storage share this decision. */
-  support(behaviour: string, option: string): RlvRestriction['support'] {
-    return paySupport(this.profile, behaviour, option) ?? environmentSupport(this.profile, behaviour, option) ?? groupSupport(this.profile, behaviour, option) ?? debugSupport(this.profile, behaviour, option) ?? movementSupport(this.profile, behaviour, option) ?? permissionSupport(this.profile, behaviour, option) ?? this.notifySupport(behaviour, option) ?? sharedWearSupport(this.profile, behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? standtpSupport(this.profile, behaviour, option) ??
+  support(behaviour: string, option: string, prim?: Prim): RlvRestriction['support'] {
+    return folderLockSupport(this.profile, behaviour, option, this.avatar, prim) ?? paySupport(this.profile, behaviour, option) ?? environmentSupport(this.profile, behaviour, option) ?? groupSupport(this.profile, behaviour, option) ?? debugSupport(this.profile, behaviour, option) ?? movementSupport(this.profile, behaviour, option) ?? permissionSupport(this.profile, behaviour, option) ?? this.notifySupport(behaviour, option) ?? sharedWearSupport(this.profile, behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? standtpSupport(this.profile, behaviour, option) ??
         teleportSupport(this.profile, behaviour, option) ?? teleportOfferSupport(this.profile, behaviour, option) ?? teleportRequestSupport(this.profile, behaviour, option) ?? editSupport(this.profile, behaviour, option) ?? touchSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ?? cameraControlSupport(this.profile, behaviour, option) ??
         viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? chatRedirectSupport(this.profile, behaviour, option) ?? chatVolumeSupport(behaviour, option) ?? gestureSupport(behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ?? receivedIMSupport(this.profile, behaviour, option) ?? avatarIMSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))

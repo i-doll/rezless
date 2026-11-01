@@ -2,7 +2,8 @@ import { Linkset } from '../linkset.js'
 import type { WorldAvatar } from '../world.js'
 import type { Prim } from '../prim.js'
 import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint } from './attachments.js'
-import type { RlvProfile } from './profiles.js'
+import type { RlvRestriction } from './restrictions.js'
+import type { RlvProfile, ViewerProfile, ViewerState } from './profiles.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { PERM_MODIFY } from '../generated/constants.js'
@@ -322,4 +323,108 @@ export function resolveRlvThisFolders(profile: RlvProfile, avatar: WorldAvatar, 
     const resolved = profile === 'rlv' ? getRlvInventoryFolder(profile, inventory, inventory.sharedPath(folder)!) : folder
     return resolved && resolved !== inventory.sharedRootId ? [resolved] : []
   })
+}
+
+
+/** Kokua selects the rightmost recognized parenthesised point, without trimming. */
+export function kokuaPoint(name: string): number {
+  name = name.toLowerCase().replaceAll('(root)', '(avatar center)')
+  let point = 0
+  let rightmost = -1
+  for (const candidate of RLV_ATTACHMENT_POINTS) {
+    const index = name.lastIndexOf('(' + candidate.name.toLowerCase() + ')')
+    if (index > rightmost) { point = candidate.id; rightmost = index }
+  }
+  return point
+}
+
+const folderPolicyContexts = new WeakMap<ViewerState, { avatar: WorldAvatar; issuer: Linkset }>()
+const folderLockNames = new Set(['attachthis', 'attachallthis', 'detachthis', 'detachallthis',
+  'attachthis_except', 'attachallthis_except', 'detachthis_except', 'detachallthis_except'])
+
+/** Folder policies resolve live worn selectors, independently of force selectors. */
+export function folderLockSupport(profile: ViewerProfile, behaviour: string, option: string,
+  avatar?: WorldAvatar, prim?: Prim): 'enforced' | 'unsupported' | undefined {
+  if (!folderLockNames.has(behaviour)) return undefined
+  if (avatar && prim?.linkset) folderPolicyContexts.set(avatar.viewer, { avatar, issuer: prim.linkset })
+  if (profile === 'disabled') return 'unsupported'
+  if (profile === 'rlv') return 'enforced'
+  const selector = !behaviour.endsWith('_except') && (!option || getRlvAttachmentPoint(option) !== undefined ||
+    RLV_WEARABLE_TYPES.some(layer => layer === option))
+  const path = !!option && getRlvAttachmentPoint(option) === undefined && !RLV_WEARABLE_TYPES.some(layer => layer === option) &&
+    !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(option) && avatar &&
+    getRlvInventoryFolder(profile, avatar.viewer.inventory, option) !== undefined
+  return selector || path ? 'enforced' : 'unsupported'
+}
+
+/** Node/subtree denials and issuer-local exceptions constrain inventory actions. */
+export function isRlvFolderWearLocked(subject: WorldAvatar | ViewerState, entry: RlvInventoryEntry | undefined, wear: boolean,
+  rules?: readonly RlvRestriction[]): boolean {
+  const viewer = 'viewer' in subject ? subject.viewer : subject
+  const context = folderPolicyContexts.get(viewer)
+  const avatar = 'viewer' in subject ? subject : context?.avatar
+  const profile = viewer.profile
+  if (!avatar || profile === 'disabled' || !entry) return false
+  rules ??= viewer.restrictions.snapshot()
+  const inventory = viewer.inventory
+  const entries = inventory.snapshot()
+  const objects = context?.issuer.peers.filter(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()) ?? []
+  const family = wear ? 'attach' : 'detach'
+  const relevant = rules.filter(rule => rule.support === 'enforced' && folderLockNames.has(rule.behaviour) && rule.behaviour.startsWith(family))
+  if (!relevant.length) return false
+  let folder = getRlvItemFolder(profile, inventory, entry)
+  if (profile === 'rlva') {
+    while (entries.find(parent => parent.id === folder)?.folded) {
+      folder = entries.find(parent => parent.id === folder)?.parentId ?? undefined
+    }
+  }
+  if (!folder) return false
+  const original = folder
+  const targets = (rule: RlvRestriction): readonly string[] => {
+    const point = getRlvAttachmentPoint(rule.option)
+    const layer = RLV_WEARABLE_TYPES.some(layer => layer === rule.option)
+    if (rule.option && (profile === 'rlv' || !layer && point === undefined)) {
+      const id = getRlvInventoryFolder(profile, inventory, rule.option)
+      return id ? [id] : []
+    }
+    if (profile === 'rlv' && (wear || rule.option)) return []
+    const selected = layer ? inventory.wornWearables().map(id => entries.find(e => e.id === id)!).filter(e => e.wearableType === rule.option)
+      : objects.filter(object => point !== undefined ? object.attachment!.point === point :
+        profile === 'rlva' ? object.prims[0]!.key === rule.sourcePrim : object.prims.some(p => p.key === rule.sourcePrim))
+        .flatMap(object => { const item = inventory.attachmentItem(object.prims[0]!.key); return item ? [item] : [] })
+    if (profile === 'rlva' && !rule.option) {
+      return selected.flatMap(item => item.parentId && inventory.sharedPath(item.parentId) !== undefined ? [item.parentId] : [])
+    }
+    return selected.flatMap(item => { const id = getRlvItemFolder(profile, inventory, item); return id ? [id] : [] })
+  }
+  const resolved = relevant.map(rule => ({ rule, folders: targets(rule) }))
+  const granted = new Set<string>()
+  while (folder) {
+    for (const { rule, folders } of resolved) {
+      if (!folders.includes(folder) || folder !== original && !rule.behaviour.includes('allthis')) continue
+      const except = rule.behaviour.endsWith('_except')
+      if (except) { granted.add(rule.sourcePrim); continue }
+      // Kokua direct denials always win over a grant at the same folder.
+      if (profile === 'rlv' && folder === original || !granted.has(rule.sourcePrim)) return true
+    }
+    folder = entries.find(e => e.id === folder)?.parentId ?? undefined
+  }
+  if (profile === 'rlv') {
+    // Kokua point/layer selectors inspect all eligible contents of each folder.
+    const ancestors: string[] = []
+    let current: string | undefined = original
+    while (current) { ancestors.push(current); current = entries.find(e => e.id === current)?.parentId ?? undefined }
+    for (const rule of relevant) {
+      if (!rule.option || rule.behaviour.endsWith('_except')) continue
+      const point = getRlvAttachmentPoint(rule.option)
+      const layer = RLV_WEARABLE_TYPES.some(layer => layer === rule.option)
+      if (point === undefined && !layer) continue
+      const folders = rule.behaviour.includes('allthis') ? ancestors : [original]
+      if (entries.some(item => item.kind === 'item' && folders.includes(getRlvItemFolder(profile, inventory, item) ?? '') &&
+        (layer ? item.wearableType === rule.option && inventory.wornWearables().includes(item.id) :
+          wear ? rule.option !== 'root' && kokuaPoint(item.name) === point :
+            objects.some(object => object.attachment!.point === point && inventory.attachmentItem(object.prims[0]!.key)?.id === item.id)))) return true
+    }
+  }
+  return false
 }
