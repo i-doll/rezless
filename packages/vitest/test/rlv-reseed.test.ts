@@ -156,3 +156,27 @@ it('does not restore a detached object that has been deleted', async () => {
     { itemId: 'saved', outcome: 'unsupported', reason: 'missing-definition' },
   ] })
 })
+
+it('does not keep the old item association when its root is reassigned to another item', async () => {
+  const f = await fixture()
+  seedRlvInventory(f.avatar, f.config)
+  f.loaded.linkset.detachFromAvatar()
+  seedRlvInventory(f.avatar, { ...f.config, entries: [...f.config.entries,
+    { id: 'c', parentId: 'root', kind: 'folder', name: 'C' },
+    { id: 'replacement', parentId: 'c', kind: 'item', name: 'Replacement', assetType: 'object' },
+  ], wornAttachments: [{ itemId: 'replacement', rootKey: f.loaded.prims[0]!.key }] })
+  f.wear()
+  expect(f.loaded.linkset.attachment).toBeNull()
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ wearResults: [
+    { itemId: 'saved', outcome: 'unsupported', reason: 'missing-definition' },
+  ] })
+  f.wear('C')
+  expect(f.loaded.linkset.attachment?.avatar).toBe(f.avatar.key)
+  expect(f.avatar.viewer.inventory.attachmentObject('replacement')).toBe(f.loaded.linkset)
+  expect(f.loaded.scripts.saved!.global('counter')).toBe(1)
+  f.wear()
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ wearResults: [
+    { itemId: 'saved', outcome: 'unsupported', reason: 'missing-definition' },
+  ] })
+  expect(f.avatar.viewer.inventory.attachmentItem(f.loaded.prims[0]!.key)?.id).toBe('replacement')
+})

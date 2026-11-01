@@ -206,7 +206,9 @@ export class RlvInventory {
     const mappedRoots = new Map(attachments.map(entry => [entry.itemId, entry.rootKey]))
     for (const [itemId, object] of this.objects) {
       const rootKey = mappedRoots.get(itemId)
-      if (byId.get(itemId)?.kind === 'item' && (rootKey === undefined || rootKey === object.prims[0]?.key.toLowerCase())) {
+      const rememberedRoot = object.prims[0]?.key.toLowerCase()
+      if (byId.get(itemId)?.kind === 'item' &&
+        (rootKey === undefined ? !roots.has(rememberedRoot ?? '') : rootKey === rememberedRoot)) {
         objects.set(itemId, object)
       }
     }
