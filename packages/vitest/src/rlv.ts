@@ -1,3 +1,4 @@
+import { userTeleportLog, type UserTeleportAction } from '@rezless/vm'
 import { avatarGestureLog, type AvatarGesture, type AvatarGestureAction } from '@rezless/vm'
 import { avatarIMLog, type AvatarIMAction } from '@rezless/vm'
 import { receivedChatLog, receivedIMLog, type ReceivedChat, type ReceivedIM } from '@rezless/vm'
@@ -18,6 +19,9 @@ export interface RlvFixture {
   readonly avatar: WorldAvatar
   readonly script: Script
   readonly attemptDetach: (attachment?: Linkset) => RlvDetachOutcome
+  readonly userTeleportActions: readonly UserTeleportAction[]
+  userTeleportLandmark(destination: Vector): UserTeleportAction
+  userTeleportMap(destination: Vector): UserTeleportAction
   readonly imActions: readonly AvatarIMAction[]
   sendIM(recipient: string, message: string): AvatarIMAction
   readonly receivedIM: readonly ReceivedIM[]
@@ -45,6 +49,9 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
       attemptDetach: (attachment = loaded.linkset) => attemptViewerDetach(avatar, attachment),
       get teleportActions() { return avatar.viewer.commandLog.filter((entry): entry is RlvTeleportAction & RlvCommandRecord =>
         entry.status === 'action' && entry.action === 'tpto') },
+      get userTeleportActions() { return userTeleportLog(avatar) },
+      userTeleportLandmark: destination => world.userTeleportAvatarViaLandmark(avatar, destination),
+      userTeleportMap: destination => world.userTeleportAvatarViaMap(avatar, destination),
       get imActions() { return avatarIMLog(avatar) },
       sendIM: (recipient, message) => world.attemptAvatarIM(avatar, recipient, message),
       get receivedIM() { return receivedIMLog(avatar) },

@@ -24,9 +24,7 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [version](#version) | Firestorm RLVa 2.4.2 | <code>@versionnum[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-version.test.ts](../packages/vitest/test/rlv-version.test.ts)<br>[rlv-batch.test.ts](../packages/vitest/test/rlv-batch.test.ts) |
 | [channel-policy](#channel-policy) | Kokua RLV 2.09.35.00 | <code>&lt;query&gt;=&lt;signed-channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-channels.test.ts](../packages/vitest/test/rlv-channels.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [channel-policy](#channel-policy) | Firestorm RLVa 2.4.2 | <code>&lt;query&gt;=&lt;signed-channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-channels.test.ts](../packages/vitest/test/rlv-channels.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
-| [add-remove-clear](#add-remove-clear) | Kokua RLV 2.09.35.00 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Kokua RLV 2.09.35.00 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
-| [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [sendchat](#sendchat) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
@@ -177,6 +175,8 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tpto[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
 | [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tploc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
 | [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tplocal[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
+| [user-teleport](#user-teleport) | Kokua RLV 2.09.35.00 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts) |
+| [user-teleport](#user-teleport) | Firestorm RLVa 2.4.2 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fov[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
@@ -389,7 +389,7 @@ Comparison: confirmed difference. Both profiles share prim-scoped rules, aliases
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: state-only. No-option tplm is state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.
+Support depth: state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location and explicit user travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.
 
 - No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem
 - Unknown wire rule storage with unsupported effects
@@ -401,7 +401,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: state-only. No-option tplm is state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.
+Support depth: state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location and explicit user travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.
 
 - No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem
 - Bare, empty and substring-filtered clear by emitter UUID
@@ -1332,6 +1332,34 @@ Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvForceHand
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts).
 
+### user-teleport
+
+Forms: <code>@tplm=n&#124;add&#124;y&#124;rem</code>, <code>User landmark and map teleports</code>.
+
+Comparison: confirmed difference. Landmark travel obeys tplm and map travel obeys location policy. Kokua applies tploc to all map moves and inclusive tplocal limits in the same region. RLVa uses XY distance below 256 m to select strict XYZ sittp and tplocal checks, otherwise tploc. Both respect seated unsit without issuer exemptions.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Landmarks supply resolved global coordinates and obey every bare tplm lock, independent of tploc and local-distance limits. Map moves obey every bare tploc lock and the inclusive signed minimum tplocal distance in the same region. Both obey seated unsit. No issuer is exempt. Unknown destinations and foreign avatars refuse without mutation. Optioned tplm and tploc have unsupported effects. Home travel, startup scheduling and simulator landing adjustments are outside these actions.
+
+- No-option tplm add/remove aliases and clear
+- Explicit user landmark and map actions with deciding restrictions
+- Immutable outcomes, normal stand and attachment events without script teleport permissions
+
+Reference symbols: <code>indra/newview/llagent.cpp</code>: <code>LLAgent::doTeleportViaLandmark</code>, <code>LLAgent::doTeleportViaLocation</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Landmarks supply resolved global coordinates and obey every bare tplm lock, independent of tploc and local-distance limits. Map moves below 256 m in XY obey strict XYZ sittp and tplocal limits, including nearby region crossings; farther moves obey bare tploc. Bare tplocal is 1.5 m and its maximum is 256 m. Both obey seated unsit. No issuer is exempt. Outcomes retain deciding restrictions and resulting state; moves use normal stand and attachment events without script permissions. Unknown destinations and foreign avatars refuse without mutation. Optioned tplm and tploc have unsupported effects. Home travel, startup scheduling and simulator landing adjustments are outside these actions.
+
+- No-option tplm add/remove aliases and clear
+- Explicit user landmark and map actions with deciding restrictions
+- Strict XYZ distance boundaries, nearby region crossings and seated unsit
+
+Reference symbols: <code>indra/newview/llagent.cpp</code>: <code>LLAgent::teleportViaLandmark</code>, <code>LLAgent::teleportViaLocation</code>, <code>RlvActions::isLocalTp</code>, <code>RlvActions::canTeleportToLocal</code>, <code>RlvActions::canTeleportToLocation</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts).
+
 ### camera-fov
 
 Forms: <code>@setcam_fov[:&lt;radians&gt;]=force</code>, <code>@setcam_fovmin:&lt;radians&gt;=n&#124;y</code>, <code>@setcam_fovmax:&lt;radians&gt;=n&#124;y</code>, <code>@getcam_fov=&lt;channel&gt;</code>, <code>@getcam_fovmin=&lt;channel&gt;</code>, <code>@getcam_fovmax=&lt;channel&gt;</code>.
@@ -1649,7 +1677,7 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Only the command forms and operations listed above are delivered. Unsupported names and option forms remain inspectable in `avatar.viewer.commandLog` and `avatar.viewer.diagnostics`. Kokua may retain an unknown wire rule; storage and status output do not enforce its effect.
 
-- State-only effects: `sendchat` and `tplm`. Simulator LSL calls remain separate from explicit viewer actions.
+- State-only effects: `sendchat`. Simulator LSL calls remain separate from explicit viewer actions.
 - Other command families: environment and debug setters/queries such as `setenv`, `setdebug`, `getenv` and `getdebug`; chat redirection and IM commands such as `redirchat`, `rediremote`, `sendim` and `recvim`; movement, touch and vision controls such as `fly`, `edit`, `touchworld`, `showworld`. These names are examples, not an exhaustive upstream command catalog.
 - Settings: per-object API compatibility, hide-locked-attachment overrides, bridge detach exemptions, automatic legacy folded-folder naming inference and general viewer setting/UI emulation. Supported fixture settings are documented in the contracts, including startup timing, blacklist, `rlvaNoSetEnv`, shared wear and camera persistence.
 - Recovery: forced reattachment after a simulator detach, relay pong/relog recovery and optional relay meta-commands.

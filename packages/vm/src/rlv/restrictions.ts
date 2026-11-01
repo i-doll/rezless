@@ -30,7 +30,7 @@ export function isKokuaNamedReply(behaviour: string): boolean {
 
 type RestrictionCommand = Omit<RlvParsedCommand, 'kind'> & { readonly kind: 'add' | 'remove' | 'clear' }
 
-const STATE_ONLY = new Set(['sit', 'unsit', 'tploc', 'tplm'])
+const STATE_ONLY = new Set(['sit', 'unsit', 'tploc'])
 
 export interface RlvRestriction {
   readonly sourcePrim: string

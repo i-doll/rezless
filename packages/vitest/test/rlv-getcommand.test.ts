@@ -80,6 +80,7 @@ describe('RLVa implemented-command discovery', () => {
     ])
     expect(pair.rlv.script.global('replies')).toEqual([])
     const coverage = getRlvCommandCoverage('rlva')
+    expect(coverage).toContainEqual({ behaviour: 'tplm', type: 'add', support: 'enforced', option: 'none' })
     expect(coverage).toContainEqual({ behaviour: 'sit', type: 'add', support: 'enforced', option: 'none' })
     expect(coverage).toContainEqual({ behaviour: 'sit', type: 'force', support: 'enforced', option: 'any' })
     expect(coverage).toContainEqual({ behaviour: 'getcommand', type: 'reply', support: 'enforced', option: 'any' })

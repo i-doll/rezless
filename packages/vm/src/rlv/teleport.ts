@@ -2,10 +2,11 @@ import { AGENT_SITTING } from '../generated/constants.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import type { Vector } from '../values/types.js'
-import type { AvatarDestination, WorldAvatar } from '../world.js'
+import type { AvatarDestination, World, WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
 import { getRlvSitId, seatingDistance } from './sit.js'
 import type { ViewerProfile } from './profiles.js'
+import type { RlvRestriction } from './restrictions.js'
 
 export interface RlvTeleportAction {
   readonly status: 'action'
@@ -74,10 +75,10 @@ function parseDestination(profile: 'rlv' | 'rlva', option: string): ParsedDestin
     coordinates: { x: numbers[0]!, y: numbers[1]!, z: numbers[2]! }, ...(angle === undefined ? {} : { angle }) }
 }
 
-/** Teleport constraints apply to forced location travel; landmark actions are separate. */
+/** Supported teleport restrictions for forced and user travel. */
 export function teleportSupport(profile: ViewerProfile, behaviour: string, option: string): 'enforced' | undefined {
   if (profile === 'disabled') return undefined
-  if (behaviour === 'tploc' && !option) return 'enforced'
+  if ((behaviour === 'tploc' || behaviour === 'tplm') && !option) return 'enforced'
   if (behaviour === 'tplocal' && seatingDistance(profile, option) !== undefined) return 'enforced'
   return undefined
 }
@@ -162,4 +163,74 @@ export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: Wo
     // Named callbacks already have the restored locks.
     if (destination === 'invalid' || destination.region === undefined) setLifted('add')
   }
+}
+
+/** User actions have no command issuer and therefore no issuer exemptions. */
+export type UserTeleportKind = 'landmark' | 'map'
+export interface UserTeleportAction {
+  readonly action: UserTeleportKind
+  readonly status: 'applied' | 'blocked' | 'refused'
+  readonly requested: Vector
+  readonly result: AvatarDestination
+  readonly restrictions: readonly RlvRestriction[]
+  readonly reason?: 'avatar' | 'destination' | 'restriction'
+}
+
+const userLogs = new WeakMap<WorldAvatar, readonly UserTeleportAction[]>()
+const noActions: readonly UserTeleportAction[] = Object.freeze([])
+
+export function userTeleportLog(avatar: WorldAvatar): readonly UserTeleportAction[] {
+  return userLogs.get(avatar) ?? noActions
+}
+
+/** Return the deciding locks for a user teleport to an explicit global destination. */
+export function userTeleportRestrictions(world: World, avatar: WorldAvatar, kind: UserTeleportKind,
+  destination: Vector): readonly RlvRestriction[] {
+  const profile = avatar.viewer.profile
+  if (profile === 'disabled') return Object.freeze([])
+  const rules = avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
+  const denied = rules.filter(rule => rule.behaviour === 'unsit' && !rule.option && !!(avatar.info & AGENT_SITTING))
+  const bare = (behaviour: string) => rules.filter(rule => rule.behaviour === behaviour && !rule.option)
+  if (kind === 'landmark') return Object.freeze([...denied, ...bare('tplm')])
+  const corner = world.corner(avatar.region)
+  const dx = destination.x - (corner.x + avatar.position.x)
+  const dy = destination.y - (corner.y + avatar.position.y)
+  const dz = destination.z - avatar.position.z
+  const squared = Math.fround(dx * dx + dy * dy + dz * dz)
+  const limited = (behaviour: string, cap = Infinity) => {
+    const limits = rules.filter(rule => rule.behaviour === behaviour)
+    if (!limits.length) return
+    const limit = Math.min(cap, ...limits.map(rule => seatingDistance(profile, rule.option)!))
+    const blocked = profile === 'rlva' ? !(squared < Math.fround(limit * limit)) : Math.fround(Math.hypot(dx, dy, dz)) > limit
+    if (blocked) denied.push(...limits)
+  }
+  if (profile === 'rlv') {
+    denied.push(...bare('tploc'))
+    if (world.regionAt(destination.x, destination.y)?.name === avatar.region) limited('tplocal')
+  } else {
+    const localX = Math.fround(Math.fround(destination.x) - Math.fround(corner.x + avatar.position.x))
+    const localY = Math.fround(Math.fround(destination.y) - Math.fround(corner.y + avatar.position.y))
+    if (Math.fround(localX * localX + localY * localY) < 256 * 256) {
+      limited('sittp')
+      limited('tplocal', 256)
+    } else denied.push(...bare('tploc'))
+  }
+  return Object.freeze(denied)
+}
+
+/** Landmarks supply resolved global coordinates; map travel uses location policy. */
+export function attemptUserTeleport(world: World, avatar: WorldAvatar, kind: UserTeleportKind,
+  destination: Vector): UserTeleportAction {
+  const invalid = !world.avatars.includes(avatar) ? 'avatar' :
+    !Object.values(destination).every(Number.isFinite) || !world.regionAt(destination.x, destination.y) ? 'destination' : undefined
+  const restrictions = invalid ? Object.freeze([]) : userTeleportRestrictions(world, avatar, kind, destination)
+  const reason = invalid ?? (restrictions.length ? 'restriction' : undefined)
+  if (!reason) world.teleportAvatar(avatar, destination)
+  const record: UserTeleportAction = Object.freeze({ action: kind,
+    status: invalid ? 'refused' : reason ? 'blocked' : 'applied',
+    requested: Object.freeze({ ...destination }), restrictions,
+    result: Object.freeze({ region: avatar.region, position: Object.freeze({ ...avatar.position }) }),
+    ...(reason ? { reason } : {}) })
+  userLogs.set(avatar, Object.freeze([...userTeleportLog(avatar), record]))
+  return record
 }
