@@ -675,7 +675,7 @@ snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm
 The seating rules are enforced by explicit user actions. Attachment locks enforce explicit viewer detach and attach attempts. Named `detach` locks block removal in both profiles and adding in RLVa; `addattach` and `remattach` lock adding and removal globally or by point. Bare, point and root-UUID force detach honor every issuer lock. Root self-detach
 respects every issuer lock; child self-detach resolves the attachment in Kokua
 and is inert in RLVa. Simulator detach remains separate, and forced reattachment
-recovery is excluded. `tploc` constrains forced location travel; `tplm` remains state-only. Public `sendchat` filtering rewrites speech and emotes per profile and blocks DEBUG_CHANNEL. `sendchannel_except` denies listed private channels; RLVa requires its no-option activation switch. Explicit avatar chat actions enforce `sendchannel`,
+recovery is excluded. `tploc` constrains forced location travel; `tplm` remains state-only. Public `sendchat` filtering rewrites speech and emotes per profile and blocks DEBUG_CHANNEL. `sendchannel_except` denies listed private channels; RLVa requires its no-option activation switch. Avatar chat supports whisper, say and shout with matching script and avatar hearing ranges. Public `chatshout`, `chatwhisper` and `chatnormal` transform volume per profile and retain requested and delivered volumes. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
 Denied attempts are logged; simulator chat builtins stay independent.
 Frozen per-avatar `receivedChatLog` snapshots expose received local chat and emotes.

@@ -634,12 +634,13 @@ stores those no-option forms, notification registrations and the sendchannel for
 and option forms remain unsupported. Neither profile stores query or force parameters.
 
 The `sendchannel` family has `enforced` support through explicit avatar actions.
-`fixture.sendChat(channel, message)` or `world.sendAvatarChat(avatar, channel, message)`
-sends ordinary avatar say from the current avatar position within 20 m, through
-normal listener matching across regions. These actions support channel 0 and
+`fixture.sendChat(channel, message, volume?)` or
+`world.sendAvatarChat(avatar, channel, message, volume?)` sends avatar chat from
+the current avatar position. Volume is `whisper`, `say` or `shout`, defaulting
+to `say`, with hearing ranges of 10, 20 and 100 m through normal listener matching
+across regions. Public chat also reaches avatar received-chat records at that range. These actions support channel 0 and
 positive signed 32-bit channels. Negative and invalid action channels return
-`unsupported`; automatic query reply channel policy is separate. Other chat
-volumes and payload limits are outside this action fixture.
+`unsupported`; automatic query reply channel policy is separate. Payload limits are outside this action fixture.
 
 ```ts
 const pair = await loadRlvPair({ source: `integer heard; default {
@@ -685,6 +686,17 @@ secure issuer must list the channel before it is denied. With `permissive=n`,
 every activating issuer must list it. Kokua leaves the secure form unsupported.
 Public chat and automatic replies are unaffected.
 
+No-option `chatshout` converts public shouts to say, `chatwhisper` converts
+public whispers to say, and `chatnormal` converts public say and shout to whisper.
+Kokua applies `chatwhisper`, then `chatshout`, then `chatnormal`. RLVa applies `chatnormal` first and performs only one transformation.
+With both `chatwhisper` and `chatnormal`, a requested whisper stays whisper in
+Kokua and becomes say in RLVa. Private channels bypass these restrictions.
+The delivered volume determines both script and avatar hearing range.
+Nonempty options and secure aliases remain unsupported.
+
+Action records retain the requested `volume`; sent actions also include
+`deliveredVolume`. Volume changes keep status `sent`, and active volume rules
+appear in `restrictions`. `reason` continues to describe text filtering or denial.
 Successful action records include `deliveredMessage`; `message` retains the
 original attempt. Rewritten actions have reason `sendchat` and status `sent`.
 Blocked DEBUG_CHANNEL actions have reason `sendchat` and no delivered message.
