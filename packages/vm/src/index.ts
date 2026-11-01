@@ -136,3 +136,5 @@ export { avatarMovementLog, getAvatarMovementState } from './rlv/movement.js'
 export type { AvatarMovement, AvatarMovementAction, AvatarMovementState } from './rlv/movement.js'
 
 export type { RlvDebugSettingsConfig } from './rlv/debug.js'
+
+export type { AvatarGroup } from './rlv/group.js'
