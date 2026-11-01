@@ -241,8 +241,11 @@ Chat a script sends reaches matching `listen` handlers in other prims, named
 and keyed after the sending prim. `llWhisper`, `llSay` and `llShout` reach
 prims within 10, 20 and 100 m of the sending prim, and so do its
 `DEBUG_CHANNEL` errors, which are said. `llRegionSay` reaches every prim in the
-region, and `llRegionSayTo` only the prim with that key. A prim never hears its
-own chat, and `llOwnerSay` and `llInstantMessage` never trigger a `listen`.
+region. `llRegionSayTo` reaches only the prim with the target key, or, when
+targeting an avatar on a nonzero channel, matching listens in every attachment
+that avatar wears in the sender's region. Channel 0 to an avatar reaches no
+script. A prim never hears its own chat, and `llOwnerSay` and
+`llInstantMessage` never trigger a `listen`.
 
 #### Rezzing inventory objects
 
