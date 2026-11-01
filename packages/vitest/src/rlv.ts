@@ -1,4 +1,4 @@
-import { attemptViewerDetach, type Linkset, type RlvDetachOutcome, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar } from '@rezless/vm'
+import { attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
 export interface RlvFixture {
@@ -7,6 +7,7 @@ export interface RlvFixture {
   readonly script: Script
   readonly attemptDetach: (attachment?: Linkset) => RlvDetachOutcome
   readonly chatActions: readonly AvatarChatAction[]
+  readonly teleportActions: readonly (RlvTeleportAction & RlvCommandRecord)[]
   userSit(prim: Prim, offset?: Vector): boolean
   userStand(): boolean
   sendChat(channel: number, message: string): AvatarChatAction
@@ -22,6 +23,8 @@ export async function loadRlvPair(input: { readonly source: string }): Promise<R
       prims: [{ name: 'RLV fixture', scripts: [{ name: 'fixture', source: { source: input.source } }] }] })
     return { world, avatar, script: loaded.scripts['fixture']!,
       attemptDetach: (attachment = loaded.linkset) => attemptViewerDetach(avatar, attachment),
+      get teleportActions() { return avatar.viewer.commandLog.filter((entry): entry is RlvTeleportAction & RlvCommandRecord =>
+        entry.status === 'action' && entry.action === 'tpto') },
       get chatActions() { return avatarChatLog(avatar) },
       userSit: (prim, offset) => {
         const accepted = world.userSitAvatar(avatar, prim, offset)

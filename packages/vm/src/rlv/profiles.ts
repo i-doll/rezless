@@ -54,7 +54,7 @@ export type RlvCommandRecord = {
   /** Seat identity after the attempt, using the profile's getsitid policy. */
   readonly seat: string
   readonly reason?: 'restriction' | 'target-unavailable' | 'world-constraint'
-})
+} | import('./teleport.js').RlvTeleportAction)
 
 /** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState {

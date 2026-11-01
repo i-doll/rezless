@@ -1,3 +1,4 @@
+import { dispatchTeleportCommand, teleportSupport } from './teleport.js'
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommands } from './getcommand.js'
@@ -57,6 +58,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getsitid' &&
       channel !== undefined && isValidReplyChannel(viewer.profile, channel)) text = getRlvSitId(avatar)
+    if (!malformed && parsed && dispatchTeleportCommand(linkset, prim, avatar, parsed, command)) continue
     if (!malformed && parsed && dispatchSeatingCommand(linkset, prim, avatar, parsed, command)) continue
     if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva' &&
       channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
@@ -107,7 +109,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       }
     }
     if (text === undefined && parsed && !malformed && (viewer.restrictions.supportsNotifyCommand(parsed) ||
-      (parsed.kind === 'add' || parsed.kind === 'remove') && seatingSupport(viewer.profile, parsed.behaviour, parsed.option) === 'enforced')) {
+      (parsed.kind === 'add' || parsed.kind === 'remove') && (seatingSupport(viewer.profile, parsed.behaviour, parsed.option) ?? teleportSupport(viewer.profile, parsed.behaviour, parsed.option)) === 'enforced')) {
       dispatchRestrictionCommand(viewer, prim, parsed, command)
       continue
     }

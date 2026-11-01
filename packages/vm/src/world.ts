@@ -443,6 +443,27 @@ export class World {
     return region
   }
 
+  /** Case-insensitive viewer region lookup; unknown names remain unresolved. */
+  regionNamed(name: string): Region | undefined {
+    return [...this.regions.values()].find(region => region.name.toLowerCase() === name.toLowerCase())
+  }
+
+  /** Move an avatar through explicitly registered regions, preserving ordinary stand events. */
+  teleportAvatar(avatar: WorldAvatar, globalPosition: Vector, lookAt?: Vector): boolean {
+    if (!this.avatars.includes(avatar) || !Object.values(globalPosition).every(Number.isFinite) ||
+      lookAt && !Object.values(lookAt).every(Number.isFinite)) return false
+    const region = this.regionAt(globalPosition.x, globalPosition.y)
+    if (!region) return false
+    this.standAvatar(avatar)
+    avatar.region = region.name
+    avatar.position = { x: globalPosition.x - region.corner.x, y: globalPosition.y - region.corner.y, z: globalPosition.z }
+    if (lookAt && (lookAt.x || lookAt.y)) {
+      const half = Math.atan2(lookAt.y, lookAt.x) / 2
+      avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
+    }
+    return true
+  }
+
   /** The corner of region `name`; throws for a region this world does not have. */
   corner(name: string | undefined): RegionCorner {
     return this.region(name).corner

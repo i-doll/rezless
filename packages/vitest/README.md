@@ -1090,3 +1090,32 @@ empty replies. Both queries participate in RLVa `getcommand` discovery.
 These fixtures do not perform wear/removal, automatic bodypart replacement,
 baking or rendering. Inventory links and gestures are outside the covered forms.
 Outfit-layer `getpath` selectors remain unsupported.
+
+`tpto:<x>/<y>/<z>[;<angle>]=force` and
+`tpto:<region>/<x>/<y>/<z>[;<angle>]=force` move the owner through explicit
+`world.addRegion` fixtures. Region names resolve case-insensitively; global
+coordinates use half-open 256 m region bounds. Unknown destinations refuse
+without changing the avatar. `fixture.teleportActions` exposes requested global
+coordinates, resolved destinations, resulting state and refusal reasons.
+Successful moves stand the avatar with normal link events and grant no script
+permissions. Simulator teleport builtins retain their permission and experience checks.
+
+Kokua truncates coordinate prefixes to integers, discards empty slash fields and
+pads missing global fields with zero. Supplied angles do not set facing. Global
+moves temporarily exempt the issuer's bare `tploc`, `tplocal`, `unsit` and `sittp`
+locks; named-region callbacks run with those locks restored. Remaining `tploc`
+locks block every move. Same-region `tplocal` limits are inclusive. Named moves
+with an angle preserve orientation and respect all `sittp` limits.
+
+RLVa preserves fractional coordinates and uses an optional radian angle as the
+horizontal facing direction. It accepts numeric angle prefixes and final-coordinate
+suffixes, rejects malformed or empty angles, and ignores extra semicolon fields.
+Moves below 256 m in XY obey strict XYZ `sittp` and `tplocal` limits; longer moves
+obey `tploc`. The bare `tplocal` limit is 1.5 m and its maximum is 256 m. Only the
+force issuer is exempt from lock-presence checks; competing distance modifiers
+still use the global minimum. Foreign seated `unsit` blocks travel. `tplm` and UUID
+`tploc` options do not grant exceptions for location teleports.
+
+Non-finite, hexadecimal and overflowing teleport conversions remain inspectably
+unsupported. Landing-point routing, terrain/collision adjustments and camera pose
+are outside the fixture.
