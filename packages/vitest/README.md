@@ -505,7 +505,7 @@ const pair = await loadRlvPair({ source: `
   }
 ` })
 const expectations: RlvExpectations<number> = {
-  shared: { kind: 'expected', value: 0 },
+  shared: { kind: 'expected', value: 1 },
 }
 for (const profile of ['rlv', 'rlva'] as const) {
   const { script } = pair[profile]
@@ -522,15 +522,26 @@ An expectation can instead be `{ kind: 'unsupported', reason }` or
 `{ kind: 'not-measured', reason }`. These are inspectable data; the helper does
 not skip tests or turn pending cases into successful assertions.
 
-This initial slice configures profiles but processes no viewer commands. The
-example expects zero replies for that reason. `RLV_MANIFEST` lists parameter
-forms, source evidence by implementation version, file and symbols, wiki comparisons
-and probes for later slices.
-Every command currently has `support: 'unsupported'` and empty `coveredForms`.
-Later entries may report `state-only` or `enforced`; recording a rule alone does
-not enforce a viewer action. Reference contracts are code-derived, not runtime
-measurements. Settings are recorded separately from version metadata, with no
-setting overrides implemented yet.
+Single `version`, `versionnew` and `versionnum` queries on positive channels
+(excluding DEBUG_CHANNEL) now queue avatar replies through normal listen matching.
+Replies can reach the issuing prim and other listening prims or linksets; they use
+the owner avatar's UUID and name. Script chat capture still contains the original
+`llOwnerSay` messages only. `avatar.viewer.commandLog` records each command's
+`sourcePrim`, status and optional `{ channel, text }` reply. Unsupported forms
+also produce `avatar.viewer.diagnostics`; disabled viewers record neither.
+
+Kokua reports API `2093500` even for `versionnum:impl` and unknown options.
+RLVa reports API `3040300`, implementation `2040213` for `:impl`, and an empty
+reply for unknown numeric options. Both string queries ignore options. Kokua's
+string suffix is the fixed fixture viewer version `26.4.0`. These Kokua results
+are code-derived because that viewer cannot run in the available test environment.
+The seven RLVa forms were measured in Firestorm RLVa 2.4.2 on the Aditi beta grid.
+
+`RLV_MANIFEST` lists covered forms, evidence by implementation version, file and
+symbol, wiki comparisons and remaining probes. Query support marked `enforced`
+means a reply is delivered; version reporting does not imply support for other
+commands or viewer actions. Batching, broader channel policies, startup behavior
+and per-object compatibility settings remain outside this slice.
 
 
 ### Implemented `ll*` functions

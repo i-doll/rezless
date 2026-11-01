@@ -21,7 +21,7 @@ export interface RlvCommandContract {
   readonly comparison: RlvComparison
   readonly wikiComparison: string
   readonly profiles: Readonly<Record<RlvProfile, RlvCommandProfile>>
-  /** Runtime work belongs to the implementing slice; these are not measured results. */
+  /** Remaining runtime work outside the covered forms. */
   readonly unresolvedProbes: readonly string[]
   readonly tests: readonly string[]
 }
@@ -60,12 +60,16 @@ export const RLV_MANIFEST: {
       comparison: 'version/setting dependent',
       wikiComparison: 'Wiki describes API version replies. RLVa adds its implementation tag and impl option; Kokua ignores the versionnum option.',
       profiles: {
-        rlv: kokua(['RRInterface::handleCommand', 'RRInterface::getVersion', 'RRInterface::getVersion2', 'RR_VERSION_NUM'],
-          'versionnum returns 2093500 even with :impl; startup replies are setting dependent.'),
-        rlva: firestorm('rlvcommon.cpp', ['RlvStrings::getVersion', 'RlvStrings::getVersionNum', 'RlvStrings::getVersionImplNum'],
-          'RLVa-tagged strings; API 3.4.3 or per-object compatibility 2.9.28; :impl reports implementation version.'),
+        rlv: { ...kokua(['RRInterface::reallyHandleCommand', 'RRInterface::getVersion', 'RRInterface::getVersion2', 'RR_VERSION_NUM'],
+          'versionnum returns 2093500 with any option; legacy/new strings use fixture viewer suffix 26.4.0. Kokua runtime unavailable.'),
+          support: 'enforced', coveredForms: ['@version[:<option>]=<positive-channel>', '@versionnew[:<option>]=<positive-channel>', '@versionnum[:<option>]=<positive-channel>'] },
+        rlva: { ...firestorm('rlvcommon.cpp', ['RlvStrings::getVersion', 'RlvStrings::getVersionNum', 'RlvStrings::getVersionImplNum'],
+          'Measured with default settings in Firestorm RLVa 2.4.2 on Aditi: RLVa-tagged strings, API 3040300, :impl 2040213, unknown numeric option empty. String queries ignore options. Compatibility overrides are not implemented.'),
+          support: 'enforced', coveredForms: ['@version[:<option>]=<positive-channel>', '@versionnew[:<option>]=<positive-channel>', '@versionnum[:<option>]=<positive-channel>'],
+          evidence: { kind: 'measured', implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/rlvhandler.cpp', symbols: ['RlvHandler::processReplyCommand'] } },
       },
-      unresolvedProbes: ['#214: measure RLVa query replies and startup timing; Kokua runtime unavailable here.'], tests,
+      unresolvedProbes: ['#222: startup timing and per-object compatibility settings are outside the covered forms.'],
+      tests: [...tests, 'packages/vitest/test/rlv-version.test.ts'],
     },
     {
       id: 'channel-policy', forms: ['<query>=<signed-channel>'], comparison: 'confirmed difference',

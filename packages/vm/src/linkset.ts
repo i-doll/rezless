@@ -8,7 +8,7 @@ import { mergeLinksetData, type LinksetDataEntry } from './builtins/linksetdata.
 import type { LinkedMessageEntry } from './builtins/linked.js'
 import type { DetectedEntry } from './builtins/detected.js'
 import type { ChatType } from './runtime.js'
-import type { World } from './world.js'
+import type { World, WorldAvatar } from './world.js'
 import { NULL_KEY, type Vector } from './values/types.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import type { InventoryItem } from './inventory.js'
@@ -491,6 +491,14 @@ export class Linkset {
     const origin = this.globalPosition(from)
     const range = CHAT_RANGE.say!
     return this.broadcast((linkset, p) => distanceSquared(origin, linkset.globalPosition(p)) <= range * range, chat)
+  }
+
+  /** Queue a viewer reply as avatar shout chat; never drain inside a builtin. */
+  routeViewerReply(avatar: WorldAvatar, channel: number, message: string): void {
+    const corner = this.world!.corner(avatar.region)
+    const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
+    this.broadcast((linkset, prim) => distanceSquared(origin, linkset.globalPosition(prim)) <= CHAT_RANGE.shout! ** 2,
+      { channel, name: avatar.name, key: avatar.key, message })
   }
 
   private broadcast(

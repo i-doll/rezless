@@ -1,3 +1,4 @@
+import { dispatchViewerCommand } from '../rlv/commands.js'
 import type { BuiltinImpl, CallContext, ChatType } from '../runtime.js'
 import { PUBLIC_CHANNEL } from '../generated/constants.js'
 import { truncateUtf8 } from '../values/utf8.js'
@@ -8,6 +9,7 @@ const MAX_CHAT_BYTES = 1024
 function emit(ctx: CallContext, channel: number, text: string, type: ChatType, to?: string): undefined {
   const entry = { channel, text: truncateUtf8(text, MAX_CHAT_BYTES), type }
   ctx.state.chat.push(to === undefined ? entry : { ...entry, to })
+  if (type === 'ownerSay') dispatchViewerCommand(ctx.linkset, ctx.prim, entry.text)
   if (type !== 'ownerSay' && type !== 'im') ctx.linkset.routeChat(ctx.prim, type, channel, entry.text, to)
   return undefined
 }

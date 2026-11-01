@@ -31,14 +31,25 @@ export interface RlvDiagnostic {
   readonly detail: string
 }
 
-/** Per-avatar emulator state. No commands are processed in the profile-only slice. */
+export interface RlvReply {
+  readonly channel: number
+  readonly text: string
+}
+
+export type RlvCommandRecord = {
+  readonly command: string
+  readonly sourcePrim: string
+} & ({ readonly status: 'replied'; readonly reply: RlvReply } | { readonly status: 'unsupported' })
+
+/** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState {
   readonly profile: ViewerProfile
   readonly reference: RlvReference | null
   readonly diagnostics: RlvDiagnostic[]
+  readonly commandLog: RlvCommandRecord[]
 }
 
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
-  return { profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [] }
+  return { profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [] }
 }
