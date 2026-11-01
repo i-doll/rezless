@@ -32,7 +32,20 @@ export const MAX_PENDING_EVENTS = 64
 /** Linkset-wide clock. One instance per Linkset. */
 export class LinksetClock {
   /** Virtual milliseconds since linkset construction. Strictly monotonic. */
-  now = 0
+  private time = 0
+  private readonly timeListeners = new Set<(now: number) => void>()
+
+  get now(): number { return this.time }
+  set now(value: number) {
+    this.time = value
+    for (const update of this.timeListeners) update(value)
+  }
+
+  /** Continuous simulator properties update before scripts observe the new time. */
+  onAdvance(update: (now: number) => void): () => void {
+    this.timeListeners.add(update)
+    return () => { this.timeListeners.delete(update) }
+  }
 
   /** @param startUnixTime Unix time in seconds when `now` is 0. */
   constructor(readonly startUnixTime = 0) {}
