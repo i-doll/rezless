@@ -129,3 +129,5 @@ export type { AvatarTouchAction, AvatarTouchOptions, AvatarTouchPermission } fro
 
 export { attemptAvatarEdit, attemptAvatarRez, avatarEditLog, avatarRezLog } from './rlv/edit.js'
 export type { AvatarEditAction, AvatarRezAction } from './rlv/edit.js'
+export { teleportOfferLog } from './rlv/tpoffers.js'
+export type { TeleportOffer, TeleportOfferDecision } from './rlv/tpoffers.js'
