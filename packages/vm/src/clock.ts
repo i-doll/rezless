@@ -222,6 +222,8 @@ export class LinksetClock {
 export class ScriptClockView {
   /** Reference time for `llGetTime`/`llResetTime` (virtual ms); the script's creation, reset or last llResetTime. */
   timeReferenceMs: number
+  /** Monotonic completed-handler count used to bound synchronous settling. */
+  completedHandlers = 0
   /** Recurring timer interval in ms; 0 = no timer. */
   timerIntervalMs = 0
   /** Virtual time at which the next timer event fires. */
@@ -252,6 +254,11 @@ export class ScriptClockView {
   /** Schedule a one-shot event on a specific script. */
   scheduleOn(target: Script, at: number, event: string, payload: Record<string, unknown> = {}): void {
     this.linksetClock.schedule(target, at, event, payload)
+  }
+
+  /** A reset chain finishes when its replacement state_entry finishes. */
+  finishHandler(restarting: boolean): void {
+    if (!restarting) this.completedHandlers++
   }
 
   cancelTimer(): void {

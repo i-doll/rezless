@@ -226,3 +226,28 @@ it.each([[.00001,false],[.0001,false],[.001,true],[0,false]])('uses single preci
   expect((s.global('rotations') as number[]).length>0).toBe(hit)
   expect(Number(s.global('rotmissed'))>0).toBe(!hit)
 })
+
+it.each(['llTarget(ZERO_VECTOR,1);','llRotTarget(ZERO_ROTATION,.1);'])('bounds synchronous settling with recurring sleeping target handlers: %s',async register=>{
+  const s=await loadScript({source:`integer entries;integer hits;
+    default{state_entry(){${register}llSleep(.1);++entries;}
+    at_target(integer n,vector t,vector p){++hits;llSleep(.1);}
+    at_rot_target(integer n,rotation t,rotation r){++hits;llSleep(.1);}}`})
+  s.start()
+  expect(s.global('entries')).toBe(1)
+  expect(s.now).toBeCloseTo(100, 4)
+  s.advanceTime(500)
+  expect(s.now).toBeCloseTo(600, 4)
+  expect(s.global('hits')).toBeGreaterThan(1)
+})
+
+it('waits for an explicitly queued sleeping handler without following future target handlers forever',async()=>{
+  const s=await loadScript({source:`integer done;default{state_entry(){llTarget(ZERO_VECTOR,1);}
+    at_target(integer n,vector t,vector p){llSleep(.1);}
+    touch_end(integer n){llSleep(.2);done=1;}}`})
+  s.start();s.advanceTime(100)
+  s.fire('touch_end',{num_detected:1})
+  expect(s.global('done')).toBe(1)
+  expect(s.now).toBeLessThan(500)
+  s.advanceTime(500)
+  expect(s.global('done')).toBe(1)
+})

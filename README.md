@@ -178,6 +178,8 @@ s.setAgentInRegion(key, present = true)          // region-presence override, sh
 
 `start`, `fire`, `reset`, `deliverChat`, `grantPermissions` and the `respondTo*` calls return only after the handlers they started have finished; if one sleeps, the clock moves to its wake time while the other scripts keep running.
 
+Recurring events created during those handlers do not extend the synchronous call forever. Use `advanceTime` to continue their handlers.
+
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 
 A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses for that long after the mock returns.

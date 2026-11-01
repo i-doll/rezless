@@ -166,3 +166,38 @@ it('preserves manually set phantom on repeated disabled volume-detect calls',asy
   expect(s.global('out')).toEqual([1,1,1])
   expect(s.host.volumeDetect).toBe(false)
 })
+
+// In-world: review-collision.py -> rejected stays absent after accepting; accepted start/end
+// each fire once after rejecting (Aditi, SLua Tideland, Mono, 2026-11-01).
+it.each([[0,1,0],[1,0,1]])('filters a queued collision at injection, with accept changing from %s to %s',async(initial,after,expected)=>{
+  const s=await loadScript({source:`integer hits;default{state_entry(){llCollisionFilter("",NULL_KEY,${initial});}
+    timer(){llSleep(1);llCollisionFilter("",NULL_KEY,${after});}
+    collision_start(integer n){hits+=n;}}`})
+  s.start()
+  s.linkset.clock.schedule(s,0,'timer')
+  s.advanceTime(0)
+  s.fire('collision_start',{num_detected:1,detected:[{key:KEY,name:'collider'}]})
+  s.advanceTime(1000)
+  expect(s.global('hits')).toBe(expected)
+})
+
+// In-world: review-collision.py -> continuous=1 after enabling volume detection,
+// continuous=0 after disabling it; start/end=1 in both cases (Aditi, SLua Tideland, 2026-11-01).
+it.each([[0,1,1],[1,0,0]])('decides queued continuous collision eligibility before volume changes from %s to %s',async(initial,after,expected)=>{
+  const s=await loadScript({source:`integer hits;default{state_entry(){llVolumeDetect(${initial});}
+    timer(){llSleep(1);llVolumeDetect(${after});}
+    collision(integer n){hits+=n;}}`})
+  s.start();s.linkset.clock.schedule(s,0,'timer');s.advanceTime(0)
+  s.fire('collision',{num_detected:1,detected:[{key:KEY,name:'collider'}]})
+  s.advanceTime(1000)
+  expect(s.global('hits')).toBe(expected)
+})
+
+it.each([[0,1,0],[1,0,1]])('freezes explicit collision eligibility while parked, accept %s to %s',async(initial,after,expected)=>{
+  const s=await loadScript({source:`integer hits;default{state_entry(){llCollisionFilter("",NULL_KEY,${initial});}collision_start(integer n){hits+=n;}}`})
+  s.start();s.running=false
+  s.fire('collision_start',{num_detected:1,detected:[{key:KEY,name:'collider'}]})
+  s.host.collisionFilter.accept=Boolean(after)
+  s.running=true;s.resumeParked();s.advanceTime(0)
+  expect(s.global('hits')).toBe(expected)
+})

@@ -36,7 +36,7 @@ export const llSetRemoteScriptAccessPin: BuiltinImpl = (ctx, args) => {
   ctx.prim.remoteScriptAccessPin = Number(args[0])
 }
 
-/** Tests supply collision events explicitly. No overlap detection or physics runs. */
+/** Filter at test injection, before queueing. Completed events keep their detected data. */
 export function withCollisionFilter(script: Script, event: string, payload: Record<string, unknown>, deliver: (payload: Record<string, unknown>) => void): void {
   if (event !== 'collision_start' && event !== 'collision' && event !== 'collision_end') return deliver(payload)
   if (script.host.volumeDetect && event === 'collision') return

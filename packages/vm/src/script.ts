@@ -829,7 +829,7 @@ export class Script {
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
     if (!this.running) {
-      this.parkedEvents.push({ at: this.now, event: eventName, payload })
+      withCollisionFilter(this, eventName, payload, p => this.parkedEvents.push({ at: this.now, event: eventName, payload: p }))
       return
     }
     if (!this.started) {
@@ -840,11 +840,13 @@ export class Script {
         this.linkset.settle([this])
       }
     }
-    const started = this.handles(eventName) ? [this] : []
-    if (this.task || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
-      this.clockView.schedule(this.now, eventName, payload)
-    } else this.deliver(eventName, payload)
-    this.linkset.settle(started)
+    withCollisionFilter(this, eventName, payload, p => {
+      const started = this.handles(eventName) ? [this] : []
+      if (this.task || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
+        this.clockView.schedule(this.now, eventName, p)
+      } else this.deliver(eventName, p)
+      this.linkset.settle(started)
+    })
   }
 
   /**
@@ -930,7 +932,7 @@ export class Script {
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
     if (!handler) return
     if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
-    withCollisionFilter(this, event, payload, p => this.begin(handler, bindPayload(event, p), p))
+    this.begin(handler, bindPayload(event, payload), payload)
   }
 
   /** Whether the current state has a handler for `event`. */
@@ -969,6 +971,7 @@ export class Script {
       return
     }
     this.finish(task)
+    this.clockView.finishHandler(r.value)
     if (r.value) this.restart()
   }
 
