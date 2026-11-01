@@ -6,6 +6,8 @@ import { llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInve
 import { llLoadURL, llMapDestination, llMapBeacon, llOpenFloater } from './viewer.js'
 import { llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia } from './media.js'
 import { llSensor, llSensorRepeat, llSensorRemove } from './sensor.js'
+import { llTarget, llTargetRemove, llRotTarget, llRotTargetRemove } from './targets.js'
+import { llCollisionFilter, llCollisionSound, llVolumeDetect, llSetRemoteScriptAccessPin } from './collision.js'
 import {
   llPlaySound,
   llLoopSound,
@@ -414,6 +416,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,
   llLoadURL, llMapDestination, llMapBeacon, llOpenFloater,
   llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
+  llTarget, llTargetRemove, llRotTarget, llRotTargetRemove,
+  llCollisionFilter, llCollisionSound, llVolumeDetect, llSetRemoteScriptAccessPin,
   llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
   llAdjustDamage,

@@ -21,15 +21,7 @@ export interface InventoryOffer {
   readonly items: ReadonlyArray<InventoryItem>
 }
 
-const allowedDrop = new WeakSet<Prim>()
-
-/** Foreign-owned prims must explicitly permit inventory drops. */
-export const llAllowInventoryDrop: BuiltinImpl = (ctx, args) => {
-  if (ctx.prim !== ctx.linkset.prims[0]) return undefined
-  if (args[0]) allowedDrop.add(ctx.prim)
-  else allowedDrop.delete(ctx.prim)
-  return undefined
-}
+export { llAllowInventoryDrop } from './collision.js'
 
 function findPrim(ctx: CallContext, key: string): Prim | undefined {
   return ctx.linkset.peers.flatMap(l => l.dead ? [] : l.prims).find(p => p.key.toLowerCase() === key.toLowerCase())
@@ -44,7 +36,7 @@ function snapshot(item: InventoryItem, foreign: boolean): InventoryItem {
 
 function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string, items: InventoryItem[], prim: Prim | undefined, folder: string | null, rootPath: string[] = []): void {
   const foreign = (prim?.linkset?.owner ?? target).toLowerCase() !== ctx.linkset.owner.toLowerCase()
-  if (prim && foreign && !allowedDrop.has(prim.linkset!.prims[0]!)) {
+  if (prim && foreign && !prim.linkset!.prims[0]!.allowInventoryDrop) {
     sayError(ctx, "Unable to give inventory: 'Blocked by permissions'.")
     return
   }

@@ -1,3 +1,4 @@
+import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
 import { InventoryType, inventoryItemName } from './inventory.js'
@@ -6,7 +7,7 @@ import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
 import { NULL_KEY } from './values/types.js'
 import { deterministicKey } from './keys.js'
-import { PERM_ALL } from './generated/constants.js'
+import { PERM_ALL, STATUS_PHANTOM } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
 
 let primsMade = 0
@@ -73,6 +74,13 @@ export class Prim {
    * PRIM_PHYSICS / PRIM_PHANTOM bits in one place.
    */
   statusFlags = 0
+  collisionFilter: CollisionFilter = { name: '', key: NULL_KEY, accept: true }
+  /** null selects the simulator's default material impact sound. */
+  collisionSound: CollisionSound | null = null
+  volumeDetect = false
+  allowInventoryDrop = false
+  /** Zero denies remote script loading. */
+  remoteScriptAccessPin = 0
   appearance: {
     text: { text: string; color: { x: number; y: number; z: number }; alpha: number } | null
     description: string
@@ -208,5 +216,6 @@ export class Prim {
   setStatus(flag: number, value: boolean): void {
     if (value) this.statusFlags |= flag
     else this.statusFlags &= ~flag
+    if (this.volumeDetect) this.statusFlags |= STATUS_PHANTOM
   }
 }
