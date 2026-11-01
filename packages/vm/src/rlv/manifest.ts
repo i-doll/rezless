@@ -154,6 +154,25 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-redirchat.test.ts'],
     },
     {
+      id: 'sendgesture', forms: ['@sendgesture=n|add|y|rem'], comparison: 'shared',
+      wikiComparison: 'Both profiles block gesture playback under the no-option restriction, before any gesture chat is sent. Allowed gesture chat follows avatar chat restrictions. Option, force and query forms are unsupported.',
+      profiles: {
+        rlv: {
+          support: 'enforced', commandForms: [{ behaviour: 'sendgesture', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['Issuer-scoped no-option add/remove aliases and clear', 'Prepared gesture playback outcome and chat-step records'],
+          contract: 'sendgesture denies playback before any steps run. Allowed prepared chat steps use the avatar chat pipeline at normal volume, including sendchat, volume, redirection and channel restrictions. Gesture IDs identify fixture actions; asset loading, trigger expansion, animation, sound and timed steps are external.',
+          evidence: { implementation: 'Kokua RLV 2.09.35.00', file: 'indra/newview/llgesturemgr.cpp', symbols: ['LLGestureMgr::playGesture', 'LLGestureMgr::runStep', 'RRInterface::contains'] },
+        },
+        rlva: {
+          support: 'enforced', commandForms: [{ behaviour: 'sendgesture', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['Issuer-scoped no-option add/remove aliases and clear', 'Prepared gesture playback outcome and chat-step records', 'getcommand add-form discovery'],
+          contract: 'sendgesture denies playback before any steps run. Allowed prepared chat steps use the avatar chat pipeline at normal volume, including sendchat, volume, redirection and channel restrictions. Gesture IDs identify fixture actions; asset loading, trigger expansion, animation, sound and timed steps are external.',
+          evidence: { implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/llgesturemgr.cpp', symbols: ['LLGestureMgr::playGesture', 'LLGestureMgr::runStep', 'RlvActions::canPlayGestures', 'RlvBehaviourDictionary::RlvBehaviourDictionary'] },
+        },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-sendgesture.test.ts'],
+    },
+    {
       id: 'chat-volume', forms: ['@chatshout=n|add|y|rem', '@chatwhisper=n|add|y|rem', '@chatnormal=n|add|y|rem'],
       comparison: 'confirmed difference',
       wikiComparison: 'Both profiles transform public avatar chat volume. chatshout converts shout to say, chatwhisper converts whisper to say, and chatnormal converts say and shout to whisper. Combined chatwhisper and chatnormal leave a requested whisper as whisper in Kokua and say in RLVa. Private channels bypass volume restrictions.',

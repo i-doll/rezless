@@ -1,3 +1,4 @@
+import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
 import { userSitAvatar, userStandAvatar } from './rlv/sit.js'
@@ -256,6 +257,11 @@ export class World {
 
   constructor(opts: WorldOptions = {}) {
     this.clock = new LinksetClock(opts.startUnixTime)
+  }
+
+  /** Play a prepared gesture, recording its outcome and any emitted chat. */
+  playAvatarGesture(avatar: WorldAvatar, gesture: AvatarGesture): AvatarGestureAction {
+    return playAvatarGesture(this, avatar, gesture)
   }
 
   /** Simulate avatar local chat; restrictions apply only through this action. */

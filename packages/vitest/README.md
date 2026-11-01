@@ -1602,6 +1602,31 @@ Distance options, group IMs, offline messages, privileged senders, automatic
 replies, custom viewer strings, name/location censoring and mute settings are
 outside this delivery contract.
 
+### Avatar gesture actions
+
+`world.playAvatarGesture(avatar, { id, chat })` plays a prepared gesture;
+paired fixtures expose `playGesture`, and `gestureActions` or
+`avatarGestureLog(avatar)` return immutable outcome records. Optional `chat`
+contains `{ channel, message }` steps after channel parsing. Both Kokua RLV
+2.09.35.00 and Firestorm RLVa 2.4.2 enforce no-option
+`@sendgesture=n|add|y|rem` per issuer. A blocked gesture records `blocked` with
+reason `sendgesture` and emits no chat. Allowed gestures record `played` even
+when a chat restriction filters or blocks an individual chat step. Each step
+uses normal avatar chat volume and the existing sendchat, volume, redirection,
+channel and receive rules; its chat action is included in the gesture record.
+
+Gesture IDs identify fixture actions. Asset loading, chat-trigger expansion,
+animations, sounds and timed steps are external. Option, query and force forms
+remain unsupported. RLVa `getcommand` discovers the supported add form.
+
+```ts
+const action = fixture.playGesture({
+  id: 'wave',
+  chat: [{ channel: 0, message: '/me waves.' }],
+})
+expect(action.status).toBe('played')
+expect(action.chat[0]?.deliveredMessage).toBe('/me waves.')
+```
 
 ### Sending avatar IMs
 

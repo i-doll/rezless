@@ -36,6 +36,8 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [chat-redirection](#chat-redirection) | Firestorm RLVa 2.4.2 | <code>@emote=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
 | [chat-redirection](#chat-redirection) | Firestorm RLVa 2.4.2 | <code>@redirchat[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
 | [chat-redirection](#chat-redirection) | Firestorm RLVa 2.4.2 | <code>@rediremote[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
+| [sendgesture](#sendgesture) | Kokua RLV 2.09.35.00 | <code>@sendgesture=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendgesture.test.ts](../packages/vitest/test/rlv-sendgesture.test.ts) |
+| [sendgesture](#sendgesture) | Firestorm RLVa 2.4.2 | <code>@sendgesture=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendgesture.test.ts](../packages/vitest/test/rlv-sendgesture.test.ts) |
 | [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatshout=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
 | [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatwhisper=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
 | [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatnormal=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
@@ -443,6 +445,33 @@ Support depth: enforced. emote disables safe-emote truncation but retains punctu
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::filterChat</code>, <code>RlvHandler::redirectChatOrEmote</code>, <code>RlvHandler::processAddRemCommand</code>, <code>RlvUtil::sendChatReply</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts).
+
+### sendgesture
+
+Forms: <code>@sendgesture=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: shared. Both profiles block gesture playback under the no-option restriction, before any gesture chat is sent. Allowed gesture chat follows avatar chat restrictions. Option, force and query forms are unsupported.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. sendgesture denies playback before any steps run. Allowed prepared chat steps use the avatar chat pipeline at normal volume, including sendchat, volume, redirection and channel restrictions. Gesture IDs identify fixture actions; asset loading, trigger expansion, animation, sound and timed steps are external.
+
+- Issuer-scoped no-option add/remove aliases and clear
+- Prepared gesture playback outcome and chat-step records
+
+Reference symbols: <code>indra/newview/llgesturemgr.cpp</code>: <code>LLGestureMgr::playGesture</code>, <code>LLGestureMgr::runStep</code>, <code>RRInterface::contains</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. sendgesture denies playback before any steps run. Allowed prepared chat steps use the avatar chat pipeline at normal volume, including sendchat, volume, redirection and channel restrictions. Gesture IDs identify fixture actions; asset loading, trigger expansion, animation, sound and timed steps are external.
+
+- Issuer-scoped no-option add/remove aliases and clear
+- Prepared gesture playback outcome and chat-step records
+- getcommand add-form discovery
+
+Reference symbols: <code>indra/newview/llgesturemgr.cpp</code>: <code>LLGestureMgr::playGesture</code>, <code>LLGestureMgr::runStep</code>, <code>RlvActions::canPlayGestures</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendgesture.test.ts](../packages/vitest/test/rlv-sendgesture.test.ts).
 
 ### chat-volume
 
