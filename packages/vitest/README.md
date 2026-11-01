@@ -1341,7 +1341,8 @@ The [coverage matrix](../../docs/rlv-coverage.md) lists every supported alias.
 Kokua accepts slash or semicolon vectors and replies with semicolons and six
 significant digits. RLVa requires slash vectors and replies with slashes and
 six decimals. Both parse scalar numeric prefixes; Kokua converts nonnumeric
-input to zero. RLVa rejects it. Scalar settings retain values outside UI slider
+input to zero. RLVa rejects it. Non-finite numeric values and float32 overflow are unsupported and leave sky
+values unchanged. Scalar settings retain values outside UI slider
 ranges except for clamped sun/moon elevation and Kokua's gamma mapping.
 
 `sky` and `sharedSky` use setting names without the command prefix. Their values

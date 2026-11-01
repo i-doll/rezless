@@ -2759,7 +2759,7 @@ Support depth: enforced. Other issuers setenv locks prevent changes; the issuer 
 
 - Environment lock, no-option add/remove and clear
 - Scalar, vector, texture, legacy component and intensity force/query forms
-- Preset and asset selection, reset, daytime, profile parsing and reply formatting
+- Preset and asset selection, reset, daytime, finite numeric inputs, profile parsing and reply formatting
 
 Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::forceEnvironment</code>, <code>RRInterface::getEnvironment</code>, <code>RRInterface::force</code>.
 
@@ -2769,7 +2769,7 @@ Support depth: enforced. Other issuers setenv locks prevent changes; the issuer 
 
 - Environment lock, disabled-lock fixture, no-option add/remove and clear
 - Scalar, vector, texture, legacy component and intensity force/query forms
-- Asset and library preset/daycycle selection, daytime samples, parsing and reply formatting
+- Asset and library preset/daycycle selection, daytime samples, finite numeric inputs, parsing and reply formatting
 
 Reference symbols: <code>indra/newview/rlvenvironment.cpp</code>: <code>RlvEnvironment::RlvEnvironment</code>, <code>RlvEnvironment::onHandleCommand</code>, <code>RlvEnvironment::handleLegacySetFn</code>.
 

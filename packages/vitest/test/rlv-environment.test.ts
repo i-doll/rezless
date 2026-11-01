@@ -258,3 +258,28 @@ it('looks up fractional daycycle samples using single-precision input times', as
     expect(Number(reply(f, 'starbrightness'))).toBe(profile === 'rlv' ? 250 : 8)
   }
 })
+
+it('rejects overflowing vector inputs without replacing valid sky values', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const f of Object.values(pair)) {
+    f.script.start()
+    send(f, '@setenv_ambient:0.1/0.2/0.3=force,setenv_cloudscroll:1/2=force')
+    const before = f.avatar.viewer.environment.sky
+    for (const command of ['@setenv_ambient:1e39/0/0=force', '@setenv_ambient:0/0/1e39=force', '@setenv_ambient:1.2e38/0/0=force', '@setenv_cloudscroll:0/1e39=force']) {
+      send(f, command)
+      expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'unsupported', outcome: 'invalid-option' })
+      expect(f.avatar.viewer.environment.sky).toEqual(before)
+    }
+  }
+})
+
+it('rejects scalar overflow introduced by Kokua haze scaling', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const [profile, f] of Object.entries(pair)) {
+    f.script.start()
+    const before = f.avatar.viewer.environment.sky.hazedensity
+    send(f, '@setenv_hazedensity:1e38=force')
+    expect(f.avatar.viewer.commandLog.at(-1)?.status).toBe(profile === 'rlv' ? 'unsupported' : 'applied')
+    expect(f.avatar.viewer.environment.sky.hazedensity).toBe(profile === 'rlv' ? before : Math.fround(1e38))
+  }
+})

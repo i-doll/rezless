@@ -194,7 +194,9 @@ export class RlvEnvironment {
         if (!values) return false
         current.splice(0, current.length, ...values)
       }
-      this.values[base] = current.map(v => Math.fround(base === 'cloudscroll' && this.profile === 'rlv' ? v + 10 : v * this.scale(base)))
+      const native = current.map(v => Math.fround(base === 'cloudscroll' && this.profile === 'rlv' ? v + 10 : v * this.scale(base)))
+      if (!native.every(Number.isFinite)) return false
+      this.values[base] = native
     } else {
       if (scalar === undefined) return false
       let value = scalar
@@ -213,7 +215,9 @@ export class RlvEnvironment {
         value = Math.min(value, 20)
         value = value <= 0 ? 0.25 : value < 1 ? 0.5 + value * 0.5 : value < 5 ? 1 + (value - 1) * 0.25 : 2 + (value - 5) * 0.06
       }
-      this.values[base] = Math.fround(value * this.scale(base))
+      const native = Math.fround(value * this.scale(base))
+      if (!Number.isFinite(native)) return false
+      this.values[base] = native
     }
     this.fixed = true; this.selectedPreset = ''; this.selectedAsset = null
     return true
@@ -231,11 +235,13 @@ function numeric(text: string, permissive: boolean): number | undefined {
 function parseVector(text: string, count: number, permissive: boolean): number[] | undefined {
   if (permissive) {
     const parts = text.split(/[;/]/)
-    return Array.from({ length: count }, (_, i) => numeric(parts[i] ?? '', true)!)
+    const values = Array.from({ length: count }, (_, i) => numeric(parts[i] ?? '', true))
+    return values.every((v): v is number => v !== undefined) ? values : undefined
   }
   const atom = '\\s*([+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?)'
   const match = new RegExp('^' + Array.from({ length: count }, () => atom).join('/'), 'i').exec(text)
-  return match ? match.slice(1).map(v => Math.fround(Number(v))) : undefined
+  const values = match?.slice(1).map(v => Math.fround(Number(v)))
+  return values?.every(Number.isFinite) ? values : undefined
 }
 
 export function dispatchEnvironmentCommand(avatar: WorldAvatar, prim: Prim, parsed: RlvParsedCommand, command: string): boolean {
