@@ -522,7 +522,7 @@ An expectation can instead be `{ kind: 'unsupported', reason }`. These are
 inspectable data; the helper does not skip tests or turn unsupported cases
 into successful assertions.
 
-Single or comma-separated `version`, `versionnew` and `versionnum` queries on positive channels
+Single or comma-separated `version`, `versionnew` and `versionnum` queries on profile-valid channels
 (excluding DEBUG_CHANNEL) now queue avatar replies through normal listen matching.
 Replies can reach the issuing prim and other listening prims or linksets; they use
 the owner avatar's UUID and name. Script chat capture still contains the original
@@ -568,8 +568,23 @@ rules associated with their emitter UUID. `@getstatus` is not implemented.
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`
 means a reply is delivered; version reporting does not imply support for other
-commands or viewer actions. Broader channel policies, startup behavior
-and per-object compatibility settings remain outside this slice.
+commands or viewer actions. Startup behavior and per-object compatibility settings
+remain outside the covered forms.
+
+Object replies use the avatar UUID, name and current position. Positive replies
+reach listeners within 100 m across region boundaries, including the issuing prim.
+Kokua accepts signed nonzero channels; its negative replies use dialog delivery
+within 20 m in the avatar's current region. RLVa rejects negative channels, zero
+and DEBUG_CHANNEL. Kokua permits DEBUG_CHANNEL and delivers it through the shout path.
+Rejected channels do not produce an empty reply; valid queries with empty results do.
+
+`sendViewerReply(linkset, avatar, channel, message)` from `@rezless/vm` exposes the
+same delivery policy to fixtures and future query handlers. It returns the attempted
+`{ channel, text }` reply, or `undefined` for rejection or a disabled viewer. Kokua
+cuts raw UTF-8 bytes at 1,023 for positive channels and 254 for negative channels;
+incomplete characters become U+FFFD in VM strings. RLVa keeps complete characters
+within 1,023 bytes. Query replies produce one message, without splitting. Ordinary
+script chat uses its existing routing and limits.
 
 
 ### Implemented `ll*` functions

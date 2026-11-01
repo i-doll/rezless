@@ -493,11 +493,13 @@ export class Linkset {
     return this.broadcast((linkset, p) => distanceSquared(origin, linkset.globalPosition(p)) <= range * range, chat)
   }
 
-  /** Queue a viewer reply as avatar shout chat; never drain inside a builtin. */
+  /** Queue avatar shout or dialog reply chat; never drain inside a builtin. */
   routeViewerReply(avatar: WorldAvatar, channel: number, message: string): void {
     const corner = this.world!.corner(avatar.region)
     const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
-    this.broadcast((linkset, prim) => distanceSquared(origin, linkset.globalPosition(prim)) <= CHAT_RANGE.shout! ** 2,
+    const range = channel < 0 ? CHAT_RANGE.say! : CHAT_RANGE.shout!
+    this.broadcast((linkset, prim) => (channel >= 0 || linkset.region === avatar.region) &&
+      distanceSquared(origin, linkset.globalPosition(prim)) <= range ** 2,
       { channel, name: avatar.name, key: avatar.key, message })
   }
 
