@@ -117,7 +117,7 @@ it('records an unattached force as a no-op and leaves other detach forms unsuppo
   script.start(); script.fire('touch_start', { num_detected: 1 })
   expect(script.linkset.attachment).toBeNull()
   expect(avatar.viewer.commandLog[0]).toMatchObject({ status: 'enforced', outcome: 'no-op' })
-  expect(avatar.viewer.commandLog.slice(1).map(e => e.status)).toEqual(['unsupported', 'unsupported', 'unsupported'])
+  expect(avatar.viewer.commandLog.slice(1).map(e => e.status)).toEqual(['enforced', 'applied', 'unsupported'])
  }
 })
 

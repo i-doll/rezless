@@ -141,7 +141,7 @@ it('keeps invalid options and excluded forms inspectable without removing items'
   expect(result(f).outcome).toBe(profile === 'rlva' ? 'failed-option' : 'no-op')
   send(f.script, '@detach:empty=force'); expect(result(f).outcome).toBe('no-op')
   for (const command of ['@detach=force', '@detach:chest=force', '@detach:direct|empty=force', '@detachall:direct=force', '@remoutfit:direct=force']) {
-   send(f.script, command); expect(result(f).status).toBe('unsupported')
+   send(f.script, command); expect(result(f).status).toBe(command === '@detach=force' || command === '@detach:chest=force' ? 'enforced' : 'unsupported')
   }
   send(f.script, '@remoutfit:invalid=force')
   expect(result(f).outcome).toBe(profile === 'rlva' ? 'failed-option' : 'no-op')

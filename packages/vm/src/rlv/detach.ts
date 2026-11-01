@@ -2,6 +2,9 @@ import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
+import { getRlvAttachmentPoint } from './attachments.js'
+import type { ViewerProfile } from './profiles.js'
+import type { RlvRestriction } from './restrictions.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
 
 export type RlvDetachOutcome = 'allowed' | 'blocked' | 'no-op'
@@ -11,9 +14,41 @@ function wornBy(avatar: WorldAvatar, linkset: Linkset): boolean {
     linkset.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()
 }
 
-export function isRlvDetachLocked(avatar: WorldAvatar, linkset: Linkset): boolean {
-  return avatar.viewer.profile !== 'disabled' && avatar.viewer.restrictions.snapshot().some(rule =>
-    rule.behaviour === 'detach' && !rule.option && linkset.prims.some(prim => prim.key === rule.sourcePrim))
+/** Recognized lock forms; arbitrary Kokua wire rules remain inspectable. */
+export function attachmentLockSupport(profile: ViewerProfile, behaviour: string, option: string): RlvRestriction['support'] | undefined {
+  if (!['detach', 'addattach', 'remattach'].includes(behaviour)) return undefined
+  return profile !== 'disabled' && (!option || getRlvAttachmentPoint(option) !== undefined) ? 'enforced' : 'unsupported'
+}
+
+export function isRlvPointLocked(avatar: WorldAvatar, point: number, action: 'add' | 'remove',
+  rules = avatar.viewer.restrictions.snapshot()): boolean {
+  if (avatar.viewer.profile === 'disabled') return false
+  return rules.some(rule => {
+    if (rule.behaviour === 'detach') return !!rule.option && getRlvAttachmentPoint(rule.option) === point &&
+      (action === 'remove' || avatar.viewer.profile === 'rlva')
+    return rule.behaviour === (action === 'add' ? 'addattach' : 'remattach') &&
+      (!rule.option || getRlvAttachmentPoint(rule.option) === point)
+  })
+}
+
+export function isRlvDetachLocked(avatar: WorldAvatar, linkset: Linkset,
+  rules = avatar.viewer.restrictions.snapshot()): boolean {
+  return avatar.viewer.profile !== 'disabled' &&
+    (isRlvPointLocked(avatar, linkset.attachment?.point ?? 0, 'remove', rules) || rules.some(rule =>
+      rule.behaviour === 'detach' && !rule.option && linkset.prims.some(prim => prim.key === rule.sourcePrim)))
+}
+
+/** Explicit user wear at a canonical point. Simulator fixture attachment bypasses viewer locks. */
+export function attemptViewerAttach(avatar: WorldAvatar, linkset: Linkset, point: number,
+  replace = false): RlvDetachOutcome {
+  if (linkset.dead || linkset.attachment || !linkset.prims.length || !linkset.world?.avatars.includes(avatar) ||
+    linkset.region !== avatar.region || linkset.owner.toLowerCase() !== avatar.key.toLowerCase() ||
+    !Number.isInteger(point) || point < 1 || point > 55) return 'no-op'
+  const occupants = linkset.peers.filter(peer => wornBy(avatar, peer) && peer.attachment?.point === point)
+  if (isRlvPointLocked(avatar, point, 'add') || replace && occupants.some(peer => isRlvDetachLocked(avatar, peer))) return 'blocked'
+  if (replace) for (const peer of occupants) peer.detachFromAvatar()
+  linkset.attachToAvatar(avatar.key, point)
+  return 'allowed'
 }
 
 /** A viewer action; attach events are delivered when the fixture clock drains. */

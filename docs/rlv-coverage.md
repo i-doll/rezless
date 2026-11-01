@@ -125,11 +125,9 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
 | [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
 | [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
-| [forceremove](#forceremove) | Kokua RLV 2.09.35.00 | <code>@detach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Kokua RLV 2.09.35.00 | <code>@remoutfit[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Kokua RLV 2.09.35.00 | <code>@addoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Kokua RLV 2.09.35.00 | <code>@remoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
-| [forceremove](#forceremove) | Firestorm RLVa 2.4.2 | <code>@detach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Firestorm RLVa 2.4.2 | <code>@remoutfit[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Firestorm RLVa 2.4.2 | <code>@addoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Firestorm RLVa 2.4.2 | <code>@remoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
@@ -137,10 +135,22 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [getattach](#getattach) | Firestorm RLVa 2.4.2 | <code>@getattach[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
 | [getattachnames](#getattachnames) | Kokua RLV 2.09.35.00 | <code>@getattachnames[:&lt;group&gt;]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
 | [getattachnames](#getattachnames) | Firestorm RLVa 2.4.2 | <code>@getattachnames[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
-| [detach](#detach) | Kokua RLV 2.09.35.00 | <code>@detach=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
-| [detach](#detach) | Kokua RLV 2.09.35.00 | <code>@detachme[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
-| [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detach=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
-| [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detachme=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [detach](#detach) | Kokua RLV 2.09.35.00 | <code>@detach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [detach](#detach) | Kokua RLV 2.09.35.00 | <code>@detach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [detach](#detach) | Kokua RLV 2.09.35.00 | <code>@detachme[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detachme=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [attachment-point-locks](#attachment-point-locks) | Kokua RLV 2.09.35.00 | <code>@addattach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [attachment-point-locks](#attachment-point-locks) | Kokua RLV 2.09.35.00 | <code>@remattach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [attachment-point-locks](#attachment-point-locks) | Kokua RLV 2.09.35.00 | <code>@remattach[:&lt;option&gt;]=force</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [attachment-point-locks](#attachment-point-locks) | Firestorm RLVa 2.4.2 | <code>@addattach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [attachment-point-locks](#attachment-point-locks) | Firestorm RLVa 2.4.2 | <code>@remattach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [attachment-point-locks](#attachment-point-locks) | Firestorm RLVa 2.4.2 | <code>@remattach[:&lt;option&gt;]=force</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [getaddattachnames](#getaddattachnames) | Kokua RLV 2.09.35.00 | <code>@getaddattachnames[:&lt;group&gt;]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [getaddattachnames](#getaddattachnames) | Firestorm RLVa 2.4.2 | <code>@getaddattachnames[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [getremattachnames](#getremattachnames) | Kokua RLV 2.09.35.00 | <code>@getremattachnames[:&lt;group&gt;]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
+| [getremattachnames](#getremattachnames) | Firestorm RLVa 2.4.2 | <code>@getremattachnames[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
 | [seating](#seating) | Kokua RLV 2.09.35.00 | <code>@getsitid[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts) |
 | [seating](#seating) | Kokua RLV 2.09.35.00 | <code>@sit=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts) |
 | [seating](#seating) | Kokua RLV 2.09.35.00 | <code>@unsit=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts) |
@@ -928,7 +938,7 @@ Support depth: enforced. Named items replace for attach and attachoverorreplace;
 
 - Direct shared attachment definitions and existing mapped live attachments
 - Add/replace, named and saved points, + folders and single no-mod folded children
-- No-option detach locks, queued attachment lifecycle and per-item action outcomes; clothing, point/folder locks and recursive/multiple-folder forms excluded
+- No-option and point locks, queued attachment lifecycle and per-item action outcomes; clothing, folder locks and recursive/multiple-folder forms excluded
 
 Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::forceAttach</code>, <code>RRInterface::findAttachmentPointFromName</code>, <code>RRInterface::findAttachmentPointFromParentName</code>.
 
@@ -938,7 +948,7 @@ Support depth: enforced. Attach and attachoverorreplace replace; attachover and 
 
 - Direct shared attachment definitions and existing mapped live attachments
 - Add/replace, named and saved points, default shared-wear setting and its disabled value, + folders and single-object folded children
-- No-option detach locks, queued attachment lifecycle and per-item action outcomes; clothing, point/folder locks and recursive/multiple-folder forms excluded
+- No-option and point locks, queued attachment lifecycle and per-item action outcomes; clothing, folder locks and recursive/multiple-folder forms excluded
 
 Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvForceWear::forceFolder</code>, <code>RlvForceWear::addAttachment</code>, <code>RlvForceWear::updatePendingAttachments</code>, <code>RlvWearableItemCollector</code>, <code>RlvAttachPtLookup::getAttachPointIndex</code>.
 
@@ -952,7 +962,7 @@ Comparison: confirmed difference. Shared: direct folder attachments and selected
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Direct folder attachments plus single no-mod objects in point-named children can be removed. Ordinary descendants survive. Layer and bare removal affect clothing only, across shared and unshared inventory. Force commands do not bypass issuer locks. Folder removal honors item and ancestor nostrip names case insensitively; layer removal honors ancestor folders only. Invalid layer/path options are inert. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, point/UUID removal, folder locks, recursive forms and inventory links are unsupported.
+Support depth: enforced. Direct folder attachments plus single no-mod objects in point-named children can be removed. Ordinary descendants survive. Layer and bare removal affect clothing only, across shared and unshared inventory. Force commands do not bypass issuer locks. Folder removal honors item and ancestor nostrip names case insensitively; layer removal honors ancestor folders only. Invalid layer/path options are inert. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, folder locks, recursive forms and inventory links are unsupported.
 
 - Direct folder attachment removal with per-item results and subsequent query updates
 - Selected and all clothing layer removal; nonremovable bodyparts
@@ -963,7 +973,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Direct folder attachments plus object items in effective folded children can be removed; ordinary descendants survive. Folder item results follow inventory UUID order. Layer and bare removal affect clothing only, across shared and unshared inventory. Every issuer lock remains effective; a registered valid bridge stays attached. Item and parent nostrip names are case sensitive, ascending through folded parents. Invalid layer/path options fail. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, point/group/UUID removal, folder locks, recursive forms and inventory links are unsupported.
+Support depth: enforced. Direct folder attachments plus object items in effective folded children can be removed; ordinary descendants survive. Folder item results follow inventory UUID order. Layer and bare removal affect clothing only, across shared and unshared inventory. Every issuer lock remains effective; a registered valid bridge stays attached. Item and parent nostrip names are case sensitive, ascending through folded parents. Invalid layer/path options fail. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, group removal, folder locks, recursive forms and inventory links are unsupported.
 
 - Direct and folded folder attachment removal with deterministic per-item results
 - Selected and all clothing layer removal; nonremovable bodyparts
@@ -1030,15 +1040,16 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 ### detach
 
-Forms: <code>@detach=n&#124;add</code>, <code>@detach=y&#124;rem</code>, <code>@detachme[:&lt;option&gt;]=force</code>.
+Forms: <code>@detach[:&lt;point&gt;]=n&#124;add</code>, <code>@detach[:&lt;point&gt;]=y&#124;rem</code>, <code>@detach[:&lt;point&#124;uuid&gt;]=force</code>, <code>@detachme[:&lt;option&gt;]=force</code>.
 
-Comparison: confirmed difference. Wiki describes attachment-local locks and ordered clear/self-detach, without specifying child emitter or malformed-option handling. No-option locks protect the containing attachment and remain scoped to the issuing prim. Self-detach respects every root and child lock, including its own. Kokua resolves a child emitter to its attachment and ignores detachme options. RLVa child self-detach is inert and nonempty options fail. Simulator detach is separate from a viewer detach attempt; forced reattachment recovery is excluded.
+Comparison: confirmed difference. Wiki describes attachment-local locks and ordered clear/self-detach, without specifying child emitter or malformed-option handling. No-option locks protect the containing attachment and remain scoped to the issuing prim. Self-detach respects every root and child lock, including its own. Kokua resolves a child emitter to its attachment and ignores detachme options. RLVa child self-detach is inert and nonempty options fail. Named detach locks deny removal in both profiles and additionally deny adding in RLVa. Bare, named point and UUID force removal preserve every issuer lock. Root is an alias for Avatar Center. Simulator detach is separate from a viewer detach attempt; forced reattachment recovery is excluded.
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named locks, bare detach=force and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.
+Support depth: enforced. Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named detach locks deny removal at the selected point; adding there remains allowed. Bare, point and object UUID force detach respect locks and nostrip protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUIDs resolve to the containing attachment. Forced reattachment recovery is unsupported. Direct shared-folder removal has a separate contract.
 
-- No-option detach n/add and y/rem with per-prim locks
+- No-option and named point detach n/add and y/rem with per-prim locks
+- Bare and point force removal, root and child UUID selection with lock and nostrip checks; point locks deny removal only
 - Explicit viewer detach attempt and queued force self-detach from root or child
 - Ignored detachme options, lock denial, attach events and llGetAttached state
 - Simulator detach remains independent of viewer locks
@@ -1047,16 +1058,95 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named locks, bare detach=force, bridge exemption settings and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.
+Support depth: enforced. Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named detach locks deny both adding and removing at the selected point. Bare, point and root UUID force detach respect locks, nostrip and bridge protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUID force removal, bridge exemption settings and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.
 
-- No-option detach n/add and y/rem with root and child issuer locks
+- No-option and named point detach n/add and y/rem with root and child issuer locks
+- Bare, point and root UUID force removal with lock, nostrip and bridge checks; point locks deny add and remove
 - Explicit viewer detach attempt and queued root force self-detach
 - Child self-detach no-op, rejected nonempty options, attach events and llGetAttached state
 - Simulator detach remains independent of viewer locks
 
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourHandler&lt;RLV_BHVR_DETACH&gt;::onCommand</code>, <code>RlvForceHandler&lt;RLV_BHVR_DETACHME&gt;::onCommand</code>, <code>LLVOAvatarSelf::detachAttachmentIntoInventory</code>, <code>RlvAttachmentLocks::canDetach</code>.
 
-Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts).
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts).
+
+### attachment-point-locks
+
+Forms: <code>@addattach[:&lt;point&gt;]=n&#124;y</code>, <code>@remattach[:&lt;point&gt;]=n&#124;y</code>, <code>@remattach[:&lt;point&#124;uuid&#124;shared-path&gt;]=force</code>.
+
+Comparison: shared. Global and named addattach/remattach locks deny adding/removing attachments at their points, including force actions and replacement. Every issuer contributes independently. Remattach force is a synonym of detach; recursive, multiple-folder and group force removal remain unsupported.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Global or canonical named point addattach/remattach rules constrain explicit user wear/removal and force actions. Root aliases Avatar Center. Replacement cannot remove locked occupants; add remains possible at a remove-locked point. Remattach force shares the detach contract, including child UUID resolution. Unknown point options retain unsupported wire state. User attach requires an explicit canonical point; simulator attachment remains separate.
+
+- Global and named point locks, root alias, independent issuers and clear
+- Explicit user attach/add/replace and detach; force wear and removal honor locks
+- Named, remembered and default force-wear points; remattach force alias
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::canAttachWithExplanation</code>, <code>RRInterface::canDetachWithExplanation</code>, <code>RRInterface::force</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Global or canonical named point addattach/remattach rules constrain explicit user wear/removal and force actions. Root aliases Avatar Center. Replacement cannot remove locked occupants; add remains possible at a remove-locked point. Remattach force shares the detach contract; child UUID removal remains unsupported. Invalid point lock options have no effect. User attach requires an explicit canonical point; simulator attachment remains separate.
+
+- Global and named point locks, root alias, independent issuers and clear
+- Explicit user attach/add/replace and detach; force wear and removal honor locks
+- Named, remembered and default force-wear points; remattach force alias
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourAddRemAttachHandler::onCommand</code>, <code>RlvForceRemAttachHandler::onCommand</code>, <code>RlvAttachmentLocks::canAttach</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts).
+
+### getaddattachnames
+
+Forms: <code>@getaddattachnames[:&lt;group&gt;]=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. RLVa returns canonical point names in attachment-ID order, with the same group filters as getattachnames. Kokua has no handler. Add names include points where add is permitted, even when replacement is blocked; removal names require at least one force-removable occupant.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No query handler; the command stays inspectably unsupported without a synthesized reply.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Comma-separated capitalized canonical point names follow attachment-ID order. Add names exclude add-locked points. Removal names require at least one occupant without detach/point locks, nostrip or bridge protection. No force-issuer exemption applies. Head, torso, arms, legs and hud filters use viewer groups; unknown options include every group. Empty results reply with empty text.
+
+- Available add or force-removable points with lock checks
+- Canonical capitalization, ordering, duplicate occupancy, empty replies and group filters
+- Explicit unsupported Kokua queries and RLVa getcommand discovery
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetAttachNames</code>, <code>RlvAttachmentLocks::canAttach</code>, <code>RlvForceWear::isForceDetachable</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts).
+
+### getremattachnames
+
+Forms: <code>@getremattachnames[:&lt;group&gt;]=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. RLVa returns canonical point names in attachment-ID order, with the same group filters as getattachnames. Kokua has no handler. Add names include points where add is permitted, even when replacement is blocked; removal names require at least one force-removable occupant.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No query handler; the command stays inspectably unsupported without a synthesized reply.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Comma-separated capitalized canonical point names follow attachment-ID order. Add names exclude add-locked points. Removal names require at least one occupant without detach/point locks, nostrip or bridge protection. No force-issuer exemption applies. Head, torso, arms, legs and hud filters use viewer groups; unknown options include every group. Empty results reply with empty text.
+
+- Available add or force-removable points with lock checks
+- Canonical capitalization, ordering, duplicate occupancy, empty replies and group filters
+- Explicit unsupported Kokua queries and RLVa getcommand discovery
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetAttachNames</code>, <code>RlvAttachmentLocks::canAttach</code>, <code>RlvForceWear::isForceDetachable</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts).
 
 ### seating
 
