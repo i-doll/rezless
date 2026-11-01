@@ -147,6 +147,7 @@ export function retainRlvAttachment(linkset: Linkset): void {
   const avatar = linkset.world?.avatars.find(candidate => candidate.key.toLowerCase() === attachment.avatar.toLowerCase())
   if (!avatar || avatar.viewer.profile === 'disabled') return
   const inventory = avatar.viewer.inventory
+  inventory.rememberDetachedObject(linkset)
   const item = inventory.attachmentItem(rootKey)
   if (item) {
     inventory.rememberAttachment(item.id, linkset)

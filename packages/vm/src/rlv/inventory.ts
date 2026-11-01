@@ -66,6 +66,7 @@ export class RlvInventory {
   private rootId: string | null = null
   private sharedWearEnabled = true
   private objects = new Map<string, Linkset>()
+  private detachedObjects = new Set<Linkset>()
   private forbidGive = false
   private receivedIds = 0
 
@@ -76,6 +77,11 @@ export class RlvInventory {
   get sharedWear(): boolean { return this.sharedWearEnabled }
   get forbidGiveToRlv(): boolean { return this.forbidGive }
   attachmentObject(itemId: string): Linkset | undefined { return this.objects.get(itemId) }
+
+  /** Keep detached fixtures available for a later item-to-root mapping. */
+  rememberDetachedObject(object: Linkset): void {
+    this.detachedObjects.add(object)
+  }
 
   /** Retain inventory identity and script state across viewer detach and wear. */
   rememberAttachment(itemId: string, object: Linkset): void {
@@ -196,7 +202,23 @@ export class RlvInventory {
       !(entry.object instanceof Linkset) || entry.object.dead || !entry.object.prims.length))) {
       throw new Error('Attachment definitions require a nonempty live object definition and object asset type.')
     }
-    this.objects.clear()
+    const objects = new Map<string, Linkset>()
+    const mappedRoots = new Map(attachments.map(entry => [entry.itemId, entry.rootKey]))
+    for (const [itemId, object] of this.objects) {
+      const rootKey = mappedRoots.get(itemId)
+      const rememberedRoot = object.prims[0]?.key.toLowerCase()
+      if (byId.get(itemId)?.kind === 'item' &&
+        (rootKey === undefined ? !roots.has(rememberedRoot ?? '') : rootKey === rememberedRoot)) {
+        objects.set(itemId, object)
+      }
+    }
+    const candidates = [...this.objects.values(), ...this.detachedObjects]
+    for (const mapping of attachments) {
+      const object = candidates.find(object => !object.dead && object.prims[0]?.key.toLowerCase() === mapping.rootKey)
+      if (object) objects.set(mapping.itemId, object)
+    }
+    this.objects = objects
+    this.detachedObjects.clear()
     this.sharedWearEnabled = config.sharedWear ?? true
     this.forbidGive = config.forbidGiveToRlv ?? false
     this.wearables = Object.freeze(wearables)
