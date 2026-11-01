@@ -15,7 +15,7 @@ import { findRlvFolders, getRlvWornPath } from './findfolder.js'
 import { getRlvOutfitNames, getRlvOutfitReply } from './outfit.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
-import { dispatchSeatingCommand, getRlvSitId } from './sit.js'
+import { dispatchStandtpRestrictionCommand, dispatchSeatingCommand, getRlvSitId } from './sit.js'
 import { getRlvAttachmentPoint, getRlvAttachmentReply } from './attachments.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
@@ -84,6 +84,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         parsed.behaviour === 'getstatus' ? prim.key : undefined)
     }
     if (parsed && query && parsed.behaviour === 'getsitid') text = getRlvSitId(avatar)
+    if (!malformed && parsed && dispatchStandtpRestrictionCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchTeleportCommand(linkset, prim, avatar, parsed, command)) continue
     if (!malformed && parsed && dispatchSeatingCommand(linkset, prim, avatar, parsed, command)) continue
     if (parsed && query && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva') {

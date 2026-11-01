@@ -260,6 +260,9 @@ export class Linkset {
   /** Remove the object and cancel all its scripts, including sleeping handlers. */
   remove(): void {
     if (this.dead) return
+    for (const avatar of this.world?.avatars ?? []) {
+      if (avatar.sittingOn?.linkset === this) this.world!.standAvatar(avatar)
+    }
     this.dead = true
     for (const script of this.allScripts()) {
       script.markDead()

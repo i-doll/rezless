@@ -968,15 +968,31 @@ operations produce normal `CHANGED_LINK` events; ground sitting adds no object l
 
 Object force sit obeys all no-option `sit` locks and, while already sitting, all
 `unsit` locks. RLVa force unsit and ground sit exempt only the issuing prim;
-Kokua force unsit exempts no emitter. Force commands retain these checks independently of user attempts. Standtp
-return teleport remains unsupported.
+Kokua force unsit exempts no emitter. Force commands retain these checks independently of user attempts.
+
+`standtp=n` returns the avatar after user stand, force unsit, `llUnSit`, or seat
+deletion. Viewer object-sit requests from standing save the global return origin.
+Kokua also saves the current position when a new rule is added, including while
+seated; duplicate adds leave it intact. RLVa does not capture an origin when the
+rule is added after sitting, and refuses object-sit requests while already seated
+under `standtp`. RLVa ignores a zero global origin; Kokua can return there.
+
+The return uses `World.teleportAvatar`, preserves facing, and sends the normal
+`CHANGED_TELEPORT` and applicable `CHANGED_REGION` events to worn scripts. Advance
+virtual time to complete it. A return already queued survives removal of the rule. Viewer session reset cancels
+pending returns and clears saved origins.
+Kokua returns only with direct parcel teleport routing, the default when no parcel
+fixture is supplied. RLVa returns regardless of that setting. Return travel
+bypasses `unsit`, `sittp`, `tploc`, `tplocal`, and `tplm`; these locks still govern
+ordinary actions, including whether user stand or force unsit is accepted.
+Login persistence and Kokua's optional standtp defeat setting are outside the fixture.
 
 Inspect `avatar.viewer.commandLog` records with `status: 'action'`: `action`,
 `actionOutcome` (`applied`, `unchanged`, or `refused`), requested `target`, resulting
 `seat`, and an optional refusal `reason`. These are synchronous fixture outcomes,
 not confirmations from a network simulator. Unsupported forms retain diagnostics.
 The manifest includes `getsitid`, force `sit`/`unsit`, and add/remove
-`sit`/`unsit`/`sittp` forms in command discovery.
+`sit`/`unsit`/`sittp`/`standtp` forms in command discovery.
 
 ### Command discovery and shared folder queries
 
