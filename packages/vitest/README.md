@@ -1140,8 +1140,8 @@ children retain their own scores. Kokua retains its no-mod sentinel scoring for
 the same fixture. Missing paths and absent shared roots send
 empty replies. Both queries participate in RLVa `getcommand` discovery.
 
-These fixtures do not perform wear/removal, automatic bodypart replacement,
-baking or rendering. Inventory links and gestures are outside the covered forms.
+These queries do not perform wear/removal, baking or rendering. Item links count
+target occupancy; gestures and folder-link occupancy are outside their covered forms.
 `getpath` and `getpathnew` also query the folders of worn items on each layer.
 
 ### Viewer sessions
@@ -1325,8 +1325,7 @@ unlocked ones. Point and folder locks also constrain these actions.
 Each command record exposes `wearResults` with item IDs, resolved points and
 attached, already-worn, blocked, skipped or unsupported outcomes. Unsupported
 contents or missing definitions do not prevent supported items from wearing.
-Inventory links and
-asset fetching remain unsupported.
+Item links use `linkTargetId` as described below. Asset fetching remains unsupported.
 
 ### Blacklist fixtures
 
@@ -1981,7 +1980,31 @@ clothing during this fallback; RLVa automatically replaces it. If no slot can be
 Folder options select one path. Kokua strips a pipe annotation from each path
 component, so `Base|33/Child|30` selects `Base/Child`. RLVa resolves the literal
 option. Neither profile interprets pipes or semicolons as multiple folder paths.
-Inventory links, gestures and environment settings remain outside these force-wear fixtures.
+Gestures and environment settings remain outside these force-wear fixtures.
+
+Direct `attach`, `attachover` and `attachoverorreplace` also wear clothing.
+Both profiles replace shape, skin, hair and eyes in their single slots, even
+for add forms, subject to layer locks. Removal leaves these bodyparts worn.
+
+Seed an item link with `{ id, parentId, name, kind: 'item', linkTargetId }`.
+The target supplies the type, name, permissions and object definition. Worn
+wearable IDs and attachment mappings use the target ID; per-item command results
+use the selected link ID. Duplicate links do not duplicate worn occupancy.
+Broken targets and links to links stay inspectably unsupported.
+
+Kokua clothing force wear checks the target folder; linked object additions
+check the link folder. RLVa add checks use the link folder. RLVa attachment
+points prefer the target's item/folder point and then the link's containing
+folder; the link alias never supplies a point. Folder occupancy replies count
+item links using target occupancy. Layer, attachment, folder and shared-wear
+locks remain effective. RLVa removal checks the target folder and all shared
+item-link folders, so another locked link can protect the same worn target.
+
+RLVa follows a folder link for one target level, including eligible folded
+children. Ordinary target descendants, further folder links, hidden targets,
+`outfitFolder: true` categories and targets within the selected subtree are
+excluded. Kokua keeps folder links inspectably unsupported. Folder-link
+occupancy queries and live inventory fetching remain outside this fixture.
 
 `attachthis` and its `over`, `overorreplace` and recursive `attachallthis` forms
 select shared folders from the issuing attachment, a named attachment point,
@@ -2055,9 +2078,9 @@ lock grants access to the shared subtree: an earlier grant suppresses later
 shared denials from the same issuer, while another issuer's denial still blocks.
 Kokua RLV 2.09.35.00 checks shared and unshared locks independently using the
 actual parent folder. Remove aliases and clear affect subsequent actions without
-changing previous inventory snapshots. Inventory links, recently received-item
-exemptions, startup appearance recovery and forced inventory actions are outside
-this user-action contract.
+changing previous inventory snapshots. Item-link clothing actions use the same
+locks; force actions follow the folder-wear contract. Recently received-item
+exemptions and startup appearance recovery are outside this contract.
 
 ### Forced location landing
 

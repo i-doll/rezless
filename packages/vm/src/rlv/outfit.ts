@@ -1,3 +1,4 @@
+import type { RlvRestriction } from './restrictions.js'
 import type { Linkset } from '../linkset.js'
 import { RLV_ATTACHMENT_POINTS } from './attachments.js'
 import { isRlvFolderWearLocked, getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventory, type RlvInventoryEntry } from './inventory.js'
@@ -31,10 +32,10 @@ export function getRlvOutfitReply(profile: RlvProfile, inventory: RlvInventory, 
   for (const mapping of mappings) if (liveRoots.has(mapping.rootKey)) worn.add(mapping.itemId)
   const isObject = (entry: RlvInventoryEntry) => entry.assetType === 'object' || objects.has(entry.id)
   const children = (parentId: string) => entries.filter(entry => entry.kind === 'folder' && entry.parentId === parentId)
-  const items = (parentId: string) => entries.filter(entry => entry.kind === 'item' && entry.parentId === parentId)
+  const items = (parentId: string) => entries.filter(entry => entry.kind === 'item' && entry.parentId === parentId).map(entry => inventory.effectiveItem(entry))
   const counts = (values: readonly RlvInventoryEntry[]): Counts => {
     const wearable = values.filter(entry => entry.wearableType !== undefined || isObject(entry))
-    return { total: wearable.length, worn: wearable.filter(entry => worn.has(entry.id)).length }
+    return { total: wearable.length, worn: wearable.filter(entry => worn.has(inventory.resolveItem(entry)?.id ?? entry.id)).length }
   }
 
   if (profile === 'rlv') {
@@ -117,7 +118,10 @@ export function isRlvStrippable(profile: RlvProfile, inventory: RlvInventory, en
   folderRemoval = false): boolean {
   const entries = inventory.snapshot()
   const protectedName = (name: string) => (profile === 'rlv' ? name.toLowerCase() : name).includes('nostrip')
-  if ((profile === 'rlva' || folderRemoval) && protectedName(entry.name)) return false
+  if (entry.linkTargetId && (profile === 'rlva' || folderRemoval)) {
+    const target = inventory.resolveItem(entry)
+    if (target && !isRlvStrippable(profile, inventory, target, folderRemoval)) return false
+  } else if ((profile === 'rlva' || folderRemoval) && protectedName(entry.name)) return false
   let parent = entries.find(folder => folder.id === entry.parentId)
   while (parent) {
     if (protectedName(parent.name)) return false
@@ -134,10 +138,23 @@ export function sharedWearSupport(profile: ViewerProfile, behaviour: string, opt
 }
 
 /** User inventory actions classify the actual item's containing folder. */
-export function isRlvInventoryWearLocked(avatar: WorldAvatar, entry: RlvInventoryEntry | undefined, wear: boolean): boolean {
+export function isRlvInventoryWearLocked(avatar: WorldAvatar, entry: RlvInventoryEntry | undefined, wear: boolean,
+  rules: readonly RlvRestriction[] = avatar.viewer.restrictions.snapshot()): boolean {
   const viewer = avatar.viewer
   if (viewer.profile === 'disabled' || !entry) return false
-  if (isRlvFolderWearLocked(avatar, entry, wear)) return true
+  if (!wear && viewer.profile === 'rlva') {
+    const target = viewer.inventory.resolveItem(entry)
+    const links = viewer.inventory.snapshot().filter(link => link.linkTargetId === target?.id &&
+      viewer.inventory.sharedPath(link.parentId) !== undefined)
+    if ([...(target ? [target] : []), ...links].some(item => inventoryWearLocked(avatar, item, false, rules))) return true
+  }
+  return inventoryWearLocked(avatar, entry, wear, rules)
+}
+
+function inventoryWearLocked(avatar: WorldAvatar, entry: RlvInventoryEntry, wear: boolean,
+  rules: readonly RlvRestriction[]): boolean {
+  const viewer = avatar.viewer
+  if (isRlvFolderWearLocked(avatar, entry, wear, rules)) return true
   const inventory = viewer.inventory
   const entries = inventory.snapshot()
   let parent = entries.find(folder => folder.id === entry.parentId)
@@ -148,7 +165,7 @@ export function isRlvInventoryWearLocked(avatar: WorldAvatar, entry: RlvInventor
   const shared = inventory.sharedPath(parent.id) !== undefined
   const behaviour = wear ? 'sharedwear' : 'sharedunwear'
   const allowedIssuers = new Set<string>()
-  for (const rule of viewer.restrictions.snapshot()) {
+  for (const rule of rules) {
     if (rule.option) continue
     if (!shared && rule.behaviour === 'un' + behaviour) return true
     if (!shared) continue
@@ -165,12 +182,14 @@ export type RlvWearableActionOutcome = 'allowed' | 'blocked' | 'no-op'
 export function attemptRlvWearable(avatar: import('../world.js').WorldAvatar, itemId: string,
   wear: boolean): RlvWearableActionOutcome {
   const viewer = avatar.viewer
-  const entry = viewer.inventory.snapshot().find(entry => entry.id === itemId)
-  if (!entry?.wearableType || isRlvBodypart(entry) || viewer.inventory.wornWearables().includes(itemId) === wear) return 'no-op'
+  const source = viewer.inventory.snapshot().find(entry => entry.id === itemId)
+  const target = viewer.inventory.resolveItem(source)
+  const entry = viewer.profile === 'rlva' && source ? viewer.inventory.effectiveItem(source) : target
+  if (!target || !entry?.wearableType || isRlvBodypart(entry) || viewer.inventory.wornWearables().includes(target.id) === wear) return 'no-op'
   if (isRlvInventoryWearLocked(avatar, entry, wear)) return 'blocked'
   if (viewer.profile !== 'disabled' && viewer.restrictions.snapshot().some(rule =>
     rule.behaviour === (wear ? 'addoutfit' : 'remoutfit') && (!rule.option || rule.option === entry.wearableType))) return 'blocked'
-  viewer.inventory.setWearableWorn(itemId, wear)
+  viewer.inventory.setWearableWorn(target.id, wear)
   return 'allowed'
 }
 

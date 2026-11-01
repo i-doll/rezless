@@ -23,6 +23,10 @@ export interface RlvInventoryEntry {
   readonly kind: 'folder' | 'item'
   /** Effective folded-folder state for the RLVa profile, including legacy naming. */
   readonly folded?: boolean
+  /** Outfit categories cannot be traversed through RLVa folder links. */
+  readonly outfitFolder?: boolean
+  /** Inventory link target. Broken links and links to links have no effective item. */
+  readonly linkTargetId?: string
   /** Wearable layer for clothing and bodyparts. No bodyparts are fabricated. */
   readonly wearableType?: RlvWearableType
   /** Explicit object type permits unworn attachments to count in folder queries. */
@@ -75,6 +79,7 @@ export class RlvInventory {
 
   /** Retain inventory identity and script state across viewer detach and wear. */
   rememberAttachment(itemId: string, object: Linkset): void {
+    itemId = this.resolveItem(this.entries.find(entry => entry.id === itemId))?.id ?? itemId
     this.objects.set(itemId, object)
     const rootKey = object.prims[0]!.key.toLowerCase()
     this.attachments = Object.freeze([...this.attachments.filter(entry => entry.itemId !== itemId && entry.rootKey !== rootKey),
@@ -107,9 +112,25 @@ export class RlvInventory {
     return id
   }
 
+  /** Resolve one item link; viewers do not follow links to links. */
+  resolveItem(entry: RlvInventoryEntry | undefined): RlvInventoryEntry | undefined {
+    if (!entry) return undefined
+    if (!entry.linkTargetId) return entry.kind === 'item' ? entry : undefined
+    const target = this.entries.find(item => item.id === entry.linkTargetId)
+    return target?.kind === 'item' && !target.linkTargetId ? target : undefined
+  }
+
+  /** Keep the link's folder and ID while exposing its target's wearable metadata. */
+  effectiveItem(entry: RlvInventoryEntry): RlvInventoryEntry {
+    const target = this.resolveItem(entry)
+    return target && target !== entry ? { ...target, id: entry.id, parentId: entry.parentId, linkTargetId: entry.linkTargetId! } : entry
+  }
+
   /** Change one existing wearable without replacing inventory or attachment state. */
   setWearableWorn(itemId: string, worn: boolean): void {
-    if (!this.entries.some(entry => entry.id === itemId && entry.wearableType)) return
+    const target = this.resolveItem(this.entries.find(entry => entry.id === itemId))
+    if (!target?.wearableType) return
+    itemId = target.id
     this.wearables = Object.freeze(worn ? [...this.wearables.filter(id => id !== itemId), itemId]
       : this.wearables.filter(id => id !== itemId))
   }
@@ -163,6 +184,10 @@ export class RlvInventory {
       entries.some(entry => entry.assetType !== undefined && (entry.kind !== 'item' || entry.assetType !== 'object')) ||
       new Set(wearables).size !== wearables.length || wearables.some(id => !byId.get(id)?.wearableType)) {
       throw new Error('Worn wearables require unique existing wearable item IDs and valid layers.')
+    }
+    if (entries.some(entry => entry.linkTargetId !== undefined && (entry.kind !== 'item' || !entry.linkTargetId ||
+      entry.wearableType !== undefined || entry.assetType !== undefined || entry.object !== undefined))) {
+      throw new Error('Inventory links require an item with a target ID and no independent wearable definition.')
     }
     if (entries.some(entry => entry.object !== undefined && (entry.assetType !== 'object' ||
       !(entry.object instanceof Linkset) || entry.object.dead || !entry.object.prims.length))) {
@@ -245,9 +270,11 @@ export function collectRlvWearItems(profile: RlvProfile, inventory: RlvInventory
   const entries = inventory.snapshot()
   const result = new Map<string, RlvCollectedWearItem>()
   const visited = new Set<string>()
-  const items = (id: string) => entries.filter(e => e.kind === 'item' && e.parentId === id)
+  const folderLink = (e: RlvInventoryEntry) => !!e.linkTargetId && entries.some(target => target.id === e.linkTargetId && target.kind === 'folder')
+  const items = (id: string) => entries.filter(e => e.kind === 'item' && e.parentId === id).map(e => inventory.effectiveItem(e))
   const object = (e: RlvInventoryEntry) => e.assetType === 'object' || inventory.attachmentMappings().some(m => m.itemId === e.id)
   const add = (entry: RlvInventoryEntry, folder: RlvInventoryEntry, pointFolder?: RlvInventoryEntry) => {
+    if (profile === 'rlva' && folderLink(entry)) return
     if (!result.has(entry.id)) result.set(entry.id, { entry, folder, ...(pointFolder ? { pointFolder } : {}) })
   }
   const visit = (folder: RlvInventoryEntry) => {
@@ -277,6 +304,29 @@ export function collectRlvWearItems(profile: RlvProfile, inventory: RlvInventory
   }
   const folder = entries.find(e => e.id === folderId && e.kind === 'folder')
   if (folder) visit(folder)
+  if (profile === 'rlva' && folder) {
+    const descendant = (id: string | null): boolean => {
+      while (id) {
+        if (id === folderId) return true
+        id = entries.find(e => e.id === id)?.parentId ?? null
+      }
+      return false
+    }
+    // Folder links contribute one target level, including its folded children.
+    // A target inside the selected subtree or an outfit category is excluded.
+    for (const link of entries.filter(e => folderLink(e) && descendant(e.parentId))) {
+      const target = entries.find(e => e.id === link.linkTargetId)!
+      if (target.outfitFolder || !target.name || target.name.startsWith('.') || descendant(target.id)) continue
+      const actionFolder = { ...target, parentId: null }
+      for (const child of entries.filter(e => e.kind === 'folder' && e.parentId === target.id && e.folded)) {
+        const contents = items(child.id)
+        if (removing || contents.filter(object).length === 1) {
+          for (const entry of contents.filter(e => object(e) || !removing && e.wearableType)) add(entry, actionFolder)
+        }
+      }
+      for (const entry of items(target.id)) add(entry, actionFolder)
+    }
+  }
   return [...result.values()]
 }
 
@@ -359,6 +409,21 @@ export function folderLockSupport(profile: ViewerProfile, behaviour: string, opt
 
 /** Node/subtree denials and issuer-local exceptions constrain inventory actions. */
 export function isRlvFolderWearLocked(subject: WorldAvatar | ViewerState, entry: RlvInventoryEntry | undefined, wear: boolean,
+  rules?: readonly RlvRestriction[]): boolean {
+  const viewer = 'viewer' in subject ? subject.viewer : subject
+  if (!entry) return false
+  const inventory = viewer.inventory
+  const effective = inventory.effectiveItem(entry)
+  if (folderWearLocked(subject, effective, wear, rules)) return true
+  if (wear) return false
+  const target = inventory.resolveItem(entry)
+  if (target && target !== entry && folderWearLocked(subject, target, false, rules)) return true
+  if (viewer.profile !== 'rlva') return false
+  return !!target && inventory.snapshot().some(link => link.linkTargetId === target.id &&
+    inventory.sharedPath(link.parentId) !== undefined && folderWearLocked(subject, inventory.effectiveItem(link), false, rules))
+}
+
+function folderWearLocked(subject: WorldAvatar | ViewerState, entry: RlvInventoryEntry, wear: boolean,
   rules?: readonly RlvRestriction[]): boolean {
   const viewer = 'viewer' in subject ? subject.viewer : subject
   const context = folderPolicyContexts.get(viewer)
