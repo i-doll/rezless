@@ -81,7 +81,7 @@ export function dispatchDetachCommand(linkset: Linkset, prim: Prim, avatar: Worl
   else if (isRlvDetachLocked(avatar, linkset)) outcome = 'blocked'
   else {
     // Keep simulator completion outside the owner-say handler, as for LSL detach.
-    linkset.clock.scheduleTask(linkset, linkset.clock.now, () => linkset.detachFromAvatar())
+    viewer.deliver(() => linkset.clock.scheduleTask(linkset, linkset.clock.now, () => linkset.detachFromAvatar()))
     outcome = 'allowed'
   }
   viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'enforced', outcome })

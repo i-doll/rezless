@@ -1253,7 +1253,7 @@ message on the requested channel, with the avatar as speaker, without separators
 or an added folder prefix.
 
 `hold()` queues replies and forced inventory actions, including folder wear and
-removal. `release(count)` accepts a nonnegative safe integer and schedules at most
+removal and `detachme`. `release(count)` accepts a nonnegative safe integer and schedules at most
 that many deliveries in send order; zero does nothing, and an oversized count
 drains the queue while continuing to hold new work. With no count, `release()`
 drains it and resumes automatic delivery. Released work runs on the scheduler,

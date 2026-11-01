@@ -178,4 +178,24 @@ describe('opt-in viewer controls', () => {
   }
  })
 
+
+ it('holds forced self-detach behind earlier work and preserves issuer-removal handling', async () => {
+  for (const f of Object.values(await fixtures())) {
+   f.script.linkset.attachToAvatar(f.avatar.key, 1)
+   f.avatar.viewer.hold()
+   send(f, '@attachover:wear=force,detachme=force')
+   send(f, 'remove')
+   expect(f.script.linkset.attachment?.point).toBe(1)
+   f.avatar.viewer.release(1)
+   f.script.linkset.advanceTime(0)
+   expect(worn(f)).toBe(2)
+   expect(f.script.linkset.attachment?.point).toBe(1)
+   f.avatar.viewer.release()
+   expect(f.script.linkset.attachment?.point).toBe(1)
+   f.script.linkset.advanceTime(0)
+   expect(f.script.linkset.attachment).toBeNull()
+   expect(worn(f)).toBe(1)
+  }
+ })
+
 })
