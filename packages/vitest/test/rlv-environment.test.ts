@@ -207,3 +207,54 @@ it('formats small and large numbers, keeps snapshots immutable and separates ava
     expect(other.viewer.environment.sky.starbrightness).toBe(250)
   }
 })
+
+it('retains Kokua lock notifications around own force commands and restores atmosphere shaders', async () => {
+  const pair = await loadRlvPair({ viewer: { debugSettings: { windLightUseAtmosShaders: false } }, source: `list replies; default {
+    state_entry() { llListen(29701,"",llGetOwner(),"");
+      llOwnerSay("@notify:29701;setenv=n,setenv=n,setenv_starbrightness:0.5=force"); }
+    listen(integer c,string n,key id,string message) { replies += [message]; }
+  }` })
+  for (const f of Object.values(pair)) f.script.start()
+  expect(pair.rlv.script.global('replies')).toEqual(['/setenv=n', '/setenv=y', '/setenv=n'])
+  expect(pair.rlva.script.global('replies')).toEqual(['/notify:29701;setenv=n', '/setenv=n'])
+  expect(pair.rlv.avatar.viewer.debugSettings.windLightUseAtmosShaders).toBe(true)
+  expect(pair.rlva.avatar.viewer.debugSettings.windLightUseAtmosShaders).toBe(false)
+})
+
+it('keeps Kokua no-set-env separate from the RLVa disabled-lock setting', async () => {
+  const pair = await loadRlvPair({ source, viewer: { debugSettings: { noSetEnv: true }, rlvaNoSetEnv: true } })
+  for (const [profile, f] of Object.entries(pair)) {
+    f.script.start()
+    send(f, '@setenv=n,setenv_starbrightness:0.5=force')
+    expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
+    expect(Number(reply(f, 'starbrightness'))).toBe(profile === 'rlv' ? 250 : 0.5)
+    send(f, '@setenv=y')
+    expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
+  }
+})
+
+it('reads canonical angles after a legacy elevation crosses the zenith', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const [profile, f] of Object.entries(pair)) {
+    f.script.start()
+    send(f, '@setenv_eastangle:0.125=force,setenv_sunmoonposition:0.375=force')
+    expect(Number(reply(f, 'sunazimuth'))).toBeCloseTo(3 * Math.PI / 4, 5)
+    expect(Number(reply(f, 'sunelevation'))).toBeCloseTo(Math.PI / 4, 5)
+    if (profile === 'rlv') {
+      send(f, '@setenv_sunazimuth:1=force')
+      expect(Number(reply(f, 'sunazimuth'))).toBeCloseTo(1, 5)
+      send(f, '@setenv_sunelevation:0.25=force')
+      expect(Number(reply(f, 'sunazimuth'))).toBeCloseTo(1, 5)
+      expect(Number(reply(f, 'sunelevation'))).toBeCloseTo(0.25, 5)
+    }
+  }
+})
+
+it('looks up fractional daycycle samples using single-precision input times', async () => {
+  const pair = await loadRlvPair({ source, viewer: { environment: { daytimeSkies: { '0.1': { starbrightness: 8 } } } } })
+  for (const [profile, f] of Object.entries(pair)) {
+    f.script.start()
+    send(f, '@setenv_daytime:0.1=force')
+    expect(Number(reply(f, 'starbrightness'))).toBe(profile === 'rlv' ? 250 : 8)
+  }
+})

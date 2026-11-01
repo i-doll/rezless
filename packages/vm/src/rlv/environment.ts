@@ -1,3 +1,5 @@
+import { dispatchRestrictionCommand } from './restrictions.js'
+import { sendRestrictionNotifications } from './notify.js'
 import { scalarNames, vectorNames, textures, legacy, kokuaAliases, environmentNames as names } from './environment-forms.js'
 import type { ViewerProfile } from './profiles.js'
 import type { RlvParsedCommand } from './classifier.js'
@@ -89,10 +91,15 @@ export class RlvEnvironment {
       const { base, component } = this.resolve(name)
       value = this.read(base)
       if (component !== undefined) value = component === 3 ? Math.max(...value as number[]) : (value as number[])[component]!
-      if (this.profile === 'rlva' && /(?:azimuth|elevation)$/.test(base)) {
+      if (/(?:azimuth|elevation)$/.test(base)) {
         const body = base.startsWith('sun') ? 'sun' : 'moon'
-        const [azimuth, elevation] = this.directionAngles(body)
-        value = base.endsWith('azimuth') ? azimuth : elevation
+        if (this.profile === 'rlva') {
+          const [azimuth, elevation] = this.directionAngles(body)
+          value = base.endsWith('azimuth') ? azimuth : elevation
+        } else {
+          const a = this.values[body + 'azimuth'] as number, e = this.values[body + 'elevation'] as number
+          value = base.endsWith('azimuth') ? Math.atan2(Math.sin(a) * Math.cos(e), Math.cos(a) * Math.cos(e)) : Math.asin(Math.sin(e))
+        }
       }
     }
     return typeof value === 'string' ? value : Array.isArray(value) ? value.map(v => this.format(v)).join(this.profile === 'rlv' ? ';' : '/') : this.format(value as number)
@@ -151,7 +158,7 @@ export class RlvEnvironment {
     if (name === 'daytime') {
       if (scalar === undefined || this.profile === 'rlva' && (scalar < 0 || scalar > 1)) return false
       if (this.profile === 'rlva') {
-        const sky = this.config.daytimeSkies?.[String(scalar)]
+        const sky = Object.entries(this.config.daytimeSkies ?? {}).find(([time]) => Math.fround(Number(time)) === scalar)?.[1]
         if (sky) { this.values = { ...defaultSky(), ...copySky(sky) }; this.fixed = true }
       } else { this.fixed = true; this.selectedPreset = '' }
       return true
@@ -191,8 +198,17 @@ export class RlvEnvironment {
     } else {
       if (scalar === undefined) return false
       let value = scalar
-      if (/elevation$/.test(base)) value = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, value))
-      if (/azimuth$/.test(base)) value -= Math.PI * 2 * Math.floor((value + Math.PI) / (Math.PI * 2))
+      if (/elevation$/.test(base)) {
+        value = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, value))
+        if (this.profile === 'rlv') {
+          const key = base.replace('elevation', 'azimuth'), a = this.values[key] as number, e = this.values[base] as number
+          this.values[key] = Math.atan2(Math.sin(a) * Math.cos(e), Math.cos(a) * Math.cos(e))
+        }
+      }
+      if (/azimuth$/.test(base)) {
+        value -= Math.PI * 2 * Math.floor((value + Math.PI) / (Math.PI * 2))
+        if (this.profile === 'rlv' && Math.cos(this.values[base.replace('azimuth', 'elevation')] as number) < 0) value -= Math.PI
+      }
       if (base === 'scenegamma' && this.profile === 'rlv') {
         value = Math.min(value, 20)
         value = value <= 0 ? 0.25 : value < 1 ? 0.5 + value * 0.5 : value < 5 ? 1 + (value - 1) * 0.25 : 2 + (value - 5) * 0.06
@@ -224,6 +240,15 @@ function parseVector(text: string, count: number, permissive: boolean): number[]
 
 export function dispatchEnvironmentCommand(avatar: WorldAvatar, prim: Prim, parsed: RlvParsedCommand, command: string): boolean {
   const { viewer } = avatar
+  if (viewer.profile === 'rlv' && parsed.behaviour === 'setenv' && !parsed.option && (parsed.kind === 'add' || parsed.kind === 'remove')) {
+    if (parsed.kind === 'add' && viewer.debugSettings.noSetEnv) {
+      sendRestrictionNotifications(prim, avatar, viewer.restrictions.snapshot(), 'setenv', '=n')
+      viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'ignored', outcome: 'failed-disabled' })
+      return true
+    }
+    if (parsed.kind === 'add') viewer.debugSettings.windLightUseAtmosShaders = true
+    return dispatchRestrictionCommand(viewer, prim, parsed, command)
+  }
   if (!/^(setenv_|getenv_)/.test(parsed.behaviour) || viewer.profile === 'disabled') return false
   const get = parsed.behaviour.startsWith('getenv_'), name = parsed.behaviour.slice(7)
   if (get) {
@@ -238,10 +263,21 @@ export function dispatchEnvironmentCommand(avatar: WorldAvatar, prim: Prim, pars
   if (parsed.kind !== 'force') return false
   const supported = names(viewer.profile).includes(name) || ['asset', 'preset'].includes(name) || name === (viewer.profile === 'rlv' ? 'reset' : 'daycycle')
   if (!supported) return false
-  if (viewer.restrictions.snapshot().some(r => r.behaviour === 'setenv' && !r.option && r.sourcePrim !== prim.key)) {
+  if (viewer.profile === 'rlv' && viewer.debugSettings.noSetEnv) {
+    viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'ignored', outcome: 'failed-disabled' }); return true
+  }
+  const locks = viewer.restrictions.snapshot().filter(r => r.behaviour === 'setenv' && !r.option)
+  const ownKokuaLock = viewer.profile === 'rlv' && locks.some(r => r.sourcePrim === prim.key)
+  if (ownKokuaLock) viewer.restrictions.apply(prim, { behaviour: 'setenv', option: '', parameter: 'y', kind: 'remove' })
+  const blocked = locks.some(r => r.sourcePrim !== prim.key)
+  const applied = !blocked && viewer.environment.set(name, parsed.option)
+  if (ownKokuaLock) {
+    viewer.restrictions.apply(prim, { behaviour: 'setenv', option: '', parameter: 'n', kind: 'add' })
+    viewer.debugSettings.windLightUseAtmosShaders = true
+  }
+  if (blocked) {
     viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', outcome: 'failed-lock' }); return true
   }
-  const applied = viewer.environment.set(name, parsed.option)
   viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: applied ? 'applied' : 'unsupported', ...(applied ? {} : { outcome: 'invalid-option' as const }) })
   return true
 }
