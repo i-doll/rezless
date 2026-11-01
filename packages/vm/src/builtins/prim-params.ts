@@ -53,6 +53,12 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
   }
 }
 
+function resolveGetTargets(linkset: Linkset, caller: Prim, link: number): Prim[] {
+  // Link 0 aliases the root when read from a child, but is empty from a linked root.
+  const target = link === 0 && caller.linkNumber > 1 ? 1 : link
+  return linkset.resolveTargets(caller.linkNumber, target)
+}
+
 function walkGet(
   linkset: Linkset,
   caller: Prim,
@@ -68,7 +74,7 @@ function walkGet(
     if (typeof rule !== 'number') break
     if (rule === PRIM_LINK_TARGET) {
       const link = (rules[i + 1] as number) | 0
-      cur = linkset.resolveTargets(caller.linkNumber, link)
+      cur = resolveGetTargets(linkset, caller, link)
       i += 2
       continue
     }
@@ -142,6 +148,6 @@ export const llGetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return []
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  const target = ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
+  const target = resolveGetTargets(ctx.linkset, ctx.prim, link)
   return walkGet(ctx.linkset, ctx.prim, target, rules)
 }

@@ -14,6 +14,9 @@ import {
   MASK_GROUP,
   MASK_EVERYONE,
   MASK_NEXT,
+  PERM_COPY,
+  PERM_MODIFY,
+  PERM_TRANSFER,
 } from '../generated/constants.js'
 
 function itemsOfType(items: ReadonlyArray<InventoryItem>, type: number): InventoryItem[] {
@@ -72,10 +75,13 @@ export const llGetInventoryType: BuiltinImpl = (ctx, args) => {
   return find(ctx.prim.inventory, name)?.type ?? INVENTORY_NONE
 }
 
-/** llGetInventoryKey(string name) — asset key, or NULL_KEY. */
+/** llGetInventoryKey(string name) — asset key for a full-permission item, or NULL_KEY. */
 export const llGetInventoryKey: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
-  return find(ctx.prim.inventory, name)?.key ?? NULL_KEY
+  const item = find(ctx.prim.inventory, name)
+  const fullPerms = PERM_COPY | PERM_MODIFY | PERM_TRANSFER
+  if (!item || (item.permMask.owner & fullPerms) !== fullPerms) return NULL_KEY
+  return item.key
 }
 
 /** llGetInventoryCreator(string name) — creator key, or NULL_KEY and an error for a missing item. */
