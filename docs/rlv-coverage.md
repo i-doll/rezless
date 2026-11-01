@@ -167,6 +167,10 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [touch](#touch) | Firestorm RLVa 2.4.2 | <code>@touchhud[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touch.test.ts](../packages/vitest/test/rlv-touch.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [touch](#touch) | Firestorm RLVa 2.4.2 | <code>@touchall=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touch.test.ts](../packages/vitest/test/rlv-touch.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [touch](#touch) | Firestorm RLVa 2.4.2 | <code>@touchattachself=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touch.test.ts](../packages/vitest/test/rlv-touch.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [touch-exceptions](#touch-exceptions) | Kokua RLV 2.09.35.00 | <code>@touchme=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touchexcept.test.ts](../packages/vitest/test/rlv-touchexcept.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [touch-exceptions](#touch-exceptions) | Kokua RLV 2.09.35.00 | <code>@touchthis[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touchexcept.test.ts](../packages/vitest/test/rlv-touchexcept.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [touch-exceptions](#touch-exceptions) | Firestorm RLVa 2.4.2 | <code>@touchme=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touchexcept.test.ts](../packages/vitest/test/rlv-touchexcept.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [touch-exceptions](#touch-exceptions) | Firestorm RLVa 2.4.2 | <code>@touchthis[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touchexcept.test.ts](../packages/vitest/test/rlv-touchexcept.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [attachment-point-locks](#attachment-point-locks) | Kokua RLV 2.09.35.00 | <code>@addattach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
 | [attachment-point-locks](#attachment-point-locks) | Kokua RLV 2.09.35.00 | <code>@remattach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
 | [attachment-point-locks](#attachment-point-locks) | Kokua RLV 2.09.35.00 | <code>@remattach[:&lt;option&gt;]=force</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts) |
@@ -1237,6 +1241,34 @@ Support depth: enforced. Avatar touches deliver ordinary touch events only when 
 Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canTouch</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touch.test.ts](../packages/vitest/test/rlv-touch.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts).
+
+### touch-exceptions
+
+Forms: <code>@touchme=n&#124;add&#124;y&#124;rem</code>, <code>@touchthis:&lt;root-uuid&gt;=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. touchme overrides every touch restriction for its issuing object. Kokua requires the root issuer; RLVa accepts any prim in the target linkset. touchthis denies an entire root UUID linkset, including HUDs. Other touch exceptions and permissive mode do not override targeted denials.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. No-option touchme on the target root permits every prim in that linkset despite touchall, world, HUD, attachment, distance and touchthis locks from any issuer. A child issuer does not grant access. touchthis with a root UUID denies the entire linkset; a child UUID does not. Bare touchthis, malformed UUID options, touchme options and secure variants have unsupported effects. Removing or clearing grants and locks updates subsequent touch actions.
+
+- Root-issued touchme override across all touch restrictions
+- Root UUID touchthis denials on world objects, attachments and HUDs
+- Add/remove aliases, clear, multiple issuers and unsupported forms
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::canTouch</code>, <code>RRInterface::isAllowed</code>, <code>RRInterface::contains</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option touchme from any prim in the target linkset overrides every touch restriction, including targeted touchthis denials from other issuers. touchthis requires a UUID and denies the root linkset, including HUDs; child UUIDs do not target their parent. World and attachment exceptions and permissive mode do not override it. Bare touchthis, malformed UUID options, touchme options and secure variants remain unsupported. Removing or clearing grants and locks updates subsequent touch actions.
+
+- Linkset-wide touchme override from root or child issuer
+- Root UUID touchthis denials on world objects, attachments and HUDs
+- Add/remove aliases, clear, multiple issuers and getcommand discovery
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canTouch</code>, <code>RlvHandler::hasBehaviourRoot</code>, <code>RlvBehaviourGenericHandler&lt;RLV_OPTION_EXCEPTION&gt;</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touchexcept.test.ts](../packages/vitest/test/rlv-touchexcept.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts).
 
 ### attachment-point-locks
 
