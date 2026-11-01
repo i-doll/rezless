@@ -10,10 +10,15 @@ import { isAgentInRegion } from './viewer.js'
 const sameKey = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const isHUD = (point: number) => point >= 31 && point <= 38
 
+function localAgent(ctx: CallContext, key: string): boolean {
+  return isAgentInRegion(ctx, key) && (!ctx.linkset.world ||
+    ctx.linkset.world.avatars.some(a => sameKey(a.key, key) && a.region === ctx.linkset.region))
+}
+
 function attach(ctx: CallContext, point: number, temporary: boolean): void {
   const { agent, granted } = ctx.state.permissions
   // In-world, the missing permission agent is diagnosed before permission bits.
-  if (!isAgentInRegion(ctx, agent)) {
+  if (!localAgent(ctx, agent)) {
     sayError(ctx, 'Cannot find the agent to attach to.')
     return
   }
@@ -54,7 +59,7 @@ export const llGetAttached: BuiltinImpl = ctx => ctx.linkset.attachment?.point ?
 function attachments(ctx: CallContext, avatar: string): Linkset[] | string {
   const known = ctx.linkset.world?.avatars.find(a => sameKey(a.key, avatar))
   if (known && known.region !== ctx.linkset.region) return 'NOT ON REGION'
-  if (!isAgentInRegion(ctx, avatar)) return 'NOT FOUND'
+  if (!localAgent(ctx, avatar)) return 'NOT FOUND'
   return ctx.linkset.peers.filter(l => !l.dead && l.attachment && sameKey(l.attachment.avatar, avatar))
     .sort((a, b) => a.attachment!.order - b.attachment!.order)
 }

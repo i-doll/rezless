@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { loadLinkset, World, Experience, NULL_KEY } from '../src/index.js'
+import { loadLinkset, loadScript, World, Experience, NULL_KEY } from '../src/index.js'
 
 const OWNER = '11111111-1111-1111-1111-111111111111'
 
@@ -406,4 +406,23 @@ it('keeps fixture attach and detach idempotent', async () => {
   linkset.advanceTime(0)
   expect(script.global('events')).toEqual([OWNER,NULL_KEY])
   expect(linkset.attachment).toBeNull()
+})
+
+it('does not invent a local owner avatar when the world contains none', async () => {
+  const { script,world,linkset }=await fixture(`list got;
+   default {state_entry(){got=llGetAttachedList(llGetOwner());llRequestPermissions(llGetOwner(),32);}
+   run_time_permissions(integer p){llAttachToAvatar(6);}}`)
+  world.avatars.length=0
+  script.start();script.grantPermissions()
+  expect(script.global('got')).toEqual(['NOT FOUND'])
+  expect(linkset.attachment).toBeNull()
+  expect(script.chat.map(c=>c.text)).toEqual(['Cannot find the agent to attach to.'])
+})
+
+// Standalone scripts retain their configured owner as an implicit local avatar.
+it('supports attachment fixtures without a World', async () => {
+  const script=await loadScript({source:attaching('llAttachToAvatar(6);'),owner:OWNER})
+  script.start();script.grantPermissions()
+  expect(script.global('point')).toBe(6)
+  expect(script.global('events')).toEqual([OWNER])
 })
