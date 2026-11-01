@@ -365,3 +365,24 @@ it('checks direct mouselook entry against the active primary issuer and distance
   f.avatar.info |= AGENT_MOUSELOOK
   expect(f.avatar.info & AGENT_MOUSELOOK).toBe(AGENT_MOUSELOOK)
 })
+
+it('exits on the first global mouselook toggle but uses the primary issuer for later entry', async () => {
+  const pair = await setup()
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]
+    const loadIssuer = async () => {
+      const loaded = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
+        prims: [{ scripts: [{ name: 'other', source: { source } }] }] })
+      const script = loaded.scripts.other!; script.start()
+      return (command: string) => { script.setGlobal('command', command); script.fire('touch_start', { num_detected: 1 }) }
+    }
+    const other = await loadIssuer(); const third = await loadIssuer()
+    send(f, '@setcam=n'); f.avatar.info |= AGENT_MOUSELOOK
+    other('@setcam_mouselook=n')
+    expect(f.avatar.info & AGENT_MOUSELOOK).toBe(profile === 'rlva' ? 0 : AGENT_MOUSELOOK)
+    f.avatar.info |= AGENT_MOUSELOOK
+    expect(f.avatar.info & AGENT_MOUSELOOK).toBe(AGENT_MOUSELOOK)
+    third('@setcam_mouselook=n')
+    expect(f.avatar.info & AGENT_MOUSELOOK).toBe(AGENT_MOUSELOOK)
+  }
+})

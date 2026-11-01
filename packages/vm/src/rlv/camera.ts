@@ -492,7 +492,8 @@ class RlvControlCamera {
     if (removed.some(rule => rule.behaviour === 'setcam' || offsetNames.includes(rule.behaviour)) &&
       !rules.some(rule => rule.behaviour === 'setcam' || offsetNames.includes(rule.behaviour)) &&
       (removed.some(rule => rule.behaviour === 'setcam') || !this.modifiers.length)) this.release()
-    if (viewer.profile === 'rlva' && added.some(rule => rule.behaviour === 'setcam_mouselook')) {
+    if (viewer.profile === 'rlva' && added.some(rule => rule.behaviour === 'setcam_mouselook') &&
+      !this.previous.some(rule => rule.behaviour === 'setcam_mouselook')) {
       if (this.avatar.info & AGENT_MOUSELOOK) this.following = true
       this.avatar.info &= ~AGENT_MOUSELOOK
     }

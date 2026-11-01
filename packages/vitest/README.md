@@ -1492,8 +1492,10 @@ head/joint and rear-preset inputs. Defaults are avatar position, eye
 `-3/0/0.75`, focus `1/0/1` and scale `1`. Offsets follow avatar rotation;
 seated camera offsets take precedence. Camera position and rotation reads and
 HUD projection share the effective pose and distance limits. Tracking reads
-still require `PERMISSION_TRACK_CAMERA`. Mouselook exclusion clears
-`AGENT_MOUSELOOK`; removal permits later entry without restoring it.
+still require `PERMISSION_TRACK_CAMERA`. The first global RLVa mouselook
+lock clears `AGENT_MOUSELOOK`, even for a nonprimary issuer. Subsequent entry
+checks the primary issuer and camera minimum. Additional nonprimary locks do
+not repeat the initial exit; removal does not restore mouselook.
 Skeleton animation, camera lag, smoothing and collision are outside this fixture.
 
 ### Viewer UI restrictions
