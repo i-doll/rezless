@@ -263,3 +263,18 @@ it('Kokua checks replacement removal before the add lock while RLVa denies the w
   expect(result(f).wearResults).toContainEqual({ itemId: 'new', outcome: 'blocked', reason: 'layer-lock' })
  }
 })
+
+it('RLVa denied queued replacement cannot enable a later add on that layer', async () => {
+ const f = (await fixtures()).rlva; const inv = f.avatar.viewer.inventory
+ inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(),
+  { id: 'first', parentId: 'base', kind: 'item', name: 'First shirt', wearableType: 'shirt' },
+  { id: 'later1', parentId: 'child', kind: 'item', name: 'Later shirt 1', wearableType: 'shirt' },
+  { id: 'later2', parentId: 'child', kind: 'item', name: 'Later shirt 2', wearableType: 'shirt' },
+ ] })
+ send(f, '@remoutfit:shirt=n,attach:base=force,attachall:base/child=force')
+ expect(inv.wornWearables()).toEqual(['first'])
+ expect(result(f).wearResults).toEqual(expect.arrayContaining([
+  { itemId: 'later1', outcome: 'blocked', reason: 'layer-lock' },
+  { itemId: 'later2', outcome: 'blocked', reason: 'layer-lock' },
+ ]))
+})

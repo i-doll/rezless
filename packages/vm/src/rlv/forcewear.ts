@@ -150,7 +150,6 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
   const results: RlvForceWearItemResult[] = []
   let plans: WearItem[] = []
   const clothing: { entry: RlvInventoryEntry; replace: boolean }[] = []
-  const seenLayers = new Set<string>()
   for (const collected of items) {
     const { entry } = collected
     const replace = replaceForFolder(collected.folder)
@@ -158,13 +157,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
       if (profile === 'rlva' && collected.folder.id !== entry.parentId && !isRlvStrippable(profile, inventory, entry)) {
         results.push({ itemId: entry.id, outcome: 'skipped', reason: 'nostrip' }); continue
       }
-      clothing.push({ entry, replace: isRlvBodypart(entry) || replace && (profile === 'rlv' || !seenLayers.has(entry.wearableType)) })
-      // A denied wearable must not turn a later replacement into an add.
-      const denied = viewer.restrictions.snapshot().some(rule =>
-        rule.behaviour === 'addoutfit' && (!rule.option || rule.option === entry.wearableType) ||
-        replace && rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType) &&
-          entries.some(e => e.wearableType === entry.wearableType && inventory.wornWearables().includes(e.id)))
-      if (!denied) seenLayers.add(entry.wearableType)
+      clothing.push({ entry, replace })
       continue
     }
     if (entry.assetType !== 'object' && !inventory.attachmentMappings().some(mapping => mapping.itemId === entry.id)) {
@@ -189,9 +182,15 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
   const rules = viewer.restrictions.snapshot()
   record('no-op')
   issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
-    for (const { entry, replace } of clothing) {
+    const acceptedLayers = new Set<string>()
+    for (const plan of clothing) {
+      const { entry } = plan
+      const replace = isRlvBodypart(entry) || plan.replace && (profile === 'rlv' || !acceptedLayers.has(entry.wearableType!))
       const worn = inventory.wornWearables()
-      if (worn.includes(entry.id)) { results.push({ itemId: entry.id, outcome: 'already-worn' }); continue }
+      if (worn.includes(entry.id)) {
+        acceptedLayers.add(entry.wearableType!)
+        results.push({ itemId: entry.id, outcome: 'already-worn' }); continue
+      }
       const occupants = worn.map(id => entries.find(e => e.id === id)!).filter(e => e.wearableType === entry.wearableType)
       const addLocked = rules.some(rule => rule.behaviour === 'addoutfit' && (!rule.option || rule.option === entry.wearableType))
       const removeLocked = rules.some(rule => rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))
@@ -204,6 +203,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
       }
       if (addLocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
       inventory.setWearableWorn(entry.id, true)
+      acceptedLayers.add(entry.wearableType!)
       results.push({ itemId: entry.id, outcome: 'worn' })
     }
     for (const plan of plans) results.push(wear(avatar, issuer, plan, rules))
