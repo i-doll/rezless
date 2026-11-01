@@ -355,9 +355,11 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
     case OBJECT_ACCOUNT_LEVEL:
       return int(-1)
     case OBJECT_ATTACHED_POINT:
+      return int(prim.linkset?.attachment?.point ?? 0)
+    case OBJECT_TEMP_ATTACHED:
+      return int(prim === root && prim.linkset?.attachment?.temporary ? 1 : 0)
     case OBJECT_PATHFINDING_TYPE:
     case OBJECT_RENDER_WEIGHT:
-    case OBJECT_TEMP_ATTACHED:
     case OBJECT_ATTACHED_SLOTS_AVAILABLE:
     case OBJECT_SELECT_COUNT:
     case OBJECT_SIT_COUNT:
