@@ -677,7 +677,17 @@ delivery. Touch restrictions cover world objects, attachments and HUDs, with
 profile-specific distance limits and UUID exceptions. `touchthis:<root-uuid>` locks
 a target linkset, including HUDs. `touchme` overrides every touch restriction for
 its issuing object; Kokua requires a root issuer and Firestorm accepts any prim
-in that linkset.
+in that linkset. RLVa checks `interact` before touch grants for user clicks;
+Kokua applies it to world touches after `touchme`.
+
+Editor selection uses `world.attemptAvatarEdit(avatar, prim)` and inventory drops
+use `world.attemptAvatarRez(avatar, itemId, position)`. The paired fixture exposes
+`edit` and `rez`, with frozen `editActions` and `rezActions` histories. Edit outcomes
+include deciding root UUID grants or denials and category locks. Kokua supports
+`edit_sec` and issuer-scoped exceptions under `permissive`; RLVa does not.
+`interact` blocks inventory drops and user click sitting in both profiles. HUD
+touches bypass it. Kokua also blocks direct editing of non-HUD objects; RLVa allows
+direct editor selection. Inventory rezzing requires a saved copyable object definition.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.

@@ -108,7 +108,7 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
   const profile = viewer.profile
   if (profile !== 'disabled') {
     const rules = viewer.restrictions.snapshot()
-    if (rules.some(rule => !rule.option && (rule.behaviour === 'sit' ||
+    if (rules.some(rule => !rule.option && (rule.behaviour === 'sit' || rule.behaviour === 'interact' && rule.support === 'enforced' ||
       rule.behaviour === 'unsit' && !!(avatar.info & AGENT_SITTING)))) return false
     const limits = rules.filter(rule => rule.behaviour === 'sittp' && rule.support === 'enforced')
       .map(rule => seatingDistance(profile, rule.option)!)

@@ -1,3 +1,4 @@
+import { attemptAvatarEdit, attemptAvatarRez, type AvatarEditAction, type AvatarRezAction } from './rlv/edit.js'
 import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
 import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } from './rlv/touch.js'
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
@@ -284,6 +285,16 @@ export class World {
   /** Attempt a viewer-controlled touch of a specific prim. */
   attemptAvatarTouch(avatar: WorldAvatar, prim: Prim, options: AvatarTouchOptions = {}): AvatarTouchAction {
     return attemptAvatarTouch(this, avatar, prim, options)
+  }
+
+  /** Open the editor for an existing object through viewer edit permissions. */
+  attemptAvatarEdit(avatar: WorldAvatar, prim: Prim): AvatarEditAction {
+    return attemptAvatarEdit(this, avatar, prim)
+  }
+
+  /** Drop a saved inventory object into the current region. */
+  attemptAvatarRez(avatar: WorldAvatar, itemId: string, position: Vector): AvatarRezAction {
+    return attemptAvatarRez(this, avatar, itemId, position)
   }
 
   addObject(opts: WorldObjectOptions): WorldEntity {
