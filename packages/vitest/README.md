@@ -701,6 +701,38 @@ within 1,023 bytes. Query replies produce one message, without splitting. Ordina
 script chat uses its existing routing and limits.
 
 
+### Viewer seating
+
+`getsitid` uses the existing reply-channel policy. It returns the null UUID
+standing and the linkset root UUID on an object, including child sit targets.
+Firestorm RLVa 2.4.2 reports the avatar UUID during ground sitting; Kokua RLV
+2.09.35.00 reports null on the ground. Query options are ignored.
+
+`sit:<uuid>=force` seats the owner through World seating without granting script
+permissions. It uses the requested free sit target, then the first free configured
+target in link order. Objects must be live, unattached and in the avatar's region;
+occupied seats and unknown targets leave the current seat intact. Plain prims are
+supported within an 8 m centre-distance fixture radius. Requests beyond that
+radius report `unsupported`: simulator surface placement and autopilot are outside
+this fixture. Configured sit targets can be used farther away in the same region.
+World pose calculations omit avatar body and collision offsets.
+
+Empty and null-UUID sit requests ground sitting in RLVa and have no effect in
+Kokua. Ground sitting sets `AGENT_SITTING`, clears `AGENT_ON_OBJECT`, and removes an
+existing object seat. `unsit=force` stands the avatar. Successful object sit/stand
+operations produce normal `CHANGED_LINK` events; ground sitting adds no object link.
+
+Object force sit obeys all no-option `sit` locks and, while already sitting, all
+`unsit` locks. RLVa force unsit and ground sit exempt only the issuing prim;
+Kokua force unsit exempts no emitter. These checks cover force commands; broader
+user sit/unsit/sittp enforcement and standtp remain outside this slice.
+
+Inspect `avatar.viewer.commandLog` records with `status: 'action'`: `action`,
+`actionOutcome` (`applied`, `unchanged`, or `refused`), requested `target`, resulting
+`seat`, and an optional refusal `reason`. These are synchronous fixture outcomes,
+not confirmations from a network simulator. Unsupported forms retain diagnostics.
+The manifest includes `getsitid`, force `sit` and force `unsit` in command discovery.
+
 ### Implemented `ll*` functions
 
 The real-impl set covers the most common use cases. Anything outside it

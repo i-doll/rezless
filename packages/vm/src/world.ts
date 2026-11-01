@@ -364,6 +364,12 @@ export class World {
     if (previous) this.sitChanged(previous)
   }
 
+  /** Ground sitting has AGENT_SITTING but no object parent or new link. */
+  sitAvatarOnGround(avatar: WorldAvatar): void {
+    this.standAvatar(avatar)
+    avatar.info = (avatar.info & ~(AGENT_ON_OBJECT | AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING
+  }
+
   private sitChanged(linkset: Linkset): void {
     // Match the linkset's linking/unlinking event policy.
     const pending = this.clock.pendingEvents().filter(e => e.event === 'changed' && e.payload['changes'] === CHANGED_LINK)
