@@ -1,6 +1,6 @@
 import type { Linkset } from '../linkset.js'
 import { RLV_ATTACHMENT_POINTS } from './attachments.js'
-import { getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventory, type RlvInventoryEntry } from './inventory.js'
+import { isRlvFolderWearLocked, getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventory, type RlvInventoryEntry } from './inventory.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvProfile, ViewerProfile, ViewerState } from './profiles.js'
 
@@ -137,6 +137,7 @@ export function sharedWearSupport(profile: ViewerProfile, behaviour: string, opt
 export function isRlvInventoryWearLocked(avatar: WorldAvatar, entry: RlvInventoryEntry | undefined, wear: boolean): boolean {
   const viewer = avatar.viewer
   if (viewer.profile === 'disabled' || !entry) return false
+  if (isRlvFolderWearLocked(avatar, entry, wear)) return true
   const inventory = viewer.inventory
   const entries = inventory.snapshot()
   let parent = entries.find(folder => folder.id === entry.parentId)
@@ -192,10 +193,10 @@ export function getRlvOutfitNames(viewer: ViewerState, behaviour: string, option
     const items = worn.filter(entry => entry.wearableType === layer)
     if (behaviour === 'getoutfitnames') return items.length > 0
     if (behaviour === 'getremoutfitnames') return !locked('remoutfit', layer) &&
-      items.some(entry => !isRlvBodypart(entry) && isRlvStrippable('rlva', inventory, entry))
+      items.some(entry => !isRlvBodypart(entry) && !isRlvFolderWearLocked(viewer, entry, false) && isRlvStrippable('rlva', inventory, entry))
     if (locked('addoutfit', layer)) return false
     // Without locked worn items, replacement remains available even at capacity.
-    if (!items.length || !locked('remoutfit', layer)) return true
+    if (!items.length || !locked('remoutfit', layer) && !items.some(entry => isRlvFolderWearLocked(viewer, entry, false))) return true
     return bodyparts.has(layer) || layer === 'physics' ? false : clothingCount < 60
   })
   return { text: layers.join(',') }
