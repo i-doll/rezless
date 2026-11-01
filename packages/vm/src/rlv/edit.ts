@@ -81,9 +81,11 @@ export function attemptAvatarRez(world: World, avatar: WorldAvatar, itemId: stri
     .filter(rule => rule.support === 'enforced' && !rule.option && (rule.behaviour === 'rez' || rule.behaviour === 'interact'))
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
   const item = avatar.viewer.inventory.snapshot().find(entry => entry.id === itemId && entry.kind === 'item')
-  if (!item?.object?.prims.length || item.wearableType) return record('unsupported', 'item')
+  const retained = avatar.viewer.inventory.attachmentObject(itemId)
+  const definition = retained && !retained.dead ? retained : item?.object
+  if (!item || !definition?.prims.length || item.wearableType) return record('unsupported', 'item')
   if (item.content && !(item.content.permMask.owner & PERM_COPY)) return record('unsupported', 'no-copy-item')
-  const object = item.object.copy({ world, region: avatar.region, owner: avatar.key })
+  const object = definition.copy({ world, region: avatar.region, owner: avatar.key })
   object.prims[0]!.params.position = { ...position }
   object.setTemporary(object.prims[0]!.params.tempOnRez)
   for (const script of object.allScripts()) script.queueRez()

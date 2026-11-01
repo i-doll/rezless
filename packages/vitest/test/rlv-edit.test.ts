@@ -198,3 +198,26 @@ it('bypasses viewer restrictions for a disabled profile', async () => {
   expect(world.attemptAvatarEdit(avatar, t.linkset.prims[0]!).status).toBe('opened')
   expect(world.attemptAvatarRez(avatar, 'missing', { x: 0, y: 0, z: 0 }).reason).toBe('item')
 })
+
+it('rezzes retained prim edits and script state after a mapped attachment is detached', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const f of Object.values(pair)) {
+    const worn = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
+      prims: [{ scripts: [{ name: 'payload', source: { source: 'integer value; default { state_entry() { } }' } }] }] })
+    const original = worn.linkset.copy()
+    seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'payload', kind: 'item', parentId: null,
+      name: 'Payload', object: original, assetType: 'object' }],
+      wornAttachments: [{ itemId: 'payload', rootKey: worn.linkset.prims[0]!.key }] })
+    worn.linkset.attachToAvatar(f.avatar.key, 5)
+    worn.scripts.payload!.start()
+    worn.scripts.payload!.setGlobal('value', 73)
+    worn.linkset.prims[0]!.name = 'Edited while worn'
+    expect(f.attemptDetach(worn.linkset)).toBe('allowed')
+    const action = f.rez('payload', { x: 7, y: 8, z: 9 })
+    expect(action.status).toBe('rezzed')
+    expect(action.object!.prims[0]!.name).toBe('Edited while worn')
+    expect(action.object!.allScripts()[0]!.global('value')).toBe(73)
+    expect(action.object!.attachment).toBeNull()
+    expect(original.prims[0]!.name).not.toBe('Edited while worn')
+  }
+})
