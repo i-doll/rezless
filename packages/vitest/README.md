@@ -483,6 +483,44 @@ requested in-world. Group return powers remain unimplemented.
 
 ### Paired RLV/RLVa fixtures
 
+The [coverage matrix](../../docs/rlv-coverage.md) lists each delivered command
+form for Kokua RLV 2.09.35.00 and Firestorm RLVa 2.4.2, with support depth,
+comparison and test references. It also lists unsupported commands, settings,
+recovery, rendering and inventory variants. Its generator reads `RLV_MANIFEST`;
+the documentation test fails if the published matrix drifts.
+
+The [paired viewer example](../../examples/rlv/README.md) runs one LSL file
+against both profiles, with two independent controller objects, status queries,
+scoped cleanup and named negative-channel expectations. It checks omitted and
+explicitly disabled viewers with the same source too.
+
+Run these commands from the repository root. The root Vitest configuration
+uses workspace source aliases, so no build or development server is required.
+A fresh checkout can use `pnpm install --frozen-lockfile --ignore-scripts`.
+
+```sh
+# Runnable paired example and manifest/document synchronization.
+pnpm exec vitest run examples/rlv/paired-viewers.test.ts packages/vitest/test/rlv-coverage-doc.test.ts
+# Focused detection, restrictions, status, actions and channel-policy integration.
+pnpm exec vitest run packages/vitest/test/rlv-profiles.test.ts packages/vitest/test/rlv-version.test.ts packages/vitest/test/rlv-restrictions.test.ts packages/vitest/test/rlv-status.test.ts packages/vitest/test/rlv-sendchannel.test.ts packages/vitest/test/rlv-channels.test.ts
+# Disabled-viewer regressions, including the end-to-end relay fixture.
+pnpm exec vitest run examples/rlv/paired-viewers.test.ts packages/vitest/test/rlv-profiles.test.ts packages/vitest/test/rlv-status.test.ts packages/vitest/test/rlv-relay.test.ts -t 'disabled|inert'
+# Every viewer integration suite.
+pnpm exec vitest run packages/vitest/test/rlv-*.test.ts
+# Update the generated matrix after a manifest change.
+pnpm exec tsx scripts/rlv-coverage.ts
+```
+
+Select `viewer: { profile: 'rlva' }` for Firestorm or
+`viewer: { profile: 'rlv' }` for Kokua on `World.addAvatar`.
+Inspect `avatar.viewer.restrictions.snapshot()` for per-prim rules,
+`avatar.viewer.commandLog` for query and forced-action outcomes, and
+`avatar.viewer.diagnostics` for unsupported forms. Explicit avatar actions have
+separate results, such as `fixture.chatActions` and `fixture.teleportActions`.
+`enforced` applies only to the operation and options in the coverage contract.
+`state-only` means a stored rule has no corresponding action enforcement.
+Version replies and command discovery never prove complete conformance.
+
 Viewer emulation is opt-in per avatar through
 `world.addAvatar({ username, region, viewer: { profile: 'rlv' } })`.
 Omitting `viewer`, or selecting `disabled`, leaves script chat and avatar behavior
@@ -559,9 +597,10 @@ string suffix is the fixed fixture viewer version `26.4.0`.
 `avatar.viewer.restrictions.snapshot()` returns a frozen array of frozen rules,
 optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule has
 `sourcePrim`, `behaviour`, `option`, canonical `rule`, and `support`. The no-option
-`sendchat`, `tploc`, and `tplm` forms have `state-only` support. Their actions
+`sendchat` and `tplm` forms have `state-only` support. Their actions
 are not enforced, and their command-log status remains `unsupported` for action
-effects. Seating forms `sit`, `unsit` and finite decimal `sittp[:distance]` have
+effects. No-option `tploc` is enforced for forced location travel. Seating
+forms `sit`, `unsit` and finite decimal `sittp[:distance]` have
 `enforced` support for explicit user actions and log `applied`. Diagnostics
 distinguish updated state from unsupported forms.
 
@@ -582,8 +621,9 @@ survives removal of the issuing script and ends when the linkset is removed. Com
 `enforced`, with an `allowed`, `blocked`, `no-op`, or `failed-option` outcome.
 Lock add/remove commands use `applied`. `llDetachFromAvatar` remains a separate
 simulator action and bypasses viewer locks, retaining its root/permission checks.
-Named-point locks, `detach=force`, folder forms, nostrip and forced reattachment
-recovery are excluded from these actions.
+Named-point locks, bare `detach=force` and forced reattachment recovery are
+excluded from these actions. Direct shared-folder removal and its nostrip
+checks are described under Force removal and clothing actions.
 
 Rules use emitter prim UUIDs, so scripts on one prim share state and separate
 prims remain independent. `n`/`add` and `y`/`rem` are aliases. Duplicates and absent
@@ -657,8 +697,9 @@ other than DEBUG_CHANNEL and at most one filter field; empty filters are accepte
 Kokua also delivers on negative channels and DEBUG_CHANNEL, skips empty semicolon
 fields and uses the first nonempty filter field. Zero and nonnumeric channels
 never deliver. Kokua retains invalid wire registrations for inspection.
-Inventory-offer, clothing, attachment and seating action notifications are outside
-this notification fixture. Successful registration commands have `applied` status;
+Inventory-offer notifications are described under Inventory offer decisions.
+Clothing, attachment and seating action notifications remain outside this
+fixture. Successful registration commands have `applied` status;
 unsupported forms remain visible in command logs and diagnostics.
 
 Script reset, state changes, and script removal preserve rules. Missing prims lose
@@ -709,8 +750,9 @@ from path segments, and matches the longest span of a slash-bearing folder name.
 Empty slash segments are ignored; a slash-only path selects the root for RLVa
 and yields an empty result for Kokua. Neither profile escapes the shared tree.
 `getRlvInventoryList(profile, avatar.viewer.inventory, path?)` returns the
-untruncated result from `@rezless/vm`. Wear operations, inventory links, live
-fetching, `getinvworn` and automatic naming remain unsupported.
+untruncated result from `@rezless/vm`. Inventory links, live fetching and
+automatic naming remain unsupported. `getinvworn` and direct attachment wear
+have separate contracts below.
 
 `@getattach[:<point>]=<channel>` reads existing live linkset attachments for the
 owning avatar, using the attachment avatar rather than the object's owner.
@@ -738,8 +780,8 @@ pass `undefined` to clear it. RLVa excludes this object only at Center 2. Kokua
 counts it normally. No bridge is synthesized or inferred from an object's name.
 `RLVA_ATTACHMENT_SETTINGS.hideLockedAttachments` is fixed at the reference
 default `false`, so self-locked attachments remain visible. Lock-filter setting
-overrides, lock enforcement, `getaddattachnames` and `getremattachnames` remain
-outside the covered forms.
+overrides, `getaddattachnames` and `getremattachnames` remain outside the
+query forms. No-option detach lock enforcement has a separate contract.
 
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`

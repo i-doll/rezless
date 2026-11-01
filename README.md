@@ -657,6 +657,17 @@ the lines it changed) and project coverage vs the `main` baseline.
   builtins, nested-object force-fit on `llJsonSetValue`, and the
   bare-word/sentinel round-trip on `llJsonGetValue`.
 
+The [RLV/RLVa coverage matrix](docs/rlv-coverage.md) lists delivered command
+forms, profile versions, support depths, test references and explicit exclusions.
+It is generated from the command manifest and checked by a test. The
+[paired viewer example](examples/rlv/README.md) runs one LSL source against both
+profiles with version detection, two controllers, status, cleanup and named
+channel-policy differences. Run it from the repository root without a build:
+
+```sh
+pnpm exec vitest run examples/rlv/paired-viewers.test.ts
+```
+
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
 The seating rules are enforced by explicit user actions. No-option detach locks enforce explicit viewer detach attempts. Root self-detach
