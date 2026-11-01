@@ -563,7 +563,24 @@ Script reset, state changes, and script removal preserve rules. Missing prims lo
 their rules on virtual-time viewer collection, every 30 seconds for RLVa and every
 10 seconds for the ready Kokua fixture with default settings. Startup delays and
 collection-setting overrides are outside the fixture. Linking and unlinking keep
-rules associated with their emitter UUID. `@getstatus` is not implemented.
+rules associated with their emitter UUID.
+
+`@getstatus[:<filter>[;<separator>]]=<channel>` replies with the calling prim's
+stored rules. `@getstatusall` includes every emitter. Both use substring filters
+on canonical rule text, including options, and prefix each match with the
+separator. No matches produce one empty reply. Rules retain insertion order
+within a prim; avatar-wide replies visit prim UUIDs in ascending order and retain
+duplicates across prims. Removing and re-adding a rule puts it last in that prim.
+
+The default separator is `/`, including an explicitly empty separator. Kokua
+keeps everything after the first semicolon as the separator; Firestorm uses only
+the second field and ignores later fields. For `@getstatus:;a;b=<channel>` with
+one stored `sit` rule, Kokua returns `a;bsit` and Firestorm returns `asit`.
+Queries report only stored rules and do not extend restriction support.
+`getRlvStatus(profile, avatar.viewer.restrictions, option?, sourcePrim?)` from
+`@rezless/vm` returns the same untruncated wire string for assertions or other
+query handlers. Omit `sourcePrim` to include all prims. Snapshots retain their
+separate inspection order.
 
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`

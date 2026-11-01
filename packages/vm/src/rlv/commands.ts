@@ -1,5 +1,6 @@
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
+import { getRlvStatus } from './status.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
 import type { Linkset } from '../linkset.js'
@@ -38,9 +39,14 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     const malformed = !parsed || viewer.profile === 'rlva' && parsed.kind === 'unknown'
     const channel = parsed ? rlvIntegerPrefix(parsed.parameter) : undefined
     // Kokua dispatches named version queries before testing parameter kinds.
-    const text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
+    let text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
       channel !== undefined && isValidReplyChannel(viewer.profile, channel)
       ? versionReply(viewer.profile, parsed.behaviour, parsed.option) : undefined
+    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
+      (parsed.behaviour === 'getstatus' || parsed.behaviour === 'getstatusall')) {
+      text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
+        parsed.behaviour === 'getstatus' ? prim.key : undefined)
+    }
     if (text === undefined && parsed && !malformed && dispatchRestrictionCommand(viewer, prim, parsed, command)) continue
     const entry = { command, sourcePrim: prim.key, ...(parsed ? { parsed } : {}) }
     if (text === undefined) {
