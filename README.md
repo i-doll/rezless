@@ -861,6 +861,15 @@ configuration are exposed as frozen `parameters`. Firestorm keeps independent
 sphere issuers and selects overlay hierarchies; Kokua combines spheres by mode
 and leaves overlays unsupported. See the [render effect contract](packages/vitest/README.md#camera-render-effects).
 
+
+RLV avatar movement inputs use `world.attemptAvatarMovement(avatar, action)`
+(or paired-fixture `move`), returning allowed/blocked outcomes and deciding
+restrictions. Flight updates `AGENT_FLYING`; run locks stop the corresponding
+viewer modes, with profile-specific clearing behavior. RLVa additionally
+supports jump restrictions and forced flight. Hover adjustment and RLVa idle
+policy are exposed through `getRlvViewerState`; jump physics and automatic
+away timers are not simulated. See the vitest RLV movement documentation.
+
 ## License
 
 The rezless project is licensed under the **Apache License, Version 2.0** —

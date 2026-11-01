@@ -937,6 +937,32 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-viewstate-camera.test.ts'],
     },
     {
+      id: 'movement', forms: ['@fly=n|y', '@jump=n|y', '@alwaysrun=n|y', '@temprun=n|y', '@fly[:true|false|0|1]=force', '@adjustheight:<centimetres|reference;scalar[;offset]>=force'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Flight locks stop flight immediately. Run locks clear current modes and constrain new user inputs. Either run mode sets AGENT_ALWAYS_RUN; clearing the last active mode clears it. RLVa supports jump locks and forced flight with an issuing-prim exception; Kokua does not. Hover adjustment changes viewer offset without translating simulator position.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::add', 'RRInterface::force', 'refreshCachedVariable', 'agent_handle_doubletap_run', 'LLWorldAlwaysRun::handleEvent'],
+          'Fly stops flight and blocks takeoff. Temprun clears running and always-run together; alwaysrun clears both when always-run is active. Each new issuer fly lock stops flight. Jump and forced flight are unsupported. Adjustheight uses integer-prefix centimetres or float-prefix reference/scalar/offset with a nonzero scalar; zero scalar retains the centimetre fallback. Offset clamps to [-2,2]. Relative forms require explicit pelvisToFoot geometry.'),
+          commandForms: [ ...['fly', 'alwaysrun', 'temprun'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })), { behaviour: 'adjustheight', type: 'force', support: 'enforced', option: 'any' } ],
+          support: 'enforced', coveredForms: ['Movement input outcomes, immediate mode clearing, removal and clear without restoring modes', 'Centimetre and relative hover forces with explicit skeleton distance', 'Unsupported jump and fly force outcomes'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvForceHandler<RLV_BHVR_FLY>::onCommand', 'RlvCommandOptionAdjustHeight', 'RlvUIEnabler::onToggleMovement', 'RlvActions::canJump', 'LLAgent::setAlwaysRun', 'LLAgent::setTempRun'],
+          'Fly stops flight and blocks takeoff. Jump blocks upward input only while not flying. Alwaysrun and temprun clear and block their separate modes. Movement behaviour toggles recheck all three modes. Force fly defaults true, accepts bool names and 0/1 integer prefixes, exempts only its issuing prim, and refuses seated takeoff. Adjustheight accepts one to three numeric-prefix fields, clamps to [-2,2], and refuses disabled hover support; nonzero relative scalars require explicit pelvisToFoot geometry. Jump input does not simulate physics.'),
+          commandForms: [ ...['fly', 'jump', 'alwaysrun', 'temprun'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })), ...['fly', 'adjustheight'].map(behaviour => ({ behaviour, type: 'force' as const, support: 'enforced' as const, option: 'any' as const })) ],
+          support: 'enforced', coveredForms: ['Movement inputs, forced flight and deciding restriction snapshots', 'Independent run modes and immediate flight clearing', 'Hover offset forces with explicit skeleton distance and hover support'] },
+      }, tests: [...tests, 'packages/vitest/test/rlv-movement.test.ts'],
+    },
+    {
+      id: 'allowidle', forms: ['@allowidle=n|y'], comparison: 'confirmed difference',
+      wikiComparison: 'RLVa substitutes a thirty-minute automatic-away threshold and preserves away state when its animation ends. The viewer state query exposes this policy without simulating idle timers or changing AGENT_AWAY.',
+      profiles: {
+        rlv: kokua(['RRInterface::add'], 'Allowidle has no handler. Wire rules remain inspectably unsupported and do not affect away state.'),
+        rlva: { ...firestorm('llappviewer.cpp', ['idle_afk_check', 'LLAgent::onAnimStop', 'RlvBehaviourDictionary::RlvBehaviourDictionary'],
+          'The no-option rule sets idleTimeoutSeconds to 1800 and preserveAwayOnAnimationEnd to true in the viewer state query. Removing it restores the configured viewer policy, represented by a null timeout. Simulator away state is unchanged.'),
+          commandForms: [{ behaviour: 'allowidle', type: 'add', support: 'enforced', option: 'none' }],
+          support: 'enforced', coveredForms: ['No-option add/remove and clear', 'Thirty-minute timeout and away-animation policy query'] },
+      }, tests: [...tests, 'packages/vitest/test/rlv-movement.test.ts'],
+    },
+    {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
       comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
       profiles: {
