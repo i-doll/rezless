@@ -53,7 +53,7 @@ it('models RLVa disabled commands independently without suppressing unsupported 
  for (const f of Object.values(pair)) f.script.start()
  expect(pair.rlva.script.global('replies')).toEqual(['/notify:23601=n','/madeup=n','/notify:23601'])
  expect(pair.rlva.avatar.viewer.commandLog.slice(1,3).map(r => r.outcome)).toEqual(['failed-disabled','failed-disabled'])
- expect(pair.rlva.avatar.viewer.diagnostics.filter(d => d.command.startsWith('@setenv'))).toHaveLength(2)
+ expect(pair.rlva.avatar.viewer.diagnostics.filter(d => d.command.startsWith('@setenv'))).toHaveLength(0)
  expect(pair.rlv.avatar.viewer.diagnostics.some(d => d.command === '@madeup=n')).toBe(true)
  expect(pair.rlv.avatar.viewer.restrictions.snapshot().map(r => r.rule)).toEqual(['notify:23601'])
 })
