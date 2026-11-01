@@ -10,7 +10,7 @@ const visible = (entry: RlvInventoryEntry): boolean => !!entry.name && !entry.na
 
 /** Read seeded clothing/bodyparts and live mapped attachments, without wear operations. */
 export function getRlvOutfitReply(profile: RlvProfile, inventory: RlvInventory, linkset: Linkset,
-  behaviour: 'getoutfit' | 'getinvworn', option: string): RlvOutfitReply {
+  behaviour: 'getoutfit' | 'getinvworn', option: string, avatar = linkset.owner): RlvOutfitReply {
   const entries = inventory.snapshot()
   const worn = new Set(inventory.wornWearables())
   if (behaviour === 'getoutfit') {
@@ -26,7 +26,7 @@ export function getRlvOutfitReply(profile: RlvProfile, inventory: RlvInventory, 
   const mappings = inventory.attachmentMappings()
   const objects = new Set(mappings.map(mapping => mapping.itemId))
   const liveRoots = new Set(linkset.peers.filter(peer => !peer.dead &&
-    peer.attachment?.avatar.toLowerCase() === linkset.owner.toLowerCase()).map(peer => peer.prims[0]!.key.toLowerCase()))
+    peer.attachment?.avatar.toLowerCase() === avatar.toLowerCase()).map(peer => peer.prims[0]!.key.toLowerCase()))
   for (const mapping of mappings) if (liveRoots.has(mapping.rootKey)) worn.add(mapping.itemId)
   const isObject = (entry: RlvInventoryEntry) => entry.assetType === 'object' || objects.has(entry.id)
   const children = (parentId: string) => entries.filter(entry => entry.kind === 'folder' && entry.parentId === parentId)

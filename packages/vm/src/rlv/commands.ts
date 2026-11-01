@@ -89,7 +89,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       ['findfolder', 'findfolders', 'getpath', 'getpathnew'].includes(parsed.behaviour)) {
       const result = parsed.behaviour.startsWith('find')
         ? findRlvFolders(viewer.profile, viewer.inventory, parsed.behaviour, parsed.option)
-        : getRlvWornPath(viewer.profile, viewer.inventory, linkset, prim, parsed.behaviour, parsed.option)
+        : getRlvWornPath(viewer.profile, viewer.inventory, linkset, prim, parsed.behaviour, parsed.option, avatar.key)
       if (result === undefined) {
         viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', outcome: 'unsupported-form' })
         viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'Outfit-layer paths require an outfit fixture.' })
@@ -105,7 +105,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
       (parsed.behaviour === 'getoutfit' || parsed.behaviour === 'getinvworn')) {
-      const result = getRlvOutfitReply(viewer.profile, viewer.inventory, linkset, parsed.behaviour, parsed.option)
+      const result = getRlvOutfitReply(viewer.profile, viewer.inventory, linkset, parsed.behaviour, parsed.option, avatar.key)
       const reply = sendViewerReply(linkset, avatar, channel, result.text)!
       viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
         ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
@@ -113,7 +113,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
       (parsed.behaviour === 'getattach' || parsed.behaviour === 'getattachnames')) {
-      const attachmentText = getRlvAttachmentReply(linkset, viewer, parsed.behaviour, parsed.option)
+      const attachmentText = getRlvAttachmentReply(linkset, viewer, parsed.behaviour, parsed.option, avatar.key)
       if (attachmentText !== undefined) {
         const failedOption = viewer.profile === 'rlva' && parsed.behaviour === 'getattach' &&
           !!parsed.option && getRlvAttachmentPoint(parsed.option) === undefined

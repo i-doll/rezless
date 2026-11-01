@@ -90,6 +90,8 @@ export class RlvSession {
   /** Explicit viewer object-list membership; distance and region alone do not remove objects. */
   setObjectAvailable(sourcePrim: string, available: boolean): void {
     this.availability.set(sourcePrim, available)
+    const issuer = this.issuers.get(sourcePrim)
+    if (available && issuer) issuer.seen = true
   }
 
   track(prim: Prim, clear: () => void): void {

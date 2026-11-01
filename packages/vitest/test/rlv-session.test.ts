@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, loadRlvPair, setRlvViewerReady, resetRlvViewerSession, setRlvObjectAvailable, World } from '../src/index.js'
+import { loadLinkset, loadRlvPair, setRlvViewerReady, resetRlvViewerSession, setRlvObjectAvailable, seedRlvInventory, World } from '../src/index.js'
 
 // Wiki: https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI#Architecture
 // In-world: startup child -> versionnew then versionnum before ordered /tploc and empty
@@ -433,3 +433,47 @@ it('reset cancels replies sent through the public reply helper before any owner 
   script.advanceTime(0)
   expect(script.global('replies')).toEqual([])
 })
+
+// An in-world ownership-transfer probe requires a second avatar.
+for (const profile of ['rlv', 'rlva'] as const) {
+  it(`${profile} replays attachment queries against the original receiving avatar`, async () => {
+    const pair = await loadRlvPair({ viewer: { ready: false }, source: `list replies; default {
+      state_entry() { llListen(722221,"",llGetOwner(),"");
+        llOwnerSay("@getattach:chest=722221,getattachnames=722221,getpath:chest=722221,getpathnew:chest=722221,getinvworn:Outfit=722221"); }
+      listen(integer c,string n,key id,string m) { replies += [m]; }
+    }` })
+    const { avatar, script, world } = pair[profile]
+    const worn = await loadLinkset({ world, owner: avatar.key, region: avatar.region, prims: [{}] })
+    worn.linkset.attachToAvatar(avatar.key, 1)
+    seedRlvInventory(avatar, { sharedRootId: 'root', entries: [
+      { id: 'root', parentId: null, name: '#RLV', kind: 'folder' },
+      { id: 'outfit', parentId: 'root', name: 'Outfit', kind: 'folder' },
+      { id: 'item', parentId: 'outfit', name: 'Chest item', kind: 'item', assetType: 'object' },
+    ], wornAttachments: [{ itemId: 'item', rootKey: worn.linkset.prims[0]!.key }] })
+    script.start()
+    const other = world.addAvatar({ username: 'new owner', region: avatar.region, viewer: { profile } })
+    script.linkset.owner = other.key
+    setRlvViewerReady(avatar)
+    script.advanceTime(0)
+    expect(script.global('replies')).toEqual(profile === 'rlva'
+      ? ['1', 'Chest', 'Outfit', 'Outfit', '|30'] : ['1', 'Outfit', 'Outfit', '|30'])
+    expect(other.viewer.commandLog).toEqual([])
+  })
+}
+
+for (const detached of [false, true]) {
+  it(`remembers an issuer resolved between collection ticks, detached=${detached}`, async () => {
+    const { world, avatar, script } = await load('rlva', true)
+    setRlvObjectAvailable(avatar, script.host.key, false)
+    script.start()
+    world.clock.advance(1000)
+    script.linkset.attachToAvatar(avatar.key, 1)
+    setRlvObjectAvailable(avatar, script.host.key, true)
+    if (detached) script.linkset.detachFromAvatar()
+    else {
+      setRlvObjectAvailable(avatar, script.host.key, false)
+      world.clock.advance(29000)
+    }
+    expect(avatar.viewer.restrictions.snapshot()).toEqual([])
+  })
+}
