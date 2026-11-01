@@ -1276,3 +1276,35 @@ RLVa ignores that list and supports neither query. Its separate
 add/remove before callbacks. Environment effects remain unsupported. Ignored
 commands have `status: 'ignored'` and `outcome: 'ignored-blacklist'` or
 `'failed-disabled'`; commands without implemented effects retain diagnostics.
+
+### Force removal and clothing actions
+
+`@detach:<shared-path>=force` removes mapped direct attachments and effective
+folded attachment children. Ordinary nested folders and siblings survive.
+`@remoutfit:<layer>=force` removes the selected clothing layer;
+`@remoutfit=force` removes clothing across shared and unshared inventory.
+Skin, eyes, hair and shape remain worn. Every issuer's detach and layer removal
+locks apply, including locks issued by the force-command emitter.
+
+Each command records frozen `removeResults` with inventory `itemId`, `outcome`
+(`removed`, `not-worn`, `blocked`, `skipped` or `unsupported`) and an optional
+reason. The aggregate outcome distinguishes allowed, blocked, no-op, partial,
+failed-option and unsupported-form. These are fixture observations; no wire
+acknowledgement is emitted. Query replies reflect completed removals after the
+script yields. Attachment events follow the existing simulator lifecycle.
+
+`fixture.attemptWearable(itemId, wear)` explicitly adds or removes a clothing
+item and returns `allowed`, `blocked` or `no-op`. Global and named
+`addoutfit`/`remoutfit` locks constrain those actions. Seeding inventory stays
+unrestricted. Bodypart changes and replacement layering are outside this helper.
+
+Kokua layer removal honors ancestor folder names containing `nostrip`, case
+insensitively; item-name protection applies only to folder attachment removal.
+RLVa checks item and parent names case sensitively, walking through folded
+parents. A registered valid RLVa bridge is protected. Folder removal results
+follow seed order for Kokua and inventory ID order for RLVa.
+
+Folder clothing, remoutfit folder forms, recursive and multiple-folder commands,
+point/group/UUID removal and comprehensive folder locks remain unsupported.
+Mixed folder contents retain unsupported items and report each result.
+Invalid layer/path force options are inert in Kokua and fail in RLVa.

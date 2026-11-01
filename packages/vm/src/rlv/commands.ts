@@ -4,12 +4,12 @@ import { dispatchTeleportCommand, teleportSupport } from './teleport.js'
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommandCoverage, getRlvCommands } from './getcommand.js'
-import { dispatchForceWearCommand } from './forcewear.js'
+import { dispatchForceRemoveCommand, dispatchForceWearCommand } from './forcewear.js'
 import { dispatchDetachCommand } from './detach.js'
 import { dispatchCameraCommand, getRlvCameraReply } from './camera.js'
 import { dispatchRestrictionCommand, isKokuaNamedReply } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
-import { getRlvOutfitReply } from './outfit.js'
+import { getRlvOutfitReply, outfitSupport } from './outfit.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
 import { dispatchSeatingCommand, getRlvSitId, seatingSupport } from './sit.js'
@@ -131,7 +131,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       }
     }
     if (text === undefined && parsed && !malformed && (viewer.restrictions.supportsNotifyCommand(parsed) ||
-      (parsed.kind === 'add' || parsed.kind === 'remove') && (seatingSupport(viewer.profile, parsed.behaviour, parsed.option) ?? teleportSupport(viewer.profile, parsed.behaviour, parsed.option)) === 'enforced')) {
+      (parsed.kind === 'add' || parsed.kind === 'remove') && (outfitSupport(parsed.behaviour, parsed.option) ?? seatingSupport(viewer.profile, parsed.behaviour, parsed.option) ?? teleportSupport(viewer.profile, parsed.behaviour, parsed.option)) === 'enforced')) {
       dispatchRestrictionCommand(viewer, prim, parsed, command)
       continue
     }
@@ -139,6 +139,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       dispatchRestrictionCommand(viewer, prim, parsed, command)
       continue
     }
+    if (text === undefined && parsed && !malformed && dispatchForceRemoveCommand(linkset, prim, avatar, parsed, command)) continue
     if (text === undefined && parsed && !malformed && dispatchForceWearCommand(linkset, prim, avatar, parsed, command)) continue
     if (text === undefined && parsed && !malformed && dispatchDetachCommand(linkset, prim, avatar, parsed, command)) continue
     if (text === undefined && parsed && !malformed) {

@@ -74,6 +74,12 @@ export function setRlvAttachmentBridge(viewer: ViewerState, rootKey: string | un
   else bridges.set(viewer, rootKey.toLowerCase())
 }
 
+/** A registered valid bridge is excluded from RLVa force removal. */
+export function isRlvAttachmentBridge(viewer: ViewerState, object: Linkset): boolean {
+  return viewer.profile === 'rlva' && object.attachment?.point === 31 &&
+    bridges.get(viewer) === object.prims[0]?.key.toLowerCase()
+}
+
 /** Resolve a canonical query option; root is the wire alias for Avatar Center. */
 export function getRlvAttachmentPoint(name: string): number | undefined {
   const canonical = name === 'root' ? 'avatar center' : name

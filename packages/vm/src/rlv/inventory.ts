@@ -71,6 +71,13 @@ export class RlvInventory {
   wornWearables(): readonly string[] { return this.wearables }
   attachmentMappings(): readonly RlvWornAttachment[] { return this.attachments }
 
+  /** Change one existing wearable without replacing inventory or attachment state. */
+  setWearableWorn(itemId: string, worn: boolean): void {
+    if (!this.entries.some(entry => entry.id === itemId && entry.wearableType)) return
+    this.wearables = Object.freeze(worn ? [...this.wearables.filter(id => id !== itemId), itemId]
+      : this.wearables.filter(id => id !== itemId))
+  }
+
   /** Resolve item identity independently of whether the linkset is currently worn. */
   attachmentItem(rootKey: string): RlvInventoryEntry | undefined {
     const mapping = this.attachments.find(entry => entry.rootKey === rootKey.toLowerCase())

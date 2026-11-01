@@ -739,3 +739,10 @@ Kokua truncates coordinates and ignores the supplied angle; RLVa preserves
 fractions and supports radian facing. Teleport lock and issuer-exemption behavior
 is profile specific. Moves stand normally without granting simulator permissions.
 Landing-point routing, terrain/collision adjustments and camera pose are excluded.
+
+RLV/RLVa force removal covers direct shared-folder attachments with
+`@detach:<path>=force` and selected or all clothing layers with
+`@remoutfit[:<layer>]=force`. Bodyparts remain worn and every controller's
+removal locks apply. Per-item results are available in `removeResults` on the
+viewer command log. Global and named `addoutfit`/`remoutfit` locks also apply to
+the paired fixture's explicit `attemptWearable(itemId, wear)` clothing action.

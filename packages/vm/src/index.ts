@@ -102,3 +102,7 @@ export type { RlvStartupPhase } from './rlv/session.js'
 
 export type { RlvTeleportAction } from './rlv/teleport.js'
 export type { RlvForceWearItemResult, RlvForceWearOutcome } from './rlv/forcewear.js'
+
+export { attemptRlvWearable } from './rlv/outfit.js'
+export type { RlvWearableActionOutcome } from './rlv/outfit.js'
+export type { RlvForceRemoveItemResult, RlvForceRemoveOutcome } from './rlv/forcewear.js'

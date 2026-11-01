@@ -53,7 +53,8 @@ export interface RlvReply {
 }
 
 export type RlvCommandRecord = {
-  readonly outcome?: import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | 'ignored-blacklist' | 'failed-disabled' | import('./forcewear.js').RlvForceWearOutcome
+  readonly outcome?: import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | 'ignored-blacklist' | 'failed-disabled' | import('./forcewear.js').RlvForceWearOutcome | import('./forcewear.js').RlvForceRemoveOutcome
+  readonly removeResults?: readonly import('./forcewear.js').RlvForceRemoveItemResult[]
   readonly wearResults?: readonly import('./forcewear.js').RlvForceWearItemResult[]
   readonly command: string
   readonly sourcePrim: string

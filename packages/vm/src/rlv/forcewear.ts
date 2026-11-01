@@ -3,8 +3,9 @@ import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { RlvProfile } from './profiles.js'
-import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint } from './attachments.js'
-import { getRlvInventoryFolder, type RlvInventoryEntry } from './inventory.js'
+import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint, isRlvAttachmentBridge } from './attachments.js'
+import { isRlvBodypart, isRlvStrippable } from './outfit.js'
+import { getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
 
 export interface RlvForceWearItemResult {
   readonly itemId: string
@@ -159,6 +160,86 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
     const unsupported = results.some(result => result.outcome === 'unsupported')
     record(successful ? blocked || unsupported ? 'partial' : 'allowed'
       : blocked ? 'blocked' : unsupported ? 'unsupported-form' : 'no-op', results)
+  })
+  return true
+}
+
+export interface RlvForceRemoveItemResult {
+  readonly itemId: string
+  readonly outcome: 'removed' | 'not-worn' | 'blocked' | 'skipped' | 'unsupported'
+  readonly reason?: 'detach-lock' | 'layer-lock' | 'bodypart' | 'nostrip' | 'bridge' | 'unsupported-content'
+}
+export type RlvForceRemoveOutcome = RlvForceWearOutcome
+
+/** Folder attachment removal and clothing-layer removal share queued completion. */
+export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: WorldAvatar,
+  parsed: RlvParsedCommand, command: string): boolean {
+  if (parsed.kind !== 'force' || !['detach', 'remoutfit'].includes(parsed.behaviour)) return false
+  const viewer = avatar.viewer
+  if (viewer.profile === 'disabled') return false
+  const profile = viewer.profile
+  const inventory = viewer.inventory
+  const entries = inventory.snapshot()
+  const index = viewer.commandLog.length
+  const record = (outcome: RlvForceRemoveOutcome, results: readonly RlvForceRemoveItemResult[] = []) => {
+    viewer.commandLog[index] = { command, sourcePrim: prim.key, parsed,
+      status: outcome === 'unsupported-form' ? 'unsupported' : 'enforced', outcome,
+      removeResults: Object.freeze(results.map(result => Object.freeze(result))) }
+  }
+  const path = parsed.option.replace(/^#rlv\//, '')
+  const folderId = getRlvInventoryFolder(profile, inventory, path)
+  const folderRemoval = parsed.behaviour === 'detach'
+  if (parsed.option.includes('|') || folderRemoval && (!parsed.option || getRlvAttachmentPoint(parsed.option) !== undefined ||
+    profile === 'rlva' && folderId === undefined && ['head', 'torso', 'arms', 'legs', 'hud'].includes(parsed.option) || /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(parsed.option))) {
+    record('unsupported-form'); return true
+  }
+  const layer = RLV_WEARABLE_TYPES.some(layer => layer === parsed.option)
+  if (!folderRemoval && parsed.option && !layer && folderId !== undefined) {
+    record('unsupported-form'); return true
+  }
+  if (folderRemoval && (folderId === undefined || folderId === inventory.sharedRootId || profile === 'rlva' && layer) ||
+    !folderRemoval && parsed.option && !RLV_WEARABLE_TYPES.some(layer => layer === parsed.option)) {
+    record(profile === 'rlva' ? 'failed-option' : 'no-op'); return true
+  }
+  let items = folderRemoval ? entries.filter(entry => entry.kind === 'item' && entry.parentId === folderId)
+    : entries.filter(entry => entry.wearableType && (!parsed.option || entry.wearableType === parsed.option))
+  if (folderRemoval) {
+    for (const child of entries.filter(entry => entry.kind === 'folder' && entry.parentId === folderId)) {
+      const contents = entries.filter(entry => entry.kind === 'item' && entry.parentId === child.id)
+      if (profile === 'rlva' ? child.folded : kokuaPoint(child.name) && contents.length === 1 &&
+        contents[0]!.assetType === 'object' && contents[0]!.modifiable === false) {
+        items = [...items, ...contents.filter(entry => entry.assetType === 'object' || inventory.attachmentMappings().some(m => m.itemId === entry.id))]
+      }
+    }
+  }
+  if (folderRemoval && profile === 'rlva') items.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  // Later lock changes cannot retroactively deny already accepted removals.
+  const rules = viewer.restrictions.snapshot()
+  record('no-op')
+  issuer.clock.scheduleTask(issuer, issuer.clock.now, () => {
+    const results: RlvForceRemoveItemResult[] = items.map(entry => {
+      if (folderRemoval && entry.assetType !== 'object' && !inventory.attachmentMappings().some(m => m.itemId === entry.id)) {
+        return { itemId: entry.id, outcome: 'unsupported', reason: 'unsupported-content' }
+      }
+      const object = folderRemoval ? existingAttachment(avatar, issuer, entry.id) : undefined
+      const worn = folderRemoval ? object && !object.dead && object.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()
+        : inventory.wornWearables().includes(entry.id)
+      if (!worn) return { itemId: entry.id, outcome: 'not-worn' }
+      if (!folderRemoval && isRlvBodypart(entry)) return { itemId: entry.id, outcome: 'skipped', reason: 'bodypart' }
+      if (object && isRlvAttachmentBridge(viewer, object)) return { itemId: entry.id, outcome: 'blocked', reason: 'bridge' }
+      if (!isRlvStrippable(profile, inventory, entry, folderRemoval)) return { itemId: entry.id, outcome: 'blocked', reason: 'nostrip' }
+      if (rules.some(rule => folderRemoval ? rule.behaviour === 'detach' && !rule.option && object!.prims.some(p => p.key === rule.sourcePrim)
+        : rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))) {
+        return { itemId: entry.id, outcome: 'blocked', reason: folderRemoval ? 'detach-lock' : 'layer-lock' }
+      }
+      if (folderRemoval) object!.detachFromAvatar()
+      else inventory.setWearableWorn(entry.id, false)
+      return { itemId: entry.id, outcome: 'removed' }
+    })
+    const removed = results.some(result => result.outcome === 'removed')
+    const blocked = results.some(result => result.outcome === 'blocked')
+    const unsupported = results.some(result => result.outcome === 'unsupported')
+    record(removed ? blocked || unsupported ? 'partial' : 'allowed' : blocked ? 'blocked' : unsupported ? 'unsupported-form' : 'no-op', results)
   })
   return true
 }
