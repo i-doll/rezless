@@ -144,3 +144,5 @@ export function setRlvObjectAvailable(avatar: WorldAvatar, sourcePrim: string, a
 
 export { getRlvCameraPosition, getRlvCameraLimits, setRlvCameraOrigins } from '@rezless/vm'
 export type { RlvCameraLimits } from '@rezless/vm'
+
+export type { RlvEnvironmentConfig, RlvEnvironmentSky, RlvEnvironmentPreset } from '@rezless/vm'

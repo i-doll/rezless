@@ -1,3 +1,4 @@
+import { environmentCommandForms } from './environment-forms.js'
 import { RLV_PROFILES, type RlvProfile } from './profiles.js'
 
 export type RlvComparison = 'shared' | 'confirmed difference' | 'version/setting dependent' | 'not specified'
@@ -63,7 +64,7 @@ export const RLV_MANIFEST: {
   // Reference settings are separate from implementation versions.
   settings: {
     rlv: ['doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. An explicit per-avatar blacklist preserves wire order and uses %f for force entries; query and notify commands remain available.'],
-    rlva: ['rlvaNoSetEnv disables setenv add/remove through the dictionary; it is separate from the Kokua blacklist. Environment effects remain unsupported.', 'RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
+    rlva: ['rlvaNoSetEnv disables setenv add/remove through the dictionary; it is separate from the Kokua blacklist. Environment force and query forms follow the environment contract.', 'RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
       'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.',
       'Force wear uses RLVaEnableSharedWear=true by default; inventory.sharedWear=false disables unnamed items. Legacy folder naming is enabled, the add prefix is + and the replace prefix is empty.',
       'Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.'],
@@ -1094,6 +1095,21 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts', 'packages/vitest/test/rlv-offers.test.ts'],
     },
     {
+      id: 'environment', forms: ['@setenv=n|add|y|rem', '@setenv_<setting>:<value>=force', '@getenv_<setting>=<channel>'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles expose sky settings and issuer-scoped environment locks. Numeric parsing, vector separators, legacy aliases, sun angles, gamma and daytime replies follow the selected profile. Presets and daycycle samples use explicit per-avatar fixtures.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::forceEnvironment', 'RRInterface::getEnvironment', 'RRInterface::force'],
+          'Other issuers setenv locks prevent changes; the issuer can force its own environment, temporarily removing and reapplying its lock with notifications. Lock adds enable atmosphere shaders. Kokua noSetEnv ignores lock adds and force commands. Numeric prefixes and malformed-to-zero conversion are accepted, with slash or semicolon vector input and six-significant-digit semicolon replies. Haze density scales by four; cloud scrolling offsets by ten. Gamma maps the legacy range and clamps at twenty. Legacy sun angles retain paired setter inputs and return both live angles. Daytime freezes the sky without advancing time; a negative value or reset restores shared settings. Asset and preset queries return the last named preset, cleared by individual edits. Named presets resolve in the inventory environment fixture.'),
+          support: 'enforced', commandForms: environmentCommandForms('rlv'),
+          coveredForms: ['Environment lock, no-option add/remove and clear', 'Scalar, vector, texture, legacy component and intensity force/query forms', 'Preset and asset selection, reset, daytime, finite numeric inputs, profile parsing and reply formatting'] },
+        rlva: { ...firestorm('rlvenvironment.cpp', ['RlvEnvironment::RlvEnvironment', 'RlvEnvironment::onHandleCommand', 'RlvEnvironment::handleLegacySetFn'],
+          'Other issuers setenv locks prevent changes; the issuer can force its own environment. rlvaNoSetEnv disables lock add/remove separately. Scalar numeric prefixes and slash vectors are accepted, with six-decimal slash replies. Legacy aliases include color components and intensity. Sun and moon elevations clamp to a quarter circle. Daytime accepts zero through one using supplied daycycle sky samples, or minus one to restore shared settings; replies distinguish fixed sky (two) from shared/daycycle (minus one). Asset UUIDs and library sky/daycycle names select environment fixtures. Preset, asset and daycycle query forms and Kokua-only aliases are unsupported.'),
+          support: 'enforced', commandForms: environmentCommandForms('rlva'),
+          coveredForms: ['Environment lock, disabled-lock fixture, no-option add/remove and clear', 'Scalar, vector, texture, legacy component and intensity force/query forms', 'Asset and library preset/daycycle selection, daytime samples, finite numeric inputs, parsing and reply formatting'] },
+      }, tests: [...tests, 'packages/vitest/test/rlv-environment.test.ts'],
+    },
+    {
       id: 'blacklist', forms: ['@versionnumbl=<channel>', '@getblacklist[:<filter>]=<channel>', 'Kokua blacklisted add and force; RLVa disabled setenv add/remove'],
       comparison: 'version/setting dependent',
       wikiComparison: 'Kokua supports the wiki blacklist queries, comma composition and substring filters. RLVa has neither query and uses a separate dictionary setting to disable setenv add/remove.',
@@ -1103,8 +1119,8 @@ export const RLV_MANIFEST: {
           support: 'enforced', commandForms: replyForms('versionnumbl', 'getblacklist'),
           coveredForms: ['Empty/nonempty blacklist, duplicate entries, substring filtering and version composition', 'Per-avatar ignored add/force with notifications and unsupported diagnostics'] },
         rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary', 'RlvCommand::isBlocked', 'RlvHandler::processCommand'],
-          'versionnumbl and getblacklist are absent from the dictionary. rlvaNoSetEnv disables setenv add/remove with failed-disabled before notifications and state updates. Kokua blacklist entries have no effect. Environment effects remain unsupported.'),
-          commandForms: [], coveredForms: ['Absent blacklist queries and separate disabled-command outcome; unsupported environment diagnostics retained'] },
+          'versionnumbl and getblacklist are absent from the dictionary. rlvaNoSetEnv disables setenv add/remove with failed-disabled before notifications and state updates. Kokua blacklist entries have no effect. Environment force and query forms follow the environment contract.'),
+          commandForms: [], coveredForms: ['Absent blacklist queries and separate disabled-command outcome; disabled lock commands do not establish restriction state'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-blacklist.test.ts'],
     },
