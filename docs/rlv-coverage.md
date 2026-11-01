@@ -24,12 +24,15 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [version](#version) | Firestorm RLVa 2.4.2 | <code>@versionnum[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-version.test.ts](../packages/vitest/test/rlv-version.test.ts)<br>[rlv-batch.test.ts](../packages/vitest/test/rlv-batch.test.ts) |
 | [channel-policy](#channel-policy) | Kokua RLV 2.09.35.00 | <code>&lt;query&gt;=&lt;signed-channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-channels.test.ts](../packages/vitest/test/rlv-channels.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [channel-policy](#channel-policy) | Firestorm RLVa 2.4.2 | <code>&lt;query&gt;=&lt;signed-channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-channels.test.ts](../packages/vitest/test/rlv-channels.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
-| [add-remove-clear](#add-remove-clear) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Kokua RLV 2.09.35.00 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Kokua RLV 2.09.35.00 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
-| [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [sendchat](#sendchat) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [sendchannel_except](#sendchannel_except) | Kokua RLV 2.09.35.00 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel](#sendchannel) | Kokua RLV 2.09.35.00 | <code>@sendchannel[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchannel.test.ts](../packages/vitest/test/rlv-sendchannel.test.ts) |
 | [sendchannel](#sendchannel) | Kokua RLV 2.09.35.00 | <code>@sendchannel_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchannel.test.ts](../packages/vitest/test/rlv-sendchannel.test.ts) |
 | [sendchannel](#sendchannel) | Kokua RLV 2.09.35.00 | <code>@permissive=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchannel.test.ts](../packages/vitest/test/rlv-sendchannel.test.ts) |
@@ -135,6 +138,46 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [camera-origin](#camera-origin) | Firestorm RLVa 2.4.2 | <code>@setcam_origindistmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
 | [camera-silhouette](#camera-silhouette) | Kokua RLV 2.09.35.00 | <code>@setcam_avdist:&lt;metres&gt;=n&#124;y</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
 | [camera-silhouette](#camera-silhouette) | Firestorm RLVa 2.4.2 | <code>@setcam_avdist[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showinv=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showloc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showminimap=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showworldmap=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@shownearby=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showhovertextall=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showhovertexthud=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showhovertextworld=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@viewnote=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@viewscript=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@viewtexture=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@shownames[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@shownames_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@shownametags[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showhovertext[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showself[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@showselfhead[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@viewtransparent[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@viewwireframe[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Kokua RLV 2.09.35.00 | <code>@shownametags_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showinv=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showloc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showminimap=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showworldmap=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@shownearby=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showhovertextall=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showhovertexthud=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showhovertextworld=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@viewnote=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@viewscript=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@viewtexture=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showself=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showselfhead=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@viewtransparent=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@viewwireframe=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@shownames[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@shownames_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@shownametags[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@shownametags_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
+| [viewer-ui](#viewer-ui) | Firestorm RLVa 2.4.2 | <code>@showhovertext[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts) |
 | [discovery](#discovery) | Kokua RLV 2.09.35.00 | <code>@getcommand[:&lt;behaviour&gt;[;&lt;type&gt;[;&lt;separator&gt;]]]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [discovery](#discovery) | Firestorm RLVa 2.4.2 | <code>@getcommand[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [notifications](#notifications) | Kokua RLV 2.09.35.00 | <code>@notify[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-notify.test.ts](../packages/vitest/test/rlv-notify.test.ts)<br>[rlv-offers.test.ts](../packages/vitest/test/rlv-offers.test.ts) |
@@ -226,7 +269,7 @@ Comparison: confirmed difference. Both profiles share prim-scoped rules, aliases
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: state-only. No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.
+Support depth: state-only. No-option tplm is state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.
 
 - No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem
 - Unknown wire rule storage with unsupported effects
@@ -238,7 +281,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: state-only. No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.
+Support depth: state-only. No-option tplm is state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.
 
 - No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem
 - Bare, empty and substring-filtered clear by emitter UUID
@@ -248,6 +291,63 @@ Support depth: state-only. No-option sendchat and tplm are state-only. Teleport 
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::processCommand</code>, <code>RlvHandler::processClearCommand</code>, <code>RlvHandler::onGC</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts).
+
+### sendchat
+
+Forms: <code>@sendchat=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Both profiles replace restricted speech with ellipsis, allow OOC and short slash gestures, filter quoted emotes and truncate emotes. Kokua uses byte limits, accepts colon poses and strips text preceding an embedded /me; RLVa uses character limits and additionally filters question marks.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. With default OOC enabled, public avatar say replaces ordinary text with ... and permits ((OOC)), slash gestures up to seven bytes and safe emotes up to twenty bytes or the first period. Colon poses are emotes; text before embedded /me is discarded. DEBUG_CHANNEL is blocked. Gesture expansion, chat redirection and emote restriction extensions are outside this action.
+
+- No-option sendchat add/remove and clear
+- Public avatar say filtering with original and delivered text in action records
+- DEBUG_CHANNEL denial; other private channels and simulator chat remain independent
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::crunchEmote</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. With default OOC and ellipsis enabled, public avatar say replaces ordinary text with ... and permits ((OOC)), slash gestures up to seven characters and safe /me emotes up to twenty characters, shortened using the byte offset of the first period when below twenty. Question marks are forbidden in emotes. DEBUG_CHANNEL is blocked. Gesture expansion, chat redirection and emote restriction extensions are outside this action.
+
+- No-option sendchat add/remove and clear
+- Public avatar say filtering with original and delivered text in action records
+- DEBUG_CHANNEL denial; other private channels and simulator chat remain independent
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::filterChat</code>, <code>RlvUtil::isEmote</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts).
+
+### sendchannel_except
+
+Forms: <code>@sendchannel_except[:&lt;channel&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@sendchannel_except_sec[:&lt;channel&gt;]=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. This is a channel exclusion list, independent of sendchannel grants. Kokua directly denies each literal outgoing channel listed; RLVa requires the no-option switch and accepts positive numeric option prefixes. Its secure form requires each secure issuer to list the channel; permissive=n extends this to every activating issuer. Kokua has no secure form. Channel zero bypasses this family.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. A sendchannel_except:<channel> rule denies that literal decimal channel regardless of sendchannel exceptions or issuer. The no-option rule has no action effect. The secure form is unsupported. Public chat and automatic replies are unaffected.
+
+- Literal signed integer channel exclusions
+- No-option inert rule, add/remove and clear
+- Channel exclusions override ordinary and secure sendchannel grants
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::contains</code>, <code>RRInterface::add</code>, <code>RRInterface::remove</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. A no-option sendchannel_except restriction activates the exclusion list. Listed positive numeric channels are denied independently of sendchannel grants and issuer. Removing the last no-option switch deactivates the list. The secure form requires a channel entry from each secure issuer; permissive=n requires one from every activating issuer. Public chat and automatic replies are unaffected.
+
+- Positive signed 32-bit decimal-prefix channel exclusions
+- No-option activation switch, add/remove and clear
+- Secure alias and permissive issuer scope
+- Channel exclusions override ordinary and secure sendchannel grants
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourSendChannelHandler::onCommand</code>, <code>RlvHandler::isException</code>, <code>RlvHandler::isPermissive</code>, <code>RlvActions::canSendChannel</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts).
 
 ### sendchannel
 
@@ -824,6 +924,34 @@ Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvBehaviourD
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts).
 
+### viewer-ui
+
+Forms: <code>@showinv&#124;showloc&#124;showminimap&#124;showworldmap&#124;shownearby=n&#124;y</code>, <code>@shownames[_sec][:&lt;uuid&gt;]=n&#124;y</code>, <code>@shownametags[_sec][:&lt;uuid&gt;&#124;&lt;distance&gt;]=n&#124;y</code>, <code>@showhovertext:&lt;uuid&gt;=n&#124;y</code>, <code>@showhovertextall&#124;showhovertexthud&#124;showhovertextworld=n&#124;y</code>, <code>@showself&#124;showselfhead&#124;viewtransparent&#124;viewwireframe=n&#124;y</code>, <code>@viewnote&#124;viewscript&#124;viewtexture=n&#124;y</code>.
+
+Comparison: confirmed difference. The immutable viewer-state query exposes restriction policy with issuer and option details. RLVa supports self visibility, transparent/wireframe controls, strict name exceptions and nametag distance modifiers. Kokua has no effects for those four controls or distance modifiers; its name censor shares name/nametag exceptions and its nametag visibility has no exceptions. Window contents, rendered pixels and user preference overrides are outside this query.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Inventory, location, maps, names, nearby list, hover text and note/script/texture restrictions are queryable. Name censoring includes optioned shownames rules and shares UUID exceptions from shownames, shownames_sec and shownametags. Nametag hiding uses only unoptioned shownametags; name restrictions also hide nametags with the default settings. Hover text uses exact prim UUID and independent HUD/world/all scopes. showself, showselfhead, viewtransparent, viewwireframe, nametag distance and strict nametag forms remain unsupported.
+
+- Global UI restrictions, removal, clear and session cleanup
+- Name exceptions and exact-prim hover text scopes
+- Immutable per-avatar policy snapshots with issuer/option details
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::refreshCachedVariable</code>, <code>RRInterface::censor</code>, <code>RRInterface::add</code>, <code>RRInterface::remove</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. All listed UI restrictions are queryable. Names and nametags exempt self and UUID exceptions; strict rules or permissive require exceptions from the corresponding issuers. Nametag modifiers choose the minimum distance (empty means zero), with a strict distance boundary. Object hover text is hidden by exact prim UUID or all/HUD/world scope. The query reports restriction policy rather than current window openness, pixel output or persistent user preferences.
+
+- All listed show/view restrictions, removal, clear and session cleanup
+- UUID exceptions, strict issuer scope, self exemptions and nametag distance modifiers
+- Exact-prim hover text scopes and immutable snapshots
+
+Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>, <code>RlvBehaviourHandler&lt;RLV_BHVR_SHOWNAMETAGS&gt;::onCommand</code>, <code>RlvActions::canShowName</code>, <code>RlvActions::canShowNameTag</code>, <code>RlvActions::canShowHoverText</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-viewstate.test.ts](../packages/vitest/test/rlv-viewstate.test.ts).
+
 ### discovery
 
 Forms: <code>@getcommand[:&lt;behaviour&gt;[;&lt;type&gt;[;&lt;separator&gt;]]]=&lt;channel&gt;</code>.
@@ -935,7 +1063,7 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 Only the command forms and operations listed above are delivered. Unsupported names and option forms remain inspectable in `avatar.viewer.commandLog` and `avatar.viewer.diagnostics`. Kokua may retain an unknown wire rule; storage and status output do not enforce its effect.
 
 - State-only effects: `sendchat` and `tplm`. Simulator LSL calls remain separate from explicit viewer actions.
-- Other command families: environment and debug setters/queries such as `setenv`, `setdebug`, `getenv` and `getdebug`; chat redirection and IM commands such as `redirchat`, `rediremote`, `sendim` and `recvim`; movement, touch and vision controls such as `fly`, `edit`, `touchworld`, `showworld` and `shownames`. These names are examples, not an exhaustive upstream command catalog.
+- Other command families: environment and debug setters/queries such as `setenv`, `setdebug`, `getenv` and `getdebug`; chat redirection and IM commands such as `redirchat`, `rediremote`, `sendim` and `recvim`; movement, touch and vision controls such as `fly`, `edit`, `touchworld`, `showworld`. These names are examples, not an exhaustive upstream command catalog.
 - Settings: per-object API compatibility, hide-locked-attachment overrides, bridge detach exemptions, automatic legacy folded-folder naming inference and general viewer setting/UI emulation. Supported fixture settings are documented in the contracts, including startup timing, blacklist, `rlvaNoSetEnv`, shared wear and camera persistence.
 - Recovery: forced reattachment after a simulator detach, relay pong/relog recovery and optional relay meta-commands.
 - Rendering: shaders, visible camera effects, exclusive camera control, camera pose, collision/autopilot placement and terrain/landing-point adjustments.

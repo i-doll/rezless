@@ -597,9 +597,9 @@ string suffix is the fixed fixture viewer version `26.4.0`.
 `avatar.viewer.restrictions.snapshot()` returns a frozen array of frozen rules,
 optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule has
 `sourcePrim`, `behaviour`, `option`, canonical `rule`, and `support`. The no-option
-`sendchat` and `tplm` forms have `state-only` support. Their actions
-are not enforced, and their command-log status remains `unsupported` for action
-effects. No-option `tploc` is enforced for forced location travel. Seating
+`tplm` form has `state-only` support. Its action is not enforced, and its command-log
+status remains `unsupported` for action effects. No-option `sendchat` is enforced
+by explicit avatar chat actions. No-option `tploc` is enforced for forced location travel. Seating
 forms `sit`, `unsit` and finite decimal `sittp[:distance]` have
 `enforced` support for explicit user actions and log `applied`. Diagnostics
 distinguish updated state from unsupported forms.
@@ -665,6 +665,29 @@ cross-prim exceptions. Both ordinary and secure option forms grant exceptions.
 RLVa accepts positive numeric option prefixes; Kokua matches the literal decimal
 channel text. Channel 0 bypasses sendchannel restrictions. Other command families
 are not affected by this fixture's permissive evaluation.
+
+No-option `sendchat` filters channel 0 with the profile's default OOC and
+ellipsis settings. Ordinary speech becomes `...`; `((OOC))` and short slash
+gestures pass. Safe emotes truncate at twenty units or a period-based limit. Kokua counts
+UTF-8 bytes. RLVa counts characters but uses the period's UTF-8 byte offset
+to set the shorter limit. Kokua accepts colon poses and discards text
+before an embedded `/me`. RLVa additionally filters question marks in emotes.
+Both block DEBUG_CHANNEL under `sendchat`. Other private channels remain
+independent. Gesture expansion, redirection, alternate settings and emote
+restriction extensions are outside this action fixture.
+
+`sendchannel_except:<channel>` is an additional channel denial and overrides
+`sendchannel` exceptions. Kokua checks literal decimal channel text directly.
+RLVa accepts positive numeric prefixes and activates its exclusion list only
+while a no-option `sendchannel_except=n` rule exists. The switch and list entries
+may come from different issuers. RLVa also supports `sendchannel_except_sec`: every
+secure issuer must list the channel before it is denied. With `permissive=n`,
+every activating issuer must list it. Kokua leaves the secure form unsupported.
+Public chat and automatic replies are unaffected.
+
+Successful action records include `deliveredMessage`; `message` retains the
+original attempt. Rewritten actions have reason `sendchat` and status `sent`.
+Blocked DEBUG_CHANNEL actions have reason `sendchat` and no delivered message.
 
 Supported restriction commands have command-log status `applied`. Frozen
 `fixture.chatActions` snapshots, also available through `avatarChatLog(avatar)`,
@@ -1273,6 +1296,20 @@ moving the camera. `getRlvCameraLimits(avatar).silhouetteDistance` exposes the
 strongest threshold as viewer state. Kokua leaves this command inspectably
 unsupported. Rendering silhouettes is outside the fixture.
 
+
+### Viewer UI restrictions
+
+Use `getRlvViewerState(avatar, context?)` to assert on show/view restrictions.
+It returns frozen effects with support depth, resolved `restricted` state and
+issuer rules including options and exceptions. `restricted: null` identifies an
+unsupported effect. See the [viewer-state query contract](../../README.md#rlvrlva-viewer-fixtures)
+for target UUID, distance and HUD/world context and profile differences.
+
+```ts
+const inventory = getRlvViewerState(fixture.avatar).find(effect => effect.behaviour === 'showinv')!
+expect(inventory.restricted).toBe(true)
+expect(inventory.rules[0]).toMatchObject({ sourcePrim: fixture.script.host.key, option: '' })
+```
 
 ### Implemented `ll*` functions
 

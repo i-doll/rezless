@@ -111,3 +111,5 @@ export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv/o
 
 export { getRlvCameraPosition, getRlvCameraLimits, setRlvCameraOrigins } from './rlv/camera.js'
 export type { RlvCameraLimits } from './rlv/camera.js'
+export { getRlvViewerState } from './rlv/viewstate.js'
+export type { RlvViewerContext, RlvViewerEffect } from './rlv/viewstate.js'
