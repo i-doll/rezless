@@ -6,13 +6,13 @@ import type { RlvProfile } from './profiles.js'
 import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint, isRlvAttachmentBridge, getRlvSavedPoint, rlvForceDetachBlock } from './attachments.js'
 import { isRlvBodypart, isRlvStrippable } from './outfit.js'
 import { isRlvDetachLocked as locked, isRlvPointLocked } from './detach.js'
-import { collectRlvWearItems, getRlvInventoryFolder, resolveRlvThisFolders, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
+import { isRlvFolderWearLocked, collectRlvWearItems, getRlvInventoryFolder, resolveRlvThisFolders, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
 
 export interface RlvForceWearItemResult {
   readonly itemId: string
   readonly outcome: 'attached' | 'worn' | 'already-worn' | 'blocked' | 'unsupported' | 'skipped'
   readonly point?: number
-  readonly reason?: 'clothing-capacity' | 'nostrip' | 'layer-lock' | 'detach-lock' | 'addattach-lock' | 'missing-definition' | 'unsupported-content' | 'shared-wear-disabled' | 'superseded' | 'unavailable-attachment'
+  readonly reason?: 'folder-lock' | 'clothing-capacity' | 'nostrip' | 'layer-lock' | 'detach-lock' | 'addattach-lock' | 'missing-definition' | 'unsupported-content' | 'shared-wear-disabled' | 'superseded' | 'unavailable-attachment'
 }
 export type RlvForceWearOutcome = 'allowed' | 'blocked' | 'no-op' | 'partial' | 'failed-option' | 'unsupported-form'
 type WearItem = { entry: RlvInventoryEntry; point: number; replace: boolean }
@@ -84,6 +84,7 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: Retur
     inventory.rememberAttachment(entry.id, object)
     return { itemId: entry.id, outcome: 'already-worn', point: object.attachment.point }
   }
+  if (isRlvFolderWearLocked(avatar, entry, true, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
   const definition = object && !object.dead ? object : entry.object
   const actualTarget = point || getRlvSavedPoint(definition)
   if (isRlvPointLocked(avatar, actualTarget, 'add', rules)) return { itemId: entry.id, outcome: 'blocked', point: actualTarget, reason: 'addattach-lock' }
@@ -211,26 +212,33 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
         acceptedLayers.add(plan.batch + '/' + entry.wearableType!)
         results.push({ itemId: entry.id, outcome: 'already-worn' }); continue
       }
+      if (profile === 'rlva' && isRlvFolderWearLocked(avatar, entry, true, rules)) {
+        results.push({ itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }); continue
+      }
       const occupants = worn.map(id => entries.find(e => e.id === id)!).filter(e => e.wearableType === entry.wearableType)
       const addLocked = rules.some(rule => rule.behaviour === 'addoutfit' && (!rule.option || rule.option === entry.wearableType))
+      const folderRemovalLocked = occupants.some(previous => isRlvFolderWearLocked(avatar, previous, false, rules))
       const removeLocked = rules.some(rule => rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))
       const atCapacity = !isRlvBodypart(entry) && clothingCount() >= 60
       const wholeWearLocked = profile === 'rlva' || isRlvBodypart(entry)
-      if (wholeWearLocked && (addLocked || (replace || atCapacity) && occupants.length > 0 && removeLocked)) {
+      if (wholeWearLocked && (addLocked || (replace || atCapacity) && occupants.length > 0 && (removeLocked || folderRemovalLocked))) {
         results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue
       }
       if (replace && !removeLocked) for (const previous of profile === 'rlv' && !isRlvBodypart(entry) ? occupants.slice(-1) : occupants) {
-        if (singleSlot || isRlvStrippable(profile, inventory, previous, true)) inventory.setWearableWorn(previous.id, false)
+        if ((profile === 'rlv' && singleSlot || !isRlvFolderWearLocked(avatar, previous, false, rules)) && (singleSlot || isRlvStrippable(profile, inventory, previous, true))) inventory.setWearableWorn(previous.id, false)
       }
       if (!isRlvBodypart(entry) && clothingCount() >= 60) {
         const top = occupants.filter(e => inventory.wornWearables().includes(e.id)).at(-1)
         // At capacity, the appearance manager replaces the current top item.
-        if (top && !removeLocked && (profile === 'rlva' || isRlvStrippable(profile, inventory, top, true))) {
+        if (top && !removeLocked && !isRlvFolderWearLocked(avatar, top, false, rules) && (profile === 'rlva' || isRlvStrippable(profile, inventory, top, true))) {
           inventory.setWearableWorn(top.id, false)
         }
         if (clothingCount() >= 60) {
           results.push({ itemId: entry.id, outcome: 'blocked', reason: 'clothing-capacity' }); continue
         }
+      }
+      if (profile === 'rlv' && !singleSlot && isRlvFolderWearLocked(avatar, entry, true, rules)) {
+        results.push({ itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }); continue
       }
       if (addLocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
       inventory.setWearableWorn(entry.id, true)
@@ -251,7 +259,7 @@ export interface RlvForceRemoveItemResult {
   /** Inventory item ID, or the attachment root UUID when no mapping exists. */
   readonly itemId: string
   readonly outcome: 'removed' | 'not-worn' | 'blocked' | 'skipped' | 'unsupported'
-  readonly reason?: 'detach-lock' | 'layer-lock' | 'bodypart' | 'nostrip' | 'bridge' | 'unsupported-content'
+  readonly reason?: 'folder-lock' | 'detach-lock' | 'layer-lock' | 'bodypart' | 'nostrip' | 'bridge' | 'unsupported-content'
 }
 export type RlvForceRemoveOutcome = RlvForceWearOutcome
 
@@ -329,6 +337,7 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
       const worn = !entry.wearableType ? object && !object.dead && object.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()
         : inventory.wornWearables().includes(entry.id)
       if (!worn) return { itemId: entry.id, outcome: 'not-worn' }
+      if (isRlvFolderWearLocked(avatar, entry, false, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
       if (isRlvBodypart(entry)) return { itemId: entry.id, outcome: 'skipped', reason: 'bodypart' }
       if (object && isRlvAttachmentBridge(viewer, object)) return { itemId: entry.id, outcome: 'blocked', reason: 'bridge' }
       if (!isRlvStrippable(profile, inventory, entry, folderRemoval)) return { itemId: entry.id, outcome: 'blocked', reason: 'nostrip' }

@@ -912,3 +912,10 @@ LSL function/event/constant signatures come from Linden Lab's official
 [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
 vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
+
+
+Folder restrictions `attachthis`, `attachallthis`, `detachthis`, `detachallthis`
+and their `_except` forms constrain user inventory actions and force wear/removal.
+Node and subtree locks share the existing clothing and attachment checks;
+exceptions grant only their issuer's locks. The paired fixture documentation
+covers profile selector and exception precedence differences.

@@ -1,6 +1,6 @@
 import type { Linkset } from '../linkset.js'
 import { RLV_ATTACHMENT_POINTS } from './attachments.js'
-import { getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventory, type RlvInventoryEntry } from './inventory.js'
+import { isRlvFolderWearLocked, getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventory, type RlvInventoryEntry } from './inventory.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvProfile, ViewerProfile, ViewerState } from './profiles.js'
 
@@ -137,6 +137,7 @@ export function sharedWearSupport(profile: ViewerProfile, behaviour: string, opt
 export function isRlvInventoryWearLocked(avatar: WorldAvatar, entry: RlvInventoryEntry | undefined, wear: boolean): boolean {
   const viewer = avatar.viewer
   if (viewer.profile === 'disabled' || !entry) return false
+  if (isRlvFolderWearLocked(avatar, entry, wear)) return true
   const inventory = viewer.inventory
   const entries = inventory.snapshot()
   let parent = entries.find(folder => folder.id === entry.parentId)

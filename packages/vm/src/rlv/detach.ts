@@ -1,3 +1,4 @@
+import { isRlvFolderWearLocked } from './inventory.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
@@ -35,7 +36,8 @@ export function isRlvPointLocked(avatar: WorldAvatar, point: number, action: 'ad
 export function isRlvDetachLocked(avatar: WorldAvatar, linkset: Linkset,
   rules = avatar.viewer.restrictions.snapshot()): boolean {
   return avatar.viewer.profile !== 'disabled' &&
-    (isRlvPointLocked(avatar, linkset.attachment?.point ?? 0, 'remove', rules) || rules.some(rule =>
+    (isRlvFolderWearLocked(avatar, avatar.viewer.inventory.attachmentItem(linkset.prims[0]!.key), false, rules) ||
+      isRlvPointLocked(avatar, linkset.attachment?.point ?? 0, 'remove', rules) || rules.some(rule =>
       rule.behaviour === 'detach' && !rule.option && linkset.prims.some(prim => prim.key === rule.sourcePrim)))
 }
 

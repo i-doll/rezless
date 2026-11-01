@@ -1298,7 +1298,7 @@ not traversed.
 
 A named replacement cannot displace a no-option `detach=n` locked occupant.
 Add still works. Unnamed RLVa replacement keeps locked occupants and removes
-unlocked ones. Point and folder locks remain unsupported.
+unlocked ones. Point and folder locks also constrain these actions.
 Each command record exposes `wearResults` with item IDs, resolved points and
 attached, already-worn, blocked, skipped or unsupported outcomes. Unsupported
 contents or missing definitions do not prevent supported items from wearing.
@@ -1347,7 +1347,7 @@ RLVa checks item and parent names case sensitively, walking through folded
 parents. A registered valid RLVa bridge is protected. Folder removal results
 follow seed order for Kokua and inventory ID order for RLVa.
 
-Multiple-folder delimiters, group removal and comprehensive folder locks remain unsupported.
+Multiple-folder delimiters and group removal remain unsupported.
 Mixed folder contents retain unsupported items and report each result.
 Invalid layer/path force options are inert in Kokua and fail in RLVa.
 
@@ -1904,8 +1904,7 @@ clothing during this fallback; RLVa automatically replaces it. If no slot can be
 Folder options select one path. Kokua strips a pipe annotation from each path
 component, so `Base|33/Child|30` selects `Base/Child`. RLVa resolves the literal
 option. Neither profile interprets pipes or semicolons as multiple folder paths.
-Inventory links, gestures, environment settings and folder locks remain outside
-these force-wear fixtures.
+Inventory links, gestures and environment settings remain outside these force-wear fixtures.
 
 `attachthis` and its `over`, `overorreplace` and recursive `attachallthis` forms
 select shared folders from the issuing attachment, a named attachment point,
@@ -2025,3 +2024,30 @@ policy or manual response accepts that offer. A blocked offer still leaves the
 request accepted. Host `unsit`, `tplure`, map and landmark locks do not block requests.
 Maturity, mute, busy and friend preferences, outgoing message filtering and
 simulator landing adjustments are outside this fixture.
+
+
+### Folder wear and removal locks
+
+`attachthis`, `attachallthis`, `detachthis` and `detachallthis` accept add/remove
+restrictions independently of their force forms. `this` locks one folder;
+`allthis` includes its descendants. Their `_except` forms grant a path for the
+same issuer. A second issuer's denial still blocks the action. Locks constrain
+explicit user clothing and mapped attachment actions, force wear/removal and
+replacement occupants. Simulator fixture mutations remain unrestricted.
+
+RLVa resolves an omitted option from the issuing root attachment, or selects
+folders containing items currently worn on a named point or clothing layer.
+Kokua no-option attach locks have no folder effect; no-option detach locks use
+the issuing attachment's folder. Kokua point and layer locks inspect eligible
+folder contents. Both profiles accept shared paths using their folder lookup
+rules. RLVa exceptions require an existing shared path; UUID, point, layer and
+empty exception options stay unsupported. Folded items use the containing folder.
+
+Exceptions grant only their issuer's locks. Kokua direct denials override grants
+at the same folder. RLVa processes same-folder grants and denials in insertion
+order; a grant encountered before a denial skips that issuer. A descendant grant
+exempts the matching node or subtree from an ancestor subtree denial.
+
+Kokua clothing replacement removes an eligible top item before checking the
+incoming folder lock. Force bodypart replacement checks layer locks rather than
+folder locks. RLVa checks the incoming folder before changing any occupant.
