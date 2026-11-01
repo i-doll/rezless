@@ -1,3 +1,4 @@
+import { deliverAvatarReceivedChat } from './received.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Script } from '../script.js'
 import type { RlvRestriction } from './restrictions.js'
@@ -61,6 +62,7 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
   logs.set(avatar, Object.freeze([...avatarChatLog(avatar), record]))
   if (record.status !== 'sent') return record
 
+  deliverAvatarReceivedChat(world, avatar, channel, deliveredMessage)
   const corner = world.corner(avatar.region)
   const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
   const matched: Script[] = []
