@@ -65,3 +65,5 @@ export type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 export type { TeleportRequest } from './builtins/sit.js'
 export type { AvatarDestination } from './world.js'
 export type { GameControlState } from './builtins/game-control.js'
+
+export type { PhysicsState, PhysicsRequest, PhysicsRequestName } from './builtins/physics.js'
