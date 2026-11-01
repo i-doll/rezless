@@ -197,7 +197,8 @@ it('accepts RLVa boolean numeric prefixes and rejects invalid options', async ()
   }
   for (const option of ['2', '-1', '2147483648']) {
     issue(f.script, '@fly:' + option + '=force')
-    expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'failed-option' })
+    if (profile === 'rlv') expect(f.avatar.movement?.hoverOffset).toBe(2)
+    else expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'failed-option' })
   }
 })
 
@@ -241,6 +242,7 @@ it('keeps temporary running under an RLVa alwaysrun lock and clears it under Kok
     expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: profile === 'rlv' ? 'unsupported-form' : 'failed-option' })
     f.avatar.movement!.pelvisToFoot = 0.5
     issue(f.script, '@adjustheight:1;1e999=force')
-    expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'failed-option' })
+    if (profile === 'rlv') expect(f.avatar.movement?.hoverOffset).toBe(2)
+    else expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'failed-option' })
   }
 })

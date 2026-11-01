@@ -135,7 +135,6 @@ export function dispatchMovementCommand(avatar: WorldAvatar, prim: Prim, parsed:
       }
     }
   }
-  if (!Number.isFinite(offset)) return record('refused', 'failed-option')
   state.hoverOffset = Math.max(-2, Math.min(2, offset))
   return record('applied')
 }
