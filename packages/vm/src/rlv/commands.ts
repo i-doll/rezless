@@ -11,7 +11,7 @@ import { dispatchDetachCommand } from './detach.js'
 import { dispatchCameraCommand, getRlvCameraReply } from './camera.js'
 import { dispatchRestrictionCommand, isKokuaNamedReply } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
-import { getRlvOutfitReply } from './outfit.js'
+import { getRlvOutfitNames, getRlvOutfitReply } from './outfit.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
 import { dispatchSeatingCommand, getRlvSitId } from './sit.js'
@@ -109,6 +109,15 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     if (parsed && query && parsed.behaviour === 'getinv') {
       text = getRlvInventoryList(viewer.profile, viewer.inventory, parsed.option)
+    }
+    if (parsed && query) {
+      const result = getRlvOutfitNames(viewer, parsed.behaviour, parsed.option)
+      if (result !== undefined) {
+        const reply = sendViewerReply(linkset, avatar, channel, result.text)!
+        viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
+          ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
+        continue
+      }
     }
     if (parsed && query && (parsed.behaviour === 'getoutfit' || parsed.behaviour === 'getinvworn')) {
       const result = getRlvOutfitReply(viewer.profile, viewer.inventory, linkset, parsed.behaviour, parsed.option, avatar.key)
