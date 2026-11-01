@@ -755,7 +755,8 @@ for profile differences and lifecycle behavior.
 Force `sit` and `unsit` update World seating and expose action outcomes in the
 viewer command log. `getsitid` reports the object root, null standing, or the avatar
 UUID for RLVa ground sitting. Profile-specific force lock checks are supported;
-plain-prim surface placement beyond the fixture's 8 m radius is unsupported.
+explicit simulator sit responses supply surface poses at any same-region distance
+and timed autopilot outcomes. Refused responses leave seating unchanged.
 User sit/stand attempts have no issuer exemption. `sittp[:distance]` combines
 finite decimal limits by minimum, defaults to 1.5 m, and rejects the exact boundary.
 Distances use the clicked point in global coordinates, including the optional

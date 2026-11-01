@@ -1,4 +1,4 @@
-import { AGENT_SITTING } from '../generated/constants.js'
+import { AGENT_FLYING, AGENT_SITTING } from '../generated/constants.js'
 import { NULL_KEY, ZERO_VECTOR, type Vector } from '../values/types.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
@@ -57,20 +57,8 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
     .filter(p => p.params.sitTarget.enabled)
   const seat = configured.find(free) ?? (configured.length ? undefined : requested)
   if (!seat) return record('refused', 'world-constraint')
-  if (!seat.params.sitTarget.enabled) {
-    const position = seat.regionPosition()
-    const origin = avatar.position
-    if (Math.hypot(position.x - origin.x, position.y - origin.y, position.z - origin.z) > 8) {
-      viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', outcome: 'unsupported-form' })
-      viewer.diagnostics.push({ command, reason: 'unsupported',
-        detail: 'Plain-prim sitting beyond the 8 m fixture radius requires simulator surface placement, which is unsupported.' })
-      return true
-    }
-  }
-  const previous = avatar.sittingOn
-  rememberStandtpSit(world, avatar)
-  if (!world.sitAvatar(avatar, seat)) return record('refused', 'world-constraint')
-  return record(previous === seat ? 'unchanged' : 'applied')
+  const outcome = requestViewerSit(world, avatar, seat, outcome => record(outcome, outcome === 'refused' ? 'world-constraint' : undefined))
+  return record(outcome, outcome === 'refused' ? 'world-constraint' : undefined)
 }
 
 /** Finite decimal distance prefixes. Other numeric formats remain unsupported. */
@@ -124,13 +112,44 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
   const seat = configured.find(free) ?? (configured.length ? undefined : requested)
   if (!seat || !Object.values(seat.regionPosition()).every(Number.isFinite) ||
     !Object.values(seat.params.sitTarget.offset).every(Number.isFinite)) return false
-  if (!seat.params.sitTarget.enabled && Math.hypot(target.x - origin.x, target.y - origin.y, target.z - origin.z) > 8) {
-    viewer.diagnostics.push({ command: 'user sit', reason: 'unsupported',
-      detail: 'Plain-prim sitting beyond the 8 m fixture radius requires simulator surface placement, which is unsupported.' })
-    return false
-  }
+  return requestViewerSit(world, avatar, seat) !== 'refused'
+}
+
+const pendingSits = new WeakMap<WorldAvatar, () => void>()
+
+/** A user Stop action or replacement request cancels the current pilot. */
+export function cancelPendingSit(avatar: WorldAvatar): void {
+  pendingSits.get(avatar)?.()
+  pendingSits.delete(avatar)
+}
+
+/** The simulator chooses the pose; the viewer sends AgentSit only after a successful pilot. */
+function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
+  complete?: (outcome: 'applied' | 'unchanged' | 'refused') => void): Action['actionOutcome'] {
+  const response = world.getSitResponse(avatar, seat)
+  if (!response) return 'refused'
+  cancelPendingSit(avatar)
+  avatar.info &= ~AGENT_FLYING
+  const previous = avatar.sittingOn
   rememberStandtpSit(world, avatar)
-  return world.sitAvatar(avatar, seat)
+  const sit = (): 'applied' | 'unchanged' | 'refused' =>
+    !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
+  if (!response.autopilot || previous?.linkset === seat.linkset) return sit()
+  const { durationMs, success } = response.autopilot
+  const origin = { ...avatar.position }, region = avatar.region
+  const lifetime = avatar.viewer.session.lifetime
+  const cancel = world.clock.scheduleTask(lifetime, world.clock.now + durationMs, () => {
+    pendingSits.delete(avatar)
+    if (avatar.sittingOn !== previous || avatar.region !== region ||
+      avatar.position.x !== origin.x || avatar.position.y !== origin.y || avatar.position.z !== origin.z) {
+      complete?.('refused')
+      return
+    }
+    const outcome = success ? sit() : 'refused'
+    complete?.(outcome)
+  })
+  pendingSits.set(avatar, () => { cancel(); complete?.('refused') })
+  return 'pending'
 }
 
 /** Simulator standAvatar and llUnSit bypass this explicit viewer action. */

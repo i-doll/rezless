@@ -7,7 +7,7 @@ import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } f
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
-import { returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
+import { cancelPendingSit, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
@@ -20,6 +20,13 @@ import type { Prim } from './prim.js'
 import { AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
+
+/** Prim-local simulator sit placement and an optional viewer autopilot outcome. */
+export interface AvatarSitResponse {
+  readonly position: Vector
+  readonly rotation?: Rotation
+  readonly autopilot?: { readonly durationMs: number; readonly success: boolean }
+}
 
 /** A placeable sensor target. Positions use its region's coordinates. */
 export interface WorldObjectOptions {
@@ -370,8 +377,8 @@ export class World {
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
         if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
         const target = seat?.params.sitTarget
-        seatOffset = { ...(target?.enabled ? target.offset : ZERO_VECTOR) }
-        seatOrientation = { ...(target?.enabled ? target.rotation : ZERO_ROTATION) }
+        seatOffset = { ...(world.sitPlacements.get(avatar)?.position ?? (target?.enabled ? target.offset : ZERO_VECTOR)) }
+        seatOrientation = { ...(world.sitPlacements.get(avatar)?.rotation ?? (target?.enabled ? target.rotation : ZERO_ROTATION)) }
         if (value && changingSeat && avatar.viewer.profile === 'rlv') returnStandtpAvatar(world, avatar)
       },
       standingRotation: null,
@@ -413,14 +420,47 @@ export class World {
     return userStandAvatar(this, avatar)
   }
 
+  private readonly sitPlacements = new WeakMap<WorldAvatar, AvatarSitResponse>()
+  private readonly sitResponses = new WeakMap<Prim, AvatarSitResponse | null>()
+
+  /** Cancel a viewer sit autopilot, as a user Stop action would. */
+  cancelSitAutopilot(avatar: WorldAvatar): void { cancelPendingSit(avatar) }
+
+  /** Set simulator placement, refusal, or restore the default seating response. */
+  setSitResponse(prim: Prim, response: AvatarSitResponse | null | undefined): void {
+    if (response === undefined) { this.sitResponses.delete(prim); return }
+    if (response === null) { this.sitResponses.set(prim, null); return }
+    const rotation = response.rotation ?? ZERO_ROTATION
+    if (![...Object.values(response.position), ...Object.values(rotation)].every(Number.isFinite) ||
+      response.autopilot && (!Number.isFinite(response.autopilot.durationMs) || response.autopilot.durationMs < 0)) {
+      throw new RangeError('Sit responses require finite transforms and nonnegative autopilot duration')
+    }
+    this.sitResponses.set(prim, { position: { ...response.position }, rotation: { ...rotation },
+      ...(response.autopilot ? { autopilot: { ...response.autopilot } } : {}) })
+  }
+
+  /** Simulator responses can place a sitter on a surface at any same-region distance. */
+  getSitResponse(avatar: WorldAvatar, prim: Prim): AvatarSitResponse | null {
+    if (this.sitResponses.has(prim)) return this.sitResponses.get(prim)!
+    const target = prim.params.sitTarget
+    if (target.enabled) return { position: target.offset, rotation: target.rotation }
+    const position = prim.regionPosition(), origin = avatar.position
+    // The default plain-prim response covers nearby seats. Other surfaces use explicit responses.
+    if (Math.hypot(position.x - origin.x, position.y - origin.y, position.z - origin.z) > 8) return null
+    return { position: ZERO_VECTOR, rotation: ZERO_ROTATION }
+  }
+
   /** Seed simulator seating on a free prim, independently of viewer restrictions. */
-  sitAvatar(avatar: WorldAvatar, prim: Prim): boolean {
+  sitAvatar(avatar: WorldAvatar, prim: Prim, placement?: AvatarSitResponse): boolean {
     const linkset = prim.linkset
     if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region ||
       this.avatars.some(a => a !== avatar && a.sittingOn === prim)) return false
+    cancelPendingSit(avatar)
     if (avatar.sittingOn === prim) return true
     const previous = avatar.sittingOn?.linkset
+    if (placement) this.sitPlacements.set(avatar, placement)
     avatar.sittingOn = prim
+    this.sitPlacements.delete(avatar)
     avatar.standingRotation = null
     avatar.info = (avatar.info & ~(AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING | AGENT_ON_OBJECT
     if (previous && previous !== linkset) this.sitChanged(previous)
