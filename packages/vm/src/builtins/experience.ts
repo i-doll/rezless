@@ -134,12 +134,18 @@ function keyValueRequest(
   answer: (store: Map<string, string>, quota: number) => string | number,
 ): string {
   const key = nextDataserverKey(ctx)
-  ctx.state.dataserverRequests.push({ key, source, args, fulfilled: true })
+  const request = { key, source, args, fulfilled: false }
+  ctx.state.dataserverRequests.push(request)
   const xp = ctx.state.experience
-  const result = xp ? answer(xp.store, xp.quota) : XP_ERROR_NO_EXPERIENCE
-  const data = typeof result === 'number' ? `0,${result}` : `1,${result}`
-  const payload = { queryid: key, data }
-  for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, ctx.state.clock.now, 'dataserver', payload)
+  const respond = (error?: number): void => {
+    const result = error ?? (xp ? answer(xp.store, xp.quota) : XP_ERROR_NO_EXPERIENCE)
+    request.fulfilled = true
+    const data = typeof result === 'number' ? `0,${result}` : `1,${result}`
+    const payload = { queryid: key, data }
+    for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, ctx.state.clock.now, 'dataserver', payload)
+  }
+  if (xp) xp.keyValueRequest(request, respond)
+  else respond()
   return key
 }
 

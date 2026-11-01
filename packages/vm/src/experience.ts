@@ -1,5 +1,9 @@
 import { NULL_KEY } from './values/types.js'
 import { deterministicKey } from './keys.js'
+import type { DataserverRequestEntry } from './builtins/dataserver.js'
+
+type KeyValueRequest = Pick<DataserverRequestEntry, 'key' | 'source' | 'args'>
+type RequestMatcher = (request: KeyValueRequest) => boolean
 
 export interface ExperienceOptions {
   /** Experience key. Defaults to a deterministic key derived from the name. */
@@ -34,6 +38,9 @@ export class Experience {
   readonly store = new Map<string, string>()
   /** Agents who accepted the experience. */
   readonly agents: Set<string>
+  private holding = false
+  private readonly pending: Array<() => void> = []
+  private readonly failures: Array<{ error: number; matches: RequestMatcher }> = []
 
   constructor(options: ExperienceOptions = {}) {
     this.name = options.name ?? 'Experience'
@@ -48,6 +55,42 @@ export class Experience {
   /** Pre-populate the key-value store. */
   seed(entries: Iterable<readonly [string, string]>): void {
     for (const [k, v] of entries) this.store.set(k, v)
+  }
+
+  /** Fail the next matching key-value request without applying its operation. */
+  failNext(error: number, matches: RequestMatcher = () => true): void {
+    if (!Number.isSafeInteger(error) || error <= 0) {
+      throw new RangeError('error must be a positive integer XP_ERROR code')
+    }
+    this.failures.push({ error, matches })
+  }
+
+  /** Defer key-value operations and their answers until release. */
+  hold(): void {
+    this.holding = true
+  }
+
+  /**
+   * Release answers in request order, applying each operation now. With a count,
+   * keep holding subsequent requests; without one, drain and resume automatic answers.
+   * Advance each affected script's clock to dispatch the scheduled dataserver events.
+   */
+  release(count?: number): void {
+    if (count !== undefined && (!Number.isSafeInteger(count) || count < 0)) {
+      throw new RangeError('count must be a nonnegative integer')
+    }
+    if (count === undefined) this.holding = false
+    const released = this.pending.splice(0, count ?? this.pending.length)
+    for (const answer of released) answer()
+  }
+
+  /** @internal Route a builtin request through the fixture controls. */
+  keyValueRequest(request: KeyValueRequest, answer: (error?: number) => void): void {
+    const index = this.failures.findIndex((failure) => failure.matches(request))
+    const failure = index < 0 ? undefined : this.failures.splice(index, 1)[0]
+    const respond = () => answer(failure?.error)
+    if (this.holding) this.pending.push(respond)
+    else respond()
   }
 }
 
