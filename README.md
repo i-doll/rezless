@@ -396,8 +396,10 @@ were measured on Aditi in SLua Tideland on 2026-11-01.
 
 ### Sitting and teleporting
 
-Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to simulate
-viewer seating. `avatar.sittingOn` identifies the occupied prim. Seated poses
+Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to seed
+simulator seating independently of viewer restrictions. Explicit user attempts
+use `world.userSitAvatar(avatar, prim, offset?)` and `world.userStandAvatar(avatar)`;
+both return whether the action was accepted. `avatar.sittingOn` identifies the occupied prim. Seated poses
 follow the current prim transform with the offset captured at seating; editing
 the target affects future sits. Deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
@@ -657,7 +659,8 @@ the lines it changed) and project coverage vs the `main` baseline.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
-These rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
+The seating rules are enforced by explicit user actions; the other listed rules
+are state-only. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
 Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
@@ -674,6 +677,11 @@ Force `sit` and `unsit` update World seating and expose action outcomes in the
 viewer command log. `getsitid` reports the object root, null standing, or the avatar
 UUID for RLVa ground sitting. Profile-specific force lock checks are supported;
 plain-prim surface placement beyond the fixture's 8 m radius is unsupported.
+User sit/stand attempts have no issuer exemption. `sittp[:distance]` combines
+finite decimal limits by minimum, defaults to 1.5 m, and rejects the exact boundary.
+Distances use the clicked point in global coordinates, including the optional
+region-axis offset. Non-finite, hexadecimal and overflow options remain inspectably
+unsupported. Simulator `llSitOnLink` and `llUnSit` bypass viewer locks.
 
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with

@@ -1,3 +1,4 @@
+import { seatingSupport } from './sit.js'
 import type { Prim } from '../prim.js'
 import type { LinksetClock } from '../clock.js'
 import type { RlvParsedCommand } from './classifier.js'
@@ -59,7 +60,7 @@ export class RlvRestrictions {
     }
     if (this.profile === 'rlv' && (KOKUA_REPLIES.has(behaviour) ||
       /^(version|getenv_|getdebug_)/.test(behaviour))) return 'unsupported'
-    const support = this.chatSupport(behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported')
+    const support = this.chatSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported')
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
     if (this.profile === 'rlva' && support === 'unsupported') return support

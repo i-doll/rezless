@@ -226,9 +226,9 @@ it('logs enforced command forms as applied and leaves other effects unsupported'
     f.script.setGlobal('command', '@sendchannel=n,sendchannel_sec=n,sendchannel:22101=add,permissive=n,sendchannel:22101=rem,sendchannel=y,permissive=y,sit=n')
     f.script.fire('touch_start', { num_detected: 1 })
     expect(f.avatar.viewer.commandLog.map(entry => entry.status)).toEqual([
-      'applied', 'applied', 'applied', 'applied', 'applied', 'applied', 'applied', 'unsupported',
+      'applied', 'applied', 'applied', 'applied', 'applied', 'applied', 'applied', 'applied',
     ])
-    expect(f.avatar.viewer.diagnostics).toHaveLength(1)
+    expect(f.avatar.viewer.diagnostics).toHaveLength(0)
     expect(f.avatar.viewer.restrictions.snapshot().filter(r => r.behaviour.startsWith('sendchannel')).every(r => r.support === 'enforced')).toBe(true)
   }
 })

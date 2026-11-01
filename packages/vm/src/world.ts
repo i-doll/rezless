@@ -1,3 +1,4 @@
+import { userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction } from './rlv/chat-actions.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
@@ -339,7 +340,17 @@ export class World {
     return mulRotation(local, prim.regionRotation())
   }
 
-  /** Seat a fixture avatar on a free prim, as a viewer sit would, without experience permissions. */
+  /** Attempt an explicit user sit with viewer restrictions and no issuer exemption. */
+  userSitAvatar(avatar: WorldAvatar, prim: Prim, offset: Vector = ZERO_VECTOR): boolean {
+    return userSitAvatar(this, avatar, prim, offset)
+  }
+
+  /** Attempt an explicit user stand. Simulator seating uses standAvatar directly. */
+  userStandAvatar(avatar: WorldAvatar): boolean {
+    return userStandAvatar(this, avatar)
+  }
+
+  /** Seed simulator seating on a free prim, independently of viewer restrictions. */
   sitAvatar(avatar: WorldAvatar, prim: Prim): boolean {
     const linkset = prim.linkset
     if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region ||

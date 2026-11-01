@@ -5,7 +5,7 @@ import { dispatchRestrictionCommand } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
-import { dispatchSeatingCommand, getRlvSitId } from './sit.js'
+import { dispatchSeatingCommand, getRlvSitId, seatingSupport } from './sit.js'
 import { getRlvAttachmentPoint, getRlvAttachmentReply } from './attachments.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
@@ -95,6 +95,11 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
           ...(failedOption ? { outcome: 'failed-option' as const } : {}) })
         continue
       }
+    }
+    if (text === undefined && parsed && !malformed &&
+      (parsed.kind === 'add' || parsed.kind === 'remove') && seatingSupport(viewer.profile, parsed.behaviour, parsed.option) === 'enforced') {
+      dispatchRestrictionCommand(viewer, prim, parsed, command)
+      continue
     }
     if (text === undefined && parsed && !malformed && viewer.restrictions.supportsChatCommand(parsed)) {
       dispatchRestrictionCommand(viewer, prim, parsed, command)

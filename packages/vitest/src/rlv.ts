@@ -1,4 +1,4 @@
-import { World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type WorldAvatar } from '@rezless/vm'
+import { World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
 export interface RlvFixture {
@@ -6,6 +6,8 @@ export interface RlvFixture {
   readonly avatar: WorldAvatar
   readonly script: Script
   readonly chatActions: readonly AvatarChatAction[]
+  userSit(prim: Prim, offset?: Vector): boolean
+  userStand(): boolean
   sendChat(channel: number, message: string): AvatarChatAction
 }
 
@@ -19,6 +21,16 @@ export async function loadRlvPair(input: { readonly source: string }): Promise<R
       prims: [{ name: 'RLV fixture', scripts: [{ name: 'fixture', source: { source: input.source } }] }] })
     return { world, avatar, script: loaded.scripts['fixture']!,
       get chatActions() { return avatarChatLog(avatar) },
+      userSit: (prim, offset) => {
+        const accepted = world.userSitAvatar(avatar, prim, offset)
+        loaded.linkset.advanceTime(0)
+        return accepted
+      },
+      userStand: () => {
+        const accepted = world.userStandAvatar(avatar)
+        loaded.linkset.advanceTime(0)
+        return accepted
+      },
       sendChat: (channel, message) => world.sendAvatarChat(avatar, channel, message) }
   }
   return { rlv: await load('rlv'), rlva: await load('rlva') }
