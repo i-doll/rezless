@@ -45,7 +45,7 @@ it('clamps permission-gated pose reads and keeps the current-distance query RLVa
     expect(f.script.global('position')).toEqual(vec(12, 0, 0))
     f.avatar.info |= AGENT_MOUSELOOK
     send(f, '@getcam_avdistmin=22901')
-    expect(f.script.global('position')).toEqual(vec(10, 0, 0))
+    expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(12, 0, 0) : vec(10, 0, 0))
   }
 })
 

@@ -1,5 +1,5 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
-import { getRlvFov, getRlvCameraPosition, seatedCameraPosition } from '../rlv/camera.js'
+import { getRlvFov, getRlvCameraControlPose, getRlvCameraPosition, seatedCameraPosition } from '../rlv/camera.js'
 import { rotateVector } from '../values/ops.js'
 import { llAxes2Rot } from './math.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
@@ -43,12 +43,24 @@ function seatedCamera(ctx: CallContext): Pick<Camera, 'pos' | 'rot'> | null {
 
 /** Pose shared by camera reads and consumers such as HUD projection. */
 export function effectiveCamera(ctx: CallContext): Camera {
-  const seated = seatedCamera(ctx)
   const avatar = ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === ctx.state.permissions.agent.toLowerCase())
   const lens = avatar && avatar.viewer.profile !== 'disabled' ? { fov: getRlvFov(avatar) } : {}
+  const control = avatar && avatar.viewer.profile !== 'disabled' ? getRlvCameraControlPose(avatar) : undefined
+  const seated = seatedCamera(ctx)
   const pose = { ...ctx.state.camera, ...seated, ...lens }
-  return avatar && avatar.viewer.profile !== 'disabled'
-    ? { ...pose, pos: getRlvCameraPosition(avatar, pose.pos) } : pose
+  if (avatar && avatar.viewer.profile !== 'disabled') pose.pos = getRlvCameraPosition(avatar, control?.pos ?? pose.pos)
+  if (control) {
+    const direction = vec(control.focus.x - pose.pos.x, control.focus.y - pose.pos.y, control.focus.z - pose.pos.z)
+    const length = Math.hypot(direction.x, direction.y, direction.z)
+    if (length > 0) {
+      const forward = vec(direction.x / length, direction.y / length, direction.z / length)
+      const horizontal = Math.hypot(forward.x, forward.y)
+      const left = horizontal === 0 ? vec(0, 1, 0) : vec(-forward.y / horizontal, forward.x / horizontal, 0)
+      const up = vec(-forward.z * left.y, forward.z * left.x, forward.x * left.y - forward.y * left.x)
+      pose.rot = llAxes2Rot(ctx, [forward, left, up]) as Rotation
+    }
+  }
+  return pose
 }
 
 /** llGetCameraPos() — ZERO_VECTOR without PERMISSION_TRACK_CAMERA. */
