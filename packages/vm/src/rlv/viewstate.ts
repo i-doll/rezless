@@ -123,17 +123,22 @@ export function renderSupport(profile: ViewerProfile, behaviour: string, option:
   return undefined
 }
 
+function renderFloat(profile: ViewerProfile, option: string): number | undefined {
+  // Floating modifiers accept explicit non-finite values.
+  return cameraAngle(profile === 'rlva' && /^[\t\n\v\f\r ]*[+-]?(?:inf|nan)/i.test(option) ? 'rlv' : profile, option)
+}
+
 function modifierValue(profile: ViewerProfile, field: string, option: string): Value | undefined {
   if (field === 'texture') return uuid(option) ? option : undefined
   const count = field === 'param' ? 4 : field === 'color' || field === 'tint' ? 3 : 0
   if (count) {
     const parts = option.split(profile === 'rlv' ? /[;/]/ : '/')
     if (profile === 'rlva' && parts.length < count) return undefined
-    const values = Array.from({ length: count }, (_, i) => cameraAngle(profile, parts[i] ?? ''))
+    const values = Array.from({ length: count }, (_, i) => renderFloat(profile, parts[i] ?? ''))
     return values.every(v => v !== undefined) ? values as number[] : undefined
   }
   const value = ['mode', 'origin', 'distextend'].includes(field)
-    ? rlvIntegerPrefix(option) ?? (profile === 'rlv' ? 0 : undefined) : cameraAngle(profile, option)
+    ? rlvIntegerPrefix(option) ?? (profile === 'rlv' ? 0 : undefined) : renderFloat(profile, option)
   return profile === 'rlv' && value !== undefined ? Math.max(0, value) : value
 }
 
@@ -185,6 +190,14 @@ export function dispatchRenderCommand(avatar: WorldAvatar, prim: Prim, parsed: R
   const rules = state.sync()
   state.prims.set(prim.key, prim)
   const { behaviour, option, kind } = parsed
+  if (viewer.profile === 'rlv' && kind === 'clear' && rules.some(r => r.sourcePrim === prim.key &&
+      r.behaviour === 'setsphere' && r.rule.includes(parsed.parameter))) {
+    dispatchRestrictionCommand(viewer, prim, parsed, command)
+    for (const rule of viewer.restrictions.snapshot(prim.key).filter(r => r.behaviour.startsWith('setsphere_')))
+      viewer.restrictions.apply(prim, { behaviour: rule.behaviour, option: rule.option, parameter: 'y', kind: 'remove' })
+    state.sync()
+    return true
+  }
   const base = behaviour.startsWith('setsphere_') ? 'setsphere' : behaviour.startsWith('setoverlay_') ? 'setoverlay' : ''
   const field = fieldOf(behaviour)
   const fields = base === 'setsphere' ? sphereFields : overlayFields

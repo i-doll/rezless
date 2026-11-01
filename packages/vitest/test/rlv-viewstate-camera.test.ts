@@ -176,3 +176,16 @@ it('selects one overlay hierarchy and enables its linked issuers together', asyn
   send(child, '@clear')
   expect(effect(f, 'setoverlay').parameters?.overlays).toMatchObject([{ sourcePrim: f.script.host.key, enabled: true }])
 })
+
+it('accepts explicit non-finite Firestorm float modifiers', async () => {
+  const pair = await loadRlvPair({ source }); const f = pair.rlva; f.script.start()
+  send(f, '@setsphere=n,setsphere_distmax:inf=force,setsphere_valuemin:nan=force')
+  expect(effect(f, 'setsphere').parameters?.spheres?.[0]?.distmax).toBe(Infinity)
+  expect(effect(f, 'setsphere').parameters?.spheres?.[0]?.valuemin).toBeNaN()
+})
+
+it('cleans Kokua sphere parameters when a filtered clear removes an optioned base rule', async () => {
+  const pair = await loadRlvPair({ source }); const f = pair.rlv; f.script.start()
+  send(f, '@setsphere:custom=n,setsphere_distmax:8=n,clear=setsphere:custom,setsphere=n')
+  expect(effect(f, 'setsphere').parameters?.spheres?.[0]?.distmax).toBe(0)
+})
