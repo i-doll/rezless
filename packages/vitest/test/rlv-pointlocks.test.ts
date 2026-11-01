@@ -233,3 +233,23 @@ it('applies RLVa UUID ownership checks without hiding other-owned point attachme
   expect(target.attachment).toBeNull()
  }
 })
+
+it('checks the replacement definition point when a cached attachment is dead', async () => {
+ for (const f of Object.values(await loadRlvPair({ source }))) {
+  f.script.start(); const definition = await loadLinkset({ prims: [{}] })
+  seedRlvInventory(f.avatar, { sharedRootId: 'root', entries: [
+   { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+   { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+   { id: 'item', parentId: 'folder', kind: 'item', name: 'Unnamed', assetType: 'object', object: definition.linkset },
+  ] })
+  send(f, '@attachover:direct=force')
+  const cached = f.avatar.viewer.inventory.attachmentObject('item')!
+  cached.detachFromAvatar(); cached.attachToAvatar(f.avatar.key, 1); cached.remove()
+  send(f, '@addattach:right hand=n,attachover:direct=force')
+  expect(f.world.linksets.filter(l => l.attachment)).toEqual([])
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'blocked',
+   wearResults: [{ itemId: 'item', outcome: 'blocked', point: 6, reason: 'addattach-lock' }] })
+  send(f, '@addattach:right hand=y,attachover:direct=force')
+  expect(f.world.linksets.filter(l => l.attachment).map(l => l.attachment!.point)).toEqual([6])
+ }
+})

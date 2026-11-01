@@ -83,14 +83,14 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: Retur
     inventory.rememberAttachment(entry.id, object)
     return { itemId: entry.id, outcome: 'already-worn', point: object.attachment.point }
   }
-  const actualTarget = point || getRlvSavedPoint(object ?? entry.object)
+  const definition = object && !object.dead ? object : entry.object
+  const actualTarget = point || getRlvSavedPoint(definition)
   if (isRlvPointLocked(avatar, actualTarget, 'add', rules)) return { itemId: entry.id, outcome: 'blocked', point: actualTarget, reason: 'addattach-lock' }
   if (point && replace && issuer.peers.some(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
     peer.attachment.point === point && locked(avatar, peer, rules))) {
     return { itemId: entry.id, outcome: 'blocked', point, reason: 'detach-lock' }
   }
   if (!object || object.dead || object.region !== avatar.region) {
-    const definition = object && !object.dead ? object : entry.object
     if (!definition) return { itemId: entry.id, outcome: 'unsupported', reason: 'missing-definition' }
     object = definition.copy({ world: issuer.world!, region: avatar.region, owner: avatar.key })
   }
