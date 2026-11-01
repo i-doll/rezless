@@ -759,8 +759,26 @@ clamp permission-gated pose reads. RLVa also supports camera-origin bounds and
 `getcam_avdist`; Kokua supports `getcam_zoom*`. The `camzoom*` aliases constrain
 the lens with profile-specific directions. `setRlvCameraOrigins` supplies joint
 and camera-origin positions, and `getRlvCameraLimits` exposes effective bounds
-and RLVa's `setcam_avdist` silhouette threshold. Rendering and exclusive camera
-control are outside this fixture.
+and RLVa's `setcam_avdist` silhouette threshold. Rendering is outside this fixture.
+
+Camera unlocking locks (`setcam_unlock` and `camunlock`) reset the camera to
+an avatar-following rear view in both profiles. Firestorm RLVa 2.4.2 also
+supports `setcam`, `setcam_mouselook`, `setcam_eyeoffset`,
+`setcam_eyeoffsetscale` and `setcam_focusoffset`. Exclusive `setcam` control
+selects one issuer for distance and FOV limits and rejects competing force
+changes. Offset restrictions use first-added precedence; force offsets require
+all offset restrictions to be released. Nonempty focus-offset restrictions
+fail; focus-offset force commands accept slash-separated vectors. Kokua RLV
+2.09.35.00 keeps these additional forms unsupported.
+
+`setRlvCameraPreset(avatar, { origin?, eye?, focus?, scale? })` supplies explicit
+head/joint and rear-preset inputs. Defaults are avatar position, eye
+`-3/0/0.75`, focus `1/0/1` and scale `1`. Offsets follow avatar rotation;
+seated camera offsets take precedence. Camera position and rotation reads and
+HUD projection share the effective pose and distance limits. Tracking reads
+still require `PERMISSION_TRACK_CAMERA`. Mouselook exclusion clears
+`AGENT_MOUSELOOK`; removal permits later entry without restoring it.
+Skeleton animation, camera lag, smoothing and collision are outside this fixture.
 
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
