@@ -62,10 +62,7 @@ export const llSetPayPrice: BuiltinImpl = (ctx, args) => {
  * once its next builtin call returns or at its next loop iteration.
  */
 export const llDie: BuiltinImpl = (ctx) => {
-  ctx.linkset.dead = true
-  for (const s of ctx.linkset.allScripts()) {
-    s.markDead()
-  }
+  ctx.linkset.remove()
   ctx.state.lifecycle.dying = true
   return undefined
 }

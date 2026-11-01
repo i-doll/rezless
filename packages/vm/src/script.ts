@@ -38,13 +38,13 @@ import { animationAvatars, playingAnimations, setAnimationState } from './builti
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
+import { typedList, listElementTypes } from './values/list-types.js'
 import { NULL_KEY } from './values/types.js'
 import { execHandler, StateChangeSignal } from './interpreter.js'
 import { buildCoveragePlan, CoverageCollector } from './coverage.js'
 import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
-import { typedList } from './values/list-types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, ScriptClockView } from './clock.js'
 import { Linkset } from './linkset.js'
@@ -174,7 +174,7 @@ export class Script {
   /** Virtual time this script last started a handler or woke from a sleep. */
   resumedAt = 0
 
-  constructor(private readonly ast: Ast, options: ScriptOptions = {}) {
+  constructor(private readonly ast: Ast, private readonly options: ScriptOptions = {}) {
     // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
     let host = options.host
     if (!host) {
@@ -854,6 +854,42 @@ export class Script {
     if (this.started) return
     this.boot()
     this.linkset.settle([this])
+  }
+
+  /** Copy saved script data into a new prim without restarting its LSL state. */
+  copyTo(host: Prim): Script {
+    const copy = new Script(this.ast, { ...this.options, host, coverage: false })
+    Object.assign(copy.mocks, this.mocks)
+    copy.state.coverage = this.state.coverage
+    for (const g of this.ast.globals) {
+      const value = this.global(g.name)
+      const saved = Array.isArray(value)
+        ? typedList(structuredClone(value), listElementTypes(value) ?? [])
+        : structuredClone(value)
+      copy.setGlobal(g.name, saved)
+    }
+    copy.state.memory.limit = this.state.memory.limit
+    copy.state.currentState = this.state.currentState
+    copy.started = this.started
+    copy.running = this.running && !this.dead
+    Object.assign(copy.state.random, this.state.random)
+    copy.state.listens.push(...structuredClone(this.state.listens))
+    copy.state.listenHandleCounter = this.state.listenHandleCounter
+    copy.clockView.timerIntervalMs = this.clockView.timerIntervalMs
+    copy.clockView.timerNextFireMs = copy.now + Math.max(0, this.clockView.timerNextFireMs - this.now)
+    copy.clockView.timeReferenceMs = copy.now - (this.now - this.clockView.timeReferenceMs)
+    copy.clockView.minEventDelayMs = this.clockView.minEventDelayMs
+    return copy
+  }
+
+  /** Queue rez lifecycle events after restoring the inventory script's saved data. */
+  queueRez(): void {
+    if (!this.running) return
+    if (!this.started) {
+      this.started = true
+      this.clockView.schedule(this.now, 'state_entry')
+    }
+    this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
   }
 
   private boot(): void {

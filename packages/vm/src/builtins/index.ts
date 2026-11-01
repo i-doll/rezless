@@ -1,3 +1,4 @@
+import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
 import { llGetDisplayName, llGetUsername, llName2Key, llRequestUserKey, llGetAgentInfo, llGetAgentLanguage, llGetAgentList, llGetAgentSize, llGetVisualParams, llIsFriend, llSameGroup } from './agents.js'
 import { llGetLandOwnerAt, llGetParcelDetails, llGetParcelFlags, llGetParcelMaxPrims, llGetParcelPrimCount, llGetParcelPrimOwners, llGetParcelMusicURL, llOverMyLand } from './land.js'
 import { llParticleSystem, llLinkParticleSystem } from './particles.js'
@@ -414,6 +415,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llLoadURL, llMapDestination, llMapBeacon, llOpenFloater,
   llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
   llSensor, llSensorRepeat, llSensorRemove,
+  llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce,
   llDamage,
   llAdjustDamage,
   llGetHealth,
