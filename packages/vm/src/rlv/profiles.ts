@@ -42,11 +42,11 @@ export interface RlvReply {
 }
 
 export type RlvCommandRecord = {
-  readonly outcome?: import('./classifier.js').RlvCommandOutcome | 'failed-option'
+  readonly outcome?: import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option'
   readonly command: string
   readonly sourcePrim: string
   readonly parsed?: RlvParsedCommand
-} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'applied' | 'unsupported' | 'malformed' })
+} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'enforced' | 'applied' | 'unsupported' | 'malformed' })
 
 /** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState {

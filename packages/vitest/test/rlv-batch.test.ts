@@ -72,7 +72,9 @@ describe('ordered viewer batches', () => {
       expect(avatar.viewer.commandLog.map(e => e.parsed?.kind)).toEqual([
         'add', 'add', 'remove', 'remove', 'force', 'clear', 'clear', 'add', 'clear', 'query',
       ])
-      expect(avatar.viewer.commandLog.every(e => e.status === 'unsupported')).toBe(true)
+      expect(avatar.viewer.commandLog.map(e => e.status)).toEqual([
+        'applied', 'applied', 'applied', 'applied', 'unsupported', 'unsupported', 'unsupported', 'unsupported', 'unsupported', 'unsupported',
+      ])
       expect(script.global('replies')).toBe(0)
     }
   })
