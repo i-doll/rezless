@@ -82,7 +82,7 @@ describe('paired LSL fixture', () => {
       expect(pair[profile].avatar.viewer.reference?.implementationVersion).toBe(expected.value)
     }
     const pending: RlvExpectations<string> = {
-      rlv: { kind: 'not-measured', reason: 'Kokua runtime unavailable; code-derived contract only' },
+      rlv: { kind: 'not-measured', reason: 'Kokua reference contract is code-derived' },
       rlva: { kind: 'unsupported', reason: 'Per-object compatibility settings are not implemented' },
     }
     expect(rlvExpectationFor(pending, 'rlv')).toEqual(pending.rlv)

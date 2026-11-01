@@ -534,7 +534,7 @@ Kokua reports API `2093500` even for `versionnum:impl` and unknown options.
 RLVa reports API `3040300`, implementation `2040213` for `:impl`, and an empty
 reply for unknown numeric options. Both string queries ignore options. Kokua's
 string suffix is the fixed fixture viewer version `26.4.0`. These Kokua results
-are code-derived because that viewer cannot run in the available test environment.
+are code-derived.
 The seven RLVa forms were measured in Firestorm RLVa 2.4.2 on the Aditi beta grid.
 
 `RLV_MANIFEST` lists covered forms, evidence by implementation version, file and

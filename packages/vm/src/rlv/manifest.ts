@@ -61,7 +61,7 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Wiki describes API version replies. RLVa adds its implementation tag and impl option; Kokua ignores the versionnum option.',
       profiles: {
         rlv: { ...kokua(['RRInterface::reallyHandleCommand', 'RRInterface::getVersion', 'RRInterface::getVersion2', 'RR_VERSION_NUM'],
-          'versionnum returns 2093500 with any option; legacy/new strings use fixture viewer suffix 26.4.0. Kokua runtime unavailable.'),
+          'versionnum returns 2093500 with any option; legacy/new strings use fixture viewer suffix 26.4.0. Code-derived reference results.'),
           support: 'enforced', coveredForms: ['@version[:<option>]=<positive-channel>', '@versionnew[:<option>]=<positive-channel>', '@versionnum[:<option>]=<positive-channel>'] },
         rlva: { ...firestorm('rlvcommon.cpp', ['RlvStrings::getVersion', 'RlvStrings::getVersionNum', 'RlvStrings::getVersionImplNum'],
           'Measured with default settings in Firestorm RLVa 2.4.2 on Aditi: RLVa-tagged strings, API 3040300, :impl 2040213, unknown numeric option empty. String queries ignore options. Compatibility overrides are not implemented.'),
