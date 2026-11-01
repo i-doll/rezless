@@ -79,3 +79,4 @@ export type { RlvCommandFields } from './rlv/parser.js'
 export type { RlvParameterKind, RlvParsedCommand } from './rlv/classifier.js'
 
 export { isValidReplyChannel, sendViewerReply } from './rlv/reply.js'
+export type { RlvRestriction } from './rlv/restrictions.js'

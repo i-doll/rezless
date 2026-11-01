@@ -544,6 +544,27 @@ Firestorm RLVa `2.4.2` reports API `3040300`, implementation `2040213` for `:imp
 reply for unknown numeric options. Both string queries ignore options. Kokua's
 string suffix is the fixed fixture viewer version `26.4.0`.
 
+`avatar.viewer.restrictions.snapshot()` returns a frozen array of frozen rules,
+optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule has
+`sourcePrim`, `behaviour`, `option`, canonical `rule`, and `support`. The no-option
+`detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm` forms have `state-only`
+support. Their actions are not enforced. Command-log status remains `unsupported`
+for action effects; diagnostics distinguish updated state from unsupported forms.
+
+Rules use emitter prim UUIDs, so scripts on one prim share state and separate
+prims remain independent. `n`/`add` and `y`/`rem` are aliases. Duplicates and absent
+removes do not change state. `@clear`, `@clear=`, and `@clear=<substring>` affect
+only that emitter. Filters match canonical rule text, including options.
+Kokua retains unknown wire names and options with `unsupported` effects. Firestorm
+only stores the six no-option forms in this fixture; other families and option
+forms remain unsupported. Neither profile stores query or force parameters.
+
+Script reset, state changes, and script removal preserve rules. Missing prims lose
+their rules on virtual-time viewer collection, every 30 seconds for RLVa and every
+10 seconds for the ready Kokua fixture with default settings. Startup delays and
+collection-setting overrides are outside the fixture. Linking and unlinking keep
+rules associated with their emitter UUID. `@getstatus` is not implemented.
+
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`
 means a reply is delivered; version reporting does not imply support for other
