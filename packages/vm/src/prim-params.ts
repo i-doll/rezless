@@ -481,11 +481,14 @@ export function writePrimParam(
       p.position = asVec(rules[cursor])
       return 1
     case PRIM_ROTATION: {
-      const rotation = normalizeRot(asRot(rules[cursor]))
+      const requested = asRot(rules[cursor])
       const root = prim.linkset?.prims[0]
-      // An unchanged local rotation skips the child rotation adjustment.
-      if (rotation.x === p.rotation.x && rotation.y === p.rotation.y &&
-          rotation.z === p.rotation.z && rotation.s === p.rotation.s) return 1
+      // Compare the incoming LSL floats before normalization changes them.
+      if (Math.fround(requested.x) === Math.fround(p.rotation.x) &&
+          Math.fround(requested.y) === Math.fround(p.rotation.y) &&
+          Math.fround(requested.z) === Math.fround(p.rotation.z) &&
+          Math.fround(requested.s) === Math.fround(p.rotation.s)) return 1
+      const rotation = normalizeRot(requested)
       p.rotation = root && root !== prim
         ? normalizeRot(mulRotation(rotation, root.params.rotation))
         : rotation

@@ -78,6 +78,32 @@ describe('PRIM_ROTATION on linked prims', () => {
     expectRotation((script.global('zero') as unknown[])[0], identity)
   })
 
+  // In-world: <1,2,3,4> local getter write-back -> unchanged, angle 0;
+  // the original non-unit input still applies the root rotation
+  // (Aditi, SLua Tideland, Firestorm 7.3.0.83011, 2026-11-01).
+  it('keeps a non-unit quaternion unchanged when its local getter is written back', async () => {
+    const { script } = await fixture(`rotation before; rotation after;
+      default { state_entry() {
+        llSetLocalRot(<1,2,3,4>);
+        before=llGetLocalRot();
+        llSetPrimitiveParams([PRIM_ROTATION,before]);
+        after=llGetLocalRot();
+      } }`, true)
+    script.start()
+    expect(script.global('after')).toEqual(script.global('before'))
+  })
+
+  it('applies the root adjustment to the original non-unit input', async () => {
+    const { script } = await fixture(`rotation after;
+      default { state_entry() {
+        llSetLocalRot(<1,2,3,4>);
+        llSetPrimitiveParams([PRIM_ROTATION,<1,2,3,4>]);
+        after=llGetLocalRot();
+      } }`, true)
+    script.start()
+    expectRotation(script.global('after'), { x: -.12909944, y: .38729833, z: .90369611, s: .12909944 })
+  })
+
   // In-world: root PRIM_ROTATION and PRIM_ROT_LOCAL both set/read the root pose
   // (Aditi, SLua Tideland, Firestorm 7.3.0.83011, 2026-11-01).
   for (const param of ['PRIM_ROTATION', 'PRIM_ROT_LOCAL']) it(`keeps ${param} root setters unchanged`, async () => {
