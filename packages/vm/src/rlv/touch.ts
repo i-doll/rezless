@@ -9,7 +9,7 @@ import type { ViewerProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
 
 const distances = new Set(['fartouch', 'touchfar'])
-const switches = new Set(['touchall', 'touchattachself'])
+const switches = new Set(['touchall', 'touchattachself', 'touchme'])
 const exceptions = new Set(['touchworld', 'touchattach', 'touchattachother', 'touchhud'])
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 
@@ -21,6 +21,7 @@ function radius(profile: ViewerProfile, option: string): number | undefined {
 }
 
 export function touchSupport(profile: ViewerProfile, behaviour: string, option: string): RlvRestriction['support'] | undefined {
+  if (behaviour === 'touchthis') return profile !== 'disabled' && uuid(option) ? 'enforced' : 'unsupported'
   if (distances.has(behaviour)) return profile !== 'disabled' && radius(profile, option) !== undefined ? 'enforced' : 'unsupported'
   if (switches.has(behaviour)) return profile !== 'disabled' && !option ? 'enforced' : 'unsupported'
   if (behaviour === 'touchworld_sec' || behaviour === 'touchhud_sec') {
@@ -113,6 +114,13 @@ export function checkAvatarTouch(world: World, avatar: WorldAvatar, prim: Prim, 
     const missing = global.filter(rule => (strict || rule.behaviour.endsWith('_sec')) && !grants.some(grant => grant.sourcePrim === rule.sourcePrim))
     return missing.length ? missing : grants.length ? [] : global
   }
+  // Kokua checks the root issuer; RLVa grants from any prim in the target linkset.
+  const touchme = blocks('touchme').some(rule => profile === 'rlv'
+    ? rule.sourcePrim.toLowerCase() === root
+    : linkset.prims.some(issuer => issuer.key.toLowerCase() === rule.sourcePrim.toLowerCase()))
+  if (touchme) return result('allowed')
+  const touchthis = family('touchthis').filter(rule => rule.option === root)
+  if (profile === 'rlva' && touchthis.length) return deny(touchthis)
   if (!hud && blocks('touchall').length) return deny(blocks('touchall'))
   if (!attachment) {
     const denials = worldOrHud('touchworld')
@@ -141,6 +149,7 @@ export function checkAvatarTouch(world: World, avatar: WorldAvatar, prim: Prim, 
       return result('blocked', limits[0]?.behaviour ?? 'fartouch', limits)
     }
   }
+  if (touchthis.length) return deny(touchthis)
   return result('allowed')
 }
 
