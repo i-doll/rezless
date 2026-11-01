@@ -310,6 +310,10 @@ import {
   llGetCameraRot,
   llGetCameraFOV,
   llGetCameraAspect,
+  llSetCameraAtOffset,
+  llSetCameraEyeOffset,
+  llSetLinkCamera,
+  llForceMouselook,
   llSetCameraParams,
   llClearCameraParams,
 } from './camera.js'
@@ -743,6 +747,10 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetCameraRot,
   llGetCameraFOV,
   llGetCameraAspect,
+  llSetCameraAtOffset,
+  llSetCameraEyeOffset,
+  llSetLinkCamera,
+  llForceMouselook,
   llSetCameraParams,
   llClearCameraParams,
   // script control

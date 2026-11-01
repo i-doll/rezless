@@ -6,7 +6,7 @@ import { InventoryType, inventoryItemName } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
-import { NULL_KEY } from './values/types.js'
+import { NULL_KEY, ZERO_VECTOR } from './values/types.js'
 import { deterministicKey } from './keys.js'
 import { PERM_ALL, STATUS_PHANTOM } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
@@ -105,6 +105,10 @@ export class Prim {
   touchText = ''
   /** llSetSitText; '' is the viewer's default. */
   sitText = ''
+  /** Local camera settings for the next avatar to sit; preserved in inventory. */
+  cameraEyeOffset: Vector = { ...ZERO_VECTOR }
+  cameraAtOffset: Vector = { ...ZERO_VECTOR }
+  forceMouselook = false
   /** llSetPayPrice arguments as the script passed them, or null if never called. */
   payPrice: { price: number; buttons: LslValue[] } | null = null
   /** UUIDs of the object animations this prim's scripts started. */
