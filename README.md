@@ -781,6 +781,16 @@ with `addoutfitall` and `addoutfitallover` aliases. Kokua also accepts
 `remoutfit:<folder>` removes direct folder attachments and clothing.
 Hidden and folded folders follow the selected profile, with per-item outcomes.
 
+`attachthis` and its `over`, `overorreplace` and recursive `attachallthis` forms
+select shared folders from the issuing attachment, a named attachment point,
+a clothing layer or a worn object UUID. `detachthis` and `detachallthis` remove
+the selected folder contents. Point and layer selectors include every worn item.
+Existing wear, removal, lock and folder-prefix rules apply. The `addoutfitthis`
+and `addoutfitallthis` aliases follow the same behavior; their `overorreplace`
+variants are available only in Kokua. Kokua resolves child prims to their root;
+RLVa child prims have no inventory item identity and select no folder.
+
+
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
 profile-specific path matching and visibility filters.
