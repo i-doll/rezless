@@ -49,7 +49,7 @@ const tests = ['packages/vitest/test/rlv-profiles.test.ts']
 const replyForms = (...names: string[]): RlvCommandForm[] => names.map(behaviour => ({
   behaviour, type: 'reply', support: 'enforced', option: 'any',
 }))
-const restrictionForms: RlvCommandForm[] = ['sendchat', 'tplm', 'tploc'].map(behaviour => ({
+const restrictionForms: RlvCommandForm[] = ['sendchat', 'tplm'].map(behaviour => ({
   behaviour, type: 'add', support: 'state-only', option: 'none',
 }))
 
@@ -106,11 +106,11 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Both profiles share prim-scoped rules, aliases, duplicate suppression and substring clear. Kokua retains unknown names and options; RLVa validates forms. Script reset, state change and removal preserve rules. Missing prims lose their rules during viewer garbage collection.',
       profiles: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
-          'No-option sendchat, tploc and tplm are state-only. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
+          'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
           commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
-          'No-option sendchat, tploc and tplm are state-only. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
+          'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
           commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
@@ -305,6 +305,28 @@ export const RLV_MANIFEST: {
           coveredForms: ['Explicit user sit/stand, independent issuers and strict default/custom sittp boundaries', 'Simulator and force action separation', 'Standing, object-root and avatar-UUID ground getsitid replies', 'UUID and empty/null ground force sit with action outcomes', 'World occupancy, region, attachment and lifetime checks', 'Force unsit and ground-sit issuer exceptions', 'Normal changed events without script permission grants'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-sit.test.ts', 'packages/vitest/test/rlv-sit-enforce.test.ts'],
+    },
+    {
+      id: 'teleport', forms: ['@tpto:<x>/<y>/<z>[;<angle>]=force', '@tpto:<region>/<x>/<y>/<z>[;<angle>]=force', '@tploc=n|y', '@tplocal[:<distance>]=n|y'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles resolve global and named-region locations. Kokua truncates coordinates and ignores the supplied facing angle. RLVa preserves fractions and applies the angle in radians. RLVa classifies local moves by XY distance below 256 m and checks XYZ distance against strict sittp and tplocal limits; its bare tplocal limit is 1.5 m and the maximum is 256 m. Kokua applies tploc to all moves and an inclusive tplocal distance in the same region.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::force', 'RRInterface::forceTeleport', 'RRInterface::forceTeleportCallback', 'RRInterface::getMin'],
+          'Slash fields discard empties and pad to three; integer prefixes truncate fractions and invalid fields mean zero. Three fields are global, four name a region. Angles do not set facing. Bare issuer tploc, tplocal, unsit and sittp locks lift temporarily for global moves and are restored before named-region callbacks. Named angles preserve orientation and refuse any sittp lock. All location moves obey remaining tploc and seated unsit; same-region moves obey the inclusive signed minimum tplocal distance. Finite decimal forms are supported; non-finite, hexadecimal and overflowing conversions are unsupported. Unknown regions and uncovered coordinates refuse without changing avatar state. Teleport action records and normal stand events do not grant simulator permissions. Landing-point routing, terrain/collision offsets and camera pose are outside the fixture.'),
+          support: 'enforced', commandForms: [
+            { behaviour: 'tpto', type: 'force', support: 'enforced', option: 'any' },
+            { behaviour: 'tploc', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'tplocal', type: 'add', support: 'enforced', option: 'any' }],
+          coveredForms: ['Global and named-region coordinates, integer-prefix and partial-field parsing', 'Issuer restoration, seated locks and profile-specific local distance checks', 'Known-region boundaries, unknown-region refusal, action results and simulator permission separation'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvForceHandler<RLV_BHVR_TPTO>::onCommand', 'RlvHandler::onTeleportCallback', 'RlvActions::isLocalTp', 'RlvActions::canTeleportToLocal', 'RlvActions::canTeleportToLocation'],
+          'Global floating vectors are tried before four-field named-region vectors. Final coordinate suffixes and angle prefixes are accepted; malformed and empty angles fail. Extra semicolon fields are ignored. Angles in radians request a horizontal facing direction. Only the force issuer is exempt from lock presence checks; distance modifiers use the global minimum. Moves within 256 m in XY obey strict XYZ sittp and tplocal limits, including vertical moves and nearby region crossings. Bare tplocal defaults to 1.5 m and its maximum is 256 m. Longer moves obey tploc. All seated moves obey foreign unsit. tplm and UUID tploc options do not block or grant exceptions for location travel. Finite decimal forms are supported; non-finite, hexadecimal and overflow conversions are unsupported. Explicit World regions resolve case-insensitively with half-open boundaries; unknown destinations refuse without mutation. Actions stand normally without granting simulator permissions. Landing-point routing, terrain/collision offsets and camera pose are outside the fixture.'),
+          support: 'enforced', commandForms: [
+            { behaviour: 'tpto', type: 'force', support: 'enforced', option: 'any' },
+            { behaviour: 'tploc', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'tplocal', type: 'add', support: 'enforced', option: 'any' }],
+          coveredForms: ['Floating global and named-region destinations, prefix/suffix parsing and radian facing', 'XYZ local limits, maximum distance, issuer exemptions and distant tploc locks', 'Known-region boundaries, unknown-region refusal, seated actions and permission separation'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-tpto.test.ts'],
     },
     {
       id: 'camera-fov', forms: ['@setcam_fov[:<radians>]=force', '@setcam_fovmin:<radians>=n|y', '@setcam_fovmax:<radians>=n|y', '@getcam_fov=<channel>', '@getcam_fovmin=<channel>', '@getcam_fovmax=<channel>'],
