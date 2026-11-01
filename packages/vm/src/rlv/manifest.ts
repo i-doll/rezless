@@ -69,6 +69,22 @@ export const RLV_MANIFEST: {
       'Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.'],
   },
   commands: [
+    ...['pay', 'buy'].map(behaviour => ({
+      id: behaviour, forms: [`@${behaviour}=n|add|y|rem`], comparison: 'confirmed difference' as const,
+      wikiComparison: behaviour === 'pay'
+        ? 'RLVa pay blocks avatar payments, including payments through attachments to their wearer. Object payments use buy. Kokua has no pay handler.'
+        : 'RLVa buy blocks object payments and all object sale types, including free purchases. Avatar payments use pay. Kokua has no buy handler.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::reallyHandleCommand', 'RRInterface::add', 'RRInterface::remove'],
+          'No payment or purchase restriction handler. Unknown wire rules remain inspectably unsupported and do not block these actions.'), commandForms: [] },
+        rlva: { ...firestorm('rlvactions.cpp', ['RlvActions::canBuyObject', 'RlvActions::canPayObject', 'RlvActions::canPayAvatar'],
+          behaviour === 'pay'
+            ? 'No-option pay denies avatar payments. Attachment payments target their wearer without money events on the attachment. Add/remove aliases and per-issuer clear apply; options, secure variants and force forms are unsupported.'
+            : 'No-option buy denies payments to objects and purchase requests for original, copy and contents sale types at every price. Allowed injected object payments deliver money to the selected prim. Purchases capture sale type and price without money events; balances, settlement and inventory transfers are external. Options, secure variants and force forms are unsupported.'),
+          support: 'enforced' as const, coveredForms: [`@${behaviour}=n|add|y|rem`],
+          commandForms: [{ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const }] },
+      }, tests: [...tests, 'packages/vitest/test/rlv-pay.test.ts'],
+    })),
     {
       id: 'setgroup', forms: ['@setgroup=n|add|y|rem', '@setgroup:<group>=force', '@setgroup:<group>;<role>=force'], comparison: 'confirmed difference',
       wikiComparison: 'Both profiles lock user group activation and support forced activation by name or none. Kokua requires a full name and blocks force activation under every lock, including the issuer. RLVa also accepts member UUIDs, the null UUID, and case-insensitive name prefixes; exact matches win, otherwise the last membership match wins.',

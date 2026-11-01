@@ -138,3 +138,6 @@ export type { AvatarMovement, AvatarMovementAction, AvatarMovementState } from '
 export type { RlvDebugSettingsConfig } from './rlv/debug.js'
 
 export type { AvatarGroup } from './rlv/group.js'
+
+export { attemptAvatarPay, attemptAvatarBuy, setObjectSale, avatarPayLog, avatarBuyLog } from './rlv/pay.js'
+export type { AvatarPayAction, AvatarBuyAction, ObjectSale } from './rlv/pay.js'

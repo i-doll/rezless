@@ -1,3 +1,4 @@
+import { attemptAvatarPay, attemptAvatarBuy, setObjectSale, type ObjectSale, type AvatarPayAction, type AvatarBuyAction } from './rlv/pay.js'
 import { userChangeAvatarGroup, type AvatarGroup } from './rlv/group.js'
 import { attemptAvatarMovement, type AvatarMovement, type AvatarMovementAction, type AvatarMovementState } from './rlv/movement.js'
 import { attemptAvatarEdit, attemptAvatarRez, type AvatarEditAction, type AvatarRezAction } from './rlv/edit.js'
@@ -288,6 +289,21 @@ export class World {
   /** Deliver an online avatar IM; sender-side restrictions and automatic replies are separate. */
   sendAvatarIM(sender: WorldAvatar, recipient: string, message: string): void {
     deliverAvatarReceivedIM(this, sender, recipient, message)
+  }
+
+  /** Inject a completed payment, subject to the payer's viewer restrictions. */
+  attemptAvatarPay(avatar: WorldAvatar, target: Prim | WorldAvatar, amount: number): AvatarPayAction {
+    return attemptAvatarPay(this, avatar, target, amount)
+  }
+
+  /** Capture a viewer purchase request against explicit object sale information. */
+  attemptAvatarBuy(avatar: WorldAvatar, prim: Prim): AvatarBuyAction {
+    return attemptAvatarBuy(this, avatar, prim)
+  }
+
+  /** Supply or clear an object's simulator sale information. */
+  setObjectSale(prim: Prim, sale: ObjectSale | null): void {
+    setObjectSale(this, prim, sale)
   }
 
   /** Attempt an online avatar IM with sender restrictions and a frozen outcome. */
