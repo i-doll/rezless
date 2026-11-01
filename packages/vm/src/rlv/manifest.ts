@@ -64,8 +64,8 @@ export const RLV_MANIFEST: {
   wiki: { url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' },
   // Reference settings are separate from implementation versions.
   settings: {
-    rlv: ['doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. Blacklist settings are unsupported.'],
-    rlva: ['RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
+    rlv: ['doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. An explicit per-avatar blacklist preserves wire order and uses %f for force entries; query and notify commands remain available.'],
+    rlva: ['rlvaNoSetEnv disables setenv add/remove through the dictionary; it is separate from the Kokua blacklist. Environment effects remain unsupported.', 'RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
       'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.',
       'Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.'],
   },
@@ -378,6 +378,21 @@ export const RLV_MANIFEST: {
           coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts'],
+    },
+    {
+      id: 'blacklist', forms: ['@versionnumbl=<channel>', '@getblacklist[:<filter>]=<channel>', 'Kokua blacklisted add and force; RLVa disabled setenv add/remove'],
+      comparison: 'version/setting dependent',
+      wikiComparison: 'Kokua supports the wiki blacklist queries, comma composition and substring filters. RLVa has neither query and uses a separate dictionary setting to disable setenv add/remove.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::getVersionNum', 'RRInterface::getBlacklist', 'RRInterface::isBlacklisted', 'RRInterface::add', 'RRInterface::force'],
+          'versionnumbl appends the configured comma-separated blacklist to 2093500; getblacklist preserves entry order and filters by substring. Blacklisted adds notify with =n before succeeding without state; notify is exempt. Force entries use %f and succeed without effects or notifications. Removes remain available. Unsupported effects retain diagnostics.'),
+          support: 'enforced', commandForms: replyForms('versionnumbl', 'getblacklist'),
+          coveredForms: ['Empty/nonempty blacklist, duplicate entries, substring filtering and version composition', 'Per-avatar ignored add/force with notifications and unsupported diagnostics'] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary', 'RlvCommand::isBlocked', 'RlvHandler::processCommand'],
+          'versionnumbl and getblacklist are absent from the dictionary. rlvaNoSetEnv disables setenv add/remove with failed-disabled before notifications and state updates. Kokua blacklist entries have no effect. Environment effects remain unsupported.'),
+          commandForms: [], coveredForms: ['Absent blacklist queries and separate disabled-command outcome; unsupported environment diagnostics retained'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-blacklist.test.ts'],
     },
     {
       id: 'viewer-session', forms: ['Startup command retention and ready-state release', 'Viewer session reset', 'Issuer lookup, detach and orphan collection'],

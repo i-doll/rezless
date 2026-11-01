@@ -16,6 +16,11 @@ const KOKUA_REPLIES = new Set([
   'getcam_fovmin', 'getcam_fovmax', 'getcam_zoom', 'getcam_fov', 'getcam_textures',
 ])
 
+/** Kokua dispatches these replies before parameter-kind handling. */
+export function isKokuaNamedReply(behaviour: string): boolean {
+  return KOKUA_REPLIES.has(behaviour) || /^(version|getenv_|getdebug_)/.test(behaviour)
+}
+
 /** Decimal option prefixes, limited to the viewer's signed 32-bit channel range. */
 function channelOption(option: string): number | undefined {
   const prefix = /^[\t\n\v\f\r ]*([+-]?[0-9]+)/.exec(option)
@@ -65,8 +70,7 @@ export class RlvRestrictions {
       this.clear(prim, parameter)
       return 'state-only'
     }
-    if (this.profile === 'rlv' && (KOKUA_REPLIES.has(behaviour) ||
-      /^(version|getenv_|getdebug_)/.test(behaviour))) return 'unsupported'
+    if (this.profile === 'rlv' && isKokuaNamedReply(behaviour)) return 'unsupported'
     const support = this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced' : this.chatSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ?? teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
