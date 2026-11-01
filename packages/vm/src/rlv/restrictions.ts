@@ -1,5 +1,6 @@
 import { parseNotifyOption, sendRestrictionNotifications } from './notify.js'
 import type { Prim } from '../prim.js'
+import type { WorldAvatar } from '../world.js'
 import type { LinksetClock } from '../clock.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
@@ -36,6 +37,7 @@ export interface RlvRestriction {
 /** Avatar-owned wire state. Script reset and removal do not alter it. */
 export class RlvRestrictions {
   private readonly rules = new Map<string, Map<string, RlvRestriction>>()
+  private avatar: WorldAvatar | undefined
   private readonly parameters = new WeakMap<RlvRestriction, string>()
   private readonly emitters = new Map<string, Prim>()
   private stopGC: (() => void) | undefined
@@ -50,6 +52,7 @@ export class RlvRestrictions {
 
   /** Apply classified wire commands; unsupported effects remain unsupported. */
   apply(prim: Prim, parsed: RestrictionCommand): RlvRestriction['support'] {
+    this.avatar ??= prim.linkset!.world?.avatars.find(avatar => avatar.key === prim.linkset!.owner)
     const { behaviour, option, parameter, kind } = parsed
     if (kind === 'clear') {
       this.clear(prim, parameter)
@@ -89,7 +92,7 @@ export class RlvRestrictions {
   }
 
   private notify(prim: Prim, action: string, suffix = ''): void {
-    sendRestrictionNotifications(prim, this.snapshot(), action, suffix)
+    sendRestrictionNotifications(prim, this.avatar, this.snapshot(), action, suffix)
   }
 
   private clear(prim: Prim, filter: string): void {

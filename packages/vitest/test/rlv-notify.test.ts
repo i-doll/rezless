@@ -283,3 +283,30 @@ for (const replacement of ['absent', 'disabled'] as const) {
     }
   })
 }
+
+// A foreign-owner transfer requires a second avatar for an in-world probe.
+// This fixture pins notification provenance when llAttachToAvatarTemp changes
+// the emitter's owner before its original viewer collects the restriction.
+for (const targetProfile of ['disabled', 'opposite'] as const) {
+  it(`keeps collection notifications with the original viewer after transfer to ${targetProfile}`, async () => {
+    const pair = await loadRlvPair({ source: listenerSource })
+    for (const [profile, f] of Object.entries(pair)) {
+      f.script.start()
+      command(f.script, '@notify:22001=add')
+      const target = f.world.addAvatar({ username: 'recipient', region: f.avatar.region,
+        viewer: { profile: targetProfile === 'disabled' ? 'disabled' : profile === 'rlv' ? 'rlva' : 'rlv' } })
+      const restricted = await emitter(f, `default {
+        state_entry() { llOwnerSay("@sit=add"); llRequestPermissions("${target.key}", PERMISSION_ATTACH); }
+        run_time_permissions(integer p) { llAttachToAvatarTemp(ATTACH_RHAND); }
+      }`)
+      restricted.grantPermissions()
+      expect(restricted.linkset.owner).toBe(target.key)
+      const before = (f.script.global('notices') as string[]).length
+      restricted.linkset.remove()
+      f.world.clock.advance(35000)
+      f.script.advanceTime(0)
+      expect((f.script.global('notices') as string[]).slice(before)).toEqual(profile === 'rlv' ? ['/clear', '/sit=y'] : ['/clear'])
+      expect(target.viewer.restrictions.snapshot()).toEqual([])
+    }
+  })
+}

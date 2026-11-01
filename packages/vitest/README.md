@@ -635,7 +635,8 @@ individual `=y` notices while subscriptions remain. Firestorm removes matching
 rules before notifying remaining subscribers of `/clear[:filter]`; internal
 individual removals stay silent. Missing-emitter collection follows those clear
 sequences. Subscriptions persist through script reset and removal and are collected
-with other rules when their emitter disappears.
+with other rules when their emitter disappears. Collection notifications retain
+the original viewer identity if the emitter changes owner.
 
 Both profiles accept numeric channel prefixes. RLVa requires a positive channel
 other than DEBUG_CHANNEL and at most one filter field; empty filters are accepted.
