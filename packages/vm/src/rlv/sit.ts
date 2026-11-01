@@ -4,7 +4,8 @@ import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import type { RlvParsedCommand } from './classifier.js'
-import type { RlvCommandRecord } from './profiles.js'
+import type { RlvCommandRecord, ViewerProfile } from './profiles.js'
+import { dispatchRestrictionCommand } from './restrictions.js'
 
 /** Both profiles report the object root; RLVa reports the avatar on the ground. */
 export function getRlvSitId(avatar: WorldAvatar): string {
@@ -45,7 +46,7 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
     world.sitAvatarOnGround(avatar)
     return record('applied')
   }
-  if (locked('sit') || sitting && locked('unsit')) return record('refused', 'restriction')
+  if (locked('sit') || sitting && (locked('unsit') || viewer.profile === 'rlva' && hasStandtp(avatar))) return record('refused', 'restriction')
   const requested = world.linksets.flatMap(l => l.prims).find(p => p.key.toLowerCase() === target)
   if (!requested) return record('refused', 'target-unavailable')
   const seats = requested.linkset!
@@ -67,6 +68,7 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
     }
   }
   const previous = avatar.sittingOn
+  rememberStandtpSit(world, avatar)
   if (!world.sitAvatar(avatar, seat)) return record('refused', 'world-constraint')
   return record(previous === seat ? 'unchanged' : 'applied')
 }
@@ -109,7 +111,7 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
   if (profile !== 'disabled') {
     const rules = viewer.restrictions.snapshot()
     if (rules.some(rule => !rule.option && (rule.behaviour === 'sit' || rule.behaviour === 'interact' && rule.support === 'enforced' ||
-      rule.behaviour === 'unsit' && !!(avatar.info & AGENT_SITTING)))) return false
+      (rule.behaviour === 'unsit' || profile === 'rlva' && rule.behaviour === 'standtp') && !!(avatar.info & AGENT_SITTING)))) return false
     const limits = rules.filter(rule => rule.behaviour === 'sittp' && rule.support === 'enforced')
       .map(rule => seatingDistance(profile, rule.option)!)
     if (limits.length) {
@@ -127,6 +129,7 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
       detail: 'Plain-prim sitting beyond the 8 m fixture radius requires simulator surface placement, which is unsupported.' })
     return false
   }
+  rememberStandtpSit(world, avatar)
   return world.sitAvatar(avatar, seat)
 }
 
@@ -137,4 +140,80 @@ export function userStandAvatar(world: World, avatar: WorldAvatar): boolean {
     avatar.viewer.restrictions.snapshot().some(rule => rule.behaviour === 'unsit' && !rule.option)) return false
   world.standAvatar(avatar)
   return true
+}
+
+// LLParcel::L_DIRECT, also the parcel fixture tpRouting value.
+const DIRECT_ROUTING = 2
+
+interface StandtpState {
+  origin: Vector
+  pending: boolean
+}
+const standtpStates = new WeakMap<Readonly<{ dead: boolean }>, StandtpState>()
+
+function standtpState(avatar: WorldAvatar): StandtpState {
+  const lifetime = avatar.viewer.session.lifetime
+  let state = standtpStates.get(lifetime)
+  if (!state) standtpStates.set(lifetime, state = { origin: { ...ZERO_VECTOR }, pending: false })
+  return state
+}
+
+function hasStandtp(avatar: WorldAvatar): boolean {
+  return avatar.viewer.profile !== 'disabled' && avatar.viewer.restrictions.snapshot()
+    .some(rule => rule.behaviour === 'standtp' && !rule.option && rule.support === 'enforced')
+}
+
+export function standtpSupport(profile: ViewerProfile, behaviour: string, option: string): 'enforced' | undefined {
+  return profile !== 'disabled' && behaviour === 'standtp' && !option ? 'enforced' : undefined
+}
+
+function rememberStandtpOrigin(world: World, avatar: WorldAvatar): void {
+  const corner = world.corner(avatar.region)
+  const position = avatar.position
+  standtpState(avatar).origin = { x: corner.x + position.x, y: corner.y + position.y, z: position.z }
+}
+
+/** Only viewer object-sit requests capture an RLVa return origin. */
+function rememberStandtpSit(world: World, avatar: WorldAvatar): void {
+  if (!(avatar.info & AGENT_SITTING) && hasStandtp(avatar)) rememberStandtpOrigin(world, avatar)
+}
+
+/** Kokua also captures the position when a new bare standtp rule is added. */
+export function dispatchStandtpRestrictionCommand(avatar: WorldAvatar, prim: Prim,
+  parsed: RlvParsedCommand, command: string): boolean {
+  if (parsed.kind !== 'clear' && !(parsed.behaviour === 'standtp' && !parsed.option &&
+    (parsed.kind === 'add' || parsed.kind === 'remove'))) return false
+  const rules = avatar.viewer.restrictions
+  const held = rules.snapshot(prim.key).some(rule => rule.rule === 'standtp')
+  dispatchRestrictionCommand(avatar.viewer, prim, parsed, command)
+  if (avatar.viewer.profile === 'rlv') {
+    if (parsed.kind === 'add' && !held) rememberStandtpOrigin(prim.linkset!.world!, avatar)
+    else if (!(avatar.info & AGENT_SITTING) && (parsed.kind === 'clear' || held && parsed.kind === 'remove')) {
+      standtpState(avatar).origin = { ...ZERO_VECTOR }
+    }
+  }
+  return true
+}
+
+/** A stand has already cleared its seat and flags before the return is queued. */
+export function returnStandtpAvatar(world: World, avatar: WorldAvatar): void {
+  if (!hasStandtp(avatar)) return
+  const state = standtpState(avatar)
+  if (state.pending) return
+  if (avatar.viewer.profile === 'rlv') {
+    const parcel = world.parcelAt(avatar.region, avatar.position)
+    if (parcel && (parcel.tpRouting ?? 1) !== DIRECT_ROUTING) return
+  }
+  const destination = state.origin
+  if (avatar.viewer.profile === 'rlva' && !destination.x && !destination.y && !destination.z) return
+  state.origin = { ...ZERO_VECTOR }
+  state.pending = true
+  // RLVa postpones the return until the avatar has been unparented. The
+  // fixture delivers both profiles' teleport completion through virtual time.
+  world.clock.scheduleTask(avatar.viewer.session.lifetime, world.clock.now, () => {
+    try {
+      // Return travel bypasses unsit, sittp, tploc, tplocal and tplm policy.
+      world.teleportAvatar(avatar, destination)
+    } finally { state.pending = false }
+  })
 }

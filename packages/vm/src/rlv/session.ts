@@ -65,6 +65,9 @@ export class RlvSession {
   get ready(): boolean { return this.phase === 'ready' }
   get pendingCommands(): number { return this.retained.length }
 
+  /** Deferred viewer actions and their state expire when this session ends. */
+  get lifetime(): Readonly<{ dead: boolean }> { return this.taskLifetime }
+
   /** Bind on the first command; fixtures may bind earlier to start the session clock. */
   bind(linkset: Linkset, avatar: WorldAvatar): void {
     if (this.clock) return
