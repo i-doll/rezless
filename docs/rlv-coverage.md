@@ -103,6 +103,12 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [inventory-offers](#inventory-offers) | Firestorm RLVa 2.4.2 | <code>Explicit accept or decline of captured llGiveInventoryList avatar offers</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-offers.test.ts](../packages/vitest/test/rlv-offers.test.ts) |
 | [getoutfit](#getoutfit) | Kokua RLV 2.09.35.00 | <code>@getoutfit[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfit.test.ts](../packages/vitest/test/rlv-outfit.test.ts) |
 | [getoutfit](#getoutfit) | Firestorm RLVa 2.4.2 | <code>@getoutfit[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfit.test.ts](../packages/vitest/test/rlv-outfit.test.ts) |
+| [getoutfitnames](#getoutfitnames) | Kokua RLV 2.09.35.00 | <code>@getoutfitnames=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts) |
+| [getoutfitnames](#getoutfitnames) | Firestorm RLVa 2.4.2 | <code>@getoutfitnames=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts) |
+| [getaddoutfitnames](#getaddoutfitnames) | Kokua RLV 2.09.35.00 | <code>@getaddoutfitnames=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts) |
+| [getaddoutfitnames](#getaddoutfitnames) | Firestorm RLVa 2.4.2 | <code>@getaddoutfitnames=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts) |
+| [getremoutfitnames](#getremoutfitnames) | Kokua RLV 2.09.35.00 | <code>@getremoutfitnames=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts) |
+| [getremoutfitnames](#getremoutfitnames) | Firestorm RLVa 2.4.2 | <code>@getremoutfitnames=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts) |
 | [getinvworn](#getinvworn) | Kokua RLV 2.09.35.00 | <code>@getinvworn[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfit.test.ts](../packages/vitest/test/rlv-outfit.test.ts) |
 | [getinvworn](#getinvworn) | Firestorm RLVa 2.4.2 | <code>@getinvworn[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfit.test.ts](../packages/vitest/test/rlv-outfit.test.ts) |
 | [findfolder](#findfolder) | Kokua RLV 2.09.35.00 | <code>@findfolder[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts) |
@@ -769,6 +775,78 @@ Support depth: enforced. Reads the same explicit wearable state with RlvHideLock
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetOutfit</code>, <code>RlvSettings::getHideLockedLayers</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfit.test.ts](../packages/vitest/test/rlv-outfit.test.ts).
+
+### getoutfitnames
+
+Forms: <code>@getoutfitnames=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. RLVa returns comma-separated canonical layer names in wearable-type order: shape, skin, hair, eyes, shirt, pants, shoes, socks, jacket, gloves, undershirt, underpants, skirt, alpha, tattoo, physics, universal. Nonempty options return an empty failed-option reply. Kokua has no matching query handler.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No getoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Lists each occupied clothing or bodypart layer once, including unshared wearables. Empty occupancy returns an empty reply.
+
+- Worn layer occupancy, duplicate items, bodyparts and immediate fixture updates
+- Wearable-type ordering, empty results and failed-option replies
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetOutfitNames</code>, <code>RlvWearableLocks::canWear</code>, <code>RlvForceWear::isForceRemovable</code>, <code>LLWearableData::canAddWearable</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts).
+
+### getaddoutfitnames
+
+Forms: <code>@getaddoutfitnames=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. RLVa returns comma-separated canonical layer names in wearable-type order: shape, skin, hair, eyes, shirt, pants, shoes, socks, jacket, gloves, undershirt, underpants, skirt, alpha, tattoo, physics, universal. Nonempty options return an empty failed-option reply. Kokua has no matching query handler.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No getaddoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Lists layers that permit replacement or addition. Global and named addoutfit locks deny a layer. A remoutfit lock on a worn layer permits addition only: bodyparts and physics cannot add a second item, and other clothing requires fewer than 60 worn clothing items in total. Unlocked replacement remains available at capacity.
+
+- Global and named add locks, remove locks, bodypart and physics occupancy, clothing capacity and replacement
+- Wearable-type ordering, empty results and failed-option replies
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetOutfitNames</code>, <code>RlvWearableLocks::canWear</code>, <code>RlvForceWear::isForceRemovable</code>, <code>LLWearableData::canAddWearable</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts).
+
+### getremoutfitnames
+
+Forms: <code>@getremoutfitnames=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. RLVa returns comma-separated canonical layer names in wearable-type order: shape, skin, hair, eyes, shirt, pants, shoes, socks, jacket, gloves, undershirt, underpants, skirt, alpha, tattoo, physics, universal. Nonempty options return an empty failed-option reply. Kokua has no matching query handler.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No getremoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Lists layers with at least one worn clothing item that can be force-removed. Bodyparts are excluded. Global and named remoutfit locks from every issuer apply, including the querying issuer. Item and parent nostrip names are case sensitive, ascending through folded parents.
+
+- Global and named remove locks, every issuer, bodypart exclusion, multiple items and nostrip ancestry
+- Wearable-type ordering, empty results and failed-option replies
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::onGetOutfitNames</code>, <code>RlvWearableLocks::canWear</code>, <code>RlvForceWear::isForceRemovable</code>, <code>LLWearableData::canAddWearable</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-outfitnames.test.ts](../packages/vitest/test/rlv-outfitnames.test.ts).
 
 ### getinvworn
 
