@@ -1,3 +1,4 @@
+import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
 import { llSetKeyframedMotion, llSetRegionPos, llMoveToTarget, llStopMoveToTarget, llLookAt, llRotLookAt, llStopLookAt } from './motion.js'
 import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
 import { llCastRay } from './raycast.js'
@@ -415,6 +416,7 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD,
   llRemoteLoadScriptPin,
   llCastRay,
   llGetDisplayName, llGetUsername, llName2Key, llRequestUserKey, llGetAgentInfo, llGetAgentLanguage, llGetAgentList, llGetAgentSize, llGetVisualParams, llIsFriend, llSameGroup,
