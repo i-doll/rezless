@@ -670,6 +670,12 @@ channel-policy differences. Run it from the repository root without a build:
 pnpm exec vitest run examples/rlv/paired-viewers.test.ts
 ```
 
+Avatar-initiated touches use `world.attemptAvatarTouch(avatar, prim, options)`.
+Allowed actions deliver normal linkset touch events; blocked actions return a reason
+and deliver none. `checkAvatarTouch` exposes the same permission check without event
+delivery. Touch restrictions cover world objects, attachments and HUDs, with
+profile-specific distance limits and UUID exceptions.
+
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
 The seating rules are enforced by explicit user actions. Attachment locks enforce explicit viewer detach and attach attempts. Named `detach` locks block removal in both profiles and adding in RLVa; `addattach` and `remattach` lock adding and removal globally or by point. Bare, point and root-UUID force detach honor every issuer lock. Root self-detach

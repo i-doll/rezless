@@ -1,3 +1,4 @@
+import { dispatchTouchCommand } from './touch.js'
 import { dispatchRenderCommand } from './viewstate.js'
 import { sendRestrictionNotifications } from './notify.js'
 import type { RlvParsedCommand } from './classifier.js'
@@ -66,6 +67,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     const replyChannel = !malformed && channel !== undefined && isValidReplyChannel(viewer.profile, channel)
     const query = replyChannel && parsed?.kind === 'query'
     if (!malformed && parsed && dispatchBlacklistedCommand(avatar, prim, parsed, command)) continue
+    if (!malformed && parsed && dispatchTouchCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchCameraCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchRenderCommand(avatar, prim, parsed, command)) continue
     // Kokua dispatches named version queries before testing parameter kinds.

@@ -1742,6 +1742,41 @@ Inventory links, gestures, environment settings and folder locks remain outside
 these force-wear fixtures.
 
 
+### RLV/RLVa avatar touch
+
+Use `fixture.touch(prim, { face, hold, offset })` or
+`world.attemptAvatarTouch(avatar, prim, options)` for avatar-initiated touches.
+`offset` is a global-axis displacement from the clicked prim's center to the picked
+point. The action records the distance, status, denial reason and contributing
+restrictions. `fixture.touchActions` retains immutable attempts.
+`checkAvatarTouch(world, avatar, prim, options)` checks permission without delivering
+events. An allowed action calls `Linkset.touch`, including ordinary touch passing,
+face detection and hold timing. A blocked action delivers no touch events.
+Direct `Linkset.touch` remains a simulator event fixture.
+
+Both profiles enforce `fartouch`/`touchfar`, `touchall`, `touchworld`, `touchattach`,
+`touchattachself`, `touchattachother` and `touchhud`. Distance defaults to 1.5 metres;
+the minimum active option wins, and the comparisons include equality. Distance uses the
+clicked child prim rather than the linkset root. UUID exceptions use the root.
+HUDs bypass `touchall`, attachment locks and distance limits.
+
+Kokua RLV 2.09.35.00 checks distance only for world objects. Invalid distance text
+becomes zero, and negative limits block even zero-distance world touches.
+`touchworld` and `touchhud` support root UUID exceptions, `_sec` forms and
+`permissive=n` issuer scoping. Attachment locks accept no object exceptions;
+`touchattachother:<avatar-uuid>` denies that wearer's attachments.
+The named game HUD login exemption is outside this fixture.
+
+Firestorm RLVa 2.4.2 uses object ownership for self attachment checks and also checks
+distance for other avatars' attachments. It squares
+the radius, so negative options behave like their magnitude. Invalid or out-of-range
+numeric options remain unsupported. The squared radius uses float32 precision while
+the squared distance uses double precision. A 0.7-metre option can therefore block
+a target at 0.7 metres. `touchattach:<root-uuid>` allows an attachment
+under both general and self/other locks; a wearer UUID allows that avatar's attachments.
+`touchattachother:<avatar-uuid>` still denies that wearer. World, HUD and attachment
+exceptions remain permissive under `permissive=n`; touch `_sec` forms remain unsupported.
+
 ### Shared and unshared user wear locks
 
 `sharedwear`, `unsharedwear`, `sharedunwear` and `unsharedunwear` enforce
