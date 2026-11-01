@@ -9,7 +9,9 @@ default {
   }
 
   run_time_permissions(integer perms) {
-    if ((perms & PERMISSION_ATTACH) && !llGetAttached()) llAttachToAvatar(ATTACH_HUD_CENTER_1);
+    if (!(perms & PERMISSION_ATTACH)) return;
+    if (llGetAttached()) llSetTimerEvent(0.5);
+    else llAttachToAvatar(ATTACH_HUD_CENTER_1);
   }
 
   attach(key id) {

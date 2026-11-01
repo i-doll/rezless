@@ -40,6 +40,16 @@ describe('compass.lsl', () => {
     expect(s.linkset.attachment).toBeNull()
   })
 
+  it('keeps pointing after a reset while worn', () => {
+    s.grantPermissions()
+    s.reset()
+    s.grantPermissions()
+    expect(s.linkset.attachment).toMatchObject({ point: ATTACH_HUD_CENTER_1 })
+    s.setCamera({ pos: { x: 150, y: 128, z: 25 }, rot: FACING_EAST })
+    s.advanceTime(500)
+    expect(s.text?.text).toBe('Landmark behind you')
+  })
+
   it('takes itself off when clicked', () => {
     s.grantPermissions()
     s.linkset.touch(0)
