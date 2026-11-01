@@ -184,12 +184,13 @@ export function userTeleportLog(avatar: WorldAvatar): readonly UserTeleportActio
 }
 
 /** Return the deciding locks for a user teleport to an explicit global destination. */
-export function userTeleportRestrictions(world: World, avatar: WorldAvatar, kind: UserTeleportKind,
+export function userTeleportRestrictions(world: World, avatar: WorldAvatar, kind: UserTeleportKind | 'offer',
   destination: Vector): readonly RlvRestriction[] {
   const profile = avatar.viewer.profile
   if (profile === 'disabled') return Object.freeze([])
   const rules = avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
   const denied = rules.filter(rule => rule.behaviour === 'unsit' && !rule.option && !!(avatar.info & AGENT_SITTING))
+  if (kind === 'offer') return Object.freeze(denied)
   const bare = (behaviour: string) => rules.filter(rule => rule.behaviour === behaviour && !rule.option)
   if (kind === 'landmark') return Object.freeze([...denied, ...bare('tplm')])
   const corner = world.corner(avatar.region)

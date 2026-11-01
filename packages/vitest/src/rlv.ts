@@ -1,3 +1,4 @@
+import { teleportOfferLog, type TeleportOffer, type TeleportOfferDecision } from '@rezless/vm'
 import { userTeleportLog, type UserTeleportAction } from '@rezless/vm'
 import { avatarTouchLog, type AvatarTouchAction, type AvatarTouchOptions } from '@rezless/vm'
 import { avatarGestureLog, type AvatarGesture, type AvatarGestureAction } from '@rezless/vm'
@@ -20,6 +21,9 @@ export interface RlvFixture {
   readonly avatar: WorldAvatar
   readonly script: Script
   readonly attemptDetach: (attachment?: Linkset) => RlvDetachOutcome
+  readonly teleportOffers: readonly TeleportOffer[]
+  receiveTeleportOffer(sender: WorldAvatar, destination: Vector): TeleportOffer
+  respondTeleportOffer(offer: TeleportOffer, decision: TeleportOfferDecision): TeleportOffer
   readonly userTeleportActions: readonly UserTeleportAction[]
   userTeleportLandmark(destination: Vector): UserTeleportAction
   userTeleportMap(destination: Vector): UserTeleportAction
@@ -52,6 +56,9 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
       attemptDetach: (attachment = loaded.linkset) => attemptViewerDetach(avatar, attachment),
       get teleportActions() { return avatar.viewer.commandLog.filter((entry): entry is RlvTeleportAction & RlvCommandRecord =>
         entry.status === 'action' && entry.action === 'tpto') },
+      get teleportOffers() { return teleportOfferLog(avatar) },
+      receiveTeleportOffer: (sender, destination) => world.offerTeleport(sender, avatar, destination),
+      respondTeleportOffer: (offer, decision) => world.respondTeleportOffer(avatar, offer, decision),
       get userTeleportActions() { return userTeleportLog(avatar) },
       userTeleportLandmark: destination => world.userTeleportAvatarViaLandmark(avatar, destination),
       userTeleportMap: destination => world.userTeleportAvatarViaMap(avatar, destination),
