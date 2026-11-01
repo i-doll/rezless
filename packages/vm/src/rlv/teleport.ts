@@ -157,7 +157,7 @@ export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: Wo
     }
     const angle = viewer.profile === 'rlva' ? destination.angle : undefined
     const lookAt = angle === undefined ? undefined : { x: Math.cos(angle), y: Math.sin(angle), z: 0 }
-    world.teleportAvatar(avatar, requested, lookAt)
+    if (!world.teleportAvatar(avatar, requested, lookAt, true)) return record('world-constraint', lookAt)
     return record(undefined, lookAt)
   } finally {
     // Named callbacks already have the restored locks.

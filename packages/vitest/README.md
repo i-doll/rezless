@@ -1982,6 +1982,32 @@ changing previous inventory snapshots. Inventory links, recently received-item
 exemptions, startup appearance recovery and forced inventory actions are outside
 this user-action contract.
 
+### Forced location landing
+
+Force `tpto` applies the destination parcel's `tpRouting`: `0` blocks, `1`
+uses `landingPoint` if set, and `2` allows anywhere. The default is `1`;
+an absent or zero landing point leaves the requested location intact.
+`landingPoint` is region-local and `landingLookAt` supplies the arrival facing,
+overriding a command angle when routing uses that point. Anywhere routing ignores
+both landing fields. Parcel owners and the region's `estateManagers` list,
+which includes the estate owner, bypass parcel routing.
+
+Blocked destinations divert to the nearest available location within the region,
+using the effective policy of overlapping rectangular parcels. Land without a
+parcel fixture is available. Equal-distance destinations use increasing x then y
+order. A diverted destination can itself route to a landing point. With no
+available location, the command refuses without standing or moving attachments.
+Viewer restrictions still check the requested destination before routing.
+
+After routing, the region's bilinear `ground` grid sets a minimum height with
+0.975 m of settled clearance. This fixed clearance represents the fixture's
+settled avatar centre; it does not simulate avatar shapes or falling. Requested
+heights above that minimum remain intact. Command records retain the requested
+coordinates and the final result separately. Worn objects receive normal teleport
+and region events at the final destination. Telehubs, collision geometry and
+camera pose are outside this contract. Explicit map, landmark and offer actions
+keep their separate destination contracts.
+
 ### Avatar teleport offers
 
 `world.offerTeleport(sender, recipient, destination)` delivers an offer with resolved
@@ -2051,3 +2077,31 @@ exempts the matching node or subtree from an ancestor subtree denial.
 Kokua clothing replacement removes an eligible top item before checking the
 incoming folder lock. Force bodypart replacement checks layer locks rather than
 folder locks. RLVa checks the incoming folder before changing any occupant.
+
+### RLV/RLVa debug settings
+
+`viewer.debugSettings` configures initial effective `avatarSex`,
+`renderResolutionDivisor`, `aspectRatio`, `windLightUseAtmosShaders`, and Kokua
+`noSetEnv`. Values are stored per avatar in `avatar.viewer.debugSettings`.
+AvatarSex defaults to 0, the resolution divisor to 1, atmospheric shaders to
+true, and the fixture viewport ratio to 16/9. Permission queries read
+`inventory.forbidGiveToRlv` and, for RLVa, `viewer.rlvaNoSetEnv`.
+
+Both profiles implement `setdebug=n|add|y|rem`. A lock prevents another issuer's
+`setdebug_*:<value>=force` commands; its own forces remain allowed. Removing or
+clearing a lock leaves the current values in place. Kokua enables atmospheric
+shaders when adding the lock unless `noSetEnv` is true.
+
+Both profiles allow writes to `AvatarSex` and `RenderResolutionDivisor` and
+queries for those settings, `RestrainedLoveForbidGiveToRLV`,
+`RestrainedLoveNoSetEnv`, and `WindLightUseAtmosShaders`. Names are case
+insensitive. Query options are ignored. Unknown queries return an empty reply;
+unknown and read-only writes leave values unchanged. Kokua converts writable
+values with an integer prefix and stores unsigned values. RLVa validates its
+unsigned resolution divisor and leaves it unchanged on invalid input. RLVa's
+AvatarSex accepts boolean text and returns the accepted text, including spaces.
+It changes the query fixture without changing the avatar's body.
+
+RLVa also answers read-only `getdebug_aspectratio` with three decimal places;
+Kokua returns an empty reply for that setting. Settings persistence and renderer
+changes are outside this fixture.

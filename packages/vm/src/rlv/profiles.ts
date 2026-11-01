@@ -1,3 +1,4 @@
+import { RlvDebugSettings, type RlvDebugSettingsConfig } from './debug.js'
 import { RlvBlacklist } from './blacklist.js'
 import { RlvInventory, type RlvInventoryConfig } from './inventory.js'
 import { RlvSession } from './session.js'
@@ -10,6 +11,7 @@ export type ViewerProfile = 'disabled' | RlvProfile
 
 export interface ViewerConfig {
   readonly profile: ViewerProfile
+  readonly debugSettings?: RlvDebugSettingsConfig
   readonly inventory?: RlvInventoryConfig
   /** Kokua wire names; force entries end in %f. Ignored by RLVa. */
   readonly blacklist?: readonly string[]
@@ -76,6 +78,7 @@ export interface ViewerState {
   readonly diagnostics: RlvDiagnostic[]
   readonly commandLog: RlvCommandRecord[]
   readonly blacklist: RlvBlacklist
+  readonly debugSettings: RlvDebugSettings
   readonly inventory: RlvInventory
   readonly restrictions: RlvRestrictions
   readonly session: RlvSession
@@ -84,5 +87,5 @@ export interface ViewerState {
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
   const session = new RlvSession(profile, config)
-  return { blacklist: new RlvBlacklist(profile, config), session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) }
+  return { debugSettings: new RlvDebugSettings(profile, config), blacklist: new RlvBlacklist(profile, config), session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) }
 }

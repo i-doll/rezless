@@ -50,10 +50,10 @@ describe('paired forced teleport', () => {
 })
 
 it.each([
-  ['12/24', { x: 12, y: 24, z: 0 }, false],
+  ['12/24', { x: 12, y: 24, z: 22.975 }, false],
   ['12//24/36', { x: 12, y: 24, z: 36 }, false],
   ['bad/24/36', { x: 0, y: 24, z: 36 }, false],
-  ['', { x: 0, y: 0, z: 0 }, false],
+  ['', { x: 0, y: 0, z: 22.975 }, false],
   ['12/24/36junk', { x: 12, y: 24, z: 36 }, true],
   ['12/24/36;bad', { x: 12, y: 24, z: 36 }, false],
   ['12/24/36;', { x: 12, y: 24, z: 36 }, false],
@@ -280,7 +280,7 @@ it('restores temporary Kokua locks with normal notification ordering', async () 
 it('supports decimal exponents by each coordinate parser and rejects float overflow/underflow angles', async () => {
   const pair = await setup()
   for (const f of Object.values(pair)) issue(f.script, '@tpto:1e2/2e1/3e1=force')
-  expect(pair.rlv.avatar.position).toEqual({ x: 1, y: 2, z: 3 })
+  expect(pair.rlv.avatar.position).toEqual({ x: 1, y: 2, z: 22.975 })
   expect(pair.rlva.avatar.position).toEqual({ x: 100, y: 20, z: 30 })
   for (const option of ['12/24/36;1e999', '12/24/36;1e-99', '12/24/1e300']) {
     issue(pair.rlva.script, '@tpto:' + option + '=force')

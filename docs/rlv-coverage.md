@@ -16,6 +16,24 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 
 | Contract | Profile and version | Command form or operation | Support depth | Comparison | Tests |
 | --- | --- | --- | --- | --- | --- |
+| [setdebug](#setdebug) | Kokua RLV 2.09.35.00 | <code>@setdebug=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [setdebug](#setdebug) | Firestorm RLVa 2.4.2 | <code>@setdebug=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-avatarsex](#debug-avatarsex) | Kokua RLV 2.09.35.00 | <code>@getdebug_avatarsex[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-avatarsex](#debug-avatarsex) | Kokua RLV 2.09.35.00 | <code>@setdebug_avatarsex[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-avatarsex](#debug-avatarsex) | Firestorm RLVa 2.4.2 | <code>@getdebug_avatarsex[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-avatarsex](#debug-avatarsex) | Firestorm RLVa 2.4.2 | <code>@setdebug_avatarsex[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-renderresolutiondivisor](#debug-renderresolutiondivisor) | Kokua RLV 2.09.35.00 | <code>@getdebug_renderresolutiondivisor[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-renderresolutiondivisor](#debug-renderresolutiondivisor) | Kokua RLV 2.09.35.00 | <code>@setdebug_renderresolutiondivisor[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-renderresolutiondivisor](#debug-renderresolutiondivisor) | Firestorm RLVa 2.4.2 | <code>@getdebug_renderresolutiondivisor[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-renderresolutiondivisor](#debug-renderresolutiondivisor) | Firestorm RLVa 2.4.2 | <code>@setdebug_renderresolutiondivisor[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-restrainedloveforbidgivetorlv](#debug-restrainedloveforbidgivetorlv) | Kokua RLV 2.09.35.00 | <code>@getdebug_restrainedloveforbidgivetorlv[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-restrainedloveforbidgivetorlv](#debug-restrainedloveforbidgivetorlv) | Firestorm RLVa 2.4.2 | <code>@getdebug_restrainedloveforbidgivetorlv[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-restrainedlovenosetenv](#debug-restrainedlovenosetenv) | Kokua RLV 2.09.35.00 | <code>@getdebug_restrainedlovenosetenv[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-restrainedlovenosetenv](#debug-restrainedlovenosetenv) | Firestorm RLVa 2.4.2 | <code>@getdebug_restrainedlovenosetenv[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-windlightuseatmosshaders](#debug-windlightuseatmosshaders) | Kokua RLV 2.09.35.00 | <code>@getdebug_windlightuseatmosshaders[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [debug-windlightuseatmosshaders](#debug-windlightuseatmosshaders) | Firestorm RLVa 2.4.2 | <code>@getdebug_windlightuseatmosshaders[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [getdebug_aspectratio](#getdebug_aspectratio) | Kokua RLV 2.09.35.00 | <code>@getdebug_aspectratio=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
+| [getdebug_aspectratio](#getdebug_aspectratio) | Firestorm RLVa 2.4.2 | <code>@getdebug_aspectratio[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
 | [version](#version) | Kokua RLV 2.09.35.00 | <code>@version[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-version.test.ts](../packages/vitest/test/rlv-version.test.ts)<br>[rlv-batch.test.ts](../packages/vitest/test/rlv-batch.test.ts) |
 | [version](#version) | Kokua RLV 2.09.35.00 | <code>@versionnew[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-version.test.ts](../packages/vitest/test/rlv-version.test.ts)<br>[rlv-batch.test.ts](../packages/vitest/test/rlv-batch.test.ts) |
 | [version](#version) | Kokua RLV 2.09.35.00 | <code>@versionnum[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-version.test.ts](../packages/vitest/test/rlv-version.test.ts)<br>[rlv-batch.test.ts](../packages/vitest/test/rlv-batch.test.ts) |
@@ -265,12 +283,12 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [seating](#seating) | Firestorm RLVa 2.4.2 | <code>@unsit=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sit.test.ts](../packages/vitest/test/rlv-sit.test.ts)<br>[rlv-sit-enforce.test.ts](../packages/vitest/test/rlv-sit-enforce.test.ts) |
 | [standtp](#standtp) | Kokua RLV 2.09.35.00 | <code>@standtp=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-standtp.test.ts](../packages/vitest/test/rlv-standtp.test.ts) |
 | [standtp](#standtp) | Firestorm RLVa 2.4.2 | <code>@standtp=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-standtp.test.ts](../packages/vitest/test/rlv-standtp.test.ts) |
-| [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tpto[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
-| [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tploc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
-| [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tplocal[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
-| [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tpto[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
-| [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tploc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
-| [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tplocal[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
+| [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tpto[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts)<br>[rlv-tplanding.test.ts](../packages/vitest/test/rlv-tplanding.test.ts) |
+| [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tploc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts)<br>[rlv-tplanding.test.ts](../packages/vitest/test/rlv-tplanding.test.ts) |
+| [teleport](#teleport) | Kokua RLV 2.09.35.00 | <code>@tplocal[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts)<br>[rlv-tplanding.test.ts](../packages/vitest/test/rlv-tplanding.test.ts) |
+| [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tpto[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts)<br>[rlv-tplanding.test.ts](../packages/vitest/test/rlv-tplanding.test.ts) |
+| [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tploc=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts)<br>[rlv-tplanding.test.ts](../packages/vitest/test/rlv-tplanding.test.ts) |
+| [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tplocal[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts)<br>[rlv-tplanding.test.ts](../packages/vitest/test/rlv-tplanding.test.ts) |
 | [user-teleport](#user-teleport) | Kokua RLV 2.09.35.00 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts) |
 | [user-teleport](#user-teleport) | Firestorm RLVa 2.4.2 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts) |
 | [teleport-offers](#teleport-offers) | Kokua RLV 2.09.35.00 | <code>@tplure[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
@@ -458,6 +476,177 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 - Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.
 
 ## Contracts and limits
+
+### setdebug
+
+Forms: <code>@setdebug=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Both profiles block debug forces from other issuers while permitting their own. Query replies and values survive removal and clear. Kokua enables atmospheric shaders when adding the lock unless NoSetEnv is enabled. RLVa hides writable controls in the settings editor.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. No-option lock blocks other issuers. Adding it enables atmospheric shaders unless NoSetEnv is configured.
+
+- @setdebug=n|add|y|rem
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::add</code>, <code>RRInterface::force</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option lock blocks other issuers debug forces. The fixture enforces command access; settings-editor windows are outside it.
+
+- @setdebug=n|add|y|rem
+
+Reference symbols: <code>indra/newview/rlvextensions.cpp</code>: <code>RlvExtGetSet::processCommand</code>, <code>RlvBehaviourToggleHandler&lt;RLV_BHVR_SETDEBUG&gt;::onCommandToggle</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts).
+
+### debug-avatarsex
+
+Forms: <code>@getdebug_avatarsex=&lt;channel&gt;</code>, <code>@setdebug_avatarsex:&lt;value&gt;=force</code>.
+
+Comparison: confirmed difference. Both profiles expose per-avatar debug values. Only AvatarSex and RenderResolutionDivisor are writable. Queries ignore options. Unknown setting queries return an empty reply; unknown and read-only forces cannot change a value.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Initial AvatarSex is 0, RenderResolutionDivisor is 1, atmosphere shaders are enabled, and the two permission settings default false. Writable values use atoi with unsigned storage. Permission queries reflect the configured viewer values.
+
+- @getdebug_avatarsex=<channel>
+- @setdebug_avatarsex:<value>=force
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::RRInterface</code>, <code>RRInterface::getDebugSetting</code>, <code>RRInterface::forceDebugSetting</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Initial effective AvatarSex is supplied by the fixture, default 0. RenderResolutionDivisor defaults 1 and accepts unsigned decimal prefixes, including signed text within unsigned magnitude. Invalid values leave it unchanged. AvatarSex accepts boolean tokens and retains the accepted text. Permission queries reflect configured viewer values; atmospheric shaders default enabled.
+
+- @getdebug_avatarsex=<channel>
+- @setdebug_avatarsex:<value>=force
+
+Reference symbols: <code>indra/newview/rlvextensions.cpp</code>: <code>RlvExtGetSet::RlvExtGetSet</code>, <code>RlvExtGetSet::onGetDebug</code>, <code>RlvExtGetSet::onSetDebug</code>, <code>RlvExtGetSet::onSetPseudoDebug</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts).
+
+### debug-renderresolutiondivisor
+
+Forms: <code>@getdebug_renderresolutiondivisor=&lt;channel&gt;</code>, <code>@setdebug_renderresolutiondivisor:&lt;value&gt;=force</code>.
+
+Comparison: confirmed difference. Both profiles expose per-avatar debug values. Only AvatarSex and RenderResolutionDivisor are writable. Queries ignore options. Unknown setting queries return an empty reply; unknown and read-only forces cannot change a value.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Initial AvatarSex is 0, RenderResolutionDivisor is 1, atmosphere shaders are enabled, and the two permission settings default false. Writable values use atoi with unsigned storage. Permission queries reflect the configured viewer values.
+
+- @getdebug_renderresolutiondivisor=<channel>
+- @setdebug_renderresolutiondivisor:<value>=force
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::RRInterface</code>, <code>RRInterface::getDebugSetting</code>, <code>RRInterface::forceDebugSetting</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Initial effective AvatarSex is supplied by the fixture, default 0. RenderResolutionDivisor defaults 1 and accepts unsigned decimal prefixes, including signed text within unsigned magnitude. Invalid values leave it unchanged. AvatarSex accepts boolean tokens and retains the accepted text. Permission queries reflect configured viewer values; atmospheric shaders default enabled.
+
+- @getdebug_renderresolutiondivisor=<channel>
+- @setdebug_renderresolutiondivisor:<value>=force
+
+Reference symbols: <code>indra/newview/rlvextensions.cpp</code>: <code>RlvExtGetSet::RlvExtGetSet</code>, <code>RlvExtGetSet::onGetDebug</code>, <code>RlvExtGetSet::onSetDebug</code>, <code>RlvExtGetSet::onSetPseudoDebug</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts).
+
+### debug-restrainedloveforbidgivetorlv
+
+Forms: <code>@getdebug_restrainedloveforbidgivetorlv=&lt;channel&gt;</code>.
+
+Comparison: shared. Both profiles expose per-avatar debug values. Only AvatarSex and RenderResolutionDivisor are writable. Queries ignore options. Unknown setting queries return an empty reply; unknown and read-only forces cannot change a value.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Initial AvatarSex is 0, RenderResolutionDivisor is 1, atmosphere shaders are enabled, and the two permission settings default false. Writable values use atoi with unsigned storage. Permission queries reflect the configured viewer values.
+
+- @getdebug_restrainedloveforbidgivetorlv=<channel>
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::RRInterface</code>, <code>RRInterface::getDebugSetting</code>, <code>RRInterface::forceDebugSetting</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Initial effective AvatarSex is supplied by the fixture, default 0. RenderResolutionDivisor defaults 1 and accepts unsigned decimal prefixes, including signed text within unsigned magnitude. Invalid values leave it unchanged. AvatarSex accepts boolean tokens and retains the accepted text. Permission queries reflect configured viewer values; atmospheric shaders default enabled.
+
+- @getdebug_restrainedloveforbidgivetorlv=<channel>
+
+Reference symbols: <code>indra/newview/rlvextensions.cpp</code>: <code>RlvExtGetSet::RlvExtGetSet</code>, <code>RlvExtGetSet::onGetDebug</code>, <code>RlvExtGetSet::onSetDebug</code>, <code>RlvExtGetSet::onSetPseudoDebug</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts).
+
+### debug-restrainedlovenosetenv
+
+Forms: <code>@getdebug_restrainedlovenosetenv=&lt;channel&gt;</code>.
+
+Comparison: shared. Both profiles expose per-avatar debug values. Only AvatarSex and RenderResolutionDivisor are writable. Queries ignore options. Unknown setting queries return an empty reply; unknown and read-only forces cannot change a value.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Initial AvatarSex is 0, RenderResolutionDivisor is 1, atmosphere shaders are enabled, and the two permission settings default false. Writable values use atoi with unsigned storage. Permission queries reflect the configured viewer values.
+
+- @getdebug_restrainedlovenosetenv=<channel>
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::RRInterface</code>, <code>RRInterface::getDebugSetting</code>, <code>RRInterface::forceDebugSetting</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Initial effective AvatarSex is supplied by the fixture, default 0. RenderResolutionDivisor defaults 1 and accepts unsigned decimal prefixes, including signed text within unsigned magnitude. Invalid values leave it unchanged. AvatarSex accepts boolean tokens and retains the accepted text. Permission queries reflect configured viewer values; atmospheric shaders default enabled.
+
+- @getdebug_restrainedlovenosetenv=<channel>
+
+Reference symbols: <code>indra/newview/rlvextensions.cpp</code>: <code>RlvExtGetSet::RlvExtGetSet</code>, <code>RlvExtGetSet::onGetDebug</code>, <code>RlvExtGetSet::onSetDebug</code>, <code>RlvExtGetSet::onSetPseudoDebug</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts).
+
+### debug-windlightuseatmosshaders
+
+Forms: <code>@getdebug_windlightuseatmosshaders=&lt;channel&gt;</code>.
+
+Comparison: shared. Both profiles expose per-avatar debug values. Only AvatarSex and RenderResolutionDivisor are writable. Queries ignore options. Unknown setting queries return an empty reply; unknown and read-only forces cannot change a value.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Initial AvatarSex is 0, RenderResolutionDivisor is 1, atmosphere shaders are enabled, and the two permission settings default false. Writable values use atoi with unsigned storage. Permission queries reflect the configured viewer values.
+
+- @getdebug_windlightuseatmosshaders=<channel>
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::RRInterface</code>, <code>RRInterface::getDebugSetting</code>, <code>RRInterface::forceDebugSetting</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Initial effective AvatarSex is supplied by the fixture, default 0. RenderResolutionDivisor defaults 1 and accepts unsigned decimal prefixes, including signed text within unsigned magnitude. Invalid values leave it unchanged. AvatarSex accepts boolean tokens and retains the accepted text. Permission queries reflect configured viewer values; atmospheric shaders default enabled.
+
+- @getdebug_windlightuseatmosshaders=<channel>
+
+Reference symbols: <code>indra/newview/rlvextensions.cpp</code>: <code>RlvExtGetSet::RlvExtGetSet</code>, <code>RlvExtGetSet::onGetDebug</code>, <code>RlvExtGetSet::onSetDebug</code>, <code>RlvExtGetSet::onSetPseudoDebug</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts).
+
+### getdebug_aspectratio
+
+Forms: <code>@getdebug_aspectratio=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. RLVa returns its scaled viewport width divided by height, formatted with three decimal places. The fixture supplies the ratio, default 16/9. Kokua does not whitelist AspectRatio and returns an empty debug query reply.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. AspectRatio is absent from the allowed settings. The generic debug query handler returns an empty reply.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::getDebugSetting</code>, <code>RRInterface::RRInterface</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Read-only viewport ratio formatted to three decimal places.
+
+- @getdebug_aspectratio=<channel>
+
+Reference symbols: <code>indra/newview/rlvextensions.cpp</code>: <code>RlvExtGetSet::onGetPseudoDebug</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts).
 
 ### version
 
@@ -1701,29 +1890,31 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@tpto:&lt;x&gt;/&lt;y&gt;/&lt;z&gt;[;&lt;angle&gt;]=force</code>, <code>@tpto:&lt;region&gt;/&lt;x&gt;/&lt;y&gt;/&lt;z&gt;[;&lt;angle&gt;]=force</code>, <code>@tploc=n&#124;y</code>, <code>@tplocal[:&lt;distance&gt;]=n&#124;y</code>.
 
-Comparison: confirmed difference. Both profiles resolve global and named-region locations. Kokua truncates coordinates and ignores the supplied facing angle. RLVa preserves fractions and applies the angle in radians. RLVa classifies local moves by XY distance below 256 m and checks XYZ distance against strict sittp and tplocal limits; its bare tplocal limit is 1.5 m and the maximum is 256 m. Kokua applies tploc to all moves and an inclusive tplocal distance in the same region.
+Comparison: confirmed difference. Both profiles resolve global and named-region locations. Kokua truncates coordinates and ignores the supplied facing angle. RLVa preserves fractions and applies the angle in radians. RLVa classifies local moves by XY distance below 256 m and checks XYZ distance against strict sittp and tplocal limits; its bare tplocal limit is 1.5 m and the maximum is 256 m. Kokua applies tploc to all moves and an inclusive tplocal distance in the same region. Both apply parcel landing routing, owner and estate exemptions, and terrain clearance to forced location travel.
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Slash fields discard empties and pad to three; integer prefixes truncate fractions and invalid fields mean zero. Three fields are global, four name a region. Angles do not set facing. Bare issuer tploc, tplocal, unsit and sittp locks lift temporarily for global moves and are restored before named-region callbacks. Named angles preserve orientation and refuse any sittp lock. All location moves obey remaining tploc and seated unsit; same-region moves obey the inclusive signed minimum tplocal distance. Finite decimal forms are supported; non-finite, hexadecimal and overflowing conversions are unsupported. Unknown regions and uncovered coordinates refuse without changing avatar state. Teleport action records and normal stand events do not grant simulator permissions. Landing-point routing, terrain/collision offsets and camera pose are outside the fixture.
+Support depth: enforced. Slash fields discard empties and pad to three; integer prefixes truncate fractions and invalid fields mean zero. Three fields are global, four name a region. Angles do not set facing. Bare issuer tploc, tplocal, unsit and sittp locks lift temporarily for global moves and are restored before named-region callbacks. Named angles preserve orientation and refuse any sittp lock. All location moves obey remaining tploc and seated unsit; same-region moves obey the inclusive signed minimum tplocal distance. Finite decimal forms are supported; non-finite, hexadecimal and overflowing conversions are unsupported. Unknown regions and uncovered coordinates refuse without changing avatar state. Teleport action records and normal stand events do not grant simulator permissions. Forced location travel applies parcel routing before standing: landing-point arrivals use the configured position and facing, anywhere permits the requested position, and blocked parcels divert to the nearest available location in the region or refuse if none exists. Parcel owners and configured estate owners/managers bypass routing. Final heights use bilinear terrain with a fixed 0.975 m settled clearance. Collision geometry, telehubs and camera pose are outside the fixture.
 
 - Global and named-region coordinates, integer-prefix and partial-field parsing
 - Issuer restoration, seated locks and profile-specific local distance checks
 - Known-region boundaries, unknown-region refusal, action results and simulator permission separation
+- Parcel landing points and facing, anywhere and blocked routing, parcel/estate exemptions and terrain clearance
 
 Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::force</code>, <code>RRInterface::forceTeleport</code>, <code>RRInterface::forceTeleportCallback</code>, <code>RRInterface::getMin</code>.
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Global floating vectors are tried before four-field named-region vectors. Final coordinate suffixes and angle prefixes are accepted; malformed and empty angles fail. Extra semicolon fields are ignored. Angles in radians request a horizontal facing direction. Only the force issuer is exempt from lock presence checks; distance modifiers use the global minimum. Moves within 256 m in XY obey strict XYZ sittp and tplocal limits, including vertical moves and nearby region crossings. Bare tplocal defaults to 1.5 m and its maximum is 256 m. Longer moves obey tploc. All seated moves obey foreign unsit. tplm and UUID tploc options do not block or grant exceptions for location travel. Finite decimal forms are supported; non-finite, hexadecimal and overflow conversions are unsupported. Explicit World regions resolve case-insensitively with half-open boundaries; unknown destinations refuse without mutation. Actions stand normally without granting simulator permissions. Landing-point routing, terrain/collision offsets and camera pose are outside the fixture.
+Support depth: enforced. Global floating vectors are tried before four-field named-region vectors. Final coordinate suffixes and angle prefixes are accepted; malformed and empty angles fail. Extra semicolon fields are ignored. Angles in radians request a horizontal facing direction. Only the force issuer is exempt from lock presence checks; distance modifiers use the global minimum. Moves within 256 m in XY obey strict XYZ sittp and tplocal limits, including vertical moves and nearby region crossings. Bare tplocal defaults to 1.5 m and its maximum is 256 m. Longer moves obey tploc. All seated moves obey foreign unsit. tplm and UUID tploc options do not block or grant exceptions for location travel. Finite decimal forms are supported; non-finite, hexadecimal and overflow conversions are unsupported. Explicit World regions resolve case-insensitively with half-open boundaries; unknown destinations refuse without mutation. Actions stand normally without granting simulator permissions. Forced location travel applies parcel routing before standing: landing-point arrivals use the configured position and facing, anywhere permits the requested position, and blocked parcels divert to the nearest available location in the region or refuse if none exists. Parcel owners and configured estate owners/managers bypass routing. Final heights use bilinear terrain with a fixed 0.975 m settled clearance. Collision geometry, telehubs and camera pose are outside the fixture.
 
 - Floating global and named-region destinations, prefix/suffix parsing and radian facing
 - XYZ local limits, maximum distance, issuer exemptions and distant tploc locks
 - Known-region boundaries, unknown-region refusal, seated actions and permission separation
+- Parcel landing points and facing, anywhere and blocked routing, parcel/estate exemptions and terrain clearance
 
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvForceHandler&lt;RLV_BHVR_TPTO&gt;::onCommand</code>, <code>RlvHandler::onTeleportCallback</code>, <code>RlvActions::isLocalTp</code>, <code>RlvActions::canTeleportToLocal</code>, <code>RlvActions::canTeleportToLocation</code>.
 
-Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts).
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts)<br>[rlv-tplanding.test.ts](../packages/vitest/test/rlv-tplanding.test.ts).
 
 ### user-teleport
 
