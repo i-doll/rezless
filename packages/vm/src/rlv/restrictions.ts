@@ -24,7 +24,7 @@ export function isKokuaNamedReply(behaviour: string): boolean {
 
 type RestrictionCommand = Omit<RlvParsedCommand, 'kind'> & { readonly kind: 'add' | 'remove' | 'clear' }
 
-const STATE_ONLY = new Set(['sendchat', 'sit', 'unsit', 'tploc', 'tplm'])
+const STATE_ONLY = new Set(['sit', 'unsit', 'tploc', 'tplm'])
 
 export interface RlvRestriction {
   readonly sourcePrim: string
@@ -132,6 +132,11 @@ export class RlvRestrictions {
 
   /** Restrict exception scope for this family only; other families stay state-only. */
   private chatSupport(behaviour: string, option: string): RlvRestriction['support'] | undefined {
+    if (behaviour === 'sendchat') return !option ? 'enforced' : 'unsupported'
+    if (behaviour === 'sendchannel_except') {
+      if (this.profile === 'rlv') return !option || /^-?(0|[1-9][0-9]*)$/.test(option) && channelOption(option) !== undefined ? 'enforced' : 'unsupported'
+      return !option || (channelOption(option) ?? 0) > 0 ? 'enforced' : 'unsupported'
+    }
     if (behaviour === 'permissive' && !option) return 'enforced'
     if (behaviour !== 'sendchannel' && behaviour !== 'sendchannel_sec') return undefined
     if (!option) return 'enforced'
@@ -144,6 +149,14 @@ export class RlvRestrictions {
   channelDenials(channel: number): readonly RlvRestriction[] {
     if (this.profile === 'disabled' || channel === 0) return Object.freeze([])
     const rules = this.snapshot()
+    const excluded = rules.filter(rule => rule.behaviour === 'sendchannel_except')
+    const exclusions = excluded.filter(rule => rule.option && (this.profile === 'rlva'
+      ? channelOption(rule.option) === channel : rule.option === String(channel)))
+    // RLVa activates the exclusion list with its no-option restriction. Kokua
+    // tests each literal channel rule directly, independently of that switch.
+    if (exclusions.length && (this.profile === 'rlv' || excluded.some(rule => !rule.option))) {
+      return Object.freeze(exclusions)
+    }
     const family = rules.filter(rule => rule.behaviour === 'sendchannel' || rule.behaviour === 'sendchannel_sec')
     const blocks = family.filter(rule => !rule.option)
     const exceptions = family.filter(rule => rule.option && (this.profile === 'rlva'

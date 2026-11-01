@@ -247,7 +247,7 @@ it('discovers enforced sendchannel forms without routing them through unsupporte
     const f = pair[profile]
     f.script.start()
     expect(f.script.global('replies')).toBe(profile === 'rlva' ? 2 : 0)
-    expect(f.script.global('channels')).toBe(profile === 'rlva' ? 'sendchannel;sendchannel_sec' : '')
+    expect(f.script.global('channels')).toBe(profile === 'rlva' ? 'sendchannel;sendchannel_except;sendchannel_sec' : '')
     expect(f.script.global('permissive')).toBe(profile === 'rlva' ? 'permissive' : '')
     expect(getRlvCommandCoverage(profile).filter(form => ['sendchannel', 'sendchannel_sec', 'permissive'].includes(form.behaviour))).toEqual([
       { behaviour: 'permissive', type: 'add', support: 'enforced', option: 'none' },
