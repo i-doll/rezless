@@ -271,6 +271,7 @@ export class Script {
       },
       inventoryOffers: [],
       viewerRequests: [],
+      teleportRequests: [],
       agentPresence: agentPresence(prim.linkset!),
       dialogs: [],
       lifecycle: {
@@ -669,6 +670,11 @@ export class Script {
   /** Inventory offers and completed prim deliveries, oldest first. */
   get inventoryOffers(): ReadonlyArray<InventoryOffer> {
     return this.state.inventoryOffers
+  }
+
+  /** Teleport attempts made by this script, oldest first. */
+  get teleportRequests(): ReadonlyArray<import('./builtins/sit.js').TeleportRequest> {
+    return this.state.teleportRequests
   }
 
   /** URL/map requests and rejected floater calls, oldest first. */

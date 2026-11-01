@@ -123,6 +123,8 @@ export interface ScriptState {
   readonly animations: Map<string, import('./builtins/animation.js').AvatarAnimations>
   /** Inventory offers and completed deliveries, oldest first. */
   readonly inventoryOffers: import('./builtins/give.js').InventoryOffer[]
+  /** Script teleport attempts, including permission failures. */
+  readonly teleportRequests: import('./builtins/sit.js').TeleportRequest[]
   /** Viewer requests, including denied floaters, oldest first. */
   readonly viewerRequests: import('./builtins/viewer.js').ViewerRequest[]
   /** Region-presence overrides shared with scripts in the region. */

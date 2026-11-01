@@ -1,3 +1,4 @@
+import { llSitOnLink, llUnSit, llSetAgentRot, llTeleportAgent, llTeleportAgentGlobalCoords, llTeleportAgentHome, llAvatarOnSitTarget, llAvatarOnLinkSitTarget } from './sit.js'
 import { llGetGameControlMode, llGetGameControlModeAxes, llGetGameControlModeButtons } from './game-control.js'
 import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
 import { llSetKeyframedMotion, llSetRegionPos } from './motion.js'
@@ -405,8 +406,6 @@ import {
   llPassTouches,
   llSitTarget,
   llLinkSitTarget,
-  llAvatarOnSitTarget,
-  llAvatarOnLinkSitTarget,
   llSetLinkSitFlags,
   llGetLinkSitFlags,
 } from './prim-accessors.js'
@@ -825,10 +824,16 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llPassTouches,
   llSitTarget,
   llLinkSitTarget,
-  llAvatarOnSitTarget,
-  llAvatarOnLinkSitTarget,
   llSetLinkSitFlags,
   llGetLinkSitFlags,
+  llSitOnLink,
+  llUnSit,
+  llSetAgentRot,
+  llTeleportAgent,
+  llTeleportAgentGlobalCoords,
+  llTeleportAgentHome,
+  llAvatarOnSitTarget,
+  llAvatarOnLinkSitTarget,
   // game control
   llGetGameControlMode,
   llGetGameControlModeAxes,
