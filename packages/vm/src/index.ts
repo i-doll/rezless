@@ -67,3 +67,5 @@ export type { AvatarDestination } from './world.js'
 export type { GameControlState } from './builtins/game-control.js'
 
 export type { PhysicsState, PhysicsRequest, PhysicsRequestName } from './builtins/physics.js'
+
+export type { VehicleSettings, VehicleRequest, VehicleRequestName } from './builtins/vehicles.js'
