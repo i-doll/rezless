@@ -674,8 +674,26 @@ UTF-8 bytes. RLVa counts characters but uses the period's UTF-8 byte offset
 to set the shorter limit. Kokua accepts colon poses and discards text
 before an embedded `/me`. RLVa additionally filters question marks in emotes.
 Both block DEBUG_CHANNEL under `sendchat`. Other private channels remain
-independent. Gesture expansion, redirection, alternate settings and emote
-restriction extensions are outside this action fixture.
+independent. Gesture expansion and alternate settings are outside this action fixture.
+
+`emote=n` removes the safe-emote length and sentence limits under `sendchat`;
+forbidden punctuation still becomes ellipsis. `redirchat:<channel>=n` and
+`rediremote:<channel>=n` suppress the original public message and send one copy
+per issuer and option to every allowed target. Each target respects `sendchannel`
+and `sendchannel_except`. Frozen action records include `redirected` entries
+with channel, message, volume, delivery status and denying restrictions. No target
+receiving the message means status `blocked`; the reason names the redirect family.
+
+Kokua redirects OOC and gestures under its default settings. Its `sendchat`
+filter runs before `rediremote` unless `redirchat` is active. With `redirchat`,
+unredirected emotes receive punctuation checks without truncation. Redirects retain
+the transformed volume. Nonempty unusable channel options suppress public chat
+without sending a copy. RLVa redirects before `sendchat`, leaves OOC and short
+slash gestures public, and sends redirects as shouts with a 1023-byte UTF-8 limit.
+It rejects unusable channel options and blocks DEBUG_CHANNEL for the matching
+redirect family. Both support add/remove aliases and issuer-scoped clear.
+Payload limits for Kokua, gesture expansion and alternate settings are outside
+this redirection contract.
 
 `sendchannel_except:<channel>` is an additional channel denial and overrides
 `sendchannel` exceptions. Kokua checks literal decimal channel text directly.
