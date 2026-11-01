@@ -700,6 +700,12 @@ the lines it changed) and project coverage vs the `main` baseline.
   to a deterministic value, providing custom logic for an unimplemented
   function, observing call args via the call log, and stateful mocks
   that aggregate across multiple events.
+* **rlv-wear** — an outfit wearer with viewer reply retries and fallback,
+  crafted and delayed replies, and detached inventory re-seeding.
+* **leash** — a worn collar with two avatars, dialog actions, particle targets,
+  movement requests, sensor-selected posts, and slack recovery.
+* **experience-kv** — an Experience visitor counter with checked updates,
+  targeted request failures, and held `dataserver` answers.
 * **scoreboard** — Linkset Data: per-name counters, regex key lookup
   via `llLinksetDataFindKeys`, `linkset_data` event handling, and
   state that survives `llResetScript`.
