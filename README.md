@@ -361,7 +361,43 @@ Capacity budgets may include fractions; queries truncate after aggregation.
 Same-owner totals include only parcels in the caller's region. `primOwners`
 maps owner UUIDs to land impact. Only the parcel owner can read it or `musicURL`;
 group return powers are not modeled. Without a parcel fixture, land is unowned
-with empty strings and zero land impact. No land side effects are simulated.
+with empty strings and zero land impact.
+
+Each configured parcel has an `effects` log. Entries contain `function`, `args`,
+`source` prim key, `owner`, virtual `time` in milliseconds, `accepted`, and any
+immediate `result`. Both refused and accepted requests are recorded. Acceptance
+means the fixture's permission and argument checks passed, not that an external
+transaction completed. Requests without a parcel fixture have no persistent log.
+
+`llSetParcelMusicURL` updates `musicURL` for the land owner; subsequent reads see
+it. `llParcelMediaCommandList` updates shared `media` settings for owner calls,
+and `llParcelMediaQuery` reads them with LSL types. Agent-targeted media commands
+stay in the log without changing shared settings. Playback has no renderer.
+Ban/pass list edits and ejections are recorded without simulating access or
+moving avatars. Object returns are recorded without deleting objects or changing
+fixture land-impact counts; accepted return requests report zero objects returned.
+
+`llSetParcelForSale` requires owner-granted `PERMISSION_PRIVILEGED_LAND_ACCESS`
+and stores validated options in `parcel.sale`. Set `inEscrow: true` on a parcel
+fixture to refuse a sale. Region `estateManagers` lists the UUIDs allowed to
+submit `llManageEstateAccess` requests. These requests do not model estate-wide
+list propagation or throttling. `llTransferOwnership` records an offer to an
+avatar fixture in the same region without changing ownership or inventory.
+Attachment and object transfer/copy permissions are not modeled.
+
+Both money functions require `PERMISSION_DEBIT` granted by the object owner.
+They only record requests and never pay. `llGiveMoney` always returns zero;
+missing debit permission also produces the measured debug error.
+`llTransferLindenDollars` returns a request key and queues `transaction_result`
+for missing debit or locally invalid arguments. Valid authorized requests remain
+pending. Tests can supply their result with
+`s.fire('transaction_result', { id, success, data })`.
+
+Refusals, errors, return codes and forced delays were measured on Aditi in
+SLua Tideland on 2026-11-01. Successful mutations and offers follow the wiki;
+land/estate rights were unavailable, and actual parcel edits, returns, ejections,
+payments and ownership transfers were prohibited. No debit permission was
+requested in-world. Group return powers remain unimplemented.
 
 ### Implemented `ll*` functions
 
@@ -378,6 +414,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
+* **parcel effects and payments**: `llSetParcelMusicURL`, the six land ban/pass list functions, `llEjectFromLand`, `llReturnObjectsByID`, `llReturnObjectsByOwner`, `llSetParcelForSale`, `llManageEstateAccess`, `llParcelMediaCommandList`, `llParcelMediaQuery`, `llGiveMoney`, `llTransferLindenDollars`, `llTransferOwnership`. See the fixture and record-only limits above.
 * **parcels**: `llGetParcelDetails`, `llGetParcelFlags`, `llGetParcelMaxPrims`, `llGetParcelPrimCount`, `llGetParcelPrimOwners`, `llGetParcelMusicURL`, `llGetLandOwnerAt`, `llOverMyLand`
 * **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatar keys still read like unknown keys in these object queries), `llGetObjectPermMask`
 * **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
