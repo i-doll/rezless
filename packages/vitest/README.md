@@ -1210,3 +1210,18 @@ still use the global minimum. Foreign seated `unsit` blocks travel. `tplm` and U
 Non-finite, hexadecimal and overflowing teleport conversions remain inspectably
 unsupported. Landing-point routing, terrain/collision adjustments and camera pose
 are outside the fixture.
+
+### Blacklist fixtures
+
+Pass `viewer: { blacklist: ['sit', 'unsit%f'] }` to `loadRlvPair`, or include
+`blacklist` in the viewer configuration for `World.addAvatar`. Kokua ignores
+blacklisted adds after notifying subscribers, and ignores force commands listed
+with `%f`. Removes remain available and `notify` registrations are exempt.
+`versionnumbl` appends the entries to the numeric version; `getblacklist` returns
+them in order, optionally filtered by substring.
+
+RLVa ignores that list and supports neither query. Its separate
+`viewer: { rlvaNoSetEnv: true }` fixture returns `failed-disabled` for `setenv`
+add/remove before callbacks. Environment effects remain unsupported. Ignored
+commands have `status: 'ignored'` and `outcome: 'ignored-blacklist'` or
+`'failed-disabled'`; commands without implemented effects retain diagnostics.

@@ -1,10 +1,12 @@
+import { sendRestrictionNotifications } from './notify.js'
+import type { RlvParsedCommand } from './classifier.js'
 import { dispatchTeleportCommand, teleportSupport } from './teleport.js'
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
-import { getRlvCommands } from './getcommand.js'
+import { getRlvCommandCoverage, getRlvCommands } from './getcommand.js'
 import { dispatchDetachCommand } from './detach.js'
 import { dispatchCameraCommand, getRlvCameraReply } from './camera.js'
-import { dispatchRestrictionCommand } from './restrictions.js'
+import { dispatchRestrictionCommand, isKokuaNamedReply } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
 import { getRlvOutfitReply } from './outfit.js'
 import { getRlvInventoryList } from './inventory.js'
@@ -59,6 +61,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     const malformed = !parsed || viewer.profile === 'rlva' && parsed.kind === 'unknown'
     const channel = parsed ? rlvIntegerPrefix(parsed.parameter) : undefined
+    if (!malformed && parsed && dispatchBlacklistedCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchCameraCommand(avatar, prim, parsed, command)) continue
     // Kokua dispatches named version queries before testing parameter kinds.
     let text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
@@ -66,6 +69,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       ? versionReply(viewer.profile, parsed.behaviour, parsed.option) : undefined
     if (!malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
       channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
+      text ??= viewer.blacklist.reply(parsed.behaviour, parsed.option, viewer.reference!.apiVersionNumber)
       text ??= getRlvCameraReply(viewer, parsed.behaviour, parsed.option)
     }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
@@ -165,4 +169,22 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       ...(viewer.profile === 'rlva' && parsed?.option && ['getcam_fov', 'getcam_fovmin', 'getcam_fovmax'].includes(parsed.behaviour)
         ? { outcome: 'failed-option' as const } : {}) })
   }
+}
+
+/** Run before effects; ignored commands never establish restriction state. */
+function dispatchBlacklistedCommand(avatar: WorldAvatar, prim: Prim, parsed: RlvParsedCommand, command: string): boolean {
+  const viewer = avatar.viewer
+  if (viewer.profile === 'rlv' && isKokuaNamedReply(parsed.behaviour)) return false
+  const outcome = viewer.blacklist.rejection(parsed)
+  if (!outcome || viewer.profile === 'disabled') return false
+  if (outcome === 'ignored-blacklist' && parsed.kind === 'add') {
+    sendRestrictionNotifications(prim, avatar, viewer.restrictions.snapshot(), parsed.behaviour + (parsed.option ? ':' + parsed.option : ''), '=n')
+  }
+  viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'ignored', outcome })
+  const type = parsed.kind === 'remove' ? 'add' : parsed.kind
+  const implemented = getRlvCommandCoverage(viewer.profile).some(form => form.behaviour === parsed.behaviour &&
+    form.type === type && form.support === 'enforced' && (form.option === 'any' || !parsed.option))
+  if (!implemented) viewer.diagnostics.push({ command, reason: 'unsupported',
+    detail: 'This command form has no implemented effect; the viewer setting does not establish enforcement support.' })
+  return true
 }

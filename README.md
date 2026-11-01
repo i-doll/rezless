@@ -676,6 +676,11 @@ filters through `getattachnames`; Kokua leaves that query unsupported.
 `notify` registers emitter-scoped restriction notifications with substring filters.
 Both profiles deliver avatar-origin messages; aliases, duplicate operations and
 clear ordering follow the selected viewer profile.
+Kokua fixtures accept a per-avatar `blacklist` of wire names, with `%f` entries
+for force commands. `versionnumbl` and filtered `getblacklist` expose it. Ignored
+adds still notify; force commands have no effect. RLVa uses `rlvaNoSetEnv` to
+disable `setenv` add/remove separately and has neither blacklist query.
+Unsupported effects keep their diagnostics under either setting.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
 Force `sit` and `unsit` update World seating and expose action outcomes in the
