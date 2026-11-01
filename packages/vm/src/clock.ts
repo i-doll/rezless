@@ -233,6 +233,8 @@ export class LinksetClock {
  * forwards shared state to the linkset and keeps per-script state local.
  */
 export class ScriptClockView {
+  /** Script clocks stop while their attachment is saved in inventory. */
+  private inventorySince: number | undefined
   /** Reference time for `llGetTime`/`llResetTime` (virtual ms); the script's creation, reset or last llResetTime. */
   timeReferenceMs: number
   /** Monotonic completed-handler count used to bound synchronous settling. */
@@ -305,10 +307,29 @@ export class ScriptClockView {
   }
 
   elapsedSeconds(): number {
-    return (this.now - this.timeReferenceMs) / 1000
+    return ((this.inventorySince ?? this.now) - this.timeReferenceMs) / 1000
   }
 
   resetReference(): void {
-    this.timeReferenceMs = this.now
+    this.timeReferenceMs = this.inventorySince ?? this.now
+  }
+
+  pauseForInventory(): void {
+    this.inventorySince = this.now
+  }
+
+  /** Restore saved timer phase; lifecycle events must already be queued. */
+  resumeFromInventory(): void {
+    if (this.inventorySince === undefined) return
+    const pausedMs = this.now - this.inventorySince
+    this.inventorySince = undefined
+    this.timeReferenceMs += pausedMs
+    if (this.timerIntervalMs > 0) {
+      this.timerNextFireMs += pausedMs
+      if (this.timerNextFireMs <= this.now && this.self().running) {
+        this.schedule(this.now, 'timer')
+        this.timerNextFireMs += (Math.floor((this.now - this.timerNextFireMs) / this.timerIntervalMs) + 1) * this.timerIntervalMs
+      }
+    }
   }
 }

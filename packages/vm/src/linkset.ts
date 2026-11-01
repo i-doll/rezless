@@ -192,14 +192,18 @@ export class Linkset {
     point &= 255
     point = point === 0 ? this.lastAttachmentPoint : point > 55 ? 1 : point
     const order = Math.max(0, ...this.peers.map(l => l.attachment?.order ?? 0)) + 1
-    if (!this.peers.includes(this)) this.peers.push(this)
+    const fromInventory = !this.peers.includes(this)
+    if (fromInventory) this.peers.push(this)
     this.lastAttachmentPoint = point
     this.attachment = { avatar, point, temporary, order }
     for (const script of this.allScripts()) {
+      // Viewer recovery may already have queued this inventory rez.
+      if (fromInventory && !this.clock.hasPending(script, 'on_rez')) script.queueRez()
       resumeSensors(script)
       resumeTargets(script)
     }
     this.broadcastAttach(avatar)
+    for (const script of this.allScripts()) script.clockView.resumeFromInventory()
   }
 
   /** Detach into inventory, preserving script state and the remembered point. */
@@ -214,6 +218,7 @@ export class Linkset {
     // A detached object leaves region queries and recurring timers. The final
     // attach event still runs from the shared clock's explicit event queue.
     for (const script of this.allScripts()) {
+      script.clockView.pauseForInventory()
       pauseSensors(script)
       pauseTargets(script)
       this.clock.purgeTarget(script)
