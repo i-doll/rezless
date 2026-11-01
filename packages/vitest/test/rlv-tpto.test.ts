@@ -317,3 +317,27 @@ it('treats region names as names and ignores fields after the first angle', asyn
     expect(f.avatar.viewer.commandLog.at(-1)?.status).toBe('unsupported')
   }
 })
+
+it('recognizes a nonempty Kokua angle tail even when it starts with another semicolon', async () => {
+  const f = (await setup()).rlv
+  issue(await foreign(f), '@sittp=n')
+  issue(f.script, '@tpto:rlv fixture/12/24/36;;ignored=force')
+  expect(f.avatar.position).toEqual({ x: 10, y: 20, z: 30 })
+  expect(f.teleportActions.at(-1)?.reason).toBe('restriction')
+})
+
+it('lifts and restores Kokua issuer locks in command order regardless of insertion order', async () => {
+  const pair = await loadRlvPair({ source: `list replies; default {
+    state_entry() { llListen(227101,"",llGetOwner(),"");
+      llOwnerSay("@notify:227101=add,sittp=n,unsit=n,tplocal=n,tploc=n"); }
+    link_message(integer s,integer n,string m,key id) { llOwnerSay(m); }
+    listen(integer c,string n,key id,string m) { replies += [m]; }
+  }` })
+  const f = pair.rlv; f.script.start()
+  issue(f.script, '@tpto:12/24/36=force')
+  expect((f.script.global('replies') as string[]).slice(4)).toEqual([
+    '/tploc=y', '/tplocal=y', '/unsit=y', '/sittp=y',
+    '/tploc=n', '/tplocal=n', '/unsit=n', '/sittp=n',
+  ])
+  expect(f.avatar.position).toEqual({ x: 12, y: 24, z: 36 })
+})

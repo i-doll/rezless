@@ -33,7 +33,7 @@ function parseDestination(profile: 'rlv' | 'rlva', option: string): ParsedDestin
   const parts = option.split(';')
   const text = parts[0]!
   let angle: number | undefined
-  if (parts.length > 1 && (profile === 'rlva' || parts[1] !== '')) {
+  if (parts.length > 1 && (profile === 'rlva' || text.length + 1 < option.length)) {
     if (exotic.test(parts[1]!)) return 'unsupported'
     const match = prefix.exec(parts[1]!)
     if (!match && profile === 'rlva') return 'invalid'
@@ -105,11 +105,11 @@ export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: Wo
     return true
   }
   // Kokua temporarily lifts its own bare locks, including their notifications.
-  const lifted = viewer.profile === 'rlv' ? viewer.restrictions.snapshot(prim.key)
-    .filter(rule => !rule.option && ['tploc', 'tplocal', 'unsit', 'sittp'].includes(rule.behaviour)) : []
+  const ownBare = new Set(viewer.restrictions.snapshot(prim.key).filter(rule => !rule.option).map(rule => rule.behaviour))
+  const lifted = viewer.profile === 'rlv' ? ['tploc', 'tplocal', 'unsit', 'sittp'].filter(behaviour => ownBare.has(behaviour)) : []
   const setLifted = (kind: 'add' | 'remove') => {
-    for (const rule of lifted) viewer.restrictions.apply(prim, {
-      behaviour: rule.behaviour, option: '', kind, parameter: kind === 'add' ? 'n' : 'y',
+    for (const behaviour of lifted) viewer.restrictions.apply(prim, {
+      behaviour, option: '', kind, parameter: kind === 'add' ? 'n' : 'y',
     })
   }
   setLifted('remove')
