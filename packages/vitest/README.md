@@ -1907,6 +1907,16 @@ option. Neither profile interprets pipes or semicolons as multiple folder paths.
 Inventory links, gestures, environment settings and folder locks remain outside
 these force-wear fixtures.
 
+`attachthis` and its `over`, `overorreplace` and recursive `attachallthis` forms
+select shared folders from the issuing attachment, a named attachment point,
+a clothing layer or a worn object UUID. `detachthis` and `detachallthis` remove
+the selected folder contents. Point and layer selectors include every worn item.
+Existing wear, removal, lock and folder-prefix rules apply. The `addoutfitthis`
+and `addoutfitallthis` aliases follow the same behavior; their `overorreplace`
+variants are available only in Kokua. Kokua resolves child prims to their root;
+RLVa child prims have no inventory item identity and select no folder.
+
+
 
 ### RLV/RLVa avatar touch
 

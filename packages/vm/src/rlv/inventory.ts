@@ -1,4 +1,7 @@
 import { Linkset } from '../linkset.js'
+import type { WorldAvatar } from '../world.js'
+import type { Prim } from '../prim.js'
+import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint } from './attachments.js'
 import type { RlvProfile } from './profiles.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
@@ -274,4 +277,49 @@ export function collectRlvWearItems(profile: RlvProfile, inventory: RlvInventory
   const folder = entries.find(e => e.id === folderId && e.kind === 'folder')
   if (folder) visit(folder)
   return [...result.values()]
+}
+
+/** Resolve the containing shared folder once for force forms and folder policies. */
+export function getRlvItemFolder(profile: RlvProfile, inventory: RlvInventory,
+  item: RlvInventoryEntry): string | undefined {
+  const parent = inventory.snapshot().find(entry => entry.id === item.parentId)
+  if (!parent || inventory.sharedPath(parent.id) === undefined) return undefined
+  const kokuaFold = item.modifiable === false && !item.wearableType && RLV_ATTACHMENT_POINTS.some(point =>
+    parent.name.toLowerCase().replaceAll('(root)', '(avatar center)').includes('(' + point.name.toLowerCase() + ')'))
+  const folderId = (profile === 'rlva' ? parent.folded : kokuaFold) ? parent.parentId : parent.id
+  return folderId ?? undefined
+}
+
+/** Select shared folders from the issuer, a worn object UUID, point or clothing layer.
+ * Undefined denotes an invalid option; an empty list is a valid selector with no shared targets.
+ */
+export function resolveRlvThisFolders(profile: RlvProfile, avatar: WorldAvatar, issuer: Linkset, prim: Prim,
+  option: string): readonly string[] | undefined {
+  const { inventory } = avatar.viewer
+  const worn = issuer.peers.filter(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase())
+    .sort((a, b) => a.attachment!.order - b.attachment!.order)
+  const point = getRlvAttachmentPoint(option)
+  const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(option)
+  let items: readonly RlvInventoryEntry[]
+  if (RLV_WEARABLE_TYPES.some(layer => layer === option)) {
+    items = inventory.wornWearables().map(id => inventory.snapshot().find(entry => entry.id === id)!)
+      .filter(entry => entry.wearableType === option)
+  } else if (!option || uuid || point !== undefined) {
+    const objects = worn.filter(peer => point !== undefined ? peer.attachment!.point === point
+      : peer.prims.some(part => part.key.toLowerCase() === (option || prim.key.toLowerCase())) &&
+        (profile === 'rlv' || peer.owner.toLowerCase() === avatar.key.toLowerCase()))
+    if (uuid && profile === 'rlva' && !objects.length) return undefined
+    items = objects.flatMap(peer => {
+      if (profile === 'rlva' && point === undefined && peer.prims[0]!.key.toLowerCase() !== (option || prim.key.toLowerCase())) return []
+      const item = inventory.attachmentItem(peer.prims[0]!.key)
+      return item ? [item] : []
+    })
+  } else return undefined
+  return items.flatMap(item => {
+    const folder = getRlvItemFolder(profile, inventory, item)
+    if (!folder) return []
+    // Kokua passes paths back through its shared-folder lookup; RLVa keeps category identity.
+    const resolved = profile === 'rlv' ? getRlvInventoryFolder(profile, inventory, inventory.sharedPath(folder)!) : folder
+    return resolved && resolved !== inventory.sharedRootId ? [resolved] : []
+  })
 }
