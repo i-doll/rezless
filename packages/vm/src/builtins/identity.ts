@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { NULL_KEY } from '../values/types.js'
 import { PRIM_NAME } from '../generated/constants.js'
+import { findObjectPrim } from './object-reads.js'
 
 const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -13,14 +14,13 @@ export const llGetKey: BuiltinImpl = (ctx) => ctx.state.identity.objectKey
 /** llGetObjectName() — the prim's name. */
 export const llGetObjectName: BuiltinImpl = (ctx) => ctx.state.identity.objectName
 
-/** llGetOwnerKey(key id) — owner of the prim with that key in the linkset, else `id`. */
+/** llGetOwnerKey(key id) — owner of a live prim in the caller's region, else `id`. */
 export const llGetOwnerKey: BuiltinImpl = (ctx, args) => {
   const id = (args[0] as string | undefined) ?? ''
   if (id === NULL_KEY) return NULL_KEY
   if (!KEY_PATTERN.test(id)) return NULL_KEY
-  const idLower = id.toLowerCase()
-  if (ctx.linkset.prims.some((p) => p.key.toLowerCase() === idLower)) return ctx.linkset.owner
-  return id
+  const prim = findObjectPrim(ctx, id)
+  return prim ? prim.linkset!.owner : id
 }
 
 /** llSetObjectName(string name) — mutates the prim's name. */
