@@ -920,6 +920,13 @@ RenderResolutionDivisor. RLVa additionally exposes the read-only AspectRatio
 query. See the vitest debug settings documentation for defaults, conversion
 rules and permission-setting queries.
 
+Group fixtures use `avatar.group` as the active UUID and `avatar.groups` for
+membership names and optional roles. `setgroup` locks explicit user activation
+through `world.userChangeAvatarGroup(avatar, key)`. Forced changes update the
+same group read by `llSameGroup` and sensors; `getgroup` replies with the active
+name or `none`. Name matching, issuer exemptions and throttling follow each
+profile. See the vitest group documentation.
+
 ## License
 
 The rezless project is licensed under the **Apache License, Version 2.0** —

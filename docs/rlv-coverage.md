@@ -16,6 +16,12 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 
 | Contract | Profile and version | Command form or operation | Support depth | Comparison | Tests |
 | --- | --- | --- | --- | --- | --- |
+| [setgroup](#setgroup) | Kokua RLV 2.09.35.00 | <code>@setgroup=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
+| [setgroup](#setgroup) | Kokua RLV 2.09.35.00 | <code>@setgroup[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
+| [setgroup](#setgroup) | Firestorm RLVa 2.4.2 | <code>@setgroup=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
+| [setgroup](#setgroup) | Firestorm RLVa 2.4.2 | <code>@setgroup[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
+| [getgroup](#getgroup) | Kokua RLV 2.09.35.00 | <code>@getgroup[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
+| [getgroup](#getgroup) | Firestorm RLVa 2.4.2 | <code>@getgroup[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
 | [setdebug](#setdebug) | Kokua RLV 2.09.35.00 | <code>@setdebug=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
 | [setdebug](#setdebug) | Firestorm RLVa 2.4.2 | <code>@setdebug=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
 | [debug-avatarsex](#debug-avatarsex) | Kokua RLV 2.09.35.00 | <code>@getdebug_avatarsex[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-debug.test.ts](../packages/vitest/test/rlv-debug.test.ts) |
@@ -890,6 +896,57 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 - Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.
 
 ## Contracts and limits
+
+### setgroup
+
+Forms: <code>@setgroup=n&#124;add&#124;y&#124;rem</code>, <code>@setgroup:&lt;group&gt;=force</code>, <code>@setgroup:&lt;group&gt;;&lt;role&gt;=force</code>.
+
+Comparison: confirmed difference. Both profiles lock user group activation and support forced activation by name or none. Kokua requires a full name and blocks force activation under every lock, including the issuer. RLVa also accepts member UUIDs, the null UUID, and case-insensitive name prefixes; exact matches win, otherwise the last membership match wins.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Case-insensitive full group names and none. Any no-option setgroup lock blocks force and user changes. Unknown names are inert. The generic force handler strips a leading #RLV/. UUID and role selectors are unsupported.
+
+- @setgroup=n|add|y|rem
+- @setgroup:<name|none>=force
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::force</code>, <code>LLGroupActions::activate</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Member UUIDs, none/null UUID, and case-insensitive group name prefixes. Exact names win; otherwise the last membership match wins. Forces exempt the issuer lock and fail under other locks. Valid requests share a 60-second throttle, with one early request for the lock owner per interval. Optional role names match similarly, ordered by role UUID; missing roles leave the title unchanged. Group activation updates the avatar group used by LSL reads.
+
+- @setgroup=n|add|y|rem
+- @setgroup:<uuid|name|none>=force
+- @setgroup:<uuid|name>;<role>=force
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvForceHandler&lt;RLV_BHVR_SETGROUP&gt;::onCommand</code>, <code>RlvHandler::checkActiveGroupThrottle</code>, <code>RlvHandler::setActiveGroupRole</code>, <code>RlvActions::canChangeActiveGroup</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts).
+
+### getgroup
+
+Forms: <code>@getgroup=&lt;channel&gt;</code>.
+
+Comparison: shared. Both profiles reply with the active group name, preserving its case, or the literal none when no group is active. Query options are ignored and ordinary reply-channel rules apply.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Replies with the group name or none. Options are ignored; named reply dispatch precedes parameter kinds.
+
+- @getgroup=<channel>
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::handleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Replies with the group name or none, ignoring options.
+
+- @getgroup=<channel>
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::processReplyCommand</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts).
 
 ### setdebug
 

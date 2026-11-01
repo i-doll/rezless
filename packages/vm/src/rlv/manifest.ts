@@ -71,6 +71,32 @@ export const RLV_MANIFEST: {
   },
   commands: [
     {
+      id: 'setgroup', forms: ['@setgroup=n|add|y|rem', '@setgroup:<group>=force', '@setgroup:<group>;<role>=force'], comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles lock user group activation and support forced activation by name or none. Kokua requires a full name and blocks force activation under every lock, including the issuer. RLVa also accepts member UUIDs, the null UUID, and case-insensitive name prefixes; exact matches win, otherwise the last membership match wins.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::force', 'LLGroupActions::activate'], 'Case-insensitive full group names and none. Any no-option setgroup lock blocks force and user changes. Unknown names are inert. The generic force handler strips a leading #RLV/. UUID and role selectors are unsupported.'),
+          support: 'enforced', coveredForms: ['@setgroup=n|add|y|rem', '@setgroup:<name|none>=force'], commandForms: [
+            { behaviour: 'setgroup', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'setgroup', type: 'force', support: 'enforced', option: 'any' },
+          ] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvForceHandler<RLV_BHVR_SETGROUP>::onCommand', 'RlvHandler::checkActiveGroupThrottle', 'RlvHandler::setActiveGroupRole', 'RlvActions::canChangeActiveGroup'], 'Member UUIDs, none/null UUID, and case-insensitive group name prefixes. Exact names win; otherwise the last membership match wins. Forces exempt the issuer lock and fail under other locks. Valid requests share a 60-second throttle, with one early request for the lock owner per interval. Optional role names match similarly, ordered by role UUID; missing roles leave the title unchanged. Group activation updates the avatar group used by LSL reads.'),
+          support: 'enforced', coveredForms: ['@setgroup=n|add|y|rem', '@setgroup:<uuid|name|none>=force', '@setgroup:<uuid|name>;<role>=force'], commandForms: [
+            { behaviour: 'setgroup', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'setgroup', type: 'force', support: 'enforced', option: 'any' },
+          ] },
+      }, tests: [...tests, 'packages/vitest/test/rlv-group.test.ts'],
+    },
+    {
+      id: 'getgroup', forms: ['@getgroup=<channel>'], comparison: 'shared',
+      wikiComparison: 'Both profiles reply with the active group name, preserving its case, or the literal none when no group is active. Query options are ignored and ordinary reply-channel rules apply.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::handleCommand'], 'Replies with the group name or none. Options are ignored; named reply dispatch precedes parameter kinds.'),
+          support: 'enforced', coveredForms: ['@getgroup=<channel>'], commandForms: replyForms('getgroup') },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processReplyCommand'], 'Replies with the group name or none, ignoring options.'),
+          support: 'enforced', coveredForms: ['@getgroup=<channel>'], commandForms: replyForms('getgroup') },
+      }, tests: [...tests, 'packages/vitest/test/rlv-group.test.ts'],
+    },
+    {
       id: 'setdebug', forms: ['@setdebug=n|add|y|rem'], comparison: 'confirmed difference',
       wikiComparison: 'Both profiles block debug forces from other issuers while permitting their own. Query replies and values survive removal and clear. Kokua enables atmospheric shaders when adding the lock unless NoSetEnv is enabled. RLVa hides writable controls in the settings editor.',
       profiles: {

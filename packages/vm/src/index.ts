@@ -138,3 +138,5 @@ export type { AvatarMovement, AvatarMovementAction, AvatarMovementState } from '
 export { RlvEnvironment } from './rlv/environment.js'
 export type { RlvEnvironmentConfig, RlvEnvironmentSky, RlvEnvironmentPreset } from './rlv/environment.js'
 export type { RlvDebugSettingsConfig } from './rlv/debug.js'
+
+export type { AvatarGroup } from './rlv/group.js'

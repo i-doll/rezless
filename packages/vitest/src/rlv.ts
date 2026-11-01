@@ -51,6 +51,7 @@ export interface RlvFixture {
   attemptWearable(itemId: string, wear: boolean): import('@rezless/vm').RlvWearableActionOutcome
   userSit(prim: Prim, offset?: Vector): boolean
   userStand(): boolean
+  userChangeGroup(key: string): boolean
   sendChat(channel: number, message: string, volume?: AvatarChatVolume): AvatarChatAction
 }
 
@@ -102,6 +103,7 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
         loaded.linkset.advanceTime(0)
         return accepted
       },
+      userChangeGroup: key => world.userChangeAvatarGroup(avatar, key),
       sendChat: (channel, message, volume) => world.sendAvatarChat(avatar, channel, message, volume) }
   }
   return { rlv: await load('rlv'), rlva: await load('rlva') }
