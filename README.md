@@ -780,6 +780,12 @@ still require `PERMISSION_TRACK_CAMERA`. Mouselook exclusion clears
 `AGENT_MOUSELOOK`; removal permits later entry without restoring it.
 Skeleton animation, camera lag, smoothing and collision are outside this fixture.
 
+`attachall`, `attachallover` and `attachalloverorreplace` wear recursive shared folders,
+with `addoutfitall` and `addoutfitallover` aliases. Kokua also accepts
+`addoutfitalloverorreplace`. `detachall` removes folder contents recursively;
+`remoutfit:<folder>` removes direct folder attachments and clothing.
+Hidden and folded folders follow the selected profile, with per-item outcomes.
+
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
 profile-specific path matching and visibility filters.
