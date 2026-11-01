@@ -809,7 +809,12 @@ Skeleton animation, camera lag, smoothing and collision are outside this fixture
 with `addoutfitall` and `addoutfitallover` aliases. Kokua also accepts
 `addoutfitalloverorreplace`. `detachall` removes folder contents recursively;
 `remoutfit:<folder>` removes direct folder attachments and clothing.
-Hidden and folded folders follow the selected profile, with per-item outcomes.
+Hidden and folded folders follow the selected profile, with per-item outcomes. Direct
+`attach`, `attachover` and `attachoverorreplace` also wear clothing and replace
+bodyparts. Seed item links with `linkTargetId`: worn state uses the target ID,
+while per-item results identify the selected link. Existing layer, attachment,
+folder and shared-wear locks apply. RLVa follows one eligible folder-link target
+level; Kokua keeps folder links unsupported.
 
 `attachthis` and its `over`, `overorreplace` and recursive `attachallthis` forms
 select shared folders from the issuing attachment, a named attachment point,

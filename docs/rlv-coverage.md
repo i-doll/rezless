@@ -147,12 +147,12 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [getpath](#getpath) | Kokua RLV 2.09.35.00 | <code>@getpathnew[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts) |
 | [getpath](#getpath) | Firestorm RLVa 2.4.2 | <code>@getpath[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts) |
 | [getpath](#getpath) | Firestorm RLVa 2.4.2 | <code>@getpathnew[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-findfolder.test.ts](../packages/vitest/test/rlv-findfolder.test.ts)<br>[rlv-getpath-layers.test.ts](../packages/vitest/test/rlv-getpath-layers.test.ts) |
-| [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
-| [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attachover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
-| [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attachoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
-| [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
-| [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
-| [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
+| [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts)<br>[rlv-folderclothing.test.ts](../packages/vitest/test/rlv-folderclothing.test.ts) |
+| [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attachover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts)<br>[rlv-folderclothing.test.ts](../packages/vitest/test/rlv-folderclothing.test.ts) |
+| [forcewear](#forcewear) | Kokua RLV 2.09.35.00 | <code>@attachoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts)<br>[rlv-folderclothing.test.ts](../packages/vitest/test/rlv-folderclothing.test.ts) |
+| [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts)<br>[rlv-folderclothing.test.ts](../packages/vitest/test/rlv-folderclothing.test.ts) |
+| [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts)<br>[rlv-folderclothing.test.ts](../packages/vitest/test/rlv-folderclothing.test.ts) |
+| [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts)<br>[rlv-folderclothing.test.ts](../packages/vitest/test/rlv-folderclothing.test.ts) |
 | [folderlocks](#folderlocks) | Kokua RLV 2.09.35.00 | <code>@attachthis[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-folderlocks.test.ts](../packages/vitest/test/rlv-folderlocks.test.ts) |
 | [folderlocks](#folderlocks) | Kokua RLV 2.09.35.00 | <code>@attachallthis[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-folderlocks.test.ts](../packages/vitest/test/rlv-folderlocks.test.ts) |
 | [folderlocks](#folderlocks) | Kokua RLV 2.09.35.00 | <code>@detachthis[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-folderlocks.test.ts](../packages/vitest/test/rlv-folderlocks.test.ts) |
@@ -1746,7 +1746,7 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@getinvworn[:&lt;path&gt;]=&lt;channel&gt;</code>.
 
-Comparison: confirmed difference. Two digits describe direct and descendant wearable occupancy: 0 empty, 1 none worn, 2 some worn, 3 all worn. Clothing, bodyparts and mapped live attachments count together. Kokua preserves inventory order and ignores direct shared-root items; single no-mod named-point object folders use its 10/30 sentinel mapping. RLVa orders child folders by UUID, counts direct root items, and folds effective folders into their parents. Commas and slash-bearing child names remain unescaped. Inventory links and gestures are outside the fixture.
+Comparison: confirmed difference. Two digits describe direct and descendant wearable occupancy: 0 empty, 1 none worn, 2 some worn, 3 all worn. Clothing, bodyparts and mapped live attachments count together. Kokua preserves inventory order and ignores direct shared-root items; single no-mod named-point object folders use its 10/30 sentinel mapping. RLVa orders child folders by UUID, counts direct root items, and folds effective folders into their parents. Commas and slash-bearing child names remain unescaped. Item links count target occupancy; gestures and folder-link occupancy are outside this query contract.
 
 #### Kokua RLV 2.09.35.00
 
@@ -1759,7 +1759,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Uses explicit effective folded flags and RLVaEnableSharedWear=true. A folded child with exactly one object contributes direct items to its parent, excluding clothing or bodyparts with nostrip in the item or folded ancestry through the first non-folded parent; other folded children and hidden normal subtrees do not contribute. Visible normal descendants contribute recursively. A directly selected folded folder becomes the collection root: its direct wearable items count normally, and its visible child folders retain their own scores. Missing paths reply empty with failed-option; absent roots reply empty. Automatic naming inference, setting overrides, gestures and inventory links are unsupported.
+Support depth: enforced. Uses explicit effective folded flags and RLVaEnableSharedWear=true. A folded child with exactly one object contributes direct items to its parent, excluding clothing or bodyparts with nostrip in the item or folded ancestry through the first non-folded parent; other folded children and hidden normal subtrees do not contribute. Visible normal descendants contribute recursively. A directly selected folded folder becomes the collection root: its direct wearable items count normally, and its visible child folders retain their own scores. Missing paths reply empty with failed-option; absent roots reply empty. Item links count target occupancy. Automatic naming inference, setting overrides, gestures and folder-link occupancy are unsupported.
 
 - Direct and recursive worn codes, UUID child order, mixed live attachments and wearables
 - Explicit effective folding under the containing folder and direct folded-folder root queries
@@ -1826,29 +1826,31 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@attach:&lt;folder&gt;=force</code>, <code>@attachover:&lt;folder&gt;=force</code>, <code>@attachoverorreplace:&lt;folder&gt;=force</code>.
 
-Comparison: confirmed difference. Shared direct attachment items use add or replace semantics. Both profiles honor the default + folder prefix. Kokua always adds unnamed items; RLVa shared wear replaces at their saved point and can be disabled. Clothing wear honors layer locks. Recursive forms and folder option parsing have a separate contract.
+Comparison: confirmed difference. Shared direct attachment items use add or replace semantics. Both profiles honor the default + folder prefix. Kokua always adds unnamed items; RLVa shared wear replaces at their saved point and can be disabled. Direct clothing wear honors layer, folder and shared-wear locks. Item links expose target types and names while keeping their containing folder policies. Bodyparts replace their single slot. RLVa follows one eligible folder-link target level; Kokua leaves folder links unsupported. Recursive forms and folder option parsing have a separate contract.
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Named items replace for attach and attachoverorreplace; attachover and + prefixed folders add. The rightmost recognized parenthesised point wins without trimming. Unnamed direct items always add at their saved point, default Right Hand. Single no-mod object children in point-named folders use the child folder point. Replace respects every occupant detach lock. Already-worn items retain identity. Fixture order determines sequential replacement; definitions and script state survive wear and detach.
+Support depth: enforced. Named items replace for attach and attachoverorreplace; attachover and + prefixed folders add. The rightmost recognized parenthesised point wins without trimming. Unnamed direct items always add at their saved point, default Right Hand. Single no-mod object children in point-named folders use the child folder point. Replace respects every occupant detach lock. Already-worn items retain identity. Fixture order determines sequential replacement; definitions and script state survive wear and detach. Direct clothing replaces the top item sequentially; add retains existing clothing. Bodyparts always replace their single slot subject to layer locks. Clothing links use the target folder for add checks; linked objects use the link folder. Worn IDs and attachment mappings retain target identity, while per-item results identify the selected link. Folder links, broken links and links to links remain unsupported.
 
+- Direct clothing, bodypart replacement, target identity for item links and existing layer/folder/shared-wear locks
 - Direct shared attachment definitions and existing mapped live attachments
 - Add/replace, named and saved points, + folders and single no-mod folded children
 - No-option and point locks, queued attachment lifecycle and per-item action outcomes; folder locks have a separate contract; recursive forms have a separate contract
 
-Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::forceAttach</code>, <code>RRInterface::findAttachmentPointFromName</code>, <code>RRInterface::findAttachmentPointFromParentName</code>.
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::forceAttach</code>, <code>RRInterface::findAttachmentPointFromName</code>, <code>RRInterface::findAttachmentPointFromParentName</code>, <code>RRInterface::canWear</code>, <code>RRInterface::canUnwear</code>.
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Attach and attachoverorreplace replace; attachover and + prefixed folders add. Named replace retains the last pending item per point; final pending requests follow inventory item UUID order. The last parenthesised item text is trimmed; legacy folder names provide fallback and take precedence for no-mod items. Explicit folded children with one object contribute attachments. Shared wear defaults on and accepts unnamed items at their saved point, default Right Hand; inventory.sharedWear=false skips them. Named replacement is blocked by any occupant detach lock. Unnamed replacement retains locked occupants and removes unlocked ones. Already-worn items retain identity.
+Support depth: enforced. Attach and attachoverorreplace replace; attachover and + prefixed folders add. Named replace retains the last pending item per point; final pending requests follow inventory item UUID order. The last parenthesised item text is trimmed; legacy folder names provide fallback and take precedence for no-mod items. Explicit folded children with one object contribute attachments. Shared wear defaults on and accepts unnamed items at their saved point, default Right Hand; inventory.sharedWear=false skips them. Named replacement is blocked by any occupant detach lock. Unnamed replacement retains locked occupants and removes unlocked ones. Already-worn items retain identity. Direct clothing replaces strippable occupants for the first accepted item per layer and adds subsequent items. Bodyparts and physics replace a single slot. Item links use target identity, type and attachment-point naming, then the link folder point as fallback; add locks inspect the link folder. Removal locks include the actual target and every shared item link. Folder links are discovered throughout the selected subtree independently of ordinary item traversal, including hidden children and nonrecursive commands. One visible folder-link target level contributes direct and folded contents, excluding outfit categories, targets inside the selected subtree and further folder indirection. Broken links and links to links remain unsupported.
 
+- Direct clothing, bodypart replacement, target identity for item links and existing layer/folder/shared-wear locks
 - Direct shared attachment definitions and existing mapped live attachments
 - Add/replace, named and saved points, default shared-wear setting and its disabled value, + folders and single-object folded children
 - No-option and point locks, queued attachment lifecycle and per-item action outcomes; folder locks have a separate contract; recursive forms have a separate contract
 
-Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvForceWear::forceFolder</code>, <code>RlvForceWear::addAttachment</code>, <code>RlvForceWear::updatePendingAttachments</code>, <code>RlvWearableItemCollector</code>, <code>RlvAttachPtLookup::getAttachPointIndex</code>.
+Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvForceWear::forceFolder</code>, <code>RlvForceWear::addAttachment</code>, <code>RlvForceWear::updatePendingAttachments</code>, <code>RlvWearableItemCollector</code>, <code>RlvAttachPtLookup::getAttachPointIndex</code>, <code>RlvForceWear::addWearable</code>, <code>RlvForceWear::isStrippable</code>.
 
-Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts).
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts)<br>[rlv-folderclothing.test.ts](../packages/vitest/test/rlv-folderclothing.test.ts).
 
 ### folderlocks
 
@@ -1862,7 +1864,7 @@ Support depth: enforced. Path locks deny a node or subtree. An issuer-local exce
 
 - Path node/subtree locks and issuer-local path exceptions
 - No-option detach, point and worn layer selectors
-- User inventory actions and force actions with replacement checks; inventory links and newly received-item exemptions excluded
+- User inventory actions and force actions with replacement checks; item-link removal locks included; newly received-item exemptions excluded
 
 Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::isFolderLockedWithoutException</code>, <code>RRInterface::isFolderLockedWithoutExceptionAux</code>, <code>RRInterface::canAttachCategoryAux</code>, <code>RRInterface::canDetachCategoryAux</code>.
 
@@ -1872,7 +1874,7 @@ Support depth: enforced. Node and subtree locks resolve shared paths, issuing ro
 
 - Shared path, no-option root issuer and live point/layer selectors
 - Node/subtree locks, folded folders and issuer-local path exceptions
-- User inventory actions, force actions and clothing availability replies with replacement checks; inventory links excluded
+- User inventory actions, force actions and clothing availability replies with replacement checks and item-link folder policies
 
 Reference symbols: <code>indra/newview/rlvlocks.cpp</code>: <code>RlvHandler::onAddRemFolderLock</code>, <code>RlvHandler::onAddRemFolderLockException</code>, <code>RlvFolderLocks::getLockedFolders</code>, <code>RlvFolderLocks::isLockedFolder</code>.
 
@@ -1886,7 +1888,7 @@ Comparison: confirmed difference. Shared and unshared locks apply to explicit us
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Item-link clothing actions and force additions use the same folder classification. Newly received-item exemptions and startup cloud state are outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1896,7 +1898,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Item-link actions retain profile-specific folder policies; startup state is outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1914,7 +1916,7 @@ Comparison: confirmed difference. Shared and unshared locks apply to explicit us
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Item-link clothing actions and force additions use the same folder classification. Newly received-item exemptions and startup cloud state are outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1924,7 +1926,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Item-link actions retain profile-specific folder policies; startup state is outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1942,7 +1944,7 @@ Comparison: confirmed difference. Shared and unshared locks apply to explicit us
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Item-link clothing actions and force additions use the same folder classification. Newly received-item exemptions and startup cloud state are outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1952,7 +1954,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Item-link actions retain profile-specific folder policies; startup state is outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1970,7 +1972,7 @@ Comparison: confirmed difference. Shared and unshared locks apply to explicit us
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Item-link clothing actions and force additions use the same folder classification. Newly received-item exemptions and startup cloud state are outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1980,7 +1982,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Item-link actions retain profile-specific folder policies; startup state is outside this contract.
 
 - No-option add/remove aliases and clear
 - User clothing wear/removal and mapped attachment add/removal, including replacement refusal
@@ -1998,7 +2000,7 @@ Comparison: confirmed difference. Shared: direct folder attachments and selected
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Direct folder attachments plus single no-mod objects in point-named children can be removed. Ordinary descendants survive. Layer and bare removal affect clothing only, across shared and unshared inventory. Force commands do not bypass issuer locks. Folder removal honors item and ancestor nostrip names case insensitively; layer removal honors ancestor folders only. Invalid layer/path options are inert. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing and remoutfit folders are supported; inventory links are unsupported; folder locks have a separate contract. Recursive forms have a separate contract.
+Support depth: enforced. Direct folder attachments plus single no-mod objects in point-named children can be removed. Ordinary descendants survive. Layer and bare removal affect clothing only, across shared and unshared inventory. Force commands do not bypass issuer locks. Folder removal honors item and ancestor nostrip names case insensitively; layer removal honors ancestor folders only. Invalid layer/path options are inert. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing and remoutfit folders are supported; item links resolve target identity; folder locks have a separate contract. Recursive forms have a separate contract.
 
 - Direct folder attachment removal with per-item results and subsequent query updates
 - Selected and all clothing layer removal; nonremovable bodyparts
@@ -2009,7 +2011,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Direct folder attachments plus object items in effective folded children can be removed; ordinary descendants survive. Folder item results follow inventory UUID order. Layer and bare removal affect clothing only, across shared and unshared inventory. Every issuer lock remains effective; a registered valid bridge stays attached. Item and parent nostrip names are case sensitive, ascending through folded parents. Invalid layer/path options fail. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing and remoutfit folders are supported; group removal, inventory links are unsupported; folder locks have a separate contract. Recursive forms have a separate contract.
+Support depth: enforced. Direct folder attachments plus object items in effective folded children can be removed; ordinary descendants survive. Folder item results follow inventory UUID order. Layer and bare removal affect clothing only, across shared and unshared inventory. Every issuer lock remains effective; a registered valid bridge stays attached. Item and parent nostrip names are case sensitive, ascending through folded parents. Invalid layer/path options fail. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing and remoutfit folders are supported; group removal is unsupported; item links resolve target identity; folder locks have a separate contract. Recursive forms have a separate contract.
 
 - Direct and folded folder attachment removal with deterministic per-item results
 - Selected and all clothing layer removal; nonremovable bodyparts
@@ -2028,7 +2030,7 @@ Comparison: confirmed difference. Recursive wear includes visible descendants an
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Recursive wear walks visible subfolders in inventory order, including single no-mod objects in point-named hidden children. Each folder applies its own + prefix. Clothing replacement preserves nostrip occupants and removes only the top item before testing the add lock; nostrip protection also applies to automatic top replacement at capacity; a remove-locked layer can still accept added clothing. Replacement is sequential; unnamed objects add at the saved point. Recursive removal includes hidden descendants and respects attachment, layer and nostrip protection. Remoutfit folder forms share direct detach semantics, including clothing. Pipe suffixes annotate each path component, never select additional folders. Semicolons remain literal folder text. Clothing is limited to 60 items; at capacity an unlocked top item can be automatically replaced. Inventory links, gestures and environment settings remain unsupported; folder locks have a separate contract.
+Support depth: enforced. Recursive wear walks visible subfolders in inventory order, including single no-mod objects in point-named hidden children. Each folder applies its own + prefix. Clothing replacement preserves nostrip occupants and removes only the top item before testing the add lock; nostrip protection also applies to automatic top replacement at capacity; a remove-locked layer can still accept added clothing. Replacement is sequential; unnamed objects add at the saved point. Recursive removal includes hidden descendants and respects attachment, layer and nostrip protection. Remoutfit folder forms share direct detach semantics, including clothing. Pipe suffixes annotate each path component, never select additional folders. Semicolons remain literal folder text. Clothing is limited to 60 items; at capacity an unlocked top item can be automatically replaced. Item links resolve target identity and retain folder policies. Folder links, gestures and environment settings remain unsupported; folder locks have a separate contract.
 
 - Recursive attachments and clothing with per-item outcomes and query updates
 - Visible wear descendants, hidden removal descendants and single no-mod folded children
@@ -2039,7 +2041,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Recursive wear and removal walk visible descendants. Effective folded children contribute objects, with exactly one object required on wear; folded children do not expose ordinary descendants. Folded clothing can be worn when strippable but is excluded on removal. A + prefix changes replacement to add and descendants inherit that action. The first accepted clothing item per layer replaces strippable occupants; subsequent items add. Physics has one slot: add replaces its occupant unless removal is locked, including automatic replacement of nostrip physics. Removal preserves bodyparts and every issuer lock, bridge and nostrip protection. Remoutfit folders share direct detach semantics. Options resolve one literal path. Addoutfitalloverorreplace has no handler. Clothing is limited to 60 items; at capacity an unlocked top item can be automatically replaced. Inventory links, gestures and environment settings remain unsupported; folder locks have a separate contract.
+Support depth: enforced. Recursive wear and removal walk visible descendants. Effective folded children contribute objects, with exactly one object required on wear; folded children do not expose ordinary descendants. Folded clothing can be worn when strippable but is excluded on removal. A + prefix changes replacement to add and descendants inherit that action. The first accepted clothing item per layer replaces strippable occupants; subsequent items add. Physics has one slot: add replaces its occupant unless removal is locked, including automatic replacement of nostrip physics. Removal preserves bodyparts and every issuer lock, bridge and nostrip protection. Remoutfit folders share direct detach semantics. Options resolve one literal path. Addoutfitalloverorreplace has no handler. Clothing is limited to 60 items; at capacity an unlocked top item can be automatically replaced. Item links resolve target identity and retain folder policies; one eligible folder-link target level is included. Gestures and environment settings remain unsupported; folder locks have a separate contract.
 
 - Recursive attachments and clothing with per-item outcomes and query updates
 - Visible descendants, effective folded objects and folded clothing wear
@@ -2058,7 +2060,7 @@ Comparison: confirmed difference. These forms resolve the issuing attachment or 
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Bare forms select the issuing attachment, including child prims. Point and clothing layer options select all current worn items; UUIDs select a worn object, including child UUIDs. Only shared inventory folders contribute. No-mod items in parenthesised point folders select the parent folder. Paths are resolved with Kokua shared-folder matching. This-family wear forms use direct or recursive attach semantics; over adds and the other forms replace, subject to folder prefixes and locks. Detachthis and detachallthis remove direct or recursive contents with clothing, attachment and nostrip checks. Invalid or empty selections are inert. Inventory links remain unsupported.
+Support depth: enforced. Bare forms select the issuing attachment, including child prims. Point and clothing layer options select all current worn items; UUIDs select a worn object, including child UUIDs. Only shared inventory folders contribute. No-mod items in parenthesised point folders select the parent folder. Paths are resolved with Kokua shared-folder matching. This-family wear forms use direct or recursive attach semantics; over adds and the other forms replace, subject to folder prefixes and locks. Detachthis and detachallthis remove direct or recursive contents with clothing, attachment and nostrip checks. Invalid or empty selections are inert. Item links in selected folders resolve their targets under the force-wear contract.
 
 - Issuing attachment, worn point, clothing layer and object UUID selectors
 - No-mod point-folder resolution, shared-root exclusion and multiple folders
@@ -2068,7 +2070,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Bare forms select the issuing root attachment; child prims have no inventory item identity and select no folder. Point and clothing layer options select all current worn items. Object UUIDs select owned worn objects; unresolved UUIDs and invalid options fail. Effective folded parents resolve one level upward. Only folders below the shared root contribute; unshared, empty and root-only selections are inert. Direct and recursive wear/removal use shared-folder semantics, including add/replace prefixes and locks. Addoutfitthisoverorreplace and addoutfitallthisoverorreplace are unsupported. Inventory links remain unsupported.
+Support depth: enforced. Bare forms select the issuing root attachment; child prims have no inventory item identity and select no folder. Point and clothing layer options select all current worn items. Object UUIDs select owned worn objects; unresolved UUIDs and invalid options fail. Effective folded parents resolve one level upward. Only folders below the shared root contribute; unshared, empty and root-only selections are inert. Direct and recursive wear/removal use shared-folder semantics, including add/replace prefixes and locks. Addoutfitthisoverorreplace and addoutfitallthisoverorreplace are unsupported. Item links in selected folders resolve their targets under the force-wear contract.
 
 - Issuing root, worn point, clothing layer and object UUID selectors
 - Effective folded-folder identity and empty, unshared and invalid selectors

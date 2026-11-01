@@ -4,9 +4,9 @@ import type { WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { RlvProfile } from './profiles.js'
 import { getRlvAttachmentPoint, isRlvAttachmentBridge, getRlvSavedPoint, rlvForceDetachBlock } from './attachments.js'
-import { isRlvBodypart, isRlvStrippable } from './outfit.js'
+import { isRlvBodypart, isRlvStrippable, isRlvInventoryWearLocked } from './outfit.js'
 import { isRlvDetachLocked as locked, isRlvPointLocked } from './detach.js'
-import { kokuaPoint, isRlvFolderWearLocked, collectRlvWearItems, getRlvInventoryFolder, resolveRlvThisFolders, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
+import { kokuaPoint, collectRlvWearItems, getRlvInventoryFolder, resolveRlvThisFolders, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
 
 export interface RlvForceWearItemResult {
   readonly itemId: string
@@ -48,6 +48,7 @@ function forceOption(profile: RlvProfile, option: string): string {
 
 function existingAttachment(avatar: WorldAvatar, issuer: Linkset, itemId: string): Linkset | undefined {
   const inventory = avatar.viewer.inventory
+  itemId = inventory.resolveItem(inventory.snapshot().find(entry => entry.id === itemId))?.id ?? itemId
   const roots = inventory.attachmentMappings().filter(mapping => mapping.itemId === itemId).map(mapping => mapping.rootKey)
   return issuer.peers.find(peer => !peer.dead && peer.prims[0] && roots.includes(peer.prims[0].key.toLowerCase()) &&
     peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()) ?? inventory.attachmentObject(itemId)
@@ -72,7 +73,7 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: Retur
     inventory.rememberAttachment(entry.id, object)
     return { itemId: entry.id, outcome: 'already-worn', point: object.attachment.point }
   }
-  if (isRlvFolderWearLocked(avatar, entry, true, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
+  if (isRlvInventoryWearLocked(avatar, entry, true, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
   const definition = object && !object.dead ? object : entry.object
   const actualTarget = point || getRlvSavedPoint(definition)
   if (isRlvPointLocked(avatar, actualTarget, 'add', rules)) return { itemId: entry.id, outcome: 'blocked', point: actualTarget, reason: 'addattach-lock' }
@@ -156,7 +157,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
   }
   const results: RlvForceWearItemResult[] = []
   let plans: WearItem[] = []
-  const clothing: { entry: RlvInventoryEntry; replace: boolean; batch: number }[] = []
+  const clothing: { entry: RlvInventoryEntry; replace: boolean; batch: number; resultId: string }[] = []
   for (const collected of items) {
     const { entry } = collected
     const replace = replaceForFolder(collected.folder, collected.baseFolder)
@@ -164,14 +165,18 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
       if (profile === 'rlva' && collected.folder.id !== entry.parentId && !isRlvStrippable(profile, inventory, entry)) {
         results.push({ itemId: entry.id, outcome: 'skipped', reason: 'nostrip' }); continue
       }
-      clothing.push({ entry, replace, batch: collected.batch })
+      clothing.push({ entry: profile === 'rlv' ? inventory.resolveItem(entry)! : entry, replace, batch: collected.batch, resultId: entry.id })
       continue
     }
     if (entry.assetType !== 'object' && !inventory.attachmentMappings().some(mapping => mapping.itemId === entry.id)) {
       results.push({ itemId: entry.id, outcome: 'unsupported', reason: 'unsupported-content' }); continue
     }
     const parent = entries.find(parent => parent.id === entry.parentId)!
-    const point = collected.pointFolder ? kokuaPoint(collected.pointFolder.name) : itemPoint(profile, entry, parent)
+    const target = inventory.resolveItem(entry)
+    const targetParent = entries.find(parent => parent.id === target?.parentId)
+    const targetPoint = profile === 'rlva' && entry.linkTargetId && target && targetParent ? itemPoint(profile, target, targetParent) : 0
+    const point = targetPoint || (collected.pointFolder ? kokuaPoint(collected.pointFolder.name) :
+      itemPoint(profile, entry.linkTargetId && profile === 'rlva' ? { ...entry, name: '' } : entry, parent))
     if (profile === 'rlva' && !point && !inventory.sharedWear) {
       results.push({ itemId: entry.id, outcome: 'skipped', reason: 'shared-wear-disabled' }); continue
     }
@@ -193,45 +198,46 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
     const clothingCount = () => inventory.wornWearables().filter(id => !isRlvBodypart(entries.find(e => e.id === id)!)).length
     for (const plan of clothing) {
       const { entry } = plan
+      const itemId = inventory.resolveItem(entry)!.id
       const singleSlot = isRlvBodypart(entry) || profile === 'rlva' && entry.wearableType === 'physics'
       const replace = singleSlot || plan.replace && (profile === 'rlv' || !acceptedLayers.has(plan.batch + '/' + entry.wearableType!))
       const worn = inventory.wornWearables()
-      if (worn.includes(entry.id)) {
+      if (worn.includes(itemId)) {
         acceptedLayers.add(plan.batch + '/' + entry.wearableType!)
-        results.push({ itemId: entry.id, outcome: 'already-worn' }); continue
+        results.push({ itemId: plan.resultId, outcome: 'already-worn' }); continue
       }
-      if (profile === 'rlva' && isRlvFolderWearLocked(avatar, entry, true, rules)) {
-        results.push({ itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }); continue
+      if (profile === 'rlva' && isRlvInventoryWearLocked(avatar, entry, true, rules)) {
+        results.push({ itemId: plan.resultId, outcome: 'blocked', reason: 'folder-lock' }); continue
       }
       const occupants = worn.map(id => entries.find(e => e.id === id)!).filter(e => e.wearableType === entry.wearableType)
       const addLocked = rules.some(rule => rule.behaviour === 'addoutfit' && (!rule.option || rule.option === entry.wearableType))
-      const folderRemovalLocked = occupants.some(previous => isRlvFolderWearLocked(avatar, previous, false, rules))
+      const folderRemovalLocked = occupants.some(previous => isRlvInventoryWearLocked(avatar, previous, false, rules))
       const removeLocked = rules.some(rule => rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))
       const atCapacity = !isRlvBodypart(entry) && clothingCount() >= 60
       const wholeWearLocked = profile === 'rlva' || isRlvBodypart(entry)
       if (wholeWearLocked && (addLocked || (replace || atCapacity) && occupants.length > 0 && (removeLocked || profile === 'rlva' && folderRemovalLocked))) {
-        results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue
+        results.push({ itemId: plan.resultId, outcome: 'blocked', reason: 'layer-lock' }); continue
       }
       if (replace && !removeLocked) for (const previous of profile === 'rlv' && !isRlvBodypart(entry) ? occupants.slice(-1) : occupants) {
-        if ((profile === 'rlv' && singleSlot || !isRlvFolderWearLocked(avatar, previous, false, rules)) && (singleSlot || isRlvStrippable(profile, inventory, previous, true))) inventory.setWearableWorn(previous.id, false)
+        if ((profile === 'rlv' && singleSlot || !isRlvInventoryWearLocked(avatar, previous, false, rules)) && (singleSlot || isRlvStrippable(profile, inventory, previous, true))) inventory.setWearableWorn(previous.id, false)
       }
       if (!isRlvBodypart(entry) && clothingCount() >= 60) {
         const top = occupants.filter(e => inventory.wornWearables().includes(e.id)).at(-1)
         // At capacity, the appearance manager replaces the current top item.
-        if (top && !removeLocked && !isRlvFolderWearLocked(avatar, top, false, rules) && (profile === 'rlva' || isRlvStrippable(profile, inventory, top, true))) {
+        if (top && !removeLocked && !isRlvInventoryWearLocked(avatar, top, false, rules) && (profile === 'rlva' || isRlvStrippable(profile, inventory, top, true))) {
           inventory.setWearableWorn(top.id, false)
         }
         if (clothingCount() >= 60) {
-          results.push({ itemId: entry.id, outcome: 'blocked', reason: 'clothing-capacity' }); continue
+          results.push({ itemId: plan.resultId, outcome: 'blocked', reason: 'clothing-capacity' }); continue
         }
       }
-      if (profile === 'rlv' && !singleSlot && isRlvFolderWearLocked(avatar, entry, true, rules)) {
-        results.push({ itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }); continue
+      if (profile === 'rlv' && !singleSlot && isRlvInventoryWearLocked(avatar, entry, true, rules)) {
+        results.push({ itemId: plan.resultId, outcome: 'blocked', reason: 'folder-lock' }); continue
       }
-      if (addLocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
+      if (addLocked) { results.push({ itemId: plan.resultId, outcome: 'blocked', reason: 'layer-lock' }); continue }
       inventory.setWearableWorn(entry.id, true)
       acceptedLayers.add(plan.batch + '/' + entry.wearableType!)
-      results.push({ itemId: entry.id, outcome: 'worn' })
+      results.push({ itemId: plan.resultId, outcome: 'worn' })
     }
     for (const plan of plans) results.push(wear(avatar, issuer, plan, rules))
     const successful = results.some(result => result.outcome === 'attached' || result.outcome === 'worn' || result.outcome === 'already-worn')
@@ -321,12 +327,13 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
       if (folderRemoval && !entry.wearableType && entry.assetType !== 'object' && !inventory.attachmentMappings().some(m => m.itemId === entry.id)) {
         return { itemId: entry.id, outcome: 'unsupported', reason: 'unsupported-content' }
       }
+      const itemId = inventory.resolveItem(entry)?.id ?? entry.id
       const object = folderRemoval && !entry.wearableType ? existingAttachment(avatar, issuer, entry.id) : undefined
       const worn = !entry.wearableType ? object && !object.dead && object.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()
-        : inventory.wornWearables().includes(entry.id)
+        : inventory.wornWearables().includes(itemId)
       if (!worn) return { itemId: entry.id, outcome: 'not-worn' }
       if (isRlvBodypart(entry)) return { itemId: entry.id, outcome: 'skipped', reason: 'bodypart' }
-      if (isRlvFolderWearLocked(avatar, entry, false, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
+      if (isRlvInventoryWearLocked(avatar, entry, false, rules)) return { itemId: entry.id, outcome: 'blocked', reason: 'folder-lock' }
       if (object && isRlvAttachmentBridge(viewer, object)) return { itemId: entry.id, outcome: 'blocked', reason: 'bridge' }
       if (!isRlvStrippable(profile, inventory, entry, folderRemoval)) return { itemId: entry.id, outcome: 'blocked', reason: 'nostrip' }
       if (object ? locked(avatar, object, rules)
