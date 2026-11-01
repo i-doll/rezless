@@ -27,3 +27,5 @@ export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv.j
 
 export { receivedChatLog, receivedIMLog } from '@rezless/vm'
 export type { ReceivedChat, ReceivedChatSpeaker, ReceivedIM } from '@rezless/vm'
+
+export type { RlvEnvironmentConfig, RlvEnvironmentSky, RlvEnvironmentPreset } from './rlv.js'

@@ -1316,9 +1316,63 @@ them in order, optionally filtered by substring.
 
 RLVa ignores that list and supports neither query. Its separate
 `viewer: { rlvaNoSetEnv: true }` fixture returns `failed-disabled` for `setenv`
-add/remove before callbacks. Environment effects remain unsupported. Ignored
+add/remove before callbacks. Ignored
 commands have `status: 'ignored'` and `outcome: 'ignored-blacklist'` or
 `'failed-disabled'`; commands without implemented effects retain diagnostics.
+
+### Environment settings
+
+Pass `viewer: { environment: { sky, sharedSky, fixed, presets, daytimeSkies } }`
+to `loadRlvPair` or `World.addAvatar`. The avatar's `viewer.environment.sky`
+returns a frozen snapshot. Each avatar starts with default sky settings and a
+shared environment unless `fixed: true` is supplied. `setenv=n` locks environment
+changes from other issuers; its own issuer can still use force commands.
+Remove the lock with `setenv=y` or `clear`. `rlvaNoSetEnv` disables the RLVa lock
+add/remove forms independently of environment force/query support. Kokua's
+`debugSettings: { noSetEnv: true }` ignores environment lock adds and all
+force changes, while queries remain available. With that setting off, Kokua
+lock adds enable atmosphere shaders and temporarily remove/reapply the issuer's
+own lock around a force command, including its restriction notifications.
+
+`setenv_<setting>:<value>=force` changes sky settings and
+`getenv_<setting>=<channel>` replies after the script yields. Supported settings
+include atmosphere, clouds, lighting, sun/moon angles and texture UUIDs.
+The [coverage matrix](../../docs/rlv-coverage.md) lists every supported alias.
+Kokua accepts slash or semicolon vectors and replies with semicolons and six
+significant digits. RLVa requires slash vectors and replies with slashes and
+six decimals. Both parse scalar numeric prefixes; Kokua converts nonnumeric
+input to zero. RLVa rejects it. Non-finite numeric values and float32 overflow are unsupported and leave sky
+values unchanged. Scalar settings retain values outside UI slider
+ranges except for clamped sun/moon elevation and Kokua's gamma mapping.
+
+`sky` and `sharedSky` use setting names without the command prefix. Their values
+are native sky values: ambient and sunlight colors scale by three, blue colors
+by two, density multiplier by 0.001. Kokua haze density scales by four and cloud
+scrolling adds ten. Glow size/focus use their command units; sun/moon angles use
+radians. For example `sky: { starbrightness: 0.5, ambient: [0.3, 0.6, 0.9] }`
+starts with ambient command values of `0.1/0.2/0.3`. Snapshots expose these same
+fixture units. Sky defaults come from the default sky, independent of region
+weather or elapsed simulator time.
+
+`presets` entries contain `name`, `asset`, `type: 'sky' | 'daycycle'`,
+`location: 'inventory' | 'library'` and `sky`. Kokua resolves names in the
+inventory environment folder; RLVa resolves sky and daycycle names in the
+library. Asset UUIDs select matching fixtures directly. An asset without a
+matching fixture records `selectedAsset` and leaves sky values unchanged.
+Asset fetching and sky rendering are external. Kokua `getenv_preset` and
+`getenv_asset` return the last named preset; individual edits clear it.
+Those queries are unsupported in RLVa.
+
+RLVa `setenv_daytime` accepts zero through one. Supply `daytimeSkies` keyed by
+fractional time to select a fixed sky sample; without a matching sample it leaves
+the sky unchanged. Kokua's daytime form freezes the current sky without changing
+the sun position. `setenv_daytime:-1=force` restores `sharedSky` in both profiles;
+Kokua also accepts any negative time and `setenv_reset=force`.
+RLVa daytime replies are `2.000000` for a fixed sky or `-1.000000` otherwise.
+Kokua replies `-1` after individual edits, or `0`/`1` for a named preset according
+to whether the sun is below/above the horizon. Kokua legacy east-angle and
+sun-position queries return both values separated by a semicolon; RLVa returns
+only the requested angle. These fixtures do not advance a daycycle clock.
 
 ### Force removal and clothing actions
 
