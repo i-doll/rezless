@@ -3,11 +3,14 @@ import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName } from '../prim-params.js'
 import { sayError } from './debug.js'
+import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
 import type { Linkset } from '../linkset.js'
 import {
   ALL_SIDES,
+  CHANGED_COLOR,
+  CHANGED_SCALE,
   DENSITY,
   FRICTION,
   GRAVITY_MULTIPLIER,
@@ -90,7 +93,7 @@ export const llGetRootRotation: BuiltinImpl = (ctx) => {
 }
 
 export const llSetScale: BuiltinImpl = (ctx, args) => {
-  ctx.prim.setPrimParam(PRIM_SIZE, [vecOf(args[0])], 0)
+  setPrimParamWithChanged(ctx.prim, PRIM_SIZE, [vecOf(args[0])], 0)
   return undefined
 }
 export const llGetScale: BuiltinImpl = (ctx) => ctx.prim.params.size
@@ -101,6 +104,7 @@ export const llScaleByFactor: BuiltinImpl = (ctx, args) => {
   for (const p of ctx.linkset.prims) {
     const s = p.params.size
     p.params.size = { x: s.x * factor, y: s.y * factor, z: s.z * factor }
+    raisePrimChanged(p, CHANGED_SCALE)
   }
   return 1
 }
@@ -129,6 +133,7 @@ export const llSetColor: BuiltinImpl = (ctx, args) => {
   // faces don't alias the same vector instance.
   const clone = () => ({ x: color.x, y: color.y, z: color.z })
   for (const f of faceIndices(ctx.prim.params, face)) ctx.prim.params.faces[f]!.color = clone()
+  raisePrimChanged(ctx.prim, CHANGED_COLOR)
   return undefined
 }
 export const llGetColor: BuiltinImpl = (ctx, args) => {
@@ -149,6 +154,7 @@ export const llSetAlpha: BuiltinImpl = (ctx, args) => {
   const alpha = num(args[0], 1)
   const face = num(args[1], ALL_SIDES) | 0
   for (const f of faceIndices(ctx.prim.params, face)) ctx.prim.params.faces[f]!.alpha = alpha
+  raisePrimChanged(ctx.prim, CHANGED_COLOR)
   return undefined
 }
 export const llGetAlpha: BuiltinImpl = (ctx, args) => {
@@ -229,6 +235,7 @@ export const llSetLinkColor: BuiltinImpl = (ctx, args) => {
   // Wiki: only color is set; per-face alpha is preserved.
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
     for (const f of faceIndices(p.params, face)) p.params.faces[f]!.color = { x: color.x, y: color.y, z: color.z }
+    raisePrimChanged(p, CHANGED_COLOR)
   }
   return undefined
 }
@@ -238,6 +245,7 @@ export const llSetLinkAlpha: BuiltinImpl = (ctx, args) => {
   const face = num(args[2], ALL_SIDES) | 0
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
     for (const f of faceIndices(p.params, face)) p.params.faces[f]!.alpha = alpha
+    raisePrimChanged(p, CHANGED_COLOR)
   }
   return undefined
 }
@@ -314,7 +322,7 @@ export const llSetLinkRenderMaterial: BuiltinImpl = (ctx, args) => {
     sayError(ctx, `Could not find render material '${material}'.`)
     return undefined
   }
-  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) p.setPrimParam(PRIM_RENDER_MATERIAL, [face, key], 0)
+  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) setPrimParamWithChanged(p, PRIM_RENDER_MATERIAL, [face, key], 0)
   return undefined
 }
 export const llIsLinkGLTFMaterial: BuiltinImpl = (ctx, args) => {

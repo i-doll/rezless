@@ -6,6 +6,7 @@ import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_L
 import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { typedList } from '../values/list-types.js'
 import { sayError } from './debug.js'
+import { setPrimParamWithChanged } from '../prim-changed.js'
 
 /**
  * Walk a PRIM_* rules list, applying each rule to every prim in the
@@ -36,7 +37,7 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
     }
     let consumed: number | null = null
     for (const p of cur) {
-      const c = p.setPrimParam(rule, rules, i + 1, caller)
+      const c = setPrimParamWithChanged(p, rule, rules, i + 1, caller)
       if (c === null) return
       consumed = c
     }
