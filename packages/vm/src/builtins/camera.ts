@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { rotateVector } from '../values/ops.js'
-import { llEuler2Rot } from './math.js'
+import { llAxes2Rot } from './math.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
 import { vec, ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
 import { AGENT_MOUSELOOK, LINK_ROOT, LINK_THIS, PERMISSION_CONTROL_CAMERA, PERMISSION_TRACK_CAMERA } from '../generated/constants.js'
@@ -35,11 +35,14 @@ function seatedCamera(ctx: CallContext): Pick<Camera, 'pos' | 'rot'> | null {
   const rotation = seat.regionRotation()
   const offset = rotateVector(eye, rotation)
   const direction = rotateVector({ x: at.x - eye.x, y: at.y - eye.y, z: at.z - eye.z }, rotation)
-  const yaw = Math.atan2(direction.y, direction.x)
-  const pitch = -Math.atan2(direction.z, Math.hypot(direction.x, direction.y))
+  const length = Math.hypot(direction.x, direction.y, direction.z)
+  const forward = vec(direction.x / length, direction.y / length, direction.z / length)
+  const horizontal = Math.hypot(forward.x, forward.y)
+  const left = horizontal === 0 ? vec(0, 1, 0) : vec(-forward.y / horizontal, forward.x / horizontal, 0)
+  const up = vec(-forward.z * left.y, forward.z * left.x, forward.x * left.y - forward.y * left.x)
   return {
     pos: vec(origin.x + offset.x, origin.y + offset.y, origin.z + offset.z),
-    rot: llEuler2Rot(ctx, [{ x: 0, y: pitch, z: yaw }]) as Rotation,
+    rot: llAxes2Rot(ctx, [forward, left, up]) as Rotation,
   }
 }
 

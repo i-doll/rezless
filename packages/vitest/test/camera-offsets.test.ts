@@ -70,11 +70,11 @@ async function seatedFixture(body = '', lone = false) {
   world.addRegion('home', { x: 0, y: 0 })
   const avatar = world.addAvatar({ key: OWNER, username: 'i.doll', region: 'home', info: 6 })
   const l = await loadLinkset({ world, region: 'home', owner: OWNER, position: { x: 100, y: 100, z: 30 }, prims: [{ scripts: [{ name: 'cam', source: { source: `
-    vector pos; rotation rot; integer info;
+    vector pos; vector forward; rotation rot; integer info;
     default {
       state_entry(){llSitTarget(<0,0,0.5>, ZERO_ROTATION);llRequestPermissions(llGetOwner(), PERMISSION_TRACK_CAMERA);}
       touch_start(integer n){${body}}
-      touch_end(integer n){pos=llGetCameraPos();rot=llGetCameraRot();info=llGetAgentInfo(llGetOwner());}
+      touch_end(integer n){pos=llGetCameraPos();rot=llGetCameraRot();forward=llRot2Fwd(rot);info=llGetAgentInfo(llGetOwner());}
     }
   ` } }] }, ...(lone ? [] : [{}])] })
   const script = l.scripts.cam!
@@ -93,7 +93,11 @@ it('snapshots the camera at seating, including edits made before the first read'
   f.prims[0]!.cameraAtOffset = { x: 1, y: -2, z: 3 }
   f.script.fire('touch_end', { num_detected: 1 })
   expect(f.script.global('pos')).toEqual({ x: 96, y: 101, z: 32 })
-  expect(f.script.global('rot')).toEqual({ x: 0, y: 0, z: 0, s: 1 })
+  const rotation = f.script.global('rot') as { x: number; y: number; z: number; s: number }
+  expect(rotation.x).toBeCloseTo(0)
+  expect(rotation.y).toBeCloseTo(0)
+  expect(rotation.z).toBeCloseTo(0)
+  expect(rotation.s).toBeCloseTo(1)
   f.world.standAvatar(f.avatar)
   f.world.sitAvatar(f.avatar, f.prims[0]!)
   f.script.fire('touch_end', { num_detected: 1 })
@@ -261,4 +265,17 @@ it('enters mouselook without a sit target and uses the supplied head camera', as
   f.script.fire('touch_end', { num_detected: 1 })
   expect(f.script.global('info')).toBe(62)
   expect(f.script.global('pos')).toEqual({ x: 100, y: 100, z: 31 })
+})
+
+// In-world: probe.lsl mode 5 -> at-only <2,1,2> gives camera forward
+// <0.66667,0.33333,0.66667> (Aditi, SLua Tideland, 2026-11-01).
+it('aims at the focus when both yaw and pitch are nonzero', async () => {
+  const f = await seatedFixture('llSetCameraAtOffset(<2,1,2>);')
+  f.linkset.touch(1)
+  f.world.sitAvatar(f.avatar, f.prims[0]!)
+  f.script.fire('touch_end', { num_detected: 1 })
+  const forward = f.script.global('forward') as { x: number; y: number; z: number }
+  expect(forward.x).toBeCloseTo(0.66667, 5)
+  expect(forward.y).toBeCloseTo(0.33333, 5)
+  expect(forward.z).toBeCloseTo(0.66667, 5)
 })
