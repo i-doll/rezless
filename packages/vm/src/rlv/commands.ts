@@ -76,6 +76,10 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         continue
       }
     }
+    if (text === undefined && parsed && !malformed && viewer.restrictions.supportsChatCommand(parsed)) {
+      dispatchRestrictionCommand(viewer, prim, parsed, command)
+      continue
+    }
     if (text === undefined && parsed && !malformed) {
       const outcome = classifyRlvUnsupported(viewer.profile, parsed)
       if (outcome !== 'state-only') {

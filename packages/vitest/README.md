@@ -533,7 +533,7 @@ also produce `avatar.viewer.diagnostics`; disabled viewers record neither.
 Batches execute in order, skip empty comma entries, and continue after a failed
 token. Each record preserves the token as `command` with one leading `@` and
 exposes normalized `parsed` fields (`behaviour`, `option`, `parameter`, `kind`)
-when the grammar accepts it. Status distinguishes `replied`, `malformed`, and
+when the grammar accepts it. Status distinguishes `applied`, `replied`, `malformed`, and
 `unsupported`. Parameter kinds are `add`, `remove`, `clear`, `force`, `query`,
 and `unknown`; classification alone never applies restrictions or force effects.
 Only a leading `@` in owner chat activates dispatch. Numeric channel parameters
@@ -556,8 +556,48 @@ prims remain independent. `n`/`add` and `y`/`rem` are aliases. Duplicates and ab
 removes do not change state. `@clear`, `@clear=`, and `@clear=<substring>` affect
 only that emitter. Filters match canonical rule text, including options.
 Kokua retains unknown wire names and options with `unsupported` effects. Firestorm
-only stores the six no-option forms in this fixture; other families and option
-forms remain unsupported. Neither profile stores query or force parameters.
+stores those no-option forms plus the sendchannel forms below; other families
+and option forms remain unsupported. Neither profile stores query or force parameters.
+
+The `sendchannel` family has `enforced` support through explicit avatar actions.
+`fixture.sendChat(channel, message)` or `world.sendAvatarChat(avatar, channel, message)`
+sends ordinary avatar say from the current avatar position within 20 m, through
+normal listener matching across regions. These actions support channel 0 and
+positive signed 32-bit channels. Negative and invalid action channels return
+`unsupported`; automatic query reply channel policy is separate. Other chat
+volumes and payload limits are outside this action fixture.
+
+```ts
+const pair = await loadRlvPair({ source: `integer heard; default {
+  state_entry() {
+    llListen(42, "", llGetOwner(), "");
+    llOwnerSay("@sendchannel=n,sendchannel:42=add");
+  }
+  listen(integer channel, string name, key id, string message) { ++heard; }
+}` })
+for (const fixture of Object.values(pair)) {
+  fixture.script.start()
+  expect(fixture.sendChat(42, 'allowed').status).toBe('sent')
+  expect(fixture.sendChat(43, 'denied').status).toBe('blocked')
+  expect(fixture.script.global('heard')).toBe(1)
+  expect(fixture.chatActions.at(-1)?.reason).toBe('sendchannel')
+}
+```
+
+Ordinary `sendchannel` accepts an exception from any prim. `sendchannel_sec`
+requires every secure issuer to grant its own exception. `permissive=n` extends
+that requirement to every restricting issuer; removing it restores ordinary
+cross-prim exceptions. Both ordinary and secure option forms grant exceptions.
+RLVa accepts positive numeric option prefixes; Kokua matches the literal decimal
+channel text. Channel 0 bypasses sendchannel restrictions. Other command families
+are not affected by this fixture's permissive evaluation.
+
+Supported restriction commands have command-log status `applied`. Frozen
+`fixture.chatActions` snapshots, also available through `avatarChatLog(avatar)`,
+retain every attempted channel, message, status and denying restrictions with
+issuer UUIDs. A denied action creates no listener event or synthetic chat notice.
+Script `llSay` and `llRegionSay` output and automatic viewer query replies remain
+independent of this action policy.
 
 Script reset, state changes, and script removal preserve rules. Missing prims lose
 their rules on virtual-time viewer collection, every 30 seconds for RLVa and every

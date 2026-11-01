@@ -116,6 +116,30 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts'],
     },
     {
+      id: 'sendchannel', forms: ['@sendchannel[:<channel>]=n|add|y|rem', '@sendchannel_sec[:<channel>]=n|add|y|rem', '@permissive=n|add|y|rem'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles share ordinary cross-prim exceptions, issuer-scoped secure exceptions and permissive=n narrowing all sendchannel exceptions to their own issuers. RLVa parses positive decimal option prefixes; Kokua matches literal decimal channel text.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::containsWithoutException', 'RRInterface::contains', 'RRInterface::isAllowed'],
+          'Ordinary restrictions accept an exception from any prim. Every secure issuer needs an ordinary or secure exception on that same prim. With permissive=n every restricting issuer needs its own exception. Options match the literal decimal outgoing channel. Other permissive command families remain unsupported.'),
+          commandForms: [
+            { behaviour: 'sendchannel', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'sendchannel_sec', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'permissive', type: 'add', support: 'enforced', option: 'none' },
+          ],
+          support: 'enforced', coveredForms: ['Positive private-channel avatar say via sendAvatarChat', 'No-option sendchannel/sendchannel_sec blocks and literal channel exceptions', 'No-option permissive scoped to sendchannel', 'Channel zero bypasses sendchannel; denied attempts are logged without delivery'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::isException', 'RlvHandler::isPermissive', 'RlvBehaviourSendChannelHandler::onCommand', 'RlvActions::canSendChannel'],
+          'Ordinary restrictions accept an exception from any prim. Every secure issuer needs its own exception; with permissive=n every restricting issuer does. Exceptions accept positive signed 32-bit decimal prefixes; zero, negative and invalid options are rejected. Ordinary and secure option forms grant the same channel exception. Other permissive command families remain unsupported.'),
+          commandForms: [
+            { behaviour: 'sendchannel', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'sendchannel_sec', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'permissive', type: 'add', support: 'enforced', option: 'none' },
+          ],
+          support: 'enforced', coveredForms: ['Positive private-channel avatar say via sendAvatarChat', 'No-option sendchannel/sendchannel_sec blocks and numeric channel exceptions', 'No-option permissive scoped to sendchannel', 'Channel zero bypasses sendchannel; denied attempts are logged without delivery'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-sendchannel.test.ts'],
+    },
+    {
       id: 'status', forms: ['@getstatus[:<filter>[;<separator>]]=<channel>', '@getstatusall[:<filter>[;<separator>]]=<channel>'],
       comparison: 'confirmed difference', wikiComparison: 'Both profiles return canonical rule text with a leading separator for every match and an empty reply for no matches. Rules retain insertion order within each prim; getstatusall visits emitter UUIDs in ascending order and preserves cross-prim duplicates. Extra semicolons differ between profiles.',
       profiles: {
