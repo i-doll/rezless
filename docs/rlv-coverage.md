@@ -26,6 +26,8 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [channel-policy](#channel-policy) | Firestorm RLVa 2.4.2 | <code>&lt;query&gt;=&lt;signed-channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-channels.test.ts](../packages/vitest/test/rlv-channels.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Kokua RLV 2.09.35.00 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [acceptpermission](#acceptpermission) | Kokua RLV 2.09.35.00 | <code>@acceptpermission=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-acceptpermission.test.ts](../packages/vitest/test/rlv-acceptpermission.test.ts) |
+| [acceptpermission](#acceptpermission) | Firestorm RLVa 2.4.2 | <code>@acceptpermission=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-acceptpermission.test.ts](../packages/vitest/test/rlv-acceptpermission.test.ts) |
 | [sendchat](#sendchat) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [chat-redirection](#chat-redirection) | Kokua RLV 2.09.35.00 | <code>@emote=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
@@ -160,6 +162,19 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detach[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [detach](#detach) | Firestorm RLVa 2.4.2 | <code>@detachme=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@edit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@edit_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@editobj[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@editworld=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@editattach=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@rez=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Kokua RLV 2.09.35.00 | <code>@interact=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Firestorm RLVa 2.4.2 | <code>@edit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Firestorm RLVa 2.4.2 | <code>@editobj[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Firestorm RLVa 2.4.2 | <code>@editworld=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Firestorm RLVa 2.4.2 | <code>@editattach=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Firestorm RLVa 2.4.2 | <code>@rez=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
+| [edit-rez](#edit-rez) | Firestorm RLVa 2.4.2 | <code>@interact=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [touch](#touch) | Kokua RLV 2.09.35.00 | <code>@fartouch[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touch.test.ts](../packages/vitest/test/rlv-touch.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [touch](#touch) | Kokua RLV 2.09.35.00 | <code>@touchfar[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touch.test.ts](../packages/vitest/test/rlv-touch.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [touch](#touch) | Kokua RLV 2.09.35.00 | <code>@touchworld[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-touch.test.ts](../packages/vitest/test/rlv-touch.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
@@ -460,6 +475,32 @@ Support depth: state-only. Public chat restrictions are enforced by explicit ava
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::processCommand</code>, <code>RlvHandler::processClearCommand</code>, <code>RlvHandler::onGC</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts).
+
+### acceptpermission
+
+Forms: <code>@acceptpermission=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Both profiles automatically grant complete covered requests under no-option activation. Kokua permits animation while sitting and owned attachment requests even from worn objects; RLVa covers controls and owned non-attachment attach requests, but not animation. UUID options do not establish exceptions.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Any active no-option issuer enables automatic replies for requests to that avatar from any object. Covered bits are TAKE_CONTROLS, TRIGGER_ANIMATION and ATTACH, with no other bits allowed in the batch. Animation requires the avatar to be sitting, including ground sitting or on another object. ATTACH requires an owned object, including an already worn object. Other requests remain pending for the test. Options and secure forms have unsupported effects. RestrainedLoveAutoTempAttach overrides and simulator implicit permissions are outside this contract.
+
+- No-option add/remove aliases and issuer-scoped clear
+- Whole-request auto-grant, ownership and sitting checks, answered request records and run_time_permissions
+
+Reference symbols: <code>indra/newview/llviewermessage.cpp</code>: <code>process_script_question</code>, <code>RRInterface::contains</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Any active no-option issuer enables automatic replies for requests to that avatar from resolved objects. TAKE_CONTROLS is covered for any owner, including worn objects. ATTACH is covered only for owned objects that are not attachments. Animation is not covered, even while sitting. Any other bit leaves the entire request pending for the test. Options and secure forms have unsupported effects. Experience, muted-object, permission-filter and simulator implicit-permission paths are outside this contract.
+
+- No-option add/remove aliases and issuer-scoped clear
+- Whole-request auto-grant, ownership and attachment checks, answered request records and run_time_permissions
+
+Reference symbols: <code>indra/newview/llviewermessage.cpp</code>: <code>process_script_question</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-acceptpermission.test.ts](../packages/vitest/test/rlv-acceptpermission.test.ts).
 
 ### sendchat
 
@@ -1268,6 +1309,37 @@ Support depth: enforced. Root and child no-option detach locks deny viewer attem
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourHandler&lt;RLV_BHVR_DETACH&gt;::onCommand</code>, <code>RlvForceHandler&lt;RLV_BHVR_DETACHME&gt;::onCommand</code>, <code>LLVOAvatarSelf::detachAttachmentIntoInventory</code>, <code>RlvAttachmentLocks::canDetach</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pointlocks.test.ts](../packages/vitest/test/rlv-pointlocks.test.ts)<br>[rlv-detach.test.ts](../packages/vitest/test/rlv-detach.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts).
+
+### edit-rez
+
+Forms: <code>@edit[:&lt;root-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@editobj:&lt;root-uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@editworld=n&#124;y</code>, <code>@editattach=n&#124;y</code>, <code>@rez=n&#124;y</code>, <code>@interact=n&#124;y</code>, <code>@edit_sec[:&lt;root-uuid&gt;]=n&#124;y</code>.
+
+Comparison: confirmed difference. edit UUID options grant root-linkset exceptions; editobj UUID options deny targets. Category locks remain independent. Kokua edit_sec and permissive scope edit exceptions by issuer; RLVa has no edit_sec and edit exceptions stay permissive. interact blocks inventory rez drops and user click sitting. HUDs bypass interaction locks. Direct editor selection is interaction restricted in Kokua, but not RLVa.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Explicit editor actions return opened, blocked or unsupported with deciding restrictions. edit and edit_sec accept root UUID grants; secure locks and permissive=n require a grant from each restricting issuer. editobj targets a root UUID. editworld and editattach deny their respective categories, including HUDs for editattach. interact blocks editing non-HUD targets, world touches unless touchme grants access, user sit and inventory rez drops. Own and other attachments bypass the world-touch interaction check. Saved copyable inventory objects rez with fresh keys, retained script state and on_rez events. Missing definitions and no-copy inventory transfers remain unsupported.
+
+- Editor root grants, targeted denials and independent category locks
+- Secure and permissive edit issuer scope
+- Inventory rez outcomes, frozen action history and object placement
+- Interaction checks for touch, editor selection, inventory rez and user sit; force sit bypass
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::canEdit</code>, <code>RRInterface::containsWithoutException</code>, <code>RRInterface::canTouch</code>, <code>RRInterface::canTouchFar</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Explicit editor actions apply edit root UUID exceptions, editobj root UUID denials and independent editworld/editattach locks. edit exceptions remain permissive under permissive=n; edit_sec is unsupported. Direct editor selection is not interact restricted. User click touches and sit are interaction restricted before touchme overrides, except HUD touches. Inventory rez drops are denied by rez or interact. Saved copyable object definitions rez with fresh keys, retained script state and on_rez events. Missing definitions and no-copy inventory transfers remain unsupported. Bare editobj, malformed UUID options, switch options, force forms and other secure variants remain unsupported.
+
+- Editor root grants, targeted denials and independent category locks
+- Unsupported edit_sec and permissive edit grants
+- Inventory rez outcomes, frozen action history and object placement
+- Interaction checks before touch overrides and user sit; force sit bypass
+- Add/remove aliases, clear and getcommand discovery
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canEdit</code>, <code>RlvActions::canInteract</code>, <code>RlvActions::canRez</code>, <code>RlvActions::canTouch</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>, <code>LLToolDragAndDrop::rezObject</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-edit.test.ts](../packages/vitest/test/rlv-edit.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts).
 
 ### touch
 

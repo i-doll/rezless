@@ -521,6 +521,16 @@ separate results, such as `fixture.chatActions` and `fixture.teleportActions`.
 `state-only` means a stored rule has no corresponding action enforcement.
 Version replies and command discovery never prove complete conformance.
 
+
+`acceptpermission` answers complete covered `llRequestPermissions` requests and
+records them as answered before delivering `run_time_permissions`. Kokua covers
+controls, animation while sitting, and attach permission from owned objects,
+including worn objects. Firestorm covers controls and attach permission from
+owned objects that are not already attachments. Requests with any other bits
+stay pending for `grantPermissions` or `denyPermissions`. Activation applies to
+all requesting objects; UUID options do not create exceptions. Simulator implicit
+permissions and alternate auto-attach settings are outside this contract.
+
 Viewer emulation is opt-in per avatar through
 `world.addAvatar({ username, region, viewer: { profile: 'rlv' } })`.
 Omitting `viewer`, or selecting `disabled`, leaves script chat and avatar behavior
@@ -857,13 +867,46 @@ within 1,023 bytes. Query replies produce one message, without splitting. Ordina
 script chat uses its existing routing and limits.
 
 
+### Viewer editing and inventory rezzing
+
+`fixture.edit(prim)` opens the editor through the profile's edit permissions.
+`world.attemptAvatarEdit(avatar, prim)` exposes the same action. Outcomes are
+`opened`, `blocked`, or `unsupported`, with a reason and deciding restrictions.
+`fixture.editActions` returns frozen action records. Root UUID options to `edit`
+grant access to the whole linkset; `editobj:<root-uuid>` denies it. Child UUIDs do
+not target the root. `editworld` and `editattach` independently deny world and
+attached objects, including HUDs for `editattach`.
+
+Kokua RLV 2.09.35.00 supports `edit_sec`. Each secure issuer must grant its own
+exception, and `permissive=n` extends that rule to ordinary edit locks. Firestorm
+RLVa 2.4.2 rejects `edit_sec` and keeps edit exceptions permissive. Kokua's
+`interact` blocks direct editing of non-HUD targets; RLVa's direct editor check
+allows it. Editor selection has no touch-distance check.
+
+`fixture.rez(itemId, position)` and `world.attemptAvatarRez(avatar, itemId, position)`
+drop a saved inventory object into the avatar's current region. `rez` and
+`interact` block drops in both profiles. Outcomes are `rezzed`, `blocked`, or
+`unsupported`, with deciding restrictions and the created `object` on success.
+`fixture.rezActions` records attempts. Seed an object definition through an inventory
+entry's `object` and `assetType: 'object'`. Allowed drops create fresh keys, retain
+saved script state and queue `on_rez(0)`. Copyable inventory items stay available.
+Missing object definitions and no-copy inventory transfers return `unsupported`.
+Parcel build permissions, land capacity and simulator placement are outside this
+fixture. The supplied position is the new root position.
+
+`interact` blocks user click sitting and inventory drops in both profiles. HUD
+touches bypass it. RLVa applies it before `touchme`; Kokua applies it to world
+touches after `touchme`, leaving attachment touch checks unchanged. Forced sitting
+and simulator actions remain independent.
+
+
 ### Viewer seating
 
 Explicit user seating uses `fixture.userSit(prim, offset?)` and
 `fixture.userStand()`. Both return a boolean and drain due events. World callers
 can use `world.userSitAvatar(avatar, prim, offset?)` and
 `world.userStandAvatar(avatar)`, then advance virtual time to deliver events.
-These attempts enforce `sit`, seated `unsit`, and `sittp[:distance]` without issuer
+These attempts enforce `interact`, `sit`, seated `unsit`, and `sittp[:distance]` without issuer
 exemptions. The optional offset is a region-axis pick offset, independent of the
 configured sit target. The minimum finite decimal distance applies, defaults to
 1.5 m and excludes the exact boundary. Kokua compares signed limits; RLVa squares

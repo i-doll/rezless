@@ -114,6 +114,25 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
+      id: 'acceptpermission', forms: ['@acceptpermission=n|add|y|rem'], comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles automatically grant complete covered requests under no-option activation. Kokua permits animation while sitting and owned attachment requests even from worn objects; RLVa covers controls and owned non-attachment attach requests, but not animation. UUID options do not establish exceptions.',
+      profiles: {
+        rlv: {
+          support: 'enforced', commandForms: [{ behaviour: 'acceptpermission', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option add/remove aliases and issuer-scoped clear', 'Whole-request auto-grant, ownership and sitting checks, answered request records and run_time_permissions'],
+          contract: 'Any active no-option issuer enables automatic replies for requests to that avatar from any object. Covered bits are TAKE_CONTROLS, TRIGGER_ANIMATION and ATTACH, with no other bits allowed in the batch. Animation requires the avatar to be sitting, including ground sitting or on another object. ATTACH requires an owned object, including an already worn object. Other requests remain pending for the test. Options and secure forms have unsupported effects. RestrainedLoveAutoTempAttach overrides and simulator implicit permissions are outside this contract.',
+          evidence: { implementation: 'Kokua RLV 2.09.35.00', file: 'indra/newview/llviewermessage.cpp', symbols: ['process_script_question', 'RRInterface::contains'] },
+        },
+        rlva: {
+          support: 'enforced', commandForms: [{ behaviour: 'acceptpermission', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option add/remove aliases and issuer-scoped clear', 'Whole-request auto-grant, ownership and attachment checks, answered request records and run_time_permissions'],
+          contract: 'Any active no-option issuer enables automatic replies for requests to that avatar from resolved objects. TAKE_CONTROLS is covered for any owner, including worn objects. ATTACH is covered only for owned objects that are not attachments. Animation is not covered, even while sitting. Any other bit leaves the entire request pending for the test. Options and secure forms have unsupported effects. Experience, muted-object, permission-filter and simulator implicit-permission paths are outside this contract.',
+          evidence: { implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/llviewermessage.cpp', symbols: ['process_script_question', 'RlvBehaviourDictionary::RlvBehaviourDictionary'] },
+        },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-acceptpermission.test.ts'],
+    },
+    {
       id: 'sendchat', forms: ['@sendchat=n|add|y|rem'], comparison: 'confirmed difference',
       wikiComparison: 'Both profiles replace restricted speech with ellipsis, allow OOC and short slash gestures, filter quoted emotes and truncate emotes. Kokua uses byte limits, accepts colon poses and strips text preceding an embedded /me; RLVa uses character limits and additionally filters question marks.',
       profiles: {
@@ -539,6 +558,31 @@ export const RLV_MANIFEST: {
           ], coveredForms: ['No-option and named point detach n/add and y/rem with root and child issuer locks', 'Bare, point and root UUID force removal with lock, nostrip and bridge checks; point locks deny add and remove', 'Explicit viewer detach attempt and queued root force self-detach', 'Child self-detach no-op, rejected nonempty options, attach events and llGetAttached state', 'Simulator detach remains independent of viewer locks'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-pointlocks.test.ts', 'packages/vitest/test/rlv-detach.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
+    },
+    {
+      id: 'edit-rez',
+      forms: ['@edit[:<root-uuid>]=n|add|y|rem', '@editobj:<root-uuid>=n|add|y|rem', '@editworld=n|y', '@editattach=n|y', '@rez=n|y', '@interact=n|y', '@edit_sec[:<root-uuid>]=n|y'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'edit UUID options grant root-linkset exceptions; editobj UUID options deny targets. Category locks remain independent. Kokua edit_sec and permissive scope edit exceptions by issuer; RLVa has no edit_sec and edit exceptions stay permissive. interact blocks inventory rez drops and user click sitting. HUDs bypass interaction locks. Direct editor selection is interaction restricted in Kokua, but not RLVa.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::canEdit', 'RRInterface::containsWithoutException', 'RRInterface::canTouch', 'RRInterface::canTouchFar'],
+          'Explicit editor actions return opened, blocked or unsupported with deciding restrictions. edit and edit_sec accept root UUID grants; secure locks and permissive=n require a grant from each restricting issuer. editobj targets a root UUID. editworld and editattach deny their respective categories, including HUDs for editattach. interact blocks editing non-HUD targets, world touches unless touchme grants access, user sit and inventory rez drops. Own and other attachments bypass the world-touch interaction check. Saved copyable inventory objects rez with fresh keys, retained script state and on_rez events. Missing definitions and no-copy inventory transfers remain unsupported.'),
+          support: 'enforced',
+          commandForms: [
+            ...['edit', 'edit_sec', 'editobj'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['editworld', 'editattach', 'rez', 'interact'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+          ],
+          coveredForms: ['Editor root grants, targeted denials and independent category locks', 'Secure and permissive edit issuer scope', 'Inventory rez outcomes, frozen action history and object placement', 'Interaction checks for touch, editor selection, inventory rez and user sit; force sit bypass'] },
+        rlva: { ...firestorm('rlvactions.cpp', ['RlvActions::canEdit', 'RlvActions::canInteract', 'RlvActions::canRez', 'RlvActions::canTouch', 'RlvBehaviourDictionary::RlvBehaviourDictionary', 'LLToolDragAndDrop::rezObject'],
+          'Explicit editor actions apply edit root UUID exceptions, editobj root UUID denials and independent editworld/editattach locks. edit exceptions remain permissive under permissive=n; edit_sec is unsupported. Direct editor selection is not interact restricted. User click touches and sit are interaction restricted before touchme overrides, except HUD touches. Inventory rez drops are denied by rez or interact. Saved copyable object definitions rez with fresh keys, retained script state and on_rez events. Missing definitions and no-copy inventory transfers remain unsupported. Bare editobj, malformed UUID options, switch options, force forms and other secure variants remain unsupported.'),
+          support: 'enforced',
+          commandForms: [
+            ...['edit', 'editobj'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['editworld', 'editattach', 'rez', 'interact'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+          ],
+          coveredForms: ['Editor root grants, targeted denials and independent category locks', 'Unsupported edit_sec and permissive edit grants', 'Inventory rez outcomes, frozen action history and object placement', 'Interaction checks before touch overrides and user sit; force sit bypass', 'Add/remove aliases, clear and getcommand discovery'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-edit.test.ts', 'packages/vitest/test/rlv-getcommand.test.ts'],
     },
     {
       id: 'touch',
