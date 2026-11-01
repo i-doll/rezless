@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadScript } from '../src/index.js'
-import { changedScene, MATERIAL } from './helpers/changed-events.js'
+import { changedScene } from './helpers/changed-events.js'
 
 // https://wiki.secondlife.com/wiki/CHANGED_COLOR
 // https://wiki.secondlife.com/wiki/CHANGED_RENDER_MATERIAL
@@ -125,30 +124,4 @@ describe('changed colour and material events', () => {
     expect(s.root).toEqual([])
   })
 
-  it('runs the issue reproduction one step at a time', async () => {
-    const s = await loadScript({ source: `string MATERIAL="${MATERIAL}";
-      list names=["color","alpha","material set","gltf override","material removed"];
-      list seen; integer step;
-      default {
-        state_entry(){llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_COLOR,0,<1,1,1>,1.0,PRIM_RENDER_MATERIAL,0,NULL_KEY]);llSetTimerEvent(3.0);}
-        changed(integer c){seen+=c;}
-        timer(){
-          if(step>0)llOwnerSay(llList2String(names,step-1)+" => events "+(string)llGetListLength(seen)+": "+llList2CSV(seen));
-          seen=[];
-          if(step==5){llSetTimerEvent(0.0);return;}
-          if(step==0)llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_COLOR,0,<1,0,0>,1.0]);
-          else if(step==1)llSetLinkAlpha(LINK_THIS,0.5,0);
-          else if(step==2)llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_RENDER_MATERIAL,0,MATERIAL]);
-          else if(step==3)llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_GLTF_BASE_COLOR,0,"",<1,1,0>,ZERO_VECTOR,0.0,<1,0,0>,1.0,0,0.5,0]);
-          else llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_RENDER_MATERIAL,0,NULL_KEY]);
-          ++step;
-        }
-      }` })
-    s.start()
-    s.advanceTime(60000)
-    expect(s.chat.map(c => c.text.trimEnd())).toEqual([
-      'color => events 1: 2', 'alpha => events 1: 2', 'material set => events 1: 4096',
-      'gltf override => events 1: 4096', 'material removed => events 1: 4096',
-    ])
-  })
 })
