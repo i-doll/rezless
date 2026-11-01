@@ -115,6 +115,8 @@ export interface ScriptState {
   }
   /** The permission agent's camera, set by the test and read by llGetCamera*. */
   camera: import('./builtins/camera.js').Camera
+  /** Semantic input snapshot for the currently executing game_control event. */
+  gameControlSnapshot: import('./builtins/game-control.js').GameControlSnapshot | null
   /** Camera rules set with llSetCameraParams, by rule. */
   readonly cameraParams: Map<number, LslValue>
   /** Avatar animations in this region, shared across scripts and preserved on reset. */
