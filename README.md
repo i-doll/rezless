@@ -763,6 +763,25 @@ inventory, and `accept: false` adds nothing. The inventory fixture's
 item metadata and queues profile-specific notify messages without wearing content.
 See the vitest inventory offer documentation for root and path differences.
 
+`getRlvViewerState(avatar, { target?, distance?, hud? })` returns a frozen array
+of viewer restriction effects, each with `behaviour`, `support`, `restricted`,
+and frozen `rules` containing options, exceptions and issuing prims. Omit the
+context for the default target policy; provide an avatar UUID for name exceptions
+or an exact prim UUID for hover text, distance in metres for nametags, and
+`hud: true/false` for HUD/world hover text. Unsupported effects have
+`restricted: null`. The query covers inventory, location/maps, names/nametags,
+nearby lists, hover text, self visibility, note/script/texture viewing and
+transparent/wireframe controls. It reports restriction policy independently of
+current window openness or rendered pixels. Removal, clear and session cleanup
+are reflected in the next snapshot.
+
+Firestorm RLVa 2.4.2 applies UUID exceptions, self exemptions, strict issuer
+checks and the smallest nametag distance (strictly inside the boundary).
+Kokua RLV 2.09.35.00 shares name and nametag UUID exceptions for name censoring;
+nametag hiding has no exception and also follows name hiding with the default
+settings. Its self visibility, transparent/wireframe controls, strict nametag
+forms and nametag distance modifiers remain inspectably unsupported.
+
 ## License
 
 The rezless project is licensed under the **Apache License, Version 2.0** —

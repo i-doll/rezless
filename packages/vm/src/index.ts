@@ -108,3 +108,6 @@ export type { RlvWearableActionOutcome } from './rlv/outfit.js'
 export type { RlvForceRemoveItemResult, RlvForceRemoveOutcome } from './rlv/forcewear.js'
 export { respondRlvInventoryOffer } from './rlv/offers.js'
 export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv/offers.js'
+
+export { getRlvViewerState } from './rlv/viewstate.js'
+export type { RlvViewerContext, RlvViewerEffect } from './rlv/viewstate.js'
