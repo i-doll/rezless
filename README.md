@@ -668,6 +668,9 @@ expose unsupported outcomes without adding wire acknowledgements.
 `getattach` reads current attachment point occupancy, including HUDs, using
 the canonical 55-point table. RLVa also supports occupied point names and group
 filters through `getattachnames`; Kokua leaves that query unsupported.
+`notify` registers emitter-scoped restriction notifications with substring filters.
+Both profiles deliver avatar-origin messages; aliases, duplicate operations and
+clear ordering follow the selected viewer profile.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
 Force `sit` and `unsit` update World seating and expose action outcomes in the

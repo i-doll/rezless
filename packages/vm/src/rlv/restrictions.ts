@@ -1,3 +1,4 @@
+import { parseNotifyOption, sendRestrictionNotifications } from './notify.js'
 import type { Prim } from '../prim.js'
 import type { LinksetClock } from '../clock.js'
 import type { RlvParsedCommand } from './classifier.js'
@@ -35,6 +36,7 @@ export interface RlvRestriction {
 /** Avatar-owned wire state. Script reset and removal do not alter it. */
 export class RlvRestrictions {
   private readonly rules = new Map<string, Map<string, RlvRestriction>>()
+  private readonly parameters = new WeakMap<RlvRestriction, string>()
   private readonly emitters = new Map<string, Prim>()
   private stopGC: (() => void) | undefined
 
@@ -50,31 +52,68 @@ export class RlvRestrictions {
   apply(prim: Prim, parsed: RestrictionCommand): RlvRestriction['support'] {
     const { behaviour, option, parameter, kind } = parsed
     if (kind === 'clear') {
-      const rules = this.rules.get(prim.key)
-      if (rules) {
-        for (const rule of rules.keys()) if (rule.includes(parameter)) rules.delete(rule)
-        this.prune(prim.key)
-      }
+      this.clear(prim, parameter)
       return 'state-only'
     }
     if (this.profile === 'rlv' && (KOKUA_REPLIES.has(behaviour) ||
       /^(version|getenv_|getdebug_)/.test(behaviour))) return 'unsupported'
-    const support = this.chatSupport(behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported')
+    const support = this.notifySupport(behaviour, option) ?? this.chatSupport(behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported')
     // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
-    if (this.profile === 'rlva' && support === 'unsupported') return support
+    if (this.profile === 'rlva' && support === 'unsupported') {
+      this.notify(prim, behaviour + (option ? ':' + option : ''), '=' + parameter)
+      return support
+    }
     const rule = behaviour + (option ? ':' + option : '')
+    const existing = this.rules.get(prim.key)?.get(rule)
+    if (this.profile === 'rlv' && (kind === 'remove' || !existing)) {
+      this.notify(prim, rule, kind === 'add' ? '=n' : '=y')
+    }
     if (kind === 'remove') {
       this.rules.get(prim.key)?.delete(rule)
       this.prune(prim.key)
     } else {
       let rules = this.rules.get(prim.key)
       if (!rules) this.rules.set(prim.key, rules = new Map())
-      if (!rules.has(rule)) rules.set(rule, Object.freeze({ sourcePrim: prim.key, behaviour, option, rule, support }))
+      if (!existing) {
+        const entry = Object.freeze({ sourcePrim: prim.key, behaviour, option, rule, support })
+        rules.set(rule, entry)
+        this.parameters.set(entry, parameter)
+      }
       this.emitters.set(prim.key, prim)
       this.startGC(prim.linkset!.clock)
     }
+    if (this.profile === 'rlva') this.notify(prim, rule, '=' +
+      (kind === 'add' && existing ? this.parameters.get(existing)! : parameter))
     return support
+  }
+
+  private notify(prim: Prim, action: string, suffix = ''): void {
+    sendRestrictionNotifications(prim, this.snapshot(), action, suffix)
+  }
+
+  private clear(prim: Prim, filter: string): void {
+    const action = 'clear' + (filter ? ':' + filter : '')
+    if (this.profile === 'rlv') this.notify(prim, action)
+    const rules = this.rules.get(prim.key)
+    if (rules) {
+      for (const rule of rules.keys()) {
+        if (!rule.includes(filter)) continue
+        if (this.profile === 'rlv') this.notify(prim, rule, '=y')
+        rules.delete(rule)
+      }
+      this.prune(prim.key)
+    }
+    if (this.profile === 'rlva') this.notify(prim, action)
+  }
+
+  private notifySupport(behaviour: string, option: string): RlvRestriction['support'] | undefined {
+    if (behaviour !== 'notify') return undefined
+    return this.profile !== 'disabled' && parseNotifyOption(this.profile, option) ? 'enforced' : 'unsupported'
+  }
+
+  supportsNotifyCommand(parsed: RlvParsedCommand): boolean {
+    return (parsed.kind === 'add' || parsed.kind === 'remove') && this.notifySupport(parsed.behaviour, parsed.option) === 'enforced'
   }
 
   /** Restrict exception scope for this family only; other families stay state-only. */
@@ -125,12 +164,11 @@ export class RlvRestrictions {
     this.stopGC = clock.onAdvance(now => {
       if (now < next) return
       next += (Math.floor((now - next) / interval) + 1) * interval
-      for (const [key, prim] of this.emitters) {
+      for (const prim of this.emitters.values()) {
         // Resolve the current linkset so linking and unlinking keep prim state.
         const linkset = prim.linkset!
         if (linkset.dead || !linkset.peers.includes(linkset) || !linkset.prims.includes(prim)) {
-          this.rules.delete(key)
-          this.prune(key)
+          this.clear(prim, '')
         }
       }
     })
