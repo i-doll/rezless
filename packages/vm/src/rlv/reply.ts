@@ -17,6 +17,7 @@ export function sendViewerReply(linkset: Linkset, avatar: WorldAvatar, channel: 
   // into the VM's JavaScript strings replaces an incomplete character with U+FFFD.
   const text = profile === 'rlva' ? truncateUtf8(message, 1023)
     : new TextDecoder('utf-8', { ignoreBOM: true }).decode(new TextEncoder().encode(message).slice(0, channel < 0 ? 254 : 1023))
-  linkset.routeViewerReply(avatar, channel, text)
+  avatar.viewer.session.bind(linkset, avatar)
+  avatar.viewer.session.captureReplies(() => linkset.routeViewerReply(avatar, channel, text))
   return { channel, text }
 }

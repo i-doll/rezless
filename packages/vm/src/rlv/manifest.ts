@@ -64,7 +64,7 @@ export const RLV_MANIFEST: {
   wiki: { url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' },
   // Reference settings are separate from implementation versions.
   settings: {
-    rlv: ['Reference startup version replies and blacklist depend on viewer settings; no emulator setting implemented.'],
+    rlv: ['doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. Blacklist settings are unsupported.'],
     rlva: ['RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
       'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.',
       'Force wear uses RLVaEnableSharedWear=true by default; inventory.sharedWear=false disables unnamed items. Legacy folder naming is enabled, the add prefix is + and the replace prefix is empty.',
@@ -107,11 +107,11 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Both profiles share prim-scoped rules, aliases, duplicate suppression and substring clear. Kokua retains unknown names and options; RLVa validates forms. Script reset, state change and removal preserve rules. Missing prims lose their rules during viewer garbage collection.',
       profiles: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
-          'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
+          'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.'),
           commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
-          'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
+          'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.'),
           commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
@@ -395,6 +395,22 @@ export const RLV_MANIFEST: {
           coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts'],
+    },
+    {
+      id: 'viewer-session', forms: ['Startup command retention and ready-state release', 'Viewer session reset', 'Issuer lookup, detach and orphan collection'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Wiki warns that version replies can be delayed during login and restrictions do not persist across sessions. Startup phases and orphan collection use profile-specific schedules.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::reallyHandleCommand', 'RRInterface::fireCommands', 'RRInterface::garbageCollector'],
+          'Startup retains commands in wire order; version requests bypass retention unless doNotQueueVersionRequests is false. Explicit readiness releases retained work. Time-based maintenance uses configurable additions to its initial 5-second wait and later 2-second interval; defaults produce 10-second delays. Missing issuers, including detached and never-resolved prims, lose rules and registrations on the next maintenance pass. Reset silently clears rules, retained commands and undelivered viewer replies.'),
+          support: 'enforced', commandForms: [],
+          coveredForms: ['Ready/not-ready fixtures and startup version-query setting', 'Time-based maintenance with initial and interval additions', 'Session reset, object-list membership and orphan notifications; forced locked-attachment recovery excluded'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processRetainedCommands', 'RlvHandler::onIdleStartup', 'RlvHandler::onGC', 'RlvHandler::onDetach'],
+          'Startup retains commands in wire order. From misc startup, version, versionnew and versionnum query groups flush every 2 seconds in that order. Full readiness releases remaining commands. A 30-second collector starts with the first restriction and stops on an empty collection pass; known missing issuers expire on the next pass and never-resolved issuers after more than 20 misses. Completed detach clears known attachment rules and registrations immediately. Reset silently clears rules, retained commands and undelivered viewer replies. Object-list membership is independent of range and region changes.'),
+          support: 'enforced', commandForms: [],
+          coveredForms: ['Ready/not-ready and misc startup phases with ordered version flushing', 'Known versus never-resolved issuer collection and immediate completed-detach cleanup', 'Session reset and orphan notifications; forced locked-attachment recovery excluded'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-session.test.ts'],
     },
   ],
 }

@@ -1,4 +1,5 @@
 import { RlvInventory, type RlvInventoryConfig } from './inventory.js'
+import { RlvSession } from './session.js'
 import { RlvRestrictions } from './restrictions.js'
 import type { RlvParsedCommand } from './classifier.js'
 
@@ -9,6 +10,11 @@ export type ViewerProfile = 'disabled' | RlvProfile
 export interface ViewerConfig {
   readonly profile: ViewerProfile
   readonly inventory?: RlvInventoryConfig
+  readonly ready?: boolean
+  readonly doNotQueueVersionRequests?: boolean
+  /** Kokua maintenance additions in virtual milliseconds; defaults 5000 and 8000. */
+  readonly initialGarbageCollectionAdditionalWait?: number
+  readonly garbageCollectionAdditionalInterval?: number
 }
 
 export interface RlvReference {
@@ -47,7 +53,7 @@ export type RlvCommandRecord = {
   readonly command: string
   readonly sourcePrim: string
   readonly parsed?: RlvParsedCommand
-} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'enforced' | 'applied' | 'unsupported' | 'malformed' } | {
+} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'enforced' | 'applied' | 'unsupported' | 'malformed' | 'queued' } | {
   readonly status: 'action'
   readonly action: 'sit' | 'unsit'
   readonly actionOutcome: 'applied' | 'unchanged' | 'refused'
@@ -65,9 +71,11 @@ export interface ViewerState {
   readonly commandLog: RlvCommandRecord[]
   readonly inventory: RlvInventory
   readonly restrictions: RlvRestrictions
+  readonly session: RlvSession
 }
 
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
-  return { profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile), inventory: new RlvInventory(config?.inventory) }
+  const session = new RlvSession(profile, config)
+  return { session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) }
 }
