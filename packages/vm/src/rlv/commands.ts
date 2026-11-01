@@ -4,6 +4,7 @@ import { getRlvCommands } from './getcommand.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
+import { dispatchSeatingCommand, getRlvSitId } from './sit.js'
 import { getRlvAttachmentPoint, getRlvAttachmentReply } from './attachments.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
@@ -51,6 +52,9 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
         parsed.behaviour === 'getstatus' ? prim.key : undefined)
     }
+    if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getsitid' &&
+      channel !== undefined && isValidReplyChannel(viewer.profile, channel)) text = getRlvSitId(avatar)
+    if (!malformed && parsed && dispatchSeatingCommand(linkset, prim, avatar, parsed, command)) continue
     if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva' &&
       channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
       const type = parsed.option.split(';')[1] ?? ''
