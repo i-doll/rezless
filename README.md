@@ -773,6 +773,10 @@ RLV/RLVa force removal covers direct shared-folder attachments with
 removal locks apply. Per-item results are available in `removeResults` on the
 viewer command log. Global and named `addoutfit`/`remoutfit` locks also apply to
 the paired fixture's explicit `attemptWearable(itemId, wear)` clothing action.
+`sharedwear`, `unsharedwear`, `sharedunwear` and `unsharedunwear` additionally
+lock explicit user clothing and mapped attachment actions by shared inventory
+ancestry, including replacement of protected attachments. The paired fixture
+documentation describes folded-folder and issuer-precedence differences.
 
 
 Captured avatar `llGiveInventoryList` offers can be resolved with

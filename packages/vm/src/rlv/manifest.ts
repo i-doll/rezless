@@ -441,6 +441,21 @@ export const RLV_MANIFEST: {
       },
       tests: [...tests, 'packages/vitest/test/rlv-forcewear.test.ts'],
     },
+    ...['sharedwear', 'unsharedwear', 'sharedunwear', 'unsharedunwear'].map((behaviour): RlvCommandContract => ({
+      id: behaviour, forms: [`@${behaviour}=n|y|add|rem`], comparison: 'confirmed difference',
+      wikiComparison: 'Shared and unshared locks apply to explicit user wear and removal of inventory clothing and mapped attachments. Both profiles include the shared root itself and hidden descendants. RLVa folds the containing folder and processes shared-folder grants in issuer insertion order; an earlier unshared lock exempts that issuer from a later shared lock. Kokua checks shared and unshared locks independently.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::canWear', 'RRInterface::canUnwear', 'RRInterface::canAttachCategory', 'RRInterface::canDetachCategory', 'RRInterface::isUnderRlvShare'],
+          'No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.'),
+          support: 'enforced', commandForms: [{ behaviour, type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option add/remove aliases and clear', 'User clothing wear/removal and mapped attachment add/removal, including replacement refusal', 'Shared root, descendants, hidden folders, missing shared root and multiple issuers'] },
+        rlva: { ...firestorm('rlvlocks.cpp', ['RlvHandler::processAddRemCommand', 'RlvFolderLocks::isLockedFolder', 'RlvFolderLocks::getLockedItems', 'RlvFolderLocks::refreshLockedLookups'],
+          'No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.'),
+          support: 'enforced', commandForms: [{ behaviour, type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option add/remove aliases and clear', 'User clothing wear/removal and mapped attachment add/removal, including replacement refusal', 'Effective folded folders, shared root, hidden descendants, missing shared root and issuer grant precedence'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-sharedwear.test.ts'],
+    })),
     {
       id: 'forceremove', forms: ['@detach:<shared-path>=force', '@remoutfit[:<layer>]=force', '@addoutfit[:<layer>]=n|y', '@remoutfit[:<layer>]=n|y'],
       comparison: 'confirmed difference',

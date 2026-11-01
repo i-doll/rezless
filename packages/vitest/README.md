@@ -1714,3 +1714,25 @@ Add/remove aliases and clear affect subsequent attempts without changing snapsho
 Distance options, group/offline IMs, closing sessions, long-message
 truncation/splitting, automatic replies and custom viewer strings are outside
 this action contract.
+
+
+### Shared and unshared user wear locks
+
+`sharedwear`, `unsharedwear`, `sharedunwear` and `unsharedunwear` enforce
+no-option add/remove restrictions on `attemptWearable(itemId, wear)`,
+`attemptViewerAttach` and `attemptViewerDetach`. The shared root and every
+hidden or ordinary descendant count as shared; a folder merely named `#RLV`
+outside the configured root does not. Without a shared root, existing folders
+are unshared. Attachment classification uses the seeded item-to-root mapping.
+Missing mappings and missing containing folders give this family no item to lock.
+Replacement checks the incoming item and every occupant before detaching any.
+Point and clothing layer restrictions remain effective alongside these locks.
+
+Firestorm RLVa 2.4.2 uses the effective folded containing folder. Its unshared
+lock grants access to the shared subtree: an earlier grant suppresses later
+shared denials from the same issuer, while another issuer's denial still blocks.
+Kokua RLV 2.09.35.00 checks shared and unshared locks independently using the
+actual parent folder. Remove aliases and clear affect subsequent actions without
+changing previous inventory snapshots. Inventory links, recently received-item
+exemptions, startup appearance recovery and forced inventory actions are outside
+this user-action contract.
