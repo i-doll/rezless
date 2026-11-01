@@ -416,7 +416,7 @@ export const RLV_MANIFEST: {
     {
       id: 'camera-fov', forms: ['@setcam_fov[:<radians>]=force', '@setcam_fovmin:<radians>=n|y', '@setcam_fovmax:<radians>=n|y', '@getcam_fov=<channel>', '@getcam_fovmin=<channel>', '@getcam_fovmax=<channel>'],
       comparison: 'confirmed difference',
-      wikiComparison: 'Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects, exclusive camera control and deprecated zoom aliases are unsupported.',
+      wikiComparison: 'Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects and exclusive camera control are unsupported.',
       profiles: {
         rlv: { ...kokua(['RRInterface::force', 'RRInterface::updateCameraLimits', 'RRInterface::getMin', 'RRInterface::getMax', 'LLViewerCamera::setDefaultFOV'],
           'Six-decimal queries round exact halves to even and use float zoom reciprocals; unset minimum/maximum are 0.000001/-0.000001. Empty limits mean 1.5, invalid numeric prefixes mean zero, and zero limits have no effect. Contradictory bounds collapse to the minimum FOV. Removal leaves the current lens unchanged. Force without an angle means zero, clamped to the viewport minimum. Queries ignore options. Camera tracking permission is still required for script FOV reads.'),
@@ -438,6 +438,75 @@ export const RLV_MANIFEST: {
           ] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-camera.test.ts'],
+    },
+    {
+      id: 'camera-distance',
+      forms: ['@setcam_avdistmin:<metres>=n|y', '@setcam_avdistmax:<metres>=n|y', '@camdistmin:<metres>=n|y', '@camdistmax:<metres>=n|y', '@camzoommin[:<multiplier>]=n|y', '@camzoommax[:<multiplier>]=n|y', '@getcam_avdistmin=<channel>', '@getcam_avdistmax=<channel>'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Avatar distance bounds constrain camera poses around an explicit joint reference. Deprecated zoom commands constrain the lens rather than camera distance. Their FOV directions differ between profiles. Current-distance and zoom queries have profile-specific availability.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::updateCameraLimits', 'RRInterface::reallyHandleCommand', 'LLAgentCamera::calcCameraPositionTargetGlobal'],
+          'Distance aliases aggregate together. Empty bounds mean 1.5, invalid numeric text means zero, and contradictory minimum collapses to maximum. The default distance range is -1000000 to 750000 metres, including the default drawing-distance cap. Six-decimal bound queries ignore options. camzoommin bounds minimum magnification and camzoommax bounds maximum magnification, with empty multiplier 1.5 and zero removing that zoom bound. getcam_zoommin, getcam_zoommax and getcam_zoom are supported; getcam_avdist is unsupported. Mouselook bypasses distance clamping. Coincident camera and reference positions with a positive minimum produce non-finite coordinates. Joint positions are explicit fixtures, defaulting to avatar position.'),
+          support: 'enforced', coveredForms: ['Avatar distance aliases and pose reads', 'Zoom multiplier bounds and queries', 'Removal, clear, collection, multiple issuers and numeric conversion'],
+          commandForms: [
+            ...['setcam_avdistmin', 'setcam_avdistmax', 'camdistmin', 'camdistmax', 'camzoommin', 'camzoommax'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...replyForms('getcam_avdistmin', 'getcam_avdistmax'),
+          ] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary', 'RlvReplyCamMinMaxModifierHandler::onCommand', 'RlvReplyHandler<RLV_BHVR_GETCAM_AVDIST>::onCommand', 'RlvBehaviourCamZoomMinMaxHandler::onCommand', 'RlvActions::getCameraAvatarDistanceLimits', 'LLAgentCamera::clampCameraPosition'],
+          'Distance aliases aggregate strongest minimum/maximum modifiers. Empty or invalid bounds are rejected; numeric prefixes and explicit non-finite values follow float parsing. Three-decimal queries distinguish unset bounds with empty replies and reject options with an empty reply. Contradictory modifiers remain independently queryable; position clamping checks maximum before minimum. getcam_avdist reports camera distance from avatar position, separately from the joint reference. camzoommin maps to minimum FOV and camzoommax to maximum FOV using pi/3 divided by the multiplier, default multiplier 1. Removing a final zoom alias keeps the current lens instead of restoring the saved FOV. Zoom queries are unsupported. Mouselook bypasses distance clamping. Coincident camera and reference positions with a positive minimum produce non-finite coordinates. Joint positions are explicit fixtures, defaulting to avatar position.'),
+          support: 'enforced', coveredForms: ['Avatar distance aliases, current-distance query and pose reads', 'Deprecated zoom aliases sharing FOV modifiers', 'Removal, clear, collection, multiple issuers and numeric conversion'],
+          commandForms: [
+            ...['setcam_avdistmin', 'setcam_avdistmax', 'camdistmin', 'camdistmax', 'camzoommin', 'camzoommax'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...replyForms('getcam_avdistmin', 'getcam_avdistmax'),
+          ] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-camera-distance.test.ts'],
+    },
+    {
+      id: 'camera-distance-query', forms: ['@getcam_avdist=<channel>'],
+      comparison: 'confirmed difference', wikiComparison: 'RLVa reports camera distance from avatar position. Kokua has no current-distance query handler.',
+      profiles: {
+        rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getcam_avdist query handler. Numeric parameters remain unsupported.'),
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvReplyHandler<RLV_BHVR_GETCAM_AVDIST>::onCommand'],
+          'Three-decimal current distance from the seated camera eye when applicable, otherwise the fixture position, relative to avatar position, independently of the explicit joint reference used for clamping. Nonempty options return an empty reply with failed-option. Viewer queries need no simulator camera permission.'),
+          support: 'enforced', coveredForms: ['Current camera distance and invalid query options'], commandForms: replyForms('getcam_avdist') },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-camera-distance.test.ts'],
+    },
+    {
+      id: 'camera-zoom-query', forms: ['@getcam_zoom=<channel>', '@getcam_zoommin=<channel>', '@getcam_zoommax=<channel>'],
+      comparison: 'confirmed difference', wikiComparison: 'Kokua exposes current and bounded zoom multipliers; RLVa has no zoom query handlers.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::reallyHandleCommand', 'RRInterface::updateCameraLimits'],
+          'Six-decimal current magnification pi/3 divided by FOV, and aggregated minimum/maximum magnification. Unset bounds are -1000000 and 1000000. Options are ignored. Lens limits and zoom aliases both affect the effective magnification bounds.'),
+          support: 'enforced', coveredForms: ['Current, minimum and maximum magnification queries'], commandForms: replyForms('getcam_zoom', 'getcam_zoommin', 'getcam_zoommax') },
+        rlva: firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary'], 'No getcam_zoom, getcam_zoommin or getcam_zoommax handlers. Numeric parameters remain unsupported.'),
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-camera-distance.test.ts'],
+    },
+    {
+      id: 'camera-origin', forms: ['@setcam_origindistmin:<metres>=n|y', '@setcam_origindistmax:<metres>=n|y'],
+      comparison: 'confirmed difference', wikiComparison: 'RLVa origin distance limits use the default camera origin. A locked avatar distance takes precedence; otherwise active origin limits take precedence over avatar distance bounds. Neither profile has origin-distance queries.',
+      profiles: {
+        rlv: kokua(['RRInterface::updateCameraLimits', 'RRInterface::reallyHandleCommand'], 'No origin-distance limit or query handlers. Wire restrictions may be retained but remain unsupported.'),
+        rlva: { ...firestorm('rlvactions.cpp', ['RlvActions::getCameraOriginDistanceLimits', 'LLAgentCamera::calcCameraPositionTargetGlobal', 'LLAgentCamera::clampCameraPosition'],
+          'Strongest minimum and maximum constrain position around an explicit region-space camera origin. Without an explicit origin the fixture pose is the origin. Equal avatar distance bounds override origin limits; otherwise origin limits override avatar bounds. Empty options fail. Origin query names have no handlers. Skeleton offsets, smoothing and collisions are outside the fixture.'),
+          support: 'enforced', coveredForms: ['Origin-distance pose clamping and avatar-lock precedence', 'Explicit camera-origin fixture state'],
+          commandForms: ['setcam_origindistmin', 'setcam_origindistmax'].map(behaviour => ({ behaviour, type: 'add', support: 'enforced', option: 'any' })) },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-camera-distance.test.ts'],
+    },
+    {
+      id: 'camera-silhouette', forms: ['@setcam_avdist:<metres>=n|y'],
+      comparison: 'confirmed difference', wikiComparison: 'RLVa setcam_avdist selects an avatar silhouette threshold, independently of the camera position limits. The fixture exposes the aggregated threshold as viewer state; rendering is outside the fixture.',
+      profiles: {
+        rlv: kokua(['RRInterface::updateCameraLimits'], 'No setcam_avdist handler. The wire restriction remains inspectably unsupported.'),
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary', 'LLVOAvatar::isRlvSilhouette'],
+          'Strongest numeric threshold is exposed as silhouetteDistance. It does not move the camera. Empty and invalid options fail. No rendering or silhouette query is implemented.'),
+          support: 'state-only', coveredForms: ['Aggregated silhouetteDistance viewer state, removal and clear'],
+          commandForms: [{ behaviour: 'setcam_avdist', type: 'add', support: 'state-only', option: 'any' }] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-camera-distance.test.ts'],
     },
     {
       id: 'viewer-ui', forms: ['@showinv|showloc|showminimap|showworldmap|shownearby=n|y', '@shownames[_sec][:<uuid>]=n|y', '@shownametags[_sec][:<uuid>|<distance>]=n|y', '@showhovertext:<uuid>=n|y', '@showhovertextall|showhovertexthud|showhovertextworld=n|y', '@showself|showselfhead|viewtransparent|viewwireframe=n|y', '@viewnote|viewscript|viewtexture=n|y'],
