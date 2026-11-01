@@ -12,7 +12,7 @@ export interface RlvForceWearItemResult {
   readonly itemId: string
   readonly outcome: 'attached' | 'worn' | 'already-worn' | 'blocked' | 'unsupported' | 'skipped'
   readonly point?: number
-  readonly reason?: 'nostrip' | 'layer-lock' | 'detach-lock' | 'addattach-lock' | 'missing-definition' | 'unsupported-content' | 'shared-wear-disabled' | 'superseded' | 'unavailable-attachment'
+  readonly reason?: 'clothing-capacity' | 'nostrip' | 'layer-lock' | 'detach-lock' | 'addattach-lock' | 'missing-definition' | 'unsupported-content' | 'shared-wear-disabled' | 'superseded' | 'unavailable-attachment'
 }
 export type RlvForceWearOutcome = 'allowed' | 'blocked' | 'no-op' | 'partial' | 'failed-option' | 'unsupported-form'
 type WearItem = { entry: RlvInventoryEntry; point: number; replace: boolean }
@@ -183,6 +183,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
   record('no-op')
   issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
     const acceptedLayers = new Set<string>()
+    const clothingCount = () => inventory.wornWearables().filter(id => !isRlvBodypart(entries.find(e => e.id === id)!)).length
     for (const plan of clothing) {
       const { entry } = plan
       const singleSlot = isRlvBodypart(entry) || profile === 'rlva' && entry.wearableType === 'physics'
@@ -195,12 +196,21 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
       const occupants = worn.map(id => entries.find(e => e.id === id)!).filter(e => e.wearableType === entry.wearableType)
       const addLocked = rules.some(rule => rule.behaviour === 'addoutfit' && (!rule.option || rule.option === entry.wearableType))
       const removeLocked = rules.some(rule => rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))
+      const atCapacity = !isRlvBodypart(entry) && clothingCount() >= 60
       const wholeWearLocked = profile === 'rlva' || isRlvBodypart(entry)
-      if (wholeWearLocked && (addLocked || replace && occupants.length > 0 && removeLocked)) {
+      if (wholeWearLocked && (addLocked || (replace || atCapacity) && occupants.length > 0 && removeLocked)) {
         results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue
       }
       if (replace && !removeLocked) for (const previous of profile === 'rlv' && !isRlvBodypart(entry) ? occupants.slice(-1) : occupants) {
         if (singleSlot || isRlvStrippable(profile, inventory, previous, true)) inventory.setWearableWorn(previous.id, false)
+      }
+      if (!isRlvBodypart(entry) && clothingCount() >= 60) {
+        const top = occupants.filter(e => inventory.wornWearables().includes(e.id)).at(-1)
+        // At capacity, the appearance manager replaces the current top item.
+        if (top && !removeLocked) inventory.setWearableWorn(top.id, false)
+        if (clothingCount() >= 60) {
+          results.push({ itemId: entry.id, outcome: 'blocked', reason: 'clothing-capacity' }); continue
+        }
       }
       if (addLocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
       inventory.setWearableWorn(entry.id, true)

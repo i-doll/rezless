@@ -306,3 +306,31 @@ it('RLVa physics automatic slot replacement differs from ordinary nostrip clothi
   expect(inv.wornWearables()).toEqual(profile === 'rlv' ? ['old', 'new'] : ['new'])
  }
 })
+
+for (const locked of [false, true]) it(`clothing capacity constrains queued adds without denying a replacement: ${locked}`, async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  const old = Array.from({ length: 60 }, (_, n) => ({ id: `old${n}`, parentId: null, kind: 'item' as const, name: `Shirt ${n}`, wearableType: 'shirt' as const }))
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(), ...old,
+   { id: 'new', parentId: 'base', kind: 'item', name: 'New shirt', wearableType: 'shirt' },
+  ], wornWearables: old.map(e => e.id) })
+  if (locked) send(f, '@remoutfit:shirt=n')
+  send(f, '@attachallover:base=force')
+  expect(inv.wornWearables()).toHaveLength(60)
+  expect(inv.wornWearables().includes('new')).toBe(!locked)
+  if (locked) expect(result(f).wearResults).toContainEqual({ itemId: 'new', outcome: 'blocked', reason: profile === 'rlva' ? 'layer-lock' : 'clothing-capacity' })
+  else expect(inv.wornWearables()).not.toContain('old59')
+ }
+})
+it('capacity counts clothing accepted earlier in the same queued folder operation', async () => {
+ const f = (await fixtures()).rlva; const inv = f.avatar.viewer.inventory
+ const old = Array.from({ length: 59 }, (_, n) => ({ id: `old${n}`, parentId: null, kind: 'item' as const, name: `Shirt ${n}`, wearableType: 'shirt' as const }))
+ inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(), ...old,
+  { id: 'new1', parentId: 'base', kind: 'item', name: 'New shirt 1', wearableType: 'shirt' },
+  { id: 'new2', parentId: 'base', kind: 'item', name: 'New shirt 2', wearableType: 'shirt' },
+ ], wornWearables: old.map(e => e.id) })
+ send(f, '@remoutfit:shirt=n,attachallover:base=force')
+ expect(inv.wornWearables()).toHaveLength(60)
+ expect(inv.wornWearables()).toContain('new1'); expect(inv.wornWearables()).not.toContain('new2')
+ expect(result(f).wearResults).toContainEqual({ itemId: 'new2', outcome: 'blocked', reason: 'layer-lock' })
+})
