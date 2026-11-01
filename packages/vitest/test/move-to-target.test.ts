@@ -300,3 +300,19 @@ it('reanchors coupled integration when the script replaces its target',async()=>
   expect(sample(a).p.y).toBeGreaterThan(2)
   for(const axis of ['x','y','z','s'] as const)expect(sample(a).r[axis]).toBeCloseTo(sample(b).r[axis],6)
 })
+
+// https://wiki.secondlife.com/wiki/LlLookAt#Caveats documents caller-side root
+// rotation compensation for child prims. In-world: child-look.py (Aditi, SLua
+// Tideland, 2026-11-01), root yaw 90: raw llLookAt and local llRotLookAt give
+// world +Z = +Y; compensating the llLookAt direction with /root rotation gives +X.
+it.each([
+  ['llLookAt(llGetPos()+<4,0,0>,1,1);',0,1],
+  ['llLookAt(llGetPos()+<4,0,0>/llGetRootRotation(),1,1);',1,0],
+  ['llRotLookAt(llEuler2Rot(<0,PI_BY_TWO,0>),1,1);',0,1],
+] as const)('preserves the documented child look-at convention: %s',async(call,x,y)=>{
+  const f=await loadLinkset({prims:[{}, {scripts:[{name:'child',source:{source:`vector up;
+    default{state_entry(){${call}up=<0,0,1>*(llGetLocalRot()*llGetRootRotation());}}`}}]}]})
+  f.prims[0]!.params.rotation={x:0,y:0,z:Math.SQRT1_2,s:Math.SQRT1_2}
+  const s=f.scripts.child!;s.start();const up=s.global('up') as Vector
+  expect(up.x).toBeCloseTo(x,5);expect(up.y).toBeCloseTo(y,5);expect(up.z).toBeCloseTo(0,5)
+})
