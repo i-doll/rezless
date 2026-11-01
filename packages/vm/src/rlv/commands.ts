@@ -1,6 +1,7 @@
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
 import { getRlvStatus } from './status.js'
+import { getRlvAttachmentPoint, getRlvAttachmentReply } from './attachments.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
 import type { Linkset } from '../linkset.js'
@@ -46,6 +47,18 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       (parsed.behaviour === 'getstatus' || parsed.behaviour === 'getstatusall')) {
       text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
         parsed.behaviour === 'getstatus' ? prim.key : undefined)
+    }
+    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
+      (parsed.behaviour === 'getattach' || parsed.behaviour === 'getattachnames')) {
+      const attachmentText = getRlvAttachmentReply(linkset, viewer, parsed.behaviour, parsed.option)
+      if (attachmentText !== undefined) {
+        const failedOption = viewer.profile === 'rlva' && parsed.behaviour === 'getattach' &&
+          !!parsed.option && getRlvAttachmentPoint(parsed.option) === undefined
+        const reply = sendViewerReply(linkset, avatar, channel, attachmentText)!
+        viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
+          ...(failedOption ? { outcome: 'failed-option' as const } : {}) })
+        continue
+      }
     }
     if (text === undefined && parsed && !malformed && dispatchRestrictionCommand(viewer, prim, parsed, command)) continue
     const entry = { command, sourcePrim: prim.key, ...(parsed ? { parsed } : {}) }
