@@ -758,10 +758,11 @@ UUID for RLVa ground sitting. Profile-specific force lock checks are supported;
 explicit simulator sit responses supply surface poses at any same-region distance
 and timed autopilot outcomes. Refused responses leave seating unchanged.
 User sit/stand attempts have no issuer exemption. `sittp[:distance]` combines
-finite decimal limits by minimum, defaults to 1.5 m, and rejects the exact boundary.
+numeric limits by minimum, defaults to 1.5 m, and rejects the exact boundary.
 Distances use the clicked point in global coordinates, including the optional
-region-axis offset. Non-finite, hexadecimal and overflow options remain inspectably
-unsupported. Simulator `llSitOnLink` and `llUnSit` bypass viewer locks.
+region-axis offset. Both profiles accept hexadecimal prefixes and explicit non-finite
+values. Kokua accepts numeric overflow and underflow; RLVa rejects them. Kokua
+ignores NaN in its minimum; RLVa retains modifier ordering, including NaN. Simulator `llSitOnLink` and `llUnSit` bypass viewer locks.
 `standtp` returns after standing or simulator unsitting, using a viewer sit origin.
 Kokua also saves the position on a new rule and requires direct parcel routing;
 RLVa rejects seated object-sit requests and ignores zero global origins. Return
@@ -856,7 +857,12 @@ cancels retained work and undelivered viewer replies.
 Force `tpto` resolves global or named-region coordinates through explicit World
 regions and records requested destinations, resulting avatar state and refusals.
 Kokua truncates coordinates and ignores the supplied angle; RLVa preserves
-fractions and supports radian facing. Teleport lock and issuer-exemption behavior
+fractions and supports radian facing. RLVa accepts hexadecimal and non-finite
+coordinate scans; global coordinates use double precision and named-region
+coordinates use float precision. Angles accept hexadecimal prefixes and explicit
+non-finite values; numeric angle overflow and underflow fail in RLVa. Kokua
+converts hexadecimal and non-finite coordinates to zero. Its overflowing integer
+coordinates remain inspectably unsupported. Teleport lock and issuer-exemption behavior
 is profile specific. Moves stand normally without granting simulator permissions. Worn objects follow
 the avatar into the new region, keep hearing its viewer and get teleport and
 region `changed` events.

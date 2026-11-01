@@ -207,11 +207,11 @@ it('keeps malformed and exotic numeric forms inspectable and disabled mode inert
   for (const f of Object.values(pair)) {
     for (const option of ['nan/20/30', '0x10/20/30', '2147483648e999/20/30']) {
       issue(f.script, '@tpto:' + option + '=force')
-      expect(f.avatar.position).toEqual({ x: 10, y: 20, z: 30 })
-      expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'unsupported', outcome: 'unsupported-form' })
+      expect(f.avatar.position).toEqual(f.avatar.viewer.profile === 'rlv' ? { x: 0, y: 20, z: 30 } : { x: option.startsWith('nan') ? 10 : 16, y: 20, z: 30 })
+      expect(f.avatar.viewer.commandLog.at(-1)?.status).toBe(f.avatar.viewer.profile === 'rlv' && option.startsWith('2147483648') ? 'unsupported' : 'action')
     }
     issue(f.script, '@tpto:12/24/36=n')
-    expect(f.avatar.position).toEqual({ x: 10, y: 20, z: 30 })
+    expect(f.avatar.position).toEqual({ x: f.avatar.viewer.profile === 'rlv' ? 0 : 16, y: 20, z: 30 })
   }
   const world = new World(); world.addRegion('off', { x: 0, y: 0 })
   const avatar = world.addAvatar({ username: 'off', region: 'off' })
@@ -284,8 +284,8 @@ it('supports decimal exponents by each coordinate parser and rejects float overf
   expect(pair.rlva.avatar.position).toEqual({ x: 100, y: 20, z: 30 })
   for (const option of ['12/24/36;1e999', '12/24/36;1e-99', '12/24/1e300']) {
     issue(pair.rlva.script, '@tpto:' + option + '=force')
-    expect(pair.rlva.avatar.position).toEqual({ x: 100, y: 20, z: 30 })
-    expect(pair.rlva.avatar.viewer.commandLog.at(-1)?.status).toBe('unsupported')
+    expect(pair.rlva.avatar.position).toEqual(option === '12/24/1e300' ? { x: 12, y: 24, z: 1e300 } : { x: 100, y: 20, z: 30 })
+    expect(pair.rlva.avatar.viewer.commandLog.at(-1)?.status).toBe('action')
   }
 })
 
@@ -313,8 +313,8 @@ it('treats region names as names and ignores fields after the first angle', asyn
     expect(f.avatar.region).toBe('Infinity Cove')
     expect(f.avatar.position).toEqual({ x: 12, y: 24, z: 36 })
     issue(f.script, '@tpto:infinity cove/12/nan/36=force')
-    expect(f.avatar.position).toEqual({ x: 12, y: 24, z: 36 })
-    expect(f.avatar.viewer.commandLog.at(-1)?.status).toBe('unsupported')
+    expect(f.avatar.position).toEqual({ x: 12, y: f.avatar.viewer.profile === 'rlv' ? 0 : 24, z: 36 })
+    expect(f.avatar.viewer.commandLog.at(-1)?.status).toBe('action')
   }
 })
 

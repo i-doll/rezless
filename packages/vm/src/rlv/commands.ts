@@ -1,3 +1,4 @@
+import { dispatchDistanceRestrictionCommand } from './sit.js'
 import { dispatchEnvironmentCommand } from './environment.js'
 import { dispatchGroupCommand } from './group.js'
 import { dispatchDebugCommand } from './debug.js'
@@ -71,6 +72,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     const replyChannel = !malformed && channel !== undefined && isValidReplyChannel(viewer.profile, channel)
     const query = replyChannel && parsed?.kind === 'query'
     if (!malformed && parsed && dispatchBlacklistedCommand(avatar, prim, parsed, command)) continue
+    if (!malformed && parsed && dispatchDistanceRestrictionCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchTouchCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchCameraCommand(avatar, prim, parsed, command)) continue
     if (!malformed && parsed && dispatchRenderCommand(avatar, prim, parsed, command)) continue
