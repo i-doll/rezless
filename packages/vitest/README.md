@@ -610,7 +610,7 @@ optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule
 `tplm` form has `state-only` support. Its action is not enforced, and its command-log
 status remains `unsupported` for action effects. No-option `sendchat` is enforced
 by explicit avatar chat actions. No-option `tploc` is enforced for forced location travel. Seating
-forms `sit`, `unsit` and finite decimal `sittp[:distance]` have
+forms `sit`, `unsit` and numeric `sittp[:distance]` have
 `enforced` support for explicit user actions and log `applied`. Diagnostics
 distinguish updated state from unsupported forms.
 
@@ -940,9 +940,15 @@ can use `world.userSitAvatar(avatar, prim, offset?)` and
 `world.userStandAvatar(avatar)`, then advance virtual time to deliver events.
 These attempts enforce `interact`, `sit`, seated `unsit`, and `sittp[:distance]` without issuer
 exemptions. The optional offset is a region-axis pick offset, independent of the
-configured sit target. The minimum finite decimal distance applies, defaults to
+configured sit target. The minimum numeric distance applies, defaults to
 1.5 m and excludes the exact boundary. Kokua compares signed limits; RLVa squares
-the combined limit. Non-finite, hexadecimal and overflow forms remain unsupported.
+the combined limit. Both profiles accept hexadecimal prefixes, infinity and NaN.
+Kokua uses `atof` prefixes, invalid text means zero, numeric overflow becomes
+infinity and underflow becomes zero. Its minimum starts at one million metres,
+ignoring NaN and positive infinity. RLVa uses `stof` prefixes and rejects malformed
+text and numeric overflow or underflow. Its sorted modifier list inserts equal or
+unordered values before existing values. Removing a NaN rule cannot remove its
+modifier by float equality; session reset clears it.
 `world.sitAvatar`, `world.standAvatar`, `llSitOnLink` and `llUnSit` retain their
 independent simulator behavior. Force-sit issuer rules remain profile specific.
 
@@ -1296,9 +1302,16 @@ applicable locks without moving the avatar. Unknown destinations and foreign
 avatars refuse without changing state. Home travel and startup scheduling are
 outside these actions.
 
-Non-finite, hexadecimal and overflowing teleport conversions remain inspectably
-unsupported. Landing-point routing, terrain/collision adjustments and camera pose
-are outside the fixture.
+Kokua coordinate fields use decimal integer prefixes, so hexadecimal and
+non-finite fields become zero. Overflowing integer coordinates remain inspectably
+unsupported. Its angles accept `atof` prefixes without changing facing. RLVa scans
+global coordinates as doubles and named-region coordinates as floats, accepting
+hexadecimal and non-finite values as well as overflow and underflow. Its angles
+accept `stof` prefixes, including hexadecimal and explicit infinity or NaN, but
+reject numeric overflow and underflow. Non-finite angles normalize to a zero
+facing request and preserve orientation. World fixtures refuse non-finite
+positions without changing avatar state. The `tplocal` cap maps NaN to 256 m.
+Collision geometry and camera pose are outside the fixture.
 
 ### Force-wearing shared attachments
 

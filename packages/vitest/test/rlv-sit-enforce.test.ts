@@ -151,16 +151,16 @@ it.each([
   }
 })
 
-it('keeps non-finite and hexadecimal command options inspectably unsupported without moving the avatar', async () => {
+it('parses non-finite and hexadecimal command options without moving the avatar', async () => {
   for (const { script, avatar } of Object.values(await loadRlvPair({ source }))) {
     script.start()
     for (const option of ['nan', 'inf', '-inf', '1e50', '0x1p2']) {
       const position = { ...avatar.position }
       script.fire('link_message', { sender_num: 1, num: 0, str: '@sittp:' + option + '=n', id: avatar.key })
-      expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'unsupported' })
+      expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: avatar.viewer.profile === 'rlva' && option === '1e50' ? 'unsupported' : 'applied' })
       expect(avatar.sittingOn).toBeNull()
       expect(avatar.position).toEqual(position)
-      expect(avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')).toEqual([])
+      expect(avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')).not.toEqual([])
     }
   }
 })

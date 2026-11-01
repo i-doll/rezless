@@ -1,3 +1,4 @@
+import { rlvAtof, rlvStof } from './numbers.js'
 import type { WorldAvatar } from '../world.js'
 import type { ViewerState, ViewerProfile } from './profiles.js'
 import { rlvIntegerPrefix, type RlvParsedCommand } from './classifier.js'
@@ -18,19 +19,7 @@ const clamp = (value: number, min: number, max: number) => value < min ? min : v
 
 /** Viewer float prefixes, including explicit non-finite spellings. */
 export function cameraAngle(profile: ViewerProfile, option: string): number | undefined {
-  const match = /^[\t\n\v\f\r ]*([+-]?(?:infinity|inf|nan(?:\([^)]*\))?|0x(?:[0-9a-f]+\.?[0-9a-f]*|\.[0-9a-f]+)(?:p[+-]?[0-9]+)?|(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:e[+-]?[0-9]+)?))/i.exec(option)
-  if (!match) return profile === 'rlv' ? 0 : undefined
-  const token = match[1]!.toLowerCase()
-  if (/^[+-]?nan/.test(token)) return token.startsWith('-') ? -NaN : NaN
-  if (/^[+-]?inf/.test(token)) return token.startsWith('-') ? -Infinity : Infinity
-  const hex = /^([+-]?)0x([0-9a-f]*)(?:\.([0-9a-f]*))?(?:p([+-]?[0-9]+))?$/.exec(token)
-  const value = hex ? (hex[1] === '-' ? -1 : 1) * (Number.parseInt(hex[2] || '0', 16) +
-    [...hex[3] ?? ''].reduce((sum, digit, index) => sum + Number.parseInt(digit, 16) / 16 ** (index + 1), 0)) * 2 ** Number(hex[4] ?? 0)
-    : Number(token)
-  const rounded = Math.fround(value)
-  const nonzero = hex ? /[1-9a-f]/.test((hex[2] ?? '') + (hex[3] ?? '')) : /[1-9]/.test(token.split('e')[0]!)
-  if (profile === 'rlva' && (!Number.isFinite(rounded) || nonzero && Math.abs(rounded) < 1.1754943508222875e-38)) return undefined
-  return rounded
+  return profile === 'rlv' ? rlvAtof(option) : rlvStof(option)
 }
 
 export function cameraSupport(profile: ViewerProfile, behaviour: string, option: string): RlvRestriction['support'] | undefined {

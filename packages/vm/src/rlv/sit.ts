@@ -1,3 +1,4 @@
+import { rlvAtof, rlvStof } from './numbers.js'
 import { AGENT_FLYING, AGENT_SITTING } from '../generated/constants.js'
 import { NULL_KEY, ZERO_VECTOR, type Vector } from '../values/types.js'
 import type { World, WorldAvatar } from '../world.js'
@@ -61,17 +62,65 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
   return record(outcome, outcome === 'refused' ? 'world-constraint' : undefined)
 }
 
-/** Finite decimal distance prefixes. Other numeric formats remain unsupported. */
+/** Both viewers use float prefixes; only RLVa rejects conversion range errors. */
 export function seatingDistance(profile: 'rlv' | 'rlva', option: string): number | undefined {
-  if (!option) return 1.5
-  option = option.trimStart()
-  if (/^[+-]?(?:nan|inf|0x)/i.test(option)) return undefined
-  const prefix = /^[\t\n\v\f\r ]*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:e[+-]?[0-9]+)?/i.exec(option)
-  if (!prefix) return profile === 'rlv' ? 0 : undefined
-  const number = Number(prefix[0])
-  const value = Math.fround(number)
-  if (!Number.isFinite(value) || profile === 'rlva' && number !== 0 && Math.abs(number) < 1.1754943508222875e-38) return undefined
-  return value
+  return !option ? 1.5 : profile === 'rlv' ? rlvAtof(option) : rlvStof(option)
+}
+
+interface DistanceModifiers {
+  previous: readonly import('./restrictions.js').RlvRestriction[]
+  values: { issuer: string; value: number }[]
+}
+const distanceModifiers = new WeakMap<object, Map<string, DistanceModifiers>>()
+
+/** Match the modifier list's lower_bound ordering and float-value removal. */
+export function seatingLimit(avatar: WorldAvatar, behaviour: string, cap = Infinity): number {
+  const profile = avatar.viewer.profile as 'rlv' | 'rlva'
+  const rules = avatar.viewer.restrictions.snapshot().filter(rule => rule.behaviour === behaviour && rule.support === 'enforced')
+  if (profile === 'rlv') {
+    let limit = Math.min(cap, 1000000)
+    for (const rule of rules) {
+      const value = seatingDistance(profile, rule.option)!
+      if (value < limit) limit = value
+    }
+    return limit
+  }
+  const lifetime = avatar.viewer.session.lifetime
+  let families = distanceModifiers.get(lifetime)
+  if (!families) distanceModifiers.set(lifetime, families = new Map())
+  let state = families.get(behaviour)
+  if (!state) families.set(behaviour, state = { previous: [], values: [] })
+  for (const rule of state.previous.filter(rule => !rules.includes(rule))) {
+    const value = seatingDistance(profile, rule.option)!
+    const index = state.values.findIndex(entry => entry.issuer === rule.sourcePrim && entry.value === value)
+    if (index >= 0) state.values.splice(index, 1)
+  }
+  for (const rule of rules.filter(rule => !state.previous.includes(rule))) {
+    const value = seatingDistance(profile, rule.option)!
+    let low = 0, high = state.values.length
+    while (low < high) {
+      const middle = (low + high) >>> 1
+      if (state.values[middle]!.value < value) low = middle + 1
+      else high = middle
+    }
+    state.values.splice(low, 0, { issuer: rule.sourcePrim, value })
+  }
+  state.previous = rules
+  const value = state.values[0]?.value ?? 1.5
+  return cap === Infinity ? value : value < cap ? value : cap
+}
+
+/** Observe every command so intermediate adds/removes retain modifier ordering. */
+export function dispatchDistanceRestrictionCommand(avatar: WorldAvatar, prim: Prim,
+  parsed: RlvParsedCommand, command: string): boolean {
+  if (avatar.viewer.profile !== 'rlva') return false
+  seatingLimit(avatar, 'sittp')
+  seatingLimit(avatar, 'tplocal')
+  if (!['sittp', 'tplocal'].includes(parsed.behaviour) ||
+    (parsed.kind !== 'add' && parsed.kind !== 'remove') || seatingDistance('rlva', parsed.option) === undefined) return false
+  dispatchRestrictionCommand(avatar.viewer, prim, parsed, command)
+  seatingLimit(avatar, parsed.behaviour)
+  return true
 }
 
 /** Supported add/remove forms for explicit viewer seating actions. */
@@ -101,9 +150,8 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
     if (rules.some(rule => !rule.option && (rule.behaviour === 'sit' || rule.behaviour === 'interact' && rule.support === 'enforced' ||
       (rule.behaviour === 'unsit' || profile === 'rlva' && rule.behaviour === 'standtp') && !!(avatar.info & AGENT_SITTING)))) return false
     const limits = rules.filter(rule => rule.behaviour === 'sittp' && rule.support === 'enforced')
-      .map(rule => seatingDistance(profile, rule.option)!)
     if (limits.length) {
-      const limit = Math.min(...limits)
+      const limit = seatingLimit(avatar, 'sittp')
       if (profile === 'rlva' ? !(distance ** 2 < Math.fround(limit * limit)) : !(distance < limit)) return false
     }
   }
