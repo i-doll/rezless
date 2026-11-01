@@ -413,6 +413,10 @@ numeric parameter IDs to values in `[0, 1]`; unset supported parameters read 0.
 Size defaults to `<0.45, 0.6, 1.9>`, flags to 0, and shared language to empty.
 Display name defaults to `name`, then `username`.
 
+`llGetObjectDetails` reads an attachment point from either the root or a child prim.
+`OBJECT_TEMP_ATTACHED` is 1 only for the root of a temporary attachment; children
+and normal attachments return 0. Rezzed objects return 0 for both attachment flags.
+
 `llGetObjectDetails` reads avatars in the caller's region. Position, rotation,
 velocity and size use the live avatar fixture; a seated avatar reports its seat's
 root and link number, and includes the seat in its mass. Supply resource totals
