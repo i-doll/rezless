@@ -102,7 +102,7 @@ it('discovers chat enforcement forms and rejects unsupported sendchat options', 
   }` })
   for (const profile of ['rlv', 'rlva'] as const) {
     const f = pair[profile]; f.script.start()
-    expect(f.script.global('reply')).toBe(profile === 'rlva' ? 'sendchannel;sendchannel_except;sendchannel_sec' : '')
+    expect(f.script.global('reply')).toBe(profile === 'rlva' ? 'sendchannel;sendchannel_except;sendchannel_except_sec;sendchannel_sec' : '')
     expect(f.sendChat(0, 'normal').status).toBe('sent')
     expect(f.avatar.viewer.commandLog[0]?.status).toBe('unsupported')
     expect(getRlvCommandCoverage(profile).find(form => form.behaviour === 'sendchat')).toMatchObject({ support: 'enforced', option: 'none' })
@@ -127,5 +127,34 @@ it('keeps script chat and automatic query replies independent of avatar chat loc
     expect(f.script.global('heard')).toBe(1)
     expect(f.script.global('version')).toBe(profile === 'rlv' ? '2093500' : '3040300')
     expect(f.sendChat(42, 'blocked').status).toBe('blocked')
+  }
+})
+
+for (const [name, first, second, rlvaAllowed] of [
+  ['cross issuer ordinary exclusion', '@sendchannel_except=n', '@sendchannel_except:42=n', false],
+  ['secure exclusion ignores other issuer', '@sendchannel_except_sec=n', '@sendchannel_except:42=n', true],
+  ['secure same issuer exclusion', '@sendchannel_except_sec=n,sendchannel_except:42=n', '', false],
+  ['secure option alias', '@sendchannel_except_sec=n,sendchannel_except_sec:42=n', '', false],
+  ['secure exclusion requires every issuer', '@sendchannel_except_sec=n,sendchannel_except:42=n', '@sendchannel_except_sec=n', true],
+  ['secure exclusion every issuer lists', '@sendchannel_except_sec=n,sendchannel_except:42=n', '@sendchannel_except_sec=n,sendchannel_except:42=n', false],
+  ['permissive exclusion requires every issuer', '@sendchannel_except=n,sendchannel_except:42=n,permissive=n', '@sendchannel_except=n', true],
+  ['permissive ignores cross issuer exclusion', '@sendchannel_except=n,permissive=n', '@sendchannel_except:42=n', true],
+] as const) it(name, async () => {
+  const pair = await loadRlvPair({ source })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start()
+    f.script.setGlobal('command', first)
+    f.script.fire('touch_start', { num_detected: 1 })
+    const other = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
+      prims: [{ scripts: [{ name: 'other', source: { source } }] }] })
+    other.scripts.other!.start()
+    other.scripts.other!.setGlobal('command', second)
+    other.scripts.other!.fire('touch_start', { num_detected: 1 })
+    const kokuaDenied = (first + ',' + second).includes('sendchannel_except:42=n')
+    const allowed = profile === 'rlva' ? rlvaAllowed : !kokuaDenied
+    expect(f.sendChat(42, 'private').status).toBe(allowed ? 'sent' : 'blocked')
+    expect(f.script.global('count')).toBe(allowed ? 1 : 0)
+    const secure = f.avatar.viewer.restrictions.snapshot().filter(rule => rule.behaviour === 'sendchannel_except_sec')
+    expect(secure.every(rule => rule.support === (profile === 'rlv' ? 'unsupported' : 'enforced'))).toBe(true)
   }
 })

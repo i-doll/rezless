@@ -32,6 +32,7 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Kokua RLV 2.09.35.00 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel](#sendchannel) | Kokua RLV 2.09.35.00 | <code>@sendchannel[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchannel.test.ts](../packages/vitest/test/rlv-sendchannel.test.ts) |
 | [sendchannel](#sendchannel) | Kokua RLV 2.09.35.00 | <code>@sendchannel_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchannel.test.ts](../packages/vitest/test/rlv-sendchannel.test.ts) |
 | [sendchannel](#sendchannel) | Kokua RLV 2.09.35.00 | <code>@permissive=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchannel.test.ts](../packages/vitest/test/rlv-sendchannel.test.ts) |
@@ -254,13 +255,13 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 ### sendchannel_except
 
-Forms: <code>@sendchannel_except[:&lt;channel&gt;]=n&#124;add&#124;y&#124;rem</code>.
+Forms: <code>@sendchannel_except[:&lt;channel&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@sendchannel_except_sec[:&lt;channel&gt;]=n&#124;add&#124;y&#124;rem</code>.
 
-Comparison: confirmed difference. This is a channel exclusion list, independent of sendchannel grants. Kokua directly denies each literal outgoing channel listed; RLVa requires the no-option switch and accepts positive numeric option prefixes. Channel zero bypasses this family.
+Comparison: confirmed difference. This is a channel exclusion list, independent of sendchannel grants. Kokua directly denies each literal outgoing channel listed; RLVa requires the no-option switch and accepts positive numeric option prefixes. Its secure form requires each secure issuer to list the channel; permissive=n extends this to every activating issuer. Kokua has no secure form. Channel zero bypasses this family.
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. A sendchannel_except:<channel> rule denies that literal decimal channel regardless of sendchannel exceptions or issuer. The no-option rule has no action effect. Public chat and automatic replies are unaffected.
+Support depth: enforced. A sendchannel_except:<channel> rule denies that literal decimal channel regardless of sendchannel exceptions or issuer. The no-option rule has no action effect. The secure form is unsupported. Public chat and automatic replies are unaffected.
 
 - Literal signed integer channel exclusions
 - No-option inert rule, add/remove and clear
@@ -270,13 +271,14 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. A no-option sendchannel_except restriction activates the exclusion list. Listed positive numeric channels are denied independently of sendchannel grants and issuer. Removing the last no-option switch deactivates the list. Public chat and automatic replies are unaffected.
+Support depth: enforced. A no-option sendchannel_except restriction activates the exclusion list. Listed positive numeric channels are denied independently of sendchannel grants and issuer. Removing the last no-option switch deactivates the list. The secure form requires a channel entry from each secure issuer; permissive=n requires one from every activating issuer. Public chat and automatic replies are unaffected.
 
 - Positive signed 32-bit decimal-prefix channel exclusions
 - No-option activation switch, add/remove and clear
+- Secure alias and permissive issuer scope
 - Channel exclusions override ordinary and secure sendchannel grants
 
-Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourSendChannelHandler::onCommand</code>, <code>RlvActions::canSendChannel</code>.
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourSendChannelHandler::onCommand</code>, <code>RlvHandler::isException</code>, <code>RlvHandler::isPermissive</code>, <code>RlvActions::canSendChannel</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts).
 

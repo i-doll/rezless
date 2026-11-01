@@ -680,7 +680,10 @@ restriction extensions are outside this action fixture.
 `sendchannel` exceptions. Kokua checks literal decimal channel text directly.
 RLVa accepts positive numeric prefixes and activates its exclusion list only
 while a no-option `sendchannel_except=n` rule exists. The switch and list entries
-may come from different issuers. Public chat and automatic replies are unaffected.
+may come from different issuers. RLVa also supports `sendchannel_except_sec`: every
+secure issuer must list the channel before it is denied. With `permissive=n`,
+every activating issuer must list it. Kokua leaves the secure form unsupported.
+Public chat and automatic replies are unaffected.
 
 Successful action records include `deliveredMessage`; `message` retains the
 original attempt. Rewritten actions have reason `sendchat` and status `sent`.

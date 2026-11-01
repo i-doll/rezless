@@ -133,7 +133,8 @@ export class RlvRestrictions {
   /** Restrict exception scope for this family only; other families stay state-only. */
   private chatSupport(behaviour: string, option: string): RlvRestriction['support'] | undefined {
     if (behaviour === 'sendchat') return !option ? 'enforced' : 'unsupported'
-    if (behaviour === 'sendchannel_except') {
+    if (behaviour === 'sendchannel_except' || behaviour === 'sendchannel_except_sec') {
+      if (behaviour === 'sendchannel_except_sec' && this.profile !== 'rlva') return 'unsupported'
       if (this.profile === 'rlv') return !option || /^-?(0|[1-9][0-9]*)$/.test(option) && channelOption(option) !== undefined ? 'enforced' : 'unsupported'
       return !option || (channelOption(option) ?? 0) > 0 ? 'enforced' : 'unsupported'
     }
@@ -149,14 +150,19 @@ export class RlvRestrictions {
   channelDenials(channel: number): readonly RlvRestriction[] {
     if (this.profile === 'disabled' || channel === 0) return Object.freeze([])
     const rules = this.snapshot()
-    const excluded = rules.filter(rule => rule.behaviour === 'sendchannel_except')
+    const excluded = rules.filter(rule => rule.behaviour === 'sendchannel_except' ||
+      this.profile === 'rlva' && rule.behaviour === 'sendchannel_except_sec')
     const exclusions = excluded.filter(rule => rule.option && (this.profile === 'rlva'
       ? channelOption(rule.option) === channel : rule.option === String(channel)))
-    // RLVa activates the exclusion list with its no-option restriction. Kokua
-    // tests each literal channel rule directly, independently of that switch.
-    if (exclusions.length && (this.profile === 'rlv' || excluded.some(rule => !rule.option))) {
-      return Object.freeze(exclusions)
-    }
+    const switches = excluded.filter(rule => !rule.option)
+    const strictSwitches = switches.filter(rule => rule.behaviour === 'sendchannel_except_sec' ||
+      rules.some(entry => entry.behaviour === 'permissive' && !entry.option))
+    // Secure exclusions require each secure issuer to list the channel; under
+    // permissive=n every activating issuer must list it.
+    const isExcluded = this.profile === 'rlv' ? exclusions.length > 0 : switches.length > 0 &&
+      (strictSwitches.length ? strictSwitches.every(rule => exclusions.some(entry => entry.sourcePrim === rule.sourcePrim))
+        : exclusions.length > 0)
+    if (isExcluded) return Object.freeze(exclusions)
     const family = rules.filter(rule => rule.behaviour === 'sendchannel' || rule.behaviour === 'sendchannel_sec')
     const blocks = family.filter(rule => !rule.option)
     const exceptions = family.filter(rule => rule.option && (this.profile === 'rlva'
