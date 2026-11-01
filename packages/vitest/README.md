@@ -2051,3 +2051,31 @@ policy or manual response accepts that offer. A blocked offer still leaves the
 request accepted. Host `unsit`, `tplure`, map and landmark locks do not block requests.
 Maturity, mute, busy and friend preferences, outgoing message filtering and
 simulator landing adjustments are outside this fixture.
+
+### RLV/RLVa debug settings
+
+`viewer.debugSettings` configures initial effective `avatarSex`,
+`renderResolutionDivisor`, `aspectRatio`, `windLightUseAtmosShaders`, and Kokua
+`noSetEnv`. Values are stored per avatar in `avatar.viewer.debugSettings`.
+AvatarSex defaults to 0, the resolution divisor to 1, atmospheric shaders to
+true, and the fixture viewport ratio to 16/9. Permission queries read
+`inventory.forbidGiveToRlv` and, for RLVa, `viewer.rlvaNoSetEnv`.
+
+Both profiles implement `setdebug=n|add|y|rem`. A lock prevents another issuer's
+`setdebug_*:<value>=force` commands; its own forces remain allowed. Removing or
+clearing a lock leaves the current values in place. Kokua enables atmospheric
+shaders when adding the lock unless `noSetEnv` is true.
+
+Both profiles allow writes to `AvatarSex` and `RenderResolutionDivisor` and
+queries for those settings, `RestrainedLoveForbidGiveToRLV`,
+`RestrainedLoveNoSetEnv`, and `WindLightUseAtmosShaders`. Names are case
+insensitive. Query options are ignored. Unknown queries return an empty reply;
+unknown and read-only writes leave values unchanged. Kokua converts writable
+values with an integer prefix and stores unsigned values. RLVa validates its
+unsigned resolution divisor and leaves it unchanged on invalid input. RLVa's
+AvatarSex accepts boolean text and returns the accepted text, including spaces.
+It changes the query fixture without changing the avatar's body.
+
+RLVa also answers read-only `getdebug_aspectratio` with three decimal places;
+Kokua returns an empty reply for that setting. Settings persistence and renderer
+changes are outside this fixture.

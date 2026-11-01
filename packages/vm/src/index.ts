@@ -134,3 +134,5 @@ export type { TeleportOffer, TeleportOfferDecision, AvatarTeleportRequest } from
 
 export { avatarMovementLog, getAvatarMovementState } from './rlv/movement.js'
 export type { AvatarMovement, AvatarMovementAction, AvatarMovementState } from './rlv/movement.js'
+
+export type { RlvDebugSettingsConfig } from './rlv/debug.js'
