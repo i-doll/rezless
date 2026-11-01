@@ -102,13 +102,13 @@ it('identifies the reference versions and exposes unsupported command forms hone
   expect(RLV_MANIFEST.schemaVersion).toBe(3)
   expect(RLV_MANIFEST.wiki).toEqual({ url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' })
   expect(RLV_MANIFEST.commands.map(entry => entry.id)).toEqual([
-    'version', 'channel-policy', 'add-remove-clear', 'sendchat', 'received-chat', 'sendchannel_except', 'sendchannel', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'getattachnames', 'detach', 'seating', 'teleport', 'camera-fov', 'camera-distance', 'camera-distance-query', 'camera-zoom-query', 'camera-origin', 'camera-silhouette', 'viewer-ui', 'viewer-render', 'discovery', 'notifications', 'blacklist', 'viewer-session',
+    'version', 'channel-policy', 'add-remove-clear', 'sendchat', 'chat-volume', 'received-chat', 'sendchannel_except', 'sendchannel', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'getattachnames', 'detach', 'seating', 'teleport', 'camera-fov', 'camera-distance', 'camera-distance-query', 'camera-zoom-query', 'camera-origin', 'camera-silhouette', 'viewer-ui', 'viewer-render', 'discovery', 'notifications', 'blacklist', 'viewer-session',
   ])
   for (const entry of RLV_MANIFEST.commands) {
     expect(entry.forms.length).toBeGreaterThan(0)
     expect(entry.tests).toContain('packages/vitest/test/rlv-profiles.test.ts')
     for (const profile of ['rlv', 'rlva'] as const) {
-      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchat', 'received-chat', 'sendchannel_except', 'sendchannel', 'notifications', 'viewer-session', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'detach', 'seating', 'teleport', 'camera-fov', 'camera-distance', 'viewer-ui', 'viewer-render'].includes(entry.id) || ['getattachnames', 'discovery', 'camera-origin', 'camera-distance-query'].includes(entry.id) && profile === 'rlva' || ['blacklist', 'camera-zoom-query'].includes(entry.id) && profile === 'rlv') ? 'enforced' : (entry.id === 'add-remove-clear' || entry.id === 'camera-silhouette' && profile === 'rlva') ? 'state-only' : 'unsupported')
+      expect(entry.profiles[profile].support).toBe((['version', 'channel-policy', 'sendchat', 'chat-volume', 'received-chat', 'sendchannel_except', 'sendchannel', 'notifications', 'viewer-session', 'status', 'getinv', 'inventory-offers', 'getoutfit', 'getinvworn', 'findfolder', 'getpath', 'forcewear', 'forceremove', 'getattach', 'detach', 'seating', 'teleport', 'camera-fov', 'camera-distance', 'viewer-ui', 'viewer-render'].includes(entry.id) || ['getattachnames', 'discovery', 'camera-origin', 'camera-distance-query'].includes(entry.id) && profile === 'rlva' || ['blacklist', 'camera-zoom-query'].includes(entry.id) && profile === 'rlv') ? 'enforced' : (entry.id === 'add-remove-clear' || entry.id === 'camera-silhouette' && profile === 'rlva') ? 'state-only' : 'unsupported')
       const evidence = entry.profiles[profile].evidence
       const reference = RLV_PROFILES[profile]
       expect(evidence).toEqual({
@@ -116,7 +116,7 @@ it('identifies the reference versions and exposes unsupported command forms hone
         file: expect.stringMatching(/^indra\/newview\/\w+\.(cpp|h)$/),
         symbols: expect.arrayContaining([expect.any(String)]),
       })
-      if (profile === 'rlv') expect(evidence.file).toBe(entry.id === 'inventory-offers' ? 'indra/newview/llinventorymodel.cpp' : 'indra/newview/RRInterface.cpp')
+      if (profile === 'rlv') expect(evidence.file).toBe(entry.id === 'chat-volume' ? 'indra/newview/llchatbar.cpp' : entry.id === 'inventory-offers' ? 'indra/newview/llinventorymodel.cpp' : 'indra/newview/RRInterface.cpp')
     }
   }
 })
