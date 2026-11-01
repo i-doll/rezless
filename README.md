@@ -678,6 +678,11 @@ and is inert in RLVa. Simulator detach remains separate, and forced reattachment
 recovery is excluded. `tploc` constrains forced location travel; `tplm` remains state-only. `emote` extends safe emotes; `redirchat` and `rediremote` route avatar chat to allowed option channels with profile-specific filtering and volume. Public `sendchat` filtering rewrites speech and emotes per profile and blocks DEBUG_CHANNEL. `sendchannel_except` denies listed private channels; RLVa requires its no-option activation switch. Avatar chat supports whisper, say and shout with matching script and avatar hearing ranges. Public `chatshout`, `chatwhisper` and `chatnormal` transform volume per profile and retain requested and delivered volumes. Explicit avatar chat actions enforce `sendchannel`,
 its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
 Denied attempts are logged; simulator chat builtins stay independent.
+`World.attemptAvatarIM` records sender IM actions, enforcing `sendim`, `sendimto`,
+`startim` and `startimto` with UUID exceptions and secure issuer scope. Start locks
+block new conversations; send locks deliver the default blocked notice. Existing
+and incoming conversations permit replies under start locks. Firestorm also
+supports secure targeted aliases. Recipient receive restrictions still apply.
 Frozen `receivedIMLog` snapshots expose delivered object IMs and avatar IMs.
 `World.sendAvatarIM` applies `recvim`, `recvimfrom`, UUID exceptions and secure
 issuer scope to online avatar IMs; `llInstantMessage` object deliveries bypass

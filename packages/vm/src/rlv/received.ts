@@ -1,3 +1,4 @@
+import { openAvatarIMSession } from './im-actions.js'
 import type { AvatarChatVolume } from './chat-actions.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
@@ -160,6 +161,7 @@ export function receivedIMSupport(profile: ViewerProfile, behaviour: string, opt
 }
 
 function receiveIM(avatar: WorldAvatar, speaker: ReceivedChatSpeaker, text: string): void {
+  if (speaker.source === 'avatar') openAvatarIMSession(avatar, speaker.key)
   if (speaker.source === 'avatar' && avatar.viewer.profile !== 'disabled' && denied(avatar, 'recvim', speaker)) {
     text = avatar.viewer.profile === 'rlv' ? '...' : '*** IM blocked by your viewer'
   }

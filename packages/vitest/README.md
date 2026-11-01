@@ -1601,3 +1601,34 @@ inspectably unsupported. Add/remove aliases and clear affect later deliveries.
 Distance options, group IMs, offline messages, privileged senders, automatic
 replies, custom viewer strings, name/location censoring and mute settings are
 outside this delivery contract.
+
+
+### Sending avatar IMs
+
+`fixture.sendIM(recipientKey, text)` and
+`world.attemptAvatarIM(sender, recipientKey, text)` apply sender restrictions.
+`fixture.imActions` and `avatarIMLog(sender)` expose frozen action snapshots with
+`recipient`, original `message`, `status` (`sent`, `blocked`, or `unsupported`),
+`reason`, deciding `restrictions`, and `deliveredMessage` when text was delivered.
+The recipient must be another avatar in the World. Invalid, unknown, self and
+null recipients report unsupported. The lower-level `world.sendAvatarIM` remains
+a delivery method independent of sender restrictions.
+
+`sendim` and `startim` accept recipient UUID exceptions. Ordinary exceptions may
+come from any issuer; global `_sec` locks and `permissive=n` require each
+restricting issuer's own exception. `sendimto:<uuid>` and `startimto:<uuid>` deny
+the recipient independently of global grants. Firestorm RLVa 2.4.2 also supports
+`sendimto_sec` and `startimto_sec`: each secure issuer must list the recipient;
+`permissive=n` extends this to all targeted issuers. Kokua RLV 2.09.35.00 leaves
+these targeted secure aliases inspectably unsupported.
+
+Start restrictions block new conversations without delivery. Outgoing and incoming
+avatar IMs open a conversation; later sends in that conversation bypass start
+restrictions. Send restrictions still apply and replace text with
+`*** IM blocked by sender's viewer` in both profiles. Such actions report `blocked`
+and retain the replacement in `deliveredMessage`. Delivered text then passes
+through the recipient's `recvim` rules and lands in its received-IM record.
+Add/remove aliases and clear affect subsequent attempts without changing snapshots.
+Distance options, group/offline IMs, closing sessions, long-message
+truncation/splitting, automatic replies and custom viewer strings are outside
+this action contract.
