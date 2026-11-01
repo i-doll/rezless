@@ -709,7 +709,7 @@ permissions and alternate auto-attach settings are outside this contract.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
-The seating rules are enforced by explicit user actions. Attachment locks enforce explicit viewer detach and attach attempts. Named `detach` locks block removal in both profiles and adding in RLVa; `addattach` and `remattach` lock adding and removal globally or by point. Bare, point and root-UUID force detach honor every issuer lock. Root self-detach
+The seating rules are enforced by explicit user actions. Attachment locks enforce explicit viewer detach and attach attempts. Named `detach` locks block removal in both profiles and adding in RLVa; `addattach` and `remattach` lock adding and removal globally or by point. Bare, point and root-UUID force detach honor every issuer lock. Kokua resolves child UUIDs to the root; RLVa accepts them as no-ops. RLVa also removes point groups (`head`, `torso`, `arms`, `legs`, `hud`) when no shared folder matches; Kokua treats those names as folder paths. RLVa `hud` selects viewer group 8 and excludes screen HUD points. Root self-detach
 respects every issuer lock; child self-detach resolves the attachment in Kokua
 and is inert in RLVa. Simulator detach remains separate. Locked inventory attachments recover at their
 original point: Kokua delays and replaces occupants; RLVa adds after inventory

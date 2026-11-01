@@ -3,7 +3,7 @@ import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { RlvProfile } from './profiles.js'
-import { getRlvAttachmentPoint, isRlvAttachmentBridge, getRlvSavedPoint, rlvForceDetachBlock } from './attachments.js'
+import { getRlvAttachmentPoint, getRlvAttachmentGroup, RLV_ATTACHMENT_POINTS, isRlvAttachmentBridge, getRlvSavedPoint, rlvForceDetachBlock } from './attachments.js'
 import { isRlvBodypart, isRlvStrippable, isRlvInventoryWearLocked } from './outfit.js'
 import { isRlvDetachLocked as locked, isRlvPointLocked } from './detach.js'
 import { kokuaPoint, collectRlvWearItems, getRlvInventoryFolder, resolveRlvThisFolders, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
@@ -282,14 +282,14 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
   if (thisForm && selectedFolders === undefined) { record(profile === 'rlva' ? 'failed-option' : 'no-op'); return true }
   const point = getRlvAttachmentPoint(option)
   const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(option)
-  // Named points and UUIDs take precedence over shared folder paths.
-  if (!thisForm && folderRemoval && parsed.behaviour !== 'remoutfit' && !recursive && (!option || point !== undefined || uuid)) {
+  // Shared folders take precedence over group names, but not points or UUIDs.
+  const group = profile === 'rlva' && folderId === undefined ? getRlvAttachmentGroup(option) : undefined
+  if (!thisForm && folderRemoval && parsed.behaviour !== 'remoutfit' && !recursive && (!option || point !== undefined || uuid || group)) {
     const objects = issuer.peers.filter(object => !object.dead && object.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
       (!uuid || profile === 'rlv' || object.owner.toLowerCase() === avatar.key.toLowerCase()) &&
-      (!option || (uuid ? object.prims.some(p => p.key.toLowerCase() === option) : object.attachment.point === point)))
-    if (profile === 'rlva' && uuid && objects.some(object => object.prims[0]!.key.toLowerCase() !== option)) {
-      record('unsupported-form'); return true
-    }
+      (!option || (uuid ? (profile === 'rlva' ? object.prims.slice(0, 1) : object.prims).some(p => p.key.toLowerCase() === option)
+        : group ? RLV_ATTACHMENT_POINTS.some(point => point.id === object.attachment!.point && group.includes(point.group))
+        : object.attachment.point === point)))
     const decisions = objects.map(object => ({ object, reason: rlvForceDetachBlock(avatar, object),
       itemId: inventory.attachmentItem(object.prims[0]!.key)?.id ?? object.prims[0]!.key }))
     record('no-op')
@@ -305,10 +305,6 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
       record(removed ? blocked ? 'partial' : 'allowed' : blocked ? 'blocked' : 'no-op', results)
     })
     return true
-  }
-  if (!thisForm && folderRemoval && profile === 'rlva' && folderId === undefined &&
-    ['head', 'torso', 'arms', 'legs', 'hud'].includes(option)) {
-    record('unsupported-form'); return true
   }
   if (!thisForm && (folderRemoval && (folderId === undefined || folderId === inventory.sharedRootId || profile === 'rlva' &&
       (layer || (recursive || parsed.behaviour === 'remoutfit') && (point !== undefined || uuid))) ||
