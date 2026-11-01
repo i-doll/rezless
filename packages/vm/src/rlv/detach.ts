@@ -2,6 +2,7 @@ import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
+import { isRlvInventoryWearLocked } from './outfit.js'
 import { getRlvAttachmentPoint } from './attachments.js'
 import type { ViewerProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
@@ -45,7 +46,11 @@ export function attemptViewerAttach(avatar: WorldAvatar, linkset: Linkset, point
     linkset.region !== avatar.region || linkset.owner.toLowerCase() !== avatar.key.toLowerCase() ||
     !Number.isInteger(point) || point < 1 || point > 55) return 'no-op'
   const occupants = linkset.peers.filter(peer => wornBy(avatar, peer) && peer.attachment?.point === point)
-  if (isRlvPointLocked(avatar, point, 'add') || replace && occupants.some(peer => isRlvDetachLocked(avatar, peer))) return 'blocked'
+  const inventory = avatar.viewer.inventory
+  if (isRlvPointLocked(avatar, point, 'add') ||
+    isRlvInventoryWearLocked(avatar, inventory.attachmentItem(linkset.prims[0]!.key), true) ||
+    replace && occupants.some(peer => isRlvDetachLocked(avatar, peer) ||
+      isRlvInventoryWearLocked(avatar, inventory.attachmentItem(peer.prims[0]!.key), false))) return 'blocked'
   if (replace) for (const peer of occupants) peer.detachFromAvatar()
   linkset.attachToAvatar(avatar.key, point)
   return 'allowed'
@@ -54,7 +59,8 @@ export function attemptViewerAttach(avatar: WorldAvatar, linkset: Linkset, point
 /** A viewer action; attach events are delivered when the fixture clock drains. */
 export function attemptViewerDetach(avatar: WorldAvatar, linkset: Linkset): RlvDetachOutcome {
   if (!wornBy(avatar, linkset)) return 'no-op'
-  if (isRlvDetachLocked(avatar, linkset)) return 'blocked'
+  if (isRlvDetachLocked(avatar, linkset) ||
+    isRlvInventoryWearLocked(avatar, avatar.viewer.inventory.attachmentItem(linkset.prims[0]!.key), false)) return 'blocked'
   linkset.detachFromAvatar()
   return 'allowed'
 }

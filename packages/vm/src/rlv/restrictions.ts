@@ -12,7 +12,7 @@ import type { WorldAvatar } from '../world.js'
 import type { RlvSession } from './session.js'
 import { rlvIntegerPrefix as channelOption, type RlvCommandOutcome, type RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
-import { outfitSupport } from './outfit.js'
+import { outfitSupport, sharedWearSupport } from './outfit.js'
 import { cameraSupport, cameraDistanceSupport } from './camera.js'
 import { renderSupport, viewStateSupport } from './viewstate.js'
 
@@ -106,7 +106,7 @@ export class RlvRestrictions {
 
   /** How deeply an add/remove form is emulated; dispatch and rule storage share this decision. */
   support(behaviour: string, option: string): RlvRestriction['support'] {
-    return this.notifySupport(behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
+    return this.notifySupport(behaviour, option) ?? sharedWearSupport(this.profile, behaviour, option) ?? attachmentLockSupport(this.profile, behaviour, option) ?? (this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
         teleportSupport(this.profile, behaviour, option) ?? touchSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ??
         viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? chatRedirectSupport(this.profile, behaviour, option) ?? chatVolumeSupport(behaviour, option) ?? gestureSupport(behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ?? receivedIMSupport(this.profile, behaviour, option) ?? avatarIMSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
