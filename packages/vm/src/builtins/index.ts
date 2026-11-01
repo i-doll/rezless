@@ -1,8 +1,9 @@
+import { llApplyImpulse, llApplyRotationalImpulse, llSetForce, llSetTorque, llSetForceAndTorque, llSetVelocity, llSetAngularVelocity, llPushObject, llGetForce, llGetTorque, llGetVel, llGetAccel, llGetOmega, llGetMass, llGetMassMKS, llGetCenterOfMass, llGetEnergy } from './physics.js'
 import { llSitOnLink, llUnSit, llSetAgentRot, llTeleportAgent, llTeleportAgentGlobalCoords, llTeleportAgentHome, llAvatarOnSitTarget, llAvatarOnLinkSitTarget } from './sit.js'
 import { llGetGameControlMode, llGetGameControlModeAxes, llGetGameControlModeButtons } from './game-control.js'
 import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
 import { llSetKeyframedMotion, llSetRegionPos, llMoveToTarget, llStopMoveToTarget, llLookAt, llRotLookAt, llStopLookAt } from './motion.js'
-import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
+import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject } from './rez.js'
 import { llCastRay } from './raycast.js'
 import { llRemoteLoadScriptPin } from './remote-load.js'
 import { llSetParcelMusicURL, llAddToLandBanList, llAddToLandPassList, llRemoveFromLandBanList, llRemoveFromLandPassList, llResetLandBanList, llResetLandPassList, llEjectFromLand, llReturnObjectsByID, llReturnObjectsByOwner, llSetParcelForSale, llManageEstateAccess, llParcelMediaCommandList, llParcelMediaQuery, llGiveMoney, llTransferLindenDollars, llTransferOwnership } from './land.js'
@@ -431,7 +432,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llTarget, llTargetRemove, llRotTarget, llRotTargetRemove,
   llCollisionFilter, llCollisionSound, llVolumeDetect, llSetRemoteScriptAccessPin,
   llSensor, llSensorRepeat, llSensorRemove,
-  llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce,
+  llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject,
+  llApplyImpulse, llApplyRotationalImpulse, llSetForce, llSetTorque, llSetForceAndTorque, llSetVelocity, llSetAngularVelocity, llPushObject, llGetForce, llGetTorque, llGetVel, llGetAccel, llGetOmega, llGetMass, llGetMassMKS, llGetCenterOfMass, llGetEnergy,
   llDamage,
   llAdjustDamage,
   llGetHealth,

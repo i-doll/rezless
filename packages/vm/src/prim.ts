@@ -1,3 +1,4 @@
+import type { PhysicsState } from './builtins/physics.js'
 import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
@@ -86,6 +87,12 @@ export class Prim {
    * PRIM_PHYSICS / PRIM_PHANTOM bits in one place.
    */
   statusFlags = 0
+  /** Physics calls are captured per caller; the root holds test-controlled reads. */
+  readonly physics: PhysicsState = {
+    requests: [], force: null, torque: { x: 0, y: 0, z: 0 }, velocity: null,
+    acceleration: { x: 0, y: 0, z: 0 }, omega: { x: 0, y: 0, z: 0 },
+    mass: 1.25, massMKS: 125, centerOfMass: null, energy: 1,
+  }
   /** Keyframed playback is shared by every script in the object. */
   keyframedMotion: KeyframedMotion | null = null
   /** Plain target requests; clock callbacks are private and never enter inventory snapshots. */
