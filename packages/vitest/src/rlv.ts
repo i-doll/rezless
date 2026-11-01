@@ -4,6 +4,10 @@ import { loadLinkset } from './loadLinkset.js'
 /** Attempt a user lens change in radians, returning the enforced FOV. */
 export { changeRlvFov } from '@rezless/vm'
 
+/** Accept or decline a captured folder offer for its original recipient. */
+export { respondRlvInventoryOffer } from '@rezless/vm'
+export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from '@rezless/vm'
+
 export interface RlvFixture {
   readonly world: World
   readonly avatar: WorldAvatar
