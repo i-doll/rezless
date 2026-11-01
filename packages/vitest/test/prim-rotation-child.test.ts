@@ -141,3 +141,32 @@ for (const param of ['PRIM_ROTATION', 'PRIM_ROT_LOCAL']) it(`reads avatar rotati
   expectRotation(scripts.probe!.global('global'), z90)
   expectRotation(scripts.probe!.global('local'), x90)
 })
+
+// In-world: attached X90 child under Z90 avatar -> <.5,.5,.5,.5> with either
+// Z90 or Y90 root; global reads ignore the attachment root rotation
+// (Aditi, SLua Tideland, Firestorm 7.3.0.83011, 2026-11-01).
+it('uses wearer rotation for an attachment child regardless of the root pose', async () => {
+  const world = new World()
+  const owner = '11111111-1111-1111-1111-111111111111'
+  world.addRegion('home', { x: 0, y: 0 })
+  world.addAvatar({ region: 'home', key: owner, username: 'tester', rotation: z90 })
+  const { scripts, linkset } = await loadLinkset({ world, region: 'home', owner, prims: [
+    {},
+    { scripts: [{ name: 'probe', source: { source: `list out; rotation first; rotation second;
+      default { state_entry() {
+        llSetLocalRot(llEuler2Rot(<PI_BY_TWO,0,0>));
+        llSetLinkPrimitiveParamsFast(1,[PRIM_ROT_LOCAL,llEuler2Rot(<0,0,PI_BY_TWO>)]);
+        first=llGetRot();
+        llSetLinkPrimitiveParamsFast(1,[PRIM_ROT_LOCAL,llEuler2Rot(<0,PI_BY_TWO,0>)]);
+        second=llGetRot();
+        out=llGetLinkPrimitiveParams(2,[PRIM_ROTATION,PRIM_ROT_LOCAL]);
+      } }` } }] },
+  ] })
+  linkset.attachToAvatar(owner, 1)
+  scripts.probe!.start()
+  expectRotation(scripts.probe!.global('first'), { x: .5, y: .5, z: .5, s: .5 })
+  expectRotation(scripts.probe!.global('second'), { x: .5, y: .5, z: .5, s: .5 })
+  const out = scripts.probe!.global('out') as unknown[]
+  expectRotation(out[0], { x: .5, y: .5, z: .5, s: .5 })
+  expectRotation(out[1], x90)
+})
