@@ -1983,6 +1983,32 @@ changing previous inventory snapshots. Inventory links, recently received-item
 exemptions, startup appearance recovery and forced inventory actions are outside
 this user-action contract.
 
+### Forced location landing
+
+Force `tpto` applies the destination parcel's `tpRouting`: `0` blocks, `1`
+uses `landingPoint` if set, and `2` allows anywhere. The default is `1`;
+an absent or zero landing point leaves the requested location intact.
+`landingPoint` is region-local and `landingLookAt` supplies the arrival facing,
+overriding a command angle when routing uses that point. Anywhere routing ignores
+both landing fields. Parcel owners and the region's `estateManagers` list,
+which includes the estate owner, bypass parcel routing.
+
+Blocked destinations divert to the nearest available location within the region,
+using the effective policy of overlapping rectangular parcels. Land without a
+parcel fixture is available. Equal-distance destinations use increasing x then y
+order. A diverted destination can itself route to a landing point. With no
+available location, the command refuses without standing or moving attachments.
+Viewer restrictions still check the requested destination before routing.
+
+After routing, the region's bilinear `ground` grid sets a minimum height with
+0.975 m of settled clearance. This fixed clearance represents the fixture's
+settled avatar centre; it does not simulate avatar shapes or falling. Requested
+heights above that minimum remain intact. Command records retain the requested
+coordinates and the final result separately. Worn objects receive normal teleport
+and region events at the final destination. Telehubs, collision geometry and
+camera pose are outside this contract. Explicit map, landmark and offer actions
+keep their separate destination contracts.
+
 ### Avatar teleport offers
 
 `world.offerTeleport(sender, recipient, destination)` delivers an offer with resolved
