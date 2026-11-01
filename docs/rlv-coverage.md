@@ -125,6 +125,14 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attach[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
 | [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
 | [forcewear](#forcewear) | Firestorm RLVa 2.4.2 | <code>@attachoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts) |
+| [sharedwear](#sharedwear) | Kokua RLV 2.09.35.00 | <code>@sharedwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
+| [sharedwear](#sharedwear) | Firestorm RLVa 2.4.2 | <code>@sharedwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
+| [unsharedwear](#unsharedwear) | Kokua RLV 2.09.35.00 | <code>@unsharedwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
+| [unsharedwear](#unsharedwear) | Firestorm RLVa 2.4.2 | <code>@unsharedwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
+| [sharedunwear](#sharedunwear) | Kokua RLV 2.09.35.00 | <code>@sharedunwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
+| [sharedunwear](#sharedunwear) | Firestorm RLVa 2.4.2 | <code>@sharedunwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
+| [unsharedunwear](#unsharedunwear) | Kokua RLV 2.09.35.00 | <code>@unsharedunwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
+| [unsharedunwear](#unsharedunwear) | Firestorm RLVa 2.4.2 | <code>@unsharedunwear=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts) |
 | [forceremove](#forceremove) | Kokua RLV 2.09.35.00 | <code>@remoutfit[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Kokua RLV 2.09.35.00 | <code>@addoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Kokua RLV 2.09.35.00 | <code>@remoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
@@ -953,6 +961,118 @@ Support depth: enforced. Attach and attachoverorreplace replace; attachover and 
 Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvForceWear::forceFolder</code>, <code>RlvForceWear::addAttachment</code>, <code>RlvForceWear::updatePendingAttachments</code>, <code>RlvWearableItemCollector</code>, <code>RlvAttachPtLookup::getAttachPointIndex</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcewear.test.ts](../packages/vitest/test/rlv-forcewear.test.ts).
+
+### sharedwear
+
+Forms: <code>@sharedwear=n&#124;y&#124;add&#124;rem</code>.
+
+Comparison: confirmed difference. Shared and unshared locks apply to explicit user wear and removal of inventory clothing and mapped attachments. Both profiles include the shared root itself and hidden descendants. RLVa folds the containing folder and processes shared-folder grants in issuer insertion order; an earlier unshared lock exempts that issuer from a later shared lock. Kokua checks shared and unshared locks independently.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Shared root, descendants, hidden folders, missing shared root and multiple issuers
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::canWear</code>, <code>RRInterface::canUnwear</code>, <code>RRInterface::canAttachCategory</code>, <code>RRInterface::canDetachCategory</code>, <code>RRInterface::isUnderRlvShare</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Effective folded folders, shared root, hidden descendants, missing shared root and issuer grant precedence
+
+Reference symbols: <code>indra/newview/rlvlocks.cpp</code>: <code>RlvHandler::processAddRemCommand</code>, <code>RlvFolderLocks::isLockedFolder</code>, <code>RlvFolderLocks::getLockedItems</code>, <code>RlvFolderLocks::refreshLockedLookups</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts).
+
+### unsharedwear
+
+Forms: <code>@unsharedwear=n&#124;y&#124;add&#124;rem</code>.
+
+Comparison: confirmed difference. Shared and unshared locks apply to explicit user wear and removal of inventory clothing and mapped attachments. Both profiles include the shared root itself and hidden descendants. RLVa folds the containing folder and processes shared-folder grants in issuer insertion order; an earlier unshared lock exempts that issuer from a later shared lock. Kokua checks shared and unshared locks independently.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Shared root, descendants, hidden folders, missing shared root and multiple issuers
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::canWear</code>, <code>RRInterface::canUnwear</code>, <code>RRInterface::canAttachCategory</code>, <code>RRInterface::canDetachCategory</code>, <code>RRInterface::isUnderRlvShare</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Effective folded folders, shared root, hidden descendants, missing shared root and issuer grant precedence
+
+Reference symbols: <code>indra/newview/rlvlocks.cpp</code>: <code>RlvHandler::processAddRemCommand</code>, <code>RlvFolderLocks::isLockedFolder</code>, <code>RlvFolderLocks::getLockedItems</code>, <code>RlvFolderLocks::refreshLockedLookups</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts).
+
+### sharedunwear
+
+Forms: <code>@sharedunwear=n&#124;y&#124;add&#124;rem</code>.
+
+Comparison: confirmed difference. Shared and unshared locks apply to explicit user wear and removal of inventory clothing and mapped attachments. Both profiles include the shared root itself and hidden descendants. RLVa folds the containing folder and processes shared-folder grants in issuer insertion order; an earlier unshared lock exempts that issuer from a later shared lock. Kokua checks shared and unshared locks independently.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Shared root, descendants, hidden folders, missing shared root and multiple issuers
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::canWear</code>, <code>RRInterface::canUnwear</code>, <code>RRInterface::canAttachCategory</code>, <code>RRInterface::canDetachCategory</code>, <code>RRInterface::isUnderRlvShare</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Effective folded folders, shared root, hidden descendants, missing shared root and issuer grant precedence
+
+Reference symbols: <code>indra/newview/rlvlocks.cpp</code>: <code>RlvHandler::processAddRemCommand</code>, <code>RlvFolderLocks::isLockedFolder</code>, <code>RlvFolderLocks::getLockedItems</code>, <code>RlvFolderLocks::refreshLockedLookups</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts).
+
+### unsharedunwear
+
+Forms: <code>@unsharedunwear=n&#124;y&#124;add&#124;rem</code>.
+
+Comparison: confirmed difference. Shared and unshared locks apply to explicit user wear and removal of inventory clothing and mapped attachments. Both profiles include the shared root itself and hidden descendants. RLVa folds the containing folder and processes shared-folder grants in issuer insertion order; an earlier unshared lock exempts that issuer from a later shared lock. Kokua checks shared and unshared locks independently.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. No-option locks deny the matching user action on items whose containing folder is inside or outside the configured shared root. Classification includes the shared root and every descendant, independently of folder names. Missing shared roots make existing folders unshared. Unmapped attachments and items without a containing folder are unrestricted by this family. Shared and unshared locks are independent. Inventory links, newly received-item exemptions, startup cloud state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Shared root, descendants, hidden folders, missing shared root and multiple issuers
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::canWear</code>, <code>RRInterface::canUnwear</code>, <code>RRInterface::canAttachCategory</code>, <code>RRInterface::canDetachCategory</code>, <code>RRInterface::isUnderRlvShare</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. No-option locks deny the matching user action using the effective folded containing folder. Shared locks deny the shared subtree; unshared locks deny inventory with a shared-subtree grant. An earlier grant skips later denials from the same issuer; other issuers remain effective. The shared root and hidden descendants are included. Unmapped attachments and items without an effective containing folder are unrestricted by this family. Inventory links, startup state and forced inventory actions are outside this contract.
+
+- No-option add/remove aliases and clear
+- User clothing wear/removal and mapped attachment add/removal, including replacement refusal
+- Effective folded folders, shared root, hidden descendants, missing shared root and issuer grant precedence
+
+Reference symbols: <code>indra/newview/rlvlocks.cpp</code>: <code>RlvHandler::processAddRemCommand</code>, <code>RlvFolderLocks::isLockedFolder</code>, <code>RlvFolderLocks::getLockedItems</code>, <code>RlvFolderLocks::refreshLockedLookups</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sharedwear.test.ts](../packages/vitest/test/rlv-sharedwear.test.ts).
 
 ### forceremove
 
