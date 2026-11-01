@@ -2,6 +2,7 @@ import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommands } from './getcommand.js'
 import { dispatchDetachCommand } from './detach.js'
+import { dispatchCameraCommand, getRlvCameraReply } from './camera.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
 import { getRlvInventoryList } from './inventory.js'
@@ -45,10 +46,15 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     const parsed = fields ? classifyRlvCommand(fields) : undefined
     const malformed = !parsed || viewer.profile === 'rlva' && parsed.kind === 'unknown'
     const channel = parsed ? rlvIntegerPrefix(parsed.parameter) : undefined
+    if (!malformed && parsed && dispatchCameraCommand(avatar, prim, parsed, command)) continue
     // Kokua dispatches named version queries before testing parameter kinds.
     let text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
       channel !== undefined && isValidReplyChannel(viewer.profile, channel)
       ? versionReply(viewer.profile, parsed.behaviour, parsed.option) : undefined
+    if (!malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
+      channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
+      text ??= getRlvCameraReply(viewer, parsed.behaviour, parsed.option)
+    }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
       (parsed.behaviour === 'getstatus' || parsed.behaviour === 'getstatusall')) {
       text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
@@ -128,6 +134,8 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       continue
     }
     const reply = sendViewerReply(linkset, avatar, channel!, text)!
-    viewer.commandLog.push({ ...entry, status: 'replied', reply })
+    viewer.commandLog.push({ ...entry, status: 'replied', reply,
+      ...(viewer.profile === 'rlva' && parsed?.option && ['getcam_fov', 'getcam_fovmin', 'getcam_fovmax'].includes(parsed.behaviour)
+        ? { outcome: 'failed-option' as const } : {}) })
   }
 }

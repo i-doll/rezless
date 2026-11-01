@@ -885,6 +885,43 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 
 `examples/coverage/` has a runnable demo.
 
+### RLV/RLVa camera lens
+
+`setcam_fov:<radians>=force` changes the enabled avatar viewer's lens.
+`setcam_fovmin:<radians>=n|y` and `setcam_fovmax:<radians>=n|y` aggregate
+the strongest bounds across prims. `getcam_fov`, `getcam_fovmin` and
+`getcam_fovmax` use the normal profile reply-channel policy.
+
+```ts
+changeRlvFov(fixture.avatar, 0.8) // user attempt, clamped to active bounds
+expect(getRlvFov(fixture.avatar)).toBeCloseTo(0.8)
+```
+
+The lens is per avatar, defaults to pi/3 and uses viewport aspect 1.4242.
+Enabled viewer fixtures override the FOV supplied through `script.setCamera`;
+the other camera fields retain their existing fixture behavior.
+`llGetCameraFOV` reads the permission agent's lens only with
+`PERMISSION_TRACK_CAMERA`; viewer commands never grant that permission.
+
+| Case | Kokua RLV 2.09.35.00 | Firestorm RLVa 2.4.2 |
+| --- | --- | --- |
+| Query precision | Six decimals | Three decimals |
+| Unset limits | `0.000001` / `-0.000001` | Empty strings |
+| Empty force angle | Zero, clamped to physical minimum | Reset to pi/3 |
+| Empty limit angle | 1.5 radians | Rejected |
+| Invalid numeric text | Zero prefix conversion | Rejected; valid numeric prefixes accepted |
+| Contradictory bounds | Collapse to minimum FOV | Below minimum selects minimum; otherwise above maximum selects maximum |
+| Last limit removed | Keep current angle | Restore saved angle |
+| Query option | Ignored | Empty reply with failed-option outcome |
+
+Explicit `nan`/`inf` values follow each profile's float behavior. RLVa retains
+a NaN limit modifier after its wire restriction is removed; limit queries can
+therefore return `nan` with an empty restriction snapshot. Finite values added
+later can mask it. Query-visible modifiers and active restrictions are distinct.
+Keyboard and preference UI event delivery are outside scripted in-world probes;
+user lens attempts use the same lens setter as forces. Rendering, window resizing,
+camera exclusivity, position/distance modes and deprecated zoom aliases are unsupported.
+
 ## Examples
 
 `examples/` ships working scripts with tests:
