@@ -843,6 +843,10 @@ inventory fixture. Each entry has a stable `id`, `parentId` (or `null`), `name`
 and `kind` (`folder` or `item`). Entry order defines direct-child order. The
 shared root is explicit; `null` means absent even if a folder is named `#RLV`.
 The same configuration can be supplied as `viewer.inventory` to `world.addAvatar`.
+Re-seeding retains detached objects and their script state while their item IDs
+remain in the new entries. An explicit `wornAttachments` mapping can associate
+an existing detached object with an item by root key, or replace that item's
+previous root mapping. Removing an item also drops its remembered object.
 `avatar.viewer.inventory.snapshot()` returns frozen copies. Duplicate IDs,
 missing or non-folder parents, invalid shared roots and cycles are rejected
 without replacing the previous fixture. Ordinary inventory can be seeded
