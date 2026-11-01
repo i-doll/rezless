@@ -116,3 +116,6 @@ export type { RlvViewerContext, RlvViewerEffect, RlvRenderParameters } from './r
 
 export { receivedChatLog, receivedIMLog } from './rlv/received.js'
 export type { ReceivedChat, ReceivedChatSpeaker, ReceivedIM } from './rlv/received.js'
+
+export { attemptAvatarIM, avatarIMLog } from './rlv/im-actions.js'
+export type { AvatarIMAction } from './rlv/im-actions.js'

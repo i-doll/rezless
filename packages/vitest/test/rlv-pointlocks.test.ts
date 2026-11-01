@@ -253,3 +253,23 @@ it('checks the replacement definition point when a cached attachment is dead', a
   expect(f.world.linksets.filter(l => l.attachment).map(l => l.attachment!.point)).toEqual([6])
  }
 })
+
+// Firestorm RLVa 2.4.2: RlvForceRemAttachHandler::onCommand and
+// RlvForceWear::forceDetach enumerate current attached objects, not pending adds.
+// Kokua RLV 2.09.35.00: RRInterface::forceDetach uses the current attachment list.
+for (const option of ['', ':chest']) it(`selects current attachments before pending wear completion for detach${option}`, async () => {
+ for (const f of Object.values(await loadRlvPair({ source }))) {
+  f.script.start(); const definition = await loadLinkset({ prims: [{}] })
+  seedRlvInventory(f.avatar, { sharedRootId: 'root', entries: [
+   { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+   { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+   { id: 'item', parentId: 'folder', kind: 'item', name: 'Item (chest)', assetType: 'object', object: definition.linkset },
+  ] })
+  send(f, '@attachover:direct=force,detach' + option + '=force')
+  expect(f.world.linksets.filter(l => l.attachment).map(l => l.attachment!.point)).toEqual([1])
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'no-op', removeResults: [] })
+  send(f, '@detach' + option + '=force')
+  expect(f.world.linksets.filter(l => l.attachment)).toHaveLength(0)
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'allowed' })
+ }
+})

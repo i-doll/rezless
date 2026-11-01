@@ -66,6 +66,22 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [received-im](#received-im) | Firestorm RLVa 2.4.2 | <code>@recvim_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
 | [received-im](#received-im) | Firestorm RLVa 2.4.2 | <code>@recvimfrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
 | [received-im](#received-im) | Firestorm RLVa 2.4.2 | <code>@recvimfrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@sendim[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@sendim_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@sendimto[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@sendimto_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@startim[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@startim_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@startimto[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Kokua RLV 2.09.35.00 | <code>@startimto_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@sendim[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@sendim_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@sendimto[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@sendimto_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@startim[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@startim_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@startimto[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
+| [sent-im](#sent-im) | Firestorm RLVa 2.4.2 | <code>@startimto_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Kokua RLV 2.09.35.00 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
@@ -526,6 +542,36 @@ Reference symbols: <code>indra/newview/llimprocessing.cpp</code>: <code>LLIMProc
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts).
 
+### sent-im
+
+Forms: <code>@sendim[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@sendim_sec[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@sendimto:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@sendimto_sec:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@startim[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@startim_sec[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@startimto:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@startimto_sec:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Global sendim and startim accept recipient UUID exceptions. Secure global rules and permissive=n require issuer-scoped grants. Targeted sendimto and startimto independently deny recipients. Firestorm also supports secure targeted aliases; Kokua does not. Start locks prevent new conversations; send locks replace outgoing text with the default blocked notice, which still reaches recipient receive filtering.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. World.attemptAvatarIM and fixture.sendIM return frozen AvatarIMAction outcomes; avatarIMLog exposes immutable snapshots. Online one-to-one conversations open on outgoing or incoming avatar IMs. Start locks block opening a new conversation; existing conversations can continue. Send locks replace text with *** IM blocked by sender's viewer and report blocked with deliveredMessage. Recipient recvim filtering follows sender filtering. Ordinary exceptions may come from any issuer; secure global locks and permissive=n require each restricting issuer to grant an exception. Targeted UUID denials override grants. Secure targeted aliases, distance options, group/offline IMs, closing sessions, long-message truncation/splitting, automatic replies and configurable strings are outside this contract.
+
+- Global sendim/startim with UUID exceptions and secure issuer scope
+- Targeted sendimto/startimto UUID denials; add/remove aliases and clear
+- New and existing online one-to-one sessions; incoming conversations
+- Frozen action outcomes with deciding restrictions; recipient received-IM delivery
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::containsWithoutException</code>, <code>KokuaRLVExtras::cannotSendIM</code>, <code>LLFloaterIMSession::sendMsg</code>, <code>LLIMMgr::addSession</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. World.attemptAvatarIM and fixture.sendIM return frozen AvatarIMAction outcomes; avatarIMLog exposes immutable snapshots. Online one-to-one conversations open on outgoing or incoming avatar IMs. Start locks block opening a new conversation; existing conversations can continue. Send locks replace text with *** IM blocked by sender's viewer and report blocked with deliveredMessage. Recipient recvim filtering follows sender filtering. Ordinary exceptions may come from any issuer; secure global locks and permissive=n require each restricting issuer to grant an exception. Targeted UUID denials override grants. Secure targeted aliases require every secure issuer to list the recipient; permissive=n extends this check to every targeted issuer. Distance options, group/offline IMs, closing sessions, long-message truncation/splitting, automatic replies and configurable strings are outside this contract.
+
+- Global sendim/startim with UUID exceptions and secure issuer scope
+- Targeted sendimto/startimto UUID denials and secure aliases; add/remove aliases and clear
+- New and existing online one-to-one sessions; incoming conversations
+- Frozen action outcomes with deciding restrictions; recipient received-IM delivery
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canSendIM</code>, <code>RlvActions::canStartIM</code>, <code>RlvHandler::isException</code>, <code>FSFloaterIM::sendMsg</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendim.test.ts](../packages/vitest/test/rlv-sendim.test.ts).
+
 ### sendchannel_except
 
 Forms: <code>@sendchannel_except[:&lt;channel&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@sendchannel_except_sec[:&lt;channel&gt;]=n&#124;add&#124;y&#124;rem</code>.
@@ -893,7 +939,7 @@ Comparison: confirmed difference. Wiki describes attachment-local locks and orde
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named detach locks deny removal at the selected point; adding there remains allowed. Bare, point and object UUID force detach respect locks and nostrip protection. Child UUIDs resolve to the containing attachment. Forced reattachment recovery is unsupported. Direct shared-folder removal has a separate contract.
+Support depth: enforced. Root and child no-option detach locks deny viewer attempts on their attachment until the last relevant issuer removes its lock. detachme resolves the containing attachment, ignores options and respects all of its locks. Unlocked self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Named detach locks deny removal at the selected point; adding there remains allowed. Bare, point and object UUID force detach respect locks and nostrip protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUIDs resolve to the containing attachment. Forced reattachment recovery is unsupported. Direct shared-folder removal has a separate contract.
 
 - No-option and named point detach n/add and y/rem with per-prim locks
 - Bare and point force removal, root and child UUID selection with lock and nostrip checks; point locks deny removal only
@@ -905,7 +951,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named detach locks deny both adding and removing at the selected point. Bare, point and root UUID force detach respect locks, nostrip and bridge protection. Child UUID force removal, bridge exemption settings and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.
+Support depth: enforced. Root and child no-option detach locks deny viewer attempts on the containing attachment. Root detachme respects all its locks; unlocked root self-detach queues simulator completion and attach(NULL_KEY), surviving issuer script removal. Child detachme is a successful no-op, even unlocked; nonempty options fail. Named detach locks deny both adding and removing at the selected point. Bare, point and root UUID force detach respect locks, nostrip and bridge protection. Point and all-point target selection uses current attachments and excludes pending wear requests. Child UUID force removal, bridge exemption settings and forced reattachment recovery are unsupported. Direct shared-folder removal has a separate contract.
 
 - No-option and named point detach n/add and y/rem with root and child issuer locks
 - Bare, point and root UUID force removal with lock, nostrip and bridge checks; point locks deny add and remove
