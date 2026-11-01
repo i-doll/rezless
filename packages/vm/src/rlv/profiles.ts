@@ -53,7 +53,7 @@ export interface RlvReply {
 }
 
 export type RlvCommandRecord = {
-  readonly outcome?: 'failed-camera-lock' | import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | 'ignored-blacklist' | 'failed-disabled' | 'failed-unheld-behaviour' | 'failed-effect-limit' | import('./forcewear.js').RlvForceWearOutcome | import('./forcewear.js').RlvForceRemoveOutcome
+  readonly outcome?: 'failed-camera-lock' | 'failed-lock' | import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | 'ignored-blacklist' | 'failed-disabled' | 'failed-unheld-behaviour' | 'failed-effect-limit' | import('./forcewear.js').RlvForceWearOutcome | import('./forcewear.js').RlvForceRemoveOutcome
   readonly removeResults?: readonly import('./forcewear.js').RlvForceRemoveItemResult[]
   readonly wearResults?: readonly import('./forcewear.js').RlvForceWearItemResult[]
   readonly command: string
@@ -67,7 +67,7 @@ export type RlvCommandRecord = {
   /** Seat identity after the attempt, using the profile's getsitid policy. */
   readonly seat: string
   readonly reason?: 'restriction' | 'target-unavailable' | 'world-constraint'
-} | import('./teleport.js').RlvTeleportAction)
+} | { readonly status: 'action'; readonly action: 'fly' | 'adjustheight'; readonly actionOutcome: 'applied' | 'unchanged' | 'refused'; readonly reason?: 'restriction' | 'target-unavailable' | 'world-constraint' } | import('./teleport.js').RlvTeleportAction)
 
 /** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState {

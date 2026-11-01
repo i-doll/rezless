@@ -1,3 +1,4 @@
+import { avatarMovementLog, type AvatarMovement, type AvatarMovementAction } from '@rezless/vm'
 import { avatarEditLog, avatarRezLog, type AvatarEditAction, type AvatarRezAction } from '@rezless/vm'
 import { teleportRequestLog, type AvatarTeleportRequest, teleportOfferLog, type TeleportOffer, type TeleportOfferDecision } from '@rezless/vm'
 import { userTeleportLog, type UserTeleportAction } from '@rezless/vm'
@@ -18,6 +19,8 @@ export { respondRlvInventoryOffer } from '@rezless/vm'
 export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from '@rezless/vm'
 
 export interface RlvFixture {
+  readonly movementActions: readonly AvatarMovementAction[]
+  move(action: AvatarMovement): AvatarMovementAction
   readonly world: World
   readonly avatar: WorldAvatar
   readonly script: Script
@@ -61,6 +64,8 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
       prims: [{ name: 'RLV fixture', scripts: [{ name: 'fixture', source: { source: input.source } }] }] })
     avatar.viewer.session.bind(loaded.linkset, avatar)
     return { world, avatar, script: loaded.scripts['fixture']!,
+      get movementActions() { return avatarMovementLog(avatar) },
+      move: action => world.attemptAvatarMovement(avatar, action),
       attemptDetach: (attachment = loaded.linkset) => attemptViewerDetach(avatar, attachment),
       get teleportActions() { return avatar.viewer.commandLog.filter((entry): entry is RlvTeleportAction & RlvCommandRecord =>
         entry.status === 'action' && entry.action === 'tpto') },

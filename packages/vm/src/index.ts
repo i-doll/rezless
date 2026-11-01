@@ -131,3 +131,6 @@ export { attemptAvatarEdit, attemptAvatarRez, avatarEditLog, avatarRezLog } from
 export type { AvatarEditAction, AvatarRezAction } from './rlv/edit.js'
 export { teleportOfferLog, teleportRequestLog } from './rlv/tpoffers.js'
 export type { TeleportOffer, TeleportOfferDecision, AvatarTeleportRequest } from './rlv/tpoffers.js'
+
+export { avatarMovementLog, getAvatarMovementState } from './rlv/movement.js'
+export type { AvatarMovement, AvatarMovementAction, AvatarMovementState } from './rlv/movement.js'

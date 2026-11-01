@@ -1,3 +1,4 @@
+import { attemptAvatarMovement, type AvatarMovement, type AvatarMovementAction, type AvatarMovementState } from './rlv/movement.js'
 import { attemptAvatarEdit, attemptAvatarRez, type AvatarEditAction, type AvatarRezAction } from './rlv/edit.js'
 import { requestTeleport, respondTeleportRequest, type AvatarTeleportRequest, offerTeleport, respondTeleportOffer, type TeleportOffer, type TeleportOfferDecision } from './rlv/tpoffers.js'
 import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
@@ -70,6 +71,8 @@ export interface WorldAvatar extends WorldEntity {
   displayName: string
   size: Vector
   info: number
+  /** Lazily initialized viewer movement modes and hover configuration. */
+  movement?: AvatarMovementState
   language: string
   visualParams: Record<number, number>
   friends: Set<string>
@@ -384,6 +387,11 @@ export class World {
   /** Attempt an explicit user sit with viewer restrictions and no issuer exemption. */
   userSitAvatar(avatar: WorldAvatar, prim: Prim, offset: Vector = ZERO_VECTOR): boolean {
     return userSitAvatar(this, avatar, prim, offset)
+  }
+
+  /** Attempt a viewer movement input and record the deciding restrictions. */
+  attemptAvatarMovement(avatar: WorldAvatar, action: AvatarMovement): AvatarMovementAction {
+    return attemptAvatarMovement(this, avatar, action)
   }
 
   /** Attempt an explicit user stand. Simulator seating uses standAvatar directly. */
