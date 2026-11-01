@@ -1794,3 +1794,22 @@ actual parent folder. Remove aliases and clear affect subsequent actions without
 changing previous inventory snapshots. Inventory links, recently received-item
 exemptions, startup appearance recovery and forced inventory actions are outside
 this user-action contract.
+
+### Avatar teleport offers
+
+`world.offerTeleport(sender, recipient, destination)` delivers an offer with resolved
+global coordinates. `world.respondTeleportOffer(recipient, offer, 'accept' | 'decline')`
+consumes a pending offer once. `teleportOfferLog(avatar)` returns frozen receipt and
+response snapshots, including the sender, destination, outcome and deciding locks.
+Paired fixtures expose `receiveTeleportOffer`, `respondTeleportOffer` and `teleportOffers`.
+
+Both profiles check `tplure` and seated `unsit` before `accepttp` automatic acceptance.
+UUID options on `tplure` allow that sender; UUID options on `accepttp` auto-accept only
+that sender. `tplure_sec` and `permissive=n` require exceptions from each restricting
+issuer. Firestorm RLVa 2.4.2 also supports `accepttp_sec`; Kokua RLV 2.09.35.00 leaves
+it inspectably unsupported. Remove aliases and clear affect subsequent offers.
+Pending callbacks retain their receipt-time permission and do not recheck later locks.
+Map and landmark locks do not block offers. Accepted offers use normal avatar
+teleport movement and attachment events without granting script permissions.
+Maturity, mute, busy and friend preferences, administrator offers and simulator
+landing adjustments are outside this fixture.

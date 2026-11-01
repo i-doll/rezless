@@ -1,3 +1,4 @@
+import { offerTeleport, respondTeleportOffer, type TeleportOffer, type TeleportOfferDecision } from './rlv/tpoffers.js'
 import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
 import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } from './rlv/touch.js'
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
@@ -471,6 +472,16 @@ export class World {
   /** Case-insensitive viewer region lookup; unknown names remain unresolved. */
   regionNamed(name: string): Region | undefined {
     return [...this.regions.values()].find(region => region.name.toLowerCase() === name.toLowerCase())
+  }
+
+  /** Deliver a teleport offer with an explicit resolved global destination. */
+  offerTeleport(sender: WorldAvatar, recipient: WorldAvatar, destination: Vector): TeleportOffer {
+    return offerTeleport(this, sender, recipient, destination)
+  }
+
+  /** Accept or decline a pending offer for its original recipient. */
+  respondTeleportOffer(avatar: WorldAvatar, offer: TeleportOffer, decision: TeleportOfferDecision): TeleportOffer {
+    return respondTeleportOffer(this, avatar, offer, decision)
   }
 
   /** Attempt travel to a landmark's resolved global coordinates. */
