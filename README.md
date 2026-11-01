@@ -151,6 +151,7 @@ s.dataserverRequests                            // [{ key, source, args, fulfill
 s.permissionRequests                            // [{ agent, permissions, answered }]
 s.experience                                    // the Experience the script was given, or null
 s.experienceRequests                            // [{ agent, answered }] from llRequestExperiencePermissions
+s.teleportRequests                              // teleport attempts, including denials, with time and destination
 s.dialogs                                       // [{ kind, agent, message, buttons, channel, objectKey, answered }]
 s.controls                                      // llTakeControls arguments: { controls, accept, passOn } or null
 s.cameraParams                                  // ReadonlyMap of llSetCameraParams rule -> value
@@ -383,12 +384,41 @@ active avatar groups, prim groups from `world.sensorProperties`, World object
 groups, or a literal group UUID.
 
 These fixtures do not simulate name caches, child agents, historical usernames,
-lookup throttles, or movement and animation changes to info flags. Positive
+lookup throttles, or physics and animation changes to info flags beyond seating. Positive
 friendship, foreign-avatar groups, successful Resident-name lookup and
 multi-avatar parcel filtering follow the wiki and need another avatar for
 in-world validation. The single-avatar queries, name parsing, dataserver replies,
 visual parameters, group changes and standing/sitting/flying/type/away/busy flags
 were measured on Aditi in SLua Tideland on 2026-11-01.
+
+### Sitting and teleporting
+
+Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to simulate
+viewer seating. `avatar.sittingOn` identifies the occupied prim. Seating updates
+`AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
+`changed(CHANGED_LINK)` throughout the object. The sit-target readers return
+its sitter only while the target is enabled. `llSitOnLink` requires an allowed
+experience and an accepted avatar; `llUnSit` needs no runtime permission for a
+sitter on its own object. Land ownership also permits unsitting other sitters.
+
+`llSetAgentRot` requires animation permission and changes yaw. A rotation
+requested while sitting applies when standing. `llTeleportAgent` and
+`llTeleportAgentGlobalCoords` require teleport permission from the owner, or
+an accepted experience. They stand a sitter and move the avatar fixture.
+Read attempts, including denials, through `s.teleportRequests`; `accepted`
+means script checks passed, not confirmation from a remote simulator. Local
+look-at vectors denote positions; cross-region vectors denote directions.
+Map landmark asset UUIDs to `{ region, position }` in `world.landmarks`.
+`llTeleportAgentHome` requires parcel ownership under the script and sleeps
+five seconds. Supply `avatar.home` or the `addAvatar` option `home` to move to
+a virtual destination; without it an authorized home request is recorded only.
+
+The model does not simulate avatar skeleton offsets, occupied avatar links in
+prim counts, parcel access/routing, group land powers, teleport throttles,
+viewer smoothing, or network failures. Sitting does not choose animations.
+Successful forced seating needs an experience-enabled parcel for in-world
+validation. Foreign-avatar cases need a second avatar. Cross-region and real
+home success were not probed because i Doll must stay in SLua Tideland.
 
 ### Avatar animations
 
@@ -499,6 +529,8 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **experiences**: `llGetExperienceDetails`, `llGetExperienceErrorMessage`, `llAgentInExperience`, `llRequestExperiencePermissions` (an agent who already accepted is granted at once; answer others with `s.grantExperiencePermissions` / `s.denyExperiencePermissions`), and the key-value store: `llCreateKeyValue`, `llReadKeyValue`, `llUpdateKeyValue`, `llDeleteKeyValue`, `llKeyCountKeyValue`, `llKeysKeyValue`, `llDataSizeKeyValue`, which answer through `dataserver` on every script in the prim with `1,<result>` or `0,<XP_ERROR_*>`. Without an experience they answer `0,5`. Seed or inspect the store with `experience.seed([['k', 'v']])` and `experience.store`; pass `allowedHere: false` for land that doesn't allow the experience.
 * **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
 * **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` (zero values without `PERMISSION_TRACK_CAMERA`; set them with `s.setCamera`), `llSetCameraParams`, `llClearCameraParams` (rules recorded in `s.cameraParams`)
+* **sitting and teleporting**: `llSitOnLink`, `llUnSit`, `llSetAgentRot`, `llTeleportAgent`, `llTeleportAgentGlobalCoords`, `llTeleportAgentHome`, plus the sit-target readers. Configure World avatar fixtures and inspect `s.teleportRequests` as described above.
+
 * **avatar animations**: `llStartAnimation`, `llStopAnimation`, `llGetAnimation`, `llGetAnimationList`, `llGetAnimationOverride`, `llSetAnimationOverride`, `llResetAnimationOverride`. Start/stop require `PERMISSION_TRIGGER_ANIMATION`; set/reset overrides require `PERMISSION_OVERRIDE_ANIMATIONS`; reading overrides accepts either. Inventory animation names take priority over built-ins. Raw UUIDs work for stop only.
 * **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.
 * **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events

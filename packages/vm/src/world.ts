@@ -1,8 +1,10 @@
-import { conjugate, rotateVector } from './values/ops.js'
+import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
+import type { Prim } from './prim.js'
+import { AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 
@@ -31,7 +33,7 @@ export interface WorldAvatarOptions extends WorldObjectOptions {
   readonly displayName?: string
   /** Collision size read by llGetAgentSize. Default <0.45, 0.6, 1.9>. */
   readonly size?: Vector
-  /** AGENT_* mask, supplied explicitly rather than derived from physics or animations. */
+  /** AGENT_* mask. Seating updates sitting/moving bits; other bits are explicit fixture state. */
   readonly info?: number
   /** Shared viewer language; empty means not shared. Default empty. */
   readonly language?: string
@@ -39,6 +41,13 @@ export interface WorldAvatarOptions extends WorldObjectOptions {
   readonly visualParams?: Readonly<Record<number, number>>
   /** UUIDs of friends, including those outside this avatar's region. */
   readonly friends?: readonly string[]
+  /** Virtual destination for llTeleportAgentHome; never inferred from a real account. */
+  readonly home?: AvatarDestination
+}
+
+export interface AvatarDestination {
+  readonly region: string
+  readonly position: Vector
 }
 
 /** Mutable avatar fixture. Region and position can change between script events. */
@@ -50,6 +59,10 @@ export interface WorldAvatar extends WorldEntity {
   language: string
   visualParams: Record<number, number>
   friends: Set<string>
+  sittingOn: Prim | null
+  /** A rotation requested while seated, applied when the avatar stands. */
+  standingRotation: Rotation | null
+  home: AvatarDestination | null
 }
 
 export interface WorldEntity {
@@ -224,6 +237,8 @@ export class World {
   /** Targets without scripts to execute. Returned entities may be moved between scans. */
   readonly objects: WorldEntity[] = []
   readonly avatars: WorldAvatar[] = []
+  /** Landmark asset UUID to destination. Inventory landmark items resolve through this map. */
+  readonly landmarks = new Map<string, AvatarDestination>()
   readonly parcels: Parcel[] = []
   /** Optional sensor metadata for linksets loaded with loadLinkset. */
   readonly sensorProperties = new Map<Linkset, SensorObjectProperties>()
@@ -249,10 +264,55 @@ export class World {
       language: opts.language ?? '',
       visualParams: { ...opts.visualParams },
       friends: new Set(opts.friends?.map(key => key.toLowerCase())),
+      sittingOn: null,
+      standingRotation: null,
+      home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
     }
     avatar.owner = avatar.key
     this.avatars.push(avatar)
     return avatar
+  }
+
+  /** Seat a fixture avatar on a free prim, as a viewer sit would, without experience permissions. */
+  sitAvatar(avatar: WorldAvatar, prim: Prim): boolean {
+    const linkset = prim.linkset
+    if (!this.avatars.includes(avatar) || linkset?.world !== this || avatar.region !== linkset.region ||
+      this.avatars.some(a => a !== avatar && a.sittingOn === prim)) return false
+    if (avatar.sittingOn === prim) return true
+    const previous = avatar.sittingOn?.linkset
+    avatar.sittingOn = prim
+    avatar.standingRotation = null
+    avatar.info = (avatar.info & ~(AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING | AGENT_ON_OBJECT
+    const origin = prim.regionPosition()
+    const target = prim.params.sitTarget
+    const offset = target.enabled ? rotateVector(target.offset, prim.regionRotation()) : ZERO_VECTOR
+    // Target coordinates only; avatar skeleton and collision offsets are not simulated.
+    avatar.position = { x: origin.x + offset.x, y: origin.y + offset.y, z: origin.z + offset.z }
+    avatar.rotation = target.enabled ? mulRotation(target.rotation, prim.regionRotation()) : { ...prim.regionRotation() }
+    if (previous && previous !== linkset) this.sitChanged(previous)
+    this.sitChanged(linkset)
+    return true
+  }
+
+  /** Stand a fixture avatar. Only an object sitter produces CHANGED_LINK. */
+  standAvatar(avatar: WorldAvatar): void {
+    const previous = avatar.sittingOn?.linkset
+    avatar.sittingOn = null
+    avatar.info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
+    if (avatar.standingRotation) avatar.rotation = avatar.standingRotation
+    avatar.standingRotation = null
+    if (previous) this.sitChanged(previous)
+  }
+
+  private sitChanged(linkset: Linkset): void {
+    // Match the linkset's linking/unlinking event policy.
+    const pending = this.clock.pendingEvents().filter(e => e.event === 'changed' && e.payload['changes'] === CHANGED_LINK)
+    for (const script of linkset.allScripts()) {
+      if (!script.running) continue
+      const waiting = pending.filter(e => e.target === script)
+      if (waiting.length >= 2 || waiting.some(e => e.at >= script.resumedAt)) continue
+      this.clock.schedule(script, this.clock.now, 'changed', { changes: CHANGED_LINK })
+    }
   }
 
   private entity(opts: WorldObjectOptions): WorldEntity {
