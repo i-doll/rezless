@@ -13,7 +13,7 @@ const OWNER = '11111111-1111-1111-1111-111111111111'
 // delay); wall-clock gaps were 36 / 42 seconds. Timer cadence stayed at script
 // times 20.179, 25.179, 30.179, 35.179. Aditi, SLua Tideland, 2026-11-01,
 // Firestorm 7.3.0.83011. Fixtures save immediately, without simulator save delay.
-async function fixture(onDetach = '') {
+async function fixture(onDetach = '', onRez = '') {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
@@ -22,7 +22,7 @@ async function fixture(onDetach = '') {
       list events; float elapsed; float previous; integer unix;
       default {
         state_entry(){llSetTimerEvent(5);llRequestPermissions(llGetOwner(),32);}
-        on_rez(integer p){events += ["rez"];}
+        on_rez(integer p){events += ["rez"];${onRez}}
         attach(key id){
           if(id){events += ["attach"];elapsed=llGetTime();unix=llGetUnixTime();}
           else {events += ["detach"];${onDetach}}
@@ -134,4 +134,26 @@ it('does not generate a saved timer event for a stopped script', async () => {
   linkset.advanceTime(0)
   expect(script.parkedEvents.filter(event => event.event === 'timer')).toEqual([])
   expect((script.global('events') as string[]).filter(event => event === 'timer')).toEqual([])
+})
+
+// In-world: an overdue five-second timer and a ten-second on_rez sleep, twice
+// -> attach, timer 24.068, timer 24.113, then timer 29.113; repeat -> attach,
+// timer 46.624, timer 46.669, then timer 51.669. The saved tick and one tick
+// missed while sleeping are separate. Aditi, SLua Tideland, 2026-11-01,
+// Firestorm 7.3.0.83011, script-initiated detach.
+it('keeps the saved timer separate from a tick missed by a sleeping rez handler', async () => {
+  const { script, linkset } = await fixture('', 'llSleep(10);')
+  linkset.clock.advance(11000)
+  linkset.detachFromAvatar()
+  linkset.advanceTime(30000)
+  const before = (script.global('events') as string[]).length
+  linkset.attachToAvatar(OWNER, 6)
+  linkset.advanceTime(10000)
+  expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer'])
+  expect(script.global('elapsed')).toBe(21)
+  linkset.advanceTime(4999)
+  expect((script.global('events') as string[]).slice(before)).toHaveLength(4)
+  linkset.advanceTime(1)
+  expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer', 'timer'])
+  expect(script.global('elapsed')).toBe(26)
 })
