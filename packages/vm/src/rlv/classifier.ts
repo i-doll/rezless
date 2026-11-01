@@ -1,4 +1,22 @@
 import type { RlvCommandFields } from './parser.js'
+import type { RlvProfile } from './profiles.js'
+import { getRlvCommandCoverage } from './getcommand.js'
+
+export type RlvCommandOutcome = 'unknown-behaviour' | 'wrong-parameter-kind' | 'unsupported-form' | 'state-only' | 'invalid-channel' | 'invalid-option'
+
+/** Diagnose a command that did not produce an implemented reply or action. */
+export function classifyRlvUnsupported(profile: RlvProfile, command: RlvParsedCommand): RlvCommandOutcome {
+  if (command.kind === 'clear') return 'state-only'
+  const forms = getRlvCommandCoverage(profile).filter(form => form.behaviour === command.behaviour)
+  if (!forms.length) return 'unknown-behaviour'
+  const type = command.kind === 'query' ? 'reply' : command.kind === 'remove' ? 'add' : command.kind
+  const form = forms.find(form => form.type === type)
+  if (!form) return 'wrong-parameter-kind'
+  if (form.option === 'none' && command.option) return 'unsupported-form'
+  if (form.support === 'state-only') return 'state-only'
+  if (form.support === 'enforced' && type === 'reply') return 'invalid-channel'
+  return 'unsupported-form'
+}
 
 export type RlvParameterKind = 'add' | 'remove' | 'force' | 'clear' | 'query' | 'unknown'
 export interface RlvParsedCommand extends RlvCommandFields {

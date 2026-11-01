@@ -778,3 +778,30 @@ LSL function/event/constant signatures come from Linden Lab's official
 [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
 vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
+
+`@getcommand[:<substring>[;<type>[;<separator>]]]=<channel>` is available in the
+Firestorm RLVa 2.4.2 fixture. It lists implemented manifest forms, including
+state-only restrictions, rather than the full viewer dictionary. The default
+and `any` type include add, force and reply forms; `add`, `force` and `reply`
+select one type. Names match substrings. The separator defaults to `;`; an
+explicit empty separator concatenates names. Extra fields are ignored and wire
+options are lowercased. No matches and unknown types each deliver one empty
+reply, but unknown types also record `invalid-option`. Replies use the existing
+channel and length policy. Kokua RLV 2.09.35.00 has no discovery query handler;
+its numeric query produces no reply, while add/remove follows generic wire-rule
+storage with unsupported effects.
+
+`getRlvCommandCoverage(profile)` from `@rezless/vm` returns frozen form snapshots
+with `behaviour`, `type`, `option` and `support`. Manifest `commandForms` entries
+are the discovery registry. Include each implemented form and give it its own
+support depth; unsupported entries describe recognized forms without advertising
+them. `getRlvCommands(profile, option?)` returns untruncated discovery text, or
+`undefined` for Kokua. Discovery orders restrictions before force commands and
+replies, and names within each type; separate forms can repeat a name.
+
+Unsupported command-log records retain status `unsupported` and expose an
+`outcome` for `unknown-behaviour`, `wrong-parameter-kind`, `unsupported-form` or
+`invalid-channel`. Diagnostic details include the same outcome. Unknown means
+absent from the profile's manifest registry, which does not model every viewer
+command. Existing state-only restriction diagnostics and snapshots describe the
+retained state separately. No failure acknowledgement is invented on the wire.

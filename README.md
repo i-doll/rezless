@@ -659,6 +659,10 @@ Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
 These rules are state-only. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
+RLVa `getcommand` discovers implemented manifest forms with substring, type and
+separator options. Frozen form metadata distinguishes state-only restrictions
+from enforced replies; unsupported forms stay out of discovery. Command logs
+expose unsupported outcomes without adding wire acknowledgements.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
 

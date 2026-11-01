@@ -40,6 +40,7 @@ export interface RlvReply {
 }
 
 export type RlvCommandRecord = {
+  readonly outcome?: import('./classifier.js').RlvCommandOutcome
   readonly command: string
   readonly sourcePrim: string
   readonly parsed?: RlvParsedCommand

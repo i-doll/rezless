@@ -3,6 +3,12 @@ import { RLV_PROFILES, type RlvProfile } from './profiles.js'
 export type RlvComparison = 'shared' | 'confirmed difference' | 'version/setting dependent' | 'not specified'
 /** State-only never implies that a viewer action is enforced. */
 export type RlvSupportDepth = 'unsupported' | 'state-only' | 'enforced'
+export interface RlvCommandForm {
+  readonly behaviour: string
+  readonly type: 'add' | 'force' | 'reply'
+  readonly support: RlvSupportDepth
+  readonly option: 'none' | 'any'
+}
 /** Reference implementation version and symbols for this contract. */
 export interface RlvEvidence {
   readonly implementation: string
@@ -10,6 +16,8 @@ export interface RlvEvidence {
   readonly symbols: readonly string[]
 }
 export interface RlvCommandProfile {
+  /** Ordered command forms; only supported forms participate in discovery. */
+  readonly commandForms?: readonly RlvCommandForm[]
   readonly support: RlvSupportDepth
   readonly coveredForms: readonly string[]
   readonly contract: string
@@ -38,6 +46,13 @@ const firestorm = (file: string, symbols: readonly string[], contract: string): 
 })
 const tests = ['packages/vitest/test/rlv-profiles.test.ts']
 
+const replyForms = (...names: string[]): RlvCommandForm[] => names.map(behaviour => ({
+  behaviour, type: 'reply', support: 'enforced', option: 'any',
+}))
+const restrictionForms: RlvCommandForm[] = ['detach', 'sendchat', 'sit', 'tplm', 'tploc', 'unsit'].map(behaviour => ({
+  behaviour, type: 'add', support: 'state-only', option: 'none',
+}))
+
 /** Append forms and behavioral tests as commands ship. Version reporting is not conformance. */
 export const RLV_MANIFEST: {
   readonly schemaVersion: 3
@@ -60,9 +75,11 @@ export const RLV_MANIFEST: {
       profiles: {
         rlv: { ...kokua(['RRInterface::reallyHandleCommand', 'RRInterface::getVersion', 'RRInterface::getVersion2', 'RR_VERSION_NUM'],
           'versionnum returns 2093500 with any option; legacy/new strings use fixture viewer suffix 26.4.0.'),
+          commandForms: replyForms('version', 'versionnew', 'versionnum'),
           support: 'enforced', coveredForms: ['@version[:<option>]=<nonzero-signed-channel>', '@versionnew[:<option>]=<nonzero-signed-channel>', '@versionnum[:<option>]=<nonzero-signed-channel>', 'Ordered version-query batches with per-token diagnostics and parameter classification'] },
         rlva: { ...firestorm('rlvcommon.cpp', ['RlvStrings::getVersion', 'RlvStrings::getVersionNum', 'RlvStrings::getVersionImplNum'],
           'Firestorm RLVa 2.4.2 with default settings returns RLVa-tagged strings, API 3040300, :impl 2040213, unknown numeric option empty. String queries ignore options. Compatibility overrides are not implemented.'),
+          commandForms: replyForms('version', 'versionnew', 'versionnum'),
           support: 'enforced', coveredForms: ['@version[:<option>]=<positive-channel>', '@versionnew[:<option>]=<positive-channel>', '@versionnum[:<option>]=<positive-channel>', 'Ordered version-query batches with per-token diagnostics and parameter classification'],
           evidence: { implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/rlvhandler.cpp', symbols: ['RlvHandler::processReplyCommand'] } },
       },
@@ -88,9 +105,11 @@ export const RLV_MANIFEST: {
       profiles: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
           'No-option detach, sendchat, sit, unsit, tploc and tplm are state-only. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
+          commandForms: [...restrictionForms, ...['detach', 'sit', 'unsit'].map(behaviour => ({ behaviour, type: 'force' as const, support: 'unsupported' as const, option: 'any' as const }))],
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
           'No-option detach, sendchat, sit, unsit, tploc and tplm are state-only. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
+          commandForms: [...restrictionForms, ...['detach', 'sit', 'unsit'].map(behaviour => ({ behaviour, type: 'force' as const, support: 'unsupported' as const, option: 'any' as const }))],
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts'],
@@ -100,8 +119,10 @@ export const RLV_MANIFEST: {
       comparison: 'confirmed difference', wikiComparison: 'Both profiles return canonical rule text with a leading separator for every match and an empty reply for no matches. Rules retain insertion order within each prim; getstatusall visits emitter UUIDs in ascending order and preserves cross-prim duplicates. Extra semicolons differ between profiles.',
       profiles: {
         rlv: { ...kokua(['RRInterface::getStatus'], 'First semicolon separates the substring filter from the entire remaining separator string; empty separator defaults to slash. Queries include only stored rules, including options and unsupported wire rules, without enforcing their effects.'),
+          commandForms: replyForms('getstatus', 'getstatusall'),
           support: 'enforced', coveredForms: ['Caller-prim getstatus and avatar-wide getstatusall on valid reply channels', 'Canonical rule substring filters, default and custom separators, empty replies', 'Per-prim insertion order and ascending emitter UUID order with duplicates retained'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['rlvParseGetStatusOption', 'RlvHandler::processReplyCommand'], 'First two semicolon-delimited fields set substring filter and separator; later fields are ignored; empty separator defaults to slash. Queries include only stored rules and do not extend restriction support.'),
+          commandForms: replyForms('getstatus', 'getstatusall'),
           support: 'enforced', coveredForms: ['Caller-prim getstatus and avatar-wide getstatusall on valid reply channels', 'Canonical rule substring filters, default and custom separators, empty replies', 'Per-prim insertion order and ascending emitter UUID order with duplicates retained'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-status.test.ts'],
@@ -110,17 +131,22 @@ export const RLV_MANIFEST: {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
       comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
       profiles: {
-        rlv: kokua(['RRInterface::handleCommand'], 'No getcommand query branch. Numeric reply parameter reaches fallback and returns false, rather than an empty successful query.'),
-        rlva: firestorm('rlvhandler.cpp', ['RlvReplyHandler<RLV_BHVR_GETCOMMAND>::onCommand'], 'Supports behaviour filtering, any/add/force/reply type and custom separator; invalid type fails.'),
+        rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getcommand query branch. Numeric reply parameter reaches fallback and returns false, rather than an empty successful query.'),
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvReplyHandler<RLV_BHVR_GETCOMMAND>::onCommand'],
+          'Enumerates implemented command forms in restriction, force and reply order with substring filtering and any/add/force/reply types. State-only restrictions are discoverable with their depth exposed in metadata; unsupported forms are excluded. Omitted separator is semicolon; an explicit empty separator joins names directly. Invalid types deliver one empty reply and an invalid-option outcome. Reply transport truncates once at 1023 UTF-8 bytes.'),
+          support: 'enforced', commandForms: replyForms('getcommand'),
+          coveredForms: ['getcommand on valid positive reply channels', 'Substring filter, omitted/any/add/force/reply type, omitted/empty/custom separator, ignored extra fields', 'Implemented form metadata and distinguishable unsupported outcomes without synthetic acknowledgements'] },
       },
-      tests,
+      tests: [...tests, 'packages/vitest/test/rlv-getcommand.test.ts'],
     },
     {
       id: 'notifications', forms: ['@notify:<channel>[;<filter>]=n|add', '@notify:<channel>[;<filter>]=y|rem'],
       comparison: 'confirmed difference', wikiComparison: 'Wiki describes rule notifications. Alias preservation and clear event sequences require implementation-specific expectations.',
       profiles: {
-        rlv: kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y; clear emits a clear notification and individual removals.'),
-        rlva: firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve input aliases; internal commands do not notify; compare duplicate and failed external commands separately.'),
+        rlv: { ...kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y; clear emits a clear notification and individual removals.'),
+          commandForms: [{ behaviour: 'notify', type: 'add', support: 'unsupported', option: 'any' }] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve input aliases; internal commands do not notify; compare duplicate and failed external commands separately.'),
+          commandForms: [{ behaviour: 'notify', type: 'add', support: 'unsupported', option: 'any' }] },
       },
       tests,
     },

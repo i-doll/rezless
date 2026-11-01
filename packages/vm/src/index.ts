@@ -80,4 +80,8 @@ export type { RlvParameterKind, RlvParsedCommand } from './rlv/classifier.js'
 
 export { isValidReplyChannel, sendViewerReply } from './rlv/reply.js'
 export { getRlvStatus } from './rlv/status.js'
+export { getRlvCommands, getRlvCommandCoverage } from './rlv/getcommand.js'
+export { classifyRlvUnsupported } from './rlv/classifier.js'
+export type { RlvCommandOutcome } from './rlv/classifier.js'
+export type { RlvCommandForm } from './rlv/manifest.js'
 export type { RlvRestriction } from './rlv/restrictions.js'
