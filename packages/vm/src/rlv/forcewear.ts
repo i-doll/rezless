@@ -64,13 +64,14 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWea
     inventory.rememberAttachment(entry.id, object)
     return { itemId: entry.id, outcome: 'already-worn', point: object.attachment.point }
   }
-  if (point && replace && issuer.peers.some(peer => !peer.dead && peer.attachment?.avatar === avatar.key &&
+  if (point && replace && issuer.peers.some(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
     peer.attachment.point === point && locked(avatar, peer))) {
     return { itemId: entry.id, outcome: 'blocked', point, reason: 'detach-lock' }
   }
-  if (!object || object.dead) {
-    if (!entry.object) return { itemId: entry.id, outcome: 'unsupported', reason: 'missing-definition' }
-    object = entry.object.copy({ world: issuer.world!, region: avatar.region, owner: avatar.key })
+  if (!object || object.dead || object.region !== avatar.region) {
+    const definition = object && !object.dead ? object : entry.object
+    if (!definition) return { itemId: entry.id, outcome: 'unsupported', reason: 'missing-definition' }
+    object = definition.copy({ world: issuer.world!, region: avatar.region, owner: avatar.key })
   }
   // The existing attachment lifecycle resolves point zero from the saved object.
   // Its events remain queued while replacement removals complete.
@@ -79,7 +80,7 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWea
   const actualPoint = object.attachment!.point
   if (replace) {
     for (const previous of [...issuer.peers]) {
-      if (previous !== object && !previous.dead && previous.attachment?.avatar === avatar.key &&
+      if (previous !== object && !previous.dead && previous.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
         previous.attachment.point === actualPoint && !locked(avatar, previous)) previous.detachFromAvatar()
     }
   }

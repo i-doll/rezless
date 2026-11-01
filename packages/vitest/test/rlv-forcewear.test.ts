@@ -310,3 +310,29 @@ it('initializes a new attachment before its attach handler runs', async () => {
   expect(live.global('events')).toEqual(['rez', 'attach'])
  }
 })
+
+it('treats attachment avatar UUID casing consistently when checking replacement locks', async () => {
+ const pair = await fixtures()
+ for (const { script, world, avatar } of Object.values(pair)) {
+  const old = await loadLinkset({ world, owner: avatar.key, region: avatar.region, prims: [{ scripts: [{ name: 'lock', source: { source: 'default { state_entry() { llOwnerSay("@detach=n"); } }' } }] }] })
+  old.linkset.attachToAvatar(avatar.key.toUpperCase(), 1); old.scripts.lock!.start()
+  send(script, '@attach:direct=force')
+  expect(world.linksets.filter(l => l.attachment).map(l => l.attachment!.point)).toEqual([1, 5])
+ }
+})
+
+it('restores a saved attachment in the avatar current region', async () => {
+ const pair = await fixtures()
+ for (const { script, world, avatar } of Object.values(pair)) {
+  send(script, '@attach:direct=force')
+  const object = world.linksets.find(l => avatar.viewer.inventory.attachmentItem(l.prims[0]!.key)?.id === 'a')!
+  object.detachFromAvatar()
+  world.addRegion('Destination', { x: 256, y: 0 })
+  avatar.region = 'Destination'
+  send(script, '@attach:direct=force')
+  const worn = world.linksets.find(l => l.attachment && avatar.viewer.inventory.attachmentItem(l.prims[0]!.key)?.id === 'a')!
+  expect(worn.region).toBe('Destination')
+  expect(worn.attachment?.avatar).toBe(avatar.key)
+  expect(object.attachment).toBeNull()
+ }
+})
