@@ -1,3 +1,4 @@
+import { RlvBlacklist } from './blacklist.js'
 import { RlvInventory, type RlvInventoryConfig } from './inventory.js'
 import { RlvSession } from './session.js'
 import { RlvRestrictions } from './restrictions.js'
@@ -10,6 +11,10 @@ export type ViewerProfile = 'disabled' | RlvProfile
 export interface ViewerConfig {
   readonly profile: ViewerProfile
   readonly inventory?: RlvInventoryConfig
+  /** Kokua wire names; force entries end in %f. Ignored by RLVa. */
+  readonly blacklist?: readonly string[]
+  /** RLVa dictionary setting disabling setenv add/remove, independently of Kokua. */
+  readonly rlvaNoSetEnv?: boolean
   readonly ready?: boolean
   readonly doNotQueueVersionRequests?: boolean
   /** Kokua maintenance additions in virtual milliseconds; defaults 5000 and 8000. */
@@ -48,12 +53,12 @@ export interface RlvReply {
 }
 
 export type RlvCommandRecord = {
-  readonly outcome?: import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | import('./forcewear.js').RlvForceWearOutcome
+  readonly outcome?: import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | 'ignored-blacklist' | 'failed-disabled' | import('./forcewear.js').RlvForceWearOutcome
   readonly wearResults?: readonly import('./forcewear.js').RlvForceWearItemResult[]
   readonly command: string
   readonly sourcePrim: string
   readonly parsed?: RlvParsedCommand
-} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'enforced' | 'applied' | 'unsupported' | 'malformed' | 'queued' } | {
+} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'enforced' | 'applied' | 'unsupported' | 'malformed' | 'queued' | 'ignored' } | {
   readonly status: 'action'
   readonly action: 'sit' | 'unsit'
   readonly actionOutcome: 'applied' | 'unchanged' | 'refused'
@@ -69,6 +74,7 @@ export interface ViewerState {
   readonly reference: RlvReference | null
   readonly diagnostics: RlvDiagnostic[]
   readonly commandLog: RlvCommandRecord[]
+  readonly blacklist: RlvBlacklist
   readonly inventory: RlvInventory
   readonly restrictions: RlvRestrictions
   readonly session: RlvSession
@@ -77,5 +83,5 @@ export interface ViewerState {
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
   const session = new RlvSession(profile, config)
-  return { session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) }
+  return { blacklist: new RlvBlacklist(profile, config), session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) }
 }

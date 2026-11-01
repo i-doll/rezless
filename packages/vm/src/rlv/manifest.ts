@@ -64,8 +64,8 @@ export const RLV_MANIFEST: {
   wiki: { url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' },
   // Reference settings are separate from implementation versions.
   settings: {
-    rlv: ['doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. Blacklist settings are unsupported.'],
-    rlva: ['RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
+    rlv: ['doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. An explicit per-avatar blacklist preserves wire order and uses %f for force entries; query and notify commands remain available.'],
+    rlva: ['rlvaNoSetEnv disables setenv add/remove through the dictionary; it is separate from the Kokua blacklist. Environment effects remain unsupported.', 'RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
       'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.',
       'Force wear uses RLVaEnableSharedWear=true by default; inventory.sharedWear=false disables unnamed items. Legacy folder naming is enabled, the add prefix is + and the replace prefix is empty.',
       'Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.'],
@@ -99,7 +99,7 @@ export const RLV_MANIFEST: {
           'Object queries require positive signed channels excluding DEBUG_CHANNEL. Replies use the current avatar global position, reach listeners within 100 m across regions, and truncate once to 1023 UTF-8 bytes without cutting a character. Valid empty query results still deliver one message. Console loopback and redirected-chat splitting are outside the covered forms.'),
           support: 'enforced', coveredForms: ['Positive version-query channels except DEBUG_CHANNEL', 'sendViewerReply: single-message payload truncation and avatar-origin routing'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-channels.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-channels.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'add-remove-clear', forms: ['@<behaviour>[:<option>]=n|add', '@<behaviour>[:<option>]=y|rem', '@clear', '@clear=', '@clear=<filter>'],
@@ -109,13 +109,13 @@ export const RLV_MANIFEST: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
           'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.'),
           commandForms: restrictionForms,
-          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
+          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
           'No-option sendchat and tplm are state-only. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.'),
           commandForms: restrictionForms,
-          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
+          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'sendchannel', forms: ['@sendchannel[:<channel>]=n|add|y|rem', '@sendchannel_sec[:<channel>]=n|add|y|rem', '@permissive=n|add|y|rem'],
@@ -152,7 +152,7 @@ export const RLV_MANIFEST: {
           commandForms: replyForms('getstatus', 'getstatusall'),
           support: 'enforced', coveredForms: ['Caller-prim getstatus and avatar-wide getstatusall on valid reply channels', 'Canonical rule substring filters, default and custom separators, empty replies', 'Per-prim insertion order and ascending emitter UUID order with duplicates retained'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-status.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-status.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'getinv', forms: ['@getinv[:<path>]=<channel>'], comparison: 'confirmed difference',
@@ -295,7 +295,7 @@ export const RLV_MANIFEST: {
             { behaviour: 'detachme', type: 'force', support: 'enforced', option: 'none' },
           ], coveredForms: ['No-option detach n/add and y/rem with root and child issuer locks', 'Explicit viewer detach attempt and queued root force self-detach', 'Child self-detach no-op, rejected nonempty options, attach events and llGetAttached state', 'Simulator detach remains independent of viewer locks'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-detach.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-detach.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
       id: 'seating', forms: ['@getsitid[:<option>]=<channel>', '@sit[:<uuid>]=force', '@unsit=force', '@sit=n|y', '@unsit=n|y', '@sittp[:<distance>]=n|y'],
@@ -395,6 +395,21 @@ export const RLV_MANIFEST: {
           coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts'],
+    },
+    {
+      id: 'blacklist', forms: ['@versionnumbl=<channel>', '@getblacklist[:<filter>]=<channel>', 'Kokua blacklisted add and force; RLVa disabled setenv add/remove'],
+      comparison: 'version/setting dependent',
+      wikiComparison: 'Kokua supports the wiki blacklist queries, comma composition and substring filters. RLVa has neither query and uses a separate dictionary setting to disable setenv add/remove.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::getVersionNum', 'RRInterface::getBlacklist', 'RRInterface::isBlacklisted', 'RRInterface::add', 'RRInterface::force'],
+          'versionnumbl appends the configured comma-separated blacklist to 2093500; getblacklist preserves entry order and filters by substring. Blacklisted adds notify with =n before succeeding without state; notify is exempt. Force entries use %f and succeed without effects or notifications. Removes remain available. Unsupported effects retain diagnostics.'),
+          support: 'enforced', commandForms: replyForms('versionnumbl', 'getblacklist'),
+          coveredForms: ['Empty/nonempty blacklist, duplicate entries, substring filtering and version composition', 'Per-avatar ignored add/force with notifications and unsupported diagnostics'] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourDictionary::RlvBehaviourDictionary', 'RlvCommand::isBlocked', 'RlvHandler::processCommand'],
+          'versionnumbl and getblacklist are absent from the dictionary. rlvaNoSetEnv disables setenv add/remove with failed-disabled before notifications and state updates. Kokua blacklist entries have no effect. Environment effects remain unsupported.'),
+          commandForms: [], coveredForms: ['Absent blacklist queries and separate disabled-command outcome; unsupported environment diagnostics retained'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-blacklist.test.ts'],
     },
     {
       id: 'viewer-session', forms: ['Startup command retention and ready-state release', 'Viewer session reset', 'Issuer lookup, detach and orphan collection'],

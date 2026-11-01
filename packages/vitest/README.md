@@ -517,6 +517,18 @@ for (const profile of ['rlv', 'rlva'] as const) {
 }
 ```
 
+The relay integration test runs the same Apache-2.0 LSL relay and controller
+fixtures under both profiles and disabled mode. The relay description contains
+one authorized controller object UUID; an empty value denies all senders. The
+controller description contains the wearer UUID and relay UUID, separated by a
+comma. Only detach add/remove and fixed-channel status queries are allowed.
+The fixtures use relay protocol 1.100 framing, per-command acknowledgements,
+version and release. Pong receives no acknowledgement; recovery and optional
+meta-commands remain outside the fixture. An `ok` confirms relay acceptance even
+when the viewer is disabled or rejects a negative reply channel. Query results
+travel from the avatar through the relay to the controller on a separate channel.
+Release clears the relay issuer's rules and preserves unrelated issuers.
+
 For divergent cases, replace `shared` with named `rlv` and `rlva` expectations.
 An expectation can instead be `{ kind: 'unsupported', reason }`. These are
 inspectable data; the helper does not skip tests or turn unsupported cases
@@ -1198,6 +1210,7 @@ still use the global minimum. Foreign seated `unsit` blocks travel. `tplm` and U
 Non-finite, hexadecimal and overflowing teleport conversions remain inspectably
 unsupported. Landing-point routing, terrain/collision adjustments and camera pose
 are outside the fixture.
+
 ### Force-wearing shared attachments
 
 `attach`, `attachover` and `attachoverorreplace` accept a shared folder path
@@ -1248,3 +1261,18 @@ attached, already-worn, blocked, skipped or unsupported outcomes. Unsupported
 contents or missing definitions do not prevent supported items from wearing.
 Clothing, recursive commands, multiple-folder options, inventory links and
 asset fetching remain unsupported.
+
+### Blacklist fixtures
+
+Pass `viewer: { blacklist: ['sit', 'unsit%f'] }` to `loadRlvPair`, or include
+`blacklist` in the viewer configuration for `World.addAvatar`. Kokua ignores
+blacklisted adds after notifying subscribers, and ignores force commands listed
+with `%f`. Removes remain available and `notify` registrations are exempt.
+`versionnumbl` appends the entries to the numeric version; `getblacklist` returns
+them in order, optionally filtered by substring.
+
+RLVa ignores that list and supports neither query. Its separate
+`viewer: { rlvaNoSetEnv: true }` fixture returns `failed-disabled` for `setenv`
+add/remove before callbacks. Environment effects remain unsupported. Ignored
+commands have `status: 'ignored'` and `outcome: 'ignored-blacklist'` or
+`'failed-disabled'`; commands without implemented effects retain diagnostics.
