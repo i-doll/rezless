@@ -899,6 +899,13 @@ with mapped live attachments. The manifest describes profile differences and
 direct folded-folder queries. These reads do not wear or
 remove items. See the outfit fixture documentation in `packages/vitest/README.md`.
 
+Viewer fixtures expose opt-in `dropNext(predicate?)`, `answerNext(text, predicate?)`,
+`hold()` and `release(count?)` controls on `avatar.viewer`. Tests can suppress or
+replace matching query replies and defer replies and forced inventory actions
+without mocking `llOwnerSay`. Release schedules held work in send order; see the
+[vitest viewer documentation](packages/vitest/README.md) for predicates, counts
+and listener lifetime behavior.
+
 Viewer fixtures also support explicit startup and session reset. Not-ready viewers
 retain commands; Kokua can bypass retention for version requests, while RLVa can
 flush version queries during its misc startup phase. Virtual-time collection

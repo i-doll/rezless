@@ -10,14 +10,20 @@ export function isValidReplyChannel(profile: RlvProfile, channel: number): boole
 }
 
 /** Queue one avatar-origin query reply. Rejection never synthesizes an empty reply. */
-export function sendViewerReply(linkset: Linkset, avatar: WorldAvatar, channel: number, message: string): RlvReply | undefined {
+export function sendViewerReply(linkset: Linkset, avatar: WorldAvatar, channel: number, message: string, command?: string): RlvReply | undefined {
   const profile = avatar.viewer.profile
   if (profile === 'disabled' || !isValidReplyChannel(profile, channel)) return undefined
+  const answer = command === undefined ? message : avatar.viewer.queryReply(command, message)
+  // A dropped query is still recognized; its command record retains the computed reply.
+  const messageText = answer ?? message
   // Kokua cuts raw bytes, including partial UTF-8 sequences. Decoding those bytes
   // into the VM's JavaScript strings replaces an incomplete character with U+FFFD.
-  const text = profile === 'rlva' ? truncateUtf8(message, 1023)
-    : new TextDecoder('utf-8', { ignoreBOM: true }).decode(new TextEncoder().encode(message).slice(0, channel < 0 ? 254 : 1023))
+  const text = profile === 'rlva' ? truncateUtf8(messageText, 1023)
+    : new TextDecoder('utf-8', { ignoreBOM: true }).decode(new TextEncoder().encode(messageText).slice(0, channel < 0 ? 254 : 1023))
   avatar.viewer.session.bind(linkset, avatar)
-  avatar.viewer.session.captureReplies(() => linkset.routeViewerReply(avatar, channel, text))
+  if (answer !== undefined) {
+    const route = () => linkset.routeViewerReply(avatar, channel, text)
+    avatar.viewer.deliver(avatar.viewer.session.deferReply(route), () => avatar.viewer.session.captureReplies(route))
+  }
   return { channel, text }
 }

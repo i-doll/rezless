@@ -212,7 +212,7 @@ export function dispatchCameraCommand(avatar: WorldAvatar, prim: Prim, parsed: R
   if (viewer.profile !== 'disabled' && (viewer.profile === 'rlv' || parsed.kind === 'query') && channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
     const text = distanceReply(avatar, parsed.behaviour, parsed.option)
     if (text !== undefined) {
-      const reply = sendViewerReply(prim.linkset!, avatar, channel, text)!
+      const reply = sendViewerReply(prim.linkset!, avatar, channel, text, command)!
       viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
         ...(viewer.profile === 'rlva' && parsed.option ? { outcome: 'failed-option' as const } : {}) })
       return true

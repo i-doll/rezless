@@ -217,6 +217,12 @@ export class RlvSession {
     } else if (this.profile === 'rlv') this.scheduleRecovery(Math.max(this.clock!.now, this.recoveryStarted + 15000))
   }
 
+  /** @internal Capture the current session lifetime for a held viewer reply. */
+  deferReply(run: () => void): () => void {
+    const clock = this.clock!, lifetime = this.taskLifetime
+    return () => { clock.scheduleTask(lifetime, clock.now, () => this.captureReplies(run)) }
+  }
+
   /** Track queued listener payloads so session reset cannot deliver old viewer output. */
   captureReplies<T>(run: () => T): T {
     const clock = this.clock

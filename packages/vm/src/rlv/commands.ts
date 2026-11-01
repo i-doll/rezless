@@ -98,7 +98,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     if (parsed && query && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva') {
       const type = parsed.option.split(';')[1] ?? ''
       const invalid = !['', 'any', 'add', 'force', 'reply'].includes(type)
-      const reply = sendViewerReply(linkset, avatar, channel, getRlvCommands(viewer.profile, parsed.option)!)!
+      const reply = sendViewerReply(linkset, avatar, channel, getRlvCommands(viewer.profile, parsed.option)!, command)!
       viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
         ...(invalid ? { outcome: 'invalid-option' as const } : {}) })
       if (invalid) viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'invalid-option: Unknown discovery type; the viewer delivers an empty reply.' })
@@ -112,7 +112,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', outcome: 'unsupported-form' })
         viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'Outfit-layer paths require an outfit fixture.' })
       } else {
-        const reply = sendViewerReply(linkset, avatar, channel, result.text)!
+        const reply = sendViewerReply(linkset, avatar, channel, result.text, command)!
         viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
           ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
       }
@@ -124,7 +124,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     if (parsed && query) {
       const result = getRlvOutfitNames(viewer, parsed.behaviour, parsed.option)
       if (result !== undefined) {
-        const reply = sendViewerReply(linkset, avatar, channel, result.text)!
+        const reply = sendViewerReply(linkset, avatar, channel, result.text, command)!
         viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
           ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
         continue
@@ -132,7 +132,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     if (parsed && query && (parsed.behaviour === 'getoutfit' || parsed.behaviour === 'getinvworn')) {
       const result = getRlvOutfitReply(viewer.profile, viewer.inventory, linkset, parsed.behaviour, parsed.option, avatar.key)
-      const reply = sendViewerReply(linkset, avatar, channel, result.text)!
+      const reply = sendViewerReply(linkset, avatar, channel, result.text, command)!
       viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
         ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
       continue
@@ -142,7 +142,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       if (attachmentText !== undefined) {
         const failedOption = viewer.profile === 'rlva' && parsed.behaviour === 'getattach' &&
           !!parsed.option && getRlvAttachmentPoint(parsed.option) === undefined
-        const reply = sendViewerReply(linkset, avatar, channel, attachmentText)!
+        const reply = sendViewerReply(linkset, avatar, channel, attachmentText, command)!
         viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
           ...(failedOption ? { outcome: 'failed-option' as const } : {}) })
         continue
@@ -176,7 +176,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         : 'This command form has no implemented effect. Version replies require a supported reply channel.' })
       continue
     }
-    const reply = sendViewerReply(linkset, avatar, channel!, text)!
+    const reply = sendViewerReply(linkset, avatar, channel!, text, command)!
     viewer.commandLog.push({ ...entry, status: 'replied', reply,
       ...(viewer.profile === 'rlva' && parsed?.option && ['getcam_fov', 'getcam_fovmin', 'getcam_fovmax'].includes(parsed.behaviour)
         ? { outcome: 'failed-option' as const } : {}) })

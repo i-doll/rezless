@@ -193,7 +193,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
   if (profile === 'rlva') plans.sort((a, b) => a.entry.id < b.entry.id ? -1 : a.entry.id > b.entry.id ? 1 : 0)
   const rules = viewer.restrictions.snapshot()
   record('no-op')
-  issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
+  viewer.deliver(() => issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
     const acceptedLayers = new Set<string>()
     const clothingCount = () => inventory.wornWearables().filter(id => !isRlvBodypart(entries.find(e => e.id === id)!)).length
     for (const plan of clothing) {
@@ -245,7 +245,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
     const unsupported = results.some(result => result.outcome === 'unsupported')
     record(successful ? blocked || unsupported ? 'partial' : 'allowed'
       : blocked ? 'blocked' : unsupported ? 'unsupported-form' : 'no-op', results)
-  })
+  }))
   return true
 }
 
@@ -293,7 +293,7 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
     const decisions = objects.map(object => ({ object, reason: rlvForceDetachBlock(avatar, object),
       itemId: inventory.attachmentItem(object.prims[0]!.key)?.id ?? object.prims[0]!.key }))
     record('no-op')
-    issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
+    viewer.deliver(() => issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
       const results: RlvForceRemoveItemResult[] = decisions.map(({ object, reason, itemId }) => {
         if (reason) return { itemId, outcome: 'blocked', reason }
         if (object.dead || object.attachment?.avatar.toLowerCase() !== avatar.key.toLowerCase()) return { itemId, outcome: 'not-worn' }
@@ -303,7 +303,7 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
       const removed = results.some(result => result.outcome === 'removed')
       const blocked = results.some(result => result.outcome === 'blocked')
       record(removed ? blocked ? 'partial' : 'allowed' : blocked ? 'blocked' : 'no-op', results)
-    })
+    }))
     return true
   }
   if (!thisForm && (folderRemoval && (folderId === undefined || folderId === inventory.sharedRootId || profile === 'rlva' &&
@@ -318,7 +318,7 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
   // Later lock changes cannot retroactively deny already accepted removals.
   const rules = viewer.restrictions.snapshot()
   record('no-op')
-  issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
+  viewer.deliver(() => issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
     const results: RlvForceRemoveItemResult[] = items.map(entry => {
       if (folderRemoval && !entry.wearableType && entry.assetType !== 'object' && !inventory.attachmentMappings().some(m => m.itemId === entry.id)) {
         return { itemId: entry.id, outcome: 'unsupported', reason: 'unsupported-content' }
@@ -344,6 +344,6 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
     const blocked = results.some(result => result.outcome === 'blocked')
     const unsupported = results.some(result => result.outcome === 'unsupported')
     record(removed ? blocked || unsupported ? 'partial' : 'allowed' : blocked ? 'blocked' : unsupported ? 'unsupported-form' : 'no-op', results)
-  })
+  }))
   return true
 }
