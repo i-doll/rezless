@@ -23,6 +23,29 @@ export interface WorldObjectOptions {
 
 export interface WorldAvatarOptions extends WorldObjectOptions {
   readonly username: string
+  /** Defaults to the legacy name, or username when no name is supplied. */
+  readonly displayName?: string
+  /** Collision size read by llGetAgentSize. Default <0.45, 0.6, 1.9>. */
+  readonly size?: Vector
+  /** AGENT_* mask, supplied explicitly rather than derived from physics or animations. */
+  readonly info?: number
+  /** Shared viewer language; empty means not shared. Default empty. */
+  readonly language?: string
+  /** Supported llGetVisualParams IDs, with values in [0, 1]. Unset IDs read 0. */
+  readonly visualParams?: Readonly<Record<number, number>>
+  /** UUIDs of friends, including those outside this avatar's region. */
+  readonly friends?: readonly string[]
+}
+
+/** Mutable avatar fixture. Region and position can change between script events. */
+export interface WorldAvatar extends WorldEntity {
+  username: string
+  displayName: string
+  size: Vector
+  info: number
+  language: string
+  visualParams: Record<number, number>
+  friends: Set<string>
 }
 
 export interface WorldEntity {
@@ -161,7 +184,7 @@ export class World {
   readonly linksets: Linkset[] = []
   /** Targets without scripts to execute. Returned entities may be moved between scans. */
   readonly objects: WorldEntity[] = []
-  readonly avatars: WorldEntity[] = []
+  readonly avatars: WorldAvatar[] = []
   readonly parcels: Parcel[] = []
   /** Optional sensor metadata for linksets loaded with loadLinkset. */
   readonly sensorProperties = new Map<Linkset, SensorObjectProperties>()
@@ -177,9 +200,17 @@ export class World {
     return object
   }
 
-  addAvatar(opts: WorldAvatarOptions): WorldEntity {
-    const avatar = this.entity(opts)
-    avatar.username = opts.username
+  addAvatar(opts: WorldAvatarOptions): WorldAvatar {
+    const avatar: WorldAvatar = {
+      ...this.entity(opts),
+      username: opts.username.toLowerCase(),
+      displayName: opts.displayName ?? opts.name ?? opts.username,
+      size: { ...(opts.size ?? { x: 0.45, y: 0.6, z: 1.9 }) },
+      info: opts.info ?? 0,
+      language: opts.language ?? '',
+      visualParams: { ...opts.visualParams },
+      friends: new Set(opts.friends?.map(key => key.toLowerCase())),
+    }
     avatar.owner = avatar.key
     this.avatars.push(avatar)
     return avatar

@@ -512,14 +512,14 @@ describe('llRemoveInventory (measured in Second Life)', () => {
 
 describe('calls to functions that are still stubs', () => {
   afterEach(() => vi.restoreAllMocks())
-  const source = `default { state_entry() { llGetAgentSize(NULL_KEY); llGetAgentSize(NULL_KEY); } }`
+  const source = `default { state_entry() { llGetForce(); llGetForce(); } }`
 
   it('stay silent by default', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const s = await loadScript({ source })
     s.start()
     expect(warn).not.toHaveBeenCalled()
-    expect(s.callsOf('llGetAgentSize')).toHaveLength(2)
+    expect(s.callsOf('llGetForce')).toHaveLength(2)
   })
 
   it("warn once per function with stubs: 'warn'", async () => {
@@ -527,17 +527,17 @@ describe('calls to functions that are still stubs', () => {
     const s = await loadScript({ source, stubs: 'warn' })
     s.start()
     expect(warn).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls[0]![0]).toMatch(/llGetAgentSize is a stub/)
+    expect(warn.mock.calls[0]![0]).toMatch(/llGetForce is a stub/)
   })
 
   it("throw with stubs: 'throw'", async () => {
     const s = await loadScript({ source, stubs: 'throw' })
-    expect(() => s.start()).toThrow(/llGetAgentSize is a stub/)
+    expect(() => s.start()).toThrow(/llGetForce is a stub/)
   })
 
   it('treat a mocked function as implemented', async () => {
     const s = await loadScript({ source, stubs: 'throw' })
-    s.mock('llGetAgentSize', () => ({ x: 1, y: 1, z: 1 }))
+    s.mock('llGetForce', () => ({ x: 1, y: 1, z: 1 }))
     expect(() => s.start()).not.toThrow()
   })
 })
