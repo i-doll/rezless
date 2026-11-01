@@ -343,6 +343,42 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-outfit.test.ts'],
     },
     {
+      id: 'getoutfitnames', forms: ['@getoutfitnames=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'RLVa returns comma-separated canonical layer names in wearable-type order: shape, skin, hair, eyes, shirt, pants, shoes, socks, jacket, gloves, undershirt, underpants, skirt, alpha, tattoo, physics, universal. Nonempty options return an empty failed-option reply. Kokua has no matching query handler.',
+      profiles: {
+        rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.'),
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetOutfitNames', 'RlvWearableLocks::canWear', 'RlvForceWear::isForceRemovable', 'LLWearableData::canAddWearable'],
+          'Lists each occupied clothing or bodypart layer once, including unshared wearables. Empty occupancy returns an empty reply.'),
+          commandForms: [{ behaviour: 'getoutfitnames', type: 'reply', support: 'enforced', option: 'none' }],
+          support: 'enforced', coveredForms: ['Worn layer occupancy, duplicate items, bodyparts and immediate fixture updates', 'Wearable-type ordering, empty results and failed-option replies'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-outfitnames.test.ts'],
+    },
+    {
+      id: 'getaddoutfitnames', forms: ['@getaddoutfitnames=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'RLVa returns comma-separated canonical layer names in wearable-type order: shape, skin, hair, eyes, shirt, pants, shoes, socks, jacket, gloves, undershirt, underpants, skirt, alpha, tattoo, physics, universal. Nonempty options return an empty failed-option reply. Kokua has no matching query handler.',
+      profiles: {
+        rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getaddoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.'),
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetOutfitNames', 'RlvWearableLocks::canWear', 'RlvForceWear::isForceRemovable', 'LLWearableData::canAddWearable'],
+          'Lists layers that permit replacement or addition. Global and named addoutfit locks deny a layer. A remoutfit lock on a worn layer permits addition only: bodyparts and physics cannot add a second item, and other clothing requires fewer than 60 worn clothing items in total. Unlocked replacement remains available at capacity.'),
+          commandForms: [{ behaviour: 'getaddoutfitnames', type: 'reply', support: 'enforced', option: 'none' }],
+          support: 'enforced', coveredForms: ['Global and named add locks, remove locks, bodypart and physics occupancy, clothing capacity and replacement', 'Wearable-type ordering, empty results and failed-option replies'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-outfitnames.test.ts'],
+    },
+    {
+      id: 'getremoutfitnames', forms: ['@getremoutfitnames=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'RLVa returns comma-separated canonical layer names in wearable-type order: shape, skin, hair, eyes, shirt, pants, shoes, socks, jacket, gloves, undershirt, underpants, skirt, alpha, tattoo, physics, universal. Nonempty options return an empty failed-option reply. Kokua has no matching query handler.',
+      profiles: {
+        rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getremoutfitnames query handler; no reply is synthesized and the command remains inspectably unsupported.'),
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetOutfitNames', 'RlvWearableLocks::canWear', 'RlvForceWear::isForceRemovable', 'LLWearableData::canAddWearable'],
+          'Lists layers with at least one worn clothing item that can be force-removed. Bodyparts are excluded. Global and named remoutfit locks from every issuer apply, including the querying issuer. Item and parent nostrip names are case sensitive, ascending through folded parents.'),
+          commandForms: [{ behaviour: 'getremoutfitnames', type: 'reply', support: 'enforced', option: 'none' }],
+          support: 'enforced', coveredForms: ['Global and named remove locks, every issuer, bodypart exclusion, multiple items and nostrip ancestry', 'Wearable-type ordering, empty results and failed-option replies'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-outfitnames.test.ts'],
+    },
+    {
       id: 'getinvworn', forms: ['@getinvworn[:<path>]=<channel>'], comparison: 'confirmed difference',
       wikiComparison: 'Two digits describe direct and descendant wearable occupancy: 0 empty, 1 none worn, 2 some worn, 3 all worn. Clothing, bodyparts and mapped live attachments count together. Kokua preserves inventory order and ignores direct shared-root items; single no-mod named-point object folders use its 10/30 sentinel mapping. RLVa orders child folders by UUID, counts direct root items, and folds effective folders into their parents. Commas and slash-bearing child names remain unescaped. Inventory links and gestures are outside the fixture.',
       profiles: {

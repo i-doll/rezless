@@ -995,6 +995,28 @@ selectors return the full bitmap in Kokua RLV 2.09.35.00, or an empty reply with
 `failed-option` in Firestorm RLVa 2.4.2. RLVa uses `RlvHideLockedLayers=false`;
 lock-filter overrides are unsupported.
 
+Firestorm RLVa 2.4.2 also supports the optionless queries
+`@getoutfitnames=<channel>`, `@getaddoutfitnames=<channel>` and
+`@getremoutfitnames=<channel>`. Replies are comma-separated lowercase layer
+names in this order: shape, skin, hair, eyes, shirt, pants, shoes, socks,
+jacket, gloves, undershirt, underpants, skirt, alpha, tattoo, physics, universal.
+Each layer appears once. Empty results still deliver a reply; nonempty options
+return an empty reply with `failed-option`. Kokua RLV 2.09.35.00 has no handlers
+for these queries and leaves them inspectably unsupported.
+
+`getoutfitnames` lists occupied layers, including bodyparts and unshared items.
+`getaddoutfitnames` lists layers that allow either replacement or addition.
+Global and named `addoutfit` locks exclude their layers. When a `remoutfit` lock
+protects a worn layer, replacement is unavailable: bodyparts and physics cannot
+add a second item, while other clothing can add only below 60 total worn clothing
+items. A layer with no locked worn items remains replaceable, including at capacity.
+`getremoutfitnames` lists layers with at least one removable worn clothing item.
+Bodyparts never qualify. Every issuer's global and named `remoutfit` locks apply,
+including the query issuer's own locks. Item and parent `nostrip` names are
+case sensitive, with ancestry followed through folded folders. These queries use
+the same explicit inventory and layer locks as the clothing actions; inventory
+links, folder locks and composite outfits remain outside the fixture.
+
 `getinvworn` returns `|<direct><descendants>` for the selected folder, followed
 by comma-separated child names and their codes. Each digit is 0 for no wearable
 items, 1 for none worn, 2 for some worn, or 3 for all worn. Clothing, bodyparts

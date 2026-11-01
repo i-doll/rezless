@@ -1,7 +1,7 @@
 import type { Linkset } from '../linkset.js'
 import { RLV_ATTACHMENT_POINTS } from './attachments.js'
 import { getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventory, type RlvInventoryEntry } from './inventory.js'
-import type { RlvProfile } from './profiles.js'
+import type { RlvProfile, ViewerState } from './profiles.js'
 
 export interface RlvOutfitReply { readonly text: string; readonly failedOption?: boolean }
 type Counts = { total: number; worn: number }
@@ -138,4 +138,32 @@ export function attemptRlvWearable(avatar: import('../world.js').WorldAvatar, it
     rule.behaviour === (wear ? 'addoutfit' : 'remoutfit') && (!rule.option || rule.option === entry.wearableType))) return 'blocked'
   viewer.inventory.setWearableWorn(itemId, wear)
   return 'allowed'
+}
+
+// Name queries use wearable-type order, unlike the legacy getoutfit bitmap.
+const outfitNameLayers = ['shape', 'skin', 'hair', 'eyes', 'shirt', 'pants', 'shoes', 'socks',
+  'jacket', 'gloves', 'undershirt', 'underpants', 'skirt', 'alpha', 'tattoo', 'physics', 'universal'] as const
+
+/** RLVa clothing name queries read current occupancy and every active layer lock. */
+export function getRlvOutfitNames(viewer: ViewerState, behaviour: string, option: string): RlvOutfitReply | undefined {
+  if (viewer.profile !== 'rlva' || !['getoutfitnames', 'getaddoutfitnames', 'getremoutfitnames'].includes(behaviour)) return undefined
+  if (option) return { text: '', failedOption: true }
+  const inventory = viewer.inventory
+  const wornIds = new Set(inventory.wornWearables())
+  const worn = inventory.snapshot().filter(entry => wornIds.has(entry.id))
+  const rules = viewer.restrictions.snapshot()
+  const locked = (behaviour: string, layer: string) => rules.some(rule =>
+    rule.behaviour === behaviour && (!rule.option || rule.option === layer))
+  const clothingCount = worn.filter(entry => !isRlvBodypart(entry)).length
+  const layers = outfitNameLayers.filter(layer => {
+    const items = worn.filter(entry => entry.wearableType === layer)
+    if (behaviour === 'getoutfitnames') return items.length > 0
+    if (behaviour === 'getremoutfitnames') return !locked('remoutfit', layer) &&
+      items.some(entry => !isRlvBodypart(entry) && isRlvStrippable('rlva', inventory, entry))
+    if (locked('addoutfit', layer)) return false
+    // Without locked worn items, replacement remains available even at capacity.
+    if (!items.length || !locked('remoutfit', layer)) return true
+    return bodyparts.has(layer) || layer === 'physics' ? false : clothingCount < 60
+  })
+  return { text: layers.join(',') }
 }
