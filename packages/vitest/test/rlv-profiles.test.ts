@@ -116,7 +116,7 @@ it('identifies the reference versions and exposes unsupported command forms hone
         file: expect.stringMatching(/^indra\/newview\/\w+\.(cpp|h)$/),
         symbols: expect.arrayContaining([expect.any(String)]),
       })
-      if (profile === 'rlv') expect(evidence.file).toBe(entry.id === 'attachment-recovery' ? 'indra/newview/llviewerjointattachment.cpp' : ['teleport-offers', 'teleport-requests'].includes(entry.id) ? 'indra/newview/llimprocessing.cpp' : entry.id === 'acceptpermission' ? 'indra/newview/llviewermessage.cpp' : entry.id === 'user-teleport' ? 'indra/newview/llagent.cpp' : entry.id === 'sendgesture' ? 'indra/newview/llgesturemgr.cpp' : entry.id === 'chat-redirection' ? 'indra/newview/llfloaterimnearbychat.cpp' : entry.id === 'chat-volume' ? 'indra/newview/llchatbar.cpp' : entry.id === 'inventory-offers' ? 'indra/newview/llinventorymodel.cpp' : 'indra/newview/RRInterface.cpp')
+      if (profile === 'rlv') expect(evidence.file).toBe(entry.id === 'viewer-session' ? 'indra/newview/llappviewer.cpp' : entry.id === 'attachment-recovery' ? 'indra/newview/llviewerjointattachment.cpp' : ['teleport-offers', 'teleport-requests'].includes(entry.id) ? 'indra/newview/llimprocessing.cpp' : entry.id === 'acceptpermission' ? 'indra/newview/llviewermessage.cpp' : entry.id === 'user-teleport' ? 'indra/newview/llagent.cpp' : entry.id === 'sendgesture' ? 'indra/newview/llgesturemgr.cpp' : entry.id === 'chat-redirection' ? 'indra/newview/llfloaterimnearbychat.cpp' : entry.id === 'chat-volume' ? 'indra/newview/llchatbar.cpp' : entry.id === 'inventory-offers' ? 'indra/newview/llinventorymodel.cpp' : 'indra/newview/RRInterface.cpp')
     }
   }
 })
