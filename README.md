@@ -657,7 +657,9 @@ the lines it changed) and project coverage vs the `main` baseline.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
-These rules are state-only. `getstatus` and `getstatusall` reply with stored
+These rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
+its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
+Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
 `getattach` reads current attachment point occupancy, including HUDs, using
 the canonical 55-point table. RLVa also supports occupied point names and group

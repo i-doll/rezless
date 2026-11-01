@@ -83,3 +83,5 @@ export { getRlvStatus } from './rlv/status.js'
 export type { RlvRestriction } from './rlv/restrictions.js'
 
 export { RLV_ATTACHMENT_POINTS, RLVA_ATTACHMENT_SETTINGS, getRlvAttachmentReply, setRlvAttachmentBridge } from './rlv/attachments.js'
+export { sendAvatarChat, avatarChatLog } from './rlv/chat-actions.js'
+export type { AvatarChatAction } from './rlv/chat-actions.js'

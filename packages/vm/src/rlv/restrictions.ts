@@ -1,6 +1,6 @@
 import type { Prim } from '../prim.js'
 import type { LinksetClock } from '../clock.js'
-import type { RlvParsedCommand } from './classifier.js'
+import { rlvIntegerPrefix, type RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
 
 // Kokua routes these named replies before add/remove parameter dispatch.
@@ -21,7 +21,7 @@ export interface RlvRestriction {
   readonly option: string
   /** Canonical behaviour and nonempty option, without parameter or at-sign. */
   readonly rule: string
-  readonly support: 'state-only' | 'unsupported'
+  readonly support: 'enforced' | 'state-only' | 'unsupported'
 }
 
 /** Avatar-owned wire state. Script reset and removal do not alter it. */
@@ -39,7 +39,7 @@ export class RlvRestrictions {
   }
 
   /** Apply classified wire commands; unsupported effects remain unsupported. */
-  apply(prim: Prim, parsed: RestrictionCommand): 'state-only' | 'unsupported' {
+  apply(prim: Prim, parsed: RestrictionCommand): RlvRestriction['support'] {
     const { behaviour, option, parameter, kind } = parsed
     if (kind === 'clear') {
       const rules = this.rules.get(prim.key)
@@ -51,8 +51,8 @@ export class RlvRestrictions {
     }
     if (this.profile === 'rlv' && (KOKUA_REPLIES.has(behaviour) ||
       /^(version|getenv_|getdebug_)/.test(behaviour))) return 'unsupported'
-    const support = STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'
-    // RLVa forms outside the no-option allowlist are not emulated. Kokua
+    const support = this.chatSupport(behaviour, option) ?? (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported')
+    // RLVa forms outside the supported allowlist are not emulated. Kokua
     // retains arbitrary wire names and options even when their effects are unknown.
     if (this.profile === 'rlva' && support === 'unsupported') return support
     const rule = behaviour + (option ? ':' + option : '')
@@ -67,6 +67,31 @@ export class RlvRestrictions {
       this.startGC(prim.linkset!.clock)
     }
     return support
+  }
+
+  /** Restrict exception scope for this family only; other families stay state-only. */
+  private chatSupport(behaviour: string, option: string): RlvRestriction['support'] | undefined {
+    if (behaviour === 'permissive' && !option) return 'enforced'
+    if (behaviour !== 'sendchannel' && behaviour !== 'sendchannel_sec') return undefined
+    if (!option) return 'enforced'
+    const channel = rlvIntegerPrefix(option)
+    if (this.profile === 'rlv' && String(channel) !== option) return 'unsupported'
+    return channel !== undefined && channel > 0 ? 'enforced' : 'unsupported'
+  }
+
+  /** Rules whose issuing prims have not granted this private channel. */
+  channelDenials(channel: number): readonly RlvRestriction[] {
+    if (this.profile === 'disabled' || channel === 0) return Object.freeze([])
+    const rules = this.snapshot()
+    const family = rules.filter(rule => rule.behaviour === 'sendchannel' || rule.behaviour === 'sendchannel_sec')
+    const blocks = family.filter(rule => !rule.option)
+    const exceptions = family.filter(rule => rule.option && (this.profile === 'rlva'
+      ? rlvIntegerPrefix(rule.option) === channel : rule.option === String(channel)))
+    const strict = rules.some(rule => rule.behaviour === 'permissive' && !rule.option)
+    const missing = blocks.filter(rule => (strict || rule.behaviour === 'sendchannel_sec') &&
+      !exceptions.some(exception => exception.sourcePrim === rule.sourcePrim))
+    if (missing.length) return Object.freeze(missing)
+    return Object.freeze(blocks.some(rule => rule.behaviour === 'sendchannel') && !exceptions.length ? blocks : [])
   }
 
   private prune(sourcePrim: string): void {
@@ -103,11 +128,15 @@ export class RlvRestrictions {
 export function dispatchRestrictionCommand(viewer: ViewerState, prim: Prim, parsed: RlvParsedCommand, command: string): boolean {
   if (parsed.kind !== 'add' && parsed.kind !== 'remove' && parsed.kind !== 'clear') return false
   const support = viewer.restrictions.apply(prim, { ...parsed, kind: parsed.kind })
+  if (support === 'enforced') {
+    viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'applied' })
+    return true
+  }
   viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported' })
   viewer.diagnostics.push({ command, reason: 'unsupported', detail: support === 'state-only'
     ? 'Viewer restriction state updated; action enforcement is unsupported.'
     : viewer.profile === 'rlv'
       ? 'Wire rule updated for this profile; its effects are unsupported.'
-      : 'This restriction form is outside the supported state-only allowlist.' })
+      : 'This restriction form is outside the supported allowlist.' })
   return true
 }
