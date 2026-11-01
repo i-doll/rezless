@@ -196,7 +196,9 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
       const blocked = rules.some(rule => (!rule.option || rule.option === entry.wearableType) &&
         (rule.behaviour === 'addoutfit' || replace && occupants.length > 0 && rule.behaviour === 'remoutfit'))
       if (blocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
-      if (replace) for (const previous of occupants) inventory.setWearableWorn(previous.id, false)
+      if (replace) for (const previous of occupants) {
+        if (isRlvBodypart(entry) || isRlvStrippable(profile, inventory, previous, true)) inventory.setWearableWorn(previous.id, false)
+      }
       inventory.setWearableWorn(entry.id, true)
       results.push({ itemId: entry.id, outcome: 'worn' })
     }

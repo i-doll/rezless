@@ -1732,7 +1732,8 @@ Folded clothing contributes on wear when strippable, but not on removal.
 A folder's `+` prefix requests add. Kokua evaluates each folder separately;
 RLVa descendants inherit the containing folder's action. RLVa replacement keeps
 all accepted clothing of a layer by adding after the first item; Kokua replaces
-sequentially. Layer and attachment locks constrain every form.
+sequentially. Replacement preserves clothing protected by profile-specific
+nostrip names. Layer and attachment locks constrain every form.
 
 Folder options select one path. Kokua strips a pipe annotation from each path
 component, so `Base|33/Child|30` selects `Base/Child`. RLVa resolves the literal

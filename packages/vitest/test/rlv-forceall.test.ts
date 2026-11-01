@@ -209,3 +209,20 @@ it('RLVa selector precedence rejects point-named folders for recursive wear and 
   }
  }
 })
+
+// Firestorm RLVa 2.4.2: RlvForceWear::addWearable -> forceRemove.
+// Kokua RLV 2.09.35.00: LLAppearanceMgr::removeCOFItemLinks -> RRInterface::canDetach.
+for (const command of ['attach', 'attachall', 'attachalloverorreplace', 'addoutfitall']) {
+ for (const name of ['nostrip Shirt', 'NOSTRIP Shirt']) it(`${command} preserves profile-protected clothing during replacement: ${name}`, async () => {
+  for (const [profile, f] of Object.entries(await fixtures())) {
+   const inv = f.avatar.viewer.inventory
+   inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(),
+    { id: 'shirt', parentId: 'base', kind: 'item', name: 'New shirt', wearableType: 'shirt' },
+    { id: 'old', parentId: null, kind: 'item', name, wearableType: 'shirt' },
+   ], wornWearables: ['old'] })
+   send(f, `@${command}:base=force`)
+   expect(inv.wornWearables()).toEqual(profile === 'rlv' || name.startsWith('nostrip') ? ['old', 'shirt'] : ['shirt'])
+   expect(result(f).wearResults).toContainEqual({ itemId: 'shirt', outcome: 'worn' })
+  }
+ })
+}

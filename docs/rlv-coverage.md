@@ -1125,7 +1125,7 @@ Comparison: confirmed difference. Recursive wear includes visible descendants an
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Recursive wear walks visible subfolders in inventory order, including single no-mod objects in point-named hidden children. Each folder applies its own + prefix. Clothing replacement is sequential; unnamed objects add at the saved point. Recursive removal includes hidden descendants and respects attachment, layer and nostrip protection. Remoutfit folder forms share direct detach semantics, including clothing. Pipe suffixes annotate each path component, never select additional folders. Semicolons remain literal folder text. Inventory links, gestures, environment settings and folder locks remain unsupported.
+Support depth: enforced. Recursive wear walks visible subfolders in inventory order, including single no-mod objects in point-named hidden children. Each folder applies its own + prefix. Clothing replacement preserves nostrip occupants and is sequential; unnamed objects add at the saved point. Recursive removal includes hidden descendants and respects attachment, layer and nostrip protection. Remoutfit folder forms share direct detach semantics, including clothing. Pipe suffixes annotate each path component, never select additional folders. Semicolons remain literal folder text. Inventory links, gestures, environment settings and folder locks remain unsupported.
 
 - Recursive attachments and clothing with per-item outcomes and query updates
 - Visible wear descendants, hidden removal descendants and single no-mod folded children
@@ -1136,7 +1136,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Recursive wear and removal walk visible descendants. Effective folded children contribute objects, with exactly one object required on wear; folded children do not expose ordinary descendants. Folded clothing can be worn when strippable but is excluded on removal. A + prefix changes replacement to add and descendants inherit that action. The first accepted clothing item per layer replaces; subsequent items add. Removal preserves bodyparts and every issuer lock, bridge and nostrip protection. Remoutfit folders share direct detach semantics. Options resolve one literal path. Addoutfitalloverorreplace has no handler. Inventory links, gestures, environment settings and folder locks remain unsupported.
+Support depth: enforced. Recursive wear and removal walk visible descendants. Effective folded children contribute objects, with exactly one object required on wear; folded children do not expose ordinary descendants. Folded clothing can be worn when strippable but is excluded on removal. A + prefix changes replacement to add and descendants inherit that action. The first accepted clothing item per layer replaces strippable occupants; subsequent items add. Removal preserves bodyparts and every issuer lock, bridge and nostrip protection. Remoutfit folders share direct detach semantics. Options resolve one literal path. Addoutfitalloverorreplace has no handler. Inventory links, gestures, environment settings and folder locks remain unsupported.
 
 - Recursive attachments and clothing with per-item outcomes and query updates
 - Visible descendants, effective folded objects and folded clothing wear
