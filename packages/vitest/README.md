@@ -1847,3 +1847,27 @@ Map and landmark locks do not block offers. Accepted offers use normal avatar
 teleport movement and attachment events without granting script permissions.
 Maturity, mute, busy and friend preferences, administrator offers and simulator
 landing adjustments are outside this fixture.
+
+
+### Avatar teleport requests
+
+`world.requestTeleport(requester, recipient)` asks the recipient to send an offer
+back to the requester. `world.respondTeleportRequest(recipient, request, 'accept' | 'decline')`
+consumes a pending request once. `teleportRequestLog(avatar)` returns frozen receipt
+and response snapshots. Paired fixtures expose `receiveTeleportRequest`,
+`respondTeleportRequest` and `teleportRequests`.
+
+Both profiles enforce `tprequest` before `accepttprequest` automatic acceptance.
+UUID options on `tprequest` allow that requester; UUID options on `accepttprequest`
+auto-accept only that requester. `tprequest_sec` and `permissive=n` require exceptions
+from every restricting issuer. Firestorm RLVa 2.4.2 supports `accepttprequest_sec`;
+Kokua RLV 2.09.35.00 leaves it inspectably unsupported. Remove aliases and clear
+affect subsequent requests. Pending callbacks do not recheck later locks.
+
+Acceptance records the resulting ordinary offer in `request.offer` and in the
+requester's offer history. Its destination is the host's global position when
+responding. The host stays put; the requester travels only when its own offer
+policy or manual response accepts that offer. A blocked offer still leaves the
+request accepted. Host `unsit`, `tplure`, map and landmark locks do not block requests.
+Maturity, mute, busy and friend preferences, outgoing message filtering and
+simulator landing adjustments are outside this fixture.
