@@ -813,7 +813,12 @@ fractions and supports radian facing. Teleport lock and issuer-exemption behavio
 is profile specific. Moves stand normally without granting simulator permissions. Worn objects follow
 the avatar into the new region, keep hearing its viewer and get teleport and
 region `changed` events.
-Landing-point routing, terrain/collision adjustments and camera pose are excluded.
+Forced location travel applies parcel landing points and facing, anywhere routing,
+and diversion from blocked parcels to the nearest available location in the region.
+If no location is available, travel refuses before standing. Parcel owners and
+configured estate owners/managers bypass routing. Final heights use the region's
+bilinear terrain with a fixed 0.975 m settled clearance. Collision geometry,
+telehubs and camera pose are excluded.
 
 RLV/RLVa force removal covers direct shared-folder attachments with
 `@detach:<path>=force` and selected or all clothing layers with
