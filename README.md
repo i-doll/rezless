@@ -707,3 +707,9 @@ traversal, hidden-folder and separator rules. `getpath` and `getpathnew` query
 existing worn attachment paths through optional `wornAttachments` item-to-root
 mappings in `seedRlvInventory`. They observe attachment changes without spawning
 or wearing objects. Outfit-layer path selectors remain unsupported.
+
+RLV/RLVa outfit reads include `getoutfit` and `getinvworn`. Seed wearable layers
+and worn item IDs with `seedRlvInventory`; inventory replies combine clothing
+with mapped live attachments. The manifest describes profile differences and
+direct folded-folder queries. These reads do not wear or
+remove items. See the outfit fixture documentation in `packages/vitest/README.md`.

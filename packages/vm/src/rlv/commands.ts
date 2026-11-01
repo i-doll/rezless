@@ -4,6 +4,7 @@ import { getRlvCommands } from './getcommand.js'
 import { dispatchDetachCommand } from './detach.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
 import { findRlvFolders, getRlvWornPath } from './findfolder.js'
+import { getRlvOutfitReply } from './outfit.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
 import { dispatchSeatingCommand, getRlvSitId, seatingSupport } from './sit.js'
@@ -84,6 +85,14 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) && parsed.behaviour === 'getinv') {
       text = getRlvInventoryList(viewer.profile, viewer.inventory, parsed.option)
+    }
+    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
+      (parsed.behaviour === 'getoutfit' || parsed.behaviour === 'getinvworn')) {
+      const result = getRlvOutfitReply(viewer.profile, viewer.inventory, linkset, parsed.behaviour, parsed.option)
+      const reply = sendViewerReply(linkset, avatar, channel, result.text)!
+      viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
+        ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
+      continue
     }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
       (parsed.behaviour === 'getattach' || parsed.behaviour === 'getattachnames')) {
