@@ -1,3 +1,4 @@
+import type { VehicleSettings } from './builtins/vehicles.js'
 import type { PhysicsState } from './builtins/physics.js'
 import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
@@ -93,6 +94,11 @@ export class Prim {
     acceleration: { x: 0, y: 0, z: 0 }, omega: { x: 0, y: 0, z: 0 },
     mass: 1.25, massMKS: 125, centerOfMass: null, energy: 1,
   }
+  /** Requested settings survive as capture history, independently of script effects. */
+  buoyancy = 0
+  hover: { height: number; water: number; tau: number } | null = null
+  groundRepel: { height: number; water: number; tau: number } | null = null
+  readonly vehicle: VehicleSettings = { type: 0, flags: 0, params: {}, requests: [] }
   /** Keyframed playback is shared by every script in the object. */
   keyframedMotion: KeyframedMotion | null = null
   /** Plain target requests; clock callbacks are private and never enter inventory snapshots. */

@@ -1,4 +1,5 @@
-import { llApplyImpulse, llApplyRotationalImpulse, llSetForce, llSetTorque, llSetForceAndTorque, llSetVelocity, llSetAngularVelocity, llPushObject, llGetForce, llGetTorque, llGetVel, llGetAccel, llGetOmega, llGetMass, llGetMassMKS, llGetCenterOfMass, llGetEnergy } from './physics.js'
+import { llSetVehicleType, llSetVehicleFlags, llRemoveVehicleFlags, llSetVehicleFloatParam, llSetVehicleVectorParam, llSetVehicleRotationParam } from './vehicles.js'
+import { llSetBuoyancy, llSetHoverHeight, llGroundRepel, llStopHover, llApplyImpulse, llApplyRotationalImpulse, llSetForce, llSetTorque, llSetForceAndTorque, llSetVelocity, llSetAngularVelocity, llPushObject, llGetForce, llGetTorque, llGetVel, llGetAccel, llGetOmega, llGetMass, llGetMassMKS, llGetCenterOfMass, llGetEnergy } from './physics.js'
 import { llSitOnLink, llUnSit, llSetAgentRot, llTeleportAgent, llTeleportAgentGlobalCoords, llTeleportAgentHome, llAvatarOnSitTarget, llAvatarOnLinkSitTarget } from './sit.js'
 import { llGetGameControlMode, llGetGameControlModeAxes, llGetGameControlModeButtons } from './game-control.js'
 import { llAttachToAvatar, llAttachToAvatarTemp, llDetachFromAvatar, llGetAttached, llGetAttachedList, llGetAttachedListFiltered, llWorldPosToHUD } from './attachments.js'
@@ -429,7 +430,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llCollisionFilter, llCollisionSound, llVolumeDetect, llSetRemoteScriptAccessPin,
   llSensor, llSensorRepeat, llSensorRemove,
   llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject,
-  llApplyImpulse, llApplyRotationalImpulse, llSetForce, llSetTorque, llSetForceAndTorque, llSetVelocity, llSetAngularVelocity, llPushObject, llGetForce, llGetTorque, llGetVel, llGetAccel, llGetOmega, llGetMass, llGetMassMKS, llGetCenterOfMass, llGetEnergy,
+  llSetVehicleType, llSetVehicleFlags, llRemoveVehicleFlags, llSetVehicleFloatParam, llSetVehicleVectorParam, llSetVehicleRotationParam,
+  llSetBuoyancy, llSetHoverHeight, llGroundRepel, llStopHover, llApplyImpulse, llApplyRotationalImpulse, llSetForce, llSetTorque, llSetForceAndTorque, llSetVelocity, llSetAngularVelocity, llPushObject, llGetForce, llGetTorque, llGetVel, llGetAccel, llGetOmega, llGetMass, llGetMassMKS, llGetCenterOfMass, llGetEnergy,
   llDamage,
   llAdjustDamage,
   llGetHealth,

@@ -3,6 +3,7 @@ import type { LslValue, Vector } from '../values/types.js'
 import { llGetVel as initialVelocity, llGetForce as rezForce } from './rez.js'
 
 export type PhysicsRequestName =
+  | 'llSetBuoyancy' | 'llSetHoverHeight' | 'llGroundRepel' | 'llStopHover'
   | 'llApplyImpulse' | 'llApplyRotationalImpulse' | 'llSetForce' | 'llSetTorque'
   | 'llSetForceAndTorque' | 'llSetVelocity' | 'llSetAngularVelocity' | 'llPushObject'
 
@@ -57,3 +58,25 @@ export const llGetMass: BuiltinImpl = ctx => root(ctx).physics.mass
 export const llGetMassMKS: BuiltinImpl = ctx => root(ctx).physics.massMKS
 export const llGetCenterOfMass: BuiltinImpl = ctx => ({ ...root(ctx).physics.centerOfMass ?? root(ctx).regionPosition() })
 export const llGetEnergy: BuiltinImpl = ctx => root(ctx).physics.energy
+
+/** Last requested settings and history; no gravity or hover integration. */
+export const llSetBuoyancy: BuiltinImpl = (ctx, args) => {
+  capture('llSetBuoyancy')(ctx, args)
+  ctx.prim.buoyancy = args[0] as number
+  return undefined
+}
+export const llSetHoverHeight: BuiltinImpl = (ctx, args) => {
+  capture('llSetHoverHeight')(ctx, args)
+  ctx.prim.hover = { height: args[0] as number, water: args[1] as number, tau: args[2] as number }
+  return undefined
+}
+export const llGroundRepel: BuiltinImpl = (ctx, args) => {
+  capture('llGroundRepel')(ctx, args)
+  ctx.prim.groundRepel = { height: args[0] as number, water: args[1] as number, tau: args[2] as number }
+  return undefined
+}
+export const llStopHover: BuiltinImpl = (ctx, args) => {
+  capture('llStopHover')(ctx, args)
+  ctx.prim.hover = null
+  return undefined
+}
