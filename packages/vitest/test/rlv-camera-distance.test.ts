@@ -232,3 +232,53 @@ it('does not restore the RLVa lens on removal of a deprecated zoom alias', async
     expect(getRlvFov(f.avatar)).toBeCloseTo(profile === 'rlva' ? 0.5235988 : 0.2)
   }
 })
+
+it('uses seated camera offsets for viewer distance queries without tracking permission', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start()
+    f.script.setCamera({ pos: vec(70, 0, 0) })
+    const seat = f.script.linkset.prims[0]!
+    seat.params.position = vec(20, 0, 0)
+    seat.cameraEyeOffset = vec(10, 0, 0)
+    seat.cameraAtOffset = vec(0, 0, 0)
+    expect(f.world.sitAvatar(f.avatar, seat)).toBe(true)
+    send(f, '@getcam_avdist=22901')
+    expect(f.script.global('position')).toEqual(vec(0, 0, 0))
+    expect(replies(f)).toEqual(profile === 'rlva' ? ['10.000'] : [])
+    f.script.grantPermissions(PERMISSION_TRACK_CAMERA)
+    send(f, '@setcam_avdistmax:4=n,getcam_avdist=22901')
+    expect(f.script.global('position')).toEqual(vec(24, 0, 0))
+    expect(replies(f)).toEqual(profile === 'rlva' ? ['10.000', '4.000'] : [])
+  }
+})
+
+// Firestorm RLVa 2.4.2: camzoom aliases increment the native FOV behavior
+// counts. RlvBehaviourSetCamFovHandler saves only while both counts are zero.
+it('keeps the RLVa baseline when a zoom alias precedes the first native FOV limit', async () => {
+  const { changeRlvFov, getRlvFov } = await import('../src/index.js')
+  const pair = await loadRlvPair({ source })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start()
+    changeRlvFov(f.avatar, 0.75)
+    send(f, '@camzoommin:2=n,setcam_fovmax:0.6=n,camzoommin:2=y,setcam_fovmax:0.6=y')
+    expect(getRlvFov(f.avatar)).toBeCloseTo(profile === 'rlva' ? Math.PI / 3 : 0.5235988)
+  }
+})
+
+// Both profiles scale the camera offset by minimum/distance. A coincident
+// reference has no direction and produces non-finite coordinates.
+it('preserves the profile clamp arithmetic for a coincident camera reference', async () => {
+  const { getRlvCameraPosition } = await import('../src/index.js')
+  const pair = await loadRlvPair({ source })
+  for (const f of Object.values(pair)) {
+    f.script.start(); f.script.grantPermissions(PERMISSION_TRACK_CAMERA)
+    send(f, '@setcam_avdistmin:2=n')
+    const position = f.script.global('position') as { x: number; y: number; z: number }
+    expect(position.x).toBeNaN(); expect(position.y).toBeNaN(); expect(position.z).toBeNaN()
+    send(f, '@clear,setcam_origindistmin:2=n')
+    const originPosition = getRlvCameraPosition(f.avatar)
+    if (f.avatar.viewer.profile === 'rlva') expect(originPosition.x).toBeNaN()
+    else expect(originPosition).toEqual(vec(0, 0, 0))
+  }
+})

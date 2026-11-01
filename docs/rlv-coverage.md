@@ -811,7 +811,7 @@ Comparison: confirmed difference. Avatar distance bounds constrain camera poses 
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Distance aliases aggregate together. Empty bounds mean 1.5, invalid numeric text means zero, and contradictory minimum collapses to maximum. The default distance range is -1000000 to 750000 metres, including the default drawing-distance cap. Six-decimal bound queries ignore options. camzoommin bounds minimum magnification and camzoommax bounds maximum magnification, with empty multiplier 1.5 and zero removing that zoom bound. getcam_zoommin, getcam_zoommax and getcam_zoom are supported; getcam_avdist is unsupported. Mouselook bypasses distance clamping. Joint positions are explicit fixtures, defaulting to avatar position.
+Support depth: enforced. Distance aliases aggregate together. Empty bounds mean 1.5, invalid numeric text means zero, and contradictory minimum collapses to maximum. The default distance range is -1000000 to 750000 metres, including the default drawing-distance cap. Six-decimal bound queries ignore options. camzoommin bounds minimum magnification and camzoommax bounds maximum magnification, with empty multiplier 1.5 and zero removing that zoom bound. getcam_zoommin, getcam_zoommax and getcam_zoom are supported; getcam_avdist is unsupported. Mouselook bypasses distance clamping. Coincident camera and reference positions with a positive minimum produce non-finite coordinates. Joint positions are explicit fixtures, defaulting to avatar position.
 
 - Avatar distance aliases and pose reads
 - Zoom multiplier bounds and queries
@@ -821,7 +821,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Distance aliases aggregate strongest minimum/maximum modifiers. Empty or invalid bounds are rejected; numeric prefixes and explicit non-finite values follow float parsing. Three-decimal queries distinguish unset bounds with empty replies and reject options with an empty reply. Contradictory modifiers remain independently queryable; position clamping checks maximum before minimum. getcam_avdist reports camera distance from avatar position, separately from the joint reference. camzoommin maps to minimum FOV and camzoommax to maximum FOV using pi/3 divided by the multiplier, default multiplier 1. Removing a final zoom alias keeps the current lens instead of restoring the saved FOV. Zoom queries are unsupported. Mouselook bypasses distance clamping. Joint positions are explicit fixtures, defaulting to avatar position.
+Support depth: enforced. Distance aliases aggregate strongest minimum/maximum modifiers. Empty or invalid bounds are rejected; numeric prefixes and explicit non-finite values follow float parsing. Three-decimal queries distinguish unset bounds with empty replies and reject options with an empty reply. Contradictory modifiers remain independently queryable; position clamping checks maximum before minimum. getcam_avdist reports camera distance from avatar position, separately from the joint reference. camzoommin maps to minimum FOV and camzoommax to maximum FOV using pi/3 divided by the multiplier, default multiplier 1. Removing a final zoom alias keeps the current lens instead of restoring the saved FOV. Zoom queries are unsupported. Mouselook bypasses distance clamping. Coincident camera and reference positions with a positive minimum produce non-finite coordinates. Joint positions are explicit fixtures, defaulting to avatar position.
 
 - Avatar distance aliases, current-distance query and pose reads
 - Deprecated zoom aliases sharing FOV modifiers
@@ -846,7 +846,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Three-decimal current distance from avatar position, independently of the explicit joint reference used for clamping. Nonempty options return an empty reply with failed-option. Viewer queries need no simulator camera permission.
+Support depth: enforced. Three-decimal current distance from the seated camera eye when applicable, otherwise the fixture position, relative to avatar position, independently of the explicit joint reference used for clamping. Nonempty options return an empty reply with failed-option. Viewer queries need no simulator camera permission.
 
 - Current camera distance and invalid query options
 

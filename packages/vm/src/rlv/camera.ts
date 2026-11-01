@@ -4,6 +4,7 @@ import { rlvIntegerPrefix, type RlvParsedCommand } from './classifier.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
 import type { RlvRestriction } from './restrictions.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
+import { rotateVector } from '../values/ops.js'
 import { AGENT_MOUSELOOK } from '../generated/constants.js'
 import { vec, ZERO_VECTOR, type Vector } from '../values/types.js'
 import type { Prim } from '../prim.js'
@@ -365,10 +366,22 @@ export function setRlvCameraPosition(avatar: WorldAvatar, position: Vector): voi
   distanceCamera(avatar).position = { ...position }
 }
 
+/** Seat eye position shared by script pose reads and permission-independent viewer queries. */
+export function seatedCameraPosition(avatar: WorldAvatar): Vector | undefined {
+  const seat = avatar.sittingOn
+  const offsets = avatar.sittingCamera
+  if (!seat || !offsets || avatar.info & AGENT_MOUSELOOK) return undefined
+  const { eye, at } = offsets
+  if (eye.x === at.x && eye.y === at.y && eye.z === at.z) return undefined
+  const origin = seat.regionPosition()
+  const offset = rotateVector(eye, seat.regionRotation())
+  return vec(origin.x + offset.x, origin.y + offset.y, origin.z + offset.z)
+}
+
 /** Clamp a supplied effective pose, or the avatar's latest fixture pose for viewer queries. */
 export function getRlvCameraPosition(avatar: WorldAvatar, position?: Vector): Vector {
   const state = distanceCamera(avatar)
-  return state.pose(position ?? state.position)
+  return state.pose(position ?? seatedCameraPosition(avatar) ?? state.position)
 }
 
 export function getRlvCameraLimits(avatar: WorldAvatar): RlvCameraLimits { return distanceCamera(avatar).limits() }

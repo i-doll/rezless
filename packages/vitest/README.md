@@ -1267,6 +1267,9 @@ References use region coordinates. The default joint reference is the avatar's
 position. The default camera origin is the fixture position supplied through
 `script.setCamera`. Skeleton transforms, collision and smoothing are outside
 the fixture. `setRlvCameraOrigins(avatar, {})` clears both explicit references.
+A camera exactly at its clamp reference has no direction to scale. A positive
+minimum then produces non-finite coordinates through the profile clamp arithmetic;
+supply a nonzero camera offset when asserting finite distance-limited poses.
 Pose reads also apply the limits to seated camera offsets and HUD projection.
 
 | Case | Kokua RLV 2.09.35.00 | Firestorm RLVa 2.4.2 |
@@ -1283,7 +1286,9 @@ Pose reads also apply the limits to seated camera offsets and HUD projection.
 | Zoom queries | `getcam_zoom`, `getcam_zoommin`, `getcam_zoommax` | Unsupported |
 
 Removing a final RLVa zoom alias keeps the current lens. Unlike native FOV limits,
-zoom aliases do not save or restore the user lens.
+zoom aliases do not save or restore the user lens. They still count as active FOV
+restrictions, so a native limit added while an alias is active retains the previous
+saved baseline.
 
 In RLVa, equal avatar distance bounds override origin bounds. Otherwise active
 origin bounds take precedence over avatar bounds. Numeric prefixes, explicit
