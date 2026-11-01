@@ -38,7 +38,7 @@ import { agentPresence, type ViewerRequest } from './builtins/viewer.js'
 import type { InventoryOffer } from './builtins/give.js'
 import type { Camera } from './builtins/camera.js'
 import { defaultCamera } from './builtins/camera.js'
-import { changeRlvFov } from './rlv/camera.js'
+import { changeRlvFov, setRlvCameraPosition } from './rlv/camera.js'
 import type { AnimationState } from './builtins/animation.js'
 import { animationAvatars, playingAnimations, setAnimationState } from './builtins/animation.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
@@ -649,8 +649,10 @@ export class Script {
    */
   setCamera(camera: Partial<Camera>): void {
     const agent = this.state.permissions.agent.toLowerCase()
-    const avatar = camera.fov === undefined ? undefined : this.linkset.world?.avatars.find(a => a.key.toLowerCase() === agent)
-    if (avatar && avatar.viewer.profile !== 'disabled') changeRlvFov(avatar, camera.fov!)
+    const avatar = this.linkset.world?.avatars.find(a => a.key.toLowerCase() === agent)
+    if (avatar && avatar.viewer.profile !== 'disabled' && camera.fov !== undefined) changeRlvFov(avatar, camera.fov)
+    const poseAvatar = avatar ?? this.linkset.world?.avatars.find(a => a.key.toLowerCase() === this.linkset.owner.toLowerCase())
+    if (poseAvatar && poseAvatar.viewer.profile !== 'disabled' && camera.pos) setRlvCameraPosition(poseAvatar, camera.pos)
     const { pos, rot: r, fov, aspect } = { ...this.state.camera, ...camera }
     this.state.camera = {
       pos: vec(pos.x, pos.y, pos.z),

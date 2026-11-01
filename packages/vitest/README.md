@@ -1220,7 +1220,7 @@ expect(getRlvFov(fixture.avatar)).toBeCloseTo(0.8)
 
 The lens is per avatar, defaults to pi/3 and uses viewport aspect 1.4242.
 For an enabled viewer, a FOV passed to `script.setCamera` is a user lens change
-and stays within active limits; the other camera fields keep their fixture behavior.
+and stays within active limits. Position reads also obey active distance limits.
 `llGetCameraFOV` reads the permission agent's lens only with
 `PERMISSION_TRACK_CAMERA`; viewer commands never grant that permission.
 
@@ -1242,7 +1242,64 @@ later can mask it. Query-visible modifiers and active restrictions are distinct.
 User lens changes update the angle without changing its persistence mode.
 Keyboard and preference UI event delivery are outside scripted in-world probes;
 user lens attempts use the same lens setter as forces. Rendering, window resizing,
-camera exclusivity, position/distance modes and deprecated zoom aliases are unsupported.
+camera exclusivity and camera offset modes are unsupported.
+
+### RLV/RLVa camera distance
+
+`setcam_avdistmin:<metres>=n|y` and `setcam_avdistmax:<metres>=n|y`, including
+the older `camdistmin` and `camdistmax` names, constrain the camera position
+around a joint reference. Bounds aggregate across issuers and release through
+remove, clear and viewer collection. Mouselook bypasses position clamping.
+`llGetCameraPos` still requires `PERMISSION_TRACK_CAMERA`. Viewer queries work
+independently of simulator permissions.
+
+```ts
+setRlvCameraOrigins(fixture.avatar, {
+  avatar: { x: 128, y: 128, z: 22 }, // viewer joint reference
+  camera: { x: 124, y: 128, z: 24 }, // default camera origin
+})
+fixture.script.setCamera({ pos: { x: 118, y: 128, z: 24 } })
+const limits = getRlvCameraLimits(fixture.avatar)
+const position = getRlvCameraPosition(fixture.avatar)
+```
+
+References use region coordinates. The default joint reference is the avatar's
+position. The default camera origin is the fixture position supplied through
+`script.setCamera`. Skeleton transforms, collision and smoothing are outside
+the fixture. `setRlvCameraOrigins(avatar, {})` clears both explicit references.
+A camera exactly at its clamp reference has no direction to scale. A positive
+minimum then produces non-finite coordinates through the profile clamp arithmetic;
+supply a nonzero camera offset when asserting finite distance-limited poses.
+Pose reads also apply the limits to seated camera offsets and HUD projection.
+
+| Case | Kokua RLV 2.09.35.00 | Firestorm RLVa 2.4.2 |
+| --- | --- | --- |
+| Unset avatar distance queries | `-1000000.000000` / `750000.000000` | Empty strings |
+| Bound reply precision | Six decimals | Three decimals |
+| Contradictory distance bounds | Minimum collapses to maximum | Both modifiers retained, clamp maximum before minimum |
+| Empty distance bound | 1.5 metres | Rejected |
+| Current-distance query | Unsupported | `getcam_avdist`, measured from avatar position |
+| Origin bounds | Unsupported | `setcam_origindistmin` / `setcam_origindistmax` |
+| Origin bound queries | Unsupported | Unsupported |
+| `camzoommin` / `camzoommax` | Minimum / maximum magnification | Minimum / maximum FOV using pi/3 divided by multiplier |
+| Empty zoom multiplier | 1.5 | 1 |
+| Zoom queries | `getcam_zoom`, `getcam_zoommin`, `getcam_zoommax` | Unsupported |
+
+Removing a final RLVa zoom alias keeps the current lens. Unlike native FOV limits,
+zoom aliases do not save or restore the user lens. They still count as active FOV
+restrictions, so a native limit added while an alias is active retains the previous
+saved baseline.
+
+In RLVa, equal avatar distance bounds override origin bounds. Otherwise active
+origin bounds take precedence over avatar bounds. Numeric prefixes, explicit
+non-finite values and query options follow each profile's camera parsing policy.
+Kokua caps the default maximum avatar distance at 750000 metres because of its
+default drawing limits.
+
+RLVa `setcam_avdist:<metres>=n|y` selects a silhouette threshold rather than
+moving the camera. `getRlvCameraLimits(avatar).silhouetteDistance` exposes the
+strongest threshold as viewer state. Kokua leaves this command inspectably
+unsupported. Rendering silhouettes is outside the fixture.
 
 
 ### Viewer UI restrictions
@@ -1314,7 +1371,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **game control**: `llGetGameControlMode`, `llGetGameControlModeAxes`, `llGetGameControlModeButtons`. Set an avatar's viewer-derived values with `s.setGameControl(agent, { mode, axes, buttons })`, then use `s.sendGameControl(agent, { buttons, axes })` to supply separate raw event input. Delivery requires `PERMISSION_GAME_CONTROL` from that agent. Each event retains its own semantic snapshot across sleeps and later fixture updates. Outside the event, queries return `-1`, `[]` and `0`. Axes are floats with the supplied mode-dependent length, including cursor pixel coordinates. Fixtures share state within a World and can be cleared with `s.setGameControl(agent, null)`. Controller mapping and automatic viewer mode changes are not simulated.
 * **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
 * **attachments**: `llAttachToAvatar`, `llAttachToAvatarTemp`, `llDetachFromAvatar`, `llGetAttached`, `llGetAttachedList`, `llGetAttachedListFiltered`, `llWorldPosToHUD`. Attach calls require `PERMISSION_ATTACH`; detach requires an avatar permission key but does not require the ATTACH bit. `linkset.attachToAvatar(avatar, point, temporary)` supplies a viewer-worn fixture without granting script permissions; inspect `linkset.attachment` for avatar, point and temporary status. Detach removes the object from region queries, preserves normal attachment script state, and destroys temporary attachments after their final event. Sleeping detach handlers and recurring sensor/target work pause in inventory until fixture rewear. Lists return root keys in attachment order and hide HUDs unless the caller and HUD share an allowed, accepted experience. Set projection camera settings with `s.setCamera`. Bone transforms, avatar inventory persistence and viewer attachment limits are not simulated; other-region avatar fixtures represent child agents for list errors.
-* **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` require `PERMISSION_TRACK_CAMERA`. Supply viewer camera values with `s.setCamera`. `llSetCameraParams` and `llClearCameraParams` record rules in `s.cameraParams`. `llSetCameraEyeOffset`, `llSetCameraAtOffset`, `llSetLinkCamera` and `llForceMouselook` store settings on each prim as `cameraEyeOffset`, `cameraAtOffset` and `forceMouselook`, without runtime permissions. `World.sitAvatar` snapshots the offsets for subsequent camera position/rotation reads; later setting changes apply on the next sit. `llWorldPosToHUD` uses the same effective camera pose. Camera offsets follow the seated prim transform and survive script reset and inventory copies. Forcing mouselook sets `AGENT_MOUSELOOK` on the next sit; clearing the prim flag leaves the viewer mode alone. Negative link selectors other than `LINK_THIS` select the first other prim, matching the measured simulator behavior. Mouselook eye positions, viewer smoothing, camera collision and viewer distance limits are outside this model; `s.setCamera` supplies the fallback viewer pose. There is no camera-offset PRIM_* getter.
+* **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` require `PERMISSION_TRACK_CAMERA`. Supply viewer camera values with `s.setCamera`. `llSetCameraParams` and `llClearCameraParams` record rules in `s.cameraParams`. `llSetCameraEyeOffset`, `llSetCameraAtOffset`, `llSetLinkCamera` and `llForceMouselook` store settings on each prim as `cameraEyeOffset`, `cameraAtOffset` and `forceMouselook`, without runtime permissions. `World.sitAvatar` snapshots the offsets for subsequent camera position/rotation reads; later setting changes apply on the next sit. `llWorldPosToHUD` uses the same effective camera pose. Camera offsets follow the seated prim transform and survive script reset and inventory copies. Forcing mouselook sets `AGENT_MOUSELOOK` on the next sit; clearing the prim flag leaves the viewer mode alone. Negative link selectors other than `LINK_THIS` select the first other prim, matching the measured simulator behavior. Mouselook eye positions, viewer smoothing and camera collision are outside this model; `s.setCamera` supplies the fallback viewer pose. There is no camera-offset PRIM_* getter.
 * **sitting and teleporting**: `llSitOnLink`, `llUnSit`, `llSetAgentRot`, `llTeleportAgent`, `llTeleportAgentGlobalCoords`, `llTeleportAgentHome`, plus the sit-target readers. Configure World avatar fixtures and inspect `s.teleportRequests` as described above.
 
 * **avatar animations**: `llStartAnimation`, `llStopAnimation`, `llGetAnimation`, `llGetAnimationList`, `llGetAnimationOverride`, `llSetAnimationOverride`, `llResetAnimationOverride`. Start/stop require `PERMISSION_TRIGGER_ANIMATION`; set/reset overrides require `PERMISSION_OVERRIDE_ANIMATIONS`; reading overrides accepts either. Inventory animation names take priority over built-ins. Raw UUIDs work for stop only.
