@@ -29,6 +29,12 @@ function attach(ctx: CallContext, point: number, temporary: boolean): void {
   }
   if (!sameKey(agent, ctx.linkset.owner)) {
     if (!temporary) return
+    for (const prim of ctx.linkset.prims) {
+      for (const item of prim.inventory) {
+        const mask = item.permMask
+        item.permMask = { ...mask, base: mask.base & mask.next, owner: mask.owner & mask.next }
+      }
+    }
     ctx.linkset.owner = agent
     ctx.state.permissions.granted = PERMISSION_ATTACH
     for (const script of ctx.linkset.allScripts()) {

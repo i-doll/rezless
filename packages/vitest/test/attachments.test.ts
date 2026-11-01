@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { loadLinkset, loadScript, World, Experience, NULL_KEY } from '../src/index.js'
+import { loadLinkset, loadScript, World, Prim, Experience, NULL_KEY } from '../src/index.js'
 
 const OWNER = '11111111-1111-1111-1111-111111111111'
 
@@ -457,4 +457,63 @@ it('suspends a caller after detach without hanging settle, then resumes on rewea
   linkset.advanceTime(500)
   expect(script.global('after')).toBe(7)
   expect(script.global('detached')).toBe(1)
+})
+
+// In-world: sleep-temp.lsl -> detaching and sleeping destroys the temporary
+// object; it has no inventory object to wear again (Aditi, SLua Tideland,
+// 2026-11-01). Its blocked final event must not keep the fixture alive.
+it('destroys a temporary attachment even when its caller suspends the final event', async () => {
+  const { script,linkset }=await fixture(`integer after;
+   default {state_entry(){llRequestPermissions(llGetOwner(),32);}
+   run_time_permissions(integer p){llAttachToAvatarTemp(6);}
+   touch_start(integer n){llDetachFromAvatar();llSleep(0.5);after=1;}
+   attach(key id){}}`)
+  script.start();script.grantPermissions();linkset.touch(0);linkset.advanceTime(10000)
+  expect(linkset.dead).toBe(true)
+  expect(script.global('after')).toBe(0)
+  linkset.attachToAvatar(OWNER,6)
+  expect(linkset.attachment).toBeNull()
+})
+
+// Foreign ownership changes require a second avatar for in-world measurement.
+// This is the same next-owner rule used by foreign llGiveInventory transfers.
+it('applies next-owner masks before ownership events and later inventory operations', async () => {
+  const other='22222222-2222-2222-2222-222222222222'
+  const { script,prims,world,linkset }=await fixture(`integer mask;integer base;
+   default {state_entry(){llRequestPermissions("${other}",32);}
+   run_time_permissions(integer p){llAttachToAvatarTemp(6);}
+   changed(integer flags){mask=llGetInventoryPermMask("gift",MASK_OWNER);base=llGetInventoryPermMask("gift",MASK_BASE);}
+   touch_start(integer n){llGiveInventory(llGetOwner(),"gift");}}`)
+  world.addAvatar({region:'home',key:other,username:'second.avatar'})
+  prims[0]!.addInventory({name:'gift',type:7,key:NULL_KEY,creator:OWNER,description:'',acquireTimeMs:0,
+   permMask:{base:2147483647,owner:2147483647,group:0,everyone:0,next:8192}})
+  const child=linkset.addPrim(new Prim({name:'child'}))
+  child.addInventory({...prims[0]!.inventory.find(i=>i.name==='gift')!,permMask:{base:2147483647,owner:2147483647,group:0,everyone:0,next:8192}})
+  const childScript=await loadScript({host:child,source:`integer mask;
+   default {changed(integer flags){mask=llGetInventoryPermMask("gift",MASK_OWNER);}}`})
+  childScript.start();script.start();script.grantPermissions()
+  expect(childScript.global('mask')).toBe(8192)
+  expect(script.global('mask')).toBe(8192)
+  expect(script.global('base')).toBe(8192)
+  script.linkset.touch(1)
+  expect(prims[0]!.inventory.some(i=>i.name==='gift')).toBe(false)
+  expect(script.inventoryOffers.at(-1)?.items[0]?.permMask.owner).toBe(8192)
+})
+
+// In-world: recurring.lsl -> scans 3 / targets 64 at detach; no output in
+// inventory; viewer rewear reports scans 3 / targets 66, then both continue
+// without re-registering (Aditi, SLua Tideland, 2026-11-01).
+it('suspends recurring sensors and targets in inventory, preserving their registrations for rewear', async () => {
+  const { script,linkset }=await fixture(`integer scans;integer targets;
+   default {state_entry(){llSensorRepeat("",NULL_KEY,AGENT,96,PI,1);llTarget(<10,0,0>,0.1);}
+   sensor(integer n){++scans;}no_sensor(){++scans;}not_at_target(){++targets;}}`)
+  script.start();linkset.attachToAvatar(OWNER,6);linkset.advanceTime(1000)
+  const scans=script.global('scans'),targets=script.global('targets')
+  expect(scans).toBe(1);expect(targets).toBeGreaterThan(0)
+  linkset.detachFromAvatar();linkset.advanceTime(3000)
+  expect(script.global('scans')).toBe(scans)
+  expect(script.global('targets')).toBe(targets)
+  linkset.attachToAvatar(OWNER,6);linkset.advanceTime(1000)
+  expect(script.global('scans')).toBe(2)
+  expect(script.global('targets')).toBeGreaterThan(targets as number)
 })

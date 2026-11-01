@@ -1,3 +1,5 @@
+import { pauseSensors, resumeSensors } from './builtins/sensor.js'
+import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
@@ -182,6 +184,10 @@ export class Linkset {
     if (!this.peers.includes(this)) this.peers.push(this)
     this.lastAttachmentPoint = point
     this.attachment = { avatar, point, temporary, order }
+    for (const script of this.allScripts()) {
+      resumeSensors(script)
+      resumeTargets(script)
+    }
     this.broadcastAttach(avatar)
   }
 
@@ -194,13 +200,17 @@ export class Linkset {
     if (index >= 0) this.peers.splice(index, 1)
     // A detached object leaves region queries and recurring timers. The final
     // attach event still runs from the shared clock's explicit event queue.
-    for (const script of this.allScripts()) this.clock.purgeTarget(script)
+    for (const script of this.allScripts()) {
+      pauseSensors(script)
+      pauseTargets(script)
+      this.clock.purgeTarget(script)
+    }
     this.broadcastAttach(NULL_KEY)
     this.finishTemporaryDetach()
   }
 
   private finishTemporaryDetach(): void {
-    if (!this.deleteAfterDetach || this.allScripts().some(s => this.clock.hasPending(s, 'attach'))) return
+    if (!this.deleteAfterDetach || this.allScripts().some(s => s.running && s.wakeAt === undefined && this.clock.hasPending(s, 'attach'))) return
     this.deleteAfterDetach = false
     this.remove()
   }

@@ -13,11 +13,37 @@ interface Scan {
   radius: number
   arc: number
 }
-const sensors = new WeakMap<Script, () => void>()
+interface SensorTask {
+  cancel: (() => void) | undefined
+  resume: () => void
+}
+const sensors = new WeakMap<Script, SensorTask>()
+
+/** Inventory stops simulator work without discarding the registered scan. */
+export function pauseSensors(script: Script): void {
+  const task = sensors.get(script)
+  task?.cancel?.()
+  if (task) task.cancel = undefined
+}
+
+export function resumeSensors(script: Script): void {
+  const task = sensors.get(script)
+  if (task && !task.cancel) task.resume()
+}
+
+function sensorTask(ctx: CallContext, delay: number, run: () => void): SensorTask {
+  const task: SensorTask = { cancel: undefined, resume: () => {
+    if (!ctx.script.linkset.peers.includes(ctx.script.linkset)) return
+    task.cancel = ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + delay, run)
+  } }
+  sensors.set(ctx.script, task)
+  task.resume()
+  return task
+}
 
 /** Reset and state changes discard scans; completed events belong to the event queue. */
 export function stopSensors(script: Script): void {
-  sensors.get(script)?.()
+  pauseSensors(script)
   sensors.delete(script)
 }
 
@@ -96,10 +122,10 @@ function scan(ctx: CallContext, q: Scan): void {
 export const llSensor: BuiltinImpl = (ctx, args) => {
   stopSensors(ctx.script)
   const q = query(args)
-  sensors.set(ctx.script, ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now, () => {
+  sensorTask(ctx, 0, () => {
     sensors.delete(ctx.script)
     scan(ctx, q)
-  }))
+  })
 }
 
 export const llSensorRepeat: BuiltinImpl = (ctx, args) => {
@@ -108,11 +134,10 @@ export const llSensorRepeat: BuiltinImpl = (ctx, args) => {
   if (rate < 0) return
   if (rate === 0) return llSensor(ctx, args)
   const q = query(args)
-  const tick = () => {
+  const task = sensorTask(ctx, rate * 1000, () => {
     scan(ctx, q)
-    sensors.set(ctx.script, ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + rate * 1000, tick))
-  }
-  sensors.set(ctx.script, ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + rate * 1000, tick))
+    task.resume()
+  })
 }
 
 export const llSensorRemove: BuiltinImpl = (ctx) => {
