@@ -152,6 +152,32 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@addoutfitall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
 | [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@addoutfitallover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
 | [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@detachall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@attachthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@attachthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@attachthisoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@attachallthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@attachallthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@attachallthisoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@addoutfitthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@addoutfitthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@addoutfitthisoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@addoutfitallthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@addoutfitallthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@addoutfitallthisoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@detachthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Kokua RLV 2.09.35.00 | <code>@detachallthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@attachthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@attachthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@attachthisoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@attachallthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@attachallthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@attachallthisoverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@addoutfitthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@addoutfitthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@addoutfitallthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@addoutfitallthisover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@detachthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
+| [forcethis](#forcethis) | Firestorm RLVa 2.4.2 | <code>@detachallthis[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts) |
 | [getattach](#getattach) | Kokua RLV 2.09.35.00 | <code>@getattach[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
 | [getattach](#getattach) | Firestorm RLVa 2.4.2 | <code>@getattach[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
 | [getattachnames](#getattachnames) | Kokua RLV 2.09.35.00 | <code>@getattachnames[:&lt;group&gt;]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
@@ -245,6 +271,18 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [teleport-requests](#teleport-requests) | Firestorm RLVa 2.4.2 | <code>@tprequest_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
 | [teleport-requests](#teleport-requests) | Firestorm RLVa 2.4.2 | <code>@accepttprequest[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
 | [teleport-requests](#teleport-requests) | Firestorm RLVa 2.4.2 | <code>@accepttprequest_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
+| [camera-unlock](#camera-unlock) | Kokua RLV 2.09.35.00 | <code>@setcam_unlock=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-unlock](#camera-unlock) | Kokua RLV 2.09.35.00 | <code>@camunlock=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-unlock](#camera-unlock) | Firestorm RLVa 2.4.2 | <code>@setcam_unlock=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-unlock](#camera-unlock) | Firestorm RLVa 2.4.2 | <code>@camunlock=n&#124;add&#124;y&#124;rem</code> | enforced | shared | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Kokua RLV 2.09.35.00 | <code>@setcam=n&#124;y</code><br><code>@setcam_mouselook=n&#124;y</code><br><code>@setcam_eyeoffset[:&lt;x/y/z&gt;]=n&#124;y&#124;force</code><br><code>@setcam_eyeoffsetscale[:&lt;scale&gt;]=n&#124;y&#124;force</code><br><code>@setcam_focusoffset[:&lt;x/y/z&gt;]=force</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Firestorm RLVa 2.4.2 | <code>@setcam=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Firestorm RLVa 2.4.2 | <code>@setcam_mouselook=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Firestorm RLVa 2.4.2 | <code>@setcam_eyeoffset[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Firestorm RLVa 2.4.2 | <code>@setcam_eyeoffset[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Firestorm RLVa 2.4.2 | <code>@setcam_eyeoffsetscale[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Firestorm RLVa 2.4.2 | <code>@setcam_eyeoffsetscale[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
+| [camera-control](#camera-control) | Firestorm RLVa 2.4.2 | <code>@setcam_focusoffset[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fov[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
@@ -1240,6 +1278,34 @@ Reference symbols: <code>indra/newview/rlvinventory.cpp</code>: <code>RlvWearabl
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts).
 
+### forcethis
+
+Forms: <code>@attachthis[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@attachthisover[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@attachthisoverorreplace[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@attachallthis[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@attachallthisover[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@attachallthisoverorreplace[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@addoutfitthis[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@addoutfitthisover[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@addoutfitthisoverorreplace[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@addoutfitallthis[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@addoutfitallthisover[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@addoutfitallthisoverorreplace[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@detachthis[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>, <code>@detachallthis[:&lt;point&#124;layer&#124;object-uuid&gt;]=force</code>.
+
+Comparison: confirmed difference. These forms resolve the issuing attachment or every worn item at a named point or clothing layer, then wear or remove its shared folder. Object UUIDs identify worn objects. Kokua folds no-mod point folders and resolves resulting paths again; RLVa folds effective folded folders and retains folder identity. The two addoutfit this overorreplace aliases exist only in Kokua.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Bare forms select the issuing attachment, including child prims. Point and clothing layer options select all current worn items; UUIDs select a worn object, including child UUIDs. Only shared inventory folders contribute. No-mod items in parenthesised point folders select the parent folder. Paths are resolved with Kokua shared-folder matching. This-family wear forms use direct or recursive attach semantics; over adds and the other forms replace, subject to folder prefixes and locks. Detachthis and detachallthis remove direct or recursive contents with clothing, attachment and nostrip checks. Invalid or empty selections are inert. Inventory links remain unsupported.
+
+- Issuing attachment, worn point, clothing layer and object UUID selectors
+- No-mod point-folder resolution, shared-root exclusion and multiple folders
+- Direct and recursive wear/removal, aliases, add/replace and existing locks
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::force</code>, <code>RRInterface::getFullPath</code>, <code>RRInterface::getItem</code>, <code>RRInterface::forceAttach</code>, <code>RRInterface::forceDetachByName</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Bare forms select the issuing root attachment; child prims have no inventory item identity and select no folder. Point and clothing layer options select all current worn items. Object UUIDs select owned worn objects; unresolved UUIDs and invalid options fail. Effective folded parents resolve one level upward. Only folders below the shared root contribute; unshared, empty and root-only selections are inert. Direct and recursive wear/removal use shared-folder semantics, including add/replace prefixes and locks. Addoutfitthisoverorreplace and addoutfitallthisoverorreplace are unsupported. Inventory links remain unsupported.
+
+- Issuing root, worn point, clothing layer and object UUID selectors
+- Effective folded-folder identity and empty, unshared and invalid selectors
+- Direct and recursive wear/removal, supported aliases, add/replace and existing locks
+
+Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>, <code>RlvCommandOptionGetPath</code>, <code>RlvHandler::onForceWearCallback</code>, <code>RlvInventory::getPath</code>, <code>RlvForceWear::forceFolder</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forcethis.test.ts](../packages/vitest/test/rlv-forcethis.test.ts).
+
 ### getattach
 
 Forms: <code>@getattach[:&lt;point&gt;]=&lt;channel&gt;</code>.
@@ -1701,11 +1767,60 @@ Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts).
 
+### camera-unlock
+
+Forms: <code>@setcam_unlock&#124;camunlock=n&#124;y</code>.
+
+Comparison: shared. Both profiles reset to an avatar-following camera and prevent unlocking. Removal permits later camera changes without restoring the previous pose.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. The two aliases independently lock unlocking and reset to the rear preset on addition. Permission-gated position and rotation reads use the following camera. Removal and clear release the lock without undoing the reset.
+
+- Rear-view reset, persistent following and alias removal
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::refresh</code>, <code>LLAgentCamera::unlockView</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Both names lock unlocking and reset view on activation. Exclusive control selects the primary issuer unlock rule. Removal does not restore a previous pose. Rear-view eye defaults to -3/0/0.75, focus to 1/0/1, and scale to 1. setRlvCameraPreset supplies explicit preset offsets and the joint/head anchor; default anchor is avatar position. Skeleton animation, collision, smoothing and camera lag are outside the fixture.
+
+- Rear-view pose reset, aliases and exclusive issuer scope
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourToggleHandler&lt;RLV_BHVR_SETCAM_UNLOCK&gt;</code>, <code>RlvBehaviourToggleHandler&lt;RLV_BHVR_SETCAM&gt;</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts).
+
+### camera-control
+
+Forms: <code>@setcam=n&#124;y</code>, <code>@setcam_mouselook=n&#124;y</code>, <code>@setcam_eyeoffset[:&lt;x/y/z&gt;]=n&#124;y&#124;force</code>, <code>@setcam_eyeoffsetscale[:&lt;scale&gt;]=n&#124;y&#124;force</code>, <code>@setcam_focusoffset[:&lt;x/y/z&gt;]=force</code>.
+
+Comparison: confirmed difference. RLVa supports exclusive control, mouselook prevention and preset overrides. Kokua has no handlers for these controls. RLVa rejects empty offset restrictions and all focus-offset restrictions, but accepts vector force options.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No setcam, setcam_mouselook, setcam_eyeoffset, setcam_eyeoffsetscale or setcam_focusoffset handlers. Stored wire restrictions remain unsupported.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::refresh</code>, <code>RRInterface::force</code>, <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. One issuer may hold setcam; repeated acquisition fails with failed-camera-lock. Its distance and FOV modifiers take precedence and other issuers cannot force FOV or offsets. When only other issuers have a bound, queries are empty but the active modifier uses its default: zero or unlimited distance and pi/3 FOV. Other-issuer origin limits still select the origin clamp pipeline with these defaults. Unsorted eye/scale modifiers retain first-added precedence regardless of setcam. Offset force changes fail while any offset restriction exists. Empty force options reset individual controls. Empty offset restrictions fail, and focus-offset restrictions have no accepted form because the modifier converter lacks Vector3d. Entering the override preset copies rear-view defaults and resets all controls, including the value that triggered entry. Later force and modifier changes update the controls. Releasing the preset discards its active overrides. Slash vectors accept trailing text. Eye and focus offsets rotate with the avatar; eye scale multiplies the eye offset. Seated offsets take precedence. The first global mouselook-lock activation exits mouselook even for a nonprimary issuer. Later entry uses the primary issuer and camera minimum; additional nonprimary locks do not repeat the initial exit. Removal does not re-enter mouselook. Camera reads retain simulator tracking permission requirements. Explicit preset/head inputs use setRlvCameraPreset; rendering, skeleton animation, smoothing and collision are outside the fixture.
+
+- Exclusive control and competing issuer rejection
+- Offset add/remove/force, defaults, parsing and pose reads
+- Mouselook exclusion and release
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvBehaviourToggleHandler&lt;RLV_BHVR_SETCAM&gt;</code>, <code>RlvBehaviourToggleHandler&lt;RLV_BHVR_SETCAM_MOUSELOOK&gt;</code>, <code>RlvForceCamEyeFocusOffsetHandler</code>, <code>RlvBehaviourCamEyeFocusOffsetHandler</code>, <code>RlvBehaviourModifier::convertOptionValue</code>, <code>LLAgentCamera::switchCameraPreset</code>, <code>LLControlVariable::setDefaultValue</code>, <code>LLAgentCamera::calcCameraPositionTargetGlobal</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camlock.test.ts](../packages/vitest/test/rlv-camlock.test.ts).
+
 ### camera-fov
 
 Forms: <code>@setcam_fov[:&lt;radians&gt;]=force</code>, <code>@setcam_fovmin:&lt;radians&gt;=n&#124;y</code>, <code>@setcam_fovmax:&lt;radians&gt;=n&#124;y</code>, <code>@getcam_fov=&lt;channel&gt;</code>, <code>@getcam_fovmin=&lt;channel&gt;</code>, <code>@getcam_fovmax=&lt;channel&gt;</code>.
 
-Comparison: confirmed difference. Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects and exclusive camera control are unsupported.
+Comparison: confirmed difference. Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects are unsupported.
 
 #### Kokua RLV 2.09.35.00
 

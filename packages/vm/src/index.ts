@@ -109,8 +109,8 @@ export type { RlvForceRemoveItemResult, RlvForceRemoveOutcome } from './rlv/forc
 export { respondRlvInventoryOffer } from './rlv/offers.js'
 export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv/offers.js'
 
-export { getRlvCameraPosition, getRlvCameraLimits, setRlvCameraOrigins } from './rlv/camera.js'
-export type { RlvCameraLimits } from './rlv/camera.js'
+export { getRlvCameraPosition, getRlvCameraLimits, setRlvCameraOrigins, setRlvCameraPreset } from './rlv/camera.js'
+export type { RlvCameraLimits, RlvCameraPreset } from './rlv/camera.js'
 export { getRlvViewerState } from './rlv/viewstate.js'
 export type { RlvViewerContext, RlvViewerEffect, RlvRenderParameters } from './rlv/viewstate.js'
 

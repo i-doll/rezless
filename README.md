@@ -772,14 +772,47 @@ clamp permission-gated pose reads. RLVa also supports camera-origin bounds and
 `getcam_avdist`; Kokua supports `getcam_zoom*`. The `camzoom*` aliases constrain
 the lens with profile-specific directions. `setRlvCameraOrigins` supplies joint
 and camera-origin positions, and `getRlvCameraLimits` exposes effective bounds
-and RLVa's `setcam_avdist` silhouette threshold. Rendering and exclusive camera
-control are outside this fixture.
+and RLVa's `setcam_avdist` silhouette threshold. Rendering is outside this fixture.
+
+Camera unlocking locks (`setcam_unlock` and `camunlock`) reset the camera to
+an avatar-following rear view in both profiles. Firestorm RLVa 2.4.2 also
+supports `setcam`, `setcam_mouselook`, `setcam_eyeoffset`,
+`setcam_eyeoffsetscale` and `setcam_focusoffset`. Exclusive `setcam` control
+selects one issuer for distance and FOV limits and rejects competing force
+changes. Offset restrictions use first-added precedence; force offsets require
+all offset restrictions to be released. Empty offset restrictions and all
+focus-offset restrictions fail; focus-offset force commands accept slash-separated
+vectors. Entry into the override preset copies the rear-view defaults,
+resetting all controls, including the triggering value. Subsequent offset
+changes apply to the active preset. Kokua RLV
+2.09.35.00 keeps these additional forms unsupported.
+
+`setRlvCameraPreset(avatar, { origin?, eye?, focus?, scale? })` supplies explicit
+head/joint and rear-preset inputs. Defaults are avatar position, eye
+`-3/0/0.75`, focus `1/0/1` and scale `1`. Offsets follow avatar rotation;
+seated camera offsets take precedence. Camera position and rotation reads and
+HUD projection share the effective pose and distance limits. Tracking reads
+still require `PERMISSION_TRACK_CAMERA`. The first global RLVa mouselook
+lock clears `AGENT_MOUSELOOK`, even for a nonprimary issuer. Subsequent entry
+checks the primary issuer and camera minimum. Additional nonprimary locks do
+not repeat the initial exit; removal does not restore mouselook.
+Skeleton animation, camera lag, smoothing and collision are outside this fixture.
 
 `attachall`, `attachallover` and `attachalloverorreplace` wear recursive shared folders,
 with `addoutfitall` and `addoutfitallover` aliases. Kokua also accepts
 `addoutfitalloverorreplace`. `detachall` removes folder contents recursively;
 `remoutfit:<folder>` removes direct folder attachments and clothing.
 Hidden and folded folders follow the selected profile, with per-item outcomes.
+
+`attachthis` and its `over`, `overorreplace` and recursive `attachallthis` forms
+select shared folders from the issuing attachment, a named attachment point,
+a clothing layer or a worn object UUID. `detachthis` and `detachallthis` remove
+the selected folder contents. Point and layer selectors include every worn item.
+Existing wear, removal, lock and folder-prefix rules apply. The `addoutfitthis`
+and `addoutfitallthis` aliases follow the same behavior; their `overorreplace`
+variants are available only in Kokua. Kokua resolves child prims to their root;
+RLVa child prims have no inventory item identity and select no folder.
+
 
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
