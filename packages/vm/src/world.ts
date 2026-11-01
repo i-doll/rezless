@@ -1,3 +1,4 @@
+import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
@@ -28,6 +29,8 @@ export interface WorldObjectOptions {
 }
 
 export interface WorldAvatarOptions extends WorldObjectOptions {
+  /** Optional viewer emulation. Omission disables it. */
+  readonly viewer?: ViewerConfig
   readonly username: string
   /** Defaults to the legacy name, or username when no name is supplied. */
   readonly displayName?: string
@@ -52,6 +55,7 @@ export interface AvatarDestination {
 
 /** Mutable avatar fixture. Region and position can change between script events. */
 export interface WorldAvatar extends WorldEntity {
+  readonly viewer: ViewerState
   username: string
   displayName: string
   size: Vector
@@ -284,6 +288,7 @@ export class World {
     }
     const avatar: WorldAvatar = {
       ...entity,
+      viewer: createViewerState(opts.viewer),
       username: opts.username.toLowerCase(),
       displayName: opts.displayName ?? opts.name ?? opts.username,
       size: { ...(opts.size ?? { x: 0.45, y: 0.6, z: 1.9 }) },
