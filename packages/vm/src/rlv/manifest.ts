@@ -78,13 +78,18 @@ export const RLV_MANIFEST: {
       tests,
     },
     {
-      id: 'add-remove-clear', forms: ['@<behaviour>[:<option>]=n|add', '@<behaviour>[:<option>]=y|rem', '@clear', '@clear=<filter>'],
-      comparison: 'shared', wikiComparison: 'Wiki and both dispatchers support add/remove aliases and filtered clear. Individual restriction support is command-specific.',
+      id: 'add-remove-clear', forms: ['@<behaviour>[:<option>]=n|add', '@<behaviour>[:<option>]=y|rem', '@clear', '@clear=', '@clear=<filter>'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles share prim-scoped rules, aliases, duplicate suppression and substring clear. Kokua retains unknown names and options; RLVa validates forms. Script reset, state change and removal preserve rules. Missing prims lose their rules during viewer garbage collection.',
       profiles: {
-        rlv: kokua(['RRInterface::handleCommand', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Rules are associated with the emitting object UUID; n/add and y/rem aliases dispatch to rule changes.'),
-        rlva: firestorm('rlvhandler.cpp', ['RlvHandler::processAddRemCommand', 'RlvHandler::processClearCommand'], 'Object-scoped rules with add/remove aliases and clear; storing a rule does not prove action enforcement.'),
+        rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
+          'No-option detach, sendchat, sit, unsit, tploc and tplm are state-only. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
+          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
+          'No-option detach, sendchat, sit, unsit, tploc and tplm are state-only. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
+          support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
-      tests,
+      tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts'],
     },
     {
       id: 'status', forms: ['@getstatus[:<filter>[;<separator>]]=<channel>', '@getstatusall[:<filter>[;<separator>]]=<channel>'],

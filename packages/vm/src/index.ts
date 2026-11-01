@@ -77,3 +77,5 @@ export type { RlvCommandContract, RlvCommandProfile, RlvEvidence, RlvComparison,
 
 export type { RlvCommandFields } from './rlv/parser.js'
 export type { RlvParameterKind, RlvParsedCommand } from './rlv/classifier.js'
+
+export type { RlvRestriction } from './rlv/restrictions.js'

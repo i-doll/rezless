@@ -655,6 +655,11 @@ the lines it changed) and project coverage vs the `main` baseline.
   builtins, nested-object force-fit on `llJsonSetValue`, and the
   bare-word/sentinel round-trip on `llJsonGetValue`.
 
+Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
+snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
+These rules are state-only. See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
+for profile differences and lifecycle behavior.
+
 ## License
 
 The rezless project is licensed under the **Apache License, Version 2.0** —

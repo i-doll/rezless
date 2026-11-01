@@ -1,4 +1,5 @@
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
+import { dispatchRestrictionCommand } from './restrictions.js'
 import { parseRlvCommand } from './parser.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
@@ -39,6 +40,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     const text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
       channel !== undefined && channel > 0 && channel < 2147483647
       ? versionReply(viewer.profile, parsed.behaviour, parsed.option) : undefined
+    if (text === undefined && parsed && !malformed && dispatchRestrictionCommand(viewer, prim, parsed, command)) continue
     const entry = { command, sourcePrim: prim.key, ...(parsed ? { parsed } : {}) }
     if (text === undefined) {
       const status = malformed ? 'malformed' : 'unsupported'

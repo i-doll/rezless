@@ -1,3 +1,4 @@
+import { RlvRestrictions } from './restrictions.js'
 import type { RlvParsedCommand } from './classifier.js'
 
 /** Implementation families identified by viewer version, not a promise of full RLV conformance. */
@@ -50,9 +51,10 @@ export interface ViewerState {
   readonly reference: RlvReference | null
   readonly diagnostics: RlvDiagnostic[]
   readonly commandLog: RlvCommandRecord[]
+  readonly restrictions: RlvRestrictions
 }
 
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
-  return { profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [] }
+  return { profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile) }
 }
