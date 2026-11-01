@@ -67,6 +67,7 @@ export const RLV_MANIFEST: {
     rlv: ['doNotQueueVersionRequests defaults true. Kokua time-based collection uses initialGarbageCollectionAdditionalWait=5000 and garbageCollectionAdditionalInterval=8000 milliseconds, added to minimum delays of 5000 and 2000 milliseconds. The default ignores first-fully-visible timing; frame-based and avatar-visibility scheduling are unsupported. An explicit per-avatar blacklist preserves wire order and uses %f for force entries; query and notify commands remain available.'],
     rlva: ['rlvaNoSetEnv disables setenv add/remove through the dictionary; it is separate from the Kokua blacklist. Environment effects remain unsupported.', 'RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
       'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.',
+      'Force wear uses RLVaEnableSharedWear=true by default; inventory.sharedWear=false disables unnamed items. Legacy folder naming is enabled, the add prefix is + and the replace prefix is empty.',
       'Outfit queries use RlvHideLockedLayers=false and RLVaEnableSharedWear=true; overrides are unsupported and effective folded state is explicit.'],
   },
   commands: [
@@ -229,6 +230,22 @@ export const RLV_MANIFEST: {
           coveredForms: ['Attachment issuer, named point and owned object UUID queries with shared-root containment', 'Live attachment order and lifecycle, duplicate names, effective folded folders and empty results'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-findfolder.test.ts'],
+    },
+    {
+      id: 'forcewear', forms: ['@attach:<folder>=force', '@attachover:<folder>=force', '@attachoverorreplace:<folder>=force'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Shared direct attachment items use add or replace semantics. Both profiles honor the default + folder prefix. Kokua always adds unnamed items; RLVa shared wear replaces at their saved point and can be disabled. Clothing, recursive commands and multiple-folder options are unsupported.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::forceAttach', 'RRInterface::findAttachmentPointFromName', 'RRInterface::findAttachmentPointFromParentName'],
+          'Named items replace for attach and attachoverorreplace; attachover and + prefixed folders add. The rightmost recognized parenthesised point wins without trimming. Unnamed direct items always add at their saved point, default Right Hand. Single no-mod object children in point-named folders use the child folder point. Replace respects every occupant detach lock. Already-worn items retain identity. Fixture order determines sequential replacement; definitions and script state survive wear and detach.'),
+          support: 'enforced', commandForms: ['attach', 'attachover', 'attachoverorreplace'].map(behaviour => ({ behaviour, type: 'force', support: 'enforced', option: 'any' })),
+          coveredForms: ['Direct shared attachment definitions and existing mapped live attachments', 'Add/replace, named and saved points, + folders and single no-mod folded children', 'No-option detach locks, queued attachment lifecycle and per-item action outcomes; clothing, point/folder locks and recursive/multiple-folder forms excluded'] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvForceWear::forceFolder', 'RlvForceWear::addAttachment', 'RlvForceWear::updatePendingAttachments', 'RlvWearableItemCollector', 'RlvAttachPtLookup::getAttachPointIndex'],
+          'Attach and attachoverorreplace replace; attachover and + prefixed folders add. Named replace retains the last pending item per point; final pending requests follow inventory item UUID order. The last parenthesised item text is trimmed; legacy folder names provide fallback and take precedence for no-mod items. Explicit folded children with one object contribute attachments. Shared wear defaults on and accepts unnamed items at their saved point, default Right Hand; inventory.sharedWear=false skips them. Named replacement is blocked by any occupant detach lock. Unnamed replacement retains locked occupants and removes unlocked ones. Already-worn items retain identity.'),
+          support: 'enforced', commandForms: ['attach', 'attachover', 'attachoverorreplace'].map(behaviour => ({ behaviour, type: 'force', support: 'enforced', option: 'any' })),
+          coveredForms: ['Direct shared attachment definitions and existing mapped live attachments', 'Add/replace, named and saved points, default shared-wear setting and its disabled value, + folders and single-object folded children', 'No-option detach locks, queued attachment lifecycle and per-item action outcomes; clothing, point/folder locks and recursive/multiple-folder forms excluded'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-forcewear.test.ts'],
     },
     {
       id: 'getattach', forms: ['@getattach[:<point>]=<channel>'],

@@ -1,3 +1,4 @@
+import { Linkset } from '../linkset.js'
 import type { RlvProfile } from './profiles.js'
 
 export const RLV_WEARABLE_TYPES = Object.freeze([
@@ -18,6 +19,8 @@ export interface RlvInventoryEntry {
   readonly wearableType?: RlvWearableType
   /** Explicit object type permits unworn attachments to count in folder queries. */
   readonly assetType?: 'object'
+  /** Saved attachment definition, copied into the wearing avatar's World. */
+  readonly object?: Linkset
   /** Object modify permission, used by Kokua no-mod folder aggregation. */
   readonly modifiable?: boolean
 }
@@ -30,6 +33,8 @@ export interface RlvWornAttachment {
 
 export interface RlvInventoryConfig {
   readonly sharedRootId: string | null
+  /** RLVa shared wear accepts attachments without a named point; default true. */
+  readonly sharedWear?: boolean
   /** Direct-child order is the order of entries, independent of folder names. */
   readonly entries: readonly RlvInventoryEntry[]
   readonly wornAttachments?: readonly RlvWornAttachment[]
@@ -43,9 +48,22 @@ export class RlvInventory {
   private attachments: readonly RlvWornAttachment[] = Object.freeze([])
   private wearables: readonly string[] = Object.freeze([])
   private rootId: string | null = null
+  private sharedWearEnabled = true
+  private objects = new Map<string, Linkset>()
 
   constructor(config?: RlvInventoryConfig) {
     if (config) this.seed(config)
+  }
+
+  get sharedWear(): boolean { return this.sharedWearEnabled }
+  attachmentObject(itemId: string): Linkset | undefined { return this.objects.get(itemId) }
+
+  /** Retain inventory identity and script state across viewer detach and wear. */
+  rememberAttachment(itemId: string, object: Linkset): void {
+    this.objects.set(itemId, object)
+    const rootKey = object.prims[0]!.key.toLowerCase()
+    this.attachments = Object.freeze([...this.attachments.filter(entry => entry.itemId !== itemId && entry.rootKey !== rootKey),
+      Object.freeze({ itemId, rootKey })])
   }
 
   get sharedRootId(): string | null { return this.rootId }
@@ -103,6 +121,12 @@ export class RlvInventory {
       new Set(wearables).size !== wearables.length || wearables.some(id => !byId.get(id)?.wearableType)) {
       throw new Error('Worn wearables require unique existing wearable item IDs and valid layers.')
     }
+    if (entries.some(entry => entry.object !== undefined && (entry.assetType !== 'object' ||
+      !(entry.object instanceof Linkset) || entry.object.dead || !entry.object.prims.length))) {
+      throw new Error('Attachment definitions require a nonempty live object definition and object asset type.')
+    }
+    this.objects.clear()
+    this.sharedWearEnabled = config.sharedWear ?? true
     this.wearables = Object.freeze(wearables)
     this.attachments = Object.freeze(attachments)
     this.entries = Object.freeze(entries)

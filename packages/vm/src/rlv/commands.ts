@@ -4,6 +4,7 @@ import { dispatchTeleportCommand, teleportSupport } from './teleport.js'
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommandCoverage, getRlvCommands } from './getcommand.js'
+import { dispatchForceWearCommand } from './forcewear.js'
 import { dispatchDetachCommand } from './detach.js'
 import { dispatchCameraCommand, getRlvCameraReply } from './camera.js'
 import { dispatchRestrictionCommand, isKokuaNamedReply } from './restrictions.js'
@@ -138,6 +139,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       dispatchRestrictionCommand(viewer, prim, parsed, command)
       continue
     }
+    if (text === undefined && parsed && !malformed && dispatchForceWearCommand(linkset, prim, avatar, parsed, command)) continue
     if (text === undefined && parsed && !malformed && dispatchDetachCommand(linkset, prim, avatar, parsed, command)) continue
     if (text === undefined && parsed && !malformed) {
       const outcome = classifyRlvUnsupported(viewer.profile, parsed)

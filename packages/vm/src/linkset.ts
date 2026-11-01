@@ -1,3 +1,4 @@
+import { retainRlvAttachment } from './rlv/attachments.js'
 import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
@@ -194,6 +195,7 @@ export class Linkset {
   /** Detach into inventory, preserving script state and the remembered point. */
   detachFromAvatar(): void {
     if (!this.attachment) return
+    retainRlvAttachment(this)
     for (const avatar of this.world?.avatars ?? []) avatar.viewer.session.detached(this)
     this.deleteAfterDetach = this.attachment.temporary
     this.attachment = null

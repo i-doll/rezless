@@ -101,3 +101,4 @@ export { RlvSession } from './rlv/session.js'
 export type { RlvStartupPhase } from './rlv/session.js'
 
 export type { RlvTeleportAction } from './rlv/teleport.js'
+export type { RlvForceWearItemResult, RlvForceWearOutcome } from './rlv/forcewear.js'
