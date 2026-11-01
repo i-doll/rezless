@@ -4,7 +4,7 @@ import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
 import type { Prim } from './prim.js'
-import { AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK } from './generated/constants.js'
+import { AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 
@@ -60,6 +60,8 @@ export interface WorldAvatar extends WorldEntity {
   visualParams: Record<number, number>
   friends: Set<string>
   sittingOn: Prim | null
+  /** Prim-local offsets captured on sitting; later prim edits affect the next sit. */
+  readonly sittingCamera: { readonly eye: Vector; readonly at: Vector } | null
   /** A rotation requested while seated, applied when the avatar stands. */
   standingRotation: Rotation | null
   home: AvatarDestination | null
@@ -264,6 +266,7 @@ export class World {
     let seat: Prim | null = null
     let seatOffset = ZERO_VECTOR
     let seatOrientation = ZERO_ROTATION
+    let sittingCamera: WorldAvatar['sittingCamera'] = null
     const snapshotSeat = (): void => {
       if (!seat) return
       position = this.seatPosition(seat, seatOffset)
@@ -274,6 +277,7 @@ export class World {
       if (!seat?.linkset?.dead) return
       snapshotSeat()
       seat = null
+      sittingCamera = null
       info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
       if (avatar.standingRotation) rotation = avatar.standingRotation
       avatar.standingRotation = null
@@ -294,10 +298,13 @@ export class World {
       language: opts.language ?? '',
       visualParams: { ...opts.visualParams },
       friends: new Set(opts.friends?.map(key => key.toLowerCase())),
+      get sittingCamera() { clearRemovedSeat(); return sittingCamera },
       get sittingOn() { clearRemovedSeat(); return seat },
       set sittingOn(value) {
         snapshotSeat()
         seat = value
+        sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
+        if (seat?.forceMouselook) info |= AGENT_MOUSELOOK
         const target = seat?.params.sitTarget
         seatOffset = { ...(target?.enabled ? target.offset : ZERO_VECTOR) }
         seatOrientation = { ...(target?.enabled ? target.rotation : ZERO_ROTATION) }
