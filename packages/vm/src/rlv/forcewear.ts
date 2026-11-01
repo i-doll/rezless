@@ -206,7 +206,7 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
   // Named points and UUIDs take precedence over shared folder paths.
   if (folderRemoval && (!option || point !== undefined || uuid)) {
     const objects = issuer.peers.filter(object => !object.dead && object.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
-      (profile === 'rlv' || object.owner.toLowerCase() === avatar.key.toLowerCase()) &&
+      (!uuid || profile === 'rlv' || object.owner.toLowerCase() === avatar.key.toLowerCase()) &&
       (!option || (uuid ? object.prims.some(p => p.key.toLowerCase() === option) : object.attachment.point === point)))
     if (profile === 'rlva' && uuid && objects.some(object => object.prims[0]!.key.toLowerCase() !== option)) {
       record('unsupported-form'); return true

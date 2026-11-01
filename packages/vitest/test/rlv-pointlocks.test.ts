@@ -220,3 +220,16 @@ it('checks the saved point of copied inventory definitions before wearing unname
   expect(f.world.linksets.filter(l => l.attachment).map(l => l.attachment!.point)).toEqual([1])
  }
 })
+
+it('applies RLVa UUID ownership checks without hiding other-owned point attachments', async () => {
+ for (const profile of ['rlv', 'rlva'] as const) {
+  const f = (await loadRlvPair({ source }))[profile]; f.script.start()
+  const target = await attachment(f)
+  target.owner = f.world.addAvatar({ username: 'attachment owner', region: f.avatar.region }).key
+  send(f, '@detach:' + target.prims[0]!.key + '=force')
+  expect(target.attachment?.point ?? 0).toBe(profile === 'rlva' ? 1 : 0)
+  target.attachToAvatar(f.avatar.key, 1)
+  send(f, '@detach:chest=force')
+  expect(target.attachment).toBeNull()
+ }
+})
