@@ -486,8 +486,9 @@ requested in-world. Group return powers remain unimplemented.
 Viewer emulation is opt-in per avatar through
 `world.addAvatar({ username, region, viewer: { profile: 'rlv' } })`.
 Omitting `viewer`, or selecting `disabled`, leaves script chat and avatar behavior
-unchanged. `avatar.viewer.reference` identifies the pinned implementation;
-`avatar.viewer.diagnostics` belongs to that avatar alone.
+unchanged. `avatar.viewer.reference` identifies the implementation and viewer version;
+`avatar.viewer.diagnostics` belongs to that avatar alone. The reference versions
+are Kokua RLV 2.09.35.00 and Firestorm RLVa 2.4.2.
 
 `loadRlvPair({ source })` loads the same LSL into separate Worlds for `rlv` and
 `rlva`. Each fixture exposes `world`, `avatar`, and `script`. Scripts are not
@@ -523,7 +524,8 @@ not skip tests or turn pending cases into successful assertions.
 
 This initial slice configures profiles but processes no viewer commands. The
 example expects zero replies for that reason. `RLV_MANIFEST` lists parameter
-forms, pinned source evidence, wiki comparisons and probes for later slices.
+forms, source evidence by implementation version, file and symbols, wiki comparisons
+and probes for later slices.
 Every command currently has `support: 'unsupported'` and empty `coveredForms`.
 Later entries may report `state-only` or `enforced`; recording a rule alone does
 not enforce a viewer action. Reference contracts are code-derived, not runtime

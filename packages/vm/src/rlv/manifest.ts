@@ -5,7 +5,8 @@ export type RlvComparison = 'shared' | 'confirmed difference' | 'version/setting
 export type RlvSupportDepth = 'unsupported' | 'state-only' | 'enforced'
 export interface RlvEvidence {
   readonly kind: 'code-derived' | 'measured'
-  readonly url: string
+  readonly implementation: string
+  readonly file: string
   readonly symbols: readonly string[]
 }
 export interface RlvCommandProfile {
@@ -28,24 +29,26 @@ export interface RlvCommandContract {
 const kokua = (symbols: readonly string[], contract: string): RlvCommandProfile => ({
   support: 'unsupported', coveredForms: [], contract,
   evidence: { kind: 'code-derived',
-    url: `https://bitbucket.org/kokua/kokua/src/${RLV_PROFILES.rlv.commit}/indra/newview/RRInterface.cpp`, symbols },
+    implementation: `${RLV_PROFILES.rlv.implementation} ${RLV_PROFILES.rlv.implementationVersion}`,
+    file: 'indra/newview/RRInterface.cpp', symbols },
 })
 const firestorm = (file: string, symbols: readonly string[], contract: string): RlvCommandProfile => ({
   support: 'unsupported', coveredForms: [], contract,
   evidence: { kind: 'code-derived',
-    url: `https://github.com/i-doll/phoenix-firestorm/blob/${RLV_PROFILES.rlva.commit}/indra/newview/${file}`, symbols },
+    implementation: `${RLV_PROFILES.rlva.implementation} ${RLV_PROFILES.rlva.implementationVersion}`,
+    file: `indra/newview/${file}`, symbols },
 })
 const tests = ['packages/vitest/test/rlv-profiles.test.ts']
 
 /** Append forms and behavioral tests as commands ship. Version reporting is not conformance. */
 export const RLV_MANIFEST: {
-  readonly schemaVersion: 1
-  readonly wiki: { readonly url: string; readonly revision: number }
+  readonly schemaVersion: 2
+  readonly wiki: { readonly url: string }
   readonly settings: Readonly<Record<RlvProfile, readonly string[]>>
   readonly commands: readonly RlvCommandContract[]
 } = {
-  schemaVersion: 1,
-  wiki: { url: 'https://wiki.secondlife.com/w/index.php?title=LSL_Protocol/RestrainedLoveAPI&oldid=1219183', revision: 1219183 },
+  schemaVersion: 2,
+  wiki: { url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' },
   // Reference settings are separate from versions. This slice exposes no setting overrides.
   settings: {
     rlv: ['Reference startup version replies and blacklist depend on viewer settings; no emulator setting implemented.'],
@@ -93,7 +96,7 @@ export const RLV_MANIFEST: {
     },
     {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
-      comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the pinned wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
+      comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
       profiles: {
         rlv: kokua(['RRInterface::handleCommand'], 'No getcommand query branch. Numeric reply parameter reaches fallback and returns false, rather than an empty successful query.'),
         rlva: firestorm('rlvhandler.cpp', ['RlvReplyHandler<RLV_BHVR_GETCOMMAND>::onCommand'], 'Supports behaviour filtering, any/add/force/reply type and custom separator; invalid type fails.'),
