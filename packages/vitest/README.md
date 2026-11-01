@@ -517,6 +517,18 @@ for (const profile of ['rlv', 'rlva'] as const) {
 }
 ```
 
+The relay integration test runs the same Apache-2.0 LSL relay and controller
+fixtures under both profiles and disabled mode. The relay description contains
+one authorized controller object UUID; an empty value denies all senders. The
+controller description contains the wearer UUID and relay UUID, separated by a
+comma. Only detach add/remove and fixed-channel status queries are allowed.
+The fixtures use relay protocol 1.100 framing, per-command acknowledgements,
+version and release. Pong receives no acknowledgement; recovery and optional
+meta-commands remain outside the fixture. An `ok` confirms relay acceptance even
+when the viewer is disabled or rejects a negative reply channel. Query results
+travel from the avatar through the relay to the controller on a separate channel.
+Release clears the relay issuer's rules and preserves unrelated issuers.
+
 For divergent cases, replace `shared` with named `rlv` and `rlva` expectations.
 An expectation can instead be `{ kind: 'unsupported', reason }`. These are
 inspectable data; the helper does not skip tests or turn unsupported cases
