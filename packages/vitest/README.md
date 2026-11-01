@@ -521,6 +521,16 @@ separate results, such as `fixture.chatActions` and `fixture.teleportActions`.
 `state-only` means a stored rule has no corresponding action enforcement.
 Version replies and command discovery never prove complete conformance.
 
+
+`acceptpermission` answers complete covered `llRequestPermissions` requests and
+records them as answered before delivering `run_time_permissions`. Kokua covers
+controls, animation while sitting, and attach permission from owned objects,
+including worn objects. Firestorm covers controls and attach permission from
+owned objects that are not already attachments. Requests with any other bits
+stay pending for `grantPermissions` or `denyPermissions`. Activation applies to
+all requesting objects; UUID options do not create exceptions. Simulator implicit
+permissions and alternate auto-attach settings are outside this contract.
+
 Viewer emulation is opt-in per avatar through
 `world.addAvatar({ username, region, viewer: { profile: 'rlv' } })`.
 Omitting `viewer`, or selecting `disabled`, leaves script chat and avatar behavior

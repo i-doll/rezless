@@ -185,12 +185,12 @@ describe('standtp return teleports', () => {
     }
   })
 
-  it.each([0, 1, 2])('gates Kokua returns on parcel routing %s', async routing => {
+  it.each([undefined, 0, 1, 2])('gates Kokua returns on parcel routing %s', async routing => {
     const pair = await setup()
     for (const profile of ['rlv', 'rlva'] as const) {
       const fixture = pair[profile]
       const { world, avatar, script } = fixture
-      world.addParcel({ region: avatar.region, tpRouting: routing })
+      world.addParcel({ region: avatar.region, ...(routing === undefined ? {} : { tpRouting: routing }) })
       issue(script, '@standtp=n,sit:' + script.host.key + '=force')
       script.host.params.position = { ...moved }
       const seated = { ...avatar.position }
@@ -229,12 +229,13 @@ it('names the zero-global-origin guard and preserves facing', async () => {
     avatar.position = { x: 0, y: 0, z: 0 }
     script.host.params.rotation = { x: 0, y: 0, z: Math.SQRT1_2, s: Math.SQRT1_2 }
     issue(script, '@standtp=n,sit:' + script.host.key + '=force')
+    const facing = { ...avatar.rotation }
     script.host.params.position = { ...moved }
     const seated = { ...avatar.position }
     fixture.userStand()
     expect(avatar.position).toEqual(profile === 'rlv' ? { x: 0, y: 0, z: 0 } : seated)
     // Standing retains the seat's yaw; the return teleport adds no look-at change.
-    expect(avatar.rotation).toEqual(script.host.params.rotation)
+    expect(avatar.rotation).toEqual(facing)
   }
 })
 

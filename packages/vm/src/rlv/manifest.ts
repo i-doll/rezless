@@ -114,6 +114,25 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
+      id: 'acceptpermission', forms: ['@acceptpermission=n|add|y|rem'], comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles automatically grant complete covered requests under no-option activation. Kokua permits animation while sitting and owned attachment requests even from worn objects; RLVa covers controls and owned non-attachment attach requests, but not animation. UUID options do not establish exceptions.',
+      profiles: {
+        rlv: {
+          support: 'enforced', commandForms: [{ behaviour: 'acceptpermission', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option add/remove aliases and issuer-scoped clear', 'Whole-request auto-grant, ownership and sitting checks, answered request records and run_time_permissions'],
+          contract: 'Any active no-option issuer enables automatic replies for requests to that avatar from any object. Covered bits are TAKE_CONTROLS, TRIGGER_ANIMATION and ATTACH, with no other bits allowed in the batch. Animation requires the avatar to be sitting, including ground sitting or on another object. ATTACH requires an owned object, including an already worn object. Other requests remain pending for the test. Options and secure forms have unsupported effects. RestrainedLoveAutoTempAttach overrides and simulator implicit permissions are outside this contract.',
+          evidence: { implementation: 'Kokua RLV 2.09.35.00', file: 'indra/newview/llviewermessage.cpp', symbols: ['process_script_question', 'RRInterface::contains'] },
+        },
+        rlva: {
+          support: 'enforced', commandForms: [{ behaviour: 'acceptpermission', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option add/remove aliases and issuer-scoped clear', 'Whole-request auto-grant, ownership and attachment checks, answered request records and run_time_permissions'],
+          contract: 'Any active no-option issuer enables automatic replies for requests to that avatar from resolved objects. TAKE_CONTROLS is covered for any owner, including worn objects. ATTACH is covered only for owned objects that are not attachments. Animation is not covered, even while sitting. Any other bit leaves the entire request pending for the test. Options and secure forms have unsupported effects. Experience, muted-object, permission-filter and simulator implicit-permission paths are outside this contract.',
+          evidence: { implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/llviewermessage.cpp', symbols: ['process_script_question', 'RlvBehaviourDictionary::RlvBehaviourDictionary'] },
+        },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-acceptpermission.test.ts'],
+    },
+    {
       id: 'sendchat', forms: ['@sendchat=n|add|y|rem'], comparison: 'confirmed difference',
       wikiComparison: 'Both profiles replace restricted speech with ellipsis, allow OOC and short slash gestures, filter quoted emotes and truncate emotes. Kokua uses byte limits, accepts colon poses and strips text preceding an embedded /me; RLVa uses character limits and additionally filters question marks.',
       profiles: {

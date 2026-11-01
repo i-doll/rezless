@@ -26,6 +26,8 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [channel-policy](#channel-policy) | Firestorm RLVa 2.4.2 | <code>&lt;query&gt;=&lt;signed-channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-channels.test.ts](../packages/vitest/test/rlv-channels.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Kokua RLV 2.09.35.00 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
+| [acceptpermission](#acceptpermission) | Kokua RLV 2.09.35.00 | <code>@acceptpermission=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-acceptpermission.test.ts](../packages/vitest/test/rlv-acceptpermission.test.ts) |
+| [acceptpermission](#acceptpermission) | Firestorm RLVa 2.4.2 | <code>@acceptpermission=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-acceptpermission.test.ts](../packages/vitest/test/rlv-acceptpermission.test.ts) |
 | [sendchat](#sendchat) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [chat-redirection](#chat-redirection) | Kokua RLV 2.09.35.00 | <code>@emote=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
@@ -462,6 +464,32 @@ Support depth: state-only. Public chat restrictions are enforced by explicit ava
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::processCommand</code>, <code>RlvHandler::processClearCommand</code>, <code>RlvHandler::onGC</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts).
+
+### acceptpermission
+
+Forms: <code>@acceptpermission=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Both profiles automatically grant complete covered requests under no-option activation. Kokua permits animation while sitting and owned attachment requests even from worn objects; RLVa covers controls and owned non-attachment attach requests, but not animation. UUID options do not establish exceptions.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Any active no-option issuer enables automatic replies for requests to that avatar from any object. Covered bits are TAKE_CONTROLS, TRIGGER_ANIMATION and ATTACH, with no other bits allowed in the batch. Animation requires the avatar to be sitting, including ground sitting or on another object. ATTACH requires an owned object, including an already worn object. Other requests remain pending for the test. Options and secure forms have unsupported effects. RestrainedLoveAutoTempAttach overrides and simulator implicit permissions are outside this contract.
+
+- No-option add/remove aliases and issuer-scoped clear
+- Whole-request auto-grant, ownership and sitting checks, answered request records and run_time_permissions
+
+Reference symbols: <code>indra/newview/llviewermessage.cpp</code>: <code>process_script_question</code>, <code>RRInterface::contains</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Any active no-option issuer enables automatic replies for requests to that avatar from resolved objects. TAKE_CONTROLS is covered for any owner, including worn objects. ATTACH is covered only for owned objects that are not attachments. Animation is not covered, even while sitting. Any other bit leaves the entire request pending for the test. Options and secure forms have unsupported effects. Experience, muted-object, permission-filter and simulator implicit-permission paths are outside this contract.
+
+- No-option add/remove aliases and issuer-scoped clear
+- Whole-request auto-grant, ownership and attachment checks, answered request records and run_time_permissions
+
+Reference symbols: <code>indra/newview/llviewermessage.cpp</code>: <code>process_script_question</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-acceptpermission.test.ts](../packages/vitest/test/rlv-acceptpermission.test.ts).
 
 ### sendchat
 

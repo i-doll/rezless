@@ -199,8 +199,10 @@ export function returnStandtpAvatar(world: World, avatar: WorldAvatar): void {
   if (!hasStandtp(avatar)) return
   const state = standtpState(avatar)
   if (state.pending) return
-  if (avatar.viewer.profile === 'rlv' &&
-    (world.parcelAt(avatar.region, avatar.position)?.tpRouting ?? DIRECT_ROUTING) !== DIRECT_ROUTING) return
+  if (avatar.viewer.profile === 'rlv') {
+    const parcel = world.parcelAt(avatar.region, avatar.position)
+    if (parcel && (parcel.tpRouting ?? 1) !== DIRECT_ROUTING) return
+  }
   const destination = state.origin
   if (avatar.viewer.profile === 'rlva' && !destination.x && !destination.y && !destination.z) return
   state.origin = { ...ZERO_VECTOR }
