@@ -110,7 +110,7 @@ describe('paired status queries', () => {
       script.start()
       expect(script.global('replies')).toEqual(profile === 'rlv'
         ? ['/sit:bad/issue218unknown:foo/sit', '/issue218unknown:foo', '#sit:bad'] : ['/sit', '', ''])
-      expect(avatar.viewer.commandLog.slice(0, 3).map(e => e.status)).toEqual(['unsupported', 'unsupported', 'unsupported'])
+      expect(avatar.viewer.commandLog.slice(0, 3).map(e => e.status)).toEqual(['unsupported', 'unsupported', 'applied'])
     }
   })
 

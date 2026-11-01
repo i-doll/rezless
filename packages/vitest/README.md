@@ -547,9 +547,11 @@ string suffix is the fixed fixture viewer version `26.4.0`.
 `avatar.viewer.restrictions.snapshot()` returns a frozen array of frozen rules,
 optionally filtered by emitter prim UUID with `.snapshot(sourcePrim)`. Each rule has
 `sourcePrim`, `behaviour`, `option`, canonical `rule`, and `support`. The no-option
-`sendchat`, `sit`, `unsit`, `tploc`, and `tplm` forms have `state-only`
-support. Their actions are not enforced. Command-log status remains `unsupported`
-for action effects; diagnostics distinguish updated state from unsupported forms.
+`sendchat`, `tploc`, and `tplm` forms have `state-only` support. Their actions
+are not enforced, and their command-log status remains `unsupported` for action
+effects. Seating forms `sit`, `unsit` and finite decimal `sittp[:distance]` have
+`enforced` support for explicit user actions and log `applied`. Diagnostics
+distinguish updated state from unsupported forms.
 
 No-option `detach` has `enforced` support. `fixture.attemptDetach(attachment)`
 attempts to remove an attachment worn by the fixture avatar; omitting the argument
@@ -576,7 +578,7 @@ prims remain independent. `n`/`add` and `y`/`rem` are aliases. Duplicates and ab
 removes do not change state. `@clear`, `@clear=`, and `@clear=<substring>` affect
 only that emitter. Filters match canonical rule text, including options.
 Kokua retains unknown wire names and options with `unsupported` effects. Firestorm
-stores those no-option forms plus the sendchannel forms below; other families
+stores those no-option forms, notification registrations and the sendchannel forms below; other families
 and option forms remain unsupported. Neither profile stores query or force parameters.
 
 The `sendchannel` family has `enforced` support through explicit avatar actions.
@@ -618,6 +620,34 @@ retain every attempted channel, message, status and denying restrictions with
 issuer UUIDs. A denied action creates no listener event or synthetic chat notice.
 Script `llSay` and `llRegionSay` output and automatic viewer query replies remain
 independent of this action policy.
+
+`@notify:<channel>[;<filter>]=n|add` registers restriction notifications;
+`y|rem` removes the issuing prim's exact wire registration. Different prims may
+subscribe independently. Identical adds do not duplicate registrations. Substring
+filters match rule names and options, excluding the parameter suffix. Messages
+start with `/` and contain no issuer UUID. They enter ordinary LSL `listen`
+events as avatar-origin replies, using the query reply channel, range and length
+policy independently of sendchannel restrictions.
+
+Kokua normalizes notification suffixes to `=n` and `=y`, suppresses duplicate adds
+and reports absent removals. Firestorm preserves aliases, including the first
+stored alias when an add is repeated, and reports failed external add/remove
+commands. Kokua sends `/clear[:filter]` before removing matching rules, then sends
+individual `=y` notices while subscriptions remain. Firestorm removes matching
+rules before notifying remaining subscribers of `/clear[:filter]`; internal
+individual removals stay silent. Missing-emitter collection follows those clear
+sequences. Subscriptions persist through script reset and removal and are collected
+with other rules when their emitter disappears. Collection notifications retain
+the original viewer identity if the emitter changes owner.
+
+Both profiles accept numeric channel prefixes. RLVa requires a positive channel
+other than DEBUG_CHANNEL and at most one filter field; empty filters are accepted.
+Kokua also delivers on negative channels and DEBUG_CHANNEL, skips empty semicolon
+fields and uses the first nonempty filter field. Zero and nonnumeric channels
+never deliver. Kokua retains invalid wire registrations for inspection.
+Inventory-offer, clothing, attachment and seating action notifications are outside
+this notification fixture. Successful registration commands have `applied` status;
+unsupported forms remain visible in command logs and diagnostics.
 
 Script reset, state changes, and script removal preserve rules. Missing prims lose
 their rules on virtual-time viewer collection, every 30 seconds for RLVa and every
@@ -723,6 +753,19 @@ script chat uses its existing routing and limits.
 
 ### Viewer seating
 
+Explicit user seating uses `fixture.userSit(prim, offset?)` and
+`fixture.userStand()`. Both return a boolean and drain due events. World callers
+can use `world.userSitAvatar(avatar, prim, offset?)` and
+`world.userStandAvatar(avatar)`, then advance virtual time to deliver events.
+These attempts enforce `sit`, seated `unsit`, and `sittp[:distance]` without issuer
+exemptions. The optional offset is a region-axis pick offset, independent of the
+configured sit target. The minimum finite decimal distance applies, defaults to
+1.5 m and excludes the exact boundary. Kokua compares signed limits; RLVa squares
+the combined limit. Non-finite, hexadecimal and overflow forms remain unsupported.
+`world.sitAvatar`, `world.standAvatar`, `llSitOnLink` and `llUnSit` retain their
+independent simulator behavior. Force-sit issuer rules remain profile specific.
+
+
 `getsitid` uses the existing reply-channel policy. It returns the null UUID
 standing and the linkset root UUID on an object, including child sit targets.
 Firestorm RLVa 2.4.2 reports the avatar UUID during ground sitting; Kokua RLV
@@ -744,14 +787,15 @@ operations produce normal `CHANGED_LINK` events; ground sitting adds no object l
 
 Object force sit obeys all no-option `sit` locks and, while already sitting, all
 `unsit` locks. RLVa force unsit and ground sit exempt only the issuing prim;
-Kokua force unsit exempts no emitter. These checks cover force commands; broader
-user sit/unsit/sittp enforcement and standtp remain outside this slice.
+Kokua force unsit exempts no emitter. Force commands retain these checks independently of user attempts. Standtp
+return teleport remains unsupported.
 
 Inspect `avatar.viewer.commandLog` records with `status: 'action'`: `action`,
 `actionOutcome` (`applied`, `unchanged`, or `refused`), requested `target`, resulting
 `seat`, and an optional refusal `reason`. These are synchronous fixture outcomes,
 not confirmations from a network simulator. Unsupported forms retain diagnostics.
-The manifest includes `getsitid`, force `sit` and force `unsit` in command discovery.
+The manifest includes `getsitid`, force `sit`/`unsit`, and add/remove
+`sit`/`unsit`/`sittp` forms in command discovery.
 
 ### Implemented `ll*` functions
 

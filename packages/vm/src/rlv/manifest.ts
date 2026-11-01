@@ -49,7 +49,7 @@ const tests = ['packages/vitest/test/rlv-profiles.test.ts']
 const replyForms = (...names: string[]): RlvCommandForm[] => names.map(behaviour => ({
   behaviour, type: 'reply', support: 'enforced', option: 'any',
 }))
-const restrictionForms: RlvCommandForm[] = ['sendchat', 'sit', 'tplm', 'tploc', 'unsit'].map(behaviour => ({
+const restrictionForms: RlvCommandForm[] = ['sendchat', 'tplm', 'tploc'].map(behaviour => ({
   behaviour, type: 'add', support: 'state-only', option: 'none',
 }))
 
@@ -106,11 +106,11 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Both profiles share prim-scoped rules, aliases, duplicate suppression and substring clear. Kokua retains unknown names and options; RLVa validates forms. Script reset, state change and removal preserve rules. Missing prims lose their rules during viewer garbage collection.',
       profiles: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
-          'No-option sendchat, sit, unsit, tploc and tplm are state-only. Detach actions have a separate contract. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
+          'No-option sendchat, tploc and tplm are state-only. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Ready-viewer fixtures collect missing prims at the default 10-second interval; startup and setting overrides are outside this fixture.'),
           commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
-          'No-option sendchat, sit, unsit, tploc and tplm are state-only. Detach actions have a separate contract. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
+          'No-option sendchat, tploc and tplm are state-only. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Ready-viewer fixtures collect missing prims every 30 seconds.'),
           commandForms: restrictionForms,
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
@@ -281,24 +281,30 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-detach.test.ts'],
     },
     {
-      id: 'seating', forms: ['@getsitid[:<option>]=<channel>', '@sit[:<uuid>]=force', '@unsit=force'],
+      id: 'seating', forms: ['@getsitid[:<option>]=<channel>', '@sit[:<uuid>]=force', '@unsit=force', '@sit=n|y', '@unsit=n|y', '@sittp[:<distance>]=n|y'],
       comparison: 'confirmed difference',
-      wikiComparison: 'Both profiles return null standing and the object root when seated. RLVa ground sitting reports the avatar UUID. Empty/null sit requests ground sitting in RLVa and does nothing in Kokua. Object force sit respects sit and seated unsit locks; RLVa force unsit and ground sit exempt the issuing prim.',
+      wikiComparison: 'Both profiles enforce user sit/stand locks without issuer exceptions and combine sittp distances by minimum with a strict 1.5 m default boundary. Kokua compares signed distance; RLVa compares its square. Both profiles return null standing and the object root when seated. RLVa ground sitting reports the avatar UUID. Empty/null sit requests ground sitting in RLVa and does nothing in Kokua. Object force sit respects sit and seated unsit locks; RLVa force unsit and ground sit exempt the issuing prim.',
       profiles: {
-        rlv: { ...kokua(['RRInterface::getSitTargetId', 'RRInterface::force', 'force_sit'],
-          'getsitid ignores options and uses normal reply channels. Force sit uses free configured targets or nearby plain prims in the same region. Empty/null sit has no target and leaves state unchanged. Force unsit respects every unsit lock, including its emitter. No script permissions are granted. Plain-prim surface placement beyond an 8 m centre-distance fixture radius, collision, autopilot, cross-region seating and standtp are unsupported.'),
+        rlv: { ...kokua(['RRInterface::getSitTargetId', 'RRInterface::force', 'force_sit', 'RRInterface::getMin', 'handle_object_sit_or_stand'],
+          'Explicit user actions enforce sit, seated unsit and the minimum signed sittp limit at the clicked global point. Finite decimal prefixes use float precision; invalid decimal text means zero. Non-finite, hexadecimal and overflow distance forms remain unsupported. Simulator seating and llUnSit bypass viewer locks. getsitid ignores options and uses normal reply channels. Force sit bypasses sittp and uses free configured targets or nearby plain prims in the same region. Empty/null sit has no target and leaves state unchanged. Force unsit respects every unsit lock, including its emitter. No script permissions are granted. Plain-prim surface placement beyond an 8 m centre-distance fixture radius, collision, autopilot, cross-region seating and standtp are unsupported.'),
           support: 'enforced', commandForms: [...replyForms('getsitid'),
+            { behaviour: 'sit', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'unsit', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'sittp', type: 'add', support: 'enforced', option: 'any' },
             { behaviour: 'sit', type: 'force', support: 'enforced', option: 'any' },
             { behaviour: 'unsit', type: 'force', support: 'enforced', option: 'none' }],
-          coveredForms: ['Standing, object-root and ground getsitid replies', 'UUID force sit with world occupancy, region, attachment and lifetime checks', 'Empty/null sit without movement', 'Force unsit with global lock checks', 'Action outcomes and normal changed events without script permission grants'] },
+          coveredForms: ['Explicit user sit/stand, independent issuers and strict default/custom sittp boundaries', 'Simulator and force action separation', 'Standing, object-root and ground getsitid replies', 'UUID force sit with world occupancy, region, attachment and lifetime checks', 'Empty/null sit without movement', 'Force unsit with global lock checks', 'Action outcomes and normal changed events without script permission grants'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processReplyCommand', 'RlvForceHandler<RLV_BHVR_SIT>::onCommand', 'RlvForceHandler<RLV_BHVR_SITGROUND>::onCommand', 'RlvHandler::processForceCommand', 'RlvActions::canSit', 'RlvActions::canGroundSit'],
-          'getsitid ignores options and uses normal reply channels; ground sitting returns the avatar UUID. Empty/null sit requests ground sitting. Force unsit and ground sit exempt only the issuing prim from locks; object force sit exempts no emitter. Same-region free configured targets and plain prims within an 8 m centre-distance fixture radius update world seating. Farther plain-prim surface placement, collision, autopilot, cross-region seating and standtp are unsupported. No script permissions are granted.'),
+          'Explicit user actions enforce sit, seated unsit and the minimum sittp limit squared at the clicked global point. Finite decimal prefixes use float precision; malformed text and float underflow are unsupported. Non-finite, hexadecimal and overflow distance forms remain unsupported. Simulator seating and llUnSit bypass viewer locks. Force sit bypasses sittp. getsitid ignores options and uses normal reply channels; ground sitting returns the avatar UUID. Empty/null sit requests ground sitting. Force unsit and ground sit exempt only the issuing prim from locks; object force sit exempts no emitter. Same-region free configured targets and plain prims within an 8 m centre-distance fixture radius update world seating. Farther plain-prim surface placement, collision, autopilot, cross-region seating and standtp are unsupported. No script permissions are granted.'),
           support: 'enforced', commandForms: [...replyForms('getsitid'),
+            { behaviour: 'sit', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'unsit', type: 'add', support: 'enforced', option: 'none' },
+            { behaviour: 'sittp', type: 'add', support: 'enforced', option: 'any' },
             { behaviour: 'sit', type: 'force', support: 'enforced', option: 'any' },
             { behaviour: 'unsit', type: 'force', support: 'enforced', option: 'none' }],
-          coveredForms: ['Standing, object-root and avatar-UUID ground getsitid replies', 'UUID and empty/null ground force sit with action outcomes', 'World occupancy, region, attachment and lifetime checks', 'Force unsit and ground-sit issuer exceptions', 'Normal changed events without script permission grants'] },
+          coveredForms: ['Explicit user sit/stand, independent issuers and strict default/custom sittp boundaries', 'Simulator and force action separation', 'Standing, object-root and avatar-UUID ground getsitid replies', 'UUID and empty/null ground force sit with action outcomes', 'World occupancy, region, attachment and lifetime checks', 'Force unsit and ground-sit issuer exceptions', 'Normal changed events without script permission grants'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-sit.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-sit.test.ts', 'packages/vitest/test/rlv-sit-enforce.test.ts'],
     },
     {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
@@ -316,12 +322,14 @@ export const RLV_MANIFEST: {
       id: 'notifications', forms: ['@notify:<channel>[;<filter>]=n|add', '@notify:<channel>[;<filter>]=y|rem'],
       comparison: 'confirmed difference', wikiComparison: 'Wiki describes rule notifications. Alias preservation and clear event sequences require implementation-specific expectations.',
       profiles: {
-        rlv: { ...kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y; clear emits a clear notification and individual removals.'),
-          commandForms: [{ behaviour: 'notify', type: 'add', support: 'unsupported', option: 'any' }] },
-        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve input aliases; internal commands do not notify; compare duplicate and failed external commands separately.'),
-          commandForms: [{ behaviour: 'notify', type: 'add', support: 'unsupported', option: 'any' }] },
+        rlv: { ...kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y, suppress duplicate adds and report absent removes; clear reports itself before individual removals, including collection.'),
+          support: 'enforced', commandForms: [{ behaviour: 'notify', type: 'add', support: 'enforced', option: 'any' }],
+          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
+        rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve aliases, with duplicate adds using the first stored alias. Failed external add/remove commands notify; clear reports after removing registrations, and collection reports clear without individual removals.'),
+          support: 'enforced', commandForms: [{ behaviour: 'notify', type: 'add', support: 'enforced', option: 'any' }],
+          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
       },
-      tests,
+      tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts'],
     },
   ],
 }
