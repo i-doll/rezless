@@ -313,3 +313,22 @@ it('preserves fixed decimal notation and negative zero', async () => {
     expect(replies(f)).toEqual(profile === 'rlva' ? ['1000000015047466219876688855040.000', '-0.000'] : ['-0.000001', '0.000001'])
   }
 })
+
+// User lens changes update CameraAngle without changing its persistence mode.
+// RLVa saves pi/3 when a preceding force left that mode disabled.
+it('preserves force-disabled persistence across a subsequent user lens change', async () => {
+  const pair = await loadRlvPair({ source })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start()
+    changeRlvFov(f.avatar, 0.75)
+    send(f, '@setcam_fov:0.8=force')
+    expect(getRlvFov(f.avatar)).toBeCloseTo(0.8)
+    changeRlvFov(f.avatar, 0.7)
+    expect(getRlvFov(f.avatar)).toBeCloseTo(0.7)
+    send(f, '@setcam_fovmin:0.9=n')
+    expect(getRlvFov(f.avatar)).toBeCloseTo(0.9)
+    send(f, '@setcam_fovmin:0.9=y,getcam_fov=22801')
+    expect(replies(f)).toEqual(profile === 'rlva' ? ['1.047'] : ['0.900000'])
+    expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
+  }
+})

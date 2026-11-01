@@ -955,13 +955,14 @@ the other camera fields retain their existing fixture behavior.
 | Empty limit angle | 1.5 radians | Rejected |
 | Invalid numeric text | Zero prefix conversion | Rejected; valid numeric prefixes accepted |
 | Contradictory bounds | Collapse to minimum FOV | Below minimum selects minimum; otherwise above maximum selects maximum |
-| Last limit removed | Keep current angle | Restore saved angle |
+| Last limit removed | Keep current angle | Restore saved angle, or pi/3 if persistence was disabled before the first limit |
 | Query option | Ignored | Empty reply with failed-option outcome |
 
 Explicit `nan`/`inf` values follow each profile's float behavior. RLVa retains
 a NaN limit modifier after its wire restriction is removed; limit queries can
 therefore return `nan` with an empty restriction snapshot. Finite values added
 later can mask it. Query-visible modifiers and active restrictions are distinct.
+User lens changes update the angle without changing its persistence mode.
 Keyboard and preference UI event delivery are outside scripted in-world probes;
 user lens attempts use the same lens setter as forces. Rendering, window resizing,
 camera exclusivity, position/distance modes and deprecated zoom aliases are unsupported.
