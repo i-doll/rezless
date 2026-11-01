@@ -1754,8 +1754,8 @@ nostrip names for ordinary clothing. RLVa physics has one slot: add replaces its
 occupant unless layer removal is locked, including automatic replacement of
 nostrip physics. Kokua permits multiple physics items. Layer and attachment locks
 constrain every form. Both profiles limit clothing to 60 items. At capacity the
-appearance manager can replace an unlocked top item, including nostrip clothing;
-if no slot can be freed the result reports a clothing-capacity denial.
+appearance manager can replace an unlocked top item. Kokua preserves nostrip
+clothing during this fallback; RLVa automatically replaces it. If no slot can be freed the result reports a clothing-capacity denial.
 
 Folder options select one path. Kokua strips a pipe annotation from each path
 component, so `Base|33/Child|30` selects `Base/Child`. RLVa resolves the literal

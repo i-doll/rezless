@@ -207,7 +207,9 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
       if (!isRlvBodypart(entry) && clothingCount() >= 60) {
         const top = occupants.filter(e => inventory.wornWearables().includes(e.id)).at(-1)
         // At capacity, the appearance manager replaces the current top item.
-        if (top && !removeLocked) inventory.setWearableWorn(top.id, false)
+        if (top && !removeLocked && (profile === 'rlva' || isRlvStrippable(profile, inventory, top, true))) {
+          inventory.setWearableWorn(top.id, false)
+        }
         if (clothingCount() >= 60) {
           results.push({ itemId: entry.id, outcome: 'blocked', reason: 'clothing-capacity' }); continue
         }

@@ -334,3 +334,16 @@ it('capacity counts clothing accepted earlier in the same queued folder operatio
  expect(inv.wornWearables()).toContain('new1'); expect(inv.wornWearables()).not.toContain('new2')
  expect(result(f).wearResults).toContainEqual({ itemId: 'new2', outcome: 'blocked', reason: 'layer-lock' })
 })
+
+it('capacity fallback preserves Kokua nostrip while RLVa appearance replacement frees the top slot', async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  const old = Array.from({ length: 60 }, (_, n) => ({ id: `old${n}`, parentId: null, kind: 'item' as const, name: `nostrip Shirt ${n}`, wearableType: 'shirt' as const }))
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(), ...old,
+   { id: 'new', parentId: 'base', kind: 'item', name: 'New shirt', wearableType: 'shirt' },
+  ], wornWearables: old.map(e => e.id) })
+  send(f, '@attachallover:base=force')
+  expect(inv.wornWearables()).toHaveLength(60)
+  expect(inv.wornWearables().includes('new')).toBe(profile === 'rlva')
+ }
+})
