@@ -1,3 +1,5 @@
+import type { RlvParsedCommand } from './classifier.js'
+
 /** Implementation families identified by viewer version, not a promise of full RLV conformance. */
 export type RlvProfile = 'rlv' | 'rlva'
 export type ViewerProfile = 'disabled' | RlvProfile
@@ -27,7 +29,7 @@ export const RLV_PROFILES: Readonly<Record<RlvProfile, RlvReference>> = Object.f
 
 export interface RlvDiagnostic {
   readonly command: string
-  readonly reason: 'unsupported'
+  readonly reason: 'unsupported' | 'malformed'
   readonly detail: string
 }
 
@@ -39,7 +41,8 @@ export interface RlvReply {
 export type RlvCommandRecord = {
   readonly command: string
   readonly sourcePrim: string
-} & ({ readonly status: 'replied'; readonly reply: RlvReply } | { readonly status: 'unsupported' })
+  readonly parsed?: RlvParsedCommand
+} & ({ readonly status: 'replied'; readonly reply: RlvReply } | { readonly status: 'unsupported' | 'malformed' })
 
 /** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState {

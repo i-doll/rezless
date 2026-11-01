@@ -74,3 +74,6 @@ export { RLV_PROFILES } from './rlv/profiles.js'
 export type { RlvProfile, ViewerProfile, ViewerConfig, ViewerState, RlvReference, RlvDiagnostic, RlvReply, RlvCommandRecord } from './rlv/profiles.js'
 export { RLV_MANIFEST } from './rlv/manifest.js'
 export type { RlvCommandContract, RlvCommandProfile, RlvEvidence, RlvComparison, RlvSupportDepth } from './rlv/manifest.js'
+
+export type { RlvCommandFields } from './rlv/parser.js'
+export type { RlvParameterKind, RlvParsedCommand } from './rlv/classifier.js'

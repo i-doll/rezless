@@ -522,13 +522,22 @@ An expectation can instead be `{ kind: 'unsupported', reason }` or
 `{ kind: 'not-measured', reason }`. These are inspectable data; the helper does
 not skip tests or turn pending cases into successful assertions.
 
-Single `version`, `versionnew` and `versionnum` queries on positive channels
+Single or comma-separated `version`, `versionnew` and `versionnum` queries on positive channels
 (excluding DEBUG_CHANNEL) now queue avatar replies through normal listen matching.
 Replies can reach the issuing prim and other listening prims or linksets; they use
 the owner avatar's UUID and name. Script chat capture still contains the original
 `llOwnerSay` messages only. `avatar.viewer.commandLog` records each command's
 `sourcePrim`, status and optional `{ channel, text }` reply. Unsupported forms
 also produce `avatar.viewer.diagnostics`; disabled viewers record neither.
+
+Batches execute in order, skip empty comma entries, and continue after a failed
+token. Each record preserves the token as `command` with one leading `@` and
+exposes normalized `parsed` fields (`behaviour`, `option`, `parameter`, `kind`)
+when the grammar accepts it. Status distinguishes `replied`, `malformed`, and
+`unsupported`. Parameter kinds are `add`, `remove`, `clear`, `force`, `query`,
+and `unknown`; classification alone never applies restrictions or force effects.
+Only a leading `@` in owner chat activates dispatch. Numeric channel parameters
+accept decimal prefixes, including a sign and leading whitespace.
 
 Kokua reports API `2093500` even for `versionnum:impl` and unknown options.
 RLVa reports API `3040300`, implementation `2040213` for `:impl`, and an empty
@@ -540,7 +549,7 @@ The seven RLVa forms were measured in Firestorm RLVa 2.4.2 on the Aditi beta gri
 `RLV_MANIFEST` lists covered forms, evidence by implementation version, file and
 symbol, wiki comparisons and remaining probes. Query support marked `enforced`
 means a reply is delivered; version reporting does not imply support for other
-commands or viewer actions. Batching, broader channel policies, startup behavior
+commands or viewer actions. Broader channel policies, startup behavior
 and per-object compatibility settings remain outside this slice.
 
 

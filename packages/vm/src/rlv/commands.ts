@@ -1,3 +1,5 @@
+import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
+import { parseRlvCommand } from './parser.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import { RLV_PROFILES, type RlvProfile } from './profiles.js'
@@ -20,23 +22,33 @@ function versionReply(profile: RlvProfile, behaviour: string, option: string): s
   }
 }
 
-/** Single-command dispatch. Batching and broader channel policies are separate slices. */
-export function dispatchViewerCommand(linkset: Linkset, prim: Prim, command: string): void {
-  if (!command.startsWith('@')) return
+/** Dispatch in token order; replies stay queued until the issuing script yields. */
+export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: string): void {
+  if (!message.startsWith('@')) return
   const avatar = linkset.world?.avatars.find(avatar => avatar.key === linkset.owner)
   if (!avatar) return
   const viewer = avatar.viewer
-  if (viewer.profile === 'disabled') return
-  const match = /^@([a-z]+)(?::([^=,\s]*))?=([0-9]+)$/.exec(command.toLowerCase())
-  const channel = match ? Number(match[3]) : 0
-  const text = match && channel > 0 && channel < 2147483647
-    ? versionReply(viewer.profile, match[1]!, match[2] ?? '') : undefined
-  if (text === undefined) {
-    viewer.commandLog.push({ command, sourcePrim: prim.key, status: 'unsupported' })
-    viewer.diagnostics.push({ command, reason: 'unsupported',
-      detail: 'Only single version/versionnew/versionnum queries on positive non-debug channels are implemented.' })
-    return
+  if (viewer.profile === 'disabled' || viewer.profile === 'rlva' && message.length <= 3) return
+  for (const token of message.slice(1).split(',').filter(Boolean)) {
+    const command = '@' + token
+    const fields = parseRlvCommand(viewer.profile, token)
+    const parsed = fields ? classifyRlvCommand(fields) : undefined
+    const malformed = !parsed || viewer.profile === 'rlva' && parsed.kind === 'unknown'
+    const channel = parsed ? rlvIntegerPrefix(parsed.parameter) : undefined
+    // Kokua dispatches named version queries before testing parameter kinds.
+    const text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
+      channel !== undefined && channel > 0 && channel < 2147483647
+      ? versionReply(viewer.profile, parsed.behaviour, parsed.option) : undefined
+    const entry = { command, sourcePrim: prim.key, ...(parsed ? { parsed } : {}) }
+    if (text === undefined) {
+      const status = malformed ? 'malformed' : 'unsupported'
+      viewer.commandLog.push({ ...entry, status })
+      viewer.diagnostics.push({ command, reason: status, detail: malformed
+        ? 'Invalid command syntax or parameter for this viewer profile.'
+        : 'This command form has no implemented effect. Version replies require a supported positive channel.' })
+      continue
+    }
+    viewer.commandLog.push({ ...entry, status: 'replied', reply: { channel: channel!, text } })
+    linkset.routeViewerReply(avatar, channel!, text)
   }
-  viewer.commandLog.push({ command, sourcePrim: prim.key, status: 'replied', reply: { channel, text } })
-  linkset.routeViewerReply(avatar, channel, text)
 }
