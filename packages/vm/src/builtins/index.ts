@@ -1,4 +1,6 @@
 import { llRezObject, llRezAtRoot, llRezObjectWithParams, llDerezObject, llGetVel, llGetForce } from './rez.js'
+import { llCastRay } from './raycast.js'
+import { llRemoteLoadScriptPin } from './remote-load.js'
 import { llSetParcelMusicURL, llAddToLandBanList, llAddToLandPassList, llRemoveFromLandBanList, llRemoveFromLandPassList, llResetLandBanList, llResetLandPassList, llEjectFromLand, llReturnObjectsByID, llReturnObjectsByOwner, llSetParcelForSale, llManageEstateAccess, llParcelMediaCommandList, llParcelMediaQuery, llGiveMoney, llTransferLindenDollars, llTransferOwnership } from './land.js'
 import { llGetDisplayName, llGetUsername, llName2Key, llRequestUserKey, llGetAgentInfo, llGetAgentLanguage, llGetAgentList, llGetAgentSize, llGetVisualParams, llIsFriend, llSameGroup } from './agents.js'
 import { llGetLandOwnerAt, llGetParcelDetails, llGetParcelFlags, llGetParcelMaxPrims, llGetParcelPrimCount, llGetParcelPrimOwners, llGetParcelMusicURL, llOverMyLand } from './land.js'
@@ -412,6 +414,8 @@ import {
  * and records the call). User mocks (script.mock(...)) override either.
  */
 export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
+  llRemoteLoadScriptPin,
+  llCastRay,
   llGetDisplayName, llGetUsername, llName2Key, llRequestUserKey, llGetAgentInfo, llGetAgentLanguage, llGetAgentList, llGetAgentSize, llGetVisualParams, llIsFriend, llSameGroup,
   llParticleSystem, llLinkParticleSystem,
   llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,

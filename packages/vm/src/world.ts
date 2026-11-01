@@ -1,3 +1,4 @@
+import { conjugate, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
@@ -15,6 +16,9 @@ export interface WorldObjectOptions {
   readonly velocity?: Vector
   readonly owner?: string
   readonly group?: string
+  /** Box dimensions for ray queries. Default <0.5, 0.5, 0.5>. */
+  readonly size?: Vector
+  readonly phantom?: boolean
   readonly physical?: boolean
   readonly scripted?: boolean
   /** Whether its script is currently using simulator resources. */
@@ -61,6 +65,8 @@ export interface WorldEntity {
   scripted: boolean
   active: boolean
   username?: string
+  size?: Vector
+  phantom?: boolean
 }
 
 /** Sensor properties absent from the live prim model. */
@@ -118,6 +124,8 @@ export interface RegionSettings {
    * Default 22, flat.
    */
   readonly ground?: number | ((x: number, y: number) => number)
+  /** Terrain index for RC_GET_LINK_NUM. Default 0; supply measured simulator indices explicitly. */
+  readonly groundLinkNumber?: number | ((x: number, y: number) => number)
   /** Water height in metres across the whole region, read by llWater. Default 20. */
   readonly water?: number
   /** Wind velocity, read by llWind: one vector, or a function of region x and y. Default a measured breeze held fixed. */
@@ -258,6 +266,7 @@ export class World {
       owner: opts.owner ?? NULL_KEY, group: opts.group ?? NULL_KEY,
       physical: opts.physical ?? false, scripted: opts.scripted ?? false,
       active: opts.active ?? false,
+      size: { ...(opts.size ?? { x: 0.5, y: 0.5, z: 0.5 }) }, phantom: opts.phantom ?? false,
     }
   }
 
@@ -312,7 +321,141 @@ export class World {
     return undefined
   }
 
+  /** Entry intersections with the region's placed boxes and avatars, nearest first. */
+  castRay(region: string, start: Vector, end: Vector, options: RayOptions): RayHit[] {
+    const hits = castRayBoxes(this.linksets.filter(l => l.region === region),
+      [...this.objects, ...this.avatars].filter(e => e.region === region), start, end, options)
+    if (!(options.rejectTypes & 8)) hits.push(...castRayTerrain(this.region(region), start, end))
+    return hits.sort((a, b) => a.fraction - b.fraction)
+  }
+
   allScripts(): Script[] {
     return this.linksets.flatMap((l) => l.allScripts())
   }
+}
+
+export interface RayOptions {
+  readonly rejectTypes: number
+  readonly detectPhantom: boolean
+}
+
+export interface RayHit {
+  readonly key: string
+  readonly rootKey: string
+  readonly linkNumber: number
+  readonly position: Vector
+  readonly normal: Vector
+  readonly fraction: number
+}
+
+/** Intersect an oriented box, excluding rays whose start is strictly inside. */
+function boxEntry(start: Vector, end: Vector, position: Vector, rotation: Rotation, size: Vector): Omit<RayHit, 'key' | 'rootKey' | 'linkNumber'> | undefined {
+  const inverse = conjugate(rotation)
+  const local = rotateVector({ x: start.x - position.x, y: start.y - position.y, z: start.z - position.z }, inverse)
+  const delta = { x: end.x - start.x, y: end.y - start.y, z: end.z - start.z }
+  const direction = rotateVector(delta, inverse)
+  if (Math.abs(local.x) < size.x / 2 && Math.abs(local.y) < size.y / 2 && Math.abs(local.z) < size.z / 2) return
+  let entry = -Infinity
+  let exit = 1
+  let normal: Vector = { x: 0, y: 0, z: 0 }
+  for (const axis of ['x', 'y', 'z'] as const) {
+    const half = size[axis] / 2
+    if (direction[axis] === 0) {
+      if (Math.abs(local[axis]) > half) return
+      continue
+    }
+    const a = (-half - local[axis]) / direction[axis]
+    const b = (half - local[axis]) / direction[axis]
+    const near = Math.min(a, b)
+    if (near > entry) {
+      entry = near
+      normal = { x: 0, y: 0, z: 0, [axis]: direction[axis] > 0 ? -1 : 1 }
+    }
+    exit = Math.min(exit, Math.max(a, b))
+    if (entry > exit) return
+  }
+  if (entry < 0 || entry >= 1) return
+  const rotated = rotateVector(normal, rotation)
+  return { fraction: entry,
+    position: { x: start.x + delta.x * entry, y: start.y + delta.y * entry, z: start.z + delta.z * entry },
+    normal: { x: rotated.x + 0, y: rotated.y + 0, z: rotated.z + 0 },
+  }
+}
+
+/** Shared by World ray queries and a standalone linkset's own-prim query. */
+export function castRayBoxes(linksets: readonly Linkset[], entities: readonly WorldEntity[], start: Vector, end: Vector, options: RayOptions): RayHit[] {
+  const hits: RayHit[] = []
+  const add = (key: string, rootKey: string, linkNumber: number, position: Vector, rotation: Rotation, size: Vector, physical: boolean, phantom: boolean, avatar: boolean) => {
+    if (avatar ? (options.rejectTypes & 1) : phantom ? !options.detectPhantom : (options.rejectTypes & (physical ? 2 : 4))) return
+    const hit = boxEntry(start, end, position, rotation, size)
+    if (hit) hits.push({ ...hit, key, rootKey, linkNumber })
+  }
+  for (const linkset of linksets) {
+    if (linkset.dead) continue
+    const root = linkset.prims[0]!
+    for (const prim of linkset.prims) {
+      if (prim.params.physicsShapeType === 1) continue
+      add(prim.key, root.key, prim === root ? 0 : prim.linkNumber, prim.regionPosition(), prim.regionRotation(), prim.params.size,
+        (root.statusFlags & 1) !== 0, (root.statusFlags & 16) !== 0 || root.volumeDetect, false)
+    }
+  }
+  for (const entity of entities) {
+    add(entity.key, entity.key, 0, entity.position, entity.rotation, entity.size ?? { x: 0.5, y: 0.5, z: 0.5 },
+      entity.physical, entity.phantom ?? false, entity.username !== undefined)
+  }
+  return hits.sort((a, b) => a.fraction - b.fraction)
+}
+
+/** Intersect the same bilinear height grid used by llGround, from either side. */
+export function castRayTerrain(settings: RegionSettings, start: Vector, end: Vector): RayHit[] {
+  const ground = settings.ground ?? 22
+  const height = typeof ground === 'number' ? () => ground : ground
+  const delta = { x: end.x - start.x, y: end.y - start.y, z: end.z - start.z }
+  const point = (t: number): Vector => ({ x: start.x + delta.x * t, y: start.y + delta.y * t, z: start.z + delta.z * t })
+  // In each grid cell the height along the ray is quadratic. Split only at cell boundaries.
+  const boundaries = new Set([0, 1])
+  for (const axis of ['x', 'y'] as const) {
+    if (!delta[axis]) continue
+    for (let cell = 0; cell <= 256; ++cell) {
+      const t = (cell - start[axis]) / delta[axis]
+      if (t > 0 && t < 1) boundaries.add(t)
+    }
+  }
+  const times = [...boundaries].sort((a, b) => a - b)
+  const hits: RayHit[] = []
+  for (let i = 1; i < times.length; ++i) {
+    const lo = times[i - 1]!
+    const hi = times[i]!
+    const midpoint = point((lo + hi) / 2)
+    if (midpoint.x < 0 || midpoint.x >= 256 || midpoint.y < 0 || midpoint.y >= 256) continue
+    const x = Math.floor(midpoint.x), y = Math.floor(midpoint.y)
+    const h00 = height(x, y), h10 = height(x + 1, y), h01 = height(x, y + 1), h11 = height(x + 1, y + 1)
+    const surface = (p: Vector) => {
+      const u = p.x - x, v = p.y - y
+      return h00 * (1 - u) * (1 - v) + h10 * u * (1 - v) + h01 * (1 - u) * v + h11 * u * v
+    }
+    const f0 = point(lo).z - surface(point(lo)), f1 = point(hi).z - surface(point(hi))
+    const fm = midpoint.z - surface(midpoint)
+    const a = 2 * (f0 + f1 - 2 * fm), b = f1 - f0 - a
+    let roots: number[] = []
+    if (Math.abs(a) < 1e-10) {
+      if (Math.abs(b) > 1e-10) roots = [-f0 / b]
+    } else {
+      const discriminant = b * b - 4 * a * f0
+      if (discriminant >= 0) roots = [(-b - Math.sqrt(discriminant)) / (2 * a), (-b + Math.sqrt(discriminant)) / (2 * a)]
+    }
+    for (const root of roots.sort((a, b) => a - b)) {
+      if (root < 0 || root > 1) continue
+      const t = lo + (hi - lo) * root
+      if (t >= 1 || hits.some(h => Math.abs(h.fraction - t) < 1e-9)) continue
+      const p = point(t), u = p.x - x, v = p.y - y
+      const nx = -((h10 - h00) * (1 - v) + (h11 - h01) * v)
+      const ny = -((h01 - h00) * (1 - u) + (h11 - h10) * u)
+      const length = Math.hypot(nx, ny, 1)
+      const index = settings.groundLinkNumber ?? 0
+      hits.push({ key: NULL_KEY, rootKey: NULL_KEY, linkNumber: (typeof index === 'number' ? index : index(p.x, p.y)) | 0,
+        fraction: t, position: p, normal: { x: nx / length + 0, y: ny / length + 0, z: 1 / length } })
+    }
+  }
+  return hits.sort((a, b) => a.fraction - b.fraction)
 }
