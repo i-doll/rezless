@@ -2171,3 +2171,33 @@ Replies use explicit membership metadata; an active UUID without a corresponding
 membership name returns an empty name. Group commands participate in RLVa
 `getcommand` discovery. A session reset clears locks and force throttling while
 preserving the avatar's active group and membership data.
+
+
+### Avatar payments and object purchases
+
+`fixture.pay(target, amount)` and `world.attemptAvatarPay(avatar, target, amount)`
+inject a completed payment after checking the payer's viewer restrictions.
+The target is a live `Prim` or an avatar in the same World. Amounts are integers
+from zero through 2147483647. An allowed object payment queues `money(id, amount)`
+on the selected prim's running handlers. The recipient is the object's owner.
+A payment through an attachment goes to its wearer and sends no attachment event.
+`fixture.payActions` records `paid`, `blocked`, and `unsupported` outcomes,
+including the target, effective recipient, amount and deciding restrictions.
+Pay-price settings and running money handlers supply object pay eligibility.
+Payment injection does not simulate the pay dialog or validate its button choices.
+
+`world.setObjectSale(prim, { type: 'original' | 'copy' | 'contents', price })`
+sets sale information on the object's root. Pass `null` to clear it.
+`fixture.buy(prim)` and `world.attemptAvatarBuy(avatar, prim)` capture a viewer
+purchase request with a frozen sale snapshot. All three sale types and zero-price
+purchases use the same permission check. `fixture.buyActions` records `requested`,
+`blocked`, or `unsupported`. Purchases do not send money events. Account balances,
+transaction settlement, ownership changes and purchase inventory delivery are
+outside these fixtures. `llGiveMoney` and `llTransferLindenDollars` retain their
+existing permission-gated request capture.
+
+Firestorm RLVa 2.4.2 applies `pay` to avatar payments and `buy` to object payments
+and purchases. Both accept no-option `n`, `add`, `y`, and `rem`; clearing one issuer
+preserves other issuers' locks. Options, secure variants and force forms are
+unsupported. Kokua RLV 2.09.35.00 has neither restriction handler; its retained
+unknown rules remain inspectably unsupported and do not block these actions.

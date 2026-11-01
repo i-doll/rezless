@@ -140,3 +140,6 @@ export type { RlvEnvironmentConfig, RlvEnvironmentSky, RlvEnvironmentPreset } fr
 export type { RlvDebugSettingsConfig } from './rlv/debug.js'
 
 export type { AvatarGroup } from './rlv/group.js'
+
+export { attemptAvatarPay, attemptAvatarBuy, setObjectSale, avatarPayLog, avatarBuyLog } from './rlv/pay.js'
+export type { AvatarPayAction, AvatarBuyAction, ObjectSale } from './rlv/pay.js'
