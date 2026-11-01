@@ -1,6 +1,8 @@
 import { Linkset } from '../linkset.js'
 import type { RlvProfile } from './profiles.js'
 import type { InventoryItem } from '../inventory.js'
+import { InventoryType } from '../inventory.js'
+import { PERM_MODIFY } from '../generated/constants.js'
 import { deterministicKey } from '../keys.js'
 
 export const RLV_WEARABLE_TYPES = Object.freeze([
@@ -92,6 +94,8 @@ export class RlvInventory {
     }
     const id = nextId()
     const children = items.map(item => Object.freeze({ id: nextId(), parentId: id, name: item.name, kind: 'item' as const,
+      ...(item.type === InventoryType.OBJECT ? { assetType: 'object' as const, modifiable: !!(item.permMask.owner & PERM_MODIFY),
+        ...(item.object ? { object: item.object } : {}) } : {}),
       content: Object.freeze({ ...item, permMask: Object.freeze({ ...item.permMask }),
         ...(item.notecardLines ? { notecardLines: Object.freeze([...item.notecardLines]) } : {}) }) }))
     this.entries = Object.freeze([...this.entries, Object.freeze({ id, name, parentId, kind: 'folder' as const }), ...children])

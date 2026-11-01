@@ -263,3 +263,38 @@ it('appends folders without accepting invalid parents or colliding with seeded I
  expect(newId).not.toBe(first.snapshot()[0]!.id)
  expect(seeded.snapshot().map(e => e.name)).toEqual(['Existing', 'New'])
 })
+
+// In-world: an accepted object stays unworn and getinvworn reports |10;
+// explicit attachover changes it to |30, then folder detach restores |10.
+// The original worn-item list is restored after the cycle.
+// Aditi, SLua Tideland, 2026-11-01, Firestorm RLVa 2.4.2, API 3.4.3.
+for (const modifiable of [true, false]) it(`retains accepted object metadata for queries and later explicit wear, modify=${modifiable}`, async () => {
+ const { PERM_MODIFY } = await import('../src/index.js')
+ const fixtures = await loadRlvPair({ source: `list replies; default {
+  state_entry() { llListen(23402,"",llGetOwner(),""); llGiveInventoryList(llGetOwner(),"#RLV/~Gift",["gift (left hand)"]); }
+  touch_start(integer n) { llOwnerSay(llGetObjectDesc()); }
+  listen(integer c,string n,key id,string m) { replies += [m]; }
+ }` })
+ for (const f of Object.values(fixtures)) {
+  const definition = await loadLinkset({ prims: [{ name: 'Offered object' }] })
+  seedRlvInventory(f.avatar, { sharedRootId: 'root', entries: [root] })
+  const mask = modifiable ? PERM_ALL : PERM_ALL & ~PERM_MODIFY
+  f.script.host.addInventory(makeInventoryItem({ name: 'gift (left hand)', type: InventoryType.OBJECT, object: definition.linkset,
+   permMask: { base: mask, owner: mask, next: mask, group: 0, everyone: 0 } }))
+  f.script.start()
+  const result = respond(f.avatar, f.script.inventoryOffers[0]!, { accept: true, allowSharedRouting: true })
+  const item = f.avatar.viewer.inventory.snapshot().find(e => e.parentId === result.folderId)!
+  expect(item).toMatchObject({ assetType: 'object', object: definition.linkset, modifiable })
+  expect(f.world.linksets.filter(l => l.attachment)).toEqual([])
+  const send = (command: string) => { f.script.host.description = command; f.script.linkset.touch(0) }
+  send('@getinvworn:~Gift=23402')
+  expect(f.script.global('replies')).toEqual(['|10'])
+  send('@attachover:~Gift=force')
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'allowed', wearResults: [{ itemId: item.id, outcome: 'attached', point: 5 }] })
+  send('@getinvworn:~Gift=23402')
+  expect(f.script.global('replies')).toEqual(['|10', '|30'])
+  send('@detach:~Gift=force')
+  send('@getinvworn:~Gift=23402')
+  expect(f.script.global('replies')).toEqual(['|10', '|30', '|10'])
+ }
+})
