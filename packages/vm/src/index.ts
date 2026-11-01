@@ -20,7 +20,7 @@ export type {
 export { Linkset, LINK_THIS, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_ROOT } from './linkset.js'
 export type { LinksetOptions, TouchOptions, RezRecord } from './linkset.js'
 export { World } from './world.js'
-export type { WorldOptions, WorldParcelOptions, ParcelBounds, Parcel, WorldObjectOptions, WorldAvatarOptions, WorldAvatar, WorldEntity, SensorObjectProperties, RegionCorner, RegionSettings, Region, SkyRotation } from './world.js'
+export type { WorldOptions, ParcelEffect, ParcelMedia, WorldParcelOptions, ParcelBounds, Parcel, WorldObjectOptions, WorldAvatarOptions, WorldAvatar, WorldEntity, SensorObjectProperties, RegionCorner, RegionSettings, Region, SkyRotation } from './world.js'
 export { Prim } from './prim.js'
 export { Experience } from './experience.js'
 export type { ExperienceOptions } from './experience.js'
@@ -59,3 +59,5 @@ export type { CombatAvatar } from './builtins/damage.js'
 
 export type { InventoryOffer } from './builtins/give.js'
 export type { ViewerRequest } from './builtins/viewer.js'
+
+export type { CollisionFilter, CollisionSound } from './builtins/collision.js'

@@ -83,6 +83,8 @@ export interface RegionCorner {
 
 /** What a region's scripts read about it. Every field is optional. */
 export interface RegionSettings {
+  /** Estate owner/managers allowed to submit estate requests in this fixture. */
+  readonly estateManagers?: readonly string[]
   /** llGetRegionFlags, a mask of REGION_FLAG_*. Default REGION_FLAG_ALLOW_DIRECT_TELEPORT. */
   readonly flags?: number
   /** llGetRegionAgentCount and SIM_STAT_AGENT_COUNT. Default 1. */
@@ -141,6 +143,28 @@ export interface ParcelBounds {
   readonly max: RegionCorner
 }
 
+/** A request made by a script over this parcel, including refused requests. */
+export interface ParcelEffect {
+  readonly function: string
+  readonly args: readonly LslValue[]
+  readonly source: string
+  readonly owner: string
+  readonly time: number
+  /** Permission/argument checks passed; this is not confirmation of an external transaction. */
+  readonly accepted: boolean
+  readonly result?: LslValue
+}
+
+export interface ParcelMedia {
+  texture: string
+  url: string
+  type: string
+  width: number
+  height: number
+  description: string
+  loop: number
+}
+
 /** Parcel fixtures supply land impact explicitly; rezzing VM prims does not alter it. */
 export interface WorldParcelOptions {
   readonly region: string
@@ -162,12 +186,19 @@ export interface WorldParcelOptions {
   /** Land impact by owner UUID. Visible only to the parcel owner. */
   readonly primOwners?: Readonly<Record<string, number>>
   readonly musicURL?: string
+  readonly media?: Partial<ParcelMedia>
+  /** Explicit fixture for land held in escrow. */
+  readonly inEscrow?: boolean
   readonly landingPoint?: Vector
   readonly landingLookAt?: Vector
   readonly tpRouting?: number
 }
 
 export interface Parcel extends WorldParcelOptions {
+  musicURL?: string
+  readonly effects: ParcelEffect[]
+  readonly media: ParcelMedia
+  sale?: { price: number; agent: string; objects: boolean }
   readonly id: string
   readonly bounds: ParcelBounds
   readonly owner: string
@@ -238,6 +269,8 @@ export class World {
     this.region(opts.region)
     const parcel: Parcel = {
       ...opts,
+      effects: [],
+      media: { texture: NULL_KEY, url: '', type: '', width: 0, height: 0, description: '', loop: 0, ...opts.media },
       id: opts.id ?? deterministicKey(`world/parcel/${this.parcels.length}`),
       bounds: opts.bounds ?? { min: { x: 0, y: 0 }, max: { x: 256, y: 256 } },
       owner: opts.owner ?? NULL_KEY,

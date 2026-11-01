@@ -1,3 +1,5 @@
+import { clearTargets } from './builtins/targets.js'
+import { withCollisionFilter } from './builtins/collision.js'
 import { stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
@@ -827,7 +829,7 @@ export class Script {
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
     if (!this.running) {
-      this.parkedEvents.push({ at: this.now, event: eventName, payload })
+      withCollisionFilter(this, eventName, payload, p => this.parkedEvents.push({ at: this.now, event: eventName, payload: p }))
       return
     }
     if (!this.started) {
@@ -838,11 +840,13 @@ export class Script {
         this.linkset.settle([this])
       }
     }
-    const started = this.handles(eventName) ? [this] : []
-    if (this.task || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
-      this.clockView.schedule(this.now, eventName, payload)
-    } else this.deliver(eventName, payload)
-    this.linkset.settle(started)
+    withCollisionFilter(this, eventName, payload, p => {
+      const started = this.handles(eventName) ? [this] : []
+      if (this.task || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
+        this.clockView.schedule(this.now, eventName, p)
+      } else this.deliver(eventName, p)
+      this.linkset.settle(started)
+    })
   }
 
   /**
@@ -932,6 +936,7 @@ export class Script {
     for (const r of this.state.experienceRequests) r.answered = true
     this.state.controls.taken = null
     stopSensors(this)
+    clearTargets(this)
     this.clockView.cancelTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
@@ -1002,6 +1007,7 @@ export class Script {
       return
     }
     this.finish(task)
+    this.clockView.finishHandler(r.value)
     if (r.value) this.restart()
   }
 
@@ -1130,6 +1136,7 @@ export class Script {
     this.state.lifecycle.dead = true
     this.state.urls.length = 0
     stopSensors(this)
+    clearTargets(this)
     this.clockView.cancelTimer()
     this.abandon()
   }

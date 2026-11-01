@@ -514,15 +514,25 @@ export class Linkset {
   }
 
   /**
-   * Drain due events, then keep moving the clock to the next wake of any of
-   * `scripts` that is sleeping, running everything due on the way, until
-   * none of them is (or the sleeper is paused).
+   * Finish the handlers already active or queued on `scripts`, including
+   * their reset/state-change chains. Future recurring events do not extend
+   * this call indefinitely; tests run those with advanceTime.
    */
   settle(scripts: ReadonlyArray<Script>): void {
+    const pending = this.clock.pendingEvents()
+    const goals = scripts.map(script => ({
+      script,
+      completed: script.clockView.completedHandlers + Number(script.wakeAt !== undefined) +
+        pending.filter(e => e.target === script && e.at <= this.clock.now && script.handles(e.event)).length,
+    }))
     this.drainQueue()
     for (;;) {
       let at = Infinity
-      for (const s of scripts) if (s.running && s.wakeAt !== undefined) at = Math.min(at, s.wakeAt)
+      for (const { script, completed } of goals) {
+        if (script.running && script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
+          at = Math.min(at, script.wakeAt)
+        }
+      }
       if (at === Infinity) return
       this.drainQueue(at)
     }

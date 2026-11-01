@@ -178,6 +178,8 @@ s.setAgentInRegion(key, present = true)          // region-presence override, sh
 
 `start`, `fire`, `reset`, `deliverChat`, `grantPermissions` and the `respondTo*` calls return only after the handlers they started have finished; if one sleeps, the clock moves to its wake time while the other scripts keep running.
 
+Recurring events created during those handlers do not extend the synchronous call forever. Use `advanceTime` to continue their handlers.
+
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 
 A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses for that long after the mock returns.
@@ -403,7 +405,43 @@ Capacity budgets may include fractions; queries truncate after aggregation.
 Same-owner totals include only parcels in the caller's region. `primOwners`
 maps owner UUIDs to land impact. Only the parcel owner can read it or `musicURL`;
 group return powers are not modeled. Without a parcel fixture, land is unowned
-with empty strings and zero land impact. No land side effects are simulated.
+with empty strings and zero land impact.
+
+Each configured parcel has an `effects` log. Entries contain `function`, `args`,
+`source` prim key, `owner`, virtual `time` in milliseconds, `accepted`, and any
+immediate `result`. Both refused and accepted requests are recorded. Acceptance
+means the fixture's permission and argument checks passed, not that an external
+transaction completed. Requests without a parcel fixture have no persistent log.
+
+`llSetParcelMusicURL` updates `musicURL` for the land owner; subsequent reads see
+it. `llParcelMediaCommandList` updates shared `media` settings for owner calls,
+and `llParcelMediaQuery` reads them with LSL types. Agent-targeted media commands
+stay in the log without changing shared settings. Playback has no renderer.
+Ban/pass list edits and ejections are recorded without simulating access or
+moving avatars. Object returns are recorded without deleting objects or changing
+fixture land-impact counts; accepted return requests report zero objects returned.
+
+`llSetParcelForSale` requires owner-granted `PERMISSION_PRIVILEGED_LAND_ACCESS`
+and stores validated options in `parcel.sale`. Set `inEscrow: true` on a parcel
+fixture to refuse a sale. Region `estateManagers` lists the UUIDs allowed to
+submit `llManageEstateAccess` requests. These requests do not model estate-wide
+list propagation or throttling. `llTransferOwnership` records an offer to an
+avatar fixture in the same region without changing ownership or inventory.
+Attachment and object transfer/copy permissions are not modeled.
+
+Both money functions require `PERMISSION_DEBIT` granted by the object owner.
+They only record requests and never pay. `llGiveMoney` always returns zero;
+missing debit permission also produces the measured debug error.
+`llTransferLindenDollars` returns a request key and queues `transaction_result`
+for missing debit or locally invalid arguments. Valid authorized requests remain
+pending. Tests can supply their result with
+`s.fire('transaction_result', { id, success, data })`.
+
+Refusals, errors, return codes and forced delays were measured on Aditi in
+SLua Tideland on 2026-11-01. Successful mutations and offers follow the wiki;
+land/estate rights were unavailable, and actual parcel edits, returns, ejections,
+payments and ownership transfers were prohibited. No debit permission was
+requested in-world. Group return powers remain unimplemented.
 
 ### Implemented `ll*` functions
 
@@ -420,6 +458,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
+* **parcel effects and payments**: `llSetParcelMusicURL`, the six land ban/pass list functions, `llEjectFromLand`, `llReturnObjectsByID`, `llReturnObjectsByOwner`, `llSetParcelForSale`, `llManageEstateAccess`, `llParcelMediaCommandList`, `llParcelMediaQuery`, `llGiveMoney`, `llTransferLindenDollars`, `llTransferOwnership`. See the fixture and record-only limits above.
 * **parcels**: `llGetParcelDetails`, `llGetParcelFlags`, `llGetParcelMaxPrims`, `llGetParcelPrimCount`, `llGetParcelPrimOwners`, `llGetParcelMusicURL`, `llGetLandOwnerAt`, `llOverMyLand`
 * **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatar keys still read like unknown keys in these object queries), `llGetObjectPermMask`
 * **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
@@ -461,6 +500,8 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
 * **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
 * **primitive params**: `llSetPrimitiveParams`, `llSetLinkPrimitiveParams`, `llSetLinkPrimitiveParamsFast`, `llGetPrimitiveParams`, `llGetLinkPrimitiveParams` — full `PRIM_*` rule surface (position / rotation / size / colour / alpha / texture / glow / fullbright / material / physics / flexible / point light / projector / sculpt / GLTF PBR / sit target / click action / text / name / desc / omega / damage / temp-on-rez / cast shadows / …). Honors `PRIM_LINK_TARGET` mid-rule redirects, `ALL_SIDES` expansion, multi-prim get concatenation, unknown-rule termination on get, and the 0.2 s delay on the slow link variant.
+* **targets**: `llTarget`, `llTargetRemove`, `llRotTarget`, `llRotTargetRemove`. Each script keeps eight position and eight rotation targets with a shared handle counter. Checks use the current root transform every 44.444 virtual milliseconds, including changes through link parameters. Thresholds are strict; state changes keep targets, resets clear them. Sleeping handlers keep one pending event per target. Simulator frame jitter and script execution throttling are not modeled.
+* **collision settings**: `llCollisionFilter`, `llVolumeDetect`, `llCollisionSound`, `llAllowInventoryDrop`, `llSetRemoteScriptAccessPin`. Inspect `s.host.collisionFilter`, `volumeDetect`, `collisionSound`, `allowInventoryDrop`, and `remoteScriptAccessPin`. Tests raise collisions with `s.fire('collision_start', { num_detected: 1, detected: [{ key, name }] })`; filters apply to supplied detected entries, and volume detection suppresses continuous `collision` events. Volume detection updates the linkset's phantom read-back. No physics or overlap detection runs. Collision sounds record the requested sound and gain; audio playback, sound asset resolution and collision particles are not simulated. Inventory drops default to disabled and only a root script can enable them. Remote pins default to zero; setting one stores it and sleeps 0.2 seconds. Remote script loading remains a stub.
 * **prim accessors** (alternative single-rule shortcuts that read/write the same backing store): `llSetPos`/`llGetPos`/`llGetLocalPos`/`llGetRootPosition`, `llSetRot`/`llSetLocalRot`/`llGetRot`/`llGetLocalRot`/`llGetRootRotation`, `llSetScale`/`llGetScale`/`llScaleByFactor`/`llGetMaxScaleFactor`/`llGetMinScaleFactor`, `llGetLinkNumberOfSides`, `llSetColor`/`llGetColor`/`llSetAlpha`/`llGetAlpha`, `llSetTexture`/`llGetTexture`/`llGetTextureOffset`/`llGetTextureScale`/`llGetTextureRot`/`llScaleTexture`/`llOffsetTexture`/`llRotateTexture`, `llSetLinkColor`/`llSetLinkAlpha`/`llSetLinkTexture`, `llSetTextureAnim`/`llSetLinkTextureAnim`/`llSetLinkTextureAnimOverrideMe`, `llSetRenderMaterial`/`llGetRenderMaterial`/`llSetLinkRenderMaterial`/`llIsLinkGLTFMaterial`/`llSetLinkGLTFOverrides`, `llSetStatus`/`llGetStatus`/`llSetLinkStatus`, `llSetClickAction`, `llTargetOmega`, `llSetPhysicsMaterial`/`llGetPhysicsMaterial`, `llPassCollisions`/`llPassTouches`, `llSitTarget`/`llLinkSitTarget`/`llAvatarOnSitTarget`/`llAvatarOnLinkSitTarget`/`llSetLinkSitFlags`/`llGetLinkSitFlags`.
 
 The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
