@@ -138,3 +138,16 @@ describe('RLVa implemented-command discovery', () => {
   })
 
 })
+
+
+it('discovers the force aliases used for child UUID and point-group removal once each', async () => {
+ const pair = await loadRlvPair({ source: `list replies; default {
+  state_entry() { llListen(317101,"",NULL_KEY,""); llOwnerSay("@getcommand:detach;force=317101,getcommand:remattach;force=317101"); }
+  listen(integer c,string n,key id,string m) { replies += [m]; }
+ }` })
+ for (const [profile, f] of Object.entries(pair)) {
+  f.script.start()
+  expect(f.script.global('replies'), profile).toEqual(profile === 'rlva'
+   ? ['detach;detachall;detachallthis;detachme;detachthis', 'remattach'] : [])
+ }
+})

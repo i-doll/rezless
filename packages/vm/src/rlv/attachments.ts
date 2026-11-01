@@ -69,6 +69,11 @@ export const RLV_ATTACHMENT_POINTS = Object.freeze([
 const groups = new Map<string, readonly number[]>([
   ['head', [2]], ['torso', [6]], ['arms', [0, 1, 3, 4]], ['legs', [5, 7]], ['hud', [8]],
 ])
+/** Recognized RLVa group names map to viewer group IDs, not HUD point IDs. */
+export function getRlvAttachmentGroup(name: string): readonly number[] | undefined {
+  return groups.get(name)
+}
+
 const bridges = new WeakMap<ViewerState, string>()
 
 /** Last worn point retained when a fixture returns to inventory. */
@@ -118,7 +123,7 @@ export function getRlvAttachmentReply(linkset: Linkset, viewer: ViewerState,
     !(worn.attachment.point === 31 && worn.prims[0]!.key.toLowerCase() === bridge))
     .map(worn => worn.attachment!.point))
   if (behaviour !== 'getattach') {
-    const selectedGroups = groups.get(option)
+    const selectedGroups = getRlvAttachmentGroup(option)
     const owner = linkset.world?.avatars.find(candidate => candidate.key.toLowerCase() === avatarKey)
     return RLV_ATTACHMENT_POINTS.filter(point => (behaviour === 'getattachnames' ? occupied.has(point.id)
       : behaviour === 'getaddattachnames' ? !!owner && !isRlvPointLocked(owner, point.id, 'add')

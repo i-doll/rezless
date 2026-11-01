@@ -87,7 +87,7 @@ for (const option of ['', 'chest', 'UUID', 'CHILD']) it(`force removal selects $
   expect(a.attachment?.point ?? 0).toBe(unsupportedChild ? 1 : 0)
   expect(b.attachment?.point ?? 0).toBe(option === 'UUID' || option === 'CHILD' ? 1 : 0)
   expect(hand.attachment?.point ?? 0).toBe(option ? 5 : 0)
-  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ status: unsupportedChild ? 'unsupported' : 'enforced', outcome: unsupportedChild ? 'unsupported-form' : 'allowed' })
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'enforced', outcome: unsupportedChild ? 'no-op' : 'allowed' })
  }
 })
 

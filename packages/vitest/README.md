@@ -1461,7 +1461,7 @@ RLVa checks item and parent names case sensitively, walking through folded
 parents. A registered valid RLVa bridge is protected. Folder removal results
 follow seed order for Kokua and inventory ID order for RLVa.
 
-Multiple-folder delimiters and group removal remain unsupported.
+Multiple-folder delimiters remain unsupported. Point-group removal is described below.
 Mixed folder contents retain unsupported items and report each result.
 Invalid layer/path force options are inert in Kokua and fail in RLVa.
 
@@ -1482,17 +1482,23 @@ unworn, live, owned by that avatar and in the avatar's World and region.
 `attemptViewerDetach` and `fixture.attemptDetach` enforce removal locks.
 Seeding attachment state through `attachToAvatar` stays unrestricted.
 
-`@detach[:<point|uuid>]=force` removes all removable attachments, attachments at
+`@detach[:<point|uuid|group>]=force` removes all removable attachments, attachments at
 a named point, or one root UUID. `remattach` is a force synonym, including the
 existing direct folder form. UUIDs identify world objects, rather than inventory
-items. Kokua resolves a child UUID to its root; RLVa child UUID removal remains
-unsupported. Point and UUID options take precedence over folder paths. Force
+items. Kokua resolves a child UUID to its root; RLVa accepts a child UUID as a
+no-op, leaving the attachment worn. Point and UUID options take precedence over folder paths. Force
 removal checks every lock, nostrip protection and the registered RLVa bridge.
 Unmapped attachment results use the root UUID as `itemId`. Removals finish after
 the script yields, with normal attachment events. Point and all-point commands
 select currently attached targets when received; pending wear requests in the
-same command batch are not included. Group force removal remains
-unsupported.
+same command batch are not included.
+
+RLVa recognizes `head`, `torso`, `arms`, `legs` and `hud` groups when no shared
+folder matches the option. Each current occupant is checked independently for
+removal protection. The `hud` selector uses viewer group 8, including Jaw and
+newer skeleton points; it excludes screen HUD points in group 9. Empty groups
+are successful no-ops. Kokua treats group names as shared-folder paths and does
+nothing when the path is missing. Recursive `detachall` has no group selector.
 
 RLVa `@getaddattachnames[:<group>]=<channel>` returns points that allow adding,
 even when replacement is locked. `@getremattachnames[:<group>]=<channel>` returns
