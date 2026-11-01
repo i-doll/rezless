@@ -1,4 +1,4 @@
-import { receivedChatLog, type ReceivedChat } from '@rezless/vm'
+import { receivedChatLog, receivedIMLog, type ReceivedChat, type ReceivedIM } from '@rezless/vm'
 import { attemptRlvWearable, attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
@@ -14,6 +14,7 @@ export interface RlvFixture {
   readonly avatar: WorldAvatar
   readonly script: Script
   readonly attemptDetach: (attachment?: Linkset) => RlvDetachOutcome
+  readonly receivedIM: readonly ReceivedIM[]
   readonly receivedChat: readonly ReceivedChat[]
   readonly chatActions: readonly AvatarChatAction[]
   readonly teleportActions: readonly (RlvTeleportAction & RlvCommandRecord)[]
@@ -36,6 +37,7 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
       attemptDetach: (attachment = loaded.linkset) => attemptViewerDetach(avatar, attachment),
       get teleportActions() { return avatar.viewer.commandLog.filter((entry): entry is RlvTeleportAction & RlvCommandRecord =>
         entry.status === 'action' && entry.action === 'tpto') },
+      get receivedIM() { return receivedIMLog(avatar) },
       get receivedChat() { return receivedChatLog(avatar) },
       get chatActions() { return avatarChatLog(avatar) },
       attemptWearable: (itemId, wear) => attemptRlvWearable(avatar, itemId, wear),

@@ -150,6 +150,23 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-recvchat.test.ts'],
     },
     {
+      id: 'received-im',
+      forms: ['@recvim[:<uuid>]=n|add|y|rem', '@recvim_sec[:<uuid>]=n|add|y|rem', '@recvimfrom:<uuid>=n|add|y|rem', '@recvimfrom_sec:<uuid>=n|add|y|rem'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Global recvim restrictions accept sender UUID exceptions; recvimfrom independently denies a sender. Secure global restrictions and permissive=n require issuer-scoped exceptions. Kokua replaces restricted avatar IM text with ...; Firestorm displays its default blocked-message notice. Scripted object IMs bypass these restrictions. Firestorm supports secure targeted aliases; Kokua does not.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::containsWithoutException', 'KokuaRLVExtras::cannotRecvIM', 'LLIMProcessing::processNewMessage'],
+          'Frozen receivedIMLog snapshots contain sender identity and displayed text. Online one-to-one avatar IMs delivered through World.sendAvatarIM become ... under recvim or recvimfrom. Ordinary UUID exceptions may come from any issuer; secure global restrictions and permissive=n require each restricting issuer to grant its own exception. Targeted denials override global exceptions. Scripted object IMs delivered through llInstantMessage bypass these filters. Secure targeted aliases, distance options, group IMs, offline delivery, privileged senders, automatic replies, custom viewer strings, name/location censoring and mute settings are outside this contract.'),
+          commandForms: ['recvim', 'recvim_sec', 'recvimfrom', 'recvimfrom_sec'].map(behaviour => ({ behaviour, type: 'add', support: behaviour === 'recvimfrom_sec' ? 'unsupported' : 'enforced', option: 'any' })),
+          support: 'enforced', coveredForms: ['Online one-to-one avatar IMs with profile-specific replacement text', 'Global and secure recvim, sender UUID exceptions, permissive issuer scope', 'Targeted recvimfrom UUID denials; add/remove aliases and clear', 'Scripted object IM delivery; immutable per-avatar received IM snapshots'] },
+        rlva: { ...firestorm('llimprocessing.cpp', ['LLIMProcessing::processNewMessage', 'RlvActions::canReceiveIM', 'RlvHandler::isException', 'RlvBehaviourDictionary::RlvBehaviourDictionary'],
+          'Frozen receivedIMLog snapshots contain sender identity and displayed text. Online one-to-one avatar IMs delivered through World.sendAvatarIM display *** IM blocked by your viewer under recvim or recvimfrom. Ordinary UUID exceptions may come from any issuer; secure global restrictions and permissive=n require each restricting issuer to grant its own exception. Targeted denials override global exceptions. Secure targeted aliases require every secure issuer to list the sender; permissive=n extends that check to every targeted issuer. Scripted object IMs delivered through llInstantMessage bypass these filters. Distance options, group IMs, offline delivery, privileged senders, automatic replies, custom viewer strings, name/location censoring and mute settings are outside this contract.'),
+          commandForms: ['recvim', 'recvim_sec', 'recvimfrom', 'recvimfrom_sec'].map(behaviour => ({ behaviour, type: 'add', support: 'enforced', option: 'any' })),
+          support: 'enforced', coveredForms: ['Online one-to-one avatar IMs with profile-specific replacement text', 'Global and secure recvim, sender UUID exceptions, permissive issuer scope', 'Targeted recvimfrom UUID denials and secure aliases; add/remove aliases and clear', 'Scripted object IM delivery; immutable per-avatar received IM snapshots'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-recvim.test.ts'],
+    },
+    {
       id: 'sendchannel_except', forms: ['@sendchannel_except[:<channel>]=n|add|y|rem', '@sendchannel_except_sec[:<channel>]=n|add|y|rem'], comparison: 'confirmed difference',
       wikiComparison: 'This is a channel exclusion list, independent of sendchannel grants. Kokua directly denies each literal outgoing channel listed; RLVa requires the no-option switch and accepts positive numeric option prefixes. Its secure form requires each secure issuer to list the channel; permissive=n extends this to every activating issuer. Kokua has no secure form. Channel zero bypasses this family.',
       profiles: {

@@ -40,7 +40,7 @@ export function receivedChatSupport(profile: ViewerProfile, behaviour: string, o
   return uuid(option) || !option && globalFamilies.has(family) ? 'enforced' : 'unsupported'
 }
 
-function denied(avatar: WorldAvatar, family: 'recvchat' | 'recvemote', speaker: ReceivedChatSpeaker): boolean {
+function denied(avatar: WorldAvatar, family: 'recvchat' | 'recvemote' | 'recvim', speaker: ReceivedChatSpeaker): boolean {
   const rules = avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
   const matching = (rule: RlvRestriction) => rule.option === speaker.key.toLowerCase()
   const blocks = rules.filter(rule => base(rule.behaviour) === family && !rule.option)
@@ -49,6 +49,12 @@ function denied(avatar: WorldAvatar, family: 'recvchat' | 'recvemote', speaker: 
   const missing = blocks.some(rule => (strict || rule.behaviour.endsWith('_sec')) &&
     !exceptions.some(exception => exception.sourcePrim === rule.sourcePrim))
   if (missing || blocks.length && !exceptions.length) return true
+  if (family === 'recvim' && avatar.viewer.profile === 'rlva') {
+    const targeted = rules.filter(rule => base(rule.behaviour) === 'recvimfrom')
+    const scoped = targeted.filter(rule => strict || rule.behaviour.endsWith('_sec'))
+    return scoped.length ? scoped.every(rule => targeted.some(exception => exception.sourcePrim === rule.sourcePrim && matching(exception)))
+      : targeted.some(matching)
+  }
   // Kokua also matches the owner of an object against the targeted deny list.
   return rules.some(rule => base(rule.behaviour) === family + 'from' &&
     (matching(rule) || avatar.viewer.profile === 'rlv' && rule.option === speaker.owner.toLowerCase()))
@@ -127,4 +133,46 @@ export function deliverObjectReceivedChat(linkset: Linkset, prim: Prim, type: Ch
     }
     receive(avatar, { source: 'object', key: prim.key, name: prim.name, owner: linkset.owner }, text, type, !!linkset.attachment)
   }
+}
+
+/** An IM displayed by the viewer; object and avatar senders retain their identity. */
+export interface ReceivedIM {
+  readonly speaker: ReceivedChatSpeaker
+  readonly text: string
+  readonly type: 'im'
+}
+
+const imLogs = new WeakMap<WorldAvatar, readonly ReceivedIM[]>()
+const emptyIM: readonly ReceivedIM[] = Object.freeze([])
+
+/** Frozen snapshots of the recipient's displayed IMs, separate from local chat. */
+export function receivedIMLog(avatar: WorldAvatar): readonly ReceivedIM[] {
+  return imLogs.get(avatar) ?? emptyIM
+}
+
+export function receivedIMSupport(profile: ViewerProfile, behaviour: string, option: string): RlvRestriction['support'] | undefined {
+  const family = base(behaviour)
+  if (family !== 'recvim' && family !== 'recvimfrom') return undefined
+  if (profile === 'disabled' || profile === 'rlv' && behaviour === 'recvimfrom_sec') return 'unsupported'
+  return uuid(option) || !option && family === 'recvim' ? 'enforced' : 'unsupported'
+}
+
+function receiveIM(avatar: WorldAvatar, speaker: ReceivedChatSpeaker, text: string): void {
+  if (speaker.source === 'avatar' && avatar.viewer.profile !== 'disabled' && denied(avatar, 'recvim', speaker)) {
+    text = avatar.viewer.profile === 'rlv' ? '...' : '*** IM blocked by your viewer'
+  }
+  const record: ReceivedIM = Object.freeze({ speaker: Object.freeze({ ...speaker }), text, type: 'im' })
+  imLogs.set(avatar, Object.freeze([...receivedIMLog(avatar), record]))
+}
+
+/** Deliver an online one-to-one avatar IM independently of sender restrictions. */
+export function deliverAvatarReceivedIM(world: World, sender: WorldAvatar, recipient: string, text: string): void {
+  const avatar = world.avatars.find(candidate => candidate.key.toLowerCase() === recipient.toLowerCase())
+  if (avatar) receiveIM(avatar, { source: 'avatar', key: sender.key, name: sender.name, owner: sender.key }, text)
+}
+
+/** Scripted object IMs bypass recvim and recvimfrom in both profiles. */
+export function deliverObjectReceivedIM(linkset: Linkset, prim: Prim, recipient: string, text: string): void {
+  const avatar = linkset.world?.avatars.find(candidate => candidate.key.toLowerCase() === recipient.toLowerCase())
+  if (avatar) receiveIM(avatar, { source: 'object', key: prim.key, name: prim.name, owner: linkset.owner }, text)
 }

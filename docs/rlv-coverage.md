@@ -46,6 +46,14 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvchatfrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
 | [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvemotefrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
 | [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvemotefrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-im](#received-im) | Kokua RLV 2.09.35.00 | <code>@recvim[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [received-im](#received-im) | Kokua RLV 2.09.35.00 | <code>@recvim_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [received-im](#received-im) | Kokua RLV 2.09.35.00 | <code>@recvimfrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [received-im](#received-im) | Kokua RLV 2.09.35.00 | <code>@recvimfrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [received-im](#received-im) | Firestorm RLVa 2.4.2 | <code>@recvim[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [received-im](#received-im) | Firestorm RLVa 2.4.2 | <code>@recvim_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [received-im](#received-im) | Firestorm RLVa 2.4.2 | <code>@recvimfrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
+| [received-im](#received-im) | Firestorm RLVa 2.4.2 | <code>@recvimfrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Kokua RLV 2.09.35.00 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
@@ -407,6 +415,36 @@ Support depth: enforced. Per-avatar frozen receivedChatLog snapshots record deli
 Reference symbols: <code>indra/newview/llviewermessage.cpp</code>: <code>process_chat_from_simulator</code>, <code>RlvHandler::filterChat</code>, <code>RlvHandler::isException</code>, <code>RlvBehaviourGenericHandler::onCommand</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts).
+
+### received-im
+
+Forms: <code>@recvim[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@recvim_sec[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@recvimfrom:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@recvimfrom_sec:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Global recvim restrictions accept sender UUID exceptions; recvimfrom independently denies a sender. Secure global restrictions and permissive=n require issuer-scoped exceptions. Kokua replaces restricted avatar IM text with ...; Firestorm displays its default blocked-message notice. Scripted object IMs bypass these restrictions. Firestorm supports secure targeted aliases; Kokua does not.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Frozen receivedIMLog snapshots contain sender identity and displayed text. Online one-to-one avatar IMs delivered through World.sendAvatarIM become ... under recvim or recvimfrom. Ordinary UUID exceptions may come from any issuer; secure global restrictions and permissive=n require each restricting issuer to grant its own exception. Targeted denials override global exceptions. Scripted object IMs delivered through llInstantMessage bypass these filters. Secure targeted aliases, distance options, group IMs, offline delivery, privileged senders, automatic replies, custom viewer strings, name/location censoring and mute settings are outside this contract.
+
+- Online one-to-one avatar IMs with profile-specific replacement text
+- Global and secure recvim, sender UUID exceptions, permissive issuer scope
+- Targeted recvimfrom UUID denials; add/remove aliases and clear
+- Scripted object IM delivery; immutable per-avatar received IM snapshots
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::containsWithoutException</code>, <code>KokuaRLVExtras::cannotRecvIM</code>, <code>LLIMProcessing::processNewMessage</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Frozen receivedIMLog snapshots contain sender identity and displayed text. Online one-to-one avatar IMs delivered through World.sendAvatarIM display *** IM blocked by your viewer under recvim or recvimfrom. Ordinary UUID exceptions may come from any issuer; secure global restrictions and permissive=n require each restricting issuer to grant its own exception. Targeted denials override global exceptions. Secure targeted aliases require every secure issuer to list the sender; permissive=n extends that check to every targeted issuer. Scripted object IMs delivered through llInstantMessage bypass these filters. Distance options, group IMs, offline delivery, privileged senders, automatic replies, custom viewer strings, name/location censoring and mute settings are outside this contract.
+
+- Online one-to-one avatar IMs with profile-specific replacement text
+- Global and secure recvim, sender UUID exceptions, permissive issuer scope
+- Targeted recvimfrom UUID denials and secure aliases; add/remove aliases and clear
+- Scripted object IM delivery; immutable per-avatar received IM snapshots
+
+Reference symbols: <code>indra/newview/llimprocessing.cpp</code>: <code>LLIMProcessing::processNewMessage</code>, <code>RlvActions::canReceiveIM</code>, <code>RlvHandler::isException</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvim.test.ts](../packages/vitest/test/rlv-recvim.test.ts).
 
 ### sendchannel_except
 

@@ -1,4 +1,4 @@
-import { deliverObjectReceivedChat } from '../rlv/received.js'
+import { deliverObjectReceivedChat, deliverObjectReceivedIM } from '../rlv/received.js'
 import { dispatchViewerCommand } from '../rlv/commands.js'
 import type { BuiltinImpl, CallContext, ChatType } from '../runtime.js'
 import { PUBLIC_CHANNEL } from '../generated/constants.js'
@@ -14,6 +14,7 @@ function emit(ctx: CallContext, channel: number, text: string, type: ChatType, t
     dispatchViewerCommand(ctx.linkset, ctx.prim, entry.text)
     deliverObjectReceivedChat(ctx.linkset, ctx.prim, type, channel, entry.text)
   }
+  if (type === 'im') deliverObjectReceivedIM(ctx.linkset, ctx.prim, to ?? '', entry.text)
   if (type !== 'ownerSay' && type !== 'im') ctx.linkset.routeChat(ctx.prim, type, channel, entry.text, to)
   return undefined
 }

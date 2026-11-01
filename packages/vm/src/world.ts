@@ -1,3 +1,4 @@
+import { deliverAvatarReceivedIM } from './rlv/received.js'
 import { userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction } from './rlv/chat-actions.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
@@ -259,6 +260,11 @@ export class World {
   /** Simulate ordinary avatar say; restrictions apply only through this action. */
   sendAvatarChat(avatar: WorldAvatar, channel: number, message: string): AvatarChatAction {
     return sendAvatarChat(this, avatar, channel, message)
+  }
+
+  /** Deliver an online avatar IM; sender-side restrictions and automatic replies are separate. */
+  sendAvatarIM(sender: WorldAvatar, recipient: string, message: string): void {
+    deliverAvatarReceivedIM(this, sender, recipient, message)
   }
 
   addObject(opts: WorldObjectOptions): WorldEntity {
