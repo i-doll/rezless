@@ -1,3 +1,4 @@
+import { userChangeAvatarGroup, type AvatarGroup } from './rlv/group.js'
 import { attemptAvatarMovement, type AvatarMovement, type AvatarMovementAction, type AvatarMovementState } from './rlv/movement.js'
 import { attemptAvatarEdit, attemptAvatarRez, type AvatarEditAction, type AvatarRezAction } from './rlv/edit.js'
 import { requestTeleport, respondTeleportRequest, type AvatarTeleportRequest, offerTeleport, respondTeleportOffer, type TeleportOffer, type TeleportOfferDecision } from './rlv/tpoffers.js'
@@ -40,6 +41,8 @@ export interface WorldObjectOptions {
 }
 
 export interface WorldAvatarOptions extends WorldObjectOptions {
+  /** Group memberships in viewer order; group supplies the initial active UUID. */
+  readonly groups?: readonly AvatarGroup[]
   /** Optional viewer emulation. Omission disables it. */
   readonly viewer?: ViewerConfig
   readonly username: string
@@ -66,6 +69,8 @@ export interface AvatarDestination {
 
 /** Mutable avatar fixture. Region and position can change between script events. */
 export interface WorldAvatar extends WorldEntity {
+  /** Memberships used for group activation and replies; group is the live active UUID. */
+  groups: AvatarGroup[]
   readonly viewer: ViewerState
   username: string
   displayName: string
@@ -340,6 +345,7 @@ export class World {
     }
     const avatar: WorldAvatar = {
       ...entity,
+      groups: (opts.groups ?? []).map(group => ({ ...group, ...(group.roles ? { roles: group.roles.map(role => ({ ...role })) } : {}) })),
       viewer: createViewerState(opts.viewer),
       username: opts.username.toLowerCase(),
       displayName: opts.displayName ?? opts.name ?? opts.username,
@@ -385,6 +391,11 @@ export class World {
 
   private seatRotation(prim: Prim, local: Rotation): Rotation {
     return mulRotation(local, prim.regionRotation())
+  }
+
+  /** Attempt a user active-group change, respecting viewer locks and membership. */
+  userChangeAvatarGroup(avatar: WorldAvatar, key: string): boolean {
+    return userChangeAvatarGroup(avatar, key)
   }
 
   /** Attempt an explicit user sit with viewer restrictions and no issuer exemption. */

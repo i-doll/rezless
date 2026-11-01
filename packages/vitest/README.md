@@ -2112,3 +2112,41 @@ capacity, a locked item anywhere on the incoming layer prevents a force add,
 even when the top item is unlocked. Kokua folder attach selectors compare the
 literal option to the canonical point name, so `root` does not alias
 `avatar center` in these restrictions.
+
+
+### RLV/RLVa active groups
+
+`world.addAvatar({ ..., group, groups })` supplies the initial active group UUID
+and membership records `{ key, name, roles?, activeRole? }`. Existing
+`avatar.group` remains the live UUID read by `llSameGroup` and sensor detection.
+`avatar.groups` is mutable fixture state; membership records supplied at creation
+are copied. `roles` contains `{ key, name }` records; `activeRole` stores the
+selected role UUID for that group.
+
+`world.userChangeAvatarGroup(avatar, key)` (paired-fixture `userChangeGroup`)
+returns false for a nonmember UUID or a `setgroup=n|add` lock. The null UUID
+clears the active group. `setgroup=y|rem` and `clear` release locks without
+restoring a previous group. Force commands never grant group membership.
+
+Both profiles support `@setgroup:<name|none>=force` with case-insensitive names.
+Kokua RLV 2.09.35.00 requires a full name, strips a leading `#RLV/`, and any
+no-option group lock blocks force activation, including the issuer's own lock.
+Unknown names leave the group unchanged; UUID and role selectors are unsupported.
+Firestorm RLVa 2.4.2 also accepts membership UUIDs, the null UUID and name prefixes.
+Exact names take precedence; otherwise the last matching membership wins.
+Its force command bypasses the issuer's lock but respects every other issuer.
+An optional `;<role>` selects a case-insensitive role name with exact precedence
+or the last prefix match in role UUID order. An unknown role leaves the existing
+role unchanged while still activating the group.
+
+RLVa valid force requests share a 60000 ms virtual-time throttle. A lock owner
+may make one extra request before expiry, restarting that interval; further
+requests fail with `failed-throttled`. Invalid targets do not consume it.
+Kokua has no force throttle. User changes do not consume the force throttle.
+
+`@getgroup=<channel>` returns the original group name or the literal `none`.
+Both profiles ignore query options and apply their ordinary reply-channel rules.
+Replies use explicit membership metadata; an active UUID without a corresponding
+membership name returns an empty name. Group commands participate in RLVa
+`getcommand` discovery. A session reset clears locks and force throttling while
+preserving the avatar's active group and membership data.

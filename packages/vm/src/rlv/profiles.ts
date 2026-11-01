@@ -55,7 +55,7 @@ export interface RlvReply {
 }
 
 export type RlvCommandRecord = {
-  readonly outcome?: 'failed-camera-lock' | 'failed-lock' | import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | 'ignored-blacklist' | 'failed-disabled' | 'failed-unheld-behaviour' | 'failed-effect-limit' | import('./forcewear.js').RlvForceWearOutcome | import('./forcewear.js').RlvForceRemoveOutcome
+  readonly outcome?: 'failed-throttled' | 'failed-camera-lock' | 'failed-lock' | import('./classifier.js').RlvCommandOutcome | import('./detach.js').RlvDetachOutcome | 'failed-option' | 'ignored-blacklist' | 'failed-disabled' | 'failed-unheld-behaviour' | 'failed-effect-limit' | import('./forcewear.js').RlvForceWearOutcome | import('./forcewear.js').RlvForceRemoveOutcome
   readonly removeResults?: readonly import('./forcewear.js').RlvForceRemoveItemResult[]
   readonly wearResults?: readonly import('./forcewear.js').RlvForceWearItemResult[]
   readonly command: string
