@@ -1,8 +1,9 @@
 import type { BuiltinImpl } from '../runtime.js'
-import { PERMISSION_TELEPORT } from '../generated/constants.js'
+import { acceptsRlvPermissions } from '../rlv/permissions.js'
+import { PERMISSION_TAKE_CONTROLS, PERMISSION_TELEPORT } from '../generated/constants.js'
 import { sayError } from './debug.js'
 
-/** A llRequestPermissions call waiting for the test to answer it. */
+/** A permission request, including whether it has already been answered. */
 export interface PermissionRequestEntry {
   readonly agent: string
   readonly permissions: number
@@ -11,8 +12,9 @@ export interface PermissionRequestEntry {
 
 /**
  * llRequestPermissions(key agent, integer permissions) — records the
- * request for the test to answer with Script.grantPermissions or
- * Script.denyPermissions. Requesting no permissions fires nothing.
+ * request and applies the recipient viewer auto-grant rules. Other requests
+ * wait for Script.grantPermissions or Script.denyPermissions.
+ * Requesting no permissions fires nothing.
  */
 export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const agent = (args[0] as string | undefined) ?? ''
@@ -21,7 +23,17 @@ export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
     sayError(ctx, 'Temporary attachments cannot request runtime permissions to teleport')
     return undefined
   }
-  if (permissions !== 0) ctx.state.permissions.requests.push({ agent, permissions, answered: false })
+  if (permissions !== 0) {
+    const avatar = ctx.linkset.world?.avatars.find(avatar => avatar.key.toLowerCase() === agent.toLowerCase())
+    const answered = !!avatar && acceptsRlvPermissions(avatar, ctx.linkset, permissions)
+    ctx.state.permissions.requests.push({ agent, permissions, answered })
+    if (answered) {
+      ctx.state.permissions.granted = permissions
+      ctx.state.permissions.agent = agent
+      if (!(permissions & PERMISSION_TAKE_CONTROLS)) ctx.state.controls.taken = null
+      ctx.state.clock.schedule(ctx.state.clock.now, 'run_time_permissions', { perm: permissions })
+    }
+  }
   return undefined
 }
 
