@@ -4,10 +4,11 @@ import type { LslValue } from '../values/types.js'
 import { listElementType, typedList } from '../values/list-types.js'
 import { numberOfSides } from '../prim-params.js'
 import {
-  LINK_THIS, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
+  CHANGED_MEDIA, LINK_THIS, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
   STATUS_BOUNDS_ERROR, STATUS_NOT_FOUND, STATUS_NOT_SUPPORTED, STATUS_WHITELIST_FAILED,
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
+import { raisePrimChanged } from '../prim-changed.js'
 
 const defaults = (): (number | string)[] => [0, 0, '', '', 0, 0, 0, 0, 0, 0, 0, 0, '', 7, 7]
 const strings = new Set([2, 3, 12])
@@ -127,6 +128,7 @@ function set(ctx: CallContext, prim: Prim | undefined, face: number, rules: Read
     return failure(ctx, STATUS_WHITELIST_FAILED, currentPair, 2)
   }
   prim.media.set(face, next)
+  raisePrimChanged(prim, CHANGED_MEDIA)
   return STATUS_OK
 }
 
@@ -149,7 +151,7 @@ function get(ctx: CallContext, prim: Prim | undefined, face: number, rules: Read
 function clear(ctx: CallContext, prim: Prim | undefined, face: number): number {
   if (!prim) return STATUS_OK
   const status = faceStatus(ctx, prim, face)
-  if (status === STATUS_OK) prim.media.delete(face)
+  if (status === STATUS_OK && prim.media.delete(face)) raisePrimChanged(prim, CHANGED_MEDIA)
   return status
 }
 
