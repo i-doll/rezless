@@ -1,3 +1,4 @@
+import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
 import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } from './rlv/touch.js'
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
@@ -470,6 +471,16 @@ export class World {
   /** Case-insensitive viewer region lookup; unknown names remain unresolved. */
   regionNamed(name: string): Region | undefined {
     return [...this.regions.values()].find(region => region.name.toLowerCase() === name.toLowerCase())
+  }
+
+  /** Attempt travel to a landmark's resolved global coordinates. */
+  userTeleportAvatarViaLandmark(avatar: WorldAvatar, globalPosition: Vector): UserTeleportAction {
+    return attemptUserTeleport(this, avatar, 'landmark', globalPosition)
+  }
+
+  /** Attempt travel to global coordinates selected on the map. */
+  userTeleportAvatarViaMap(avatar: WorldAvatar, globalPosition: Vector): UserTeleportAction {
+    return attemptUserTeleport(this, avatar, 'map', globalPosition)
   }
 
   /** Move an avatar through explicitly registered regions; its attachments get teleport and region changes. */
