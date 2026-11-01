@@ -84,7 +84,8 @@ describe.each(['rlv', 'rlva', 'disabled'] as const)('LSL relay with %s viewer', 
     expect(f.controller.global('acks')).toEqual([])
     expect(f.script.chat.filter(e => e.type === 'ownerSay')).toEqual([])
     expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
-    f.send('@detach=n|@sendchat=n|!implversion|!pong')
+    f.send('@detach=n|@sendchat=n|!implversion')
+    f.send('!pong', f.controller, f.avatar.key, 'ping')
     expect(f.controller.global('acks')).toEqual([
       f.ack('@detach=n'), f.ack('@sendchat=n', 'ko'), f.ack('!implversion', 'ko'),
     ])
