@@ -530,3 +530,16 @@ it('keeps registrations made by the final detach handler dormant until rewear', 
   expect(script.global('scans')).toBe(1)
   expect(script.global('targets')).toBeGreaterThan(0)
 })
+
+// sleep-normal.lsl also detached from a timer during a running time advance.
+// The clock may have selected a wake using its roster from before detachment.
+it('keeps a timer caller suspended when detachment occurs within a long time advance', async () => {
+  const { script,linkset }=await fixture(`integer after;
+   default {state_entry(){llRequestPermissions(llGetOwner(),32);}
+   run_time_permissions(integer p){llAttachToAvatar(6);llSetTimerEvent(0.1);}
+   timer(){llSetTimerEvent(0);llDetachFromAvatar();llSleep(0.5);after=llGetAttached()+1;}}`)
+  script.start();script.grantPermissions();linkset.advanceTime(1000)
+  expect(script.global('after')).toBe(0)
+  linkset.attachToAvatar(OWNER,6);linkset.advanceTime(0)
+  expect(script.global('after')).toBe(7)
+})

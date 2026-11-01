@@ -650,7 +650,9 @@ export class Linkset {
       const target = next.target
       if (target.dead) continue
       if (next.event === '__wake') {
-        target.wake()
+        // A simulator task may have detached this object after the clock
+        // captured its script roster. Inventory must not resume the handler.
+        if (target.linkset.peers.includes(target.linkset)) target.wake()
         continue
       }
       // `__reset` (from llResetOtherScript) was requested while the target
