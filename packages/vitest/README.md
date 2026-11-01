@@ -1115,6 +1115,20 @@ force issuer is exempt from lock-presence checks; competing distance modifiers
 still use the global minimum. Foreign seated `unsit` blocks travel. `tplm` and UUID
 `tploc` options do not grant exceptions for location teleports.
 
+User landmark and map travel use `fixture.userTeleportLandmark(globalPosition)`
+and `fixture.userTeleportMap(globalPosition)`; inspect immutable outcomes through
+`fixture.userTeleportActions`. The World equivalents are
+`world.userTeleportAvatarViaLandmark(avatar, globalPosition)` and
+`world.userTeleportAvatarViaMap(avatar, globalPosition)`. Landmarks supply resolved
+global coordinates and obey `tplm`, independently of `tploc` and local distance
+limits. Map travel follows each profile's location policy described above, with
+no issuer exemption. Both actions enforce seated `unsit`, record the deciding
+restrictions, and reuse normal stand and worn-object events. The exported
+`userTeleportRestrictions(world, avatar, kind, globalPosition)` returns the
+applicable locks without moving the avatar. Unknown destinations and foreign
+avatars refuse without changing state. Home travel and startup scheduling are
+outside these actions.
+
 Non-finite, hexadecimal and overflowing teleport conversions remain inspectably
 unsupported. Landing-point routing, terrain/collision adjustments and camera pose
 are outside the fixture.

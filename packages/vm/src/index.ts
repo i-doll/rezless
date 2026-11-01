@@ -122,5 +122,7 @@ export type { AvatarGesture, AvatarGestureAction } from './rlv/gesture.js'
 export { attemptAvatarIM, avatarIMLog } from './rlv/im-actions.js'
 export type { AvatarIMAction } from './rlv/im-actions.js'
 
+export { userTeleportLog, userTeleportRestrictions } from './rlv/teleport.js'
+export type { UserTeleportKind, UserTeleportAction } from './rlv/teleport.js'
 export { checkAvatarTouch, attemptAvatarTouch, avatarTouchLog } from './rlv/touch.js'
 export type { AvatarTouchAction, AvatarTouchOptions, AvatarTouchPermission } from './rlv/touch.js'

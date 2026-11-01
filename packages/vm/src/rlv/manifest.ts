@@ -49,9 +49,7 @@ const tests = ['packages/vitest/test/rlv-profiles.test.ts']
 const replyForms = (...names: string[]): RlvCommandForm[] => names.map(behaviour => ({
   behaviour, type: 'reply', support: 'enforced', option: 'any',
 }))
-const restrictionForms: RlvCommandForm[] = ['tplm'].map(behaviour => ({
-  behaviour, type: 'add', support: 'state-only', option: 'none',
-}))
+
 
 /** Append forms and behavioral tests as commands ship. Version reporting is not conformance. */
 export const RLV_MANIFEST: {
@@ -107,12 +105,10 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Both profiles share prim-scoped rules, aliases, duplicate suppression and substring clear. Kokua retains unknown names and options; RLVa validates forms. Script reset, state change and removal preserve rules. Missing prims lose their rules during viewer garbage collection.',
       profiles: {
         rlv: { ...kokua(['RRInterface::isAllowed', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear', 'RRInterface::garbageCollector'],
-          'No-option tplm is state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.'),
-          commandForms: restrictionForms,
+          'Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location and explicit user travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Other wire rules remain inspectable with unsupported effects. Time-based maintenance collects missing prims with a default initial delay and interval of 10 seconds. Additional wait and interval fixture settings are supported.'),
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Unknown wire rule storage with unsupported effects', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::processCommand', 'RlvHandler::processClearCommand', 'RlvHandler::onGC'],
-          'No-option tplm is state-only. Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.'),
-          commandForms: restrictionForms,
+          'Public chat restrictions are enforced by explicit avatar actions. Teleport restrictions constrain forced location and explicit user travel. Detach actions have a separate contract. Seating restrictions are enforced by explicit user actions. Invalid options and unknown names are not stored. Other command families and valid option forms remain unsupported. Collection checks every 30 seconds from the first restriction. Known missing prims expire on the next pass; never-resolved prims expire after more than 20 misses. Completed detach clears known attachment issuers immediately. Distance and region changes alone do not imply object-list removal.'),
           support: 'state-only', coveredForms: ['No-option detach/sendchat/sit/unsit/tploc/tplm with n/add and y/rem', 'Bare, empty and substring-filtered clear by emitter UUID', 'LSL relay release clears its own issuer while retaining unrelated rules', 'Immutable restriction snapshots and script-independent lifecycle'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-restrictions.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
@@ -651,6 +647,24 @@ export const RLV_MANIFEST: {
           coveredForms: ['Floating global and named-region destinations, prefix/suffix parsing and radian facing', 'XYZ local limits, maximum distance, issuer exemptions and distant tploc locks', 'Known-region boundaries, unknown-region refusal, seated actions and permission separation'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-tpto.test.ts'],
+    },
+    {
+      id: 'user-teleport', forms: ['@tplm=n|add|y|rem', 'User landmark and map teleports'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Landmark travel obeys tplm and map travel obeys location policy. Kokua applies tploc to all map moves and inclusive tplocal limits in the same region. RLVa uses XY distance below 256 m to select strict XYZ sittp and tplocal checks, otherwise tploc. Both respect seated unsit without issuer exemptions.',
+      profiles: {
+        rlv: { support: 'enforced',
+          commandForms: [{ behaviour: 'tplm', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option tplm add/remove aliases and clear', 'Explicit user landmark and map actions with deciding restrictions', 'Immutable outcomes, normal stand and attachment events without script teleport permissions'],
+          contract: 'Landmarks supply resolved global coordinates and obey every bare tplm lock, independent of tploc and local-distance limits. Map moves obey every bare tploc lock and the inclusive signed minimum tplocal distance in the same region. Both obey seated unsit. No issuer is exempt. Unknown destinations and foreign avatars refuse without mutation. Optioned tplm and tploc have unsupported effects. Home travel, startup scheduling and simulator landing adjustments are outside these actions.',
+          evidence: { implementation: 'Kokua RLV 2.09.35.00', file: 'indra/newview/llagent.cpp', symbols: ['LLAgent::doTeleportViaLandmark', 'LLAgent::doTeleportViaLocation'] } },
+        rlva: { support: 'enforced',
+          commandForms: [{ behaviour: 'tplm', type: 'add', support: 'enforced', option: 'none' }],
+          coveredForms: ['No-option tplm add/remove aliases and clear', 'Explicit user landmark and map actions with deciding restrictions', 'Strict XYZ distance boundaries, nearby region crossings and seated unsit'],
+          contract: 'Landmarks supply resolved global coordinates and obey every bare tplm lock, independent of tploc and local-distance limits. Map moves below 256 m in XY obey strict XYZ sittp and tplocal limits, including nearby region crossings; farther moves obey bare tploc. Bare tplocal is 1.5 m and its maximum is 256 m. Both obey seated unsit. No issuer is exempt. Outcomes retain deciding restrictions and resulting state; moves use normal stand and attachment events without script permissions. Unknown destinations and foreign avatars refuse without mutation. Optioned tplm and tploc have unsupported effects. Home travel, startup scheduling and simulator landing adjustments are outside these actions.',
+          evidence: { implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/llagent.cpp', symbols: ['LLAgent::teleportViaLandmark', 'LLAgent::teleportViaLocation', 'RlvActions::isLocalTp', 'RlvActions::canTeleportToLocal', 'RlvActions::canTeleportToLocation'] } },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-usertp.test.ts'],
     },
     {
       id: 'camera-fov', forms: ['@setcam_fov[:<radians>]=force', '@setcam_fovmin:<radians>=n|y', '@setcam_fovmax:<radians>=n|y', '@getcam_fov=<channel>', '@getcam_fovmin=<channel>', '@getcam_fovmax=<channel>'],
