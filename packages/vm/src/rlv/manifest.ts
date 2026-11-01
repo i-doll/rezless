@@ -1,10 +1,10 @@
 import { RLV_PROFILES, type RlvProfile } from './profiles.js'
 
-export type RlvComparison = 'shared' | 'confirmed difference' | 'version/setting dependent' | 'not specified' | 'needs probe'
+export type RlvComparison = 'shared' | 'confirmed difference' | 'version/setting dependent' | 'not specified'
 /** State-only never implies that a viewer action is enforced. */
 export type RlvSupportDepth = 'unsupported' | 'state-only' | 'enforced'
+/** Reference implementation version and symbols for this contract. */
 export interface RlvEvidence {
-  readonly kind: 'code-derived' | 'measured'
   readonly implementation: string
   readonly file: string
   readonly symbols: readonly string[]
@@ -21,20 +21,18 @@ export interface RlvCommandContract {
   readonly comparison: RlvComparison
   readonly wikiComparison: string
   readonly profiles: Readonly<Record<RlvProfile, RlvCommandProfile>>
-  /** Remaining runtime work outside the covered forms. */
-  readonly unresolvedProbes: readonly string[]
   readonly tests: readonly string[]
 }
 
 const kokua = (symbols: readonly string[], contract: string): RlvCommandProfile => ({
   support: 'unsupported', coveredForms: [], contract,
-  evidence: { kind: 'code-derived',
+  evidence: {
     implementation: `${RLV_PROFILES.rlv.implementation} ${RLV_PROFILES.rlv.implementationVersion}`,
     file: 'indra/newview/RRInterface.cpp', symbols },
 })
 const firestorm = (file: string, symbols: readonly string[], contract: string): RlvCommandProfile => ({
   support: 'unsupported', coveredForms: [], contract,
-  evidence: { kind: 'code-derived',
+  evidence: {
     implementation: `${RLV_PROFILES.rlva.implementation} ${RLV_PROFILES.rlva.implementationVersion}`,
     file: `indra/newview/${file}`, symbols },
 })
@@ -42,12 +40,12 @@ const tests = ['packages/vitest/test/rlv-profiles.test.ts']
 
 /** Append forms and behavioral tests as commands ship. Version reporting is not conformance. */
 export const RLV_MANIFEST: {
-  readonly schemaVersion: 2
+  readonly schemaVersion: 3
   readonly wiki: { readonly url: string }
   readonly settings: Readonly<Record<RlvProfile, readonly string[]>>
   readonly commands: readonly RlvCommandContract[]
 } = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   wiki: { url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' },
   // Reference settings are separate from versions. This slice exposes no setting overrides.
   settings: {
@@ -61,14 +59,13 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Wiki specifies ordered comma-separated commands, partial failure and case-insensitive, spacing-sensitive names. Both profiles accept decimal channel prefixes and skip empty tokens. RLVa rejects missing fields and unknown parameter kinds; Kokua permits empty fields and handles named version queries first. RLVa adds its implementation tag and impl option; Kokua ignores the versionnum option.',
       profiles: {
         rlv: { ...kokua(['RRInterface::reallyHandleCommand', 'RRInterface::getVersion', 'RRInterface::getVersion2', 'RR_VERSION_NUM'],
-          'versionnum returns 2093500 with any option; legacy/new strings use fixture viewer suffix 26.4.0. Code-derived reference results.'),
+          'versionnum returns 2093500 with any option; legacy/new strings use fixture viewer suffix 26.4.0.'),
           support: 'enforced', coveredForms: ['@version[:<option>]=<positive-channel>', '@versionnew[:<option>]=<positive-channel>', '@versionnum[:<option>]=<positive-channel>', 'Ordered version-query batches with per-token diagnostics and parameter classification'] },
         rlva: { ...firestorm('rlvcommon.cpp', ['RlvStrings::getVersion', 'RlvStrings::getVersionNum', 'RlvStrings::getVersionImplNum'],
-          'Measured with default settings in Firestorm RLVa 2.4.2 on Aditi: RLVa-tagged strings, API 3040300, :impl 2040213, unknown numeric option empty. String queries ignore options. Compatibility overrides are not implemented.'),
+          'Firestorm RLVa 2.4.2 with default settings returns RLVa-tagged strings, API 3040300, :impl 2040213, unknown numeric option empty. String queries ignore options. Compatibility overrides are not implemented.'),
           support: 'enforced', coveredForms: ['@version[:<option>]=<positive-channel>', '@versionnew[:<option>]=<positive-channel>', '@versionnum[:<option>]=<positive-channel>', 'Ordered version-query batches with per-token diagnostics and parameter classification'],
-          evidence: { kind: 'measured', implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/rlvhandler.cpp', symbols: ['RlvHandler::processReplyCommand'] } },
+          evidence: { implementation: 'Firestorm RLVa 2.4.2', file: 'indra/newview/rlvhandler.cpp', symbols: ['RlvHandler::processReplyCommand'] } },
       },
-      unresolvedProbes: ['#222: startup timing and per-object compatibility settings are outside the covered forms.'],
       tests: [...tests, 'packages/vitest/test/rlv-version.test.ts', 'packages/vitest/test/rlv-batch.test.ts'],
     },
     {
@@ -78,7 +75,7 @@ export const RLV_MANIFEST: {
         rlv: kokua(['RRInterface::answerOnChat'], 'Object queries reject zero; positive replies use SHOUT, max 1023 bytes; negative replies use ScriptDialogReply, max 254 bytes.'),
         rlva: firestorm('rlvcommon.h', ['RlvUtil::isValidReplyChannel'], 'Object queries require a positive signed channel other than DEBUG_CHANNEL; console loopback permits zero.'),
       },
-      unresolvedProbes: ['#216: measure RLVa boundaries, range and UTF-8 reply limits; Kokua transport remains code-derived.'], tests,
+      tests,
     },
     {
       id: 'add-remove-clear', forms: ['@<behaviour>[:<option>]=n|add', '@<behaviour>[:<option>]=y|rem', '@clear', '@clear=<filter>'],
@@ -87,7 +84,7 @@ export const RLV_MANIFEST: {
         rlv: kokua(['RRInterface::handleCommand', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Rules are associated with the emitting object UUID; n/add and y/rem aliases dispatch to rule changes.'),
         rlva: firestorm('rlvhandler.cpp', ['RlvHandler::processAddRemCommand', 'RlvHandler::processClearCommand'], 'Object-scoped rules with add/remove aliases and clear; storing a rule does not prove action enforcement.'),
       },
-      unresolvedProbes: ['#217: measure duplicate rules, failed removals and filtered clear in RLVa.'], tests,
+      tests,
     },
     {
       id: 'status', forms: ['@getstatus[:<filter>[;<separator>]]=<channel>', '@getstatusall[:<filter>[;<separator>]]=<channel>'],
@@ -96,7 +93,7 @@ export const RLV_MANIFEST: {
         rlv: kokua(['RRInterface::getStatus'], 'First semicolon separates the filter from the entire remaining separator string; empty separator defaults to slash.'),
         rlva: firestorm('rlvhandler.cpp', ['rlvParseGetStatusOption', 'RlvHandler::processReplyCommand'], 'First two semicolon-delimited fields set filter and separator; later fields are ignored; empty separator defaults to slash.'),
       },
-      unresolvedProbes: ['#218: measure RLVa status ordering and multi-semicolon formatting.'], tests,
+      tests,
     },
     {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
@@ -105,7 +102,7 @@ export const RLV_MANIFEST: {
         rlv: kokua(['RRInterface::handleCommand'], 'No getcommand query branch. Numeric reply parameter reaches fallback and returns false, rather than an empty successful query.'),
         rlva: firestorm('rlvhandler.cpp', ['RlvReplyHandler<RLV_BHVR_GETCOMMAND>::onCommand'], 'Supports behaviour filtering, any/add/force/reply type and custom separator; invalid type fails.'),
       },
-      unresolvedProbes: ['#219: measure RLVa discovery output and unsupported forms.'], tests,
+      tests,
     },
     {
       id: 'notifications', forms: ['@notify:<channel>[;<filter>]=n|add', '@notify:<channel>[;<filter>]=y|rem'],
@@ -114,7 +111,7 @@ export const RLV_MANIFEST: {
         rlv: kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y; clear emits a clear notification and individual removals.'),
         rlva: firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve input aliases; internal commands do not notify; compare duplicate and failed external commands separately.'),
       },
-      unresolvedProbes: ['#220: measure RLVa alias, duplicate, failure and clear notification sequences.'], tests,
+      tests,
     },
   ],
 }

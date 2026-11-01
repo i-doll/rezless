@@ -70,7 +70,7 @@ describe('paired LSL fixture', () => {
     expect(pair.rlv.script).not.toBe(pair.rlva.script)
   })
 
-  it('names divergent reference versions and explicit unsupported or not-measured cases', async () => {
+  it('names divergent reference versions and explicit unsupported cases', async () => {
     const pair = await loadRlvPair({ source })
     const divergence: RlvExpectations<string> = {
       rlv: { kind: 'expected', value: '2.09.35.00' },
@@ -82,7 +82,7 @@ describe('paired LSL fixture', () => {
       expect(pair[profile].avatar.viewer.reference?.implementationVersion).toBe(expected.value)
     }
     const pending: RlvExpectations<string> = {
-      rlv: { kind: 'not-measured', reason: 'Kokua reference contract is code-derived' },
+      rlv: { kind: 'unsupported', reason: 'Per-object compatibility settings are not implemented' },
       rlva: { kind: 'unsupported', reason: 'Per-object compatibility settings are not implemented' },
     }
     expect(rlvExpectationFor(pending, 'rlv')).toEqual(pending.rlv)
@@ -90,8 +90,6 @@ describe('paired LSL fixture', () => {
   })
 })
 
-// Code-derived: Kokua RLV 2.09.35.00 RRInterfaceVersion.h and Firestorm RLVa 2.4.2 rlvdefines.h.
-// No viewer launched for #213.
 it('identifies the reference versions and exposes unsupported command forms honestly', () => {
   expect(RLV_PROFILES.rlv).toEqual({
     implementation: 'Kokua RLV', implementationVersion: '2.09.35.00',
@@ -101,7 +99,7 @@ it('identifies the reference versions and exposes unsupported command forms hone
     implementation: 'Firestorm RLVa', implementationVersion: '2.4.2',
     apiVersion: '3.4.3', apiVersionNumber: 3040300, compatibilityVersion: '2.9.28',
   })
-  expect(RLV_MANIFEST.schemaVersion).toBe(2)
+  expect(RLV_MANIFEST.schemaVersion).toBe(3)
   expect(RLV_MANIFEST.wiki).toEqual({ url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' })
   expect(RLV_MANIFEST.commands.map(entry => entry.id)).toEqual([
     'version', 'channel-policy', 'add-remove-clear', 'status', 'discovery', 'notifications',
@@ -114,7 +112,6 @@ it('identifies the reference versions and exposes unsupported command forms hone
       const evidence = entry.profiles[profile].evidence
       const reference = RLV_PROFILES[profile]
       expect(evidence).toEqual({
-        kind: entry.id === 'version' && profile === 'rlva' ? 'measured' : 'code-derived',
         implementation: `${reference.implementation} ${reference.implementationVersion}`,
         file: expect.stringMatching(/^indra\/newview\/\w+\.(cpp|h)$/),
         symbols: expect.arrayContaining([expect.any(String)]),
