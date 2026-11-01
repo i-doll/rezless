@@ -588,7 +588,10 @@ export class Linkset {
     for (;;) {
       let at = Infinity
       for (const { script, completed } of goals) {
-        if (script.running && script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
+        // Inventory suspends sleeping detach handlers until the object is worn
+        // again. They cannot complete as goals of this settling call.
+        if (script.running && script.linkset.peers.includes(script.linkset) &&
+            script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
           at = Math.min(at, script.wakeAt)
         }
       }

@@ -426,3 +426,35 @@ it('supports attachment fixtures without a World', async () => {
   expect(script.global('point')).toBe(6)
   expect(script.global('events')).toEqual([OWNER])
 })
+
+// In-world: sleep-normal/temp/long -> a caller sleeping after detach does not
+// continue in inventory. sleep-event-normal/temp -> the final attach handler
+// reaches its sleep, then stops. Rewearing sleep-normal resumes the caller,
+// the queued NULL attach event, then the new attach event. Aditi, SLua Tideland,
+// 2026-11-01. These pin inventory suspension and the review's settle hang.
+it.each([false,true])('suspends the final detach handler in inventory (temporary: %s)', async temporary => {
+  const { script,linkset }=await fixture(`integer finished;
+   default {attach(key id){if(id==NULL_KEY){llSleep(0.5);finished=1;}}}`)
+  script.start();linkset.attachToAvatar(OWNER,6,temporary);linkset.advanceTime(0)
+  linkset.detachFromAvatar();linkset.advanceTime(500)
+  expect(script.global('finished')).toBe(0)
+  expect(linkset.dead).toBe(temporary)
+  linkset.attachToAvatar(OWNER,6)
+  linkset.advanceTime(500)
+  expect(script.global('finished')).toBe(temporary ? 0 : 1)
+})
+
+it('suspends a caller after detach without hanging settle, then resumes on rewear', async () => {
+  const { script,linkset }=await fixture(`integer after;integer detached;
+   default {state_entry(){llRequestPermissions(llGetOwner(),32);}
+   run_time_permissions(integer p){llAttachToAvatar(6);}
+   touch_start(integer n){llDetachFromAvatar();llSleep(0.5);after=llGetAttached()+1;}
+   attach(key id){if(id==NULL_KEY){llSleep(0.5);detached=1;}}}`)
+  script.start();script.grantPermissions();linkset.touch(0);linkset.advanceTime(500)
+  expect(script.global('after')).toBe(0)
+  expect(script.global('detached')).toBe(0)
+  linkset.attachToAvatar(OWNER,6)
+  linkset.advanceTime(500)
+  expect(script.global('after')).toBe(7)
+  expect(script.global('detached')).toBe(1)
+})
