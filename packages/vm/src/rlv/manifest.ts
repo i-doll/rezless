@@ -810,9 +810,39 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-tprequest.test.ts'],
     },
     {
+      id: 'camera-unlock', forms: ['@setcam_unlock|camunlock=n|y'],
+      comparison: 'shared', wikiComparison: 'Both profiles reset to an avatar-following camera and prevent unlocking. Removal permits later camera changes without restoring the previous pose.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::refresh', 'LLAgentCamera::unlockView'],
+          'The two aliases independently lock unlocking and reset to the rear preset on addition. Permission-gated position and rotation reads use the following camera. Removal and clear release the lock without undoing the reset.'),
+          support: 'enforced', coveredForms: ['Rear-view reset, persistent following and alias removal'],
+          commandForms: ['setcam_unlock', 'camunlock'].map(behaviour => ({ behaviour, type: 'add', support: 'enforced', option: 'none' })) },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvBehaviourToggleHandler<RLV_BHVR_SETCAM_UNLOCK>', 'RlvBehaviourToggleHandler<RLV_BHVR_SETCAM>'],
+          'Both names lock unlocking and reset view on activation. Exclusive control selects the primary issuer unlock rule. Removal does not restore a previous pose. Rear-view eye defaults to -3/0/0.75, focus to 1/0/1, and scale to 1. setRlvCameraPreset supplies explicit preset offsets and the joint/head anchor; default anchor is avatar position. Skeleton animation, collision, smoothing and camera lag are outside the fixture.'),
+          support: 'enforced', coveredForms: ['Rear-view pose reset, aliases and exclusive issuer scope'],
+          commandForms: ['setcam_unlock', 'camunlock'].map(behaviour => ({ behaviour, type: 'add', support: 'enforced', option: 'none' })) },
+      }, tests: [...tests, 'packages/vitest/test/rlv-camlock.test.ts'],
+    },
+    {
+      id: 'camera-control', forms: ['@setcam=n|y', '@setcam_mouselook=n|y', '@setcam_eyeoffset[:<x/y/z>]=n|y|force', '@setcam_eyeoffsetscale[:<scale>]=n|y|force', '@setcam_focusoffset[:<x/y/z>]=force'],
+      comparison: 'confirmed difference', wikiComparison: 'RLVa supports exclusive control, mouselook prevention and preset overrides. Kokua has no handlers for these controls. RLVa rejects empty offset restrictions and all focus-offset restrictions, but accepts vector force options.',
+      profiles: {
+        rlv: kokua(['RRInterface::refresh', 'RRInterface::force', 'RRInterface::reallyHandleCommand'],
+          'No setcam, setcam_mouselook, setcam_eyeoffset, setcam_eyeoffsetscale or setcam_focusoffset handlers. Stored wire restrictions remain unsupported.'),
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvBehaviourToggleHandler<RLV_BHVR_SETCAM>', 'RlvBehaviourToggleHandler<RLV_BHVR_SETCAM_MOUSELOOK>', 'RlvForceCamEyeFocusOffsetHandler', 'RlvBehaviourCamEyeFocusOffsetHandler', 'RlvBehaviourModifier::convertOptionValue', 'LLAgentCamera::switchCameraPreset', 'LLControlVariable::setDefaultValue', 'LLAgentCamera::calcCameraPositionTargetGlobal'],
+          'One issuer may hold setcam; repeated acquisition fails with failed-camera-lock. Its distance and FOV modifiers take precedence and other issuers cannot force FOV or offsets. When only other issuers have a bound, queries are empty but the active modifier uses its default: zero or unlimited distance and pi/3 FOV. Other-issuer origin limits still select the origin clamp pipeline with these defaults. Unsorted eye/scale modifiers retain first-added precedence regardless of setcam. Offset force changes fail while any offset restriction exists. Empty force options reset individual controls. Empty offset restrictions fail, and focus-offset restrictions have no accepted form because the modifier converter lacks Vector3d. Entering the override preset copies rear-view defaults and resets all controls, including the value that triggered entry. Later force and modifier changes update the controls. Releasing the preset discards its active overrides. Slash vectors accept trailing text. Eye and focus offsets rotate with the avatar; eye scale multiplies the eye offset. Seated offsets take precedence. The first global mouselook-lock activation exits mouselook even for a nonprimary issuer. Later entry uses the primary issuer and camera minimum; additional nonprimary locks do not repeat the initial exit. Removal does not re-enter mouselook. Camera reads retain simulator tracking permission requirements. Explicit preset/head inputs use setRlvCameraPreset; rendering, skeleton animation, smoothing and collision are outside the fixture.'),
+          support: 'enforced', coveredForms: ['Exclusive control and competing issuer rejection', 'Offset add/remove/force, defaults, parsing and pose reads', 'Mouselook exclusion and release'],
+          commandForms: [
+            ...['setcam', 'setcam_mouselook'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+            ...['setcam_eyeoffset', 'setcam_eyeoffsetscale'].flatMap(behaviour => (['add', 'force'] as const).map(type => ({ behaviour, type, support: 'enforced' as const, option: 'any' as const }))),
+            { behaviour: 'setcam_focusoffset', type: 'force', support: 'enforced', option: 'any' },
+          ] },
+      }, tests: [...tests, 'packages/vitest/test/rlv-camlock.test.ts'],
+    },
+    {
       id: 'camera-fov', forms: ['@setcam_fov[:<radians>]=force', '@setcam_fovmin:<radians>=n|y', '@setcam_fovmax:<radians>=n|y', '@getcam_fov=<channel>', '@getcam_fovmin=<channel>', '@getcam_fovmax=<channel>'],
       comparison: 'confirmed difference',
-      wikiComparison: 'Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects and exclusive camera control are unsupported.',
+      wikiComparison: 'Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects are unsupported.',
       profiles: {
         rlv: { ...kokua(['RRInterface::force', 'RRInterface::updateCameraLimits', 'RRInterface::getMin', 'RRInterface::getMax', 'LLViewerCamera::setDefaultFOV'],
           'Six-decimal queries round exact halves to even and use float zoom reciprocals; unset minimum/maximum are 0.000001/-0.000001. Empty limits mean 1.5, invalid numeric prefixes mean zero, and zero limits have no effect. Contradictory bounds collapse to the minimum FOV. Removal leaves the current lens unchanged. Force without an angle means zero, clamped to the viewport minimum. Queries ignore options. Camera tracking permission is still required for script FOV reads.'),

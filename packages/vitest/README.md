@@ -1460,8 +1460,7 @@ therefore return `nan` with an empty restriction snapshot. Finite values added
 later can mask it. Query-visible modifiers and active restrictions are distinct.
 User lens changes update the angle without changing its persistence mode.
 Keyboard and preference UI event delivery are outside scripted in-world probes;
-user lens attempts use the same lens setter as forces. Rendering, window resizing,
-camera exclusivity and camera offset modes are unsupported.
+user lens attempts use the same lens setter as forces. Rendering and window resizing are outside this fixture.
 
 ### RLV/RLVa camera distance
 
@@ -1520,6 +1519,32 @@ moving the camera. `getRlvCameraLimits(avatar).silhouetteDistance` exposes the
 strongest threshold as viewer state. Kokua leaves this command inspectably
 unsupported. Rendering silhouettes is outside the fixture.
 
+
+### RLV/RLVa camera control
+
+Camera unlocking locks (`setcam_unlock` and `camunlock`) reset the camera to
+an avatar-following rear view in both profiles. Firestorm RLVa 2.4.2 also
+supports `setcam`, `setcam_mouselook`, `setcam_eyeoffset`,
+`setcam_eyeoffsetscale` and `setcam_focusoffset`. Exclusive `setcam` control
+selects one issuer for distance and FOV limits and rejects competing force
+changes. Offset restrictions use first-added precedence; force offsets require
+all offset restrictions to be released. Empty offset restrictions and all
+focus-offset restrictions fail; focus-offset force commands accept slash-separated
+vectors. Entry into the override preset copies the rear-view defaults,
+resetting all controls, including the triggering value. Subsequent offset
+changes apply to the active preset. Kokua RLV
+2.09.35.00 keeps these additional forms unsupported.
+
+`setRlvCameraPreset(avatar, { origin?, eye?, focus?, scale? })` supplies explicit
+head/joint and rear-preset inputs. Defaults are avatar position, eye
+`-3/0/0.75`, focus `1/0/1` and scale `1`. Offsets follow avatar rotation;
+seated camera offsets take precedence. Camera position and rotation reads and
+HUD projection share the effective pose and distance limits. Tracking reads
+still require `PERMISSION_TRACK_CAMERA`. The first global RLVa mouselook
+lock clears `AGENT_MOUSELOOK`, even for a nonprimary issuer. Subsequent entry
+checks the primary issuer and camera minimum. Additional nonprimary locks do
+not repeat the initial exit; removal does not restore mouselook.
+Skeleton animation, camera lag, smoothing and collision are outside this fixture.
 
 ### Viewer UI restrictions
 
