@@ -1012,7 +1012,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Texture restrictions select the first retained UUID modifier, defaulting to the viewer default texture. Overlays expose alpha, texture, tint and per-issuer touch blocking; one object hierarchy is enabled at a time. Spheres expose per-issuer mode, origin, color/param, distance, extension, values and tween targets. Local modifiers require that issuer to hold the base behaviour; an empty modifier restores its default. Removal, clear and session cleanup release local parameters. At most six sphere issuers are accepted.
+Support depth: enforced. Texture restrictions select the first retained modifier. An unoptioned rule inserts the viewer default texture with the same insertion priority as an explicit UUID. Overlays expose alpha, texture, tint and per-issuer touch blocking; one object hierarchy is enabled at a time. Spheres expose per-issuer mode, origin, color/param, distance, extension, values and tween targets. Local modifiers require that issuer to hold the base behaviour; an empty modifier restores its default. Removal, clear and session cleanup release local parameters. At most six sphere issuers are accepted.
 
 - Texture UUID restrictions and canonical alias
 - Overlay activation, local alpha/texture/tint and touch state

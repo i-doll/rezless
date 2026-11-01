@@ -1332,7 +1332,9 @@ expect(sphere.parameters?.spheres?.[0]).toMatchObject({ mode: 0, distmax: 8 })
 ```
 
 Both profiles support `setcam_textures` and `camtextures`. Firestorm selects the
-first retained texture modifier and canonicalizes the alias. Kokua selects the
+first retained texture modifier and canonicalizes the alias. An unoptioned
+Firestorm rule inserts the default texture as a modifier with the same insertion
+priority as an explicit UUID, so a later UUID does not override it. Kokua selects the
 last changed texture, including removals. An unoptioned rule uses the viewer's
 default texture. Firestorm supports overlay alpha/texture/tint force modifiers
 and touch blocking; these effects remain inspectably unsupported in Kokua.

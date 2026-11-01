@@ -189,3 +189,15 @@ it('cleans Kokua sphere parameters when a filtered clear removes an optioned bas
   send(f, '@setsphere:custom=n,setsphere_distmax:8=n,clear=setsphere:custom,setsphere=n')
   expect(effect(f, 'setsphere').parameters?.spheres?.[0]?.distmax).toBe(0)
 })
+
+it('gives a Firestorm unoptioned default texture the same insertion priority as an explicit UUID', async () => {
+  const pair = await loadRlvPair({ source }); const f = pair.rlva; f.script.start()
+  // Firestorm RLVa 2.4.2: RlvBehaviourGenericHandler<RLV_OPTION_NONE_OR_MODIFIER>
+  // inserts getDefaultValue() when getAddDefault() is true; addValue appends.
+  send(f, `@setcam_textures=n,setcam_textures:${texture}=n`)
+  expect(effect(f, 'setcam_textures').parameters?.texture).toBe('d2114404-dd59-4a4d-8e6c-49359e91bbf0')
+  send(f, '@setcam_textures=y')
+  expect(effect(f, 'setcam_textures').parameters?.texture).toBe(texture)
+  send(f, `@setcam_textures=n,setcam_textures:${texture}=y`)
+  expect(effect(f, 'setcam_textures').parameters?.texture).toBe('d2114404-dd59-4a4d-8e6c-49359e91bbf0')
+})
