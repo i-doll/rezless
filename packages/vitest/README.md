@@ -934,3 +934,31 @@ Unsupported command-log records retain status `unsupported` and expose an
 absent from the profile's manifest registry, which does not model every viewer
 command. Existing state-only restriction diagnostics and snapshots describe the
 retained state separately. No failure acknowledgement is invented on the wire.
+
+`seedRlvInventory` also accepts `wornAttachments: [{ itemId, rootKey }]`.
+Each mapping identifies a seeded item and the root UUID of an existing linkset.
+Items and roots must be unique; invalid mappings leave the previous fixture
+intact. Seeding mappings does not attach objects. Queries read the current live
+avatar attachment state, in attachment order, so detachment, reattachment and
+point changes take effect immediately. Duplicate item names retain their identity.
+
+`@findfolder:<criteria>=<channel>` returns one matching shared folder path;
+`@findfolders:<criteria>=<channel>` returns all matching paths. All nonempty
+`&&` terms must match the folder name without case sensitivity. Kokua traverses
+children before their parent and takes the first match, skipping dot- and
+tilde-prefixed subtrees. RLVa traverses parents first and picks the deepest
+single match, with the first match winning ties. Its hidden, tilde-prefixed and
+slash-bearing names do not match, but their descendants remain searchable.
+Multiple results preserve traversal order and commas in names remain unescaped.
+Kokua alone accepts a custom separator after a semicolon on `findfolders`.
+
+`@getpath[:<selector>]=<channel>` and `@getpathnew[:<selector>]=<channel>`
+accept an attachment point, an attachment object UUID, or an empty selector for
+the issuer. Inventory UUIDs cannot select objects. Only paths under the explicit
+shared root are exposed. `getpath` selects the first result; `getpathnew` lists
+all paths with commas, including duplicate paths. Kokua retains empty positions
+for point attachments without shared inventory items; RLVa omits those items.
+RLVa collapses an effectively folded containing folder to its parent. These
+fixtures cover modifiable attachments; no-mod folder-name inference, inventory
+links, outfit layers and wear operations remain unsupported. Unsupported outfit
+selectors remain visible in the command log and produce no fabricated reply.

@@ -10,15 +10,23 @@ export interface RlvInventoryEntry {
   readonly folded?: boolean
 }
 
+/** Inventory identity of an existing attachment; this never wears or spawns it. */
+export interface RlvWornAttachment {
+  readonly itemId: string
+  readonly rootKey: string
+}
+
 export interface RlvInventoryConfig {
   readonly sharedRootId: string | null
   /** Direct-child order is the order of entries, independent of folder names. */
   readonly entries: readonly RlvInventoryEntry[]
+  readonly wornAttachments?: readonly RlvWornAttachment[]
 }
 
 /** An owned copy of a seeded avatar tree; IDs and parent relations survive snapshots. */
 export class RlvInventory {
   private entries: readonly RlvInventoryEntry[] = Object.freeze([])
+  private attachments: readonly RlvWornAttachment[] = Object.freeze([])
   private rootId: string | null = null
 
   constructor(config?: RlvInventoryConfig) {
@@ -27,6 +35,25 @@ export class RlvInventory {
 
   get sharedRootId(): string | null { return this.rootId }
   snapshot(): readonly RlvInventoryEntry[] { return this.entries }
+
+  /** Resolve item identity independently of whether the linkset is currently worn. */
+  attachmentItem(rootKey: string): RlvInventoryEntry | undefined {
+    const mapping = this.attachments.find(entry => entry.rootKey === rootKey.toLowerCase())
+    return mapping && this.entries.find(entry => entry.id === mapping.itemId)
+  }
+
+  /** Undefined means outside the shared root; the root itself has an empty path. */
+  sharedPath(folderId: string | null): string | undefined {
+    if (this.rootId === null) return undefined
+    const parts: string[] = []
+    while (folderId !== this.rootId) {
+      const folder = this.entries.find(entry => entry.id === folderId)
+      if (!folder) return undefined
+      parts.unshift(folder.name)
+      folderId = folder.parentId
+    }
+    return parts.join('/')
+  }
 
   /** Replace atomically, rejecting ambiguous IDs, invalid parents and cycles. */
   seed(config: RlvInventoryConfig): void {
@@ -45,6 +72,14 @@ export class RlvInventory {
         parentId = parent.parentId
       }
     }
+    const attachments = (config.wornAttachments ?? []).map(entry => Object.freeze({ ...entry, rootKey: entry.rootKey.toLowerCase() }))
+    const roots = new Set(attachments.map(entry => entry.rootKey))
+    const items = new Set(attachments.map(entry => entry.itemId))
+    if (roots.size !== attachments.length || items.size !== attachments.length ||
+      attachments.some(entry => !entry.rootKey || byId.get(entry.itemId)?.kind !== 'item')) {
+      throw new Error('Attachment mappings require unique item IDs and root keys, and existing inventory items.')
+    }
+    this.attachments = Object.freeze(attachments)
     this.entries = Object.freeze(entries)
     this.rootId = config.sharedRootId
   }

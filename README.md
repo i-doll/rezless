@@ -688,3 +688,9 @@ LSL function/event/constant signatures come from Linden Lab's official
 [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
 vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
+
+`findfolder` and `findfolders` search the shared inventory with profile-specific
+traversal, hidden-folder and separator rules. `getpath` and `getpathnew` query
+existing worn attachment paths through optional `wornAttachments` item-to-root
+mappings in `seedRlvInventory`. They observe attachment changes without spawning
+or wearing objects. Outfit-layer path selectors remain unsupported.

@@ -87,7 +87,7 @@ export type { RlvCommandForm } from './rlv/manifest.js'
 export type { RlvRestriction } from './rlv/restrictions.js'
 
 export { RlvInventory, getRlvInventoryList } from './rlv/inventory.js'
-export type { RlvInventoryConfig, RlvInventoryEntry } from './rlv/inventory.js'
+export type { RlvInventoryConfig, RlvInventoryEntry, RlvWornAttachment } from './rlv/inventory.js'
 
 export { RLV_ATTACHMENT_POINTS, RLVA_ATTACHMENT_SETTINGS, getRlvAttachmentReply, setRlvAttachmentBridge } from './rlv/attachments.js'
 export { sendAvatarChat, avatarChatLog } from './rlv/chat-actions.js'
