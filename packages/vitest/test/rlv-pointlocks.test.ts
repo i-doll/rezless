@@ -203,3 +203,20 @@ it('rejects invalid user wear targets without changing state and leaves disabled
  expect(attemptViewerAttach(foreign, other.linkset, 1)).toBe('no-op')
  expect(target.linkset.attachment).toBeNull()
 })
+
+it('checks the saved point of copied inventory definitions before wearing unnamed attachments', async () => {
+ for (const f of Object.values(await loadRlvPair({ source }))) {
+  f.script.start(); const definition = await loadLinkset({ prims: [{}] })
+  definition.linkset.attachToAvatar(f.avatar.key, 1); definition.linkset.detachFromAvatar()
+  seedRlvInventory(f.avatar, { sharedRootId: 'root', entries: [
+   { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+   { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+   { id: 'item', parentId: 'folder', kind: 'item', name: 'Unnamed', assetType: 'object', object: definition.linkset.copy() },
+  ] })
+  send(f, '@addattach:chest=n,attachover:direct=force')
+  expect(f.world.linksets.filter(l => l.attachment)).toEqual([])
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ outcome: 'blocked' })
+  send(f, '@addattach:chest=y,attachover:direct=force')
+  expect(f.world.linksets.filter(l => l.attachment).map(l => l.attachment!.point)).toEqual([1])
+ }
+})

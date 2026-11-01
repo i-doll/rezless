@@ -70,11 +70,10 @@ const groups = new Map<string, readonly number[]>([
   ['head', [2]], ['torso', [6]], ['arms', [0, 1, 3, 4]], ['legs', [5, 7]], ['hud', [8]],
 ])
 const bridges = new WeakMap<ViewerState, string>()
-const savedPoints = new WeakMap<Linkset, number>()
 
 /** Last worn point retained when a fixture returns to inventory. */
 export function getRlvSavedPoint(object: Linkset | undefined): number {
-  return object?.attachment?.point ?? (object && savedPoints.get(object)) ?? 6
+  return object?.savedAttachmentPoint ?? 6
 }
 
 /** Force actions protect locks, nostrip items and the registered bridge. */
@@ -138,7 +137,6 @@ export function getRlvAttachmentReply(linkset: Linkset, viewer: ViewerState,
 /** Save mapped live state before an attachment leaves its World's active objects. */
 export function retainRlvAttachment(linkset: Linkset): void {
   const attachment = linkset.attachment
-  if (attachment) savedPoints.set(linkset, attachment.point)
   const rootKey = linkset.prims[0]?.key
   if (!attachment || !rootKey) return
   const avatar = linkset.world?.avatars.find(candidate => candidate.key.toLowerCase() === attachment.avatar.toLowerCase())

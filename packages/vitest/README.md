@@ -1168,6 +1168,39 @@ Mixed folder contents retain unsupported items and report each result.
 Invalid layer/path force options are inert in Kokua and fail in RLVa.
 
 
+### Attachment point locks and removal
+
+`@detach:<point>=n|y` locks removal at that point in both profiles; Firestorm
+RLVa 2.4.2 also locks adding there. Kokua RLV 2.09.35.00 allows adding at a
+named detach-locked point. `@addattach[:<point>]=n|y` and
+`@remattach[:<point>]=n|y` lock adding and removal respectively, with an empty
+option applying globally. Canonical point names are case insensitive, and
+`root` aliases Avatar Center. Locks remain independent for each issuer.
+
+`attemptViewerAttach(avatar, object, point, replace = false)` attempts explicit
+user wear at a canonical point from 1 through 55, returning `allowed`, `blocked`
+or `no-op`. Replacement honors every occupant removal lock. The object must be
+unworn, live, owned by that avatar and in the avatar's World and region.
+`attemptViewerDetach` and `fixture.attemptDetach` enforce removal locks.
+Seeding attachment state through `attachToAvatar` stays unrestricted.
+
+`@detach[:<point|uuid>]=force` removes all removable attachments, attachments at
+a named point, or one root UUID. `remattach` is a force synonym, including the
+existing direct folder form. UUIDs identify world objects, rather than inventory
+items. Kokua resolves a child UUID to its root; RLVa child UUID removal remains
+unsupported. Point and UUID options take precedence over folder paths. Force
+removal checks every lock, nostrip protection and the registered RLVa bridge.
+Unmapped attachment results use the root UUID as `itemId`. Removals finish after
+the script yields, with normal attachment events. Group force removal remains
+unsupported.
+
+RLVa `@getaddattachnames[:<group>]=<channel>` returns points that allow adding,
+even when replacement is locked. `@getremattachnames[:<group>]=<channel>` returns
+points with at least one force-removable occupant. Both use canonical capitalized
+names, comma separators, attachment-ID order, and the group filters documented
+for `getattachnames`. Empty results produce an empty reply. Kokua leaves these
+queries inspectably unsupported. Both queries participate in RLVa `getcommand`.
+
 ### Inventory offer decisions
 
 `respondRlvInventoryOffer(avatar, script.inventoryOffers[index], decision)` resolves
@@ -1491,35 +1524,30 @@ LSL function/event/constant signatures come from Linden Lab's official
 vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
 
-### Attachment point locks and removal
+### Received local chat and emotes
 
-`@detach:<point>=n|y` locks removal at that point in both profiles; Firestorm
-RLVa 2.4.2 also locks adding there. Kokua RLV 2.09.35.00 allows adding at a
-named detach-locked point. `@addattach[:<point>]=n|y` and
-`@remattach[:<point>]=n|y` lock adding and removal respectively, with an empty
-option applying globally. Canonical point names are case insensitive, and
-`root` aliases Avatar Center. Locks remain independent for each issuer.
+`fixture.receivedChat` and `receivedChatLog(avatar)` return frozen per-avatar
+snapshots of displayed local chat. Each record includes `text`, chat `type`, and a
+copied `speaker` with `key`, `name`, `owner`, and `source` (`avatar` or `object`).
+Object whisper, say, shout, owner chat and avatar-directed region chat reach the
+record through their delivery routes. `world.sendAvatarChat` records nearby avatar
+speech, including the speaker's own view. Private channels and IMs are excluded.
+Script listens and original send-action records retain their simulator text.
 
-`attemptViewerAttach(avatar, object, point, replace = false)` attempts explicit
-user wear at a canonical point from 1 through 55, returning `allowed`, `blocked`
-or `no-op`. Replacement honors every occupant removal lock. The object must be
-unworn, live, owned by that avatar and in the avatar's World and region.
-`attemptViewerDetach` and `fixture.attemptDetach` enforce removal locks.
-Seeding attachment state through `attachToAvatar` stays unrestricted.
+`recvchat` and `recvemote` accept speaker UUID exceptions. Ordinary exceptions may
+come from another issuer; `_sec` global locks and `permissive=n` require each
+restricting issuer's own exception. `recvchatfrom:<uuid>` and
+`recvemotefrom:<uuid>` independently deny that speaker. Add/remove aliases and clear
+update subsequent deliveries; existing snapshots remain unchanged.
 
-`@detach[:<point|uuid>]=force` removes all removable attachments, attachments at
-a named point, or one root UUID. `remattach` is a force synonym, including the
-existing direct folder form. UUIDs identify world objects, rather than inventory
-items. Kokua resolves a child UUID to its root; RLVa child UUID removal remains
-unsupported. Point and UUID options take precedence over folder paths. Force
-removal checks every lock, nostrip protection and the registered RLVa bridge.
-Unmapped attachment results use the root UUID as `itemId`. Removals finish after
-the script yields, with normal attachment events. Group force removal remains
-unsupported.
-
-RLVa `@getaddattachnames[:<group>]=<channel>` returns points that allow adding,
-even when replacement is locked. `@getremattachnames[:<group>]=<channel>` returns
-points with at least one force-removable occupant. Both use canonical capitalized
-names, comma separators, attachment-ID order, and the group filters documented
-for `getattachnames`. Empty results produce an empty reply. Kokua leaves these
-queries inspectably unsupported. Both queries participate in RLVa `getcommand`.
+With the default OOC and ellipsis settings, restricted speech becomes `...` and
+restricted emotes become `/me ...`. Firestorm RLVa 2.4.2 leaves emotes unchanged
+under `recvchat`, exempts self chat and owner chat, and matches targeted rules
+against the speaker UUID. Kokua RLV 2.09.35.00 shortens emotes under `recvchat`,
+filters self chat and unattached owner chat, and also matches targeted rules
+against object owner UUIDs. Kokua replaces text from an embedded `/me` onward
+under `recvemote`; Firestorm requires a leading emote. Both exempt owned
+attachments and direct region chat, and consume owner commands. Firestorm also
+supports `_sec` aliases for the targeted rules; Kokua leaves those unsupported.
+Alternate OOC/ellipsis settings, emote extensions and object-to-avatar name
+impersonation are outside this fixture.

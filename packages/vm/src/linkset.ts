@@ -1,3 +1,4 @@
+import { deliverObjectReceivedChat } from './rlv/received.js'
 import { retainRlvAttachment } from './rlv/attachments.js'
 import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
@@ -181,6 +182,9 @@ export class Linkset {
     this.recomputeLinkNumbers()
     return prim
   }
+
+  /** Point used when the next attachment request specifies point zero. */
+  get savedAttachmentPoint(): number { return this.lastAttachmentPoint }
 
   /** Wear a fixture without a script permission request, as a viewer does. */
   attachToAvatar(avatar: string, point: number, temporary = false): void {
@@ -480,6 +484,7 @@ export class Linkset {
    * in that region. A prim never hears its own chat.
    */
   routeChat(from: Prim, type: ChatType, channel: number, message: string, to?: string): void {
+    deliverObjectReceivedChat(this, from, type, channel, message, to)
     const origin = this.globalPosition(from)
     const range = CHAT_RANGE[type] ?? 0
     const reaches = (linkset: Linkset, p: Prim): boolean => {
