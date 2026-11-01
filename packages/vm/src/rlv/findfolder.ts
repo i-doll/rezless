@@ -48,10 +48,26 @@ const wearableOptions = new Set(['shape', 'skin', 'hair', 'eyes', 'shirt', 'pant
   'jacket', 'gloves', 'undershirt', 'underpants', 'skirt', 'alpha', 'tattoo', 'physics', 'universal'])
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
-/** Undefined denotes an outfit-layer form, outside the attachment fixture. */
+const wornPathReply = (profile: RlvProfile, behaviour: string, paths: string[]): string =>
+  behaviour === 'getpath' ? paths[0] ?? '' : profile === 'rlv' ? paths.join(',')
+    : paths.reduce((reply, path) => reply ? `${reply},${path}` : path, '')
+
+/** Query worn clothing or attachments using their containing shared folders. */
 export function getRlvWornPath(profile: RlvProfile, inventory: RlvInventory,
   linkset: Linkset, prim: Prim, behaviour: string, option: string, avatar = linkset.owner): RlvFolderReply | undefined {
-  if (wearableOptions.has(option)) return undefined
+  if (wearableOptions.has(option)) {
+    const entries = inventory.snapshot()
+    const paths: string[] = []
+    for (const id of inventory.wornWearables()) {
+      const item = entries.find(entry => entry.id === id)!
+      if (item.wearableType !== option) continue
+      // Shared containment is checked before folding, including for getpath.
+      if (inventory.sharedPath(item.parentId) === undefined) continue
+      const parent = entries.find(entry => entry.id === item.parentId)!
+      paths.push(inventory.sharedPath(profile === 'rlva' && parent.folded ? parent.parentId : item.parentId)!)
+    }
+    return { text: wornPathReply(profile, behaviour, paths) }
+  }
   const owner = avatar.toLowerCase()
   const worn = linkset.peers.filter(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === owner)
     .sort((a, b) => a.attachment!.order - b.attachment!.order)
@@ -75,7 +91,6 @@ export function getRlvWornPath(profile: RlvProfile, inventory: RlvInventory,
     // Kokua's point iterator retains an empty slot when no shared item is found.
     if (path !== undefined || profile === 'rlv' && !byId) paths.push(path ?? '')
   }
-  const text = behaviour === 'getpath' ? paths[0] ?? '' : profile === 'rlv' ? paths.join(',')
-    : paths.reduce((reply, path) => reply ? `${reply},${path}` : path, '')
+  const text = wornPathReply(profile, behaviour, paths)
   return { text, ...(profile === 'rlva' && option && byId && !selected.length ? { failedOption: true } : {}) }
 }
