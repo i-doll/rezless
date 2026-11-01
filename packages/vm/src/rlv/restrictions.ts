@@ -1,5 +1,5 @@
 import { chatRedirectSupport, chatVolumeSupport } from './chat-actions.js'
-import { receivedChatSupport } from './received.js'
+import { receivedChatSupport, receivedIMSupport } from './received.js'
 import { teleportSupport } from './teleport.js'
 import { seatingSupport } from './sit.js'
 import { parseNotifyOption, sendRestrictionNotifications } from './notify.js'
@@ -105,7 +105,7 @@ export class RlvRestrictions {
     return this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced'
       : this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
         teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ??
-        viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? chatRedirectSupport(this.profile, behaviour, option) ?? chatVolumeSupport(behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ??
+        viewStateSupport(this.profile, behaviour, option) ?? renderSupport(this.profile, behaviour, option) ?? chatRedirectSupport(this.profile, behaviour, option) ?? chatVolumeSupport(behaviour, option) ?? receivedChatSupport(this.profile, behaviour, option) ?? receivedIMSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
   }
 

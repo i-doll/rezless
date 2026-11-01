@@ -178,7 +178,7 @@ it('supports secure from aliases only in Firestorm and advertises receive comman
     fixture.world.sendAvatarChat(speaker, 0, 'hello'); fixture.world.sendAvatarChat(speaker, 0, '/me waves')
     expect(fixture.receivedChat.map(m => m.text)).toEqual(profile === 'rlv' ? ['hello', '/me waves'] : ['...', '/me ...'])
   }
-  expect(getRlvCommands('rlva', 'recv;add')).toBe('recvchat;recvchat_sec;recvchatfrom;recvchatfrom_sec;recvemote;recvemote_sec;recvemotefrom;recvemotefrom_sec')
+  expect(getRlvCommands('rlva', 'recv;add')).toBe('recvchat;recvchat_sec;recvchatfrom;recvchatfrom_sec;recvemote;recvemote_sec;recvemotefrom;recvemotefrom_sec;recvim;recvim_sec;recvimfrom;recvimfrom_sec')
 })
 
 
