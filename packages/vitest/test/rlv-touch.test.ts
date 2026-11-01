@@ -38,6 +38,7 @@ it('delivers normal touch events with avatar identity, face, link and hold durat
 
 for (const [name, command, distance, rlv, rlva] of [
   ['default boundary', '@fartouch=n', 1.5, true, true],
+  ['fractional RLVa threshold rounding', '@fartouch:0.7=n', 0.7, true, false],
   ['beyond default', '@fartouch=n', 1.5001, false, false],
   ['alias boundary', '@touchfar:3=n', 3, true, true],
   ['minimum across aliases', '@fartouch:4=n,touchfar:2=n', 3, false, false],
@@ -279,5 +280,19 @@ it('uses ownership for RLVa self attachment checks', async () => {
     t.linkset.owner = f.avatar.key
     restrict(f, '@touchattachself=n')
     expect(f.touch(t.prim).status, profile).toBe(profile === 'rlva' ? 'blocked' : 'touched')
+  }
+})
+
+it('reports detected avatar coordinates relative to the touched script region', async () => {
+  const pair = await loadRlvPair({ source: controller })
+  for (const f of Object.values(pair)) {
+    f.avatar.position = { x: 255, y: 4, z: 5 }
+    f.world.addRegion('neighbor', { x: 256, y: 0 })
+    const t = await loadLinkset({ world: f.world, owner: f.avatar.key, region: 'neighbor',
+      prims: [{ scripts: [{ name: 'detector', source: { source: `vector pos; default {
+        touch_start(integer n) { pos = llDetectedPos(0); }
+      }` } }] }] })
+    f.touch(t.linkset.prims[0]!)
+    expect(t.scripts.detector!.global('pos')).toEqual({ x: -1, y: 4, z: 5 })
   }
 })

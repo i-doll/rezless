@@ -150,7 +150,11 @@ export function attemptAvatarTouch(world: World, avatar: WorldAvatar, prim: Prim
   const record: AvatarTouchAction = Object.freeze({ ...permission, action: 'touch', target: prim.key,
     status: permission.status === 'allowed' ? 'touched' : permission.status })
   logs.set(avatar, Object.freeze([...avatarTouchLog(avatar), record]))
-  if (record.status === 'touched') prim.linkset!.touch(prim.linkNumber, { ...options, avatar: { key: avatar.key, name: avatar.name, pos: { ...avatar.position } } })
+  if (record.status === 'touched') {
+    const from = world.corner(avatar.region), to = world.corner(prim.linkset!.region)
+    const pos = { x: from.x + avatar.position.x - to.x, y: from.y + avatar.position.y - to.y, z: avatar.position.z }
+    prim.linkset!.touch(prim.linkNumber, { ...options, avatar: { key: avatar.key, name: avatar.name, pos } })
+  }
   return record
 }
 

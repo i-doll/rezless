@@ -1730,7 +1730,7 @@ Direct `Linkset.touch` remains a simulator event fixture.
 
 Both profiles enforce `fartouch`/`touchfar`, `touchall`, `touchworld`, `touchattach`,
 `touchattachself`, `touchattachother` and `touchhud`. Distance defaults to 1.5 metres;
-the minimum active option wins, and the boundary is allowed. Distance uses the
+the minimum active option wins, and the comparisons include equality. Distance uses the
 clicked child prim rather than the linkset root. UUID exceptions use the root.
 HUDs bypass `touchall`, attachment locks and distance limits.
 
@@ -1744,7 +1744,9 @@ The named game HUD login exemption is outside this fixture.
 Firestorm RLVa 2.4.2 uses object ownership for self attachment checks and also checks
 distance for other avatars' attachments. It squares
 the radius, so negative options behave like their magnitude. Invalid or out-of-range
-numeric options remain unsupported. `touchattach:<root-uuid>` allows an attachment
+numeric options remain unsupported. The squared radius uses float32 precision while
+the squared distance uses double precision. A 0.7-metre option can therefore block
+a target at 0.7 metres. `touchattach:<root-uuid>` allows an attachment
 under both general and self/other locks; a wearer UUID allows that avatar's attachments.
 `touchattachother:<avatar-uuid>` still denies that wearer. World, HUD and attachment
 exceptions remain permissive under `permissive=n`; touch `_sec` forms remain unsupported.
