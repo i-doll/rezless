@@ -196,8 +196,8 @@ it.each([
     seat.scripts.seat!.start(); script.start()
     issue(script, '@sit:' + seat.prims[0]!.key + '=force')
     expect(avatar.sittingOn?.key ?? NULL_KEY).toBe(supported ? seat.prims[0]!.key : NULL_KEY)
-    expect(avatar.viewer.commandLog.at(-1)?.status).toBe(supported ? 'action' : 'unsupported')
-    if (!supported) expect(avatar.viewer.diagnostics.at(-1)?.detail).toContain('surface placement')
+    expect(avatar.viewer.commandLog.at(-1)?.status).toBe('action')
+    if (!supported) expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ actionOutcome: 'refused', reason: 'world-constraint' })
   }
 })
 

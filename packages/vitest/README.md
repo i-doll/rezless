@@ -955,11 +955,36 @@ Firestorm RLVa 2.4.2 reports the avatar UUID during ground sitting; Kokua RLV
 `sit:<uuid>=force` seats the owner through World seating without granting script
 permissions. It uses the requested free sit target, then the first free configured
 target in link order. Objects must be live, unattached and in the avatar's region;
-occupied seats and unknown targets leave the current seat intact. Plain prims are
-supported within an 8 m centre-distance fixture radius. Requests beyond that
-radius report `unsupported`: simulator surface placement and autopilot are outside
-this fixture. Configured sit targets can be used farther away in the same region.
-World pose calculations omit avatar body and collision offsets.
+occupied seats and unknown targets leave the current seat intact. Neither viewer
+imposes a distance cap on forced sits. Configured targets work throughout the
+same region. Plain prims use explicit simulator responses for farther surfaces:
+
+```ts
+world.setSitResponse(seat, {
+  position: { x: 0, y: -10.09, z: 0.88 }, // Prim-local final avatar position.
+  rotation: { x: 0, y: 0, z: -Math.SQRT1_2, s: Math.SQRT1_2 },
+  autopilot: { durationMs: 2000, success: true }, // Optional navigation outcome.
+})
+```
+
+A response without `autopilot` seats immediately. Otherwise virtual time completes
+the pilot before seating and `CHANGED_LINK`; failure leaves the avatar standing.
+Already seated on the same linkset, the viewer bypasses autopilot. Command logs
+record `pending` followed by the completion outcome. `world.cancelSitAutopilot(avatar)`
+cancels the pilot. New accepted sits replace pending ones; session reset discards
+them. Position, region and parent changes cancel outstanding pilots, including a
+teleport back to the original coordinates. Completion rechecks occupancy and target
+lifetime before seating.
+
+`world.setSitResponse(seat, null)` refuses a request, and `undefined` restores the
+default. Responses snapshot their inputs. Positions and rotations follow the seat
+when it moves. Defaults retain configured sit targets and nearby plain-prim centre
+poses within 8 m. Far plain prims without a response refuse with `world-constraint`
+instead of `unsupported`. Simulator seating through `world.sitAvatar` bypasses
+these viewer response fixtures. User attempts still check their clicked point
+against `sittp` before accepting a response; forced sits bypass that restriction.
+Pathfinding, automatic collision placement and avatar body offsets remain explicit
+inputs rather than a simulated physics or avatar skeleton.
 
 Empty and null-UUID sit requests ground sitting in RLVa and have no effect in
 Kokua. Ground sitting sets `AGENT_SITTING`, clears `AGENT_ON_OBJECT`, and removes an
