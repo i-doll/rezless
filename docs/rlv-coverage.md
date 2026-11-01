@@ -30,6 +30,22 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [sendchat](#sendchat) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvchat[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvchat_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvemote[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvemote_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvchatfrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvemotefrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvchatfrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvemotefrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvchat[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvchat_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvemote[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvemote_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvchatfrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvchatfrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvemotefrom[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
+| [received-chat](#received-chat) | Firestorm RLVa 2.4.2 | <code>@recvemotefrom_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Kokua RLV 2.09.35.00 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchannel_except](#sendchannel_except) | Firestorm RLVa 2.4.2 | <code>@sendchannel_except_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
@@ -292,6 +308,36 @@ Support depth: enforced. With default OOC and ellipsis enabled, public avatar sa
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::filterChat</code>, <code>RlvUtil::isEmote</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts).
+
+### received-chat
+
+Forms: <code>@recvchat[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@recvemote[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@recvchat_sec[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@recvemote_sec[:&lt;uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@recvchatfrom:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@recvemotefrom:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@recvchatfrom_sec:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@recvemotefrom_sec:&lt;uuid&gt;=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Global receive restrictions have speaker UUID exceptions; targeted from rules deny the named speaker independently of those exceptions. Ordinary exceptions are shared, secure and permissive restrictions require each restricting issuer to grant an exception. Both profiles use ellipses by default. Kokua also matches object owners against targeted rules, filters self chat, and shortens emotes under recvchat. RLVa exempts self chat and leaves emotes unchanged under recvchat.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Per-avatar frozen receivedChatLog snapshots record delivered object and avatar local chat with copied speaker identity and displayed text. recvchat crunches speech and shortens emotes to twenty UTF-8 bytes or the first period; recvemote replaces the suffix starting at any /me with /me ... . Targeted rules match speaker or object owner UUID. Owned attachments and direct region messages bypass filtering; ordinary owner chat from unattached objects is filtered. Owner commands are consumed. Secure global exceptions and permissive issuer scope are enforced. Secure from aliases are unsupported. Default OOC and ellipsis settings are fixed; alternate settings, emote extensions and object-to-avatar name impersonation are outside this fixture.
+
+- Global receive chat/emote add/remove, UUID exceptions, secure aliases and permissive issuer scope
+- Targeted recvchatfrom/recvemotefrom speaker and object-owner denials
+- Object whisper/say/shout, owner chat and direct region chat; avatar local say
+- Immutable per-avatar received-chat snapshots; simulator listens and send-action records remain independent
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::containsWithoutException</code>, <code>RRInterface::crunchEmote</code>, <code>RRInterface::contains</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Per-avatar frozen receivedChatLog snapshots record delivered object and avatar local chat with copied speaker identity and displayed text. recvchat filters non-emote speech while preserving OOC and short slash gestures; recvemote replaces leading emotes with /me ... . Targeted rules match speaker UUID only, and support secure aliases. Self chat, owned attachments, owner chat and direct region messages bypass filtering. Owner commands are consumed. Secure global exceptions and permissive issuer scope are enforced. Default OOC and ellipsis settings are fixed; alternate settings and object-to-avatar name impersonation are outside this fixture.
+
+- Global receive chat/emote add/remove, UUID exceptions, secure aliases and permissive issuer scope
+- Targeted recvchatfrom/recvemotefrom speaker denials and secure aliases
+- Object whisper/say/shout, owner chat and direct region chat; avatar local say
+- Immutable per-avatar received-chat snapshots; simulator listens and send-action records remain independent
+
+Reference symbols: <code>indra/newview/llviewermessage.cpp</code>: <code>process_chat_from_simulator</code>, <code>RlvHandler::filterChat</code>, <code>RlvHandler::isException</code>, <code>RlvBehaviourGenericHandler::onCommand</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts).
 
 ### sendchannel_except
 

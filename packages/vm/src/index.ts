@@ -111,3 +111,6 @@ export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv/o
 
 export { getRlvViewerState } from './rlv/viewstate.js'
 export type { RlvViewerContext, RlvViewerEffect } from './rlv/viewstate.js'
+
+export { receivedChatLog } from './rlv/received.js'
+export type { ReceivedChat, ReceivedChatSpeaker } from './rlv/received.js'
