@@ -109,6 +109,16 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: Retur
   return { itemId: entry.id, outcome: 'attached', point: actualPoint }
 }
 
+/** Recover an inventory item at its original point, independently of wear locks.
+ * Kokua replaces the point; RLVa adds alongside its current occupants.
+ */
+export function recoverRlvAttachment(avatar: WorldAvatar, issuer: Linkset, itemId: string,
+  point: number): RlvForceWearItemResult | undefined {
+  const entry = avatar.viewer.inventory.snapshot().find(entry => entry.id === itemId && entry.kind === 'item')
+  if (!entry) return undefined
+  return wear(avatar, issuer, { entry, point, replace: avatar.viewer.profile === 'rlv' }, [])
+}
+
 const recursiveWear = ['attachall', 'attachallover', 'attachalloverorreplace', 'addoutfitall', 'addoutfitallover', 'addoutfitalloverorreplace']
 
 /** Shared-folder force wear, including recursive forms. */

@@ -631,8 +631,8 @@ survives removal of the issuing script and ends when the linkset is removed. Com
 `enforced`, with an `allowed`, `blocked`, `no-op`, or `failed-option` outcome.
 Lock add/remove commands use `applied`. `llDetachFromAvatar` remains a separate
 simulator action and bypasses viewer locks, retaining its root/permission checks.
-Named-point locks, bare `detach=force` and forced reattachment recovery are
-excluded from these actions. Direct shared-folder removal and its nostrip
+Named-point locks and bare `detach=force` are described under attachment point
+locks. Locked inventory attachments use the recovery lifecycle described below. Direct shared-folder removal and its nostrip
 checks are described under Force removal and clothing actions.
 
 Rules use emitter prim UUIDs, so scripts on one prim share state and separate
@@ -1112,7 +1112,34 @@ collection pass. Clearing the last rule preserves that deadline until the pass;
 known missing issuers
 expire on the next check, while never-resolved issuers expire on the twenty-first
 miss. Completed detach immediately clears known RLVa attachment rules and notify
-registrations. Forced recovery of locked attachments is unsupported.
+registrations. A locked inventory attachment that detaches anyway queues recovery
+before those rules are cleared. Seed its item identity through `wornAttachments`;
+no shared-folder placement is required. Unmapped and temporary attachments do
+not recover. The original point takes precedence over inventory item naming.
+
+Kokua RLV 2.09.35.00 waits 15000 virtual milliseconds after the last newly queued
+item, then recovers items in queue order. Only one item per point is queued.
+Recovery replaces occupants and bypasses add/remove locks. Pending recovery
+pauses collection and retains incoming commands, with the configured version
+query bypass. Failed recovery retries once elapsed whole seconds exceed 60;
+new commands then pass through, while earlier retained work waits for success.
+Successful recovery releases that work and preserves the recovered object's
+restrictions.
+
+Firestorm RLVa 2.4.2 adds recovered items alongside existing occupants, bypassing
+wear locks. `avatar.viewer.session.savedAttachment(itemId)` supplies an inventory
+save acknowledgement; advance the clock by zero to complete its queued request.
+Without that acknowledgement, a watchdog ticking every 10000 ms from the first
+pending detach requests recovery once more than 15000 ms have elapsed, then
+retries failed requests after more than 30000 ms. Missing inventory items cancel
+pending recovery. Commands continue during recovery, and cleared self restrictions
+are not restored. The registered valid bridge is exempt.
+
+Both profiles deliver `attach(NULL_KEY)` at point zero, followed on recovery by
+`on_rez` and `attach(owner)` at the original point. Notify subscriptions receive
+`/detached illegally <Point>` and `/reattached legally <Point>`. Viewer session
+reset and avatar removal cancel recovery. Kokua reattach-delay setting overrides
+are unsupported.
 
 Kokua uses time-based maintenance after readiness. The default first wait and
 interval are both 10000 ms. `initialGarbageCollectionAdditionalWait`, default
