@@ -41,7 +41,7 @@ it('applies offset and scale restrictions only in RLVa and restores on clear', a
   const pair = await setup()
   for (const profile of ['rlv', 'rlva'] as const) {
     const f = pair[profile]
-    send(f, '@setcam_eyeoffset:-4/2/1=n,setcam_eyeoffsetscale:2=n')
+    send(f, '@setcam=n,setcam_eyeoffset:-4/2/1=n,setcam_eyeoffsetscale:2=n')
     expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(-8, 4, 2) : vec(10, 0, 0))
     send(f, '@clear')
     expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(-3, 0, 0.75) : vec(10, 0, 0))
@@ -52,7 +52,7 @@ it('supports force offsets, resets, and rejects force changes while a preset res
   const pair = await setup()
   for (const profile of ['rlv', 'rlva'] as const) {
     const f = pair[profile]
-    send(f, '@setcam_eyeoffset:-4/0/0=force,setcam_focusoffset:0/4/0=force')
+    send(f, '@setcam=n,setcam_eyeoffset:-4/0/0=force,setcam_focusoffset:0/4/0=force')
     expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(-4, 0, 0) : vec(10, 0, 0))
     if (profile === 'rlva') expect(f.script.global('rotationRead')).toMatchObject({ z: expect.closeTo(Math.sin(Math.PI / 8)), s: expect.closeTo(Math.cos(Math.PI / 8)) })
     send(f, '@setcam_eyeoffsetscale:2=n,setcam_eyeoffset:-9/0/0=force')
@@ -62,13 +62,13 @@ it('supports force offsets, resets, and rejects force changes while a preset res
   }
 })
 
-it('rejects nonempty RLVa focus restriction options but accepts the empty default', async () => {
+it('rejects RLVa focus restrictions with nonempty and empty options', async () => {
   const pair = await setup()
   send(pair.rlva, '@setcam_focusoffset:0/2/0=n')
   expect(pair.rlva.avatar.viewer.restrictions.snapshot()).toEqual([])
   send(pair.rlva, '@setcam_focusoffset=n')
-  expect(pair.rlva.avatar.viewer.restrictions.snapshot()).toMatchObject([{ support: 'enforced' }])
-  expect(pair.rlva.script.global('position')).toEqual(vec(-3, 0, 0.75))
+  expect(pair.rlva.avatar.viewer.restrictions.snapshot()).toEqual([])
+  expect(pair.rlva.script.global('position')).toEqual(vec(10, 0, 0))
 })
 
 it('exits mouselook only in RLVa and leaves it off after removal', async () => {
@@ -139,7 +139,7 @@ it('keeps camera tracking permission independent and shares the pose with HUD pr
   }
 })
 
-for (const command of ['setcam:bad=n', 'camunlock:bad=n', 'setcam_mouselook:bad=n', 'setcam_eyeoffset:1/2=n', 'setcam_eyeoffset:1 /2/3=n', 'setcam_eyeoffsetscale:bad=n', 'setcam_focusoffset:1/2/3=n']) {
+for (const command of ['setcam_eyeoffset=n', 'setcam_eyeoffsetscale=n', 'setcam:bad=n', 'camunlock:bad=n', 'setcam_mouselook:bad=n', 'setcam_eyeoffset:1/2=n', 'setcam_eyeoffset:1 /2/3=n', 'setcam_eyeoffsetscale:bad=n', 'setcam_focusoffset:1/2/3=n']) {
   it(`rejects invalid control option ${command}`, async () => {
     const pair = await setup()
     send(pair.rlva, '@' + command)
@@ -151,7 +151,7 @@ for (const command of ['setcam:bad=n', 'camunlock:bad=n', 'setcam_mouselook:bad=
 
 it('rejects malformed force options and accepts scanf vector suffixes', async () => {
   const pair = await setup()
-  send(pair.rlva, '@setcam_eyeoffset:bad=force,setcam_eyeoffsetscale:bad=force,setcam_focusoffset:1/2=force')
+  send(pair.rlva, '@setcam=n,setcam_eyeoffset:bad=force,setcam_eyeoffsetscale:bad=force,setcam_focusoffset:1/2=force')
   expect(pair.rlva.avatar.viewer.commandLog.slice(-3).map(r => r.outcome)).toEqual(['failed-option', 'failed-option', 'failed-option'])
   send(pair.rlva, '@setcam_eyeoffset:0x1p+2/ 2/3suffix=force')
   expect(pair.rlva.script.global('position')).toEqual(vec(4, 2, 3))
@@ -162,7 +162,7 @@ it('rejects malformed force options and accepts scanf vector suffixes', async ()
 it('releases the active preset on last restriction removal even after an earlier force', async () => {
   const pair = await setup()
   const f = pair.rlva
-  send(f, '@setcam_eyeoffset:-4/0/0=force,setcam_eyeoffsetscale:2=n')
+  send(f, '@setcam_eyeoffset:-4/0/0=force,setcam_eyeoffset:-4/0/0=force,setcam_eyeoffsetscale:2=n')
   expect(f.script.global('position')).toEqual(vec(-8, 0, 0))
   send(f, '@setcam_eyeoffsetscale:2=y')
   expect(f.script.global('position')).toEqual(vec(-3, 0, 0.75))
@@ -171,7 +171,7 @@ it('releases the active preset on last restriction removal even after an earlier
 it('preserves offset restrictions across script resets and releases them on collection', async () => {
   const pair = await setup()
   const f = pair.rlva
-  send(f, '@setcam_eyeoffset:-4/0/0=n')
+  send(f, '@setcam_eyeoffset:-4/0/0=force,setcam_eyeoffset:-4/0/0=n')
   f.script.reset()
   expect(getRlvCameraPosition(f.avatar)).toEqual(vec(-4, 0, 0))
   f.script.linkset.dead = true; f.script.linkset.clock.advance(30000)
@@ -213,7 +213,7 @@ it('uses first-added unsorted offsets across issuers even during exclusive contr
 it('retains NaN offset modifiers after wire removal and can release their preset', async () => {
   for (const command of ['setcam_eyeoffset:nan/0/0', 'setcam_eyeoffsetscale:nan']) {
     const pair = await setup(); const f = pair.rlva
-    send(f, `@${command}=n,${command}=y`)
+    send(f, `@setcam_eyeoffset:-3/0/0=force,${command}=n,${command}=y`)
     expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
     expect(Number.isNaN((f.script.global('position') as { x: number }).x)).toBe(true)
     send(f, '@setcam=n,setcam=y')
@@ -233,7 +233,7 @@ it('applies distance clamping once after the preset pose, including contradictor
   const pair = await setup()
   for (const profile of ['rlv', 'rlva'] as const) {
     const f = pair[profile]
-    send(f, '@setcam_eyeoffset:-3/0/0=n,setcam_avdistmin:8=n,setcam_avdistmax:4=n')
+    send(f, '@setcam=n,setcam_eyeoffset:-3/0/0=n,setcam_avdistmin:8=n,setcam_avdistmax:4=n')
     expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(-8, 0, 0) : vec(4, 0, 0))
     expect(getRlvCameraPosition(f.avatar)).toEqual(f.script.global('position'))
   }
@@ -269,4 +269,99 @@ it('applies mouselook exclusion when the command arrives without requiring a pos
     send(f, '@setcam_mouselook=n')
     expect((f.script.global('info') as number) & AGENT_MOUSELOOK).toBe(profile === 'rlva' ? 0 : AGENT_MOUSELOOK)
   }
+})
+
+it('releases camera following for rotation-only fixture changes', async () => {
+  const pair = await setup()
+  for (const f of Object.values(pair)) {
+    send(f, '@camunlock=n,camunlock=y')
+    const rotation = { x: 0, y: 0, z: 1, s: 0 }
+    f.script.setCamera({ rot: rotation })
+    send(f, '@version=22921')
+    expect(f.script.global('rotationRead')).toEqual(rotation)
+  }
+})
+
+it('does not reclamp the Kokua lens when an unrelated restriction changes', async () => {
+  const pair = await setup()
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]
+    send(f, '@setcam_fovmin:1.5=n,setcam_fovmax:0.5=n,setcam_fovmin:1.5=y,getcam_fov=22921,sendchat=n,getcam_fov=22921')
+    const replies = f.avatar.viewer.commandLog.filter(r => r.status === 'replied').map(r => r.reply.text)
+    expect(replies).toEqual(profile === 'rlv' ? ['1.500000', '1.500000'] : ['0.500', '0.500'])
+  }
+})
+
+it('prevents forced mouselook on later sits before any camera read', async () => {
+  const pair = await loadRlvPair({ source: `integer info; string command; default {
+    touch_start(integer n) { llOwnerSay(command); info = llGetAgentInfo(llGetOwner()); }
+  }` })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start()
+    const { linkset } = await loadLinkset({ world: f.world, region: f.avatar.region,
+      prims: [{ name: 'seat' }] })
+    linkset.prims[0]!.forceMouselook = true
+    send(f, '@setcam_mouselook=n')
+    f.world.sitAvatar(f.avatar, linkset.prims[0]!)
+    send(f, '@version=22921')
+    expect((f.script.global('info') as number) & AGENT_MOUSELOOK).toBe(profile === 'rlva' ? 0 : AGENT_MOUSELOOK)
+    f.world.standAvatar(f.avatar); send(f, '@clear')
+    f.world.sitAvatar(f.avatar, linkset.prims[0]!); send(f, '@version=22921')
+    expect((f.script.global('info') as number) & AGENT_MOUSELOOK).toBe(AGENT_MOUSELOOK)
+  }
+})
+
+it('does not resurrect released eye controls when a later force resets focus', async () => {
+  const pair = await setup(); const f = pair.rlva
+  send(f, '@setcam_eyeoffset:-4/0/0=force,setcam_eyeoffset:-4/0/0=force,setcam_eyeoffsetscale:2=n,setcam_eyeoffsetscale:2=y')
+  expect(f.script.global('position')).toEqual(vec(-3, 0, 0.75))
+  send(f, '@setcam_focusoffset=force')
+  expect(f.script.global('position')).toEqual(vec(-3, 0, 0.75))
+  send(f, '@setcam_eyeoffset:-6/0/0=force')
+  expect(f.script.global('position')).toEqual(vec(-6, 0, 0))
+})
+
+it('copies preset defaults on first activation and applies later offset changes', async () => {
+  const pair = await setup(); const f = pair.rlva
+  send(f, '@setcam_eyeoffset:-4/0/0=force')
+  expect(f.script.global('position')).toEqual(vec(-3, 0, 0.75))
+  send(f, '@setcam_eyeoffset:-4/0/0=force')
+  expect(f.script.global('position')).toEqual(vec(-4, 0, 0))
+  send(f, '@setcam_eyeoffsetscale:2=n,setcam_eyeoffsetscale:2=y,setcam_focusoffset=force')
+  expect(f.script.global('position')).toEqual(vec(-3, 0, 0.75))
+})
+
+it('resets an initial offset restriction on preset entry and reapplies it on modifier changes', async () => {
+  const pair = await setup(); const f = pair.rlva
+  send(f, '@setcam_eyeoffset:-4/0/0=n')
+  expect(f.script.global('position')).toEqual(vec(-3, 0, 0.75))
+  send(f, '@setcam_eyeoffset:-5/0/0=n')
+  expect(f.script.global('position')).toEqual(vec(-4, 0, 0))
+  send(f, '@setcam_eyeoffset:-4/0/0=y')
+  expect(f.script.global('position')).toEqual(vec(-5, 0, 0))
+})
+
+it('leaves the fixture pose alone when initially resetting default controls', async () => {
+  const pair = await setup(); const f = pair.rlva
+  send(f, '@setcam_eyeoffset=force,setcam_focusoffset=force,setcam_eyeoffsetscale=force')
+  expect(f.script.global('position')).toEqual(vec(10, 0, 0))
+})
+
+it('checks direct mouselook entry against the active primary issuer and distance minimum', async () => {
+  const pair = await setup(); const f = pair.rlva
+  const loaded = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
+    prims: [{ scripts: [{ name: 'other', source: { source } }] }] })
+  const other = loaded.scripts.other!; other.start()
+  other.setGlobal('command', '@setcam_mouselook=n'); other.fire('touch_start', { num_detected: 1 })
+  f.avatar.info |= AGENT_MOUSELOOK
+  expect(f.avatar.info & AGENT_MOUSELOOK).toBe(0)
+  send(f, '@setcam=n')
+  f.avatar.info |= AGENT_MOUSELOOK
+  expect(f.avatar.info & AGENT_MOUSELOOK).toBe(AGENT_MOUSELOOK)
+  send(f, '@setcam_avdistmin:2=n')
+  f.avatar.info |= AGENT_MOUSELOOK
+  expect(f.avatar.info & AGENT_MOUSELOOK).toBe(0)
+  send(f, '@setcam_avdistmin:2=y,setcam_avdistmin:0=n')
+  f.avatar.info |= AGENT_MOUSELOOK
+  expect(f.avatar.info & AGENT_MOUSELOOK).toBe(AGENT_MOUSELOOK)
 })

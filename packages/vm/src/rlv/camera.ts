@@ -84,7 +84,10 @@ class RlvCamera {
       ['setcam_fovmin', 'setcam_fovmax', 'camzoommin', 'camzoommax'].includes(rule.behaviour))
     const added = rules.filter(rule => !this.previous.includes(rule))
     const removed = this.previous.filter(rule => !rules.includes(rule))
-    if (!added.length && !removed.length) { this.fov = this.limit(this.fov); return }
+    if (!added.length && !removed.length) {
+      if (this.viewer.profile === 'rlva') this.fov = this.limit(this.fov)
+      return
+    }
     if (this.viewer.profile === 'rlva') {
       if (!this.previous.length && added.some(rule => !rule.behaviour.startsWith('camzoom'))) this.savedFov = this.persist ? this.fov : DEFAULT_FOV
       for (const rule of removed) {
@@ -367,9 +370,9 @@ export function setRlvCameraOrigins(avatar: WorldAvatar, origins: { avatar?: Vec
   state.cameraOrigin = origins.camera ? { ...origins.camera } : undefined
 }
 
-/** Record a fixture camera position independently of simulator tracking permission. */
-export function setRlvCameraPosition(avatar: WorldAvatar, position: Vector): void {
-  distanceCamera(avatar).position = { ...position }
+/** Record a fixture pose update independently of simulator tracking permission. */
+export function setRlvCameraPosition(avatar: WorldAvatar, position?: Vector): void {
+  if (position) distanceCamera(avatar).position = { ...position }
   controlCamera(avatar).userPose()
 }
 
@@ -422,7 +425,7 @@ export function cameraControlSupport(profile: ViewerProfile, behaviour: string, 
   if (profile === 'disabled' || profile === 'rlv' && !unlockNames.includes(behaviour)) return 'unsupported'
   if (unlockNames.includes(behaviour) || behaviour === 'setcam' || behaviour === 'setcam_mouselook') return !option ? 'enforced' : 'unsupported'
   // The generic modifier converter has no Vector3d branch for focus offsets.
-  const valid = !option || (behaviour === 'setcam_eyeoffset' ? !!cameraVector(option) : behaviour === 'setcam_eyeoffsetscale' && cameraAngle('rlva', option) !== undefined)
+  const valid = !!option && (behaviour === 'setcam_eyeoffset' ? !!cameraVector(option) : behaviour === 'setcam_eyeoffsetscale' && cameraAngle('rlva', option) !== undefined)
   return valid ? 'enforced' : 'unsupported'
 }
 
@@ -449,9 +452,10 @@ class RlvControlCamera {
   private revision = -1
   private previous: readonly RlvRestriction[] = []
   private readonly modifiers: RlvRestriction[] = []
-  private forced = new Map<string, Vector | number>()
+  private readonly controls = new Map<string, Vector | number>()
   private following = false
   private override = false
+  private initialized = false
 
   constructor(private readonly avatar: WorldAvatar) {}
 
@@ -474,16 +478,20 @@ class RlvControlCamera {
       const value = !rule.option ? 0 : rule.behaviour === 'setcam_eyeoffsetscale' ? cameraAngle('rlva', rule.option)! : cameraVector(rule.option)!
       const comparable = typeof value === 'number' ? !Number.isNaN(value) : ![value.x, value.y, value.z].some(Number.isNaN)
       // Modifier removal compares values; NaN does not compare equal to itself.
-      if (index >= 0 && comparable) this.modifiers.splice(index, 1)
-      // Removing the last modifier resets its control to the preset default.
-      this.forced.delete(rule.behaviour)
+      if (index >= 0 && comparable) {
+        this.modifiers.splice(index, 1)
+        this.updateControl(rule.behaviour)
+      }
     }
-    this.modifiers.push(...added.filter(rule => offsetNames.includes(rule.behaviour)))
+    for (const rule of added.filter(rule => offsetNames.includes(rule.behaviour))) {
+      this.modifiers.push(rule)
+      this.updateControl(rule.behaviour)
+    }
     if (unlock && (!wasUnlock || viewer.profile === 'rlv' && added.some(rule => unlockNames.includes(rule.behaviour)))) this.following = true
-    if (added.some(rule => rule.behaviour === 'setcam' || offsetNames.includes(rule.behaviour))) { this.following = true; this.override = true }
+    if (added.some(rule => rule.behaviour === 'setcam' || offsetNames.includes(rule.behaviour))) this.activate()
     if (removed.some(rule => rule.behaviour === 'setcam' || offsetNames.includes(rule.behaviour)) &&
       !rules.some(rule => rule.behaviour === 'setcam' || offsetNames.includes(rule.behaviour)) &&
-      (removed.some(rule => rule.behaviour === 'setcam') || !this.modifiers.length)) this.override = false
+      (removed.some(rule => rule.behaviour === 'setcam') || !this.modifiers.length)) this.release()
     if (viewer.profile === 'rlva' && added.some(rule => rule.behaviour === 'setcam_mouselook')) {
       if (this.avatar.info & AGENT_MOUSELOOK) this.following = true
       this.avatar.info &= ~AGENT_MOUSELOOK
@@ -497,36 +505,48 @@ class RlvControlCamera {
       unlockNames.includes(rule.behaviour) && cameraIssuerActive(this.avatar.viewer, rule)) && !this.override) this.following = false
   }
 
+  private updateControl(name: string): void {
+    const rule = this.modifiers.find(rule => rule.behaviour === name)
+    if (!rule) this.controls.delete(name)
+    else this.controls.set(name, name === 'setcam_eyeoffsetscale' ? cameraAngle('rlva', rule.option)! : cameraVector(rule.option)!)
+  }
+
+  private activate(): void {
+    // Entering the preset copies rear-view defaults and resets all controls.
+    if (!this.override) { this.controls.clear(); this.initialized = true }
+    this.override = true
+    this.following = true
+  }
+
+  private release(): void {
+    this.override = false
+  }
+
   force(name: string, value: Vector | number | undefined): void {
     this.sync()
-    if (value === undefined) this.forced.delete(name)
-    else this.forced.set(name, value)
-    const defaults = new Map<string, Vector | number>([['setcam_eyeoffset', this.preset.eye], ['setcam_eyeoffsetscale', this.preset.scale], ['setcam_focusoffset', this.preset.focus]])
-    this.override = this.previous.some(rule => rule.behaviour === 'setcam') || [...this.forced].some(([key, current]) => {
+    if (value === undefined) this.controls.delete(name)
+    else this.controls.set(name, value)
+    const defaults = new Map<string, Vector | number>([['setcam_eyeoffset', this.initialized ? this.preset.eye : ZERO_VECTOR], ['setcam_eyeoffsetscale', this.initialized ? this.preset.scale : 0], ['setcam_focusoffset', this.initialized ? this.preset.focus : ZERO_VECTOR]])
+    const changed = [...this.controls].some(([key, current]) => {
       const fallback = defaults.get(key)!
       return typeof current === 'number' ? current !== fallback : typeof fallback !== 'number' &&
         (current.x !== fallback.x || current.y !== fallback.y || current.z !== fallback.z)
     })
-    this.following = true
+    if (changed || this.previous.some(rule => rule.behaviour === 'setcam')) this.activate()
+    else this.release()
   }
 
   pose(): { pos: Vector; focus: Vector } | undefined {
     this.sync()
     const viewer = this.avatar.viewer
     if (viewer.profile === 'disabled') return undefined
-    if (viewer.profile === 'rlva') {
-      const min = getRlvCameraLimits(this.avatar).avatar[0]
-      const block = this.previous.some(rule => rule.behaviour === 'setcam_mouselook' && cameraIssuerActive(viewer, rule)) || min !== undefined && min !== 0
-      if (block && this.avatar.info & AGENT_MOUSELOOK) { this.avatar.info &= ~AGENT_MOUSELOOK; this.following = true }
+    if (!canRlvEnterMouselook(this.avatar) && this.avatar.info & AGENT_MOUSELOOK) {
+      this.avatar.info &= ~AGENT_MOUSELOOK
+      this.following = true
     }
     if (!this.following || this.avatar.info & AGENT_MOUSELOOK || seatedCameraPosition(this.avatar)) return undefined
-    const value = (name: string, fallback: Vector | number): Vector | number => {
-      if (!this.override) return fallback
-      const rule = this.modifiers.find(rule => rule.behaviour === name)
-      if (rule) return !rule.option ? name === 'setcam_eyeoffsetscale' ? 0 : ZERO_VECTOR
-        : name === 'setcam_eyeoffsetscale' ? cameraAngle('rlva', rule.option)! : cameraVector(rule.option)!
-      return this.forced.get(name) ?? fallback
-    }
+    const value = (name: string, fallback: Vector | number): Vector | number =>
+      this.override ? this.controls.get(name) ?? fallback : fallback
     const eye = value('setcam_eyeoffset', this.preset.eye) as Vector
     const scale = value('setcam_eyeoffsetscale', this.preset.scale) as number
     const eyeOffset = rotateVector(vec(eye.x * scale, eye.y * scale, eye.z * scale), this.avatar.rotation)
@@ -545,6 +565,15 @@ function controlCamera(avatar: WorldAvatar): RlvControlCamera {
 }
 export function getRlvCameraControlPose(avatar: WorldAvatar): { pos: Vector; focus: Vector } | undefined {
   return controlCamera(avatar).pose()
+}
+
+/** Check entry to mouselook without requiring a camera pose read. */
+export function canRlvEnterMouselook(avatar: WorldAvatar): boolean {
+  const viewer = avatar.viewer
+  if (viewer.profile !== 'rlva') return true
+  const min = getRlvCameraLimits(avatar).avatar[0]
+  return !viewer.restrictions.snapshot().some(rule => rule.behaviour === 'setcam_mouselook' && cameraIssuerActive(viewer, rule)) &&
+    (min === undefined || min === 0)
 }
 
 function dispatchCameraControlCommand(avatar: WorldAvatar, prim: Prim, parsed: RlvParsedCommand, command: string): boolean {

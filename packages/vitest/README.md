@@ -1452,8 +1452,11 @@ supports `setcam`, `setcam_mouselook`, `setcam_eyeoffset`,
 `setcam_eyeoffsetscale` and `setcam_focusoffset`. Exclusive `setcam` control
 selects one issuer for distance and FOV limits and rejects competing force
 changes. Offset restrictions use first-added precedence; force offsets require
-all offset restrictions to be released. Nonempty focus-offset restrictions
-fail; focus-offset force commands accept slash-separated vectors. Kokua RLV
+all offset restrictions to be released. Empty offset restrictions and all
+focus-offset restrictions fail; focus-offset force commands accept slash-separated
+vectors. Entry into the override preset copies the rear-view defaults,
+resetting all controls, including the triggering value. Subsequent offset
+changes apply to the active preset. Kokua RLV
 2.09.35.00 keeps these additional forms unsupported.
 
 `setRlvCameraPreset(avatar, { origin?, eye?, focus?, scale? })` supplies explicit

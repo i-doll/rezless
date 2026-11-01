@@ -652,7 +652,7 @@ export class Script {
     const avatar = this.linkset.world?.avatars.find(a => a.key.toLowerCase() === agent)
     if (avatar && avatar.viewer.profile !== 'disabled' && camera.fov !== undefined) changeRlvFov(avatar, camera.fov)
     const poseAvatar = avatar ?? this.linkset.world?.avatars.find(a => a.key.toLowerCase() === this.linkset.owner.toLowerCase())
-    if (poseAvatar && poseAvatar.viewer.profile !== 'disabled' && camera.pos) setRlvCameraPosition(poseAvatar, camera.pos)
+    if (poseAvatar && poseAvatar.viewer.profile !== 'disabled' && (camera.pos || camera.rot)) setRlvCameraPosition(poseAvatar, camera.pos)
     const { pos, rot: r, fov, aspect } = { ...this.state.camera, ...camera }
     this.state.camera = {
       pos: vec(pos.x, pos.y, pos.z),

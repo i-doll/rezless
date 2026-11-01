@@ -7,6 +7,7 @@ import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
 import { userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
+import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
@@ -337,7 +338,7 @@ export class World {
       displayName: opts.displayName ?? opts.name ?? opts.username,
       size: { ...(opts.size ?? { x: 0.45, y: 0.6, z: 1.9 }) },
       get info() { clearRemovedSeat(); return info },
-      set info(value) { info = value },
+      set info(value) { info = value & AGENT_MOUSELOOK && !canRlvEnterMouselook(avatar) ? value & ~AGENT_MOUSELOOK : value },
       get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat, seatOffset) : position },
       set position(value) { position = value },
       get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat, seatOrientation) : rotation },
@@ -353,7 +354,7 @@ export class World {
         snapshotSeat()
         seat = value
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
-        if (seat?.forceMouselook) info |= AGENT_MOUSELOOK
+        if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
         const target = seat?.params.sitTarget
         seatOffset = { ...(target?.enabled ? target.offset : ZERO_VECTOR) }
         seatOrientation = { ...(target?.enabled ? target.rotation : ZERO_ROTATION) }
