@@ -657,7 +657,9 @@ the lines it changed) and project coverage vs the `main` baseline.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
-These rules are state-only. See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
+These rules are state-only. `getstatus` and `getstatusall` reply with stored
+rules using profile-specific separators, substring filters and UUID ordering.
+See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
 
 ## License
