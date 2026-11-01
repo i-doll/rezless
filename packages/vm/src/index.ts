@@ -90,3 +90,5 @@ export { RlvInventory, getRlvInventoryList } from './rlv/inventory.js'
 export type { RlvInventoryConfig, RlvInventoryEntry, RlvWornAttachment } from './rlv/inventory.js'
 
 export { RLV_ATTACHMENT_POINTS, RLVA_ATTACHMENT_SETTINGS, getRlvAttachmentReply, setRlvAttachmentBridge } from './rlv/attachments.js'
+export { sendAvatarChat, avatarChatLog } from './rlv/chat-actions.js'
+export type { AvatarChatAction } from './rlv/chat-actions.js'

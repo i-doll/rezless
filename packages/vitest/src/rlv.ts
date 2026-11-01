@@ -1,10 +1,12 @@
-import { World, type RlvInventoryConfig, type RlvProfile, type Script, type WorldAvatar } from '@rezless/vm'
+import { World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type WorldAvatar } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
 export interface RlvFixture {
   readonly world: World
   readonly avatar: WorldAvatar
   readonly script: Script
+  readonly chatActions: readonly AvatarChatAction[]
+  sendChat(channel: number, message: string): AvatarChatAction
 }
 
 /** Load identical source into separate Worlds. Call start after seeding each fixture. */
@@ -15,7 +17,9 @@ export async function loadRlvPair(input: { readonly source: string }): Promise<R
     const avatar = world.addAvatar({ username: 'rlv.fixture', region: 'RLV fixture', viewer: { profile } })
     const loaded = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
       prims: [{ name: 'RLV fixture', scripts: [{ name: 'fixture', source: { source: input.source } }] }] })
-    return { world, avatar, script: loaded.scripts['fixture']! }
+    return { world, avatar, script: loaded.scripts['fixture']!,
+      get chatActions() { return avatarChatLog(avatar) },
+      sendChat: (channel, message) => world.sendAvatarChat(avatar, channel, message) }
   }
   return { rlv: await load('rlv'), rlva: await load('rlva') }
 }

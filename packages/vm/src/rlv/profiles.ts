@@ -46,7 +46,15 @@ export type RlvCommandRecord = {
   readonly command: string
   readonly sourcePrim: string
   readonly parsed?: RlvParsedCommand
-} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'unsupported' | 'malformed' })
+} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' | import('./classifier.js').RlvCommandOutcome } | { readonly status: 'applied' | 'unsupported' | 'malformed' } | {
+  readonly status: 'action'
+  readonly action: 'sit' | 'unsit'
+  readonly actionOutcome: 'applied' | 'unchanged' | 'refused'
+  readonly target: string
+  /** Seat identity after the attempt, using the profile's getsitid policy. */
+  readonly seat: string
+  readonly reason?: 'restriction' | 'target-unavailable' | 'world-constraint'
+})
 
 /** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState {

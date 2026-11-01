@@ -657,7 +657,9 @@ the lines it changed) and project coverage vs the `main` baseline.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
-These rules are state-only. `getstatus` and `getstatusall` reply with stored
+These rules are state-only. Explicit avatar chat actions enforce `sendchannel`,
+its numeric exceptions, `sendchannel_sec`, and this family's `permissive` scope.
+Denied attempts are logged; simulator chat builtins stay independent. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
 RLVa `getcommand` discovers implemented manifest forms with substring, type and
 separator options. Frozen form metadata distinguishes state-only restrictions
@@ -668,6 +670,11 @@ the canonical 55-point table. RLVa also supports occupied point names and group
 filters through `getattachnames`; Kokua leaves that query unsupported.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
+Force `sit` and `unsit` update World seating and expose action outcomes in the
+viewer command log. `getsitid` reports the object root, null standing, or the avatar
+UUID for RLVa ground sitting. Profile-specific force lock checks are supported;
+plain-prim surface placement beyond the fixture's 8 m radius is unsupported.
+
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
 profile-specific path matching and visibility filters.

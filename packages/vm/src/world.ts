@@ -1,3 +1,4 @@
+import { sendAvatarChat, type AvatarChatAction } from './rlv/chat-actions.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
@@ -254,6 +255,11 @@ export class World {
     this.clock = new LinksetClock(opts.startUnixTime)
   }
 
+  /** Simulate ordinary avatar say; restrictions apply only through this action. */
+  sendAvatarChat(avatar: WorldAvatar, channel: number, message: string): AvatarChatAction {
+    return sendAvatarChat(this, avatar, channel, message)
+  }
+
   addObject(opts: WorldObjectOptions): WorldEntity {
     const object = this.entity(opts)
     this.objects.push(object)
@@ -356,6 +362,12 @@ export class World {
     if (avatar.standingRotation) avatar.rotation = avatar.standingRotation
     avatar.standingRotation = null
     if (previous) this.sitChanged(previous)
+  }
+
+  /** Ground sitting has AGENT_SITTING but no object parent or new link. */
+  sitAvatarOnGround(avatar: WorldAvatar): void {
+    this.standAvatar(avatar)
+    avatar.info = (avatar.info & ~(AGENT_ON_OBJECT | AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING
   }
 
   private sitChanged(linkset: Linkset): void {
