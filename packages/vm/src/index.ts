@@ -94,7 +94,7 @@ export { RLV_ATTACHMENT_POINTS, RLVA_ATTACHMENT_SETTINGS, getRlvAttachmentReply,
 export { sendAvatarChat, avatarChatLog } from './rlv/chat-actions.js'
 export type { AvatarChatAction } from './rlv/chat-actions.js'
 
-export { attemptViewerDetach } from './rlv/detach.js'
+export { attemptViewerDetach, attemptViewerAttach } from './rlv/detach.js'
 export type { RlvDetachOutcome } from './rlv/detach.js'
 
 export { RlvSession } from './rlv/session.js'

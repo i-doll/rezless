@@ -3,16 +3,16 @@ import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { RlvProfile } from './profiles.js'
-import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint, isRlvAttachmentBridge } from './attachments.js'
+import { RLV_ATTACHMENT_POINTS, getRlvAttachmentPoint, isRlvAttachmentBridge, getRlvSavedPoint, rlvForceDetachBlock } from './attachments.js'
 import { isRlvBodypart, isRlvStrippable } from './outfit.js'
-import { isRlvDetachLocked as locked } from './detach.js'
+import { isRlvDetachLocked as locked, isRlvPointLocked } from './detach.js'
 import { getRlvInventoryFolder, RLV_WEARABLE_TYPES, type RlvInventoryEntry } from './inventory.js'
 
 export interface RlvForceWearItemResult {
   readonly itemId: string
   readonly outcome: 'attached' | 'already-worn' | 'blocked' | 'unsupported' | 'skipped'
   readonly point?: number
-  readonly reason?: 'detach-lock' | 'missing-definition' | 'unsupported-content' | 'shared-wear-disabled' | 'superseded' | 'unavailable-attachment'
+  readonly reason?: 'detach-lock' | 'addattach-lock' | 'missing-definition' | 'unsupported-content' | 'shared-wear-disabled' | 'superseded' | 'unavailable-attachment'
 }
 export type RlvForceWearOutcome = 'allowed' | 'blocked' | 'no-op' | 'partial' | 'failed-option' | 'unsupported-form'
 type WearItem = { entry: RlvInventoryEntry; point: number; replace: boolean }
@@ -73,7 +73,7 @@ function attachmentProblem(avatar: WorldAvatar, issuer: Linkset, entry: RlvInven
   return undefined
 }
 
-function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWearItemResult {
+function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: ReturnType<WorldAvatar['viewer']['restrictions']['snapshot']>): RlvForceWearItemResult {
   const inventory = avatar.viewer.inventory
   const { entry, point, replace } = plan
   let object = existingAttachment(avatar, issuer, entry.id)
@@ -83,8 +83,10 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWea
     inventory.rememberAttachment(entry.id, object)
     return { itemId: entry.id, outcome: 'already-worn', point: object.attachment.point }
   }
+  const actualTarget = point || getRlvSavedPoint(object ?? entry.object)
+  if (isRlvPointLocked(avatar, actualTarget, 'add', rules)) return { itemId: entry.id, outcome: 'blocked', point: actualTarget, reason: 'addattach-lock' }
   if (point && replace && issuer.peers.some(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
-    peer.attachment.point === point && locked(avatar, peer))) {
+    peer.attachment.point === point && locked(avatar, peer, rules))) {
     return { itemId: entry.id, outcome: 'blocked', point, reason: 'detach-lock' }
   }
   if (!object || object.dead || object.region !== avatar.region) {
@@ -100,7 +102,7 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem): RlvForceWea
   if (replace) {
     for (const previous of [...issuer.peers]) {
       if (previous !== object && !previous.dead && previous.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
-        previous.attachment.point === actualPoint && !locked(avatar, previous)) previous.detachFromAvatar()
+        previous.attachment.point === actualPoint && !locked(avatar, previous, rules)) previous.detachFromAvatar()
     }
   }
   inventory.rememberAttachment(entry.id, object)
@@ -160,9 +162,10 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
     plans.push({ entry, point, replace: replace && (profile === 'rlva' || point !== 0) })
   }
   if (profile === 'rlva') plans.sort((a, b) => a.entry.id < b.entry.id ? -1 : a.entry.id > b.entry.id ? 1 : 0)
+  const rules = viewer.restrictions.snapshot()
   record('no-op')
   issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
-    for (const plan of plans) results.push(wear(avatar, issuer, plan))
+    for (const plan of plans) results.push(wear(avatar, issuer, plan, rules))
     const successful = results.some(result => result.outcome === 'attached' || result.outcome === 'already-worn')
     const blocked = results.some(result => result.outcome === 'blocked')
     const unsupported = results.some(result => result.outcome === 'unsupported')
@@ -173,6 +176,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
 }
 
 export interface RlvForceRemoveItemResult {
+  /** Inventory item ID, or the attachment root UUID when no mapping exists. */
   readonly itemId: string
   readonly outcome: 'removed' | 'not-worn' | 'blocked' | 'skipped' | 'unsupported'
   readonly reason?: 'detach-lock' | 'layer-lock' | 'bodypart' | 'nostrip' | 'bridge' | 'unsupported-content'
@@ -182,7 +186,7 @@ export type RlvForceRemoveOutcome = RlvForceWearOutcome
 /** Folder attachment removal and clothing-layer removal share queued completion. */
 export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: WorldAvatar,
   parsed: RlvParsedCommand, command: string): boolean {
-  if (parsed.kind !== 'force' || !['detach', 'remoutfit'].includes(parsed.behaviour)) return false
+  if (parsed.kind !== 'force' || !['detach', 'remattach', 'remoutfit'].includes(parsed.behaviour)) return false
   const viewer = avatar.viewer
   if (viewer.profile === 'disabled') return false
   const profile = viewer.profile
@@ -196,9 +200,35 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
   }
   const option = forceOption(profile, parsed.option)
   const folderId = getRlvInventoryFolder(profile, inventory, option)
-  const folderRemoval = parsed.behaviour === 'detach'
-  if (option.includes('|') || folderRemoval && (!option || getRlvAttachmentPoint(option) !== undefined ||
-    profile === 'rlva' && folderId === undefined && ['head', 'torso', 'arms', 'legs', 'hud'].includes(option) || /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(option))) {
+  const folderRemoval = parsed.behaviour !== 'remoutfit'
+  const point = getRlvAttachmentPoint(option)
+  const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(option)
+  // Named points and UUIDs take precedence over shared folder paths.
+  if (folderRemoval && (!option || point !== undefined || uuid)) {
+    const objects = issuer.peers.filter(object => !object.dead && object.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() &&
+      (profile === 'rlv' || object.owner.toLowerCase() === avatar.key.toLowerCase()) &&
+      (!option || (uuid ? object.prims.some(p => p.key.toLowerCase() === option) : object.attachment.point === point)))
+    if (profile === 'rlva' && uuid && objects.some(object => object.prims[0]!.key.toLowerCase() !== option)) {
+      record('unsupported-form'); return true
+    }
+    const decisions = objects.map(object => ({ object, reason: rlvForceDetachBlock(avatar, object),
+      itemId: inventory.attachmentItem(object.prims[0]!.key)?.id ?? object.prims[0]!.key }))
+    record('no-op')
+    issuer.clock.scheduleTask(viewerWork(issuer, avatar), issuer.clock.now, () => {
+      const results: RlvForceRemoveItemResult[] = decisions.map(({ object, reason, itemId }) => {
+        if (reason) return { itemId, outcome: 'blocked', reason }
+        if (object.dead || object.attachment?.avatar.toLowerCase() !== avatar.key.toLowerCase()) return { itemId, outcome: 'not-worn' }
+        object.detachFromAvatar()
+        return { itemId, outcome: 'removed' }
+      })
+      const removed = results.some(result => result.outcome === 'removed')
+      const blocked = results.some(result => result.outcome === 'blocked')
+      record(removed ? blocked ? 'partial' : 'allowed' : blocked ? 'blocked' : 'no-op', results)
+    })
+    return true
+  }
+  if (option.includes('|') || folderRemoval && profile === 'rlva' && folderId === undefined &&
+    ['head', 'torso', 'arms', 'legs', 'hud'].includes(option)) {
     record('unsupported-form'); return true
   }
   const layer = RLV_WEARABLE_TYPES.some(layer => layer === option)
@@ -236,8 +266,8 @@ export function dispatchForceRemoveCommand(issuer: Linkset, prim: Prim, avatar: 
       if (!folderRemoval && isRlvBodypart(entry)) return { itemId: entry.id, outcome: 'skipped', reason: 'bodypart' }
       if (object && isRlvAttachmentBridge(viewer, object)) return { itemId: entry.id, outcome: 'blocked', reason: 'bridge' }
       if (!isRlvStrippable(profile, inventory, entry, folderRemoval)) return { itemId: entry.id, outcome: 'blocked', reason: 'nostrip' }
-      if (rules.some(rule => folderRemoval ? rule.behaviour === 'detach' && !rule.option && object!.prims.some(p => p.key === rule.sourcePrim)
-        : rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))) {
+      if (folderRemoval ? locked(avatar, object!, rules)
+        : rules.some(rule => rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))) {
         return { itemId: entry.id, outcome: 'blocked', reason: folderRemoval ? 'detach-lock' : 'layer-lock' }
       }
       if (folderRemoval) object!.detachFromAvatar()
