@@ -674,7 +674,10 @@ Avatar-initiated touches use `world.attemptAvatarTouch(avatar, prim, options)`.
 Allowed actions deliver normal linkset touch events; blocked actions return a reason
 and deliver none. `checkAvatarTouch` exposes the same permission check without event
 delivery. Touch restrictions cover world objects, attachments and HUDs, with
-profile-specific distance limits and UUID exceptions.
+profile-specific distance limits and UUID exceptions. `touchthis:<root-uuid>` locks
+a target linkset, including HUDs. `touchme` overrides every touch restriction for
+its issuing object; Kokua requires a root issuer and Firestorm accepts any prim
+in that linkset.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
