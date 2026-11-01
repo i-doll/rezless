@@ -30,6 +30,12 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [sendchat](#sendchat) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [chat-redirection](#chat-redirection) | Kokua RLV 2.09.35.00 | <code>@emote=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
+| [chat-redirection](#chat-redirection) | Kokua RLV 2.09.35.00 | <code>@redirchat[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
+| [chat-redirection](#chat-redirection) | Kokua RLV 2.09.35.00 | <code>@rediremote[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
+| [chat-redirection](#chat-redirection) | Firestorm RLVa 2.4.2 | <code>@emote=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
+| [chat-redirection](#chat-redirection) | Firestorm RLVa 2.4.2 | <code>@redirchat[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
+| [chat-redirection](#chat-redirection) | Firestorm RLVa 2.4.2 | <code>@rediremote[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts) |
 | [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatshout=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
 | [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatwhisper=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
 | [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatnormal=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
@@ -382,7 +388,7 @@ Comparison: confirmed difference. Both profiles replace restricted speech with e
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. With default OOC enabled, public avatar say replaces ordinary text with ... and permits ((OOC)), slash gestures up to seven bytes and safe emotes up to twenty bytes or the first period. Colon poses are emotes; text before embedded /me is discarded. DEBUG_CHANNEL is blocked. Gesture expansion, chat redirection and emote restriction extensions are outside this action.
+Support depth: enforced. With default OOC enabled, public avatar say replaces ordinary text with ... and permits ((OOC)), slash gestures up to seven bytes and safe emotes up to twenty bytes or the first period. Colon poses are emotes; text before embedded /me is discarded. DEBUG_CHANNEL is blocked. Gesture expansion and alternate settings are outside this action. The chat-redirection contract extends emote filtering and redirect ordering.
 
 - No-option sendchat add/remove and clear
 - Public avatar say filtering with original and delivered text in action records
@@ -392,7 +398,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. With default OOC and ellipsis enabled, public avatar say replaces ordinary text with ... and permits ((OOC)), slash gestures up to seven characters and safe /me emotes up to twenty characters, shortened using the byte offset of the first period when below twenty. Question marks are forbidden in emotes. DEBUG_CHANNEL is blocked. Gesture expansion, chat redirection and emote restriction extensions are outside this action.
+Support depth: enforced. With default OOC and ellipsis enabled, public avatar say replaces ordinary text with ... and permits ((OOC)), slash gestures up to seven characters and safe /me emotes up to twenty characters, shortened using the byte offset of the first period when below twenty. Question marks are forbidden in emotes. DEBUG_CHANNEL is blocked. Gesture expansion and alternate settings are outside this action. The chat-redirection contract extends emote filtering and redirect ordering.
 
 - No-option sendchat add/remove and clear
 - Public avatar say filtering with original and delivered text in action records
@@ -401,6 +407,36 @@ Support depth: enforced. With default OOC and ellipsis enabled, public avatar sa
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::filterChat</code>, <code>RlvUtil::isEmote</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts).
+
+### chat-redirection
+
+Forms: <code>@emote=n&#124;add&#124;y&#124;rem</code>, <code>@redirchat:&lt;channel&gt;=n&#124;add&#124;y&#124;rem</code>, <code>@rediremote:&lt;channel&gt;=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Both profiles redirect avatar chat to each target instead of channel 0 and check sendchannel rules per target. Kokua redirects OOC and gestures; RLVa leaves OOC and short gestures public. Kokua preserves transformed volume; RLVa redirects with shout volume. emote removes safe-emote length limits without permitting forbidden punctuation.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. emote disables safe-emote truncation but retains punctuation filtering. With default OOC redirection enabled, redirchat redirects speech, OOC and gestures; rediremote selects /me-space and /me-apostrophe-s prefixes. sendchat filters before rediremote unless redirchat is present. With redirchat, unredirected emotes are punctuation-checked without truncation. Nonempty redirect options activate suppression even if their decimal prefix is not a usable positive channel; only channels 1 through 2147483646 receive messages. Each issuer sends its own copy, respecting sendchannel and sendchannel_except. Redirects retain transformed whisper/say/shout volume and never reach public avatar chat. Payload limits, gesture expansion and alternate OOC settings are outside this contract.
+
+- No-option emote extension with sendchat
+- Per-issuer redirect channels, add/remove aliases and substring clear
+- Multi-target chat delivery, channel denials and immutable per-target records
+- sendchat ordering, OOC and gesture redirects, emote classification and transformed volume
+
+Reference symbols: <code>indra/newview/llfloaterimnearbychat.cpp</code>: <code>send_chat_from_viewer</code>, <code>LLFloaterIMNearbyChat::sendChat</code>, <code>RRInterface::crunchEmote</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. emote disables safe-emote truncation but retains punctuation filtering. Redirection precedes sendchat filtering. redirchat redirects speech that filterChat would suppress, leaving OOC and short slash gestures public. rediremote selects /me-space and /me-apostrophe prefixes with more than four bytes. Positive decimal-prefix channels below DEBUG_CHANNEL are accepted. Each issuer sends its own copy, checked against sendchannel and sendchannel_except, as shout with a complete-UTF-8 1023-byte limit under default unsplit redirection. Public chat is suppressed even when all targets are denied. DEBUG_CHANNEL is denied for the matching redirect family. Gesture expansion and alternate settings are outside this contract.
+
+- No-option emote extension with sendchat
+- Per-issuer redirect channels, add/remove aliases and substring clear
+- Multi-target shout delivery, channel denials and immutable per-target records
+- OOC and gesture exemptions, emote classification, DEBUG_CHANNEL denial and payload truncation
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::filterChat</code>, <code>RlvHandler::redirectChatOrEmote</code>, <code>RlvHandler::processAddRemCommand</code>, <code>RlvUtil::sendChatReply</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-redirchat.test.ts](../packages/vitest/test/rlv-redirchat.test.ts).
 
 ### chat-volume
 
