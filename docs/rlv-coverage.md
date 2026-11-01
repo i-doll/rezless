@@ -212,6 +212,13 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [teleport](#teleport) | Firestorm RLVa 2.4.2 | <code>@tplocal[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tpto.test.ts](../packages/vitest/test/rlv-tpto.test.ts) |
 | [user-teleport](#user-teleport) | Kokua RLV 2.09.35.00 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts) |
 | [user-teleport](#user-teleport) | Firestorm RLVa 2.4.2 | <code>@tplm=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts) |
+| [teleport-offers](#teleport-offers) | Kokua RLV 2.09.35.00 | <code>@tplure[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
+| [teleport-offers](#teleport-offers) | Kokua RLV 2.09.35.00 | <code>@tplure_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
+| [teleport-offers](#teleport-offers) | Kokua RLV 2.09.35.00 | <code>@accepttp[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
+| [teleport-offers](#teleport-offers) | Firestorm RLVa 2.4.2 | <code>@tplure[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
+| [teleport-offers](#teleport-offers) | Firestorm RLVa 2.4.2 | <code>@tplure_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
+| [teleport-offers](#teleport-offers) | Firestorm RLVa 2.4.2 | <code>@accepttp[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
+| [teleport-offers](#teleport-offers) | Firestorm RLVa 2.4.2 | <code>@accepttp_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fov[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
@@ -1482,6 +1489,34 @@ Support depth: enforced. Landmarks supply resolved global coordinates and obey e
 Reference symbols: <code>indra/newview/llagent.cpp</code>: <code>LLAgent::teleportViaLandmark</code>, <code>LLAgent::teleportViaLocation</code>, <code>RlvActions::isLocalTp</code>, <code>RlvActions::canTeleportToLocal</code>, <code>RlvActions::canTeleportToLocation</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-usertp.test.ts](../packages/vitest/test/rlv-usertp.test.ts).
+
+### teleport-offers
+
+Forms: <code>@tplure[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@tplure_sec[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@accepttp[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@accepttp_sec[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>Receive and respond to avatar teleport offers</code>.
+
+Comparison: confirmed difference. Both profiles check tplure exceptions and seated unsit before accepttp auto-acceptance. Secure tplure and permissive scope exceptions by issuer. RLVa also supports accepttp_sec; Kokua retains that wire rule without auto-accepting. Map and landmark locks do not constrain offers.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Offers supply resolved global coordinates and retain immutable receipt and response snapshots. tplure and tplure_sec block receipt unless the sender has the required exceptions; seated unsit also blocks. accepttp auto-accepts globally or by sender only after those checks. accepttp_sec remains unsupported. Pending callbacks do not recheck later restrictions. Only the original recipient can consume a pending offer once. Accepted offers use ordinary avatar teleport movement without script permissions. Unknown destinations and foreign avatars refuse. Maturity, mute, busy, friend preferences, administrator offers and simulator landing adjustments are outside the fixture.
+
+- Global and sender-specific tplure and accepttp
+- Secure tplure exceptions and permissive issuer scope
+- Pending offer acceptance, decline, auto-acceptance and normal avatar teleport events
+
+Reference symbols: <code>indra/newview/llimprocessing.cpp</code>: <code>LLIMProcessing::processNewMessage</code>, <code>RRInterface::containsWithoutException</code>, <code>lure_callback</code>, <code>LLAgent::doTeleportViaLure</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Offers supply resolved global coordinates and retain immutable receipt and response snapshots. tplure and tplure_sec block receipt unless the sender has the required exceptions; seated unsit also blocks. accepttp and accepttp_sec auto-accept globally or by sender only after those checks. Pending callbacks do not recheck later restrictions. Only the original recipient can consume a pending offer once. Accepted offers use ordinary avatar teleport movement without script permissions. Unknown destinations and foreign avatars refuse. Maturity, mute, busy, friend preferences, administrator offers and simulator landing adjustments are outside the fixture.
+
+- Global and sender-specific tplure and accepttp including secure aliases
+- Secure tplure exceptions and permissive issuer scope
+- Pending offer acceptance, decline, auto-acceptance and normal avatar teleport events
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canAcceptTpOffer</code>, <code>RlvActions::autoAcceptTeleportOffer</code>, <code>RlvHandler::isException</code>, <code>lure_callback</code>, <code>LLAgent::doTeleportViaLure</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts).
 
 ### camera-fov
 

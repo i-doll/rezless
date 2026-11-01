@@ -126,3 +126,6 @@ export { userTeleportLog, userTeleportRestrictions } from './rlv/teleport.js'
 export type { UserTeleportKind, UserTeleportAction } from './rlv/teleport.js'
 export { checkAvatarTouch, attemptAvatarTouch, avatarTouchLog } from './rlv/touch.js'
 export type { AvatarTouchAction, AvatarTouchOptions, AvatarTouchPermission } from './rlv/touch.js'
+
+export { teleportOfferLog } from './rlv/tpoffers.js'
+export type { TeleportOffer, TeleportOfferDecision } from './rlv/tpoffers.js'
