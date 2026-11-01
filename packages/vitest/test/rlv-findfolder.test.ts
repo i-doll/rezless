@@ -247,3 +247,15 @@ it('preserves duplicate paths and the shared root empty path without inventing i
     expect(loaded.scripts.again!.global('replies')).toEqual(['Nested,Nested'])
   }
 })
+
+it('exposes no mapped attachment path when the shared root is explicitly absent', async () => {
+  const pair = await loadRlvPair({ source: queries(['getpath', 'getpathnew:chest']) })
+  for (const { script, avatar } of Object.values(pair)) {
+    seedRlvInventory(avatar, { sharedRootId: null, entries: [folder('r', null, '#RLV'),
+      folder('n', 'r', 'Private'), { id: 'i', parentId: 'n', name: 'Object', kind: 'item' }],
+      wornAttachments: [{ itemId: 'i', rootKey: script.host.key }] })
+    script.linkset.attachToAvatar(avatar.key, 1)
+    script.start()
+    expect(script.global('replies')).toEqual(['', ''])
+  }
+})
