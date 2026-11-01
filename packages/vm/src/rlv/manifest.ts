@@ -307,6 +307,32 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-sit.test.ts', 'packages/vitest/test/rlv-sit-enforce.test.ts'],
     },
     {
+      id: 'camera-fov', forms: ['@setcam_fov[:<radians>]=force', '@setcam_fovmin:<radians>=n|y', '@setcam_fovmax:<radians>=n|y', '@getcam_fov=<channel>', '@getcam_fovmin=<channel>', '@getcam_fovmax=<channel>'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects, exclusive camera control and deprecated zoom aliases are unsupported.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::force', 'RRInterface::updateCameraLimits', 'RRInterface::getMin', 'RRInterface::getMax', 'LLViewerCamera::setDefaultFOV'],
+          'Six-decimal queries round exact halves to even and use float zoom reciprocals; unset minimum/maximum are 0.000001/-0.000001. Empty limits mean 1.5, invalid numeric prefixes mean zero, and zero limits have no effect. Contradictory bounds collapse to the minimum FOV. Removal leaves the current lens unchanged. Force without an angle means zero, clamped to the viewport minimum. Queries ignore options. Camera tracking permission is still required for script FOV reads.'),
+          support: 'enforced', coveredForms: ['Per-avatar force/query and user lens attempts', 'Aggregated per-prim limits, removal, clear and emitter collection', 'Numeric prefixes, empty and non-finite values, fixed viewport range', 'Permission-gated llGetCameraFOV'],
+          commandForms: [
+            { behaviour: 'setcam_fovmin', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'setcam_fovmax', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'setcam_fov', type: 'force', support: 'enforced', option: 'any' },
+            ...replyForms('getcam_fov', 'getcam_fovmin', 'getcam_fovmax'),
+          ] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvForceHandler<RLV_BHVR_SETCAM_FOV>::onCommand', 'RlvBehaviourSetCamFovHandler::onCommand', 'RlvReplyCamMinMaxModifierHandler::onCommand', 'RlvActions::getCameraFOVLimits'],
+          'Three-decimal queries round exact halves to even, preserve negative zero, use fixed notation for large finite bounds and distinguish unset limits with empty replies. Numeric prefixes and explicit nan/inf are accepted; invalid, empty and float overflow/underflow limits are rejected. NaN modifier removal leaves a query-visible NaN even after its wire rule is removed. Force without an angle resets to pi/3. Bounds clamp before the viewport range; contradictory limits choose the minimum for an input below it, otherwise the maximum. Final-limit removal restores the saved lens. The first limit saves the current lens only when CameraAngle persistence is enabled, otherwise pi/3; user lens changes preserve the existing persistence mode. Query options deliver empty replies. Script FOV reads still require tracking permission.'),
+          support: 'enforced', coveredForms: ['Per-avatar force/query and user lens attempts', 'Strongest per-prim limits, removal, clear, collection and saved-lens restoration', 'Three-decimal and empty replies, numeric prefixes and non-finite values', 'Permission-gated llGetCameraFOV'],
+          commandForms: [
+            { behaviour: 'setcam_fovmin', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'setcam_fovmax', type: 'add', support: 'enforced', option: 'any' },
+            { behaviour: 'setcam_fov', type: 'force', support: 'enforced', option: 'any' },
+            ...replyForms('getcam_fov', 'getcam_fovmin', 'getcam_fovmax'),
+          ] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-camera.test.ts'],
+    },
+    {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],
       comparison: 'confirmed difference', wikiComparison: 'No getcommand section in the wiki. RLVa implements it; Kokua has no named query branch and falls through to ordinary parameter dispatch.',
       profiles: {
