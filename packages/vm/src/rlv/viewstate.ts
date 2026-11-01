@@ -94,7 +94,7 @@ export function getRlvViewerState(avatar: WorldAvatar, context: RlvViewerContext
     return Object.freeze({ behaviour, support, restricted: support === 'unsupported' ? null : restricted,
       rules: Object.freeze(rules) })
   })
-  return Object.freeze([...ui, ...renderEffects(avatar)])
+  return Object.freeze([...ui, ...renderEffects(avatar), ...movementEffects(avatar)])
 }
 
 
@@ -104,6 +104,9 @@ const sphereFields = ['mode', 'origin', 'color', 'distmin', 'distmax', 'distexte
 const overlayFields = ['alpha', 'texture', 'tint']
 type Value = number | string | readonly number[] | null
 export interface RlvRenderParameters {
+  readonly hoverOffset?: number
+  readonly idleTimeoutSeconds?: number | null
+  readonly preserveAwayOnAnimationEnd?: boolean
   readonly texture?: string | null
   readonly overlays?: readonly Readonly<Record<string, Value | boolean>>[]
   readonly spheres?: readonly Readonly<Record<string, Value>>[]
@@ -298,4 +301,17 @@ function kokuaSpheres(rules: readonly RlvRestriction[]): Parameters[] {
     seen.add(field)
   }
   return [...effects.entries()].sort(([a], [b]) => a - b).map(([, effect]) => effect)
+}
+
+function movementEffects(avatar: WorldAvatar): RlvViewerEffect[] {
+  const { profile, restrictions } = avatar.viewer
+  const rules = restrictions.snapshot().filter(r => r.behaviour === 'allowidle')
+  const supported = profile === 'rlva'
+  const restricted = supported && rules.some(r => r.support === 'enforced' && !r.option)
+  return [
+    Object.freeze({ behaviour: 'allowidle', support: supported ? 'enforced' : 'unsupported', restricted: supported ? restricted : null,
+      rules: Object.freeze(rules), parameters: Object.freeze({ idleTimeoutSeconds: restricted ? 1800 : null, preserveAwayOnAnimationEnd: restricted }) }),
+    Object.freeze({ behaviour: 'adjustheight', support: profile === 'disabled' ? 'unsupported' : 'enforced', restricted: profile === 'disabled' ? null : false,
+      rules: Object.freeze([]), parameters: Object.freeze({ hoverOffset: avatar.movement?.hoverOffset ?? 0 }) }),
+  ]
 }
