@@ -70,6 +70,40 @@ export const RLV_MANIFEST: {
   },
   commands: [
     {
+      id: 'setdebug', forms: ['@setdebug=n|add|y|rem'], comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles block debug forces from other issuers while permitting their own. Query replies and values survive removal and clear. Kokua enables atmospheric shaders when adding the lock unless NoSetEnv is enabled. RLVa hides writable controls in the settings editor.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::add', 'RRInterface::force'], 'No-option lock blocks other issuers. Adding it enables atmospheric shaders unless NoSetEnv is configured.'),
+          support: 'enforced', coveredForms: ['@setdebug=n|add|y|rem'], commandForms: [{ behaviour: 'setdebug', type: 'add', support: 'enforced', option: 'none' }] },
+        rlva: { ...firestorm('rlvextensions.cpp', ['RlvExtGetSet::processCommand', 'RlvBehaviourToggleHandler<RLV_BHVR_SETDEBUG>::onCommandToggle'], 'No-option lock blocks other issuers debug forces. The fixture enforces command access; settings-editor windows are outside it.'),
+          support: 'enforced', coveredForms: ['@setdebug=n|add|y|rem'], commandForms: [{ behaviour: 'setdebug', type: 'add', support: 'enforced', option: 'none' }] },
+      }, tests: [...tests, 'packages/vitest/test/rlv-debug.test.ts'],
+    },
+    ...['avatarsex', 'renderresolutiondivisor', 'restrainedloveforbidgivetorlv', 'restrainedlovenosetenv', 'windlightuseatmosshaders'].map(setting => {
+      const writable = ['avatarsex', 'renderresolutiondivisor'].includes(setting)
+      const forms = [`@getdebug_${setting}=<channel>`, ...(writable ? [`@setdebug_${setting}:<value>=force`] : [])]
+      const commandForms: RlvCommandForm[] = [...replyForms('getdebug_' + setting), ...(writable ? [{ behaviour: 'setdebug_' + setting, type: 'force' as const, support: 'enforced' as const, option: 'any' as const }] : [])]
+      return {
+        id: 'debug-' + setting, forms, comparison: writable ? 'confirmed difference' as const : 'shared' as const,
+        wikiComparison: 'Both profiles expose per-avatar debug values. Only AvatarSex and RenderResolutionDivisor are writable. Queries ignore options. Unknown setting queries return an empty reply; unknown and read-only forces cannot change a value.',
+        profiles: {
+          rlv: { ...kokua(['RRInterface::RRInterface', 'RRInterface::getDebugSetting', 'RRInterface::forceDebugSetting'], 'Initial AvatarSex is 0, RenderResolutionDivisor is 1, atmosphere shaders are enabled, and the two permission settings default false. Writable values use atoi with unsigned storage. Permission queries reflect the configured viewer values.'),
+            support: 'enforced' as const, coveredForms: forms, commandForms },
+          rlva: { ...firestorm('rlvextensions.cpp', ['RlvExtGetSet::RlvExtGetSet', 'RlvExtGetSet::onGetDebug', 'RlvExtGetSet::onSetDebug', 'RlvExtGetSet::onSetPseudoDebug'], 'Initial effective AvatarSex is supplied by the fixture, default 0. RenderResolutionDivisor defaults 1 and accepts unsigned decimal prefixes, including signed text within unsigned magnitude. Invalid values leave it unchanged. AvatarSex accepts boolean tokens and retains the accepted text. Permission queries reflect configured viewer values; atmospheric shaders default enabled.'),
+            support: 'enforced' as const, coveredForms: forms, commandForms },
+        }, tests: [...tests, 'packages/vitest/test/rlv-debug.test.ts'],
+      }
+    }),
+    {
+      id: 'getdebug_aspectratio', forms: ['@getdebug_aspectratio=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'RLVa returns its scaled viewport width divided by height, formatted with three decimal places. The fixture supplies the ratio, default 16/9. Kokua does not whitelist AspectRatio and returns an empty debug query reply.',
+      profiles: {
+        rlv: kokua(['RRInterface::getDebugSetting', 'RRInterface::RRInterface'], 'AspectRatio is absent from the allowed settings. The generic debug query handler returns an empty reply.'),
+        rlva: { ...firestorm('rlvextensions.cpp', ['RlvExtGetSet::onGetPseudoDebug'], 'Read-only viewport ratio formatted to three decimal places.'),
+          support: 'enforced', coveredForms: ['@getdebug_aspectratio=<channel>'], commandForms: replyForms('getdebug_aspectratio') },
+      }, tests: [...tests, 'packages/vitest/test/rlv-debug.test.ts'],
+    },
+    {
       id: 'version', forms: ['@version=<channel>', '@versionnew=<channel>', '@versionnum=<channel>', '@versionnum:impl=<channel>', '@<version-query>,<version-query>,...'],
       comparison: 'version/setting dependent',
       wikiComparison: 'Wiki specifies ordered comma-separated commands, partial failure and case-insensitive, spacing-sensitive names. Both profiles accept decimal channel prefixes and skip empty tokens. RLVa rejects missing fields and unknown parameter kinds; Kokua permits empty fields and handles named version queries first. RLVa adds its implementation tag and impl option; Kokua ignores the versionnum option.',

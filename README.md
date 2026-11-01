@@ -903,6 +903,13 @@ supports jump restrictions and forced flight. Hover adjustment and RLVa idle
 policy are exposed through `getRlvViewerState`; jump physics and automatic
 away timers are not simulated. See the vitest RLV movement documentation.
 
+Debug commands use per-avatar `viewer.debugSettings` initial values and
+`avatar.viewer.debugSettings` state. Both profiles enforce the `setdebug` lock
+against other issuers and permit writes to AvatarSex and
+RenderResolutionDivisor. RLVa additionally exposes the read-only AspectRatio
+query. See the vitest debug settings documentation for defaults, conversion
+rules and permission-setting queries.
+
 ## License
 
 The rezless project is licensed under the **Apache License, Version 2.0** —
