@@ -1,3 +1,5 @@
+import { pauseSensors, resumeSensors } from './builtins/sensor.js'
+import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
@@ -44,6 +46,15 @@ export interface LinksetOptions {
   readonly startString?: string
   /** Whether the object is an animated mesh, so llStartObjectAnimation plays. Default false. */
   readonly animesh?: boolean
+}
+
+/** Attachment state shared by every prim in a worn linkset. */
+export interface Attachment {
+  readonly avatar: string
+  readonly point: number
+  readonly temporary: boolean
+  /** Sequence among this clock's currently worn objects. */
+  readonly order: number
 }
 
 export interface TouchOptions {
@@ -107,7 +118,11 @@ export class Linkset {
   damageEnabled = false
   /** Parcel-owner/group sources bypass the llDamage throttle. */
   damageThrottleExempt = false
-  readonly owner: string
+  owner: string
+  /** Null while rezzed or detached; tests may attach fixtures with attachToAvatar. */
+  attachment: Attachment | null = null
+  private lastAttachmentPoint = 6
+  private deleteAfterDetach = false
   /** True once a script in the linkset has called llDie. */
   dead = false
   /** Provenance and initial motion of a script-rezzed object. */
@@ -160,9 +175,56 @@ export class Linkset {
     return prim
   }
 
+  /** Wear a fixture without a script permission request, as a viewer does. */
+  attachToAvatar(avatar: string, point: number, temporary = false): void {
+    if (this.dead || this.attachment || !this.prims.length) return
+    point &= 255
+    point = point === 0 ? this.lastAttachmentPoint : point > 55 ? 1 : point
+    const order = Math.max(0, ...this.peers.map(l => l.attachment?.order ?? 0)) + 1
+    if (!this.peers.includes(this)) this.peers.push(this)
+    this.lastAttachmentPoint = point
+    this.attachment = { avatar, point, temporary, order }
+    for (const script of this.allScripts()) {
+      resumeSensors(script)
+      resumeTargets(script)
+    }
+    this.broadcastAttach(avatar)
+  }
+
+  /** Detach into inventory, preserving script state and the remembered point. */
+  detachFromAvatar(): void {
+    if (!this.attachment) return
+    this.deleteAfterDetach = this.attachment.temporary
+    this.attachment = null
+    const index = this.peers.indexOf(this)
+    if (index >= 0) this.peers.splice(index, 1)
+    // A detached object leaves region queries and recurring timers. The final
+    // attach event still runs from the shared clock's explicit event queue.
+    for (const script of this.allScripts()) {
+      pauseSensors(script)
+      pauseTargets(script)
+      this.clock.purgeTarget(script)
+    }
+    this.broadcastAttach(NULL_KEY)
+    this.finishTemporaryDetach()
+  }
+
+  private finishTemporaryDetach(): void {
+    if (!this.deleteAfterDetach || this.allScripts().some(s => s.running && s.wakeAt === undefined && this.clock.hasPending(s, 'attach'))) return
+    this.deleteAfterDetach = false
+    this.remove()
+  }
+
+  private broadcastAttach(avatar: string): void {
+    for (const script of this.allScripts()) {
+      if (script.running && !script.dead) this.clock.schedule(script, this.clock.now, 'attach', { avatar })
+    }
+  }
+
   /** Snapshot an inventory object, or instantiate it in the rezzer's world. */
   copy(opts: LinksetOptions = {}, from?: Linkset): Linkset {
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
+    copy.lastAttachmentPoint = this.lastAttachmentPoint
     for (const source of this.prims) {
       const prim = copy.addPrim(new Prim({ name: source.name }))
       for (const [name, value] of Object.entries(source)) {
@@ -541,7 +603,10 @@ export class Linkset {
     for (;;) {
       let at = Infinity
       for (const { script, completed } of goals) {
-        if (script.running && script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
+        // Inventory suspends sleeping detach handlers until the object is worn
+        // again. They cannot complete as goals of this settling call.
+        if (script.running && script.linkset.peers.includes(script.linkset) &&
+            script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
           at = Math.min(at, script.wakeAt)
         }
       }
@@ -585,7 +650,9 @@ export class Linkset {
       const target = next.target
       if (target.dead) continue
       if (next.event === '__wake') {
-        target.wake()
+        // A simulator task may have detached this object after the clock
+        // captured its script roster. Inventory must not resume the handler.
+        if (target.linkset.peers.includes(target.linkset)) target.wake()
         continue
       }
       // `__reset` (from llResetOtherScript) was requested while the target
@@ -601,6 +668,7 @@ export class Linkset {
       // ResetScriptSignal is caught inside `Script.runHandler`; it never
       // bubbles up to here, so no try/catch is needed.
       target.deliver(next.event, next.payload)
+      target.linkset.finishTemporaryDetach()
     }
   }
 }
