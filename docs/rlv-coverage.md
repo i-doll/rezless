@@ -1143,7 +1143,7 @@ Comparison: confirmed difference. Recursive wear includes visible descendants an
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Recursive wear walks visible subfolders in inventory order, including single no-mod objects in point-named hidden children. Each folder applies its own + prefix. Clothing replacement preserves nostrip occupants and is sequential; unnamed objects add at the saved point. Recursive removal includes hidden descendants and respects attachment, layer and nostrip protection. Remoutfit folder forms share direct detach semantics, including clothing. Pipe suffixes annotate each path component, never select additional folders. Semicolons remain literal folder text. Inventory links, gestures, environment settings and folder locks remain unsupported.
+Support depth: enforced. Recursive wear walks visible subfolders in inventory order, including single no-mod objects in point-named hidden children. Each folder applies its own + prefix. Clothing replacement preserves nostrip occupants and removes only the top item before testing the add lock; a remove-locked layer can still accept added clothing. Replacement is sequential; unnamed objects add at the saved point. Recursive removal includes hidden descendants and respects attachment, layer and nostrip protection. Remoutfit folder forms share direct detach semantics, including clothing. Pipe suffixes annotate each path component, never select additional folders. Semicolons remain literal folder text. Inventory links, gestures, environment settings and folder locks remain unsupported.
 
 - Recursive attachments and clothing with per-item outcomes and query updates
 - Visible wear descendants, hidden removal descendants and single no-mod folded children

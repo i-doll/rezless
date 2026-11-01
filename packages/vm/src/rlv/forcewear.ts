@@ -192,13 +192,17 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
     for (const { entry, replace } of clothing) {
       const worn = inventory.wornWearables()
       if (worn.includes(entry.id)) { results.push({ itemId: entry.id, outcome: 'already-worn' }); continue }
-      const occupants = entries.filter(e => e.wearableType === entry.wearableType && worn.includes(e.id))
-      const blocked = rules.some(rule => (!rule.option || rule.option === entry.wearableType) &&
-        (rule.behaviour === 'addoutfit' || replace && occupants.length > 0 && rule.behaviour === 'remoutfit'))
-      if (blocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
-      if (replace) for (const previous of occupants) {
+      const occupants = worn.map(id => entries.find(e => e.id === id)!).filter(e => e.wearableType === entry.wearableType)
+      const addLocked = rules.some(rule => rule.behaviour === 'addoutfit' && (!rule.option || rule.option === entry.wearableType))
+      const removeLocked = rules.some(rule => rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))
+      const wholeWearLocked = profile === 'rlva' || isRlvBodypart(entry)
+      if (wholeWearLocked && (addLocked || replace && occupants.length > 0 && removeLocked)) {
+        results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue
+      }
+      if (replace && !removeLocked) for (const previous of profile === 'rlv' && !isRlvBodypart(entry) ? occupants.slice(-1) : occupants) {
         if (isRlvBodypart(entry) || isRlvStrippable(profile, inventory, previous, true)) inventory.setWearableWorn(previous.id, false)
       }
+      if (addLocked) { results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue }
       inventory.setWearableWorn(entry.id, true)
       results.push({ itemId: entry.id, outcome: 'worn' })
     }

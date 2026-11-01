@@ -99,12 +99,12 @@ it('recursive clothing wear honors add and remove layer locks and adds subsequen
    { id: 'old', parentId: null, kind: 'item', name: 'Old shirt', wearableType: 'shirt' },
   ], wornWearables: ['old'] })
   send(f, '@addoutfit:shirt=n,attachall:base=force')
-  expect(inv.wornWearables()).toEqual(['old'])
+  expect(inv.wornWearables()).toEqual(profile === 'rlv' ? [] : ['old'])
   expect(result(f).wearResults).toContainEqual({ itemId: 'shirt1', outcome: 'blocked', reason: 'layer-lock' })
   send(f, '@addoutfit:shirt=y,remoutfit:shirt=n,attachall:base=force')
-  expect(inv.wornWearables()).toEqual(['old'])
+  expect(inv.wornWearables()).toEqual(profile === 'rlv' ? ['shirt1', 'shirt2'] : ['old'])
   send(f, '@remoutfit:shirt=y,attachall:base=force')
-  expect([...inv.wornWearables()].sort()).toEqual(profile === 'rlva' ? ['shirt1', 'shirt2'] : ['shirt2'])
+  expect([...inv.wornWearables()].sort()).toEqual(['shirt1', 'shirt2'])
  }
 })
 it('pipe text is a Kokua path annotation rather than a second folder', async () => {
@@ -226,3 +226,40 @@ for (const command of ['attach', 'attachall', 'attachalloverorreplace', 'addoutf
   }
  })
 }
+
+it('Kokua replaces only the top clothing item while RLVa replaces every strippable occupant', async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(),
+   { id: 'new', parentId: 'base', kind: 'item', name: 'New shirt', wearableType: 'shirt' },
+   { id: 'old1', parentId: null, kind: 'item', name: 'First shirt', wearableType: 'shirt' },
+   { id: 'old2', parentId: null, kind: 'item', name: 'Top shirt', wearableType: 'shirt' },
+  ], wornWearables: ['old1', 'old2'] })
+  send(f, '@attachall:base=force')
+  expect(inv.wornWearables()).toEqual(profile === 'rlv' ? ['old1', 'new'] : ['new'])
+ }
+})
+it('Kokua can add a replacement while a layer removal lock preserves its occupant', async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(),
+   { id: 'new', parentId: 'base', kind: 'item', name: 'New shirt', wearableType: 'shirt' },
+   { id: 'old', parentId: null, kind: 'item', name: 'Old shirt', wearableType: 'shirt' },
+  ], wornWearables: ['old'] })
+  send(f, '@remoutfit:shirt=n,attachall:base=force')
+  expect(inv.wornWearables()).toEqual(profile === 'rlv' ? ['old', 'new'] : ['old'])
+ }
+})
+
+it('Kokua checks replacement removal before the add lock while RLVa denies the whole wear', async () => {
+ for (const [profile, f] of Object.entries(await fixtures())) {
+  const inv = f.avatar.viewer.inventory
+  inv.seed({ sharedRootId: 'root', entries: [...inv.snapshot(),
+   { id: 'new', parentId: 'base', kind: 'item', name: 'New shirt', wearableType: 'shirt' },
+   { id: 'old', parentId: null, kind: 'item', name: 'Old shirt', wearableType: 'shirt' },
+  ], wornWearables: ['old'] })
+  send(f, '@addoutfit:shirt=n,attachall:base=force')
+  expect(inv.wornWearables()).toEqual(profile === 'rlv' ? [] : ['old'])
+  expect(result(f).wearResults).toContainEqual({ itemId: 'new', outcome: 'blocked', reason: 'layer-lock' })
+ }
+})
