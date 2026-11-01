@@ -3,8 +3,10 @@ import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommands } from './getcommand.js'
 import { dispatchDetachCommand } from './detach.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
+import { findRlvFolders, getRlvWornPath } from './findfolder.js'
 import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
+import { dispatchSeatingCommand, getRlvSitId } from './sit.js'
 import { getRlvAttachmentPoint, getRlvAttachmentReply } from './attachments.js'
 import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
@@ -52,6 +54,9 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       text = getRlvStatus(viewer.profile, viewer.restrictions, parsed.option,
         parsed.behaviour === 'getstatus' ? prim.key : undefined)
     }
+    if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getsitid' &&
+      channel !== undefined && isValidReplyChannel(viewer.profile, channel)) text = getRlvSitId(avatar)
+    if (!malformed && parsed && dispatchSeatingCommand(linkset, prim, avatar, parsed, command)) continue
     if (!malformed && parsed?.kind === 'query' && parsed.behaviour === 'getcommand' && viewer.profile === 'rlva' &&
       channel !== undefined && isValidReplyChannel(viewer.profile, channel)) {
       const type = parsed.option.split(';')[1] ?? ''
@@ -60,6 +65,21 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
         ...(invalid ? { outcome: 'invalid-option' as const } : {}) })
       if (invalid) viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'invalid-option: Unknown discovery type; the viewer delivers an empty reply.' })
+      continue
+    }
+    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
+      ['findfolder', 'findfolders', 'getpath', 'getpathnew'].includes(parsed.behaviour)) {
+      const result = parsed.behaviour.startsWith('find')
+        ? findRlvFolders(viewer.profile, viewer.inventory, parsed.behaviour, parsed.option)
+        : getRlvWornPath(viewer.profile, viewer.inventory, linkset, prim, parsed.behaviour, parsed.option)
+      if (result === undefined) {
+        viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'unsupported', outcome: 'unsupported-form' })
+        viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'Outfit-layer paths require an outfit fixture.' })
+      } else {
+        const reply = sendViewerReply(linkset, avatar, channel, result.text)!
+        viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'replied', reply,
+          ...(result.failedOption ? { outcome: 'failed-option' as const } : {}) })
+      }
       continue
     }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) && parsed.behaviour === 'getinv') {
