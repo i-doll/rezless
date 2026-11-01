@@ -1,6 +1,6 @@
 import { deliverAvatarReceivedIM } from './rlv/received.js'
 import { userSitAvatar, userStandAvatar } from './rlv/sit.js'
-import { sendAvatarChat, type AvatarChatAction } from './rlv/chat-actions.js'
+import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
@@ -257,9 +257,9 @@ export class World {
     this.clock = new LinksetClock(opts.startUnixTime)
   }
 
-  /** Simulate ordinary avatar say; restrictions apply only through this action. */
-  sendAvatarChat(avatar: WorldAvatar, channel: number, message: string): AvatarChatAction {
-    return sendAvatarChat(this, avatar, channel, message)
+  /** Simulate avatar local chat; restrictions apply only through this action. */
+  sendAvatarChat(avatar: WorldAvatar, channel: number, message: string, volume: AvatarChatVolume = 'say'): AvatarChatAction {
+    return sendAvatarChat(this, avatar, channel, message, volume)
   }
 
   /** Deliver an online avatar IM; sender-side restrictions and automatic replies are separate. */

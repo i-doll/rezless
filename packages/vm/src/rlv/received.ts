@@ -1,3 +1,4 @@
+import type { AvatarChatVolume } from './chat-actions.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
@@ -102,16 +103,17 @@ function receive(avatar: WorldAvatar, speaker: ReceivedChatSpeaker, text: string
   logs.set(avatar, Object.freeze([...receivedChatLog(avatar), record]))
 }
 
-/** Avatar local say reaches nearby viewers, including the speaker's own viewer. */
-export function deliverAvatarReceivedChat(world: World, speaker: WorldAvatar, channel: number, text: string): void {
+/** Avatar local chat reaches nearby viewers, including the speaker's own viewer. */
+export function deliverAvatarReceivedChat(world: World, speaker: WorldAvatar, channel: number, text: string, volume: AvatarChatVolume): void {
   if (channel !== 0) return
+  const range = volume === 'whisper' ? 10 : volume === 'shout' ? 100 : 20
   const corner = world.corner(speaker.region)
   for (const avatar of world.avatars) {
     const target = world.corner(avatar.region)
     if ((corner.x + speaker.position.x - target.x - avatar.position.x) ** 2 +
         (corner.y + speaker.position.y - target.y - avatar.position.y) ** 2 +
-        (speaker.position.z - avatar.position.z) ** 2 > 20 ** 2) continue
-    receive(avatar, { source: 'avatar', key: speaker.key, name: speaker.name, owner: speaker.key }, text, 'say')
+        (speaker.position.z - avatar.position.z) ** 2 > range ** 2) continue
+    receive(avatar, { source: 'avatar', key: speaker.key, name: speaker.name, owner: speaker.key }, text, volume)
   }
 }
 

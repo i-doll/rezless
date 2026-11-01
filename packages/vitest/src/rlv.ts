@@ -1,5 +1,5 @@
 import { receivedChatLog, receivedIMLog, type ReceivedChat, type ReceivedIM } from '@rezless/vm'
-import { attemptRlvWearable, attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
+import { attemptRlvWearable, attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type AvatarChatVolume, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
 /** Attempt a user lens change in radians, returning the enforced FOV. */
@@ -21,7 +21,7 @@ export interface RlvFixture {
   attemptWearable(itemId: string, wear: boolean): import('@rezless/vm').RlvWearableActionOutcome
   userSit(prim: Prim, offset?: Vector): boolean
   userStand(): boolean
-  sendChat(channel: number, message: string): AvatarChatAction
+  sendChat(channel: number, message: string, volume?: AvatarChatVolume): AvatarChatAction
 }
 
 /** Load identical source into separate Worlds. Call start after seeding each fixture. */
@@ -51,7 +51,7 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
         loaded.linkset.advanceTime(0)
         return accepted
       },
-      sendChat: (channel, message) => world.sendAvatarChat(avatar, channel, message) }
+      sendChat: (channel, message, volume) => world.sendAvatarChat(avatar, channel, message, volume) }
   }
   return { rlv: await load('rlv'), rlva: await load('rlva') }
 }

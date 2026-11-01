@@ -133,6 +133,27 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-sendchat.test.ts'],
     },
     {
+      id: 'chat-volume', forms: ['@chatshout=n|add|y|rem', '@chatwhisper=n|add|y|rem', '@chatnormal=n|add|y|rem'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles transform public avatar chat volume. chatshout converts shout to say, chatwhisper converts whisper to say, and chatnormal converts say and shout to whisper. Combined chatwhisper and chatnormal leave a requested whisper as whisper in Kokua and say in RLVa. Private channels bypass volume restrictions.',
+      profiles: {
+        rlv: {
+          support: 'enforced',
+          commandForms: ['chatshout', 'chatwhisper', 'chatnormal'].map(behaviour => ({ behaviour, type: 'add', support: 'enforced', option: 'none' })),
+          coveredForms: ['No-option volume restrictions with add/remove aliases and issuer-scoped clear', 'Public whisper/say/shout volume transformation and immutable action records', 'Delivered volume selects 10/20/100 m script and avatar hearing ranges across regions'],
+          contract: 'Avatar chat defaults to say. Public volume transforms sequentially: restricted whisper becomes say, restricted shout becomes say, then chatnormal converts say or shout to whisper. Requested and delivered volumes are recorded separately. Private channels bypass these transformations; simulator chat and automatic replies remain independent. Payload limits, gesture expansion and optional prevention of unrestricted shouts are outside this fixture.',
+          evidence: { implementation: 'Kokua RLV 2.09.35.00', file: 'indra/newview/llchatbar.cpp', symbols: ['LLChatBar::sendChatFromViewer', 'RRInterface::contains'] },
+        },
+        rlva: { ...firestorm('rlvactions.cpp', ['RlvActions::checkChatVolume', 'FSNearbyChat::sendChatFromViewer', 'RlvBehaviourDictionary::RlvBehaviourDictionary'],
+          'Avatar chat defaults to say. Public say or shout becomes whisper under chatnormal; otherwise restricted shout becomes say, otherwise restricted whisper becomes say. Only one transformation applies. Requested and delivered volumes are recorded separately. Delivered whisper/say/shout reaches scripts and avatars within 10/20/100 m across regions. Private channels bypass these transformations; simulator chat and automatic replies remain independent. Payload limits and gesture expansion are outside this fixture.'),
+          support: 'enforced',
+          commandForms: ['chatshout', 'chatwhisper', 'chatnormal'].map(behaviour => ({ behaviour, type: 'add', support: 'enforced', option: 'none' })),
+          coveredForms: ['No-option volume restrictions with add/remove aliases and issuer-scoped clear', 'Public whisper/say/shout volume transformation and immutable action records', 'Delivered volume selects 10/20/100 m script and avatar hearing ranges across regions'],
+        },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-chatvolume.test.ts'],
+    },
+    {
       id: 'received-chat',
       forms: ['@recvchat[:<uuid>]=n|add|y|rem', '@recvemote[:<uuid>]=n|add|y|rem', '@recvchat_sec[:<uuid>]=n|add|y|rem', '@recvemote_sec[:<uuid>]=n|add|y|rem', '@recvchatfrom:<uuid>=n|add|y|rem', '@recvemotefrom:<uuid>=n|add|y|rem', '@recvchatfrom_sec:<uuid>=n|add|y|rem', '@recvemotefrom_sec:<uuid>=n|add|y|rem'],
       comparison: 'confirmed difference',
