@@ -30,6 +30,12 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [add-remove-clear](#add-remove-clear) | Firestorm RLVa 2.4.2 | <code>@&lt;behaviour&gt;[:&lt;option&gt;]=n&#124;add</code><br><code>@&lt;behaviour&gt;[:&lt;option&gt;]=y&#124;rem</code><br><code>@clear</code><br><code>@clear=</code><br><code>@clear=&lt;filter&gt;</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-restrictions.test.ts](../packages/vitest/test/rlv-restrictions.test.ts)<br>[rlv-relay.test.ts](../packages/vitest/test/rlv-relay.test.ts) |
 | [sendchat](#sendchat) | Kokua RLV 2.09.35.00 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
 | [sendchat](#sendchat) | Firestorm RLVa 2.4.2 | <code>@sendchat=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts) |
+| [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatshout=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
+| [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatwhisper=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
+| [chat-volume](#chat-volume) | Kokua RLV 2.09.35.00 | <code>@chatnormal=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
+| [chat-volume](#chat-volume) | Firestorm RLVa 2.4.2 | <code>@chatshout=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
+| [chat-volume](#chat-volume) | Firestorm RLVa 2.4.2 | <code>@chatwhisper=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
+| [chat-volume](#chat-volume) | Firestorm RLVa 2.4.2 | <code>@chatnormal=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts) |
 | [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvchat[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
 | [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvchat_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
 | [received-chat](#received-chat) | Kokua RLV 2.09.35.00 | <code>@recvemote[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-recvchat.test.ts](../packages/vitest/test/rlv-recvchat.test.ts) |
@@ -335,6 +341,34 @@ Support depth: enforced. With default OOC and ellipsis enabled, public avatar sa
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvHandler::filterChat</code>, <code>RlvUtil::isEmote</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-sendchat.test.ts](../packages/vitest/test/rlv-sendchat.test.ts).
+
+### chat-volume
+
+Forms: <code>@chatshout=n&#124;add&#124;y&#124;rem</code>, <code>@chatwhisper=n&#124;add&#124;y&#124;rem</code>, <code>@chatnormal=n&#124;add&#124;y&#124;rem</code>.
+
+Comparison: confirmed difference. Both profiles transform public avatar chat volume. chatshout converts shout to say, chatwhisper converts whisper to say, and chatnormal converts say and shout to whisper. Combined chatwhisper and chatnormal leave a requested whisper as whisper in Kokua and say in RLVa. Private channels bypass volume restrictions.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Avatar chat defaults to say. Public volume transforms sequentially: restricted whisper becomes say, restricted shout becomes say, then chatnormal converts say or shout to whisper. Requested and delivered volumes are recorded separately. Private channels bypass these transformations; simulator chat and automatic replies remain independent. Payload limits, gesture expansion and optional prevention of unrestricted shouts are outside this fixture.
+
+- No-option volume restrictions with add/remove aliases and issuer-scoped clear
+- Public whisper/say/shout volume transformation and immutable action records
+- Delivered volume selects 10/20/100 m script and avatar hearing ranges across regions
+
+Reference symbols: <code>indra/newview/llchatbar.cpp</code>: <code>LLChatBar::sendChatFromViewer</code>, <code>RRInterface::contains</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Avatar chat defaults to say. Public say or shout becomes whisper under chatnormal; otherwise restricted shout becomes say, otherwise restricted whisper becomes say. Only one transformation applies. Requested and delivered volumes are recorded separately. Delivered whisper/say/shout reaches scripts and avatars within 10/20/100 m across regions. Private channels bypass these transformations; simulator chat and automatic replies remain independent. Payload limits and gesture expansion are outside this fixture.
+
+- No-option volume restrictions with add/remove aliases and issuer-scoped clear
+- Public whisper/say/shout volume transformation and immutable action records
+- Delivered volume selects 10/20/100 m script and avatar hearing ranges across regions
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::checkChatVolume</code>, <code>FSNearbyChat::sendChatFromViewer</code>, <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-chatvolume.test.ts](../packages/vitest/test/rlv-chatvolume.test.ts).
 
 ### received-chat
 

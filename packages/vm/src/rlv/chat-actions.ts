@@ -3,11 +3,21 @@ import type { World, WorldAvatar } from '../world.js'
 import type { Script } from '../script.js'
 import type { RlvRestriction } from './restrictions.js'
 
+export type AvatarChatVolume = 'whisper' | 'say' | 'shout'
+
+const volumeFamilies = new Set(['chatwhisper', 'chatnormal', 'chatshout'])
+
+export function chatVolumeSupport(behaviour: string, option: string): RlvRestriction['support'] | undefined {
+  return volumeFamilies.has(behaviour) ? !option ? 'enforced' : 'unsupported' : undefined
+}
+
 /** A fixture action records an attempt even when no chat is delivered. */
 export interface AvatarChatAction {
   readonly action: 'chat'
   readonly channel: number
   readonly message: string
+  readonly volume: AvatarChatVolume
+  readonly deliveredVolume?: AvatarChatVolume
   readonly status: 'sent' | 'blocked' | 'unsupported'
   readonly deliveredMessage?: string
   readonly reason?: 'sendchat' | 'sendchannel' | 'channel' | 'avatar'
@@ -43,12 +53,24 @@ function filterPublicChat(profile: 'rlv' | 'rlva', message: string): string {
   return text.startsWith('((') && text.endsWith('))') && (profile === 'rlv' || text.length >= 4) ? text : '...'
 }
 
-/** Ordinary avatar say, separate from simulator builtins and automatic query replies. */
-export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: number, message: string): AvatarChatAction {
-  const chatRules = avatar.viewer.profile === 'disabled' ? [] : avatar.viewer.restrictions.snapshot()
-    .filter(rule => rule.behaviour === 'sendchat' && !rule.option)
-  const restrictions = channel === 0 || channel === 2147483647 && chatRules.length
-    ? Object.freeze(chatRules) : avatar.viewer.restrictions.channelDenials(channel)
+/** Avatar local chat, separate from simulator builtins and automatic query replies. */
+export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: number, message: string, volume: AvatarChatVolume = 'say'): AvatarChatAction {
+  const rules = avatar.viewer.profile === 'disabled' ? [] : avatar.viewer.restrictions.snapshot()
+  const chatRules = rules.filter(rule => rule.behaviour === 'sendchat' && !rule.option)
+  const volumeRules = channel === 0 ? rules.filter(rule => volumeFamilies.has(rule.behaviour) && !rule.option) : []
+  const restrictions = channel === 0 ? Object.freeze(rules.filter(rule => chatRules.includes(rule) || volumeRules.includes(rule)))
+    : channel === 2147483647 && chatRules.length ? Object.freeze(chatRules) : avatar.viewer.restrictions.channelDenials(channel)
+  const has = (behaviour: string) => volumeRules.some(rule => rule.behaviour === behaviour)
+  let deliveredVolume = volume
+  if (avatar.viewer.profile === 'rlv') {
+    if (deliveredVolume === 'whisper' && has('chatwhisper')) deliveredVolume = 'say'
+    if (deliveredVolume === 'shout' && has('chatshout')) deliveredVolume = 'say'
+    if ((deliveredVolume === 'shout' || deliveredVolume === 'say') && has('chatnormal')) deliveredVolume = 'whisper'
+  } else {
+    if ((volume === 'shout' || volume === 'say') && has('chatnormal')) deliveredVolume = 'whisper'
+    else if (volume === 'shout' && has('chatshout')) deliveredVolume = 'say'
+    else if (volume === 'whisper' && has('chatwhisper')) deliveredVolume = 'say'
+  }
   const reason = !world.avatars.includes(avatar) ? 'avatar'
     : !Number.isInteger(channel) || channel < 0 || channel > 2147483647 ? 'channel'
     : channel === 2147483647 && chatRules.length ? 'sendchat'
@@ -56,13 +78,14 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
   const deliveredMessage = channel === 0 && chatRules.length && avatar.viewer.profile !== 'disabled'
     ? filterPublicChat(avatar.viewer.profile, message) : message
   const status = reason === 'sendchannel' || reason === 'sendchat' ? 'blocked' : reason ? 'unsupported' : 'sent'
-  const record: AvatarChatAction = Object.freeze({ action: 'chat', channel, message, status,
-    ...(status === 'sent' ? { deliveredMessage } : {}),
+  const record: AvatarChatAction = Object.freeze({ action: 'chat', channel, message, volume, status,
+    ...(status === 'sent' ? { deliveredMessage, deliveredVolume } : {}),
     ...(reason ? { reason } : deliveredMessage !== message ? { reason: 'sendchat' as const } : {}), restrictions })
   logs.set(avatar, Object.freeze([...avatarChatLog(avatar), record]))
   if (record.status !== 'sent') return record
 
-  deliverAvatarReceivedChat(world, avatar, channel, deliveredMessage)
+  deliverAvatarReceivedChat(world, avatar, channel, deliveredMessage, deliveredVolume)
+  const range = deliveredVolume === 'whisper' ? 10 : deliveredVolume === 'shout' ? 100 : 20
   const corner = world.corner(avatar.region)
   const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
   const matched: Script[] = []
@@ -71,7 +94,7 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
       const local = prim.regionPosition()
       const region = world.corner(linkset.region)
       const position = { x: region.x + local.x, y: region.y + local.y, z: local.z }
-      if ((position.x - origin.x) ** 2 + (position.y - origin.y) ** 2 + (position.z - origin.z) ** 2 > 20 ** 2) continue
+      if ((position.x - origin.x) ** 2 + (position.y - origin.y) ** 2 + (position.z - origin.z) ** 2 > range ** 2) continue
       for (const script of prim.scripts) {
         if (script.matchChatListens({ channel, name: avatar.name, key: avatar.key, message: deliveredMessage })) matched.push(script)
       }
