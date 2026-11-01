@@ -1,5 +1,5 @@
 import type { Prim } from '../prim.js'
-import type { WorldAvatar } from '../world.js'
+import type { World, WorldAvatar } from '../world.js'
 import type { RlvProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
@@ -27,4 +27,10 @@ export function sendRestrictionNotifications(prim: Prim, avatar: WorldAvatar | u
       sendViewerReply(linkset, avatar, registration.channel, '/' + action + suffix)
     }
   }
+}
+
+/** Inventory notices use the same subscriptions, filters and transport as rules. */
+export function sendInventoryOfferNotification(world: World, avatar: WorldAvatar, action: string): void {
+  const linkset = world.linksets.find(linkset => !linkset.dead)
+  if (linkset) sendRestrictionNotifications(linkset.prims[0]!, avatar, avatar.viewer.restrictions.snapshot(), action)
 }

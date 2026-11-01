@@ -692,7 +692,7 @@ The same configuration can be supplied as `viewer.inventory` to `world.addAvatar
 `avatar.viewer.inventory.snapshot()` returns frozen copies. Duplicate IDs,
 missing or non-folder parents, invalid shared roots and cycles are rejected
 without replacing the previous fixture. Ordinary inventory can be seeded
-outside the shared root. Prim contents and inventory offers remain separate.
+outside the shared root. Prim contents remain separate. Inventory offers append content only after an explicit acceptance.
 Folder `folded: true` supplies the effective RLVa folded-folder state, including
 legacy naming; automatic naming and attachment-point inference are outside this fixture.
 
@@ -1308,3 +1308,42 @@ Folder clothing, remoutfit folder forms, recursive and multiple-folder commands,
 point/group/UUID removal and comprehensive folder locks remain unsupported.
 Mixed folder contents retain unsupported items and report each result.
 Invalid layer/path force options are inert in Kokua and fail in RLVa.
+
+
+### Inventory offer decisions
+
+`respondRlvInventoryOffer(avatar, script.inventoryOffers[index], decision)` resolves
+one captured `llGiveInventoryList` avatar offer. Giving leaves the offer pending.
+The helper refuses a different recipient, a fabricated offer, or a second decision.
+Single-item and `llGiveAgentInventory` offers return an inspectable `unsupported`
+result; disabled viewer profiles remain inert.
+
+```ts
+import { respondRlvInventoryOffer } from '@rezless/vitest'
+
+const result = respondRlvInventoryOffer(avatar, script.inventoryOffers[0]!, {
+  accept: true,
+  allowSharedRouting: true,
+})
+script.advanceTime(0) // Deliver queued notify messages to LSL listeners.
+```
+
+`accept: false` declines without adding inventory. Shared routing requires the
+explicit `allowSharedRouting: true` opt-in. Omitted or false routes accepted content
+to ordinary inventory. The inventory fixture setting `forbidGiveToRlv: true` also
+prevents shared routing. These controls authorize inventory insertion under #RLV.
+Acceptance never wears or attaches items.
+
+Successful results include `folderId`, a destination `status` of
+`accepted-in-shared` or `accepted-in-inventory`, and `routed` indicating whether
+the shared path move and rename completed. Accepted item entries expose frozen
+`content` containing delivery-time item metadata and transferred permissions.
+Existing snapshots and worn state survive acceptance.
+
+Kokua RLV 2.09.35.00 requires an existing shared root and reports the original
+folder name for accepted or declined offers. Firestorm RLVa 2.4.2 creates a missing
+root and reports the final shared path on acceptance. It reports ordinary acceptance
+or decline only for case-sensitive `#RLV/~` offers. RLVa paths deeper than four
+segments including #RLV stay at the initial destination without rename or acceptance
+notice; `routed` is false. Kokua permits deeper paths. Both reuse exact
+case-insensitive parents and create distinct leaf folders for duplicate offers.

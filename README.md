@@ -746,3 +746,13 @@ RLV/RLVa force removal covers direct shared-folder attachments with
 removal locks apply. Per-item results are available in `removeResults` on the
 viewer command log. Global and named `addoutfit`/`remoutfit` locks also apply to
 the paired fixture's explicit `attemptWearable(itemId, wear)` clothing action.
+
+
+Captured avatar `llGiveInventoryList` offers can be resolved with
+`respondRlvInventoryOffer(avatar, offer, { accept, allowSharedRouting })` from
+`@rezless/vitest`. Offers stay pending until explicitly resolved. Shared routing
+requires `allowSharedRouting: true`; omitted or false accepts into ordinary
+inventory, and `accept: false` adds nothing. The inventory fixture's
+`forbidGiveToRlv` setting also prevents shared routing. Acceptance appends frozen
+item metadata and queues profile-specific notify messages without wearing content.
+See the vitest inventory offer documentation for root and path differences.

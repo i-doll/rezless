@@ -10,6 +10,7 @@ import { PERM_COPY, PERM_TRANSFER, CHANGED_INVENTORY, CHANGED_ALLOWED_DROP, TRAN
 import { sayError } from './debug.js'
 import { isAgentInRegion, isKey } from './viewer.js'
 import { llRemoveInventory } from './inventory.js'
+import { captureRlvInventoryOffer } from '../rlv/offers.js'
 
 /** An avatar offer or completed prim delivery. Items are snapshots of the transferred inventory. */
 export interface InventoryOffer {
@@ -57,6 +58,7 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
     for (const script of prim.scripts) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: changed })
   }
   ctx.state.inventoryOffers.push({ kind, target, folder: prim ? null : folder, rootPath: [...rootPath], items: copies })
+  if (!prim && ctx.linkset.world) captureRlvInventoryOffer(ctx.linkset.world, ctx.state.inventoryOffers[ctx.state.inventoryOffers.length - 1]!)
   if (kind === 'inventory') for (const item of items) {
     if (!(item.permMask.owner & PERM_COPY)) llRemoveInventory(ctx, [item.name])
   }

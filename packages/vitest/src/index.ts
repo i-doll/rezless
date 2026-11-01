@@ -22,3 +22,5 @@ export type {
 
 export { loadRlvPair, rlvExpectationFor, seedRlvInventory, setRlvViewerReady, resetRlvViewerSession, setRlvObjectAvailable } from './rlv.js'
 export type { RlvFixture, RlvExpectation, RlvExpectations } from './rlv.js'
+export { respondRlvInventoryOffer } from './rlv.js'
+export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv.js'

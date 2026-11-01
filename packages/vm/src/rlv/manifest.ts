@@ -159,7 +159,7 @@ export const RLV_MANIFEST: {
       wikiComparison: 'Both profiles list nonempty non-hidden direct folder names, preserve inventory order and duplicates, omit items, and return empty messages for absent roots, empty folders and unknown paths. Comma names pass through as wire text, as the wiki warns. Both use case-insensitive partial lookup with exact-name priority and skip empty path segments. Kokua excludes hidden paths, selects the last exact duplicate, supports slash-bearing folder names using longest path spans, and strips pipe suffixes. RLVa permits exact hidden paths, selects the first exact duplicate, and excludes slash-bearing and folded folders from listings. Folded state depends on legacy naming and is an explicit fixture flag.',
       profiles: {
         rlv: { ...kokua(['RRInterface::getInventoryList', 'RRInterface::getCategoryUnderRlvShare', 'match'],
-          'Queries enumerate only the explicit avatar shared root and descendants. Kokua filters empty and dot-prefixed names. Longest matching path spans win; equal spans prefer later exact matches. Slash-only nonempty paths return empty results. Prim inventory and inventory offers do not populate this fixture.'),
+          'Queries enumerate only the explicit avatar shared root and descendants. Kokua filters empty and dot-prefixed names. Longest matching path spans win; equal spans prefer later exact matches. Slash-only nonempty paths return empty results. Prim inventory stays separate; explicitly accepted folder offers can append fixture content.'),
           commandForms: replyForms('getinv'),
           support: 'enforced', coveredForms: ['Root and nested getinv on valid reply channels, including empty replies', 'Case-insensitive partial paths, exact-name priority, duplicate names, slash names and pipe suffixes', 'Per-avatar seeded inventory with stable IDs, parents, explicit shared root and immutable snapshots'] },
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetInv', 'RlvInventory::getSharedFolder', 'RlvInventory::isFoldedFolder', 'RLV_FOLDER_INVALID_CHARS'],
@@ -168,6 +168,21 @@ export const RLV_MANIFEST: {
           support: 'enforced', coveredForms: ['Root and nested getinv on valid reply channels, including empty replies', 'Case-insensitive exact and partial paths, first exact duplicate, hidden exact paths and empty segments', 'Per-avatar seeded inventory with stable IDs, parents, explicit shared root, effective folded flags and immutable snapshots'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-getinv.test.ts'],
+    },
+    {
+      id: 'inventory-offers', forms: ['Explicit accept or decline of captured llGiveInventoryList avatar offers'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles require an explicit fixture decision and shared-routing opt-in. Prefix matching is case-sensitive. Parents are reused by exact case-insensitive name; every leaf offer creates a distinct folder. Kokua notifies all supported folder decisions using the original offer name. RLVa notifies only #RLV/~ offers, reporting the final path after successful shared routing. No acceptance wears content.',
+      profiles: {
+        rlv: { ...kokua(['LLOfferInfo::inventory_task_offer_callback', 'LLInventoryModel::processBulkUpdateInventory', 'buildRLVPathAndMove'],
+          'Accepted #RLV/~ folders route under an existing shared root unless forbidden. Nested paths skip empty segments without a depth limit. Missing roots and disallowed routing retain ordinary inventory. Accepted and declined notifications include the original folder name. Single-item and llGiveAgentInventory offers remain unsupported.'),
+          evidence: { implementation: 'Kokua RLV 2.09.35.00', file: 'indra/newview/llinventorymodel.cpp', symbols: ['LLInventoryModel::processBulkUpdateInventory', 'buildRLVPathAndMove'] },
+          support: 'enforced', coveredForms: ['Pending avatar folder offers, explicit accept/decline, recipient identity and one decision per offer', 'Shared or ordinary inventory, missing shared root, nested parents and duplicate leaves', 'Original-name offer notifications through notify channel and filter rules; transferred item metadata retained, including object definitions and modify permissions for subsequent queries and explicit wear'] },
+        rlva: { ...firestorm('rlvinventory.cpp', ['RlvGiveToRLVOffer::createDestinationFolder', 'RlvGiveToRLVTaskOffer::onOfferCompleted'],
+          'Accepted #RLV/~ folders create a missing shared root and route paths of up to four segments including #RLV. Deeper paths remain unrenamed at the initial destination without an acceptance notification. Disallowed routing sends accepted_in_inv; declines send declined with the original name. Other folder names do not send offer notifications. Single-item and llGiveAgentInventory offers remain unsupported.'),
+          support: 'enforced', coveredForms: ['Pending avatar folder offers, explicit accept/decline, recipient identity and one decision per offer', 'Shared or ordinary inventory, missing-root creation, nested parents, duplicate leaves and path-depth outcomes', 'Final-path shared acceptance and original-name ordinary acceptance/decline notifications through notify transport; object definitions and modify permissions retained for later queries and explicit wear'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-offers.test.ts'],
     },
     {
       id: 'getoutfit', forms: ['@getoutfit[:<layer>]=<channel>'], comparison: 'confirmed difference',
@@ -411,12 +426,12 @@ export const RLV_MANIFEST: {
       profiles: {
         rlv: { ...kokua(['RRInterface::notify', 'RRInterface::add', 'RRInterface::remove', 'RRInterface::clear'], 'Notifications normalize aliases to n/y, suppress duplicate adds and report absent removes; clear reports itself before individual removals, including collection.'),
           support: 'enforced', commandForms: [{ behaviour: 'notify', type: 'add', support: 'enforced', option: 'any' }],
-          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
+          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory offer notices included; avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
         rlva: { ...firestorm('rlvhelper.cpp', ['RlvBehaviourNotifyHandler::onCommand', 'RlvBehaviourNotifyHandler::sendNotification'], 'Notifications preserve aliases, with duplicate adds using the first stored alias. Failed external add/remove commands notify; clear reports after removing registrations, and collection reports clear without individual removals.'),
           support: 'enforced', commandForms: [{ behaviour: 'notify', type: 'add', support: 'enforced', option: 'any' }],
-          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory and avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
+          coveredForms: ['Emitter-scoped registrations, exact wire removals, duplicate suppression, substring filters and ordered avatar-origin delivery', 'Restriction commands and clear, script reset/removal persistence and missing-emitter collection; inventory offer notices included; avatar action notices excluded', 'Profile-specific channel and separator policies; invalid forms remain inspectable'] },
       },
-      tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts'],
+      tests: [...tests, 'packages/vitest/test/rlv-notify.test.ts', 'packages/vitest/test/rlv-offers.test.ts'],
     },
     {
       id: 'blacklist', forms: ['@versionnumbl=<channel>', '@getblacklist[:<filter>]=<channel>', 'Kokua blacklisted add and force; RLVa disabled setenv add/remove'],

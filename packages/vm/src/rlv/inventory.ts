@@ -1,5 +1,9 @@
 import { Linkset } from '../linkset.js'
 import type { RlvProfile } from './profiles.js'
+import type { InventoryItem } from '../inventory.js'
+import { InventoryType } from '../inventory.js'
+import { PERM_MODIFY } from '../generated/constants.js'
+import { deterministicKey } from '../keys.js'
 
 export const RLV_WEARABLE_TYPES = Object.freeze([
   'gloves', 'jacket', 'pants', 'shirt', 'shoes', 'skirt', 'socks', 'underpants',
@@ -23,6 +27,8 @@ export interface RlvInventoryEntry {
   readonly object?: Linkset
   /** Object modify permission, used by Kokua no-mod folder aggregation. */
   readonly modifiable?: boolean
+  /** Accepted gift metadata, including the transferred permissions and content. */
+  readonly content?: Readonly<InventoryItem>
 }
 
 /** Inventory identity of an existing attachment; this never wears or spawns it. */
@@ -35,6 +41,8 @@ export interface RlvInventoryConfig {
   readonly sharedRootId: string | null
   /** RLVa shared wear accepts attachments without a named point; default true. */
   readonly sharedWear?: boolean
+  /** Viewer setting forbidding shared routing for received folder offers. */
+  readonly forbidGiveToRlv?: boolean
   /** Direct-child order is the order of entries, independent of folder names. */
   readonly entries: readonly RlvInventoryEntry[]
   readonly wornAttachments?: readonly RlvWornAttachment[]
@@ -50,12 +58,15 @@ export class RlvInventory {
   private rootId: string | null = null
   private sharedWearEnabled = true
   private objects = new Map<string, Linkset>()
+  private forbidGive = false
+  private receivedIds = 0
 
   constructor(config?: RlvInventoryConfig) {
     if (config) this.seed(config)
   }
 
   get sharedWear(): boolean { return this.sharedWearEnabled }
+  get forbidGiveToRlv(): boolean { return this.forbidGive }
   attachmentObject(itemId: string): Linkset | undefined { return this.objects.get(itemId) }
 
   /** Retain inventory identity and script state across viewer detach and wear. */
@@ -70,6 +81,27 @@ export class RlvInventory {
   snapshot(): readonly RlvInventoryEntry[] { return this.entries }
   wornWearables(): readonly string[] { return this.wearables }
   attachmentMappings(): readonly RlvWornAttachment[] { return this.attachments }
+
+  /** Append received content without replacing worn state or existing snapshots. */
+  receiveFolder(name: string, parentId: string | null, items: readonly InventoryItem[] = [], sharedRoot = false): string {
+    if (parentId !== null && !this.entries.some(entry => entry.id === parentId && entry.kind === 'folder')) {
+      throw new Error('Received folder parent must identify a folder.')
+    }
+    const nextId = () => {
+      let id: string
+      do { id = deterministicKey(`received-inventory/${++this.receivedIds}`) } while (this.entries.some(entry => entry.id === id))
+      return id
+    }
+    const id = nextId()
+    const children = items.map(item => Object.freeze({ id: nextId(), parentId: id, name: item.name, kind: 'item' as const,
+      ...(item.type === InventoryType.OBJECT ? { assetType: 'object' as const, modifiable: !!(item.permMask.owner & PERM_MODIFY),
+        ...(item.object ? { object: item.object } : {}) } : {}),
+      content: Object.freeze({ ...item, permMask: Object.freeze({ ...item.permMask }),
+        ...(item.notecardLines ? { notecardLines: Object.freeze([...item.notecardLines]) } : {}) }) }))
+    this.entries = Object.freeze([...this.entries, Object.freeze({ id, name, parentId, kind: 'folder' as const }), ...children])
+    if (sharedRoot) this.rootId = id
+    return id
+  }
 
   /** Change one existing wearable without replacing inventory or attachment state. */
   setWearableWorn(itemId: string, worn: boolean): void {
@@ -134,6 +166,7 @@ export class RlvInventory {
     }
     this.objects.clear()
     this.sharedWearEnabled = config.sharedWear ?? true
+    this.forbidGive = config.forbidGiveToRlv ?? false
     this.wearables = Object.freeze(wearables)
     this.attachments = Object.freeze(attachments)
     this.entries = Object.freeze(entries)
