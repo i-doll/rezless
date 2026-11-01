@@ -194,6 +194,7 @@ export class Linkset {
   /** Detach into inventory, preserving script state and the remembered point. */
   detachFromAvatar(): void {
     if (!this.attachment) return
+    for (const avatar of this.world?.avatars ?? []) avatar.viewer.session.detached(this)
     this.deleteAfterDetach = this.attachment.temporary
     this.attachment = null
     const index = this.peers.indexOf(this)

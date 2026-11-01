@@ -50,9 +50,9 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** Undefined denotes an outfit-layer form, outside the attachment fixture. */
 export function getRlvWornPath(profile: RlvProfile, inventory: RlvInventory,
-  linkset: Linkset, prim: Prim, behaviour: string, option: string): RlvFolderReply | undefined {
+  linkset: Linkset, prim: Prim, behaviour: string, option: string, avatar = linkset.owner): RlvFolderReply | undefined {
   if (wearableOptions.has(option)) return undefined
-  const owner = linkset.owner.toLowerCase()
+  const owner = avatar.toLowerCase()
   const worn = linkset.peers.filter(peer => !peer.dead && peer.attachment?.avatar.toLowerCase() === owner)
     .sort((a, b) => a.attachment!.order - b.attachment!.order)
   const point = getRlvAttachmentPoint(option)

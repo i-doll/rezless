@@ -82,11 +82,11 @@ export function getRlvAttachmentPoint(name: string): number | undefined {
 
 /** Undefined denotes an unsupported command; empty text is a real query reply. */
 export function getRlvAttachmentReply(linkset: Linkset, viewer: ViewerState,
-  behaviour: string, option = ''): string | undefined {
+  behaviour: string, option = '', avatar = linkset.owner): string | undefined {
   const profile = viewer.profile
   if (profile === 'disabled') return undefined
   if (behaviour !== 'getattach' && (behaviour !== 'getattachnames' || profile !== 'rlva')) return undefined
-  const avatarKey = linkset.owner.toLowerCase()
+  const avatarKey = avatar.toLowerCase()
   const bridge = profile === 'rlva' ? bridges.get(viewer) : undefined
   const occupied = new Set(linkset.peers.filter(worn => !worn.dead && worn.attachment &&
     worn.attachment.avatar.toLowerCase() === avatarKey &&

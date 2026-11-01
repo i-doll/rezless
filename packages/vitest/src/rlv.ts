@@ -1,4 +1,4 @@
-import { attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar } from '@rezless/vm'
+import { attemptViewerDetach, type Linkset, type RlvDetachOutcome, type RlvCommandRecord, type RlvTeleportAction, World, avatarChatLog, type AvatarChatAction, type RlvInventoryConfig, type RlvProfile, type Script, type Prim, type Vector, type WorldAvatar, type ViewerConfig } from '@rezless/vm'
 import { loadLinkset } from './loadLinkset.js'
 
 /** Attempt a user lens change in radians, returning the enforced FOV. */
@@ -17,13 +17,14 @@ export interface RlvFixture {
 }
 
 /** Load identical source into separate Worlds. Call start after seeding each fixture. */
-export async function loadRlvPair(input: { readonly source: string }): Promise<Record<RlvProfile, RlvFixture>> {
+export async function loadRlvPair(input: { readonly source: string; readonly viewer?: Omit<ViewerConfig, 'profile'> }): Promise<Record<RlvProfile, RlvFixture>> {
   const load = async (profile: RlvProfile): Promise<RlvFixture> => {
     const world = new World()
     world.addRegion('RLV fixture', { x: 0, y: 0 })
-    const avatar = world.addAvatar({ username: 'rlv.fixture', region: 'RLV fixture', viewer: { profile } })
+    const avatar = world.addAvatar({ username: 'rlv.fixture', region: 'RLV fixture', viewer: { ...input.viewer, profile } })
     const loaded = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
       prims: [{ name: 'RLV fixture', scripts: [{ name: 'fixture', source: { source: input.source } }] }] })
+    avatar.viewer.session.bind(loaded.linkset, avatar)
     return { world, avatar, script: loaded.scripts['fixture']!,
       attemptDetach: (attachment = loaded.linkset) => attemptViewerDetach(avatar, attachment),
       get teleportActions() { return avatar.viewer.commandLog.filter((entry): entry is RlvTeleportAction & RlvCommandRecord =>
@@ -60,4 +61,19 @@ export function rlvExpectationFor<T>(expectations: RlvExpectations<T>, profile: 
 /** Replace the avatar tree, worn wearable IDs and item-to-attachment mappings without wear operations. */
 export function seedRlvInventory(avatar: WorldAvatar, inventory: RlvInventoryConfig): void {
   avatar.viewer.inventory.seed(inventory)
+}
+
+/** Release the retained startup queue without advancing simulator time. */
+export function setRlvViewerReady(avatar: WorldAvatar, ready = true): void {
+  avatar.viewer.session.setReady(ready)
+}
+
+/** End a viewer session; scripts and inventory keep their simulator state. */
+export function resetRlvViewerSession(avatar: WorldAvatar): void {
+  avatar.viewer.session.reset()
+}
+
+/** Supply viewer object-list membership independently of simulator visibility. */
+export function setRlvObjectAvailable(avatar: WorldAvatar, sourcePrim: string, available: boolean): void {
+  avatar.viewer.session.setObjectAvailable(sourcePrim, available)
 }

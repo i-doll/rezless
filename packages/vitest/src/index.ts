@@ -20,5 +20,5 @@ export type {
 // from the dedicated subpath in vitest.config.ts only:
 //   import { LslCoverageReporter } from '@rezless/vitest/reporter'
 
-export { loadRlvPair, rlvExpectationFor, seedRlvInventory } from './rlv.js'
+export { loadRlvPair, rlvExpectationFor, seedRlvInventory, setRlvViewerReady, resetRlvViewerSession, setRlvObjectAvailable } from './rlv.js'
 export type { RlvFixture, RlvExpectation, RlvExpectations } from './rlv.js'
