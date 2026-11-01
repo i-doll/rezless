@@ -43,7 +43,7 @@ export type RlvCommandRecord = {
   readonly command: string
   readonly sourcePrim: string
   readonly parsed?: RlvParsedCommand
-} & ({ readonly status: 'replied'; readonly reply: RlvReply } | { readonly status: 'unsupported' | 'malformed' })
+} & ({ readonly status: 'replied'; readonly reply: RlvReply; readonly outcome?: 'failed-option' } | { readonly status: 'unsupported' | 'malformed' })
 
 /** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState {
