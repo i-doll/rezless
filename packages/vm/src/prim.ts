@@ -1,3 +1,4 @@
+import type { KeyframedMotion } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
@@ -74,6 +75,8 @@ export class Prim {
    * PRIM_PHYSICS / PRIM_PHANTOM bits in one place.
    */
   statusFlags = 0
+  /** Keyframed playback is shared by every script in the object. */
+  keyframedMotion: KeyframedMotion | null = null
   collisionFilter: CollisionFilter = { name: '', key: NULL_KEY, accept: true }
   /** null selects the simulator's default material impact sound. */
   collisionSound: CollisionSound | null = null
