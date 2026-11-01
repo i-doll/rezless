@@ -184,7 +184,7 @@ function rez(ctx: CallContext, name: string, o: Options): string {
   if (o.sound) root.sound.current = {
     sound: resolveSound(ctx, o.sound.sound), volume: Math.max(0, Math.min(1, o.sound.volume)), loop: o.sound.loop, sync: 'none',
   }
-  if (root.params.tempOnRez) object.expiresAt = object.clock.now + 60000
+  object.setTemporary(root.params.tempOnRez)
   object.world?.sensorProperties.set(object, { velocity })
   if (!object.rez.copyable) {
     ctx.prim.inventory.splice(ctx.prim.inventory.indexOf(item), 1)
@@ -220,8 +220,7 @@ export const llDerezObject: BuiltinImpl = (ctx, args) => {
   const provenance = target?.rez
   if (!target || !provenance || !provenance.copyable || target.owner !== ctx.linkset.owner || provenance.rezzerKey !== ctx.linkset.prims[0]!.key) return 0
   if (mode === C.DEREZ_MAKE_TEMP) {
-    target.prims[0]!.params.tempOnRez = true
-    target.expiresAt ??= target.clock.now + 60000
+    target.setTemporary(true)
     return 1
   }
   if (mode === C.DEREZ_TO_INVENTORY) {

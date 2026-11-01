@@ -283,7 +283,9 @@ suspended handler continuations are not restored.
 force requested through `REZ_ACCEL`. Force, sound, collision and no-entry flags
 are captured requests; physical motion, contacts and audio are not simulated.
 Temporary objects expire after exactly 60 seconds of virtual time, without
-simulator cleanup jitter. Derez and `llDie` remove objects from `world.linksets`.
+simulator cleanup jitter. Clearing temporary status cancels expiry; re-enabling
+it starts a new countdown. Setting it true again keeps the current deadline.
+Derez and `llDie` remove objects from `world.linksets`.
 
 #### Several objects in a world
 

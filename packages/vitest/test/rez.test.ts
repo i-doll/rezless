@@ -472,3 +472,79 @@ it('keeps the inventory script\'s mock bindings on each rez', async () => {
   f.parent.start()
   expect(f.world.linksets[1]!.allScripts()[0]!.global('n')).toBe(123)
 })
+
+// In-world: temp-transition.py -> clearing temp from a child cleared both prims
+// and survived the original 60s deadline; re-enable started a new countdown.
+it('cancels expiration when a rezzed script clears temporary status', async () => {
+  const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', source: { source: `
+    default { on_rez(integer p) { llSetPrimitiveParams([PRIM_TEMP_ON_REZ,FALSE]); } }
+  ` } }] }] })
+  const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
+  f.parent.start()
+  const child = f.world.linksets[1]!
+  expect(child.prims[0]!.params.tempOnRez).toBe(false)
+  f.linkset.advanceTime(120000)
+  expect(f.world.linksets.includes(child)).toBe(true)
+})
+
+it('starts a fresh lifetime when a script clears and reenables temp status in one handler', async () => {
+  const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', source: { source: `
+    default { on_rez(integer p) { llSleep(30);
+      llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_TEMP_ON_REZ,FALSE]);
+      llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_TEMP_ON_REZ,TRUE]);
+    } }
+  ` } }] }] })
+  const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
+  f.parent.start()
+  const child = f.world.linksets[1]!
+  f.linkset.advanceTime(59900)
+  expect(f.world.linksets.includes(child)).toBe(true)
+  f.linkset.advanceTime(29999)
+  expect(f.world.linksets.includes(child)).toBe(true)
+  f.linkset.advanceTime(1)
+  expect(f.world.linksets.includes(child)).toBe(false)
+})
+
+it('clears temporary status for the whole linkset when a child script changes it', async () => {
+  const payload = await loadLinkset({ prims: [{}, { scripts: [{ name: 'child', source: { source: `
+    default { on_rez(integer p) { llSetPrimitiveParams([PRIM_TEMP_ON_REZ,FALSE]); } }
+  ` } }] }] })
+  const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
+  f.parent.start()
+  const child = f.world.linksets[1]!
+  expect(child.prims.map(p => p.params.tempOnRez)).toEqual([false, false])
+  f.linkset.advanceTime(120000)
+  expect(f.world.linksets.includes(child)).toBe(true)
+})
+
+// In-world: temp-transition.py -> child clear made root/child temp=0; survived
+// its first deadline. Child re-enable at ~65s made both 1; repeating TRUE at
+// ~95s did not extend it, and it disappeared at ~126.18s (Aditi, SLua Tideland, 2026-11-01).
+it('does not restart the lifetime when an already-temporary object is marked temp again', async () => {
+  const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', source: { source: `
+    default { on_rez(integer p) { llSleep(30);
+      llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_TEMP_ON_REZ,TRUE]);
+    } }
+  ` } }] }] })
+  const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
+  f.parent.start()
+  const child = f.world.linksets[1]!
+  f.linkset.advanceTime(59899)
+  expect(f.world.linksets.includes(child)).toBe(true)
+  f.linkset.advanceTime(1)
+  expect(f.world.linksets.includes(child)).toBe(false)
+})
+
+it('honors direct fixture changes to temporary status before advancing time', async () => {
+  const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);')
+  f.parent.start()
+  const child = f.world.linksets[1]!
+  child.prims[0]!.params.tempOnRez = false
+  f.linkset.advanceTime(120000)
+  expect(f.world.linksets.includes(child)).toBe(true)
+  child.prims[0]!.params.tempOnRez = true
+  f.linkset.advanceTime(59999)
+  expect(f.world.linksets.includes(child)).toBe(true)
+  f.linkset.advanceTime(1)
+  expect(f.world.linksets.includes(child)).toBe(false)
+})

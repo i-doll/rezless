@@ -192,6 +192,13 @@ export class Linkset {
     this.world?.sensorProperties.delete(this)
   }
 
+  /** Temporary status belongs to the whole object; repeated TRUE keeps its deadline. */
+  setTemporary(temporary: boolean): void {
+    for (const prim of this.prims) prim.params.tempOnRez = temporary
+    if (temporary) this.expiresAt ??= this.clock.now + 60000
+    else this.expiresAt = undefined
+  }
+
   private recomputeLinkNumbers(): void {
     if (this.prims.length === 1) {
       // LSL: a lone unlinked prim reports linkNumber 0.
@@ -552,7 +559,14 @@ export class Linkset {
       flushDamageEvents(this.clock)
       const scripts = this.peers.flatMap((l) => l.allScripts())
       const horizon = Math.max(until, this.clock.now)
-      const expiry = Math.min(...this.peers.map(l => l.expiresAt ?? Infinity))
+      let expiry = Infinity
+      for (const linkset of this.peers) {
+        if (!linkset.prims[0]?.params.tempOnRez) linkset.expiresAt = undefined
+        else {
+          linkset.expiresAt ??= this.clock.now + 60000
+          expiry = Math.min(expiry, linkset.expiresAt)
+        }
+      }
       const next = this.clock.takeNextDue(scripts, Math.min(horizon, expiry))
       if (!next) {
         if (expiry > horizon) return
