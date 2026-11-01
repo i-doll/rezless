@@ -1,3 +1,4 @@
+import { llSetParcelMusicURL, llAddToLandBanList, llAddToLandPassList, llRemoveFromLandBanList, llRemoveFromLandPassList, llResetLandBanList, llResetLandPassList, llEjectFromLand, llReturnObjectsByID, llReturnObjectsByOwner, llSetParcelForSale, llManageEstateAccess, llParcelMediaCommandList, llParcelMediaQuery, llGiveMoney, llTransferLindenDollars, llTransferOwnership } from './land.js'
 import { llGetDisplayName, llGetUsername, llName2Key, llRequestUserKey, llGetAgentInfo, llGetAgentLanguage, llGetAgentList, llGetAgentSize, llGetVisualParams, llIsFriend, llSameGroup } from './agents.js'
 import { llGetLandOwnerAt, llGetParcelDetails, llGetParcelFlags, llGetParcelMaxPrims, llGetParcelPrimCount, llGetParcelPrimOwners, llGetParcelMusicURL, llOverMyLand } from './land.js'
 import { llParticleSystem, llLinkParticleSystem } from './particles.js'
@@ -439,6 +440,7 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetTimeOfDay,
   llMinEventDelay,
   // parcels
+  llSetParcelMusicURL, llAddToLandBanList, llAddToLandPassList, llRemoveFromLandBanList, llRemoveFromLandPassList, llResetLandBanList, llResetLandPassList, llEjectFromLand, llReturnObjectsByID, llReturnObjectsByOwner, llSetParcelForSale, llManageEstateAccess, llParcelMediaCommandList, llParcelMediaQuery, llGiveMoney, llTransferLindenDollars, llTransferOwnership,
   llGetLandOwnerAt, llGetParcelDetails, llGetParcelFlags, llGetParcelMaxPrims,
   llGetParcelPrimCount, llGetParcelPrimOwners, llGetParcelMusicURL, llOverMyLand,
   // region
