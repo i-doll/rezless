@@ -72,7 +72,7 @@ it('does not wear descendants, clothing, missing definitions, or unshared paths'
   expect(world.linksets.filter(l => l.attachment)).toEqual([])
   send(script, '@attach:direct=force')
   expect(world.linksets.filter(l => l.attachment)).toHaveLength(2)
-  expect(inventory.wornWearables()).toEqual([])
+  expect(inventory.wornWearables()).toEqual(['shirt'])
  }
 })
 
@@ -227,13 +227,13 @@ it('reports invalid paths and unsupported forms without changing the outfit', as
    expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'enforced', outcome: profile === 'rlva' ? 'failed-option' : 'no-op' })
   }
   send(script, '@attach:direct|other=force')
-  expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'unsupported', outcome: 'unsupported-form' })
+  expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'enforced', outcome: profile === 'rlv' ? 'allowed' : 'failed-option' })
   send(script, '@attachall:direct=force')
-  expect(avatar.viewer.commandLog.at(-1)?.status).toBe('unsupported')
-  expect(world.linksets.filter(l => l.attachment)).toEqual([])
+  expect(avatar.viewer.commandLog.at(-1)?.status).toBe('enforced')
+  expect(world.linksets.filter(l => l.attachment)).toHaveLength(2)
   avatar.viewer.inventory.seed({ sharedRootId: null, entries: [] })
   send(script, '@attach:direct=force')
-  expect(world.linksets.filter(l => l.attachment)).toEqual([])
+  expect(world.linksets.filter(l => l.attachment)).toHaveLength(2)
  }
 })
 
@@ -249,7 +249,7 @@ it('reports unsupported contents and absent definitions alongside successful act
   send(script, '@attach:direct=force')
   expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'enforced', outcome: 'partial', wearResults: expect.arrayContaining([
    { itemId: 'empty', outcome: 'unsupported', reason: 'missing-definition' },
-   { itemId: 'shirt', outcome: 'unsupported', reason: 'unsupported-content' },
+   { itemId: 'shirt', outcome: 'worn' },
    { itemId: 'a', outcome: 'attached', point: 1 },
   ]) })
  }

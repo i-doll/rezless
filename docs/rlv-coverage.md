@@ -139,6 +139,19 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [forceremove](#forceremove) | Firestorm RLVa 2.4.2 | <code>@remoutfit[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Firestorm RLVa 2.4.2 | <code>@addoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
 | [forceremove](#forceremove) | Firestorm RLVa 2.4.2 | <code>@remoutfit[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts) |
+| [forceall](#forceall) | Kokua RLV 2.09.35.00 | <code>@attachall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Kokua RLV 2.09.35.00 | <code>@attachallover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Kokua RLV 2.09.35.00 | <code>@attachalloverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Kokua RLV 2.09.35.00 | <code>@addoutfitall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Kokua RLV 2.09.35.00 | <code>@addoutfitallover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Kokua RLV 2.09.35.00 | <code>@addoutfitalloverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Kokua RLV 2.09.35.00 | <code>@detachall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@attachall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@attachallover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@attachalloverorreplace[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@addoutfitall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@addoutfitallover[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
+| [forceall](#forceall) | Firestorm RLVa 2.4.2 | <code>@detachall[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts) |
 | [getattach](#getattach) | Kokua RLV 2.09.35.00 | <code>@getattach[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
 | [getattach](#getattach) | Firestorm RLVa 2.4.2 | <code>@getattach[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | version/setting dependent | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
 | [getattachnames](#getattachnames) | Kokua RLV 2.09.35.00 | <code>@getattachnames[:&lt;group&gt;]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getattach.test.ts](../packages/vitest/test/rlv-getattach.test.ts) |
@@ -1017,7 +1030,7 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@attach:&lt;folder&gt;=force</code>, <code>@attachover:&lt;folder&gt;=force</code>, <code>@attachoverorreplace:&lt;folder&gt;=force</code>.
 
-Comparison: confirmed difference. Shared direct attachment items use add or replace semantics. Both profiles honor the default + folder prefix. Kokua always adds unnamed items; RLVa shared wear replaces at their saved point and can be disabled. Clothing, recursive commands and multiple-folder options are unsupported.
+Comparison: confirmed difference. Shared direct attachment items use add or replace semantics. Both profiles honor the default + folder prefix. Kokua always adds unnamed items; RLVa shared wear replaces at their saved point and can be disabled. Clothing wear honors layer locks. Recursive forms and folder option parsing have a separate contract.
 
 #### Kokua RLV 2.09.35.00
 
@@ -1025,7 +1038,7 @@ Support depth: enforced. Named items replace for attach and attachoverorreplace;
 
 - Direct shared attachment definitions and existing mapped live attachments
 - Add/replace, named and saved points, + folders and single no-mod folded children
-- No-option and point locks, queued attachment lifecycle and per-item action outcomes; clothing, folder locks and recursive/multiple-folder forms excluded
+- No-option and point locks, queued attachment lifecycle and per-item action outcomes; folder locks excluded; recursive forms have a separate contract
 
 Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::forceAttach</code>, <code>RRInterface::findAttachmentPointFromName</code>, <code>RRInterface::findAttachmentPointFromParentName</code>.
 
@@ -1035,7 +1048,7 @@ Support depth: enforced. Attach and attachoverorreplace replace; attachover and 
 
 - Direct shared attachment definitions and existing mapped live attachments
 - Add/replace, named and saved points, default shared-wear setting and its disabled value, + folders and single-object folded children
-- No-option and point locks, queued attachment lifecycle and per-item action outcomes; clothing, folder locks and recursive/multiple-folder forms excluded
+- No-option and point locks, queued attachment lifecycle and per-item action outcomes; folder locks excluded; recursive forms have a separate contract
 
 Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvForceWear::forceFolder</code>, <code>RlvForceWear::addAttachment</code>, <code>RlvForceWear::updatePendingAttachments</code>, <code>RlvWearableItemCollector</code>, <code>RlvAttachPtLookup::getAttachPointIndex</code>.
 
@@ -1157,11 +1170,11 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@detach:&lt;shared-path&gt;=force</code>, <code>@remoutfit[:&lt;layer&gt;]=force</code>, <code>@addoutfit[:&lt;layer&gt;]=n&#124;y</code>, <code>@remoutfit[:&lt;layer&gt;]=n&#124;y</code>.
 
-Comparison: confirmed difference. Shared: direct folder attachments and selected clothing layers are removable; skin, eyes, hair and shape remain worn. Both profiles respect every layer and attachment lock, including the force issuer. Confirmed difference: Kokua layer removal checks ancestor folder names for nostrip, case insensitively, but ignores item-name nostrip; RLVa checks the item and parent name case sensitively and ascends through folded parents. Wiki also describes folder clothing removal and recursive forms; those forms remain unsupported here.
+Comparison: confirmed difference. Shared: direct folder attachments and selected clothing layers are removable; skin, eyes, hair and shape remain worn. Both profiles respect every layer and attachment lock, including the force issuer. Confirmed difference: Kokua layer removal checks ancestor folder names for nostrip, case insensitively, but ignores item-name nostrip; RLVa checks the item and parent name case sensitively and ascends through folded parents. Folder clothing removal and recursive forms have a separate contract.
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Direct folder attachments plus single no-mod objects in point-named children can be removed. Ordinary descendants survive. Layer and bare removal affect clothing only, across shared and unshared inventory. Force commands do not bypass issuer locks. Folder removal honors item and ancestor nostrip names case insensitively; layer removal honors ancestor folders only. Invalid layer/path options are inert. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, folder locks, recursive forms and inventory links are unsupported.
+Support depth: enforced. Direct folder attachments plus single no-mod objects in point-named children can be removed. Ordinary descendants survive. Layer and bare removal affect clothing only, across shared and unshared inventory. Force commands do not bypass issuer locks. Folder removal honors item and ancestor nostrip names case insensitively; layer removal honors ancestor folders only. Invalid layer/path options are inert. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing and remoutfit folders are supported; folder locks and inventory links are unsupported. Recursive forms have a separate contract.
 
 - Direct folder attachment removal with per-item results and subsequent query updates
 - Selected and all clothing layer removal; nonremovable bodyparts
@@ -1172,7 +1185,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Direct folder attachments plus object items in effective folded children can be removed; ordinary descendants survive. Folder item results follow inventory UUID order. Layer and bare removal affect clothing only, across shared and unshared inventory. Every issuer lock remains effective; a registered valid bridge stays attached. Item and parent nostrip names are case sensitive, ascending through folded parents. Invalid layer/path options fail. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing, remoutfit folder forms, group removal, folder locks, recursive forms and inventory links are unsupported.
+Support depth: enforced. Direct folder attachments plus object items in effective folded children can be removed; ordinary descendants survive. Folder item results follow inventory UUID order. Layer and bare removal affect clothing only, across shared and unshared inventory. Every issuer lock remains effective; a registered valid bridge stays attached. Item and parent nostrip names are case sensitive, ascending through folded parents. Invalid layer/path options fail. Explicit clothing add/remove fixture actions honor global and named layer locks. Folder clothing and remoutfit folders are supported; group removal, folder locks and inventory links are unsupported. Recursive forms have a separate contract.
 
 - Direct and folded folder attachment removal with deterministic per-item results
 - Selected and all clothing layer removal; nonremovable bodyparts
@@ -1182,6 +1195,36 @@ Support depth: enforced. Direct folder attachments plus object items in effectiv
 Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvForceWear::forceFolder</code>, <code>RlvForceWear::forceRemove</code>, <code>RlvForceWear::isForceDetachable</code>, <code>RlvForceWear::isForceRemovable</code>, <code>RlvForceWear::isStrippable</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceremove.test.ts](../packages/vitest/test/rlv-forceremove.test.ts).
+
+### forceall
+
+Forms: <code>@attachall:&lt;folder&gt;=force</code>, <code>@attachallover:&lt;folder&gt;=force</code>, <code>@attachalloverorreplace:&lt;folder&gt;=force</code>, <code>@addoutfitall:&lt;folder&gt;=force</code>, <code>@addoutfitallover:&lt;folder&gt;=force</code>, <code>@addoutfitalloverorreplace:&lt;folder&gt;=force</code>, <code>@detachall:&lt;folder&gt;=force</code>, <code>@remoutfit:&lt;folder&gt;=force</code>.
+
+Comparison: confirmed difference. Recursive wear includes visible descendants and folded attachment children. Folder removal affects attachments and clothing while preserving bodyparts. Kokua recursive removal includes hidden descendants; RLVa excludes hidden trees except folded objects. Neither profile splits folder options into a list: Kokua ignores pipe annotations on path components; RLVa resolves the literal path. Addoutfitalloverorreplace exists only in Kokua.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Recursive wear walks visible subfolders in inventory order, including single no-mod objects in point-named hidden children. Each folder applies its own + prefix. Clothing replacement preserves nostrip occupants and removes only the top item before testing the add lock; nostrip protection also applies to automatic top replacement at capacity; a remove-locked layer can still accept added clothing. Replacement is sequential; unnamed objects add at the saved point. Recursive removal includes hidden descendants and respects attachment, layer and nostrip protection. Remoutfit folder forms share direct detach semantics, including clothing. Pipe suffixes annotate each path component, never select additional folders. Semicolons remain literal folder text. Clothing is limited to 60 items; at capacity an unlocked top item can be automatically replaced. Inventory links, gestures, environment settings and folder locks remain unsupported.
+
+- Recursive attachments and clothing with per-item outcomes and query updates
+- Visible wear descendants, hidden removal descendants and single no-mod folded children
+- Folder add prefixes, clothing replacement, all issuer locks and bodypart preservation
+- Direct remoutfit folder removal and annotated paths; no multi-folder delimiter
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::force</code>, <code>RRInterface::forceAttach</code>, <code>RRInterface::forceDetachByName</code>, <code>RRInterface::getCategoryUnderRlvShare</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Recursive wear and removal walk visible descendants. Effective folded children contribute objects, with exactly one object required on wear; folded children do not expose ordinary descendants. Folded clothing can be worn when strippable but is excluded on removal. A + prefix changes replacement to add and descendants inherit that action. The first accepted clothing item per layer replaces strippable occupants; subsequent items add. Physics has one slot: add replaces its occupant unless removal is locked, including automatic replacement of nostrip physics. Removal preserves bodyparts and every issuer lock, bridge and nostrip protection. Remoutfit folders share direct detach semantics. Options resolve one literal path. Addoutfitalloverorreplace has no handler. Clothing is limited to 60 items; at capacity an unlocked top item can be automatically replaced. Inventory links, gestures, environment settings and folder locks remain unsupported.
+
+- Recursive attachments and clothing with per-item outcomes and query updates
+- Visible descendants, effective folded objects and folded clothing wear
+- Inherited folder add prefixes, first-layer replacement and subsequent adds, all issuer locks and bodypart preservation
+- Direct remoutfit folder removal; literal options and unsupported addoutfitalloverorreplace
+
+Reference symbols: <code>indra/newview/rlvinventory.cpp</code>: <code>RlvWearableItemCollector::onCollectFolder</code>, <code>RlvWearableItemCollector::onCollectItem</code>, <code>RlvWearableItemCollector::getWearActionNormal</code>, <code>RlvForceWear::forceFolder</code>, <code>RlvForceHandler&lt;RLV_BHVR_REMOUTFIT&gt;::onCommand</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-forceall.test.ts](../packages/vitest/test/rlv-forceall.test.ts).
 
 ### getattach
 
@@ -1362,7 +1405,7 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@addattach[:&lt;point&gt;]=n&#124;y</code>, <code>@remattach[:&lt;point&gt;]=n&#124;y</code>, <code>@remattach[:&lt;point&#124;uuid&#124;shared-path&gt;]=force</code>.
 
-Comparison: shared. Global and named addattach/remattach locks deny adding/removing attachments at their points, including force actions and replacement. Every issuer contributes independently. Remattach force is a synonym of detach; recursive, multiple-folder and group force removal remain unsupported.
+Comparison: shared. Global and named addattach/remattach locks deny adding/removing attachments at their points, including force actions and replacement. Every issuer contributes independently. Remattach force is a synonym of detach; recursive folder removal has a separate contract; group force removal remains unsupported.
 
 #### Kokua RLV 2.09.35.00
 

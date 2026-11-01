@@ -774,6 +774,12 @@ and camera-origin positions, and `getRlvCameraLimits` exposes effective bounds
 and RLVa's `setcam_avdist` silhouette threshold. Rendering and exclusive camera
 control are outside this fixture.
 
+`attachall`, `attachallover` and `attachalloverorreplace` wear recursive shared folders,
+with `addoutfitall` and `addoutfitallover` aliases. Kokua also accepts
+`addoutfitalloverorreplace`. `detachall` removes folder contents recursively;
+`remoutfit:<folder>` removes direct folder attachments and clothing.
+Hidden and folded folders follow the selected profile, with per-item outcomes.
+
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
 relations and an explicit shared root. `getinv` returns direct folder names with
 profile-specific path matching and visibility filters.
