@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest'
+import { World } from '@rezless/vm'
 import { loadLinkset, loadRlvPair } from '../src/index.js'
 
 // Firestorm RLVa 2.4.2: RlvForceHandler<RLV_BHVR_SIT>::onCommand,
@@ -227,3 +228,29 @@ it('lets RLVa ground sitting replace autopilot while Kokua empty sit leaves it p
     expect(avatar.position).toEqual(profile === 'rlva' ? { x: 0, y: 0, z: 0 } : { x: 60, y: 0, z: 1 })
   }
 })
+
+
+it.each(['cancel', 'ground', 'teleport', 'reset'] as const)(
+  'keeps an initially unbound user pilot cancellable after the first command: %s', async action => {
+    for (const profile of profiles) {
+      const world = new World()
+      world.addRegion('Sit fixture', { x: 0, y: 0 })
+      const avatar = world.addAvatar({ username: 'sitter', region: 'Sit fixture', viewer: { profile } })
+      const controller = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
+        prims: [{ scripts: [{ name: 'controller', source: { source } }] }] })
+      const seat = await loadLinkset({ world, region: avatar.region, position: { x: 60, y: 0, z: 0 }, prims: [{}] })
+      world.setSitResponse(seat.prims[0]!, { position: { x: 0, y: 0, z: 1 }, autopilot: { durationMs: 1000, success: true } })
+      const script = controller.scripts.controller!
+      script.start()
+      expect(world.userSitAvatar(avatar, seat.prims[0]!)).toBe(true)
+      script.fire('link_message', { sender_num: 1, num: 0, str: '@getsitid=300300', id: avatar.key })
+      if (action === 'cancel') world.cancelSitAutopilot(avatar)
+      if (action === 'ground') world.sitAvatarOnGround(avatar)
+      if (action === 'teleport') world.teleportAvatar(avatar, { x: 10, y: 10, z: 10 })
+      if (action === 'reset') avatar.viewer.session.reset()
+      controller.linkset.advanceTime(1000)
+      expect(avatar.sittingOn).toBeNull()
+      expect(avatar.info & 48).toBe(action === 'ground' ? 16 : 0)
+      expect(avatar.position).toEqual(action === 'teleport' ? { x: 10, y: 10, z: 10 } : { x: 0, y: 0, z: 0 })
+    }
+  })

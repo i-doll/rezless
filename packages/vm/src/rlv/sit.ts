@@ -136,6 +136,7 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
     !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
   if (!response.autopilot || previous?.linkset === seat.linkset) return sit()
   const { durationMs, success } = response.autopilot
+  avatar.viewer.session.bind(seat.linkset!, avatar)
   const lifetime = avatar.viewer.session.lifetime
   const cancel = world.clock.scheduleTask(lifetime, world.clock.now + durationMs, () => {
     pendingSits.delete(avatar.viewer.session.lifetime)
