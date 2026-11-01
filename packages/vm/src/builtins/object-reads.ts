@@ -1,5 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim } from '../prim.js'
+import type { WorldAvatar } from '../world.js'
 import type { PrimShape } from '../prim-params.js'
 import type { Script } from '../script.js'
 import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR, type LslType, type LslValue, type Rotation, type Vector } from '../values/types.js'
@@ -394,12 +395,85 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
   }
 }
 
+/** Avatar details use the live placement and explicit resource totals. */
+function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number): Entry[] | undefined {
+  const stats = avatar.objectDetails
+  const seat = avatar.sittingOn
+  const root = seat && rootOf(seat)
+  const int = (value: number): Entry[] => [[value, 'integer']]
+  const float = (value: number): Entry[] => [[value, 'float']]
+  switch (flag) {
+    case OBJECT_NAME: return [[avatar.name, 'string']]
+    case OBJECT_DESC:
+    case OBJECT_CREATION_TIME:
+    case OBJECT_REZ_TIME:
+    case OBJECT_TEXT: return [['', 'string']]
+    case OBJECT_GROUP_TAG: return [[stats.groupTag ?? '', 'string']]
+    case OBJECT_POS: return [[avatar.position, 'vector']]
+    case OBJECT_ROT: return [[avatar.rotation, 'rotation']]
+    case OBJECT_VELOCITY: return [[avatar.velocity, 'vector']]
+    case OBJECT_SCALE: return [[avatar.size, 'vector']]
+    case OBJECT_OMEGA:
+    case OBJECT_TEXT_COLOR: return [[ZERO_VECTOR, 'vector']]
+    case OBJECT_OWNER:
+    case OBJECT_REZZER_KEY: return [[avatar.key, 'key']]
+    case OBJECT_CREATOR:
+    case OBJECT_GROUP:
+    case OBJECT_LAST_OWNER_ID: return [[NULL_KEY, 'key']]
+    case OBJECT_ROOT: return [[root?.key ?? avatar.key, 'key']]
+    case OBJECT_RUNNING_SCRIPT_COUNT: return int(stats.runningScriptCount ?? 0)
+    case OBJECT_TOTAL_SCRIPT_COUNT: return int(stats.totalScriptCount ?? 0)
+    case OBJECT_SCRIPT_MEMORY: return int(stats.scriptMemory ?? 0)
+    case OBJECT_SCRIPT_TIME: return float(stats.scriptTime ?? 0)
+    case OBJECT_STREAMING_COST: return float(stats.streamingCost ?? 0)
+    case OBJECT_PRIM_COUNT: return int(stats.primCount ?? 0)
+    case OBJECT_TOTAL_INVENTORY_COUNT: return int(stats.totalInventoryCount ?? 0)
+    case OBJECT_RENDER_WEIGHT: return int(stats.renderWeight ?? -1)
+    case OBJECT_ATTACHED_SLOTS_AVAILABLE: return int(stats.attachedSlotsAvailable ?? 38)
+    case OBJECT_ANIMATED_COUNT: return int(stats.animatedCount ?? 0)
+    case OBJECT_ANIMATED_SLOTS_AVAILABLE: return int(stats.animatedSlotsAvailable ?? 3)
+    case OBJECT_ACCOUNT_LEVEL: return int(stats.accountLevel ?? 0)
+    case OBJECT_MASS: return float((stats.mass ?? 0) + (root ? linksetMass(root) : 0))
+    case OBJECT_HEALTH: return float(stats.health ?? 100)
+    case OBJECT_HOVER_HEIGHT: return float(avatar.movement?.hoverOffset ?? 0)
+    case OBJECT_BODY_SHAPE_TYPE: return float(avatar.visualParams[80] ?? 0)
+    case OBJECT_PRIM_EQUIVALENCE: return int(root ? primsOf(root).length : 1)
+    case OBJECT_PHYSICS_COST: return float(root ? primsOf(root).length : 1)
+    case OBJECT_SERVER_COST:
+      return float(root ? primsOf(root).length / 2 + scriptsOf(root).length / 4 : 0)
+    case OBJECT_LINK_NUMBER: {
+      if (!root) return int(0)
+      const seated = ctx.linkset.world!.avatars.filter(a => a.sittingOn?.linkset === root.linkset)
+      return int(primsOf(root).length + seated.indexOf(avatar) + 1)
+    }
+    case OBJECT_PATHFINDING_TYPE: return int(1)
+    case OBJECT_MATERIAL: return int(4)
+    case OBJECT_TEXT_ALPHA: return float(1)
+    case OBJECT_CHARACTER_TIME:
+    case OBJECT_DAMAGE: return float(0)
+    case OBJECT_ATTACHED_POINT:
+    case OBJECT_PHYSICS:
+    case OBJECT_PHANTOM:
+    case OBJECT_TEMP_ON_REZ:
+    case OBJECT_CLICK_ACTION:
+    case OBJECT_TEMP_ATTACHED:
+    case OBJECT_SELECT_COUNT:
+    case OBJECT_SIT_COUNT:
+    case OBJECT_DAMAGE_TYPE:
+    case OBJECT_LOCKED:
+    case OBJECT_VOLUME_DETECT: return int(0)
+    case OBJECT_PERMS:
+    case OBJECT_PERMS_COMBINED: return [PERM_ALL, PERM_ALL, 0, 0, 0].map(value => [value, 'integer'])
+    default: return undefined
+  }
+}
+
 /**
  * llGetObjectDetails(key id, list params) — the entries for each OBJECT_*
  * flag (five masks for OBJECT_PERMS), and OBJECT_UNKNOWN_DETAIL for a number
  * that is not a flag. An entry that is not an integer is dropped and turns
- * the last entry so far into OBJECT_UNKNOWN_DETAIL. A key with no prim in
- * the region gives [].
+ * the last entry so far into OBJECT_UNKNOWN_DETAIL. A key with no prim or
+ * avatar in the region gives [].
  */
 /**
  * llGetObjectPermMask(integer category) — one of the object's five masks,
@@ -413,8 +487,12 @@ export const llGetObjectPermMask: BuiltinImpl = (ctx, args) => {
 }
 
 export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
-  const prim = findObjectPrim(ctx, keyArg(args))
-  if (!prim) return []
+  const id = keyArg(args)
+  const prim = findObjectPrim(ctx, id)
+  const avatar = !prim && KEY_PATTERN.test(id) && id !== NULL_KEY
+    ? ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === id.toLowerCase() && a.region === ctx.linkset.region)
+    : undefined
+  if (!prim && !avatar) return []
   const flags = (args[1] as LslValue[] | undefined) ?? []
   const out: Entry[] = []
   flags.forEach((flag, i) => {
@@ -423,7 +501,7 @@ export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
       if (out.length > 0) out[out.length - 1] = [OBJECT_UNKNOWN_DETAIL, 'integer']
       return
     }
-    out.push(...(detail(prim, flag as number) ?? [[OBJECT_UNKNOWN_DETAIL, 'integer']]))
+    out.push(...((prim ? detail(prim, flag as number) : avatarDetail(ctx, avatar!, flag as number)) ?? [[OBJECT_UNKNOWN_DETAIL, 'integer']]))
   })
   return typedList(
     out.map(([v]) => v),

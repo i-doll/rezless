@@ -49,6 +49,28 @@ export interface WorldObjectOptions {
 }
 
 export interface WorldAvatarOptions extends WorldObjectOptions {
+  /** llGetObjectDetails resource totals, including worn objects. Unset totals are zero,
+   * except health 100, render weight -1, attachment slots 38 and animated slots 3.
+   * Mass is in kilograms and excludes any seat.
+   */
+  readonly objectDetails?: {
+    runningScriptCount?: number
+    totalScriptCount?: number
+    scriptMemory?: number
+    scriptTime?: number
+    streamingCost?: number
+    primCount?: number
+    totalInventoryCount?: number
+    renderWeight?: number
+    attachedSlotsAvailable?: number
+    animatedCount?: number
+    animatedSlotsAvailable?: number
+    accountLevel?: number
+    mass?: number
+    health?: number
+    groupTag?: string
+  }
+
   /** Group memberships in viewer order; group supplies the initial active UUID. */
   readonly groups?: readonly AvatarGroup[]
   /** Optional viewer emulation. Omission disables it. */
@@ -77,6 +99,7 @@ export interface AvatarDestination {
 
 /** Mutable avatar fixture. Region and position can change between script events. */
 export interface WorldAvatar extends WorldEntity {
+  objectDetails: NonNullable<WorldAvatarOptions['objectDetails']>
   /** Memberships used for group activation and replies; group is the live active UUID. */
   groups: AvatarGroup[]
   readonly viewer: ViewerState
@@ -368,6 +391,7 @@ export class World {
     }
     const avatar: WorldAvatar = {
       ...entity,
+      objectDetails: { ...opts.objectDetails },
       groups: (opts.groups ?? []).map(group => ({ ...group, ...(group.roles ? { roles: group.roles.map(role => ({ ...role })) } : {}) })),
       viewer: createViewerState(opts.viewer),
       username: opts.username.toLowerCase(),

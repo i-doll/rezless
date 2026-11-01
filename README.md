@@ -377,6 +377,16 @@ numeric parameter IDs to values in `[0, 1]`; unset supported parameters read 0.
 Size defaults to `<0.45, 0.6, 1.9>`, flags to 0, and shared language to empty.
 Display name defaults to `name`, then `username`.
 
+`llGetObjectDetails` reads avatars in the caller's region. Position, rotation,
+velocity and size use the live avatar fixture; a seated avatar reports its seat's
+root and link number, and includes the seat in its mass. Supply resource totals
+with `objectDetails`, for example `{ mass: 80, primCount: 5, scriptMemory: 131072 }`.
+These totals include worn objects and remain explicit fixture values when
+attachments change. Mass is in kilograms, script memory in bytes and script time
+in seconds. Unset totals are zero except health 100, render weight -1, available
+attachment slots 38 and animated slots 3. `groupTag` supplies the displayed group
+tag; body shape uses `visualParams[80]` and hover height uses `movement.hoverOffset`.
+
 `llGetDisplayName`, `llGetUsername`, `llName2Key`, `llGetAgentInfo`,
 `llGetAgentLanguage`, `llGetAgentSize` and `llGetVisualParams` query avatars in
 the script's region. `llRequestUserKey` searches all World avatar usernames and
@@ -508,7 +518,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
 * **parcel effects and payments**: `llSetParcelMusicURL`, the six land ban/pass list functions, `llEjectFromLand`, `llReturnObjectsByID`, `llReturnObjectsByOwner`, `llSetParcelForSale`, `llManageEstateAccess`, `llParcelMediaCommandList`, `llParcelMediaQuery`, `llGiveMoney`, `llTransferLindenDollars`, `llTransferOwnership`. See the fixture and record-only limits above.
 * **parcels**: `llGetParcelDetails`, `llGetParcelFlags`, `llGetParcelMaxPrims`, `llGetParcelPrimCount`, `llGetParcelPrimOwners`, `llGetParcelMusicURL`, `llGetLandOwnerAt`, `llOverMyLand`
-* **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatar keys still read like unknown keys in these object queries), `llGetObjectPermMask`
+* **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; `llGetObjectDetails` also reads local avatars, including seated roots and avatar resource totals), `llGetObjectPermMask`
 * **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
 * **ground, water and wind**: `llModifyLand` and `llSetGroundTexture` (permission refusal only), `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
