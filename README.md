@@ -241,6 +241,52 @@ prims within 10, 20 and 100 m of the sending prim, and so do its
 region, and `llRegionSayTo` only the prim with that key. A prim never hears its
 own chat, and `llOwnerSay` and `llInstantMessage` never trigger a `listen`.
 
+#### Rezzing inventory objects
+
+Give a prim named object definitions through `objects`, then inspect the new
+linksets in its World:
+
+```ts
+const world = new World()
+world.addRegion('Test', { x: 0, y: 0 })
+const rezzer = await loadLinkset({
+  world, region: 'Test',
+  prims: [{
+    objects: {
+      payload: { prims: [{ name: 'Payload', scripts: [{
+        name: 'receiver', source: './receiver.lsl',
+      }] }] },
+    },
+    scripts: [{ name: 'rezzer', source: './rezzer.lsl' }],
+  }],
+})
+rezzer.scripts['rezzer'].start()
+const rezzed = world.linksets.filter(object => object !== rezzer.linkset)
+expect(rezzed[0].allScripts()[0].global('start')).toBe(42)
+```
+
+Here `rezzer.lsl` calls `llRezAtRoot("payload", llGetPos() + <0,0,2>,
+ZERO_VECTOR, ZERO_ROTATION, 42)` and `receiver.lsl` stores
+`llGetStartParameter()` in its `on_rez` handler. Each rez gets fresh prim keys,
+and the rezzing prim receives `object_rez` with the new root key. An inventory
+item made with `makeInventoryItem({ name, type: InventoryType.OBJECT, object:
+savedLinkset })` supplies an existing linkset instead of an inline definition.
+
+`llRezObject`, `llRezAtRoot` and `llRezObjectWithParams` apply the measured
+size-dependent reach, placement and parameter rules. `llDerezObject` removes an
+object, marks it temporary, or saves it back into its source inventory item.
+Only the original rezzer can derez its copyable objects. Saved objects retain
+script globals, LSL state, listeners and timers. Save objects between handlers;
+suspended handler continuations are not restored.
+
+`llGetVel` and `OBJECT_VELOCITY` read initial velocity. `llGetForce` reads the
+force requested through `REZ_ACCEL`. Force, sound, collision and no-entry flags
+are captured requests; physical motion, contacts and audio are not simulated.
+Temporary objects expire after exactly 60 seconds of virtual time, without
+simulator cleanup jitter. Clearing temporary status cancels expiry; re-enabling
+it starts a new countdown. Setting it true again keeps the current deadline.
+Derez and `llDie` remove objects from `world.linksets`.
+
 #### Several objects in a world
 
 To test chat between separate objects, put their linksets in a `World`. Each
@@ -432,6 +478,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **avatar names and info**: `llGetDisplayName`, `llGetUsername`, `llName2Key`, `llRequestUserKey`, `llGetAgentInfo`, `llGetAgentLanguage`, `llGetAgentList`, `llGetAgentSize`, `llGetVisualParams`, `llIsFriend`, `llSameGroup`. Configure avatars with `world.addAvatar` as described above.
 * **dataserver**: `llRequestAgentData`, `llRequestInventoryData`, `llRequestSimulatorData`, `llRequestUsername`, `llRequestDisplayName`
 * **combat**: `llDamage`, `llAdjustDamage`, `llSetDamage`, `llGetHealth`. Set `linkset.damageEnabled` for the object's parcel; it defaults to the region's damage flag. `s.setCombatAvatar(id, { health, damageEnabled, scripts })` supplies an avatar and its attachment scripts. Damage waits for all `on_damage` handlers, including sleepers, before applying avatar health changes and queuing `final_damage`. `on_death` notifies attachments when avatar health reaches zero. Object health stays under script control through `PRIM_HEALTH`. Set `linkset.damageThrottleExempt` for a parcel-owner or land-group source. Physics contacts, seated-avatar redistribution, regeneration and death teleports are not simulated.
+* **rezzing**: `llRezObject`, `llRezAtRoot`, `llRezObjectWithParams`, `llDerezObject`, `llGetVel`, `llGetForce`. Supply inventory objects through a prim fixture's `objects` definitions and inspect rezzed linksets in `world.linksets`, as described above.
 * **sensors**: `llSensor`, `llSensorRepeat`, `llSensorRemove` fire `sensor` / `no_sensor` with detected data. Sensors find other loaded linksets and targets placed with `world.addObject({ region, name, position, scripted, active, physical })` or `world.addAvatar({ region, key, name, username, position })`. Targets also accept `owner`, `group`, `rotation` and `velocity`; returned targets can be moved between scans. `world.sensorProperties.set(linkset, { group, velocity, active })` supplies these properties for loaded linksets. Without an activity override, a loaded script with a timer, active listener or sleeping handler counts as active. Scans use exact name/key filters, a strict radius capped at 96 m, and the nearest 32 results. Positive repeats use virtual time at the requested interval; simulator frame cadence and lag are not modeled. The measured Aditi simulator returned no matches for `DAMAGEABLE`, including targets with damage handlers and health 100, so this VM does the same. Attachment and seated-avatar sensor geometry are not simulated.
 * **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`/`TouchFace`/`TouchST`/`TouchUV`/`TouchNormal`/`TouchBinormal`/`Rezzer`/`Damage`
 * **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`, `llRot2Fwd`/`Left`/`Up`, `llRot2Axis`/`Angle`, `llAxisAngle2Rot`, `llRotBetween`, `llAngleBetween`, `llAxes2Rot`, `llLinear2sRGB`/`llsRGB2Linear`

@@ -7,6 +7,7 @@ export { loadLinkset } from './loadLinkset.js'
 export type {
   LinksetInput,
   PrimInput,
+  ObjectInput,
   ScriptInput,
   ScriptSource,
   InlineSource,

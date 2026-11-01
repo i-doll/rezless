@@ -10,6 +10,8 @@ import {
   type PrimOptions,
   type InventoryItem,
   type Vector,
+  makeInventoryItem,
+  InventoryType,
 } from '@rezless/vm'
 import { isCoverageEnabled } from './coverage-config.js'
 import { registerScript } from './coverage-registry.js'
@@ -35,7 +37,11 @@ export interface PrimInput extends PrimOptions {
   readonly scripts?: ReadonlyArray<ScriptInput>
   /** Non-script inventory items (notecards, textures, …). */
   readonly inventory?: ReadonlyArray<InventoryItem>
+  /** Named inventory objects, each described with the same prim/script fixture syntax. */
+  readonly objects?: Readonly<Record<string, ObjectInput>>
 }
+
+export type ObjectInput = Omit<LinksetInput, 'world' | 'region' | 'owner' | 'startParameter' | 'startString'>
 
 export interface LinksetInput extends LinksetOptions {
   readonly prims: ReadonlyArray<PrimInput>
@@ -89,6 +95,12 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
     prims.push(prim)
     for (const item of primInput.inventory ?? []) {
       prim.addInventory(item)
+    }
+    for (const [name, definition] of Object.entries(primInput.objects ?? {})) {
+      const object = (await loadLinkset(definition)).linkset
+      if (!object.prims.length) throw new Error(`loadLinkset: inventory object '${name}' has no prims`)
+      prim.addInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
+        key: object.prims[0]!.key, object }))
     }
     for (const sInput of primInput.scripts ?? []) {
       const { source, filename } = await readScriptSource(sInput.source)

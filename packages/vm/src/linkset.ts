@@ -9,6 +9,7 @@ import type { ChatType } from './runtime.js'
 import type { World } from './world.js'
 import { NULL_KEY, type Vector } from './values/types.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
+import type { InventoryItem } from './inventory.js'
 import {
   LINK_ROOT,
   LINK_SET,
@@ -57,6 +58,18 @@ export interface TouchOptions {
   readonly avatar?: Omit<DetectedEntry, 'linkNumber' | 'touchFace' | 'touchST' | 'touchUV'>
 }
 
+export interface RezRecord {
+  readonly rezzer: Prim
+  readonly rezzerKey: string
+  readonly item: InventoryItem
+  readonly copyable: boolean
+  flags: number
+  velocity: Vector
+  acceleration: Vector
+  accelerationLocal: boolean
+  collisionSound: { sound: string; volume: number } | null
+}
+
 const TOUCH_EVENTS = ['touch_start', 'touch', 'touch_end'] as const
 
 const CHAT_RANGE: Partial<Record<ChatType, number>> = { whisper: 10, say: 20, shout: 100 }
@@ -96,6 +109,11 @@ export class Linkset {
   readonly owner: string
   /** True once a script in the linkset has called llDie. */
   dead = false
+  /** Provenance and initial motion of a script-rezzed object. */
+  rez: RezRecord | undefined
+  /** Temporary objects expire after 60 seconds of virtual time. */
+  expiresAt: number | undefined
+  rezCounter = 0
   readonly world?: World
   readonly region: string | undefined
   readonly startParameter: number
@@ -139,6 +157,46 @@ export class Linkset {
     this.prims.push(prim)
     this.recomputeLinkNumbers()
     return prim
+  }
+
+  /** Snapshot an inventory object, or instantiate it in the rezzer's world. */
+  copy(opts: LinksetOptions = {}, from?: Linkset): Linkset {
+    const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
+    for (const source of this.prims) {
+      const prim = copy.addPrim(new Prim({ name: source.name }))
+      for (const [name, value] of Object.entries(source)) {
+        if (['key', 'linkset', 'linkNumber', 'createdAt', 'scripts', 'inventory'].includes(name)) continue
+        Object.assign(prim, { [name]: structuredClone(value) })
+      }
+      for (const item of source.inventory) {
+        if (item.script) {
+          const script = item.script.copyTo(prim)
+          Object.assign(prim.inventory.at(-1)!, { ...item, permMask: { ...item.permMask }, script })
+        } else prim.addInventory({ ...item, permMask: { ...item.permMask } })
+      }
+    }
+    for (const [key, value] of this.linksetData) copy.linksetData.set(key, { ...value })
+    return copy
+  }
+
+  /** Remove the object and cancel all its scripts, including sleeping handlers. */
+  remove(): void {
+    if (this.dead) return
+    this.dead = true
+    for (const script of this.allScripts()) {
+      script.markDead()
+      this.clock.purgeTarget(script)
+    }
+    const index = this.peers.indexOf(this)
+    if (index >= 0) this.peers.splice(index, 1)
+    this.world?.sensorProperties.delete(this)
+  }
+
+  /** Temporary status belongs to the whole object; repeated TRUE keeps its deadline. */
+  setTemporary(temporary: boolean): void {
+    for (const prim of this.prims) prim.params.tempOnRez = temporary
+    if (temporary) this.expiresAt ??= this.clock.now + 60000
+    else this.expiresAt = undefined
   }
 
   private recomputeLinkNumbers(): void {
@@ -493,19 +551,31 @@ export class Linkset {
    * triggers more events (timers, chained chats, …) they may become due
    * inside this loop and are picked up in the next iteration.
    *
-   * The script roster is captured once per drain. Adding a script
-   * mid-drain is rare (and would require an explicit prim mutation by a
-   * builtin); when it happens, the new script's events are simply picked
-   * up on the next outer drain. Worth-the-trade for avoiding an O(scripts)
-   * allocation per event.
+   * Refresh the script roster for each event: a handler may rez or remove
+   * an object, changing which scripts can wake on this drain.
    */
   drainQueue(until = this.clock.now): void {
-    const scripts = this.peers.flatMap((l) => l.allScripts())
-    if (scripts.length === 0) return
     while (true) {
       flushDamageEvents(this.clock)
-      const next = this.clock.takeNextDue(scripts, Math.max(until, this.clock.now))
-      if (!next) return
+      const scripts = this.peers.flatMap((l) => l.allScripts())
+      const horizon = Math.max(until, this.clock.now)
+      let expiry = Infinity
+      for (const linkset of this.peers) {
+        if (!linkset.prims[0]?.params.tempOnRez) linkset.expiresAt = undefined
+        else {
+          linkset.expiresAt ??= this.clock.now + 60000
+          expiry = Math.min(expiry, linkset.expiresAt)
+        }
+      }
+      const next = this.clock.takeNextDue(scripts, Math.min(horizon, expiry))
+      if (!next) {
+        if (expiry > horizon) return
+        this.clock.now = Math.max(this.clock.now, expiry)
+        for (const linkset of [...this.peers]) {
+          if (linkset.expiresAt !== undefined && linkset.expiresAt <= this.clock.now) linkset.remove()
+        }
+        continue
+      }
       if (next.at > this.clock.now) this.clock.now = next.at
       const target = next.target
       if (target.dead) continue

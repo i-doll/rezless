@@ -500,6 +500,7 @@ export function writePrimParam(
       return 1
     case PRIM_TEMP_ON_REZ:
       p.tempOnRez = num(rules[cursor]) !== 0
+      prim.linkset?.setTemporary(p.tempOnRez)
       return 1
     case PRIM_PHYSICS_SHAPE_TYPE:
       p.physicsShapeType = num(rules[cursor]) | 0
