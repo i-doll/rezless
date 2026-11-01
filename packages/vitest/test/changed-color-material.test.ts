@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { loadLinkset } from '../src/index.js'
 import { changedScene } from './helpers/changed-events.js'
 
 // https://wiki.secondlife.com/wiki/CHANGED_COLOR
@@ -115,6 +116,30 @@ describe('changed colour and material events', () => {
       llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_RENDER_MATERIAL,0,MATERIAL]);llSleep(0.3);llSetAlpha(0.3,0);`)
     expect(s.driver).toEqual([2,4098])
     expect(s.root).toEqual([2,4096,2])
+  })
+
+  it('initializes an observer before delivering its first setter event', async () => {
+    const { scripts } = await loadLinkset({ prims: [{ scripts: [
+      { name: 'setter', source: { source: 'default{state_entry(){llSetColor(<1,0,0>,0);}}' } },
+      { name: 'observer', source: { source: `integer ready; integer entries; list seen;
+        default{state_entry(){++entries;ready=1;}changed(integer c){seen += [ready,c];}}` } },
+    ] }] })
+    scripts.setter!.start()
+    expect(scripts.observer!.global('seen')).toEqual([1,2])
+    scripts.observer!.start()
+    expect(scripts.observer!.global('entries')).toBe(1)
+  })
+
+  it('lets a sleeping observer finish initialization before its first change', async () => {
+    const { scripts } = await loadLinkset({ prims: [{ scripts: [
+      { name: 'setter', source: { source: 'default{state_entry(){llSetColor(<1,0,0>,0);}}' } },
+      { name: 'observer', source: { source: `integer ready; list seen;
+        default{state_entry(){llSleep(1.0);ready=1;}changed(integer c){seen += [ready,c];}}` } },
+    ] }] })
+    scripts.setter!.start()
+    expect(scripts.observer!.global('seen')).toEqual([])
+    scripts.observer!.advanceTime(1000)
+    expect(scripts.observer!.global('seen')).toEqual([1,2])
   })
 
   it('discards changes made while a script is stopped', async () => {

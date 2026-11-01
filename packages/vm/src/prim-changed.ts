@@ -13,6 +13,7 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
   const clock = prim.linkset!.clock
   for (const script of prim.scripts) {
     if (!script.running) continue
+    script.queueStart()
     const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
       && ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0)
     const merge = waiting.find(e => e.at >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
