@@ -1,4 +1,4 @@
-import type { KeyframedMotion } from './builtins/motion.js'
+import { advanceTargetMotion, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
@@ -77,6 +77,8 @@ export class Prim {
   statusFlags = 0
   /** Keyframed playback is shared by every script in the object. */
   keyframedMotion: KeyframedMotion | null = null
+  /** Plain target requests; clock callbacks are private and never enter inventory snapshots. */
+  targetMotion: TargetMotionState = { move: null, look: null }
   collisionFilter: CollisionFilter = { name: '', key: NULL_KEY, accept: true }
   /** null selects the simulator's default material impact sound. */
   collisionSound: CollisionSound | null = null
@@ -108,7 +110,21 @@ export class Prim {
   }
 
   /** Set when this prim joins a linkset. */
-  linkset?: Linkset
+  #linkset: Linkset | undefined
+  #cancelTargetMotion: (() => void) | undefined
+  get linkset(): Linkset | undefined { return this.#linkset }
+  set linkset(value: Linkset | undefined) {
+    this.#cancelTargetMotion?.()
+    this.#linkset = value
+    if (!value) return
+    let previous = value.clock.now
+    this.#cancelTargetMotion = value.clock.onAdvance(now => {
+      const seconds = (now - previous) / 1000
+      previous = now
+      if (value.dead) { this.#cancelTargetMotion?.(); return }
+      if (value.prims[0] === this && seconds > 0) advanceTargetMotion(this, seconds)
+    })
+  }
   /** Virtual time in ms when the prim joined its linkset. */
   createdAt = 0
 

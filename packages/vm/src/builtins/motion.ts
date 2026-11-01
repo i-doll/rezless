@@ -1,4 +1,4 @@
-import type { BuiltinImpl } from '../runtime.js'
+import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim } from '../prim.js'
 import type { LinksetClock } from '../clock.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
@@ -10,6 +10,7 @@ import { KFM_COMMAND, KFM_DATA, KFM_MODE, KFM_ROTATION, KFM_TRANSLATION,
   KFM_CMD_PLAY, KFM_CMD_PAUSE, KFM_CMD_STOP, STATUS_PHYSICS,
   PRIM_PHYSICS_SHAPE_PRIM } from '../generated/constants.js'
 import { llGround } from './ground.js'
+import type { Script } from '../script.js'
 
 interface Frame { translation: Vector; rotation: Rotation; duration: number }
 interface Transform { position: Vector; rotation: Rotation }
@@ -233,3 +234,96 @@ export const llSetRegionPos: BuiltinImpl = (ctx,args) => {
   root.params.position={...target,z:Math.max(target.z,ground)}
   return Number(root.params.position.z-target.z<.1)
 }
+
+
+interface TargetOwner { prim: string; script: string }
+interface MoveRequest { owner: TargetOwner; target: Vector; tau: number }
+interface LookRequest {
+  owner: TargetOwner
+  target: { position: Vector } | { rotation: Rotation }
+  strength: number
+  damping: number
+}
+export interface TargetMotionState { move: MoveRequest | null; look: LookRequest | null }
+
+// In-world: tau-bound/rot-bound probes accepted .044444 and rejected .044.
+const MIN_RESPONSE = Math.fround(.044444)
+function owner(ctx: CallContext): TargetOwner {
+  return { prim: ctx.prim.key, script: ctx.script.scriptName }
+}
+
+function stopTargetMotion(prim: Prim, kind: 'move' | 'look', caller: TargetOwner): void {
+  const request = prim.targetMotion[kind]
+  if (request?.owner.prim === caller.prim && request.owner.script === caller.script) prim.targetMotion[kind] = null
+}
+
+/** The initiating script retains stop/reset ownership even when a sibling retargets it. */
+export function clearTargetMotion(script: Script): void {
+  const root = script.linkset.prims[0]!, caller = { prim: script.host.key, script: script.scriptName }
+  stopTargetMotion(root, 'move', caller)
+  stopTargetMotion(root, 'look', caller)
+}
+
+function lookRotation(position: Vector, target: Vector): Rotation {
+  const delta = subtract(target, position), length = Math.hypot(delta.x, delta.y, delta.z)
+  if (!length) return { x: 1, y: 0, z: 0, s: 0 }
+  // Pitch +Z toward the target, then yaw around world +Z. This keeps +X below
+  // the horizon, rather than using the shortest rotation of +Z alone.
+  const pitch = Math.acos(Math.max(-1, Math.min(1, delta.z / length))) / 2
+  const yaw = Math.atan2(delta.y, delta.x) / 2
+  return { x: -Math.sin(pitch) * Math.sin(yaw), y: Math.sin(pitch) * Math.cos(yaw),
+    z: Math.cos(pitch) * Math.sin(yaw), s: Math.cos(pitch) * Math.cos(yaw) }
+}
+
+/** Nominal exponential kinematics. No gravity, angular wobble, contacts or inertia. */
+export function advanceTargetMotion(prim: Prim, seconds: number): void {
+  if (!(prim.statusFlags & STATUS_PHYSICS)) return
+  const { move, look } = prim.targetMotion
+  if (move) {
+    const from = prim.params.position, t = -Math.expm1(-seconds / move.tau)
+    prim.params.position = { x: from.x + (move.target.x - from.x) * t,
+      y: from.y + (move.target.y - from.y) * t, z: from.z + (move.target.z - from.z) * t }
+  }
+  if (look) {
+    const target = 'rotation' in look.target ? look.target.rotation : lookRotation(prim.params.position, look.target.position)
+    prim.params.rotation = interpolate(normalize(prim.params.rotation), target,
+      -Math.expm1(-seconds / (look.strength * look.damping)))
+  }
+}
+
+export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
+  const root = ctx.linkset.prims[0]!, target = args[0] as Vector, tau = Number(args[1])
+  const initiator = root.targetMotion.move?.owner ?? owner(ctx)
+  stopTargetMotion(root, 'move', owner(ctx))
+  if (!vector(target) || !Number.isFinite(tau) || tau < MIN_RESPONSE) return
+  const delta = subtract(target, root.regionPosition())
+  // In-world: edge-64 moved, edge-64.01 and distance-64.9 did not.
+  if (Math.hypot(delta.x, delta.y, delta.z) > 64) return
+  root.targetMotion.move = { owner: initiator, target: { ...target }, tau }
+}
+export const llStopMoveToTarget: BuiltinImpl = ctx => { stopTargetMotion(ctx.linkset.prims[0]!, 'move', owner(ctx)) }
+
+function setLook(ctx: CallContext, target: LookRequest['target'], strength: number, damping: number): void {
+  const root = ctx.linkset.prims[0]!
+  const initiator = root.targetMotion.look?.owner ?? owner(ctx)
+  stopTargetMotion(root, 'look', owner(ctx))
+  const physical = !!(root.statusFlags & STATUS_PHYSICS)
+  if (!Number.isFinite(strength) || !Number.isFinite(damping) || strength <= 0 || (physical && strength < MIN_RESPONSE)) return
+  if (!physical) {
+    const rotation = 'rotation' in target ? target.rotation : lookRotation(ctx.prim.regionPosition(), target.position)
+    ctx.prim.params.rotation = rotation
+    return
+  }
+  root.targetMotion.look = { owner: initiator, target, strength, damping: Math.max(MIN_RESPONSE, Math.min(1, damping)) }
+}
+export const llLookAt: BuiltinImpl = (ctx, args) => {
+  if (!vector(args[0])) return
+  setLook(ctx, { position: { ...args[0] } }, Number(args[1]), Number(args[2]))
+}
+export const llRotLookAt: BuiltinImpl = (ctx, args) => {
+  const target = args[0] as Rotation
+  if (![target.x, target.y, target.z, target.s].every(Number.isFinite)) return
+  const magnitude = Math.hypot(target.x, target.y, target.z, target.s)
+  setLook(ctx, { rotation: magnitude ? normalize(target) : { ...ZERO_ROTATION } }, Number(args[1]), Number(args[2]))
+}
+export const llStopLookAt: BuiltinImpl = ctx => { stopTargetMotion(ctx.linkset.prims[0]!, 'look', owner(ctx)) }

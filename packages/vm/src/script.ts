@@ -1,3 +1,4 @@
+import { clearTargetMotion } from './builtins/motion.js'
 import { clearTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { stopSensors } from './builtins/sensor.js'
@@ -891,6 +892,10 @@ export class Script {
     copy.clockView.timerNextFireMs = copy.now + Math.max(0, this.clockView.timerNextFireMs - this.now)
     copy.clockView.timeReferenceMs = copy.now - (this.now - this.clockView.timeReferenceMs)
     copy.clockView.minEventDelayMs = this.clockView.minEventDelayMs
+    for (const kind of ['move', 'look'] as const) {
+      const request = host.linkset!.prims[0]!.targetMotion[kind]
+      if (request?.owner.prim === this.host.key && request.owner.script === this.scriptName) request.owner.prim = host.key
+    }
     return copy
   }
 
@@ -945,6 +950,7 @@ export class Script {
     this.state.controls.taken = null
     stopSensors(this)
     clearTargets(this)
+    clearTargetMotion(this)
     this.clockView.cancelTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
@@ -1145,6 +1151,7 @@ export class Script {
     this.state.urls.length = 0
     stopSensors(this)
     clearTargets(this)
+    clearTargetMotion(this)
     this.clockView.cancelTimer()
     this.abandon()
   }
