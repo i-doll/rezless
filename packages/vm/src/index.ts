@@ -119,3 +119,6 @@ export type { ReceivedChat, ReceivedChatSpeaker, ReceivedIM } from './rlv/receiv
 
 export { attemptAvatarIM, avatarIMLog } from './rlv/im-actions.js'
 export type { AvatarIMAction } from './rlv/im-actions.js'
+
+export { checkAvatarTouch, attemptAvatarTouch, avatarTouchLog } from './rlv/touch.js'
+export type { AvatarTouchAction, AvatarTouchOptions, AvatarTouchPermission } from './rlv/touch.js'

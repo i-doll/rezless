@@ -459,6 +459,31 @@ export const RLV_MANIFEST: {
       tests: [...tests, 'packages/vitest/test/rlv-detach.test.ts', 'packages/vitest/test/rlv-relay.test.ts'],
     },
     {
+      id: 'touch',
+      forms: ['@fartouch[:<metres>]=n|y', '@touchfar[:<metres>]=n|y', '@touchall=n|y', '@touchworld[:<root-uuid>]=n|y', '@touchattach[:<uuid>]=n|y', '@touchattachself=n|y', '@touchattachother[:<avatar-uuid>]=n|y', '@touchhud[:<root-uuid>]=n|y'],
+      comparison: 'confirmed difference',
+      wikiComparison: 'Both profiles default to 1.5 metres, take the minimum active distance and allow the boundary. HUDs bypass touchall and distance limits. Kokua checks distance only on world objects; RLVa also checks other avatars attachments. UUID touchattachother options deny that avatar. RLVa uses touchattach root or wearer exceptions to allow attachments; Kokua has no touchattach exceptions. Root UUIDs identify linkset-wide exceptions; distance uses the clicked prim and picked point.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::canTouch', 'RRInterface::canTouchFar', 'RRInterface::updateLimits', 'RRInterface::getMin', 'RRInterface::containsWithoutException'],
+          'Avatar touches deliver ordinary touch events only when allowed. World and HUD root UUID exceptions accept secure and permissive issuer scoping. No-option touchattach, touchattachself and touchattachother block their attachment categories without exceptions. touchattachother UUID options target a wearer. Distance options use atof prefixes, default to 1.5, take the minimum across fartouch and touchfar, and compare the float distance directly, so negative radii deny world touches. Invalid text becomes zero. The one-million-metre fallback applies without a smaller limit. The named game HUD login exemption is outside this fixture.'),
+          support: 'enforced',
+          commandForms: [
+            ...['fartouch', 'touchfar', 'touchworld', 'touchworld_sec', 'touchattachother', 'touchhud', 'touchhud_sec'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['touchall', 'touchattach', 'touchattachself'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+          ],
+          coveredForms: ['Add/remove aliases and clear for touch restrictions', 'World.attemptAvatarTouch and checkAvatarTouch with distance, denial reason and restriction snapshots', 'World/HUD UUID exceptions, secure variants and permissive issuer scoping', 'Touch event delivery, clicked child distance and optional global-axis pick offset'] },
+        rlva: { ...firestorm('rlvactions.cpp', ['RlvActions::canTouch'],
+          'Avatar touches deliver ordinary touch events only when allowed. touchworld and touchhud accept root UUID exceptions. Attachment self checks use object ownership. touchattach root exceptions override both self and other attachment locks; wearer exceptions apply to other attachments. touchattachother avatar UUID options deny that wearer even with touchattach exceptions. touchattachself accepts no option. These exceptions stay permissive under permissive=n. fartouch and touchfar share the minimum float modifier, default to 1.5 and use squared distance, so negative radii act as their magnitude. Options use stof prefixes; invalid and out-of-range values are unsupported. Explicit infinities and NaN follow float modifier ordering and removal. touchworld_sec and touchhud_sec are unsupported.'),
+          support: 'enforced',
+          commandForms: [
+            ...['fartouch', 'touchfar', 'touchworld', 'touchattach', 'touchattachother', 'touchhud'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'any' as const })),
+            ...['touchall', 'touchattachself'].map(behaviour => ({ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const })),
+          ],
+          coveredForms: ['Add/remove aliases and clear for touch restrictions', 'World.attemptAvatarTouch and checkAvatarTouch with distance, denial reason and restriction snapshots', 'World/HUD and attachment UUID exceptions, targeted wearer denials', 'Touch event delivery, clicked child distance and optional global-axis pick offset'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-touch.test.ts', 'packages/vitest/test/rlv-getcommand.test.ts'],
+    },
+    {
       id: 'seating', forms: ['@getsitid[:<option>]=<channel>', '@sit[:<uuid>]=force', '@unsit=force', '@sit=n|y', '@unsit=n|y', '@sittp[:<distance>]=n|y'],
       comparison: 'confirmed difference',
       wikiComparison: 'Both profiles enforce user sit/stand locks without issuer exceptions and combine sittp distances by minimum with a strict 1.5 m default boundary. Kokua compares signed distance; RLVa compares its square. Both profiles return null standing and the object root when seated. RLVa ground sitting reports the avatar UUID. Empty/null sit requests ground sitting in RLVa and does nothing in Kokua. Object force sit respects sit and seated unsit locks; RLVa force unsit and ground sit exempt the issuing prim.',
