@@ -1,3 +1,4 @@
+import { mulRotation } from './values/ops.js'
 import {
   CLICK_ACTION_TOUCH,
   OVERRIDE_GLTF_BASE_ALPHA,
@@ -479,7 +480,17 @@ export function writePrimParam(
     case PRIM_POS_LOCAL:
       p.position = asVec(rules[cursor])
       return 1
-    case PRIM_ROTATION:
+    case PRIM_ROTATION: {
+      const rotation = normalizeRot(asRot(rules[cursor]))
+      const root = prim.linkset?.prims[0]
+      // An unchanged local rotation skips the child rotation adjustment.
+      if (rotation.x === p.rotation.x && rotation.y === p.rotation.y &&
+          rotation.z === p.rotation.z && rotation.s === p.rotation.s) return 1
+      p.rotation = root && root !== prim
+        ? normalizeRot(mulRotation(rotation, root.params.rotation))
+        : rotation
+      return 1
+    }
     case PRIM_ROT_LOCAL:
       p.rotation = normalizeRot(asRot(rules[cursor]))
       return 1
@@ -856,7 +867,13 @@ export function readPrimParam(
       return { values: [prim.regionPosition()], consumed: 0 }
     case PRIM_POS_LOCAL:
       return { values: [p.position], consumed: 0 }
-    case PRIM_ROTATION:
+    case PRIM_ROTATION: {
+      const linkset = prim.linkset
+      const wearer = prim === linkset?.prims[0] && linkset.attachment
+        ? linkset.world?.avatars.find(avatar => avatar.key.toLowerCase() === linkset.attachment!.avatar.toLowerCase())
+        : undefined
+      return { values: [wearer ? wearer.rotation : prim.regionRotation()], consumed: 0 }
+    }
     case PRIM_ROT_LOCAL:
       return { values: [p.rotation], consumed: 0 }
     case PRIM_SIZE:
