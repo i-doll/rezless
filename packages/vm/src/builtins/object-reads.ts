@@ -97,6 +97,12 @@ export function findObjectPrim(ctx: CallContext, id: string): Prim | undefined {
   return undefined
 }
 
+/** The avatar with key `id` in the caller's region, matched without regard to case. */
+function findObjectAvatar(ctx: CallContext, id: string): WorldAvatar | undefined {
+  if (!KEY_PATTERN.test(id) || id === NULL_KEY) return undefined
+  return ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === id.toLowerCase() && a.region === ctx.linkset.region)
+}
+
 const keyArg = (args: Parameters<BuiltinImpl>[1]) => (args[0] as string | undefined) ?? ''
 const rootOf = (prim: Prim): Prim => prim.linkset?.prims[0] ?? prim
 const primsOf = (prim: Prim): readonly Prim[] => prim.linkset?.prims ?? [prim]
@@ -201,8 +207,11 @@ function boundingBox(prim: Prim): [Vector, Vector] {
   return [min, max]
 }
 
-/** llKey2Name(key id) — the prim's name, or "" for a key with no prim in the region. */
-export const llKey2Name: BuiltinImpl = (ctx, args) => findObjectPrim(ctx, keyArg(args))?.name ?? ''
+/** llKey2Name(key id) returns the local prim or avatar's legacy name, or "". */
+export const llKey2Name: BuiltinImpl = (ctx, args) => {
+  const id = keyArg(args)
+  return findObjectPrim(ctx, id)?.name ?? findObjectAvatar(ctx, id)?.name ?? ''
+}
 
 /** llGetObjectPrimCount(key id) — prims in the linkset holding `id`, or 0. */
 export const llGetObjectPrimCount: BuiltinImpl = (ctx, args) => {
@@ -490,9 +499,7 @@ export const llGetObjectPermMask: BuiltinImpl = (ctx, args) => {
 export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
   const id = keyArg(args)
   const prim = findObjectPrim(ctx, id)
-  const avatar = !prim && KEY_PATTERN.test(id) && id !== NULL_KEY
-    ? ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === id.toLowerCase() && a.region === ctx.linkset.region)
-    : undefined
+  const avatar = prim ? undefined : findObjectAvatar(ctx, id)
   if (!prim && !avatar) return []
   const flags = (args[1] as LslValue[] | undefined) ?? []
   const out: Entry[] = []
