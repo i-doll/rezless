@@ -517,3 +517,16 @@ it('suspends recurring sensors and targets in inventory, preserving their regist
   expect(script.global('scans')).toBe(2)
   expect(script.global('targets')).toBeGreaterThan(targets as number)
 })
+
+it('keeps registrations made by the final detach handler dormant until rewear', async () => {
+  const { script,linkset }=await fixture(`integer scans;integer targets;
+   default {attach(key id){if(id==NULL_KEY){llSensorRepeat("",NULL_KEY,AGENT,96,PI,1);llTarget(<10,0,0>,0.1);}}
+   sensor(integer n){++scans;}no_sensor(){++scans;}not_at_target(){++targets;}}`)
+  script.start();linkset.attachToAvatar(OWNER,6);linkset.advanceTime(0)
+  linkset.detachFromAvatar();linkset.advanceTime(3000)
+  expect(script.global('scans')).toBe(0)
+  expect(script.global('targets')).toBe(0)
+  linkset.attachToAvatar(OWNER,6);linkset.advanceTime(1000)
+  expect(script.global('scans')).toBe(1)
+  expect(script.global('targets')).toBeGreaterThan(0)
+})
