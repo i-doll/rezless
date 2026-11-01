@@ -320,6 +320,19 @@ Use `s.setAnimationState(avatar, "Standing")` to register an avatar and choose i
 
 `llGetAnimation` reports locomotion, even while a script plays another animation. Overrides change the animation used for that state. Playback records animation UUIDs; it does not simulate asset duration, blending or priorities. Tests drive locomotion changes explicitly with `setAnimationState`.
 
+Use `world.addParcel({ region, bounds, owner, ...settings })` to configure parcel
+reads. Bounds use region coordinates with `min` inclusive and `max` exclusive;
+omitting bounds covers the region. Later parcels take precedence in overlaps.
+Queries clamp x/y to the region edges and ignore z. Parcel details include
+`name`, `description`, `group`, `area`, `flags`, `seeAvatars`, `landingPoint`,
+`landingLookAt` and `tpRouting`. `maxPrims` and `primCounts` by `PARCEL_COUNT_*`
+category are explicit fixture values; VM objects do not change land impact.
+Capacity budgets may include fractions; queries truncate after aggregation.
+Same-owner totals include only parcels in the caller's region. `primOwners`
+maps owner UUIDs to land impact. Only the parcel owner can read it or `musicURL`;
+group return powers are not modeled. Without a parcel fixture, land is unowned
+with empty strings and zero land impact. No land side effects are simulated.
+
 ### Implemented `ll*` functions
 
 The real-impl set covers the most common use cases. Anything outside it
@@ -335,6 +348,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
+* **parcels**: `llGetParcelDetails`, `llGetParcelFlags`, `llGetParcelMaxPrims`, `llGetParcelPrimCount`, `llGetParcelPrimOwners`, `llGetParcelMusicURL`, `llGetLandOwnerAt`, `llOverMyLand`
 * **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatars aren't modelled yet, so their keys read like unknown keys), `llGetObjectPermMask`
 * **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
 * **ground, water and wind**: `llModifyLand` and `llSetGroundTexture` (permission refusal only), `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings

@@ -1,5 +1,6 @@
 import { llTarget, llTargetRemove, llRotTarget, llRotTargetRemove } from './targets.js'
 import { llCollisionFilter, llCollisionSound, llVolumeDetect, llSetRemoteScriptAccessPin } from './collision.js'
+import { llGetLandOwnerAt, llGetParcelDetails, llGetParcelFlags, llGetParcelMaxPrims, llGetParcelPrimCount, llGetParcelPrimOwners, llGetParcelMusicURL, llOverMyLand } from './land.js'
 import { llParticleSystem, llLinkParticleSystem } from './particles.js'
 import { llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop } from './give.js'
 import { llLoadURL, llMapDestination, llMapBeacon, llOpenFloater } from './viewer.js'
@@ -439,6 +440,9 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGetWallclock,
   llGetTimeOfDay,
   llMinEventDelay,
+  // parcels
+  llGetLandOwnerAt, llGetParcelDetails, llGetParcelFlags, llGetParcelMaxPrims,
+  llGetParcelPrimCount, llGetParcelPrimOwners, llGetParcelMusicURL, llOverMyLand,
   // region
   llGetRegionName,
   llGetRegionCorner,

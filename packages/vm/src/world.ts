@@ -112,6 +112,44 @@ export interface Region extends RegionSettings {
   readonly corner: RegionCorner
 }
 
+/** Region coordinates, inclusive minimum and exclusive maximum. */
+export interface ParcelBounds {
+  readonly min: RegionCorner
+  readonly max: RegionCorner
+}
+
+/** Parcel fixtures supply land impact explicitly; rezzing VM prims does not alter it. */
+export interface WorldParcelOptions {
+  readonly region: string
+  /** Defaults to the whole region. Later parcels take precedence where bounds overlap. */
+  readonly bounds?: ParcelBounds
+  readonly id?: string
+  readonly name?: string
+  readonly description?: string
+  readonly owner?: string
+  readonly group?: string
+  /** Square metres. Defaults to the bounding rectangle's area. */
+  readonly area?: number
+  readonly flags?: number
+  readonly seeAvatars?: boolean
+  /** Unrounded land-impact budget. Queries truncate after summing same-owner budgets. */
+  readonly maxPrims?: number
+  /** Land impact by PARCEL_COUNT_* category, including total at 0. Unset categories read 0. */
+  readonly primCounts?: Readonly<Record<number, number>>
+  /** Land impact by owner UUID. Visible only to the parcel owner. */
+  readonly primOwners?: Readonly<Record<string, number>>
+  readonly musicURL?: string
+  readonly landingPoint?: Vector
+  readonly landingLookAt?: Vector
+  readonly tpRouting?: number
+}
+
+export interface Parcel extends WorldParcelOptions {
+  readonly id: string
+  readonly bounds: ParcelBounds
+  readonly owner: string
+}
+
 /**
  * Named regions holding several linksets. Every linkset in a world shares the
  * world's clock, and chat reaches prims in other linksets by the in-world
@@ -124,6 +162,7 @@ export class World {
   /** Targets without scripts to execute. Returned entities may be moved between scans. */
   readonly objects: WorldEntity[] = []
   readonly avatars: WorldEntity[] = []
+  readonly parcels: Parcel[] = []
   /** Optional sensor metadata for linksets loaded with loadLinkset. */
   readonly sensorProperties = new Map<Linkset, SensorObjectProperties>()
   private readonly regions = new Map<string, Region>()
@@ -162,6 +201,29 @@ export class World {
 
   addRegion(name: string, corner: RegionCorner, settings: RegionSettings = {}): void {
     this.regions.set(name, { ...settings, name, corner })
+  }
+
+  addParcel(opts: WorldParcelOptions): Parcel {
+    this.region(opts.region)
+    const parcel: Parcel = {
+      ...opts,
+      id: opts.id ?? deterministicKey(`world/parcel/${this.parcels.length}`),
+      bounds: opts.bounds ?? { min: { x: 0, y: 0 }, max: { x: 256, y: 256 } },
+      owner: opts.owner ?? NULL_KEY,
+    }
+    this.parcels.push(parcel)
+    return parcel
+  }
+
+  /** Positions outside the region read its nearest edge, never a neighbouring region. */
+  parcelAt(region: string, position: Vector): Parcel | undefined {
+    const x = Math.min(255.999999, Math.max(0, position.x))
+    const y = Math.min(255.999999, Math.max(0, position.y))
+    for (let i = this.parcels.length - 1; i >= 0; --i) {
+      const p = this.parcels[i]!
+      if (p.region === region && x >= p.bounds.min.x && x < p.bounds.max.x && y >= p.bounds.min.y && y < p.bounds.max.y) return p
+    }
+    return undefined
   }
 
   /** Region `name`; throws for a region this world does not have. */
