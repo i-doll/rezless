@@ -408,6 +408,14 @@ its sitter only while the target is enabled. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
 
+With `standtp=n`, user stand, force unsit, `llUnSit` and seat deletion return the
+avatar to its saved global origin. Viewer object-sit requests save that origin;
+Kokua also saves it when a new standtp rule is added. RLVa refuses another object
+sit while seated under standtp and ignores a zero global origin. Kokua requires
+direct parcel teleport routing. Return travel bypasses teleport restrictions,
+preserves facing and delivers attachment teleport and region changes after virtual
+time advances. Existing unsit checks still decide whether a viewer stand may begin.
+
 `llSetAgentRot` requires animation permission and changes yaw. A rotation
 requested while sitting applies when standing. `llTeleportAgent` and
 `llTeleportAgentGlobalCoords` require teleport permission from the owner, or
@@ -737,6 +745,10 @@ finite decimal limits by minimum, defaults to 1.5 m, and rejects the exact bound
 Distances use the clicked point in global coordinates, including the optional
 region-axis offset. Non-finite, hexadecimal and overflow options remain inspectably
 unsupported. Simulator `llSitOnLink` and `llUnSit` bypass viewer locks.
+`standtp` returns after standing or simulator unsitting, using a viewer sit origin.
+Kokua also saves the position on a new rule and requires direct parcel routing;
+RLVa rejects seated object-sit requests and ignores zero global origins. Return
+travel bypasses teleport locks and sends normal changes to worn scripts.
 
 Camera fixtures support `setcam_fov=force`, `getcam_fov`, aggregated
 `setcam_fovmin/max` restrictions and their queries. `changeRlvFov(avatar, radians)`

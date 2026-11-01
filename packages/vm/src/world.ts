@@ -5,7 +5,7 @@ import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } f
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
-import { userSitAvatar, userStandAvatar } from './rlv/sit.js'
+import { returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
@@ -329,6 +329,7 @@ export class World {
       info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
       if (avatar.standingRotation) rotation = avatar.standingRotation
       avatar.standingRotation = null
+      returnStandtpAvatar(world, avatar)
     }
     const avatar: WorldAvatar = {
       ...entity,
@@ -350,6 +351,7 @@ export class World {
       get sittingCamera() { clearRemovedSeat(); return sittingCamera },
       get sittingOn() { clearRemovedSeat(); return seat },
       set sittingOn(value) {
+        const changingSeat = value !== seat && !!(info & AGENT_SITTING)
         snapshotSeat()
         seat = value
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
@@ -357,6 +359,7 @@ export class World {
         const target = seat?.params.sitTarget
         seatOffset = { ...(target?.enabled ? target.offset : ZERO_VECTOR) }
         seatOrientation = { ...(target?.enabled ? target.rotation : ZERO_ROTATION) }
+        if (value && changingSeat && avatar.viewer.profile === 'rlv') returnStandtpAvatar(world, avatar)
       },
       standingRotation: null,
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
@@ -404,12 +407,14 @@ export class World {
 
   /** Stand a fixture avatar. Only an object sitter produces CHANGED_LINK. */
   standAvatar(avatar: WorldAvatar): void {
+    const sitting = !!(avatar.info & AGENT_SITTING)
     const previous = avatar.sittingOn?.linkset
     avatar.sittingOn = null
     avatar.info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
     if (avatar.standingRotation) avatar.rotation = avatar.standingRotation
     avatar.standingRotation = null
     if (previous) this.sitChanged(previous)
+    if (sitting) returnStandtpAvatar(this, avatar)
   }
 
   /** Ground sitting has AGENT_SITTING but no object parent or new link. */
