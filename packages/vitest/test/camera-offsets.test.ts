@@ -302,3 +302,20 @@ it('projects a point ahead of the seated camera at HUD centre using the same pos
   expect(projected.y).toBeCloseTo(0, 5)
   expect(projected.z).toBeCloseTo(0, 5)
 })
+
+// In-world: occupied-zero.lsl -> link number 1 while seated; a link-zero call
+// leaves <-4,1,2> stored, including after standing and sitting again. Aditi,
+// SLua Tideland, 2026-11-01.
+it('ignores link zero on an occupied lone root', async () => {
+  const f = await seatedFixture('llSetLinkCamera(0, <-7,-2,3>, <1,-2,3>);', true)
+  f.prims[0]!.cameraEyeOffset = eye
+  f.prims[0]!.cameraAtOffset = at
+  f.world.sitAvatar(f.avatar, f.prims[0]!)
+  f.linkset.touch(0)
+  expect(f.prims[0]!.cameraEyeOffset).toEqual(eye)
+  expect(f.prims[0]!.cameraAtOffset).toEqual(at)
+  f.world.standAvatar(f.avatar)
+  f.world.sitAvatar(f.avatar, f.prims[0]!)
+  f.script.fire('touch_end', { num_detected: 1 })
+  expect(f.script.global('pos')).toEqual({ x: 96, y: 101, z: 32 })
+})

@@ -110,6 +110,7 @@ export const llSetLinkCamera: BuiltinImpl = (ctx, args) => {
   // prim, even LINK_SET / LINK_ALL_CHILDREN and unknown negative values.
   const target = link === LINK_THIS ? ctx.prim
     : link < 0 ? ctx.linkset.prims.find(p => p !== ctx.prim)
+    : link === 0 && occupiedLoneRoot ? undefined
     : link === 0 && ctx.prim !== root ? root
     : link === LINK_ROOT && occupiedLoneRoot ? root
     : ctx.linkset.prims.find(p => p.linkNumber === link)
