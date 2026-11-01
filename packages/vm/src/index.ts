@@ -108,3 +108,6 @@ export type { RlvWearableActionOutcome } from './rlv/outfit.js'
 export type { RlvForceRemoveItemResult, RlvForceRemoveOutcome } from './rlv/forcewear.js'
 export { respondRlvInventoryOffer } from './rlv/offers.js'
 export type { RlvInventoryOfferDecision, RlvInventoryOfferResult } from './rlv/offers.js'
+
+export { getRlvCameraPosition, getRlvCameraLimits, setRlvCameraOrigins } from './rlv/camera.js'
+export type { RlvCameraLimits } from './rlv/camera.js'

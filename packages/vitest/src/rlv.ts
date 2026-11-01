@@ -83,3 +83,6 @@ export function resetRlvViewerSession(avatar: WorldAvatar): void {
 export function setRlvObjectAvailable(avatar: WorldAvatar, sourcePrim: string, available: boolean): void {
   avatar.viewer.session.setObjectAvailable(sourcePrim, available)
 }
+
+export { getRlvCameraPosition, getRlvCameraLimits, setRlvCameraOrigins } from '@rezless/vm'
+export type { RlvCameraLimits } from '@rezless/vm'

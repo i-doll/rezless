@@ -108,6 +108,33 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [camera-fov](#camera-fov) | Firestorm RLVa 2.4.2 | <code>@getcam_fov[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Firestorm RLVa 2.4.2 | <code>@getcam_fovmin[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Firestorm RLVa 2.4.2 | <code>@getcam_fovmax[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@setcam_avdistmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@setcam_avdistmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@camdistmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@camdistmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@camzoommin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@camzoommax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@getcam_avdistmin[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Kokua RLV 2.09.35.00 | <code>@getcam_avdistmax[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@setcam_avdistmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@setcam_avdistmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@camdistmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@camdistmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@camzoommin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@camzoommax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@getcam_avdistmin[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance](#camera-distance) | Firestorm RLVa 2.4.2 | <code>@getcam_avdistmax[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance-query](#camera-distance-query) | Kokua RLV 2.09.35.00 | <code>@getcam_avdist=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-distance-query](#camera-distance-query) | Firestorm RLVa 2.4.2 | <code>@getcam_avdist[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-zoom-query](#camera-zoom-query) | Kokua RLV 2.09.35.00 | <code>@getcam_zoom[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-zoom-query](#camera-zoom-query) | Kokua RLV 2.09.35.00 | <code>@getcam_zoommin[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-zoom-query](#camera-zoom-query) | Kokua RLV 2.09.35.00 | <code>@getcam_zoommax[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-zoom-query](#camera-zoom-query) | Firestorm RLVa 2.4.2 | <code>@getcam_zoom=&lt;channel&gt;</code><br><code>@getcam_zoommin=&lt;channel&gt;</code><br><code>@getcam_zoommax=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-origin](#camera-origin) | Kokua RLV 2.09.35.00 | <code>@setcam_origindistmin:&lt;metres&gt;=n&#124;y</code><br><code>@setcam_origindistmax:&lt;metres&gt;=n&#124;y</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-origin](#camera-origin) | Firestorm RLVa 2.4.2 | <code>@setcam_origindistmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-origin](#camera-origin) | Firestorm RLVa 2.4.2 | <code>@setcam_origindistmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-silhouette](#camera-silhouette) | Kokua RLV 2.09.35.00 | <code>@setcam_avdist:&lt;metres&gt;=n&#124;y</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
+| [camera-silhouette](#camera-silhouette) | Firestorm RLVa 2.4.2 | <code>@setcam_avdist[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | state-only | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts) |
 | [discovery](#discovery) | Kokua RLV 2.09.35.00 | <code>@getcommand[:&lt;behaviour&gt;[;&lt;type&gt;[;&lt;separator&gt;]]]=&lt;channel&gt;</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [discovery](#discovery) | Firestorm RLVa 2.4.2 | <code>@getcommand[:&lt;option&gt;]=&lt;channel&gt;</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-getcommand.test.ts](../packages/vitest/test/rlv-getcommand.test.ts) |
 | [notifications](#notifications) | Kokua RLV 2.09.35.00 | <code>@notify[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-notify.test.ts](../packages/vitest/test/rlv-notify.test.ts)<br>[rlv-offers.test.ts](../packages/vitest/test/rlv-offers.test.ts) |
@@ -650,7 +677,7 @@ Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[
 
 Forms: <code>@setcam_fov[:&lt;radians&gt;]=force</code>, <code>@setcam_fovmin:&lt;radians&gt;=n&#124;y</code>, <code>@setcam_fovmax:&lt;radians&gt;=n&#124;y</code>, <code>@getcam_fov=&lt;channel&gt;</code>, <code>@getcam_fovmin=&lt;channel&gt;</code>, <code>@getcam_fovmax=&lt;channel&gt;</code>.
 
-Comparison: confirmed difference. Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects, exclusive camera control and deprecated zoom aliases are unsupported.
+Comparison: confirmed difference. Both profiles use radians and strongest issuer bounds. Precision, unset replies, malformed options, contradictory limits and final-limit removal differ. The fixture uses a 1.4242 viewport aspect ratio; rendered effects and exclusive camera control are unsupported.
 
 #### Kokua RLV 2.09.35.00
 
@@ -675,6 +702,127 @@ Support depth: enforced. Three-decimal queries round exact halves to even, prese
 Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvForceHandler&lt;RLV_BHVR_SETCAM_FOV&gt;::onCommand</code>, <code>RlvBehaviourSetCamFovHandler::onCommand</code>, <code>RlvReplyCamMinMaxModifierHandler::onCommand</code>, <code>RlvActions::getCameraFOVLimits</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts).
+
+### camera-distance
+
+Forms: <code>@setcam_avdistmin:&lt;metres&gt;=n&#124;y</code>, <code>@setcam_avdistmax:&lt;metres&gt;=n&#124;y</code>, <code>@camdistmin:&lt;metres&gt;=n&#124;y</code>, <code>@camdistmax:&lt;metres&gt;=n&#124;y</code>, <code>@camzoommin[:&lt;multiplier&gt;]=n&#124;y</code>, <code>@camzoommax[:&lt;multiplier&gt;]=n&#124;y</code>, <code>@getcam_avdistmin=&lt;channel&gt;</code>, <code>@getcam_avdistmax=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. Avatar distance bounds constrain camera poses around an explicit joint reference. Deprecated zoom commands constrain the lens rather than camera distance. Their FOV directions differ between profiles. Current-distance and zoom queries have profile-specific availability.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Distance aliases aggregate together. Empty bounds mean 1.5, invalid numeric text means zero, and contradictory minimum collapses to maximum. The default distance range is -1000000 to 750000 metres, including the default drawing-distance cap. Six-decimal bound queries ignore options. camzoommin bounds minimum magnification and camzoommax bounds maximum magnification, with empty multiplier 1.5 and zero removing that zoom bound. getcam_zoommin, getcam_zoommax and getcam_zoom are supported; getcam_avdist is unsupported. Mouselook bypasses distance clamping. Joint positions are explicit fixtures, defaulting to avatar position.
+
+- Avatar distance aliases and pose reads
+- Zoom multiplier bounds and queries
+- Removal, clear, collection, multiple issuers and numeric conversion
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::updateCameraLimits</code>, <code>RRInterface::reallyHandleCommand</code>, <code>LLAgentCamera::calcCameraPositionTargetGlobal</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Distance aliases aggregate strongest minimum/maximum modifiers. Empty or invalid bounds are rejected; numeric prefixes and explicit non-finite values follow float parsing. Three-decimal queries distinguish unset bounds with empty replies and reject options with an empty reply. Contradictory modifiers remain independently queryable; position clamping checks maximum before minimum. getcam_avdist reports camera distance from avatar position, separately from the joint reference. camzoommin maps to minimum FOV and camzoommax to maximum FOV using pi/3 divided by the multiplier, default multiplier 1. Removing a final zoom alias keeps the current lens instead of restoring the saved FOV. Zoom queries are unsupported. Mouselook bypasses distance clamping. Joint positions are explicit fixtures, defaulting to avatar position.
+
+- Avatar distance aliases, current-distance query and pose reads
+- Deprecated zoom aliases sharing FOV modifiers
+- Removal, clear, collection, multiple issuers and numeric conversion
+
+Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>, <code>RlvReplyCamMinMaxModifierHandler::onCommand</code>, <code>RlvReplyHandler&lt;RLV_BHVR_GETCAM_AVDIST&gt;::onCommand</code>, <code>RlvBehaviourCamZoomMinMaxHandler::onCommand</code>, <code>RlvActions::getCameraAvatarDistanceLimits</code>, <code>LLAgentCamera::clampCameraPosition</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts).
+
+### camera-distance-query
+
+Forms: <code>@getcam_avdist=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. RLVa reports camera distance from avatar position. Kokua has no current-distance query handler.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No getcam_avdist query handler. Numeric parameters remain unsupported.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Three-decimal current distance from avatar position, independently of the explicit joint reference used for clamping. Nonempty options return an empty reply with failed-option. Viewer queries need no simulator camera permission.
+
+- Current camera distance and invalid query options
+
+Reference symbols: <code>indra/newview/rlvhandler.cpp</code>: <code>RlvReplyHandler&lt;RLV_BHVR_GETCAM_AVDIST&gt;::onCommand</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts).
+
+### camera-zoom-query
+
+Forms: <code>@getcam_zoom=&lt;channel&gt;</code>, <code>@getcam_zoommin=&lt;channel&gt;</code>, <code>@getcam_zoommax=&lt;channel&gt;</code>.
+
+Comparison: confirmed difference. Kokua exposes current and bounded zoom multipliers; RLVa has no zoom query handlers.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Six-decimal current magnification pi/3 divided by FOV, and aggregated minimum/maximum magnification. Unset bounds are -1000000 and 1000000. Options are ignored. Lens limits and zoom aliases both affect the effective magnification bounds.
+
+- Current, minimum and maximum magnification queries
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::reallyHandleCommand</code>, <code>RRInterface::updateCameraLimits</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: unsupported. No getcam_zoom, getcam_zoommin or getcam_zoommax handlers. Numeric parameters remain unsupported.
+
+
+Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts).
+
+### camera-origin
+
+Forms: <code>@setcam_origindistmin:&lt;metres&gt;=n&#124;y</code>, <code>@setcam_origindistmax:&lt;metres&gt;=n&#124;y</code>.
+
+Comparison: confirmed difference. RLVa origin distance limits use the default camera origin. A locked avatar distance takes precedence; otherwise active origin limits take precedence over avatar distance bounds. Neither profile has origin-distance queries.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No origin-distance limit or query handlers. Wire restrictions may be retained but remain unsupported.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::updateCameraLimits</code>, <code>RRInterface::reallyHandleCommand</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Strongest minimum and maximum constrain position around an explicit region-space camera origin. Without an explicit origin the fixture pose is the origin. Equal avatar distance bounds override origin limits; otherwise origin limits override avatar bounds. Empty options fail. Origin query names have no handlers. Skeleton offsets, smoothing and collisions are outside the fixture.
+
+- Origin-distance pose clamping and avatar-lock precedence
+- Explicit camera-origin fixture state
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::getCameraOriginDistanceLimits</code>, <code>LLAgentCamera::calcCameraPositionTargetGlobal</code>, <code>LLAgentCamera::clampCameraPosition</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts).
+
+### camera-silhouette
+
+Forms: <code>@setcam_avdist:&lt;metres&gt;=n&#124;y</code>.
+
+Comparison: confirmed difference. RLVa setcam_avdist selects an avatar silhouette threshold, independently of the camera position limits. The fixture exposes the aggregated threshold as viewer state; rendering is outside the fixture.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: unsupported. No setcam_avdist handler. The wire restriction remains inspectably unsupported.
+
+
+Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface::updateCameraLimits</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: state-only. Strongest numeric threshold is exposed as silhouetteDistance. It does not move the camera. Empty and invalid options fail. No rendering or silhouette query is implemented.
+
+- Aggregated silhouetteDistance viewer state, removal and clear
+
+Reference symbols: <code>indra/newview/rlvhelper.cpp</code>: <code>RlvBehaviourDictionary::RlvBehaviourDictionary</code>, <code>LLVOAvatar::isRlvSilhouette</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera-distance.test.ts](../packages/vitest/test/rlv-camera-distance.test.ts).
 
 ### discovery
 

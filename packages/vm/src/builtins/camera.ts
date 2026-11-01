@@ -1,5 +1,5 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
-import { getRlvFov } from '../rlv/camera.js'
+import { getRlvFov, getRlvCameraPosition } from '../rlv/camera.js'
 import { rotateVector } from '../values/ops.js'
 import { llAxes2Rot } from './math.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
@@ -52,7 +52,9 @@ export function effectiveCamera(ctx: CallContext): Camera {
   const seated = seatedCamera(ctx)
   const avatar = ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === ctx.state.permissions.agent.toLowerCase())
   const lens = avatar && avatar.viewer.profile !== 'disabled' ? { fov: getRlvFov(avatar) } : {}
-  return { ...ctx.state.camera, ...seated, ...lens }
+  const pose = { ...ctx.state.camera, ...seated, ...lens }
+  return avatar && avatar.viewer.profile !== 'disabled'
+    ? { ...pose, pos: getRlvCameraPosition(avatar, pose.pos) } : pose
 }
 
 /** llGetCameraPos() — ZERO_VECTOR without PERMISSION_TRACK_CAMERA. */

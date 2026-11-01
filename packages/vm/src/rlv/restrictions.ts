@@ -7,7 +7,7 @@ import type { RlvSession } from './session.js'
 import { rlvIntegerPrefix as channelOption, type RlvCommandOutcome, type RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
 import { outfitSupport } from './outfit.js'
-import { cameraSupport } from './camera.js'
+import { cameraSupport, cameraDistanceSupport } from './camera.js'
 
 // Kokua routes these named replies before add/remove parameter dispatch.
 const KOKUA_REPLIES = new Set([
@@ -101,7 +101,7 @@ export class RlvRestrictions {
   support(behaviour: string, option: string): RlvRestriction['support'] {
     return this.notifySupport(behaviour, option) ?? (behaviour === 'detach' && !option ? 'enforced'
       : this.chatSupport(behaviour, option) ?? outfitSupport(behaviour, option) ?? seatingSupport(this.profile, behaviour, option) ??
-        teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ??
+        teleportSupport(this.profile, behaviour, option) ?? cameraSupport(this.profile, behaviour, option) ?? cameraDistanceSupport(this.profile, behaviour, option) ??
         (STATE_ONLY.has(behaviour) && !option ? 'state-only' : 'unsupported'))
   }
 
