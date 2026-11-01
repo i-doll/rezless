@@ -62,10 +62,11 @@ export const RLV_MANIFEST: {
 } = {
   schemaVersion: 3,
   wiki: { url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' },
-  // Reference settings are separate from versions. This slice exposes no setting overrides.
+  // Reference settings are separate from implementation versions.
   settings: {
     rlv: ['Reference startup version replies and blacklist depend on viewer settings; no emulator setting implemented.'],
-    rlva: ['RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.'],
+    rlva: ['RlvSettings::isCompatibilityModeObject selects per-object API reporting; no emulator setting implemented.',
+      'Attachment queries use RlvHideLockedAttachments=false; lock-filter setting overrides are unsupported.'],
   },
   commands: [
     {
@@ -126,6 +127,34 @@ export const RLV_MANIFEST: {
           support: 'enforced', coveredForms: ['Caller-prim getstatus and avatar-wide getstatusall on valid reply channels', 'Canonical rule substring filters, default and custom separators, empty replies', 'Per-prim insertion order and ascending emitter UUID order with duplicates retained'] },
       },
       tests: [...tests, 'packages/vitest/test/rlv-status.test.ts'],
+    },
+    {
+      id: 'getattach', forms: ['@getattach[:<point>]=<channel>'],
+      comparison: 'version/setting dependent',
+      wikiComparison: 'Both profiles return a reserved leading zero followed by occupancy for points 1 through 55, or one bit for a named point. Duplicate objects occupy one bit. Root aliases Avatar Center. Invalid names return empty text; RLVa also records a failed-option outcome. The fixture uses the RLVa reference hide-locked default false; lock-filter setting overrides are unsupported.',
+      profiles: {
+        rlv: { ...kokua(['RRInterface::getAttachments', 'RRInterface::reallyHandleCommand'],
+          'Reads existing live linkset attachments for the queried avatar, including HUDs and any bridge fixture. Names match the canonical point table without trimming; root aliases Avatar Center. Uses the shared reply-channel policy.'),
+          commandForms: replyForms('getattach'),
+          support: 'enforced', coveredForms: ['Full 56-character bitmap in attachment-ID order', 'Named and empty-point queries, root alias, invalid-name empty replies', 'Actual attachment, detachment and duplicate point occupancy, including HUDs'] },
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetAttach', 'RlvAttachPtLookup::initLookupTable', 'RlvSettings::getHideLockedAttach'],
+          'Reads the same occupancy with RlvHideLockedAttachments=false. An explicitly identified valid bridge at Center 2 is excluded; absent bridges never create occupancy. Lock-filter overrides and lock enforcement are outside the covered forms.'),
+          commandForms: replyForms('getattach'),
+          support: 'enforced', coveredForms: ['Full 56-character bitmap in attachment-ID order', 'Named and empty-point queries, root alias, invalid-name empty replies', 'Actual attachment, detachment and duplicate point occupancy, including HUDs', 'Explicit valid bridge identity and reference hide-locked default false'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-getattach.test.ts'],
+    },
+    {
+      id: 'getattachnames', forms: ['@getattachnames[:<group>]=<channel>'], comparison: 'confirmed difference',
+      wikiComparison: 'The RLV wiki does not specify getattachnames. RLVa returns occupied point names once each in attachment-ID order; Kokua has no query handler. RLVa recognizes head, torso, arms, legs and hud; other options select all points. Its hud group is viewer group 8, including Jaw and newer skeleton points, while HUD points are group 9.',
+      profiles: {
+        rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getattachnames query handler; no reply is synthesized and the command remains inspectably unsupported.'),
+        rlva: { ...firestorm('rlvhandler.cpp', ['RlvHandler::onGetAttachNames', 'rlvAttachGroupFromIndex', 'rlvAttachGroupFromString'],
+          'Capitalized canonical names are comma-separated in ascending attachment-ID order. Empty occupancy produces an empty reply. Group filters use viewer group IDs; unknown options include all groups. A registered valid bridge is excluded, and locked objects remain visible.'),
+          commandForms: replyForms('getattachnames'),
+          support: 'enforced', coveredForms: ['All occupied attachment point names, once per point', 'head/torso/arms/legs/hud group filters and unknown-option all-points fallback', 'Valid empty replies and explicit valid bridge exclusion'] },
+      },
+      tests: [...tests, 'packages/vitest/test/rlv-getattach.test.ts'],
     },
     {
       id: 'discovery', forms: ['@getcommand[:<behaviour>[;<type>[;<separator>]]]=<channel>'],

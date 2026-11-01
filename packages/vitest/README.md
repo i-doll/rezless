@@ -582,6 +582,35 @@ Queries report only stored rules and do not extend restriction support.
 query handlers. Omit `sourcePrim` to include all prims. Snapshots retain their
 separate inspection order.
 
+`@getattach[:<point>]=<channel>` reads existing live linkset attachments for the
+owning avatar, using the attachment avatar rather than the object's owner.
+Without a point it returns 56 characters: a reserved `0`, then occupancy bits
+for attachment IDs 1 through 55. Multiple objects at one point produce one bit.
+Named queries return `1` or `0`; invalid names produce an empty reply. RLVa
+records `outcome: 'failed-option'` on that reply; Kokua has no option failure. `root`
+aliases `avatar center`. HUD names use `center`, `top`, and so on, without a
+`hud ` prefix. Attach and detach fixtures through `linkset.attachToAvatar` and
+`linkset.detachFromAvatar`; replies observe the current state. HUDs appear in
+these queries even though `llGetAttachedList` omits them.
+
+Only RLVa supports `@getattachnames[:<group>]=<channel>`. It returns capitalized,
+comma-separated occupied point names once each in attachment-ID order. Empty
+occupancy produces an empty reply. Groups are `head`, `torso`, `arms`, `legs`
+and `hud`; unknown options include all points. The `hud` filter uses viewer
+group 8, which contains Jaw and newer skeleton points. HUD points themselves
+use group 9 and are included when querying all points.
+
+`RLV_ATTACHMENT_POINTS` exposes the frozen canonical table.
+`getRlvAttachmentReply(linkset, avatar.viewer, behaviour, option?)` returns the
+untruncated text, or `undefined` for unsupported queries. `setRlvAttachmentBridge(
+avatar.viewer, rootKey)` identifies an existing valid Firestorm bridge fixture;
+pass `undefined` to clear it. RLVa excludes this object only at Center 2. Kokua
+counts it normally. No bridge is synthesized or inferred from an object's name.
+`RLVA_ATTACHMENT_SETTINGS.hideLockedAttachments` is fixed at the reference
+default `false`, so self-locked attachments remain visible. Lock-filter setting
+overrides, lock enforcement, `getaddattachnames` and `getremattachnames` remain
+outside the covered forms.
+
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`
 means a reply is delivered; version reporting does not imply support for other

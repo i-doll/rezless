@@ -663,6 +663,9 @@ RLVa `getcommand` discovers implemented manifest forms with substring, type and
 separator options. Frozen form metadata distinguishes state-only restrictions
 from enforced replies; unsupported forms stay out of discovery. Command logs
 expose unsupported outcomes without adding wire acknowledgements.
+`getattach` reads current attachment point occupancy, including HUDs, using
+the canonical 55-point table. RLVa also supports occupied point names and group
+filters through `getattachnames`; Kokua leaves that query unsupported.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
 
