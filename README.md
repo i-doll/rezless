@@ -659,6 +659,9 @@ Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.
 These rules are state-only. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
+`getattach` reads current attachment point occupancy, including HUDs, using
+the canonical 55-point table. RLVa also supports occupied point names and group
+filters through `getattachnames`; Kokua leaves that query unsupported.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
 `seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent

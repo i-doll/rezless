@@ -84,3 +84,5 @@ export type { RlvRestriction } from './rlv/restrictions.js'
 
 export { RlvInventory, getRlvInventoryList } from './rlv/inventory.js'
 export type { RlvInventoryConfig, RlvInventoryEntry } from './rlv/inventory.js'
+
+export { RLV_ATTACHMENT_POINTS, RLVA_ATTACHMENT_SETTINGS, getRlvAttachmentReply, setRlvAttachmentBridge } from './rlv/attachments.js'
