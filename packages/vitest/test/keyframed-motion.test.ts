@@ -223,3 +223,66 @@ it('preserves the new origin when pause is repeated after repositioning', async 
   s.start();s.advanceTime(500)
   expect(position(s)).toEqual({x:120.5,y:60,z:2000})
 })
+
+// In-world: integration.py and link-latent.py -> linking stops the mover; after unlink, play restarts full frames.
+// Aditi, SLua Tideland, Mono, 2026-11-01. Child play leaves the new root stationary, without a captured diagnostic.
+it('stops motion before a moving root becomes a child', async () => {
+  const world=new World();world.addRegion('test',{x:0,y:0})
+  const key='11111111-2222-3333-4444-555555555555'
+  await loadLinkset({world,region:'test',position:{x:20,y:0,z:30},prims:[{key,scripts:[]}]})
+  const {scripts}=await loadLinkset({world,region:'test',position:{x:10,y:0,z:30},prims:[{scripts:[{name:'mover',source:{source:`
+    default {state_entry(){${convex}llSetKeyframedMotion([<4,0,0>,ZERO_ROTATION,2.0],[KFM_MODE,KFM_FORWARD]);
+      llRequestPermissions(llGetOwner(),PERMISSION_CHANGE_LINKS);}
+      touch_start(integer n){llCreateLink("${key}",FALSE);}
+      link_message(integer sender,integer num,string text,key id){if(num==99)llBreakLink(LINK_THIS);else llSetKeyframedMotion([],[KFM_COMMAND,num]);}}`}}]}]})
+  const s=scripts.mover!;s.start();s.grantPermissions();s.advanceTime(500)
+  const before={...s.host.regionPosition()}
+  expect(before).toEqual({x:11,y:0,z:30})
+  s.fire('touch_start',{num_detected:1});s.advanceTime(1000)
+  expect(s.host.regionPosition()).toEqual(before)
+  command(s,0);s.advanceTime(1000)
+  expect(s.host.regionPosition()).toEqual(before)
+  command(s,99);s.advanceTime(5000)
+  expect(s.host.regionPosition()).toEqual(before)
+  command(s,0);s.advanceTime(2000)
+  expect(s.host.regionPosition()).toEqual({x:15,y:0,z:30})
+})
+
+// In-world: snapshot.py and controlled-snapshot.py -> scripted derez preserves active motion.
+// Aditi, SLua Tideland, Mono, 2026-11-01. Viewer Take instead drops motion.
+it('snapshots a moving object without cloning its live clock callbacks', async () => {
+  const s=await motion()
+  s.advanceTime(500)
+  const snapshot=s.linkset.copy()
+  expect(snapshot.prims[0]!.regionPosition()).toEqual({x:1,y:0,z:0})
+  s.advanceTime(500)
+  expect(position(s)).toEqual({x:2,y:0,z:0})
+})
+
+// In-world: link-follow.py, root retained -> its existing playback continues (Aditi, SLua Tideland, 2026-11-01).
+it('keeps playback when the moving root absorbs a stationary object', async () => {
+  const s=await motion()
+  const other=await loadLinkset({position:{x:10,y:0,z:0},prims:[{}]})
+  s.advanceTime(500)
+  s.linkset.absorb(other.linkset)
+  s.advanceTime(500)
+  expect(position(s)).toEqual({x:2,y:0,z:0})
+  expect(s.linkset.prims[1]!.regionPosition()).toEqual({x:11,y:0,z:0})
+})
+
+// In-world: cycle-snapshot.py and loop-snapshot.py -> the first partial cycle is rebased,
+// then repeating modes return to the original path (Aditi, SLua Tideland, Mono, 2026-11-01).
+it.each([['KFM_LOOP',3000],['KFM_LOOP',19000],['KFM_PING_PONG',3000],['KFM_PING_PONG',19000]] as const)(
+  'restores %s at %s ms but retains its original path for later cycles', async (mode,ms) => {
+  const s=await motion('<8,0,0>,ZERO_ROTATION,8.0',`KFM_MODE,${mode}`)
+  s.advanceTime(ms)
+  const snapshot=s.linkset.copy()
+  const rezzed=snapshot.copy()
+  rezzed.prims[0]!.params.position={x:100,y:4,z:30}
+  rezzed.clock.advance(1000)
+  expect(rezzed.prims[0]!.regionPosition()).toEqual({x:101,y:4,z:30})
+  rezzed.clock.advance(mode==='KFM_LOOP'?4000:12000)
+  expect(rezzed.prims[0]!.regionPosition()).toEqual({x:0,y:0,z:0})
+  rezzed.clock.advance(1000)
+  expect(rezzed.prims[0]!.regionPosition()).toEqual({x:1,y:0,z:0})
+})

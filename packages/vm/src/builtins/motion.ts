@@ -42,6 +42,8 @@ export class KeyframedMotion {
   private duration = 0
   private cancel: (() => void) | undefined
   private held: Transform
+  /** A restored object's first cycle runs relative to its new rez pose. */
+  private restored: { segments: Segment[]; anchor?: Transform } | undefined
 
   constructor(private readonly prim: Prim, private readonly clock: LinksetClock,
     private readonly frames: readonly Frame[], private readonly mode: number) {
@@ -58,6 +60,7 @@ export class KeyframedMotion {
   private rebuild(): void {
     let current=this.transform()
     this.segments=[]
+    this.restored=undefined
     const frames=this.mode===KFM_REVERSE ? [...this.frames].reverse() : this.frames
     for (const frame of frames) {
       const reverse=this.mode===KFM_REVERSE
@@ -77,11 +80,44 @@ export class KeyframedMotion {
     this.cancel ??= this.clock.onAdvance(now=>this.update(now))
   }
 
+  private shift(segments: Segment[], held: Transform): Segment[] {
+    const current=this.transform(),delta=subtract(current.position,held.position)
+    const rotation=mulRotation(conjugate(held.rotation),current.rotation)
+    const shifted=(t: Transform): Transform=>({position:add(t.position,delta),rotation:normalize(mulRotation(t.rotation,rotation))})
+    return segments.map(s=>({...s,from:shifted(s.from),to:shifted(s.to)}))
+  }
+
+  /** Snapshot plain playback data and bind a fresh controller to the destination clock. */
+  copyTo(prim: Prim, clock: LinksetClock): KeyframedMotion {
+    this.update(this.clock.now)
+    const saved=structuredClone({frames:this.frames,segments:this.segments,
+      current:this.restored?.segments,mode:this.mode,playing:this.playing,
+      elapsed:this.playing ? this.elapsed+this.clock.now-this.startedAt : 0,pose:this.transform()})
+    const copy=new KeyframedMotion(prim,clock,saved.frames,saved.mode)
+    // In-world: controlled-snapshot.py and controlled-paused.log (Aditi, SLua Tideland,
+    // 2026-11-01) -> active progress survives; paused playback restarts full frames on play.
+    const first=saved.playing ? saved.current ?? saved.segments : copy.segments
+    copy.segments=saved.segments
+    copy.elapsed=this.mode===KFM_LOOP || this.mode===KFM_PING_PONG ? saved.elapsed%copy.duration : saved.elapsed
+    copy.held=saved.pose
+    copy.restored={segments:first}
+    if (saved.playing) copy.restored.anchor=saved.pose
+    else copy.dispose()
+    return copy
+  }
+
   private update(now: number): void {
     if (this.prim.linkset?.dead) { this.dispose();return }
     if (!this.playing) return
+    if (this.restored?.anchor) {
+      this.restored.segments=this.shift(this.restored.segments,this.restored.anchor)
+      delete this.restored.anchor
+    }
     let elapsed=this.elapsed+now-this.startedAt
     const repeating=this.mode===KFM_LOOP || this.mode===KFM_PING_PONG
+    // In-world: cycle-snapshot.py/loop-snapshot.py -> after the restored partial cycle,
+    // both repeating modes return to the original region path (Aditi, SLua Tideland, 2026-11-01).
+    if (repeating && elapsed>=this.duration) this.restored=undefined
     if (repeating) elapsed%=this.duration
     else if (elapsed>=this.duration) {
       elapsed=this.duration
@@ -90,9 +126,10 @@ export class KeyframedMotion {
       this.completed=true
       this.cancel?.();this.cancel=undefined
     }
-    for (let i=0;i<this.segments.length;i++) {
-      const s=this.segments[i]!
-      if (elapsed>s.duration && i<this.segments.length-1) { elapsed-=s.duration;continue }
+    const segments=this.restored?.segments ?? this.segments
+    for (let i=0;i<segments.length;i++) {
+      const s=segments[i]!
+      if (elapsed>s.duration && i<segments.length-1) { elapsed-=s.duration;continue }
       const t=Math.min(1,elapsed/s.duration)
       this.prim.params.position={x:s.from.position.x+(s.to.position.x-s.from.position.x)*t,
         y:s.from.position.y+(s.to.position.y-s.from.position.y)*t,z:s.from.position.z+(s.to.position.z-s.from.position.z)*t}
@@ -123,10 +160,10 @@ export class KeyframedMotion {
       }
       if (this.elapsed>=this.duration) return
       // Moving a paused object shifts the remainder of its path by the same transform.
-      const current=this.transform(),delta=subtract(current.position,this.held.position)
-      const rotation=mulRotation(conjugate(this.held.rotation),current.rotation)
-      const shifted=(t: Transform): Transform=>({position:add(t.position,delta),rotation:normalize(mulRotation(t.rotation,rotation))})
-      this.segments=this.segments.map(s=>({...s,from:shifted(s.from),to:shifted(s.to)}))
+      if (this.restored) {
+        this.restored.segments=this.shift(this.restored.segments,this.held)
+        delete this.restored.anchor
+      } else this.segments=this.shift(this.segments,this.held)
       this.startedAt=this.clock.now
       this.playing=true
       this.observe()

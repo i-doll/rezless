@@ -19,6 +19,7 @@ import {
   PASS_ALWAYS,
   PASS_NEVER,
   CHANGED_LINK,
+  KFM_CMD_STOP,
   REGION_FLAG_ALLOW_DAMAGE,
 } from './generated/constants.js'
 
@@ -165,9 +166,11 @@ export class Linkset {
     for (const source of this.prims) {
       const prim = copy.addPrim(new Prim({ name: source.name }))
       for (const [name, value] of Object.entries(source)) {
-        if (['key', 'linkset', 'linkNumber', 'createdAt', 'scripts', 'inventory'].includes(name)) continue
+        if (['key', 'linkset', 'linkNumber', 'createdAt', 'scripts', 'inventory', 'keyframedMotion'].includes(name)) continue
         Object.assign(prim, { [name]: structuredClone(value) })
       }
+      // In-world: scripted derez retains motion; copy only its data, never live callbacks.
+      prim.keyframedMotion = source.keyframedMotion?.copyTo(prim, copy.clock) ?? null
       for (const item of source.inventory) {
         if (item.script) {
           const script = item.script.copyTo(prim)
@@ -218,6 +221,8 @@ export class Linkset {
    */
   absorb(other: Linkset): void {
     if (other !== this) {
+      // In-world: linking a mover as a child stops it but retains frames for play after unlink.
+      other.prims[0]?.keyframedMotion?.command(KFM_CMD_STOP)
       this.place([this.prims[0]!, ...other.prims, ...this.prims.slice(1)])
       mergeLinksetData(this.linksetData, other.linksetData)
       other.prims.length = 0
