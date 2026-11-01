@@ -256,3 +256,17 @@ it('uses default modifiers for globally active limits excluded by exclusive cont
     expect(f.script.global('position')).toEqual(profile === 'rlva' ? vec(-8, 0, 0) : vec(8, 0, 0))
   }
 })
+
+it('applies mouselook exclusion when the command arrives without requiring a pose read', async () => {
+  const pair = await loadRlvPair({ source: `integer info; string command; default {
+    touch_start(integer n) { llOwnerSay(command); info = llGetAgentInfo(llGetOwner()); }
+  }` })
+  for (const profile of ['rlv', 'rlva'] as const) {
+    const f = pair[profile]; f.script.start(); f.avatar.info |= AGENT_MOUSELOOK
+    send(f, '@setcam_avdistmin:2=n')
+    expect((f.script.global('info') as number) & AGENT_MOUSELOOK).toBe(profile === 'rlva' ? 0 : AGENT_MOUSELOOK)
+    send(f, '@clear'); f.avatar.info |= AGENT_MOUSELOOK
+    send(f, '@setcam_mouselook=n')
+    expect((f.script.global('info') as number) & AGENT_MOUSELOOK).toBe(profile === 'rlva' ? 0 : AGENT_MOUSELOOK)
+  }
+})

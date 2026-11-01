@@ -231,6 +231,7 @@ export function dispatchCameraCommand(avatar: WorldAvatar, prim: Prim, parsed: R
     dispatchRestrictionCommand(avatar.viewer, prim, parsed, command)
     state.sync()
     distanceCamera(avatar).sync()
+    controlCamera(avatar).pose()
     return true
   }
   if (parsed.kind !== 'force' || parsed.behaviour !== 'setcam_fov') return false
@@ -559,7 +560,7 @@ function dispatchCameraControlCommand(avatar: WorldAvatar, prim: Prim, parsed: R
     viewer.restrictions.snapshot().some(rule => rule.behaviour === 'setcam' && !rule.option)) return rejected('failed-camera-lock')
   if ((kind === 'add' || kind === 'remove') && cameraControlSupport(viewer.profile, behaviour, option) === 'enforced') {
     dispatchRestrictionCommand(viewer, prim, parsed, command)
-    state.sync()
+    state.pose()
     return true
   }
   if (viewer.profile !== 'rlva' || kind !== 'force' || !offsetNames.includes(behaviour)) return false
