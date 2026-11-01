@@ -230,7 +230,7 @@ it('discovers seating force and reply forms without duplicate force entries', as
     listen(integer c,string n,key id,string m) { replies += [m]; }
   }` })
   pair.rlva.script.start(); pair.rlv.script.start()
-  expect(pair.rlva.script.global('replies')).toEqual(['sit;unsit', 'getsitid'])
+  expect(pair.rlva.script.global('replies')).toEqual(['setenv_bluedensity;setenv_bluedensityb;setenv_bluedensityd;setenv_bluedensityg;setenv_bluedensityi;setenv_bluedensityr;setenv_bluedensityx;setenv_bluedensityy;setenv_clouddensity;setenv_densitymultiplier;setenv_hazedensity;setenv_sunmoonposition;sit;unsit'.slice(0, 1023), 'getenv_bluedensity;getenv_bluedensityb;getenv_bluedensityd;getenv_bluedensityg;getenv_bluedensityi;getenv_bluedensityr;getenv_bluedensityx;getenv_bluedensityy;getenv_clouddensity;getenv_densitymultiplier;getenv_hazedensity;getenv_sunmoonposition;getsitid'.slice(0, 1023)])
   expect(pair.rlv.script.global('replies')).toEqual([])
 })
 

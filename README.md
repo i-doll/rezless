@@ -744,6 +744,11 @@ Kokua fixtures accept a per-avatar `blacklist` of wire names, with `%f` entries
 for force commands. `versionnumbl` and filtered `getblacklist` expose it. Ignored
 adds still notify; force commands have no effect. RLVa uses `rlvaNoSetEnv` to
 disable `setenv` add/remove separately and has neither blacklist query.
+Environment force/query forms use a per-avatar `environment` fixture for sky
+settings, named presets and daytime samples. `setenv` locks changes from other
+issuers. Vector formats, legacy aliases, numeric ranges and daytime replies
+follow the selected profile. `avatar.viewer.environment.sky` exposes a frozen
+snapshot; asset loading and rendering remain external.
 Unsupported effects keep their diagnostics under either setting.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
