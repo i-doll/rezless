@@ -1,3 +1,4 @@
+import { RlvInventory, type RlvInventoryConfig } from './inventory.js'
 import { RlvRestrictions } from './restrictions.js'
 import type { RlvParsedCommand } from './classifier.js'
 
@@ -7,6 +8,7 @@ export type ViewerProfile = 'disabled' | RlvProfile
 
 export interface ViewerConfig {
   readonly profile: ViewerProfile
+  readonly inventory?: RlvInventoryConfig
 }
 
 export interface RlvReference {
@@ -52,10 +54,11 @@ export interface ViewerState {
   readonly reference: RlvReference | null
   readonly diagnostics: RlvDiagnostic[]
   readonly commandLog: RlvCommandRecord[]
+  readonly inventory: RlvInventory
   readonly restrictions: RlvRestrictions
 }
 
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
-  return { profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile) }
+  return { profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile), inventory: new RlvInventory(config?.inventory) }
 }

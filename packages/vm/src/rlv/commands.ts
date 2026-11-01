@@ -2,6 +2,7 @@ import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { classifyRlvUnsupported } from './classifier.js'
 import { getRlvCommands } from './getcommand.js'
 import { dispatchRestrictionCommand } from './restrictions.js'
+import { getRlvInventoryList } from './inventory.js'
 import { getRlvStatus } from './status.js'
 import { getRlvAttachmentPoint, getRlvAttachmentReply } from './attachments.js'
 import { parseRlvCommand } from './parser.js'
@@ -59,6 +60,9 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
         ...(invalid ? { outcome: 'invalid-option' as const } : {}) })
       if (invalid) viewer.diagnostics.push({ command, reason: 'unsupported', detail: 'invalid-option: Unknown discovery type; the viewer delivers an empty reply.' })
       continue
+    }
+    if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) && parsed.behaviour === 'getinv') {
+      text = getRlvInventoryList(viewer.profile, viewer.inventory, parsed.option)
     }
     if (!malformed && parsed?.kind === 'query' && channel !== undefined && isValidReplyChannel(viewer.profile, channel) &&
       (parsed.behaviour === 'getattach' || parsed.behaviour === 'getattachnames')) {

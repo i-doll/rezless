@@ -668,6 +668,9 @@ the canonical 55-point table. RLVa also supports occupied point names and group
 filters through `getattachnames`; Kokua leaves that query unsupported.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
+`seedRlvInventory` supplies a per-avatar inventory tree with stable IDs, parent
+relations and an explicit shared root. `getinv` returns direct folder names with
+profile-specific path matching and visibility filters.
 
 ## License
 
