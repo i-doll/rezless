@@ -1,3 +1,4 @@
+import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
 import { userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
@@ -265,6 +266,11 @@ export class World {
   /** Deliver an online avatar IM; sender-side restrictions and automatic replies are separate. */
   sendAvatarIM(sender: WorldAvatar, recipient: string, message: string): void {
     deliverAvatarReceivedIM(this, sender, recipient, message)
+  }
+
+  /** Attempt an online avatar IM with sender restrictions and a frozen outcome. */
+  attemptAvatarIM(sender: WorldAvatar, recipient: string, message: string): AvatarIMAction {
+    return attemptAvatarIM(this, sender, recipient, message)
   }
 
   addObject(opts: WorldObjectOptions): WorldEntity {
