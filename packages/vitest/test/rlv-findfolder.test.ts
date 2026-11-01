@@ -143,7 +143,7 @@ it('collapses RLVa folded folders and keeps modifiable Kokua containing paths', 
   }
 })
 
-it('keeps outfit-layer forms inspectably unsupported and honors reply channel policy', async () => {
+it('answers empty outfit-layer queries and honors reply channel policy', async () => {
   const pair = await loadRlvPair({ source: `list replies; default {
     state_entry() { llListen(230101,"",llGetOwner(),""); llListen(-230101,"",llGetOwner(),"");
       llOwnerSay("@getpath:shirt=230101,getpathnew:pants=230101,findfolder:missing=0,findfolders:missing=-230101,getpathnew:invalid=230101"); }
@@ -151,9 +151,9 @@ it('keeps outfit-layer forms inspectably unsupported and honors reply channel po
   }` })
   for (const { script, avatar } of Object.values(pair)) {
     script.start()
-    expect(script.global('replies')).toEqual(avatar.viewer.profile === 'rlv' ? ['', ''] : [''])
+    expect(script.global('replies')).toEqual(avatar.viewer.profile === 'rlv' ? ['', '', '', ''] : ['', '', ''])
     expect(avatar.viewer.commandLog.slice(0, 2)).toMatchObject([
-      { status: 'unsupported', outcome: 'unsupported-form' }, { status: 'unsupported', outcome: 'unsupported-form' },
+      { status: 'replied', reply: { text: '' } }, { status: 'replied', reply: { text: '' } },
     ])
   }
 })

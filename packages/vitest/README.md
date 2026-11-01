@@ -1066,15 +1066,22 @@ Multiple results preserve traversal order and commas in names remain unescaped.
 Kokua alone accepts a custom separator after a semicolon on `findfolders`.
 
 `@getpath[:<selector>]=<channel>` and `@getpathnew[:<selector>]=<channel>`
-accept an attachment point, an attachment object UUID, or an empty selector for
-the issuer. Inventory UUIDs cannot select objects. Only paths under the explicit
+accept a clothing/bodypart layer, an attachment point, an attachment object UUID,
+or an empty selector for the issuer. Inventory UUIDs cannot select objects. Only paths under the explicit
 shared root are exposed. `getpath` selects the first result; `getpathnew` lists
 all paths with commas, including duplicate paths. Kokua retains empty positions
 for point attachments without shared inventory items; RLVa omits those items.
 RLVa collapses an effectively folded containing folder to its parent. These
 fixtures cover modifiable attachments; no-mod folder-name inference, inventory
-links, outfit layers and wear operations remain unsupported. Unsupported outfit
-selectors remain visible in the command log and produce no fabricated reply.
+links and wear operations are outside these path-query fixtures.
+
+Layer selectors read `wornWearables` in fixture order, representing wearable order
+in Kokua and current-outfit item order in RLVa. Both skip clothing outside the
+shared root before choosing the first `getpath` result. Empty layers and absent
+shared roots reply with an empty string. All 17 clothing and bodypart layers are
+recognized. Kokua preserves empty shared-root positions in `getpathnew`; RLVa
+inserts commas only after a nonempty reply, omitting leading empty paths.
+Invalid selectors reply empty, with `failed-option` in RLVa.
 
 
 ### Outfit and worn inventory queries
@@ -1160,7 +1167,7 @@ empty replies. Both queries participate in RLVa `getcommand` discovery.
 
 These fixtures do not perform wear/removal, automatic bodypart replacement,
 baking or rendering. Inventory links and gestures are outside the covered forms.
-Outfit-layer `getpath` selectors remain unsupported.
+`getpath` and `getpathnew` also query the folders of worn items on each layer.
 
 ### Viewer sessions
 
