@@ -2,7 +2,7 @@ import { seatingSupport } from './sit.js'
 import { parseNotifyOption, sendRestrictionNotifications } from './notify.js'
 import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
-import type { LinksetClock } from '../clock.js'
+import type { RlvSession } from './session.js'
 import type { RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile, ViewerState } from './profiles.js'
 import { cameraSupport } from './camera.js'
@@ -41,10 +41,14 @@ export class RlvRestrictions {
   private readonly rules = new Map<string, Map<string, RlvRestriction>>()
   private avatar: WorldAvatar | undefined
   private readonly parameters = new WeakMap<RlvRestriction, string>()
-  private readonly emitters = new Map<string, Prim>()
-  private stopGC: (() => void) | undefined
 
-  constructor(private readonly profile: ViewerProfile) {}
+  constructor(private readonly profile: ViewerProfile, private readonly session: RlvSession) {}
+
+  /** The receiving viewer stays with an issuer across later ownership changes. */
+  bind(avatar: WorldAvatar): void { this.avatar ??= avatar }
+
+  /** Session reset releases state without command notifications. */
+  reset(): void { this.rules.clear(); this.avatar = undefined }
 
   /** Frozen copies in emitter and rule insertion order, optionally for one prim. */
   snapshot(sourcePrim?: string): readonly RlvRestriction[] {
@@ -85,8 +89,7 @@ export class RlvRestrictions {
         rules.set(rule, entry)
         this.parameters.set(entry, parameter)
       }
-      this.emitters.set(prim.key, prim)
-      this.startGC(prim.linkset!.clock)
+      this.session.track(prim, () => this.clear(prim, ''))
     }
     if (this.profile === 'rlva') this.notify(prim, rule, '=' +
       (kind === 'add' && existing ? this.parameters.get(existing)! : parameter))
@@ -154,29 +157,7 @@ export class RlvRestrictions {
   private prune(sourcePrim: string): void {
     if (this.rules.get(sourcePrim)?.size) return
     this.rules.delete(sourcePrim)
-    this.emitters.delete(sourcePrim)
-    if (!this.rules.size) {
-      this.stopGC?.()
-      this.stopGC = undefined
-    }
-  }
-
-  private startGC(clock: LinksetClock): void {
-    if (this.stopGC) return
-    // Ready-viewer fixtures use the default steady-state collection intervals.
-    const interval = this.profile === 'rlva' ? 30000 : 10000
-    let next = clock.now + interval
-    this.stopGC = clock.onAdvance(now => {
-      if (now < next) return
-      next += (Math.floor((now - next) / interval) + 1) * interval
-      for (const prim of this.emitters.values()) {
-        // Resolve the current linkset so linking and unlinking keep prim state.
-        const linkset = prim.linkset!
-        if (linkset.dead || !linkset.peers.includes(linkset) || !linkset.prims.includes(prim)) {
-          this.clear(prim, '')
-        }
-      }
-    })
+    this.session.untrack(sourcePrim)
   }
 }
 

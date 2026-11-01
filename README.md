@@ -720,3 +720,10 @@ and worn item IDs with `seedRlvInventory`; inventory replies combine clothing
 with mapped live attachments. The manifest describes profile differences and
 direct folded-folder queries. These reads do not wear or
 remove items. See the outfit fixture documentation in `packages/vitest/README.md`.
+
+Viewer fixtures also support explicit startup and session reset. Not-ready viewers
+retain commands; Kokua can bypass retention for version requests, while RLVa can
+flush version queries during its misc startup phase. Virtual-time collection
+separates known and never-resolved issuers, and completed RLVa detach clears rules
+immediately. Viewer object-list membership can be supplied independently of range
+or region. Session reset cancels retained work and undelivered viewer replies.

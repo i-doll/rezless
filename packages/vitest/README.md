@@ -650,10 +650,10 @@ this notification fixture. Successful registration commands have `applied` statu
 unsupported forms remain visible in command logs and diagnostics.
 
 Script reset, state changes, and script removal preserve rules. Missing prims lose
-their rules on virtual-time viewer collection, every 30 seconds for RLVa and every
-10 seconds for the ready Kokua fixture with default settings. Startup delays and
-collection-setting overrides are outside the fixture. Linking and unlinking keep
-rules associated with their emitter UUID.
+their rules on virtual-time viewer collection. RLVa distinguishes known and
+never-resolved issuers; Kokua collects all missing issuers on its maintenance
+pass. Startup phases and collection settings are described under Viewer sessions.
+Linking and unlinking keep rules associated with their emitter UUID.
 
 `@getstatus[:<filter>[;<separator>]]=<channel>` replies with the calling prim's
 stored rules. `@getstatusall` includes every emitter. Both use substring filters
@@ -732,8 +732,7 @@ outside the covered forms.
 `RLV_MANIFEST` schema version 3 lists covered forms, reference implementation
 versions, files and symbols, and wiki comparisons. Query support marked `enforced`
 means a reply is delivered; version reporting does not imply support for other
-commands or viewer actions. Startup behavior and per-object compatibility settings
-remain outside the covered forms.
+commands or viewer actions. Per-object compatibility settings remain outside the covered forms.
 
 Object replies use the avatar UUID, name and current position. Positive replies
 reach listeners within 100 m across region boundaries, including the issuing prim.
@@ -1128,3 +1127,45 @@ empty replies. Both queries participate in RLVa `getcommand` discovery.
 These fixtures do not perform wear/removal, automatic bodypart replacement,
 baking or rendering. Inventory links and gestures are outside the covered forms.
 Outfit-layer `getpath` selectors remain unsupported.
+
+### Viewer sessions
+
+Viewers default to ready. Pass `viewer: { profile: 'rlva', ready: false }` to
+`World.addAvatar`, or `viewer: { ready: false }` to `loadRlvPair`, to retain startup
+commands. `setRlvViewerReady(avatar)` releases them in wire order. Command logs
+record retention with `status: 'queued'` and record execution separately.
+After release, call `script.advanceTime(0)` to drain queued LSL listener replies.
+
+Kokua RLV 2.09.35.00 answers version queries during startup unless
+`doNotQueueVersionRequests: false` is supplied. Firestorm RLVa 2.4.2 retains
+incoming queries. `avatar.viewer.session.setStartupPhase('misc')` enables its
+early version flush every 2000 virtual milliseconds, grouped as version,
+versionnew, then versionnum. Other commands wait for readiness.
+
+`setRlvObjectAvailable(avatar, primKey, false)` removes an issuer from the viewer
+object list while leaving its simulator object intact. Pass `true` when the
+viewer resolves it again. Distance and region changes alone preserve object
+references. Deletion and taking an object out of the World make it unavailable.
+RLVa checks every 30000 ms from the first restriction and stops on an empty
+collection pass. Clearing the last rule preserves that deadline until the pass;
+known missing issuers
+expire on the next check, while never-resolved issuers expire on the twenty-first
+miss. Completed detach immediately clears known RLVa attachment rules and notify
+registrations. Forced recovery of locked attachments is unsupported.
+
+Kokua uses time-based maintenance after readiness. The default first wait and
+interval are both 10000 ms. `initialGarbageCollectionAdditionalWait`, default
+5000 ms, adds to a 5000 ms minimum. `garbageCollectionAdditionalInterval`, default
+8000 ms, adds to a 2000 ms minimum. These additions must be finite and nonnegative.
+This fixture uses the default scheduling that ignores first-fully-visible state;
+frame-based scheduling and avatar-visibility delays are unsupported. All missing
+Kokua issuers, including never-resolved or detached prims, expire on a maintenance
+pass. Collection sends `/clear`, with individual removal notices only for Kokua.
+
+`resetRlvViewerSession(avatar)` silently clears restrictions, registrations,
+retained work and undelivered viewer replies, and returns to not-ready state.
+Scripts and inventory retain simulator state. Script reset alone preserves viewer
+rules. Commands sent again by scripts after a new session begins can reapply them.
+The session binds its virtual clock on the first command; fixtures that need an
+earlier origin can call `avatar.viewer.session.bind(linkset, avatar)` explicitly.
+`loadRlvPair` binds each session when its fixture is created.

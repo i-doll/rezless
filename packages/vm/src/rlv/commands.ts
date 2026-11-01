@@ -14,6 +14,7 @@ import { parseRlvCommand } from './parser.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
+import type { WorldAvatar } from '../world.js'
 import { RLV_PROFILES, type RlvProfile } from './profiles.js'
 
 /** Default reference settings; the Kokua viewer suffix is a fixed fixture value. */
@@ -35,16 +36,26 @@ function versionReply(profile: RlvProfile, behaviour: string, option: string): s
 }
 
 /** Dispatch in token order; replies stay queued until the issuing script yields. */
-export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: string): void {
+export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: string, recipient?: WorldAvatar): void {
   if (!message.startsWith('@')) return
-  const avatar = linkset.world?.avatars.find(avatar => avatar.key === linkset.owner)
+  const avatar = recipient ?? linkset.world?.avatars.find(avatar => avatar.key === linkset.owner)
   if (!avatar) return
   const viewer = avatar.viewer
-  if (viewer.profile === 'disabled' || viewer.profile === 'rlva' && message.length <= 3) return
+  if (viewer.profile === 'disabled' || viewer.profile === 'rlva' && !recipient && message.length <= 3) return
+  viewer.session.bind(linkset, avatar)
   for (const token of message.slice(1).split(',').filter(Boolean)) {
     const command = '@' + token
     const fields = parseRlvCommand(viewer.profile, token)
     const parsed = fields ? classifyRlvCommand(fields) : undefined
+    if (viewer.session.retain(parsed, () => {
+      const current = prim.linkset!
+      if (current.world === linkset.world && current.world?.avatars.includes(avatar)) {
+        dispatchViewerCommand(current, prim, command, avatar)
+      }
+    })) {
+      viewer.commandLog.push({ command, sourcePrim: prim.key, ...(parsed ? { parsed } : {}), status: 'queued' })
+      continue
+    }
     const malformed = !parsed || viewer.profile === 'rlva' && parsed.kind === 'unknown'
     const channel = parsed ? rlvIntegerPrefix(parsed.parameter) : undefined
     if (!malformed && parsed && dispatchCameraCommand(avatar, prim, parsed, command)) continue
