@@ -90,14 +90,19 @@ describe('paired LSL fixture', () => {
   })
 })
 
-// Code-derived: pinned RRInterfaceVersion.h and rlvdefines.h; no viewer launched for #213.
-it('pins the reference versions and exposes unsupported command forms honestly', () => {
-  expect(RLV_PROFILES.rlv).toMatchObject({ implementationVersion: '2.09.35.00', apiVersionNumber: 2093500,
-    commit: '643c349d8604949b5e927ae6300661f37114e221' })
-  expect(RLV_PROFILES.rlva).toMatchObject({ implementationVersion: '2.4.2', apiVersion: '3.4.3', compatibilityVersion: '2.9.28',
-    commit: '08082cbf2ad1094b5701b63b95b0a7c573dfe801' })
-  expect(RLV_MANIFEST.schemaVersion).toBe(1)
-  expect(RLV_MANIFEST.wiki.url).toContain('oldid=1219183')
+// Code-derived: Kokua RLV 2.09.35.00 RRInterfaceVersion.h and Firestorm RLVa 2.4.2 rlvdefines.h.
+// No viewer launched for #213.
+it('identifies the reference versions and exposes unsupported command forms honestly', () => {
+  expect(RLV_PROFILES.rlv).toEqual({
+    implementation: 'Kokua RLV', implementationVersion: '2.09.35.00',
+    apiVersion: '2.09.35.00', apiVersionNumber: 2093500, compatibilityVersion: null,
+  })
+  expect(RLV_PROFILES.rlva).toEqual({
+    implementation: 'Firestorm RLVa', implementationVersion: '2.4.2',
+    apiVersion: '3.4.3', apiVersionNumber: 3040300, compatibilityVersion: '2.9.28',
+  })
+  expect(RLV_MANIFEST.schemaVersion).toBe(2)
+  expect(RLV_MANIFEST.wiki).toEqual({ url: 'https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI' })
   expect(RLV_MANIFEST.commands.map(entry => entry.id)).toEqual([
     'version', 'channel-policy', 'add-remove-clear', 'status', 'discovery', 'notifications',
   ])
@@ -106,8 +111,15 @@ it('pins the reference versions and exposes unsupported command forms honestly',
     expect(entry.tests).toContain('packages/vitest/test/rlv-profiles.test.ts')
     for (const profile of ['rlv', 'rlva'] as const) {
       expect(entry.profiles[profile].support).toBe('unsupported')
-      expect(entry.profiles[profile].evidence.kind).toBe('code-derived')
-      expect(entry.profiles[profile].evidence.url).toContain(RLV_PROFILES[profile].commit)
+      const evidence = entry.profiles[profile].evidence
+      const reference = RLV_PROFILES[profile]
+      expect(evidence).toEqual({
+        kind: 'code-derived',
+        implementation: `${reference.implementation} ${reference.implementationVersion}`,
+        file: expect.stringMatching(/^indra\/newview\/\w+\.(cpp|h)$/),
+        symbols: expect.arrayContaining([expect.any(String)]),
+      })
+      if (profile === 'rlv') expect(evidence.file).toBe('indra/newview/RRInterface.cpp')
     }
   }
 })
