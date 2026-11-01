@@ -6,6 +6,7 @@ import { listElementType, uniformList } from '../values/list-types.js'
 import { PERMISSION_ATTACH, PERMISSION_TRACK_CAMERA, CHANGED_OWNER, PERM_TRANSFER } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isAgentInRegion } from './viewer.js'
+import { effectiveCamera } from './camera.js'
 
 const sameKey = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const isHUD = (point: number) => point >= 31 && point <= 38
@@ -111,7 +112,7 @@ const hudOrigins: ReadonlyArray<readonly [number, number]> = [
 export const llWorldPosToHUD: BuiltinImpl = (ctx, args) => {
   const point = ctx.linkset.attachment?.point ?? 0
   if (!isHUD(point) || !(ctx.state.permissions.granted & PERMISSION_TRACK_CAMERA)) return ZERO_VECTOR
-  const { pos, rot, fov, aspect } = ctx.state.camera
+  const { pos, rot, fov, aspect } = effectiveCamera(ctx)
   const world = args[0] as Vector
   const local = rotateVector({ x: world.x - pos.x, y: world.y - pos.y, z: world.z - pos.z }, conjugate(rot))
   if (local.x === 0) return ZERO_VECTOR

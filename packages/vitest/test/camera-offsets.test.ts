@@ -279,3 +279,26 @@ it('aims at the focus when both yaw and pitch are nonzero', async () => {
   expect(forward.y).toBeCloseTo(0.33333, 5)
   expect(forward.z).toBeCloseTo(0.66667, 5)
 })
+
+// In-world: hud.lsl / hud-seat.lsl -> HUD Center with TRACK_CAMERA projects
+// camera + 10*forward to <1,0,0>, both standing and seated. Seated camera
+// <114,49,2001.5>. Aditi, SLua Tideland, 2026-11-01.
+it('projects a point ahead of the seated camera at HUD centre using the same pose as the getters', async () => {
+  const f = await seatedFixture('llSetLinkCamera(LINK_THIS, <-4,1,2>, <2,1,2>);')
+  f.linkset.touch(1)
+  const hud = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'hud', source: { source: `
+    vector projected;
+    default { state_entry(){llRequestPermissions(llGetOwner(),PERMISSION_TRACK_CAMERA);}
+      touch_start(integer n){vector p=llGetCameraPos(); projected=llWorldPosToHUD(p+10*llRot2Fwd(llGetCameraRot()));}
+    }
+  ` } }] }] })
+  hud.linkset.attachToAvatar(OWNER, 35)
+  const script = hud.scripts.hud!
+  script.start(); script.grantPermissions()
+  f.world.sitAvatar(f.avatar, f.prims[0]!)
+  hud.linkset.touch(0)
+  const projected = script.global('projected') as { x: number; y: number; z: number }
+  expect(projected.x).toBe(1)
+  expect(projected.y).toBeCloseTo(0, 5)
+  expect(projected.z).toBeCloseTo(0, 5)
+})

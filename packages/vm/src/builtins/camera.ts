@@ -46,11 +46,17 @@ function seatedCamera(ctx: CallContext): Pick<Camera, 'pos' | 'rot'> | null {
   }
 }
 
+/** Pose shared by camera reads and consumers such as HUD projection. */
+export function effectiveCamera(ctx: CallContext): Camera {
+  const seated = seatedCamera(ctx)
+  return seated ? { ...ctx.state.camera, ...seated } : ctx.state.camera
+}
+
 /** llGetCameraPos() — ZERO_VECTOR without PERMISSION_TRACK_CAMERA. */
-export const llGetCameraPos: BuiltinImpl = (ctx) => (tracking(ctx) ? (seatedCamera(ctx)?.pos ?? ctx.state.camera.pos) : ZERO_VECTOR)
+export const llGetCameraPos: BuiltinImpl = (ctx) => (tracking(ctx) ? effectiveCamera(ctx).pos : ZERO_VECTOR)
 
 /** llGetCameraRot() — ZERO_ROTATION without PERMISSION_TRACK_CAMERA. */
-export const llGetCameraRot: BuiltinImpl = (ctx) => (tracking(ctx) ? (seatedCamera(ctx)?.rot ?? ctx.state.camera.rot) : ZERO_ROTATION)
+export const llGetCameraRot: BuiltinImpl = (ctx) => (tracking(ctx) ? effectiveCamera(ctx).rot : ZERO_ROTATION)
 
 /** llGetCameraFOV() — 0.0 without PERMISSION_TRACK_CAMERA. */
 export const llGetCameraFOV: BuiltinImpl = (ctx) => (tracking(ctx) ? ctx.state.camera.fov : 0)
