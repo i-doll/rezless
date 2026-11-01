@@ -1,5 +1,6 @@
 import { classifyRlvCommand, rlvIntegerPrefix } from './classifier.js'
 import { parseRlvCommand } from './parser.js'
+import { isValidReplyChannel, sendViewerReply } from './reply.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import { RLV_PROFILES, type RlvProfile } from './profiles.js'
@@ -37,7 +38,7 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
     const channel = parsed ? rlvIntegerPrefix(parsed.parameter) : undefined
     // Kokua dispatches named version queries before testing parameter kinds.
     const text = !malformed && parsed && (viewer.profile === 'rlv' || parsed.kind === 'query') &&
-      channel !== undefined && channel > 0 && channel < 2147483647
+      channel !== undefined && isValidReplyChannel(viewer.profile, channel)
       ? versionReply(viewer.profile, parsed.behaviour, parsed.option) : undefined
     const entry = { command, sourcePrim: prim.key, ...(parsed ? { parsed } : {}) }
     if (text === undefined) {
@@ -45,10 +46,10 @@ export function dispatchViewerCommand(linkset: Linkset, prim: Prim, message: str
       viewer.commandLog.push({ ...entry, status })
       viewer.diagnostics.push({ command, reason: status, detail: malformed
         ? 'Invalid command syntax or parameter for this viewer profile.'
-        : 'This command form has no implemented effect. Version replies require a supported positive channel.' })
+        : 'This command form has no implemented effect. Version replies require a supported reply channel.' })
       continue
     }
-    viewer.commandLog.push({ ...entry, status: 'replied', reply: { channel: channel!, text } })
-    linkset.routeViewerReply(avatar, channel!, text)
+    const reply = sendViewerReply(linkset, avatar, channel!, text)!
+    viewer.commandLog.push({ ...entry, status: 'replied', reply })
   }
 }
