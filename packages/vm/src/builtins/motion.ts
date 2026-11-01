@@ -275,8 +275,59 @@ function lookRotation(position: Vector, target: Vector): Rotation {
     z: Math.cos(pitch) * Math.sin(yaw), s: Math.cos(pitch) * Math.cos(yaw) }
 }
 
+const TARGET_STEP_MS = 10
+interface CoupledStep {
+  at: number
+  ticks: number
+  held: Transform
+  output: Transform
+  move: MoveRequest
+  look: LookRequest
+}
+function pose(prim: Prim): Transform {
+  return { position: { ...prim.params.position }, rotation: { ...prim.params.rotation } }
+}
+function samePose(prim: Prim, value: Transform): boolean {
+  const p = prim.params.position, r = prim.params.rotation
+  return p.x === value.position.x && p.y === value.position.y && p.z === value.position.z
+    && r.x === value.rotation.x && r.y === value.rotation.y && r.z === value.rotation.z && r.s === value.rotation.s
+}
+
+/** Coupled move/look uses a fixed cadence. Partial steps are sampled, never committed. */
+export class TargetMotionStepper {
+  private coupled: CoupledStep | undefined
+  constructor(private readonly prim: Prim, private previous: number) {}
+
+  advance(now: number): void {
+    const from = this.previous
+    this.previous = now
+    if (now <= from) return
+    const { move, look } = this.prim.targetMotion
+    if (!(this.prim.statusFlags & STATUS_PHYSICS) || !move || !look || !('position' in look.target)) {
+      this.coupled = undefined
+      advanceTargetMotion(this.prim, (now - from) / 1000)
+      return
+    }
+    let step = this.coupled
+    if (!step || step.move !== move || step.look !== look || !samePose(this.prim, step.output)) {
+      step = this.coupled = { at: from, ticks: 0, held: pose(this.prim), output: pose(this.prim), move, look }
+    }
+    this.prim.params.position = { ...step.held.position }
+    this.prim.params.rotation = { ...step.held.rotation }
+    const ticks = Math.floor((now - step.at) / TARGET_STEP_MS + 1e-9)
+    while (step.ticks < ticks) {
+      advanceTargetMotion(this.prim, TARGET_STEP_MS / 1000)
+      step.ticks++
+    }
+    step.held = pose(this.prim)
+    const remainder = Math.max(0, now - step.at - ticks * TARGET_STEP_MS)
+    if (remainder) advanceTargetMotion(this.prim, remainder / 1000)
+    step.output = pose(this.prim)
+  }
+}
+
 /** Nominal exponential kinematics. No gravity, angular wobble, contacts or inertia. */
-export function advanceTargetMotion(prim: Prim, seconds: number): void {
+function advanceTargetMotion(prim: Prim, seconds: number): void {
   if (!(prim.statusFlags & STATUS_PHYSICS)) return
   const { move, look } = prim.targetMotion
   if (move) {

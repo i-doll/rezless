@@ -1,4 +1,4 @@
-import { advanceTargetMotion, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
+import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
@@ -62,7 +62,18 @@ export interface PrimOptions {
 export class Prim {
   /** 1-based link number assigned by the host Linkset. 0 = unlinked single prim. */
   linkNumber = 0
-  key: string
+  #key = ''
+  get key(): string { return this.#key }
+  set key(value: string) {
+    const previous = this.#key
+    this.#key = value
+    // Rez replaces the temporary snapshot key after scripts have been copied.
+    const state = (this.linkset?.prims[0] ?? this).targetMotion
+    for (const kind of ['move', 'look'] as const) {
+      const request = state[kind]
+      if (request?.owner.prim === previous) request.owner.prim = value
+    }
+  }
   name: string
   description: string
   readonly scripts: Script[] = []
@@ -117,12 +128,10 @@ export class Prim {
     this.#cancelTargetMotion?.()
     this.#linkset = value
     if (!value) return
-    let previous = value.clock.now
+    const motion = new TargetMotionStepper(this, value.clock.now)
     this.#cancelTargetMotion = value.clock.onAdvance(now => {
-      const seconds = (now - previous) / 1000
-      previous = now
       if (value.dead) { this.#cancelTargetMotion?.(); return }
-      if (value.prims[0] === this && seconds > 0) advanceTargetMotion(this, seconds)
+      if (value.prims[0] === this) motion.advance(now)
     })
   }
   /** Virtual time in ms when the prim joined its linkset. */

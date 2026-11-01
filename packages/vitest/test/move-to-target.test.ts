@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
-import { loadScript } from '../src/index.js'
+import { loadScript, loadLinkset } from '../src/index.js'
+import { World, makeInventoryItem, InventoryType } from '@rezless/vm'
 import type { Script, Vector, Rotation } from '@rezless/vm'
 
 // https://wiki.secondlife.com/wiki/LlMoveToTarget
@@ -242,4 +243,60 @@ it('copies plain target state onto a fresh inventory clock and rebinds reset own
   expect(sample(s)).toEqual(before)
   copy.findScript('owner')!.reset();const held=sample(script)
   saved.advanceTime(5000);expect(sample(script)).toEqual(held)
+})
+
+it('keeps coupled move/look independent of clock partitions and unrelated timers',async()=>{
+  const call='llMoveToTarget(<4,0,0>,1);llLookAt(<0,4,0>,1,1);'
+  const a=await mover(call),b=await mover(call),c=await mover(call)
+  await callOn(c,'llSetTimerEvent(.037);')
+  a.advanceTime(1033)
+  for(let i=0;i<10;i++)b.advanceTime(100)
+  b.advanceTime(33);c.advanceTime(1033)
+  const want=sample(a)
+  for(const other of [b,c]){
+    const actual=sample(other)
+    expect(actual.p.x).toBeCloseTo(want.p.x,6)
+    for(const axis of ['x','y','z','s'] as const)expect(actual.r[axis]).toBeCloseTo(want.r[axis],6)
+  }
+})
+
+// In-world: target-snapshot-stop{,-long}.py -> restored stops remove control;
+// linear/angular inertia then coast beyond the old target. The model omits inertia.
+it.each(['stop','reset'])('restored initiator can %s after llRezAtRoot assigns its final key',async mode=>{
+  const payload=await mover('',true)
+  const source=await loadScript({host:payload.host,scriptName:'owner',source:`default{
+    touch_start(integer n){llMoveToTarget(<4,0,0>,1);llRotLookAt(llEuler2Rot(<0,0,PI_BY_TWO>),1,1);}
+    link_message(integer a,integer b,string c,key d){llStopMoveToTarget();llStopLookAt();}}`})
+  source.start();source.fire('touch_start',{num_detected:1});payload.advanceTime(300)
+  const item=makeInventoryItem({name:'payload',type:InventoryType.OBJECT,object:payload.linkset.copy()})
+  const world=new World();world.addRegion('test',{x:0,y:0})
+  const parent=await loadLinkset({world,region:'test',prims:[{inventory:[item],scripts:[{name:'parent',source:{source:`
+    default{state_entry(){llRezAtRoot("payload",<2,2,0>,ZERO_VECTOR,ZERO_ROTATION,0);}}`}}]}]})
+  parent.scripts.parent!.start()
+  const restored=world.linksets.find(l=>l!==parent.linkset)!,owner=restored.prims[0]!.findScript('owner')!
+  restored.advanceTime(300)
+  if(mode==='reset')owner.reset()
+  else owner.fire('link_message',{sender_num:1,num:0,str:'',id:''})
+  const held=structuredClone({p:owner.host.params.position,r:owner.host.params.rotation})
+  restored.advanceTime(5000)
+  expect({p:owner.host.params.position,r:owner.host.params.rotation}).toEqual(held)
+})
+
+it('reanchors coupled integration after an external pose change',async()=>{
+  const call='llMoveToTarget(<4,0,0>,1);llLookAt(<0,4,0>,1,1);'
+  const a=await mover(call),b=await mover(call)
+  for(const s of [a,b]){s.advanceTime(137);s.host.params.position={x:1,y:1,z:0}}
+  a.advanceTime(1000);for(let i=0;i<10;i++)b.advanceTime(100)
+  expect(sample(a).p.x).toBeCloseTo(2.896,2)
+  expect(sample(a).p.y).toBeCloseTo(.368,2)
+  for(const axis of ['x','y','z','s'] as const)expect(sample(a).r[axis]).toBeCloseTo(sample(b).r[axis],6)
+})
+it('reanchors coupled integration when the script replaces its target',async()=>{
+  const call='llMoveToTarget(<4,0,0>,1);llLookAt(<0,4,0>,1,1);'
+  const replacement='llMoveToTarget(<0,4,0>,1);llLookAt(<4,0,0>,1,1);'
+  const a=await mover(call,true,replacement),b=await mover(call,true,replacement)
+  for(const s of [a,b]){s.advanceTime(137);action(s,4)}
+  a.advanceTime(1033);for(let i=0;i<10;i++)b.advanceTime(100);b.advanceTime(33)
+  expect(sample(a).p.y).toBeGreaterThan(2)
+  for(const axis of ['x','y','z','s'] as const)expect(sample(a).r[axis]).toBeCloseTo(sample(b).r[axis],6)
 })
