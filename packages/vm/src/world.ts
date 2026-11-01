@@ -1,4 +1,5 @@
 import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
+import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } from './rlv/touch.js'
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
@@ -278,6 +279,11 @@ export class World {
   /** Attempt an online avatar IM with sender restrictions and a frozen outcome. */
   attemptAvatarIM(sender: WorldAvatar, recipient: string, message: string): AvatarIMAction {
     return attemptAvatarIM(this, sender, recipient, message)
+  }
+
+  /** Attempt a viewer-controlled touch of a specific prim. */
+  attemptAvatarTouch(avatar: WorldAvatar, prim: Prim, options: AvatarTouchOptions = {}): AvatarTouchAction {
+    return attemptAvatarTouch(this, avatar, prim, options)
   }
 
   addObject(opts: WorldObjectOptions): WorldEntity {
