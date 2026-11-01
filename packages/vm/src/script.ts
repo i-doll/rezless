@@ -1,3 +1,5 @@
+import { clearTargets } from './builtins/targets.js'
+import { withCollisionFilter } from './builtins/collision.js'
 import { stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
@@ -896,6 +898,7 @@ export class Script {
     for (const r of this.state.experienceRequests) r.answered = true
     this.state.controls.taken = null
     stopSensors(this)
+    clearTargets(this)
     this.clockView.cancelTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
@@ -927,7 +930,7 @@ export class Script {
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
     if (!handler) return
     if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
-    this.begin(handler, bindPayload(event, payload), payload)
+    withCollisionFilter(this, event, payload, p => this.begin(handler, bindPayload(event, p), p))
   }
 
   /** Whether the current state has a handler for `event`. */
@@ -1094,6 +1097,7 @@ export class Script {
     this.state.lifecycle.dead = true
     this.state.urls.length = 0
     stopSensors(this)
+    clearTargets(this)
     this.clockView.cancelTimer()
     this.abandon()
   }

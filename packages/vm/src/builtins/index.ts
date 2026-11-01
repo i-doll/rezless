@@ -1,3 +1,5 @@
+import { llTarget, llTargetRemove, llRotTarget, llRotTargetRemove } from './targets.js'
+import { llCollisionFilter, llCollisionSound, llVolumeDetect, llSetRemoteScriptAccessPin } from './collision.js'
 import { llParticleSystem, llLinkParticleSystem } from './particles.js'
 import { llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop } from './give.js'
 import { llLoadURL, llMapDestination, llMapBeacon, llOpenFloater } from './viewer.js'
@@ -410,6 +412,8 @@ export const REAL_BUILTINS: Readonly<Record<string, BuiltinImpl>> = {
   llGiveInventory, llGiveInventoryList, llGiveAgentInventory, llAllowInventoryDrop,
   llLoadURL, llMapDestination, llMapBeacon, llOpenFloater,
   llSetPrimMediaParams, llGetPrimMediaParams, llClearPrimMedia, llSetLinkMedia, llGetLinkMedia, llClearLinkMedia,
+  llTarget, llTargetRemove, llRotTarget, llRotTargetRemove,
+  llCollisionFilter, llCollisionSound, llVolumeDetect, llSetRemoteScriptAccessPin,
   llSensor, llSensorRepeat, llSensorRemove,
   llDamage,
   llAdjustDamage,

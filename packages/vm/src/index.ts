@@ -59,3 +59,5 @@ export type { CombatAvatar } from './builtins/damage.js'
 
 export type { InventoryOffer } from './builtins/give.js'
 export type { ViewerRequest } from './builtins/viewer.js'
+
+export type { CollisionFilter, CollisionSound } from './builtins/collision.js'
