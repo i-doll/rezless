@@ -221,7 +221,7 @@ export function dispatchForceWearCommand(issuer: Linkset, prim: Prim, avatar: Wo
       const removeLocked = rules.some(rule => rule.behaviour === 'remoutfit' && (!rule.option || rule.option === entry.wearableType))
       const atCapacity = !isRlvBodypart(entry) && clothingCount() >= 60
       const wholeWearLocked = profile === 'rlva' || isRlvBodypart(entry)
-      if (wholeWearLocked && (addLocked || (replace || atCapacity) && occupants.length > 0 && (removeLocked || folderRemovalLocked))) {
+      if (wholeWearLocked && (addLocked || (replace || atCapacity) && occupants.length > 0 && (removeLocked || profile === 'rlva' && folderRemovalLocked))) {
         results.push({ itemId: entry.id, outcome: 'blocked', reason: 'layer-lock' }); continue
       }
       if (replace && !removeLocked) for (const previous of profile === 'rlv' && !isRlvBodypart(entry) ? occupants.slice(-1) : occupants) {

@@ -181,3 +181,16 @@ it('Kokua bodypart force wear checks the layer rather than the incoming folder',
     expect(inv.wornWearables()).toEqual(profile === 'rlv' ? ['shape'] : ['old-shape'])
   }
 })
+
+it('Kokua force bodypart replacement also bypasses the outgoing folder lock', async () => {
+  for (const [profile, f] of Object.entries(await fixtures())) {
+    const inv = f.avatar.viewer.inventory
+    inv.seed({ sharedRootId: 'r', entries: [...inv.snapshot(),
+      { id: 'shape', parentId: 'base', kind: 'item', name: 'Shape', wearableType: 'shape' },
+      { id: 'old-shape', parentId: 'other', kind: 'item', name: 'Old shape', wearableType: 'shape' }],
+      wornWearables: ['old-shape'], wornAttachments: [{ itemId: 'issuer', rootKey: f.script.host.key }] })
+    send(f, '@detachthis:other=n,attachover:base=force')
+    expect(inv.wornWearables()).toContain(profile === 'rlv' ? 'shape' : 'old-shape')
+    expect(inv.wornWearables()).not.toContain(profile === 'rlv' ? 'old-shape' : 'shape')
+  }
+})
