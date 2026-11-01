@@ -7,7 +7,7 @@ import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
 import type { Prim } from './prim.js'
-import { AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK } from './generated/constants.js'
+import { AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 
@@ -448,18 +448,25 @@ export class World {
     return [...this.regions.values()].find(region => region.name.toLowerCase() === name.toLowerCase())
   }
 
-  /** Move an avatar through explicitly registered regions, preserving ordinary stand events. */
+  /** Move an avatar through explicitly registered regions; its attachments get teleport and region changes. */
   teleportAvatar(avatar: WorldAvatar, globalPosition: Vector, lookAt?: Vector): boolean {
     if (!this.avatars.includes(avatar) || !Object.values(globalPosition).every(Number.isFinite) ||
       lookAt && !Object.values(lookAt).every(Number.isFinite)) return false
     const region = this.regionAt(globalPosition.x, globalPosition.y)
     if (!region) return false
     this.standAvatar(avatar)
+    const changes = CHANGED_TELEPORT | (avatar.region === region.name ? 0 : CHANGED_REGION)
     avatar.region = region.name
     avatar.position = { x: globalPosition.x - region.corner.x, y: globalPosition.y - region.corner.y, z: globalPosition.z }
     if (lookAt && (lookAt.x || lookAt.y)) {
       const half = Math.atan2(lookAt.y, lookAt.x) / 2
       avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
+    }
+    for (const linkset of this.linksets) {
+      if (linkset.dead || linkset.attachment?.avatar.toLowerCase() !== avatar.key.toLowerCase()) continue
+      for (const script of linkset.allScripts()) {
+        if (script.running) this.clock.schedule(script, this.clock.now, 'changed', { changes })
+      }
     }
     return true
   }

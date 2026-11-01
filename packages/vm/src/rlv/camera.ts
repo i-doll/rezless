@@ -60,12 +60,15 @@ class RlvCamera {
   private persistedFov = DEFAULT_FOV
   private persist = true
   private previous: readonly RlvRestriction[] = []
+  private revision = -1
   // RLVa modifier removal compares float values. NaN never compares equal.
   private readonly modifiers: RlvRestriction[] = []
 
   constructor(private readonly viewer: ViewerState) {}
 
   sync(): void {
+    if (this.revision === this.viewer.restrictions.revision) return
+    this.revision = this.viewer.restrictions.revision
     const rules = this.viewer.restrictions.snapshot().filter(rule =>
       rule.behaviour === 'setcam_fovmin' || rule.behaviour === 'setcam_fovmax')
     const added = rules.filter(rule => !this.previous.includes(rule))

@@ -850,218 +850,7 @@ not confirmations from a network simulator. Unsupported forms retain diagnostics
 The manifest includes `getsitid`, force `sit`/`unsit`, and add/remove
 `sit`/`unsit`/`sittp` forms in command discovery.
 
-### Implemented `ll*` functions
-
-The real-impl set covers the most common use cases. Anything outside it
-falls through to a typed stub that returns the documented default
-and records the call. Use `s.mock(name, fn)` to provide your own
-behaviour for any function the script under test calls. Builtin
-function delays (e.g. the 0.2s delay on `llSetLinkPrimitiveParams`) are
-honored centrally in the dispatcher. Pass `stubs: 'warn'` or
-`stubs: 'throw'` to `loadScript` to see when a test leans on a stub.
-
-* **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
-* **listen**: `llListen`, `llListenRemove`, `llListenControl`
-* **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
-* **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
-* **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
-* **parcel effects and payments**: `llSetParcelMusicURL`, the six land ban/pass list functions, `llEjectFromLand`, `llReturnObjectsByID`, `llReturnObjectsByOwner`, `llSetParcelForSale`, `llManageEstateAccess`, `llParcelMediaCommandList`, `llParcelMediaQuery`, `llGiveMoney`, `llTransferLindenDollars`, `llTransferOwnership`. See the fixture and record-only limits above.
-* **parcels**: `llGetParcelDetails`, `llGetParcelFlags`, `llGetParcelMaxPrims`, `llGetParcelPrimCount`, `llGetParcelPrimOwners`, `llGetParcelMusicURL`, `llGetLandOwnerAt`, `llOverMyLand`
-* **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatar keys still read like unknown keys in these object queries), `llGetObjectPermMask`
-* **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
-* **ground, water and wind**: `llModifyLand` and `llSetGroundTexture` (permission refusal only), `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
-* **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
-* **email**: `llEmail`, `llGetNextEmail`, `llTargetedEmail` (each send sleeps 20 seconds) — mail to `<key>@lsl.secondlife.com` reaches that prim's queue, which holds 101 mails; queue a test's mail with `s.deliverEmail`
-* **pathfinding**: `llCreateCharacter`, `llUpdateCharacter`, `llDeleteCharacter`, `llEvade`, `llExecCharacterCmd`, `llFleeFrom`, `llNavigateTo`, `llPatrolPoints`, `llPursue`, `llWanderWithin`, `llGetClosestNavPoint`, `llGetStaticPath`. Inspect `s.character.options` for explicit requested configuration and `s.character.commands` for command history. The character belongs to the object and survives script resets. `s.pathUpdate(type)` sends an event with an empty reserved list to the root prim's scripts. Movement, capsule fitting, option clamping and navmesh baking are not simulated. Set fixed query answers with `s.setNavigationResults({ closestNavPoint: [point], staticPath: [start, end, 0] })`, or use `s.mock` for answers that depend on query arguments. Without fixtures, closest-point queries return `[]` and static-path queries return `[PU_FAILURE_INVALID_GOAL]`; an out-of-range static-path radius returns `[]`.
-* **sound**: `llPlaySound`, `llLoopSound`, `llLoopSoundMaster`, `llLoopSoundSlave`, `llPlaySoundSlave`, `llTriggerSound`, `llTriggerSoundLimited`, `llStopSound`, `llPreloadSound`, `llAdjustSoundVolume`, `llSetSoundQueueing`, `llSetSoundRadius`, and the `llLinkPlaySound`, `llLinkStopSound`, `llLinkAdjustSoundVolume`, `llLinkSetSoundQueueing`, `llLinkSetSoundRadius` variants. Inspect `prims[i].sound` from `loadLinkset`: `current` holds the last attached request or `null` after stop, `queueing` and `radius` hold settings, and `triggers` and `preloads` record one-shot requests. Names resolve in the calling prim's sound inventory; UUIDs work without inventory. Volume records the documented 0–1 range, while radius records the requested value. Audio playback, duration, queue progression, synchronization and effective audibility limits are not simulated.
-* **prim media**: `llSetPrimMediaParams`, `llGetPrimMediaParams`, `llClearPrimMedia`, `llSetLinkMedia`, `llGetLinkMedia`, and `llClearLinkMedia`. Inspect `prims[i].media`, a map from face number to values indexed by `PRIM_MEDIA_*` constants. Setters validate atomically and return simulator status codes. Getters return values in requested order; clearing removes the face entry. Permission masks and URL whitelists are stored and validated, but browser rendering and avatar interaction are not simulated. Media link calls select one prim, including the measured first-other-prim behavior of negative selectors other than `LINK_THIS`.
-* **particles**: `llParticleSystem` and `llLinkParticleSystem`. Inspect `prims[i].particles` for the last accepted request, with its raw `rules` and resolved `texture` UUID. Empty lists and wrong value types clear it. Unknown rule ids, noninteger ids and trailing unpaired rules are silent. Texture names resolve in each target prim's inventory; missing names use the default particle texture. Numeric values retain their requested magnitude. Viewer clamping, quantization, particle motion and rendering are not simulated.
-* **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
-* **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
-* **link changes**: `llCreateLink`, `llBreakLink`, `llBreakAllLinks` (need `PERMISSION_CHANGE_LINKS`; each raises `changed(CHANGED_LINK)` in the prims it touches; linked prims stay where they were, and the root keeps the linkset data)
-* **object animations**: `llStartObjectAnimation`, `llStopObjectAnimation`, `llGetObjectAnimationNames` (each prim keeps its own list; animations play only when the linkset is loaded with `animesh: true`)
-* **avatar names and info**: `llGetDisplayName`, `llGetUsername`, `llName2Key`, `llRequestUserKey`, `llGetAgentInfo`, `llGetAgentLanguage`, `llGetAgentList`, `llGetAgentSize`, `llGetVisualParams`, `llIsFriend`, `llSameGroup`. Configure avatars with `world.addAvatar` as described above.
-* **dataserver**: `llRequestAgentData`, `llRequestInventoryData`, `llRequestSimulatorData`, `llRequestUsername`, `llRequestDisplayName`
-* **combat**: `llDamage`, `llAdjustDamage`, `llSetDamage`, `llGetHealth`. Set `linkset.damageEnabled` for the object's parcel; it defaults to the region's damage flag. `s.setCombatAvatar(id, { health, damageEnabled, scripts })` supplies an avatar and its attachment scripts. Damage waits for all `on_damage` handlers, including sleepers, before applying avatar health changes and queuing `final_damage`. `on_death` notifies attachments when avatar health reaches zero. Object health stays under script control through `PRIM_HEALTH`. Set `linkset.damageThrottleExempt` for a parcel-owner or land-group source. Physics contacts, seated-avatar redistribution, regeneration and death teleports are not simulated.
-* **rezzing**: `llRezObject`, `llRezAtRoot`, `llRezObjectWithParams`, `llDerezObject`, `llGetVel`, `llGetForce`. Supply inventory objects through a prim fixture's `objects` definitions and inspect rezzed linksets in `world.linksets`, as described above.
-* **sensors**: `llSensor`, `llSensorRepeat`, `llSensorRemove` fire `sensor` / `no_sensor` with detected data. Sensors find other loaded linksets and targets placed with `world.addObject({ region, name, position, scripted, active, physical })` or `world.addAvatar({ region, key, name, username, position })`. Targets also accept `owner`, `group`, `rotation` and `velocity`; returned targets can be moved between scans. `world.sensorProperties.set(linkset, { group, velocity, active })` supplies these properties for loaded linksets. Without an activity override, a loaded script with a timer, active listener or sleeping handler counts as active. Scans use exact name/key filters, a strict radius capped at 96 m, and the nearest 32 results. Positive repeats use virtual time at the requested interval; simulator frame cadence and lag are not modeled. The measured Aditi simulator returned no matches for `DAMAGEABLE`, including targets with damage handlers and health 100, so this VM does the same. Attachment and seated-avatar sensor geometry are not simulated.
-* **raycasts**: `llCastRay` queries loaded prims and `world.addObject` / `world.addAvatar` fixtures in the same region. Prims and avatars use oriented boxes; object fixtures accept `size` and `phantom`. Hits are nearest first, with the requested cap, rejection mask, phantom detection and data flags. Linked roots report link 0 and children their link number. Rays starting inside a box miss it; entry-face starts hit, and the endpoint is excluded. Terrain uses the region's bilinear `ground` grid. Supply a measured terrain index with `groundLinkNumber`, a number or `(x, y) => number`; its fixture default is 0. Actual prim/mesh shapes, avatar capsules, simulator load errors and raycast quotas are not simulated.
-* **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`/`TouchFace`/`TouchST`/`TouchUV`/`TouchNormal`/`TouchBinormal`/`Rezzer`/`Damage`
-* **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`, `llRot2Fwd`/`Left`/`Up`, `llRot2Axis`/`Angle`, `llAxisAngle2Rot`, `llRotBetween`, `llAngleBetween`, `llAxes2Rot`, `llLinear2sRGB`/`llsRGB2Linear`
-* **string**: `llStringLength`, `llSubStringIndex`, `llGetSubString`, `llDeleteSubString`, `llInsertString`, `llStringTrim`, `llToLower`/`Upper`, `llReplaceSubString`, `llEscapeURL`/`UnescapeURL`
-* **list**: `llGetListLength`, `llList2Integer`/`Float`/`String`/`Key`/`Vector`/`Rot`, `llList2List`, `llList2ListStrided`, `llList2ListSlice`, `llListRandomize` (seeded), `llDeleteSubList`, `llListInsertList`, `llListReplaceList`, `llListFindList`, `llListSort`, `llListSortStrided`, `llDumpList2String`, `llList2CSV`, `llCSV2List`, `llParseString2List`, `llParseStringKeepNulls`
-* **json**: `llJson2List`, `llJsonGetValue`, `llJsonSetValue`, `llJsonValueType`, `llList2Json` — full LSL JSON semantics including the FDDx-range type-tag sentinels (`JSON_OBJECT`/`ARRAY`/`NUMBER`/`STRING`/`NULL`/`TRUE`/`FALSE`/`INVALID`/`DELETE`), `JSON_APPEND`, the empty-value short-circuit (`{"k":,}` → `JSON_NULL`) on `Get`/`Type`, duplicate-key collapse on `Set`, force-fit auto-creation of nested objects/arrays through deep specifier paths, and the kept-as-is rule for nested JSON-shaped strings in `llList2Json`.
-* **identity**: `llGetOwner`, `llGetOwnerKey`, `llGetCreator`, `llGetKey`, `llGetObjectName`, `llSetObjectName`, `llGetScriptName`, seeded `llGenerateKey`
-* **hash**: `llMD5String`, `llSHA1String`, `llSHA256String`, `llHMAC`
-* **RSA**: `llSignRSA`, `llVerifyRSA` (sha1, sha224, sha256, sha384 or sha512; RSA keys only)
-* **base64**: `llStringToBase64`/`Base64ToString`, `llIntegerToBase64`/`Base64ToInteger`, `llXorBase64`
-* **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llSetTouchText`, `llSetSitText`, `llSetPayPrice` (stored on the prim for tests to read), `llDie` (kills every script in the linkset), `llResetScript`
-* **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; `llRemoveInventory` (a script that removes itself halts at once)
-* **giving inventory**: `llGiveInventory`, `llGiveInventoryList`, `llGiveAgentInventory`; inspect `s.inventoryOffers`. World prim recipients receive items and `changed`; `llAllowInventoryDrop` lets the root enable foreign-owner drops, excluding scripts. List variants omit missing/no-copy items. Avatar offers are recorded without simulating acceptance or throttles. Foreign permissions and no-copy moves follow the wiki and need a second avatar for in-world validation. Attachment inventory restrictions and automatic child/recent avatar presence are not modeled.
-* **remote script loading**: `llRemoteLoadScriptPin` copies an executable inventory script into a same-owner prim with a matching nonzero PIN, including negative PINs. It replaces the same inventory name, discards saved state, starts running or stopped with the supplied start parameter, and sleeps three seconds. Existing receiver scripts get `CHANGED_INVENTORY`; the fresh copy starts with `state_entry`, without `on_rez`. Reset clears its start parameter. Missing/wrong-type names, mismatched PINs and self-loads report the measured errors. Unknown targets are silent. Cross-owner modification grants are unsupported and denied. No-copy sources are refused with a generic error; exact no-copy errors and foreign-owner permission behavior need a second owner for in-world measurement. Passive script assets without an executable `Script` instance cannot be loaded.
-* **viewer requests**: `llLoadURL`, `llMapDestination`, `llMapBeacon`; inspect `s.viewerRequests`. Region presence reads World avatar fixtures, with the owner or current detected avatar as defaults; override it with `s.setAgentInRegion`. `llOpenFloater` records arguments and returns `-1`: the fixture cannot represent a Linden-owned privileged experience. Requests record viewer instructions; they do not open UI.
-* **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`
-* **experiences**: `llGetExperienceDetails`, `llGetExperienceErrorMessage`, `llAgentInExperience`, `llRequestExperiencePermissions` (an agent who already accepted is granted at once; answer others with `s.grantExperiencePermissions` / `s.denyExperiencePermissions`), and the key-value store: `llCreateKeyValue`, `llReadKeyValue`, `llUpdateKeyValue`, `llDeleteKeyValue`, `llKeyCountKeyValue`, `llKeysKeyValue`, `llDataSizeKeyValue`, which answer through `dataserver` on every script in the prim with `1,<result>` or `0,<XP_ERROR_*>`. Without an experience they answer `0,5`. Seed or inspect the store with `experience.seed([['k', 'v']])` and `experience.store`; pass `allowedHere: false` for land that doesn't allow the experience.
-* **game control**: `llGetGameControlMode`, `llGetGameControlModeAxes`, `llGetGameControlModeButtons`. Set an avatar's viewer-derived values with `s.setGameControl(agent, { mode, axes, buttons })`, then use `s.sendGameControl(agent, { buttons, axes })` to supply separate raw event input. Delivery requires `PERMISSION_GAME_CONTROL` from that agent. Each event retains its own semantic snapshot across sleeps and later fixture updates. Outside the event, queries return `-1`, `[]` and `0`. Axes are floats with the supplied mode-dependent length, including cursor pixel coordinates. Fixtures share state within a World and can be cleared with `s.setGameControl(agent, null)`. Controller mapping and automatic viewer mode changes are not simulated.
-* **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
-* **attachments**: `llAttachToAvatar`, `llAttachToAvatarTemp`, `llDetachFromAvatar`, `llGetAttached`, `llGetAttachedList`, `llGetAttachedListFiltered`, `llWorldPosToHUD`. Attach calls require `PERMISSION_ATTACH`; detach requires an avatar permission key but does not require the ATTACH bit. `linkset.attachToAvatar(avatar, point, temporary)` supplies a viewer-worn fixture without granting script permissions; inspect `linkset.attachment` for avatar, point and temporary status. Detach removes the object from region queries, preserves normal attachment script state, and destroys temporary attachments after their final event. Sleeping detach handlers and recurring sensor/target work pause in inventory until fixture rewear. Lists return root keys in attachment order and hide HUDs unless the caller and HUD share an allowed, accepted experience. Set projection camera settings with `s.setCamera`. Bone transforms, avatar inventory persistence and viewer attachment limits are not simulated; other-region avatar fixtures represent child agents for list errors.
-* **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` require `PERMISSION_TRACK_CAMERA`. Supply viewer camera values with `s.setCamera`. `llSetCameraParams` and `llClearCameraParams` record rules in `s.cameraParams`. `llSetCameraEyeOffset`, `llSetCameraAtOffset`, `llSetLinkCamera` and `llForceMouselook` store settings on each prim as `cameraEyeOffset`, `cameraAtOffset` and `forceMouselook`, without runtime permissions. `World.sitAvatar` snapshots the offsets for subsequent camera position/rotation reads; later setting changes apply on the next sit. `llWorldPosToHUD` uses the same effective camera pose. Camera offsets follow the seated prim transform and survive script reset and inventory copies. Forcing mouselook sets `AGENT_MOUSELOOK` on the next sit; clearing the prim flag leaves the viewer mode alone. Negative link selectors other than `LINK_THIS` select the first other prim, matching the measured simulator behavior. Mouselook eye positions, viewer smoothing, camera collision and viewer distance limits are outside this model; `s.setCamera` supplies the fallback viewer pose. There is no camera-offset PRIM_* getter.
-* **sitting and teleporting**: `llSitOnLink`, `llUnSit`, `llSetAgentRot`, `llTeleportAgent`, `llTeleportAgentGlobalCoords`, `llTeleportAgentHome`, plus the sit-target readers. Configure World avatar fixtures and inspect `s.teleportRequests` as described above.
-
-* **avatar animations**: `llStartAnimation`, `llStopAnimation`, `llGetAnimation`, `llGetAnimationList`, `llGetAnimationOverride`, `llSetAnimationOverride`, `llResetAnimationOverride`. Start/stop require `PERMISSION_TRIGGER_ANIMATION`; set/reset overrides require `PERMISSION_OVERRIDE_ANIMATIONS`; reading overrides accepts either. Inventory animation names take priority over built-ins. Raw UUIDs work for stop only.
-* **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.
-* **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
-* **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
-* **primitive params**: `llSetPrimitiveParams`, `llSetLinkPrimitiveParams`, `llSetLinkPrimitiveParamsFast`, `llGetPrimitiveParams`, `llGetLinkPrimitiveParams` — full `PRIM_*` rule surface (position / rotation / size / colour / alpha / texture / glow / fullbright / material / physics / flexible / point light / projector / sculpt / GLTF PBR / sit target / click action / text / name / desc / omega / damage / temp-on-rez / cast shadows / …). Honors `PRIM_LINK_TARGET` mid-rule redirects, `ALL_SIDES` expansion, multi-prim get concatenation, unknown-rule termination on get, and the 0.2 s delay on the slow link variant.
-* **targets**: `llTarget`, `llTargetRemove`, `llRotTarget`, `llRotTargetRemove`. Each script keeps eight position and eight rotation targets with a shared handle counter. Checks use the current root transform every 44.444 virtual milliseconds, including changes through link parameters. Thresholds are strict; state changes keep targets, resets clear them. Sleeping handlers keep one pending event per target. Simulator frame jitter and script execution throttling are not modeled.
-* **collision settings**: `llCollisionFilter`, `llVolumeDetect`, `llCollisionSound`, `llAllowInventoryDrop`, `llSetRemoteScriptAccessPin`. Inspect `s.host.collisionFilter`, `volumeDetect`, `collisionSound`, `allowInventoryDrop`, and `remoteScriptAccessPin`. Tests raise collisions with `s.fire('collision_start', { num_detected: 1, detected: [{ key, name }] })`; filters apply to supplied detected entries, and volume detection suppresses continuous `collision` events. Volume detection updates the linkset's phantom read-back. No physics or overlap detection runs. Collision sounds record the requested sound and gain; audio playback, sound asset resolution and collision particles are not simulated. Inventory drops default to disabled and only a root script can enable them. Remote pins default to zero; setting one stores it and sleeps 0.2 seconds.
-* **physics requests**: `llApplyImpulse`, `llApplyRotationalImpulse`, `llSetForce`, `llSetTorque`, `llSetForceAndTorque`, `llSetVelocity`, `llSetAngularVelocity`, `llPushObject`. Calls append `{ name, args }` to the caller's `prim.physics.requests`, preserving call order, vector magnitudes, target keys and local flags, even on nonphysical objects. They do not move objects or change read fixtures.
-* **buoyancy and hover requests**: `llSetBuoyancy`, `llSetHoverHeight`, `llGroundRepel`, `llStopHover`. Calls append to the caller's `physics.requests`. Inspect `prim.buoyancy`, `prim.hover` and `prim.groundRepel` for the last requested values. A new request replaces that function's settings; `llStopHover` clears `hover` and leaves ground repel alone. Values retain the requested heights, tau and water argument, including negative and extreme inputs. These are capture records, preserved across script resets and copied independently into inventory snapshots. In Second Life, resetting the setter script cancels its effects; these records do not represent active simulator controllers. No buoyancy, hover or ground-repel motion runs.
-* **vehicle requests**: `llSetVehicleType`, `llSetVehicleFlags`, `llRemoveVehicleFlags`, `llSetVehicleFloatParam`, `llSetVehicleVectorParam`, `llSetVehicleRotationParam`. Inspect `prim.vehicle.type`, `flags`, `params` by VEHICLE_* parameter ID, and the ordered `requests` history. Setting a type loads its full documented preset, including friction, motor directions and offset, all float parameters, reference frame and flags. Repeating a type replaces the settings. NONE clears the configuration. Undocumented type values are retained with an empty preset, and later parameter requests are still recorded. Flag calls add/remove bits. Float setters also accept linear/angular friction as a uniform vector; wrong parameter categories leave settings unchanged and emit the measured DEBUG_CHANNEL diagnostic when a vehicle type is set. Calls are recorded per caller even when nonphysical or disabled. Explicit parameter values retain requested magnitudes rather than simulator saturation. LSL has no vehicle parameter getter; exact preset values follow the Second Life wiki, including its unusual SLED hover efficiency 10; an in-world comparison differed from explicitly setting efficiency 1. Records survive resets and copy independently into inventory snapshots. No vehicle dynamics, energy use or active-controller lifecycle runs.
-* **physics reads**: Set fields on the root's `physics` fixture to supply `llGetForce`, `llGetTorque`, `llGetVel`, `llGetAccel`, `llGetOmega`, `llGetMass`, `llGetMassMKS`, `llGetCenterOfMass` and `llGetEnergy`. Defaults describe a resting 0.5 m box: zero vectors, mass 1.25 lindograms, massMKS 125 kg, energy 1, center of mass at the current root region position. Null force and velocity fixtures preserve the existing rez-force and initial rez/sensor-velocity fallbacks. The mass fields are independent; Second Life normally returns kilograms at 100 times lindograms. Fixtures and request history survive script resets and copy with inventory snapshots. Supply force/torque read-back in the requested frame. Other shapes, linked physical centers, child-specific acceleration and energy depletion/recovery also need fixtures. No force integration, gravity, collision response, mass calculation, push-permission evaluation or energy simulation runs.
-* **move and look targets**: `llMoveToTarget`, `llStopMoveToTarget`, `llLookAt`, `llRotLookAt`, `llStopLookAt`. `advanceTime` applies nominal exponential convergence to physical objects, using the requested tau or strength/damping. Coupled movement and positional look-at use a fixed simulation cadence, so timers and clock partitions do not change the result. Position changes feed `llTarget` events. Move requests wait while physics is off; both look functions snap immediately on nonphysical prims. Child llLookAt callers must compensate for root rotation, matching the simulator convention. Moves over the measured 64 m limit or with tau below .044444 seconds cancel the previous move. Physical look-at strength must be at least .044444; damping is capped at 1. The initiating script owns stop/reset control; sibling scripts can retarget it without taking ownership. Stops hold the current transform. State changes preserve requests; reset of the initiator clears them. Scripted inventory snapshots retain the region target on a fresh clock. Target data lives in `prims[0].targetMotion`. This kinematic model omits gravity, contacts, post-stop inertia, angular wobble, energy use and simulator frame drift; velocity/acceleration reads are not derived from it.
-* **kinematic motion**: `llSetKeyframedMotion`, `llSetRegionPos`. Advance virtual time to interpolate translation and rotation through keyframes, with forward, loop, reverse and ping-pong playback, and play/pause/stop commands shared by the object's scripts. KFM requires a nonphysical linkset with a convex or no-physics prim. Region moves enforce coordinate and altitude limits, snap to the configured terrain, and have no forced delay. Simulator drift, selection pauses, region crossings, movement events, parcel-entry restrictions and attachment motion are not simulated. Invalid requests leave existing motion unchanged; diagnostic text is not synthesized.
-* **prim accessors** (alternative single-rule shortcuts that read/write the same backing store): `llSetPos`/`llGetPos`/`llGetLocalPos`/`llGetRootPosition`, `llSetRot`/`llSetLocalRot`/`llGetRot`/`llGetLocalRot`/`llGetRootRotation`, `llSetScale`/`llGetScale`/`llScaleByFactor`/`llGetMaxScaleFactor`/`llGetMinScaleFactor`, `llGetLinkNumberOfSides`, `llSetColor`/`llGetColor`/`llSetAlpha`/`llGetAlpha`, `llSetTexture`/`llGetTexture`/`llGetTextureOffset`/`llGetTextureScale`/`llGetTextureRot`/`llScaleTexture`/`llOffsetTexture`/`llRotateTexture`, `llSetLinkColor`/`llSetLinkAlpha`/`llSetLinkTexture`, `llSetTextureAnim`/`llSetLinkTextureAnim`/`llSetLinkTextureAnimOverrideMe`, `llSetRenderMaterial`/`llGetRenderMaterial`/`llSetLinkRenderMaterial`/`llIsLinkGLTFMaterial`/`llSetLinkGLTFOverrides`, `llSetStatus`/`llGetStatus`/`llSetLinkStatus`, `llSetClickAction`, `llTargetOmega`, `llSetPhysicsMaterial`/`llGetPhysicsMaterial`, `llPassCollisions`/`llPassTouches`, `llSitTarget`/`llLinkSitTarget`/`llAvatarOnSitTarget`/`llAvatarOnLinkSitTarget`/`llSetLinkSitFlags`/`llGetLinkSitFlags`.
-
-The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
-`INVENTORY_*`, `MASK_*`, `LINKSETDATA_*`, …) is re-exported from
-`@rezless/vitest`, so tests can compare numeric returns against named
-constants instead of magic numbers.
-
-## Coverage
-
-`@rezless/vitest` ships an LSL coverage collector that tracks four kinds of
-coverage per script: **statement**, **branch** (if / while / for / do-while
-arms), **function** (user functions and event handlers), and **state**
-("did we ever enter `state idle`?"). Off by default; opt in once in your
-`vitest.config.ts`:
-
-```ts
-import { defineConfig } from 'vitest/config'
-import { LslCoverageReporter } from '@rezless/vitest/reporter'
-
-export default defineConfig({
-  test: {
-    reporters: ['default', new LslCoverageReporter()],
-    coverage: {
-      // your @vitest/coverage-v8 config (provider, include, exclude, ...)
-    },
-  },
-})
-```
-
-The reporter is dormant during plain `vitest run`. When you invoke
-`vitest run --coverage`, both pipelines fire:
-
-- JS coverage from `@vitest/coverage-v8` lands at `coverage/`.
-- LSL coverage lands at `coverage/lsl/`:
-  - `lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
-  - `coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
-  - `html/index.html` — browseable per-file source view with line annotations
-  - per-file pass/total table on stdout
-
-Two alternative activation paths:
-
-```ts
-// Per-test, programmatic — useful for in-test assertions.
-const s = await loadScript({ source, filename, coverage: true })
-s.start()
-expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
-```
-
-```sh
-# Without the reporter installed — env var collects, CLI renders.
-LSL_COVERAGE=1 pnpm test
-pnpm exec rezless-coverage
-```
-
-By default, reports for synthetic filenames (`<inline>`, names without a
-path separator, paths that don't exist on disk) are omitted — they're
-almost always throwaway test fixtures. Pass `--include-fixtures` to the
-CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
-
-`examples/coverage/` has a runnable demo.
-
-### RLV/RLVa camera lens
-
-`setcam_fov:<radians>=force` changes the enabled avatar viewer's lens.
-`setcam_fovmin:<radians>=n|y` and `setcam_fovmax:<radians>=n|y` aggregate
-the strongest bounds across prims. `getcam_fov`, `getcam_fovmin` and
-`getcam_fovmax` use the normal profile reply-channel policy.
-
-```ts
-changeRlvFov(fixture.avatar, 0.8) // user attempt, clamped to active bounds
-expect(getRlvFov(fixture.avatar)).toBeCloseTo(0.8)
-```
-
-The lens is per avatar, defaults to pi/3 and uses viewport aspect 1.4242.
-Enabled viewer fixtures override the FOV supplied through `script.setCamera`;
-the other camera fields retain their existing fixture behavior.
-`llGetCameraFOV` reads the permission agent's lens only with
-`PERMISSION_TRACK_CAMERA`; viewer commands never grant that permission.
-
-| Case | Kokua RLV 2.09.35.00 | Firestorm RLVa 2.4.2 |
-| --- | --- | --- |
-| Query precision | Six decimals, exact halves to even | Three decimals, exact halves to even |
-| Unset limits | `0.000001` / `-0.000001` | Empty strings |
-| Empty force angle | Zero, clamped to physical minimum | Reset to pi/3 |
-| Empty limit angle | 1.5 radians | Rejected |
-| Invalid numeric text | Zero prefix conversion | Rejected; valid numeric prefixes accepted |
-| Contradictory bounds | Collapse to minimum FOV | Below minimum selects minimum; otherwise above maximum selects maximum |
-| Last limit removed | Keep current angle | Restore saved angle, or pi/3 if persistence was disabled before the first limit |
-| Query option | Ignored | Empty reply with failed-option outcome |
-
-Explicit `nan`/`inf` values follow each profile's float behavior. RLVa retains
-a NaN limit modifier after its wire restriction is removed; limit queries can
-therefore return `nan` with an empty restriction snapshot. Finite values added
-later can mask it. Query-visible modifiers and active restrictions are distinct.
-User lens changes update the angle without changing its persistence mode.
-Keyboard and preference UI event delivery are outside scripted in-world probes;
-user lens attempts use the same lens setter as forces. Rendering, window resizing,
-camera exclusivity, position/distance modes and deprecated zoom aliases are unsupported.
-
-## Examples
-
-`examples/` ships working scripts with tests:
-
-* **hello** — minimal `state_entry { llSay(...) }` + matchers.
-* **greeter** — touch + name greeting + state transition + reminder timer.
-* **long-press** — a lamp that tells a short tap from a long press with `linkset.touch`'s `hold`.
-* **keypad** — a door keypad that reads which key was clicked from `llDetectedTouchST`.
-* **menu** — a lamp with a colour menu, answered with `s.answerDialog`.
-* **remote** — owner-only listen on a custom channel + command dispatch.
-* **fetcher** — `llHTTPRequest` + `http_response` + status handling.
-* **nametag** — `llRequestAgentData` + `dataserver` + floating text.
-* **mocking** — patterns for `script.mock(...)`: pinning a real built-in
-  to a deterministic value, providing custom logic for an unimplemented
-  function, observing call args via the call log, and stateful mocks
-  that aggregate across multiple events.
-* **scoreboard** — Linkset Data: per-name counters, regex key lookup
-  via `llLinksetDataFindKeys`, `linkset_data` event handling, and
-  state that survives `llResetScript`.
-* **multi-script** — two scripts in different prims of the same linkset:
-  a counter in the root prim drives a display in a child prim via
-  `llMessageLinked`, and a third script writing the same LSD key
-  refreshes the display via the broadcast `linkset_data` event.
-  Wired up with `loadLinkset({ prims: [...] })`.
-* **coverage** — opt-in coverage tracking: a small voter script
-  exercising statement / branch / function / state coverage with
-  in-test assertions on `script.coverage`.
-* **json** — JSON config blob with nested paths: `set theme.color red`
-  / `get theme.color` / `keys` commands, persisted to Linkset Data so
-  the document survives `llResetScript`. Exercises all five JSON
-  builtins, nested-object force-fit on `llJsonSetValue`, and the
-  bare-word/sentinel round-trip on `llJsonGetValue`.
-
-## License
-
-The rezless project is licensed under the **Apache License, Version 2.0** —
-see [`LICENSE`](LICENSE).
-
-LSL function/event/constant signatures come from Linden Lab's official
-[secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
-vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
-License**; see [`NOTICE`](NOTICE) for the full attribution.
+### Command discovery and shared folder queries
 
 `@getcommand[:<substring>[;<type>[;<separator>]]]=<channel>` is available in the
 Firestorm RLVa 2.4.2 fixture. It lists implemented manifest forms, including
@@ -1231,7 +1020,9 @@ coordinates use half-open 256 m region bounds. Unknown destinations refuse
 without changing the avatar. `fixture.teleportActions` exposes requested global
 coordinates, resolved destinations, resulting state and refusal reasons.
 Successful moves stand the avatar with normal link events and grant no script
-permissions. Simulator teleport builtins retain their permission and experience checks.
+permissions. Worn objects move with the avatar: they report its region, keep
+hearing its viewer replies and get `changed(CHANGED_TELEPORT)`, with
+`CHANGED_REGION` added when the region changes. Simulator teleport builtins retain their permission and experience checks.
 
 Kokua truncates coordinate prefixes to integers, discards empty slash fields and
 pads missing global fields with zero. Supplied angles do not set facing. Global
@@ -1272,7 +1063,9 @@ seedRlvInventory(avatar, {
 // @attach:Cuffs=force copies the definition into the avatar's World at Left Hand.
 ```
 
-Actions run when the issuing script yields. They preserve item IDs, copy
+Actions run when the issuing script yields, even if the issuing object is gone
+by then. Kokua ignores a leading `#RLV/` in force folder paths; RLVa treats it
+as a folder name. They preserve item IDs, copy
 script state without granting permissions, and use the existing attachment
 clock and events. Repeated wear keeps an already-worn object. Detaching and
 wearing again reuses its saved state. Source definitions stay in inventory.
@@ -1389,3 +1182,217 @@ or decline only for case-sensitive `#RLV/~` offers. RLVa paths deeper than four
 segments including #RLV stay at the initial destination without rename or acceptance
 notice; `routed` is false. Kokua permits deeper paths. Both reuse exact
 case-insensitive parents and create distinct leaf folders for duplicate offers.
+
+### RLV/RLVa camera lens
+
+`setcam_fov:<radians>=force` changes the enabled avatar viewer's lens.
+`setcam_fovmin:<radians>=n|y` and `setcam_fovmax:<radians>=n|y` aggregate
+the strongest bounds across prims. `getcam_fov`, `getcam_fovmin` and
+`getcam_fovmax` use the normal profile reply-channel policy.
+
+```ts
+changeRlvFov(fixture.avatar, 0.8) // user attempt, clamped to active bounds
+expect(getRlvFov(fixture.avatar)).toBeCloseTo(0.8)
+```
+
+The lens is per avatar, defaults to pi/3 and uses viewport aspect 1.4242.
+For an enabled viewer, a FOV passed to `script.setCamera` is a user lens change
+and stays within active limits; the other camera fields keep their fixture behavior.
+`llGetCameraFOV` reads the permission agent's lens only with
+`PERMISSION_TRACK_CAMERA`; viewer commands never grant that permission.
+
+| Case | Kokua RLV 2.09.35.00 | Firestorm RLVa 2.4.2 |
+| --- | --- | --- |
+| Query precision | Six decimals, exact halves to even | Three decimals, exact halves to even |
+| Unset limits | `0.000001` / `-0.000001` | Empty strings |
+| Empty force angle | Zero, clamped to physical minimum | Reset to pi/3 |
+| Empty limit angle | 1.5 radians | Rejected |
+| Invalid numeric text | Zero prefix conversion | Rejected; valid numeric prefixes accepted |
+| Contradictory bounds | Collapse to minimum FOV | Below minimum selects minimum; otherwise above maximum selects maximum |
+| Last limit removed | Keep current angle | Restore saved angle, or pi/3 if persistence was disabled before the first limit |
+| Query option | Ignored | Empty reply with failed-option outcome |
+
+Explicit `nan`/`inf` values follow each profile's float behavior. RLVa retains
+a NaN limit modifier after its wire restriction is removed; limit queries can
+therefore return `nan` with an empty restriction snapshot. Finite values added
+later can mask it. Query-visible modifiers and active restrictions are distinct.
+User lens changes update the angle without changing its persistence mode.
+Keyboard and preference UI event delivery are outside scripted in-world probes;
+user lens attempts use the same lens setter as forces. Rendering, window resizing,
+camera exclusivity, position/distance modes and deprecated zoom aliases are unsupported.
+
+
+### Implemented `ll*` functions
+
+The real-impl set covers the most common use cases. Anything outside it
+falls through to a typed stub that returns the documented default
+and records the call. Use `s.mock(name, fn)` to provide your own
+behaviour for any function the script under test calls. Builtin
+function delays (e.g. the 0.2s delay on `llSetLinkPrimitiveParams`) are
+honored centrally in the dispatcher. Pass `stubs: 'warn'` or
+`stubs: 'throw'` to `loadScript` to see when a test leans on a stub.
+
+* **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
+* **listen**: `llListen`, `llListenRemove`, `llListenControl`
+* **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
+* **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; one waiting click is kept and later clicks are dropped)
+* **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
+* **parcel effects and payments**: `llSetParcelMusicURL`, the six land ban/pass list functions, `llEjectFromLand`, `llReturnObjectsByID`, `llReturnObjectsByOwner`, `llSetParcelForSale`, `llManageEstateAccess`, `llParcelMediaCommandList`, `llParcelMediaQuery`, `llGiveMoney`, `llTransferLindenDollars`, `llTransferOwnership`. See the fixture and record-only limits above.
+* **parcels**: `llGetParcelDetails`, `llGetParcelFlags`, `llGetParcelMaxPrims`, `llGetParcelPrimCount`, `llGetParcelPrimOwners`, `llGetParcelMusicURL`, `llGetLandOwnerAt`, `llOverMyLand`
+* **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; avatar keys still read like unknown keys in these object queries), `llGetObjectPermMask`
+* **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
+* **ground, water and wind**: `llModifyLand` and `llSetGroundTexture` (permission refusal only), `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
+* **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
+* **email**: `llEmail`, `llGetNextEmail`, `llTargetedEmail` (each send sleeps 20 seconds) — mail to `<key>@lsl.secondlife.com` reaches that prim's queue, which holds 101 mails; queue a test's mail with `s.deliverEmail`
+* **pathfinding**: `llCreateCharacter`, `llUpdateCharacter`, `llDeleteCharacter`, `llEvade`, `llExecCharacterCmd`, `llFleeFrom`, `llNavigateTo`, `llPatrolPoints`, `llPursue`, `llWanderWithin`, `llGetClosestNavPoint`, `llGetStaticPath`. Inspect `s.character.options` for explicit requested configuration and `s.character.commands` for command history. The character belongs to the object and survives script resets. `s.pathUpdate(type)` sends an event with an empty reserved list to the root prim's scripts. Movement, capsule fitting, option clamping and navmesh baking are not simulated. Set fixed query answers with `s.setNavigationResults({ closestNavPoint: [point], staticPath: [start, end, 0] })`, or use `s.mock` for answers that depend on query arguments. Without fixtures, closest-point queries return `[]` and static-path queries return `[PU_FAILURE_INVALID_GOAL]`; an out-of-range static-path radius returns `[]`.
+* **sound**: `llPlaySound`, `llLoopSound`, `llLoopSoundMaster`, `llLoopSoundSlave`, `llPlaySoundSlave`, `llTriggerSound`, `llTriggerSoundLimited`, `llStopSound`, `llPreloadSound`, `llAdjustSoundVolume`, `llSetSoundQueueing`, `llSetSoundRadius`, and the `llLinkPlaySound`, `llLinkStopSound`, `llLinkAdjustSoundVolume`, `llLinkSetSoundQueueing`, `llLinkSetSoundRadius` variants. Inspect `prims[i].sound` from `loadLinkset`: `current` holds the last attached request or `null` after stop, `queueing` and `radius` hold settings, and `triggers` and `preloads` record one-shot requests. Names resolve in the calling prim's sound inventory; UUIDs work without inventory. Volume records the documented 0–1 range, while radius records the requested value. Audio playback, duration, queue progression, synchronization and effective audibility limits are not simulated.
+* **prim media**: `llSetPrimMediaParams`, `llGetPrimMediaParams`, `llClearPrimMedia`, `llSetLinkMedia`, `llGetLinkMedia`, and `llClearLinkMedia`. Inspect `prims[i].media`, a map from face number to values indexed by `PRIM_MEDIA_*` constants. Setters validate atomically and return simulator status codes. Getters return values in requested order; clearing removes the face entry. Permission masks and URL whitelists are stored and validated, but browser rendering and avatar interaction are not simulated. Media link calls select one prim, including the measured first-other-prim behavior of negative selectors other than `LINK_THIS`.
+* **particles**: `llParticleSystem` and `llLinkParticleSystem`. Inspect `prims[i].particles` for the last accepted request, with its raw `rules` and resolved `texture` UUID. Empty lists and wrong value types clear it. Unknown rule ids, noninteger ids and trailing unpaired rules are silent. Texture names resolve in each target prim's inventory; missing names use the default particle texture. Numeric values retain their requested magnitude. Viewer clamping, quantization, particle motion and rendering are not simulated.
+* **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
+* **link info**: `llGetLinkNumber`, `llGetNumberOfPrims`, `llGetLinkKey`, `llGetLinkName`
+* **link changes**: `llCreateLink`, `llBreakLink`, `llBreakAllLinks` (need `PERMISSION_CHANGE_LINKS`; each raises `changed(CHANGED_LINK)` in the prims it touches; linked prims stay where they were, and the root keeps the linkset data)
+* **object animations**: `llStartObjectAnimation`, `llStopObjectAnimation`, `llGetObjectAnimationNames` (each prim keeps its own list; animations play only when the linkset is loaded with `animesh: true`)
+* **avatar names and info**: `llGetDisplayName`, `llGetUsername`, `llName2Key`, `llRequestUserKey`, `llGetAgentInfo`, `llGetAgentLanguage`, `llGetAgentList`, `llGetAgentSize`, `llGetVisualParams`, `llIsFriend`, `llSameGroup`. Configure avatars with `world.addAvatar` as described above.
+* **dataserver**: `llRequestAgentData`, `llRequestInventoryData`, `llRequestSimulatorData`, `llRequestUsername`, `llRequestDisplayName`
+* **combat**: `llDamage`, `llAdjustDamage`, `llSetDamage`, `llGetHealth`. Set `linkset.damageEnabled` for the object's parcel; it defaults to the region's damage flag. `s.setCombatAvatar(id, { health, damageEnabled, scripts })` supplies an avatar and its attachment scripts. Damage waits for all `on_damage` handlers, including sleepers, before applying avatar health changes and queuing `final_damage`. `on_death` notifies attachments when avatar health reaches zero. Object health stays under script control through `PRIM_HEALTH`. Set `linkset.damageThrottleExempt` for a parcel-owner or land-group source. Physics contacts, seated-avatar redistribution, regeneration and death teleports are not simulated.
+* **rezzing**: `llRezObject`, `llRezAtRoot`, `llRezObjectWithParams`, `llDerezObject`, `llGetVel`, `llGetForce`. Supply inventory objects through a prim fixture's `objects` definitions and inspect rezzed linksets in `world.linksets`, as described above.
+* **sensors**: `llSensor`, `llSensorRepeat`, `llSensorRemove` fire `sensor` / `no_sensor` with detected data. Sensors find other loaded linksets and targets placed with `world.addObject({ region, name, position, scripted, active, physical })` or `world.addAvatar({ region, key, name, username, position })`. Targets also accept `owner`, `group`, `rotation` and `velocity`; returned targets can be moved between scans. `world.sensorProperties.set(linkset, { group, velocity, active })` supplies these properties for loaded linksets. Without an activity override, a loaded script with a timer, active listener or sleeping handler counts as active. Scans use exact name/key filters, a strict radius capped at 96 m, and the nearest 32 results. Positive repeats use virtual time at the requested interval; simulator frame cadence and lag are not modeled. The measured Aditi simulator returned no matches for `DAMAGEABLE`, including targets with damage handlers and health 100, so this VM does the same. Attachment and seated-avatar sensor geometry are not simulated.
+* **raycasts**: `llCastRay` queries loaded prims and `world.addObject` / `world.addAvatar` fixtures in the same region. Prims and avatars use oriented boxes; object fixtures accept `size` and `phantom`. Hits are nearest first, with the requested cap, rejection mask, phantom detection and data flags. Linked roots report link 0 and children their link number. Rays starting inside a box miss it; entry-face starts hit, and the endpoint is excluded. Terrain uses the region's bilinear `ground` grid. Supply a measured terrain index with `groundLinkNumber`, a number or `(x, y) => number`; its fixture default is 0. Actual prim/mesh shapes, avatar capsules, simulator load errors and raycast quotas are not simulated.
+* **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`/`TouchFace`/`TouchST`/`TouchUV`/`TouchNormal`/`TouchBinormal`/`Rezzer`/`Damage`
+* **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`, `llRot2Fwd`/`Left`/`Up`, `llRot2Axis`/`Angle`, `llAxisAngle2Rot`, `llRotBetween`, `llAngleBetween`, `llAxes2Rot`, `llLinear2sRGB`/`llsRGB2Linear`
+* **string**: `llStringLength`, `llSubStringIndex`, `llGetSubString`, `llDeleteSubString`, `llInsertString`, `llStringTrim`, `llToLower`/`Upper`, `llReplaceSubString`, `llEscapeURL`/`UnescapeURL`
+* **list**: `llGetListLength`, `llList2Integer`/`Float`/`String`/`Key`/`Vector`/`Rot`, `llList2List`, `llList2ListStrided`, `llList2ListSlice`, `llListRandomize` (seeded), `llDeleteSubList`, `llListInsertList`, `llListReplaceList`, `llListFindList`, `llListSort`, `llListSortStrided`, `llDumpList2String`, `llList2CSV`, `llCSV2List`, `llParseString2List`, `llParseStringKeepNulls`
+* **json**: `llJson2List`, `llJsonGetValue`, `llJsonSetValue`, `llJsonValueType`, `llList2Json` — full LSL JSON semantics including the FDDx-range type-tag sentinels (`JSON_OBJECT`/`ARRAY`/`NUMBER`/`STRING`/`NULL`/`TRUE`/`FALSE`/`INVALID`/`DELETE`), `JSON_APPEND`, the empty-value short-circuit (`{"k":,}` → `JSON_NULL`) on `Get`/`Type`, duplicate-key collapse on `Set`, force-fit auto-creation of nested objects/arrays through deep specifier paths, and the kept-as-is rule for nested JSON-shaped strings in `llList2Json`.
+* **identity**: `llGetOwner`, `llGetOwnerKey`, `llGetCreator`, `llGetKey`, `llGetObjectName`, `llSetObjectName`, `llGetScriptName`, seeded `llGenerateKey`
+* **hash**: `llMD5String`, `llSHA1String`, `llSHA256String`, `llHMAC`
+* **RSA**: `llSignRSA`, `llVerifyRSA` (sha1, sha224, sha256, sha384 or sha512; RSA keys only)
+* **base64**: `llStringToBase64`/`Base64ToString`, `llIntegerToBase64`/`Base64ToInteger`, `llXorBase64`
+* **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llSetTouchText`, `llSetSitText`, `llSetPayPrice` (stored on the prim for tests to read), `llDie` (kills every script in the linkset), `llResetScript`
+* **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; `llRemoveInventory` (a script that removes itself halts at once)
+* **giving inventory**: `llGiveInventory`, `llGiveInventoryList`, `llGiveAgentInventory`; inspect `s.inventoryOffers`. World prim recipients receive items and `changed`; `llAllowInventoryDrop` lets the root enable foreign-owner drops, excluding scripts. List variants omit missing/no-copy items. Avatar offers are recorded without simulating acceptance or throttles. Foreign permissions and no-copy moves follow the wiki and need a second avatar for in-world validation. Attachment inventory restrictions and automatic child/recent avatar presence are not modeled.
+* **remote script loading**: `llRemoteLoadScriptPin` copies an executable inventory script into a same-owner prim with a matching nonzero PIN, including negative PINs. It replaces the same inventory name, discards saved state, starts running or stopped with the supplied start parameter, and sleeps three seconds. Existing receiver scripts get `CHANGED_INVENTORY`; the fresh copy starts with `state_entry`, without `on_rez`. Reset clears its start parameter. Missing/wrong-type names, mismatched PINs and self-loads report the measured errors. Unknown targets are silent. Cross-owner modification grants are unsupported and denied. No-copy sources are refused with a generic error; exact no-copy errors and foreign-owner permission behavior need a second owner for in-world measurement. Passive script assets without an executable `Script` instance cannot be loaded.
+* **viewer requests**: `llLoadURL`, `llMapDestination`, `llMapBeacon`; inspect `s.viewerRequests`. Region presence reads World avatar fixtures, with the owner or current detected avatar as defaults; override it with `s.setAgentInRegion`. `llOpenFloater` records arguments and returns `-1`: the fixture cannot represent a Linden-owned privileged experience. Requests record viewer instructions; they do not open UI.
+* **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`
+* **experiences**: `llGetExperienceDetails`, `llGetExperienceErrorMessage`, `llAgentInExperience`, `llRequestExperiencePermissions` (an agent who already accepted is granted at once; answer others with `s.grantExperiencePermissions` / `s.denyExperiencePermissions`), and the key-value store: `llCreateKeyValue`, `llReadKeyValue`, `llUpdateKeyValue`, `llDeleteKeyValue`, `llKeyCountKeyValue`, `llKeysKeyValue`, `llDataSizeKeyValue`, which answer through `dataserver` on every script in the prim with `1,<result>` or `0,<XP_ERROR_*>`. Without an experience they answer `0,5`. Seed or inspect the store with `experience.seed([['k', 'v']])` and `experience.store`; pass `allowedHere: false` for land that doesn't allow the experience.
+* **game control**: `llGetGameControlMode`, `llGetGameControlModeAxes`, `llGetGameControlModeButtons`. Set an avatar's viewer-derived values with `s.setGameControl(agent, { mode, axes, buttons })`, then use `s.sendGameControl(agent, { buttons, axes })` to supply separate raw event input. Delivery requires `PERMISSION_GAME_CONTROL` from that agent. Each event retains its own semantic snapshot across sleeps and later fixture updates. Outside the event, queries return `-1`, `[]` and `0`. Axes are floats with the supplied mode-dependent length, including cursor pixel coordinates. Fixtures share state within a World and can be cleared with `s.setGameControl(agent, null)`. Controller mapping and automatic viewer mode changes are not simulated.
+* **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
+* **attachments**: `llAttachToAvatar`, `llAttachToAvatarTemp`, `llDetachFromAvatar`, `llGetAttached`, `llGetAttachedList`, `llGetAttachedListFiltered`, `llWorldPosToHUD`. Attach calls require `PERMISSION_ATTACH`; detach requires an avatar permission key but does not require the ATTACH bit. `linkset.attachToAvatar(avatar, point, temporary)` supplies a viewer-worn fixture without granting script permissions; inspect `linkset.attachment` for avatar, point and temporary status. Detach removes the object from region queries, preserves normal attachment script state, and destroys temporary attachments after their final event. Sleeping detach handlers and recurring sensor/target work pause in inventory until fixture rewear. Lists return root keys in attachment order and hide HUDs unless the caller and HUD share an allowed, accepted experience. Set projection camera settings with `s.setCamera`. Bone transforms, avatar inventory persistence and viewer attachment limits are not simulated; other-region avatar fixtures represent child agents for list errors.
+* **camera**: `llGetCameraPos`, `llGetCameraRot`, `llGetCameraFOV`, `llGetCameraAspect` require `PERMISSION_TRACK_CAMERA`. Supply viewer camera values with `s.setCamera`. `llSetCameraParams` and `llClearCameraParams` record rules in `s.cameraParams`. `llSetCameraEyeOffset`, `llSetCameraAtOffset`, `llSetLinkCamera` and `llForceMouselook` store settings on each prim as `cameraEyeOffset`, `cameraAtOffset` and `forceMouselook`, without runtime permissions. `World.sitAvatar` snapshots the offsets for subsequent camera position/rotation reads; later setting changes apply on the next sit. `llWorldPosToHUD` uses the same effective camera pose. Camera offsets follow the seated prim transform and survive script reset and inventory copies. Forcing mouselook sets `AGENT_MOUSELOOK` on the next sit; clearing the prim flag leaves the viewer mode alone. Negative link selectors other than `LINK_THIS` select the first other prim, matching the measured simulator behavior. Mouselook eye positions, viewer smoothing, camera collision and viewer distance limits are outside this model; `s.setCamera` supplies the fallback viewer pose. There is no camera-offset PRIM_* getter.
+* **sitting and teleporting**: `llSitOnLink`, `llUnSit`, `llSetAgentRot`, `llTeleportAgent`, `llTeleportAgentGlobalCoords`, `llTeleportAgentHome`, plus the sit-target readers. Configure World avatar fixtures and inspect `s.teleportRequests` as described above.
+
+* **avatar animations**: `llStartAnimation`, `llStopAnimation`, `llGetAnimation`, `llGetAnimationList`, `llGetAnimationOverride`, `llSetAnimationOverride`, `llResetAnimationOverride`. Start/stop require `PERMISSION_TRIGGER_ANIMATION`; set/reset overrides require `PERMISSION_OVERRIDE_ANIMATIONS`; reading overrides accepts either. Inventory animation names take priority over built-ins. Raw UUIDs work for stop only.
+* **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.
+* **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
+* **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
+* **primitive params**: `llSetPrimitiveParams`, `llSetLinkPrimitiveParams`, `llSetLinkPrimitiveParamsFast`, `llGetPrimitiveParams`, `llGetLinkPrimitiveParams` — full `PRIM_*` rule surface (position / rotation / size / colour / alpha / texture / glow / fullbright / material / physics / flexible / point light / projector / sculpt / GLTF PBR / sit target / click action / text / name / desc / omega / damage / temp-on-rez / cast shadows / …). Honors `PRIM_LINK_TARGET` mid-rule redirects, `ALL_SIDES` expansion, multi-prim get concatenation, unknown-rule termination on get, and the 0.2 s delay on the slow link variant.
+* **targets**: `llTarget`, `llTargetRemove`, `llRotTarget`, `llRotTargetRemove`. Each script keeps eight position and eight rotation targets with a shared handle counter. Checks use the current root transform every 44.444 virtual milliseconds, including changes through link parameters. Thresholds are strict; state changes keep targets, resets clear them. Sleeping handlers keep one pending event per target. Simulator frame jitter and script execution throttling are not modeled.
+* **collision settings**: `llCollisionFilter`, `llVolumeDetect`, `llCollisionSound`, `llAllowInventoryDrop`, `llSetRemoteScriptAccessPin`. Inspect `s.host.collisionFilter`, `volumeDetect`, `collisionSound`, `allowInventoryDrop`, and `remoteScriptAccessPin`. Tests raise collisions with `s.fire('collision_start', { num_detected: 1, detected: [{ key, name }] })`; filters apply to supplied detected entries, and volume detection suppresses continuous `collision` events. Volume detection updates the linkset's phantom read-back. No physics or overlap detection runs. Collision sounds record the requested sound and gain; audio playback, sound asset resolution and collision particles are not simulated. Inventory drops default to disabled and only a root script can enable them. Remote pins default to zero; setting one stores it and sleeps 0.2 seconds.
+* **physics requests**: `llApplyImpulse`, `llApplyRotationalImpulse`, `llSetForce`, `llSetTorque`, `llSetForceAndTorque`, `llSetVelocity`, `llSetAngularVelocity`, `llPushObject`. Calls append `{ name, args }` to the caller's `prim.physics.requests`, preserving call order, vector magnitudes, target keys and local flags, even on nonphysical objects. They do not move objects or change read fixtures.
+* **buoyancy and hover requests**: `llSetBuoyancy`, `llSetHoverHeight`, `llGroundRepel`, `llStopHover`. Calls append to the caller's `physics.requests`. Inspect `prim.buoyancy`, `prim.hover` and `prim.groundRepel` for the last requested values. A new request replaces that function's settings; `llStopHover` clears `hover` and leaves ground repel alone. Values retain the requested heights, tau and water argument, including negative and extreme inputs. These are capture records, preserved across script resets and copied independently into inventory snapshots. In Second Life, resetting the setter script cancels its effects; these records do not represent active simulator controllers. No buoyancy, hover or ground-repel motion runs.
+* **vehicle requests**: `llSetVehicleType`, `llSetVehicleFlags`, `llRemoveVehicleFlags`, `llSetVehicleFloatParam`, `llSetVehicleVectorParam`, `llSetVehicleRotationParam`. Inspect `prim.vehicle.type`, `flags`, `params` by VEHICLE_* parameter ID, and the ordered `requests` history. Setting a type loads its full documented preset, including friction, motor directions and offset, all float parameters, reference frame and flags. Repeating a type replaces the settings. NONE clears the configuration. Undocumented type values are retained with an empty preset, and later parameter requests are still recorded. Flag calls add/remove bits. Float setters also accept linear/angular friction as a uniform vector; wrong parameter categories leave settings unchanged and emit the measured DEBUG_CHANNEL diagnostic when a vehicle type is set. Calls are recorded per caller even when nonphysical or disabled. Explicit parameter values retain requested magnitudes rather than simulator saturation. LSL has no vehicle parameter getter; exact preset values follow the Second Life wiki, including its unusual SLED hover efficiency 10; an in-world comparison differed from explicitly setting efficiency 1. Records survive resets and copy independently into inventory snapshots. No vehicle dynamics, energy use or active-controller lifecycle runs.
+* **physics reads**: Set fields on the root's `physics` fixture to supply `llGetForce`, `llGetTorque`, `llGetVel`, `llGetAccel`, `llGetOmega`, `llGetMass`, `llGetMassMKS`, `llGetCenterOfMass` and `llGetEnergy`. Defaults describe a resting 0.5 m box: zero vectors, mass 1.25 lindograms, massMKS 125 kg, energy 1, center of mass at the current root region position. Null force and velocity fixtures preserve the existing rez-force and initial rez/sensor-velocity fallbacks. The mass fields are independent; Second Life normally returns kilograms at 100 times lindograms. Fixtures and request history survive script resets and copy with inventory snapshots. Supply force/torque read-back in the requested frame. Other shapes, linked physical centers, child-specific acceleration and energy depletion/recovery also need fixtures. No force integration, gravity, collision response, mass calculation, push-permission evaluation or energy simulation runs.
+* **move and look targets**: `llMoveToTarget`, `llStopMoveToTarget`, `llLookAt`, `llRotLookAt`, `llStopLookAt`. `advanceTime` applies nominal exponential convergence to physical objects, using the requested tau or strength/damping. Coupled movement and positional look-at use a fixed simulation cadence, so timers and clock partitions do not change the result. Position changes feed `llTarget` events. Move requests wait while physics is off; both look functions snap immediately on nonphysical prims. Child llLookAt callers must compensate for root rotation, matching the simulator convention. Moves over the measured 64 m limit or with tau below .044444 seconds cancel the previous move. Physical look-at strength must be at least .044444; damping is capped at 1. The initiating script owns stop/reset control; sibling scripts can retarget it without taking ownership. Stops hold the current transform. State changes preserve requests; reset of the initiator clears them. Scripted inventory snapshots retain the region target on a fresh clock. Target data lives in `prims[0].targetMotion`. This kinematic model omits gravity, contacts, post-stop inertia, angular wobble, energy use and simulator frame drift; velocity/acceleration reads are not derived from it.
+* **kinematic motion**: `llSetKeyframedMotion`, `llSetRegionPos`. Advance virtual time to interpolate translation and rotation through keyframes, with forward, loop, reverse and ping-pong playback, and play/pause/stop commands shared by the object's scripts. KFM requires a nonphysical linkset with a convex or no-physics prim. Region moves enforce coordinate and altitude limits, snap to the configured terrain, and have no forced delay. Simulator drift, selection pauses, region crossings, movement events, parcel-entry restrictions and attachment motion are not simulated. Invalid requests leave existing motion unchanged; diagnostic text is not synthesized.
+* **prim accessors** (alternative single-rule shortcuts that read/write the same backing store): `llSetPos`/`llGetPos`/`llGetLocalPos`/`llGetRootPosition`, `llSetRot`/`llSetLocalRot`/`llGetRot`/`llGetLocalRot`/`llGetRootRotation`, `llSetScale`/`llGetScale`/`llScaleByFactor`/`llGetMaxScaleFactor`/`llGetMinScaleFactor`, `llGetLinkNumberOfSides`, `llSetColor`/`llGetColor`/`llSetAlpha`/`llGetAlpha`, `llSetTexture`/`llGetTexture`/`llGetTextureOffset`/`llGetTextureScale`/`llGetTextureRot`/`llScaleTexture`/`llOffsetTexture`/`llRotateTexture`, `llSetLinkColor`/`llSetLinkAlpha`/`llSetLinkTexture`, `llSetTextureAnim`/`llSetLinkTextureAnim`/`llSetLinkTextureAnimOverrideMe`, `llSetRenderMaterial`/`llGetRenderMaterial`/`llSetLinkRenderMaterial`/`llIsLinkGLTFMaterial`/`llSetLinkGLTFOverrides`, `llSetStatus`/`llGetStatus`/`llSetLinkStatus`, `llSetClickAction`, `llTargetOmega`, `llSetPhysicsMaterial`/`llGetPhysicsMaterial`, `llPassCollisions`/`llPassTouches`, `llSitTarget`/`llLinkSitTarget`/`llAvatarOnSitTarget`/`llAvatarOnLinkSitTarget`/`llSetLinkSitFlags`/`llGetLinkSitFlags`.
+
+The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
+`INVENTORY_*`, `MASK_*`, `LINKSETDATA_*`, …) is re-exported from
+`@rezless/vitest`, so tests can compare numeric returns against named
+constants instead of magic numbers.
+
+## Coverage
+
+`@rezless/vitest` ships an LSL coverage collector that tracks four kinds of
+coverage per script: **statement**, **branch** (if / while / for / do-while
+arms), **function** (user functions and event handlers), and **state**
+("did we ever enter `state idle`?"). Off by default; opt in once in your
+`vitest.config.ts`:
+
+```ts
+import { defineConfig } from 'vitest/config'
+import { LslCoverageReporter } from '@rezless/vitest/reporter'
+
+export default defineConfig({
+  test: {
+    reporters: ['default', new LslCoverageReporter()],
+    coverage: {
+      // your @vitest/coverage-v8 config (provider, include, exclude, ...)
+    },
+  },
+})
+```
+
+The reporter is dormant during plain `vitest run`. When you invoke
+`vitest run --coverage`, both pipelines fire:
+
+- JS coverage from `@vitest/coverage-v8` lands at `coverage/`.
+- LSL coverage lands at `coverage/lsl/`:
+  - `lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
+  - `coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
+  - `html/index.html` — browseable per-file source view with line annotations
+  - per-file pass/total table on stdout
+
+Two alternative activation paths:
+
+```ts
+// Per-test, programmatic — useful for in-test assertions.
+const s = await loadScript({ source, filename, coverage: true })
+s.start()
+expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
+```
+
+```sh
+# Without the reporter installed — env var collects, CLI renders.
+LSL_COVERAGE=1 pnpm test
+pnpm exec rezless-coverage
+```
+
+By default, reports for synthetic filenames (`<inline>`, names without a
+path separator, paths that don't exist on disk) are omitted — they're
+almost always throwaway test fixtures. Pass `--include-fixtures` to the
+CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
+
+`examples/coverage/` has a runnable demo.
+
+## Examples
+
+`examples/` ships working scripts with tests:
+
+* **hello** — minimal `state_entry { llSay(...) }` + matchers.
+* **greeter** — touch + name greeting + state transition + reminder timer.
+* **long-press** — a lamp that tells a short tap from a long press with `linkset.touch`'s `hold`.
+* **keypad** — a door keypad that reads which key was clicked from `llDetectedTouchST`.
+* **menu** — a lamp with a colour menu, answered with `s.answerDialog`.
+* **remote** — owner-only listen on a custom channel + command dispatch.
+* **fetcher** — `llHTTPRequest` + `http_response` + status handling.
+* **nametag** — `llRequestAgentData` + `dataserver` + floating text.
+* **mocking** — patterns for `script.mock(...)`: pinning a real built-in
+  to a deterministic value, providing custom logic for an unimplemented
+  function, observing call args via the call log, and stateful mocks
+  that aggregate across multiple events.
+* **scoreboard** — Linkset Data: per-name counters, regex key lookup
+  via `llLinksetDataFindKeys`, `linkset_data` event handling, and
+  state that survives `llResetScript`.
+* **multi-script** — two scripts in different prims of the same linkset:
+  a counter in the root prim drives a display in a child prim via
+  `llMessageLinked`, and a third script writing the same LSD key
+  refreshes the display via the broadcast `linkset_data` event.
+  Wired up with `loadLinkset({ prims: [...] })`.
+* **coverage** — opt-in coverage tracking: a small voter script
+  exercising statement / branch / function / state coverage with
+  in-test assertions on `script.coverage`.
+* **json** — JSON config blob with nested paths: `set theme.color red`
+  / `get theme.color` / `keys` commands, persisted to Linkset Data so
+  the document survives `llResetScript`. Exercises all five JSON
+  builtins, nested-object force-fit on `llJsonSetValue`, and the
+  bare-word/sentinel round-trip on `llJsonGetValue`.
+
+## License
+
+The rezless project is licensed under the **Apache License, Version 2.0** —
+see [`LICENSE`](LICENSE).
+
+LSL function/event/constant signatures come from Linden Lab's official
+[secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
+vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
+License**; see [`NOTICE`](NOTICE) for the full attribution.

@@ -11,7 +11,7 @@ function wornBy(avatar: WorldAvatar, linkset: Linkset): boolean {
     linkset.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase()
 }
 
-function locked(avatar: WorldAvatar, linkset: Linkset): boolean {
+export function isRlvDetachLocked(avatar: WorldAvatar, linkset: Linkset): boolean {
   return avatar.viewer.profile !== 'disabled' && avatar.viewer.restrictions.snapshot().some(rule =>
     rule.behaviour === 'detach' && !rule.option && linkset.prims.some(prim => prim.key === rule.sourcePrim))
 }
@@ -19,7 +19,7 @@ function locked(avatar: WorldAvatar, linkset: Linkset): boolean {
 /** A viewer action; attach events are delivered when the fixture clock drains. */
 export function attemptViewerDetach(avatar: WorldAvatar, linkset: Linkset): RlvDetachOutcome {
   if (!wornBy(avatar, linkset)) return 'no-op'
-  if (locked(avatar, linkset)) return 'blocked'
+  if (isRlvDetachLocked(avatar, linkset)) return 'blocked'
   linkset.detachFromAvatar()
   return 'allowed'
 }
@@ -35,7 +35,7 @@ export function dispatchDetachCommand(linkset: Linkset, prim: Prim, avatar: Worl
   let outcome: RlvDetachOutcome | 'failed-option'
   if (viewer.profile === 'rlva' && parsed.option) outcome = 'failed-option'
   else if (!wornBy(avatar, linkset) || viewer.profile === 'rlva' && prim !== linkset.prims[0]) outcome = 'no-op'
-  else if (locked(avatar, linkset)) outcome = 'blocked'
+  else if (isRlvDetachLocked(avatar, linkset)) outcome = 'blocked'
   else {
     // Keep simulator completion outside the owner-say handler, as for LSL detach.
     linkset.clock.scheduleTask(linkset, linkset.clock.now, () => linkset.detachFromAvatar())

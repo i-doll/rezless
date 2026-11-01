@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_SITTING, NULL_KEY } from '@rezless/vm'
+import { AGENT_SITTING, CHANGED_REGION, CHANGED_TELEPORT, NULL_KEY } from '@rezless/vm'
 import { loadLinkset, loadRlvPair, World } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI#Teleportation
@@ -340,4 +340,49 @@ it('lifts and restores Kokua issuer locks in command order regardless of inserti
     '/tploc=n', '/tplocal=n', '/unsit=n', '/sittp=n',
   ])
   expect(f.avatar.position).toEqual({ x: 12, y: 24, z: 36 })
+})
+
+describe('worn objects during forced teleport', () => {
+  const worn = `integer replies; list changes; default {
+    state_entry() { llListen(555, "", llGetOwner(), ""); }
+    link_message(integer s, integer n, string m, key id) { llOwnerSay(m); }
+    listen(integer c, string n, key id, string m) { ++replies; }
+    changed(integer c) { changes += c; }
+  }`
+  const wear = async () => {
+    const pair = await loadRlvPair({ source: worn })
+    for (const { world, avatar, script } of Object.values(pair)) {
+      world.addRegion('North', { x: 0, y: 256 })
+      avatar.position = { x: 10, y: 20, z: 30 }
+      script.start()
+      script.linkset.attachToAvatar(avatar.key, 39)
+      script.advanceTime(0)
+    }
+    return pair
+  }
+
+  it('keeps hearing viewer replies after moving far away and into another region', async () => {
+    for (const { avatar, script } of Object.values(await wear())) {
+      for (const command of ['@versionnum=555', '@tpto:200/200/30=force', '@versionnum=555',
+        '@tpto:north/10/10/30=force', '@versionnum=555']) {
+        issue(script, command)
+        script.advanceTime(0)
+      }
+      expect(script.global('replies')).toBe(3)
+      expect(script.linkset.region).toBe(avatar.region)
+    }
+  })
+
+  // In-world: a worn object logging changed() saw 512 after a same-region
+  // teleport and one 768 event after crossing into SLua Tombolo (Aditi,
+  // SLua Tideland and SLua Tombolo, Firestorm RLVa 2.4.2, 2026-11-01).
+  it('reports a teleport, and a region change when the region changes', async () => {
+    for (const { script } of Object.values(await wear())) {
+      issue(script, '@tpto:200/200/30=force')
+      script.advanceTime(0)
+      issue(script, '@tpto:north/10/10/30=force')
+      script.advanceTime(0)
+      expect(script.global('changes')).toEqual([CHANGED_TELEPORT, CHANGED_TELEPORT | CHANGED_REGION])
+    }
+  })
 })

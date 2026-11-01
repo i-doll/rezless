@@ -332,3 +332,21 @@ it('preserves force-disabled persistence across a subsequent user lens change', 
     expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
   }
 })
+
+it('treats a script-supplied FOV as a user lens change within active limits', async () => {
+  const pair = await loadRlvPair({ source: `float fov; default {
+    state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_TRACK_CAMERA); }
+    touch_start(integer n) { llOwnerSay("@setcam_fovmax:1.1=n"); fov = llGetCameraFOV(); }
+  }` })
+  for (const f of Object.values(pair)) {
+    f.script.start()
+    f.script.grantPermissions(PERMISSION_TRACK_CAMERA)
+    f.script.setCamera({ fov: 1.0 })
+    expect(getRlvFov(f.avatar)).toBeCloseTo(1.0)
+    f.script.fire('touch_start', { num_detected: 1 })
+    expect(f.script.global('fov')).toBeCloseTo(1.0)
+    f.script.setCamera({ fov: 1.4 })
+    f.script.fire('touch_start', { num_detected: 1 })
+    expect(f.script.global('fov')).toBeCloseTo(1.1)
+  }
+})

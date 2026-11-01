@@ -132,7 +132,7 @@ export class Linkset {
   expiresAt: number | undefined
   rezCounter = 0
   readonly world?: World
-  readonly region: string | undefined
+  private readonly rezRegion: string | undefined
   readonly startParameter: number
   readonly startString: string
   readonly animesh: boolean
@@ -145,7 +145,7 @@ export class Linkset {
   /** `from` is the linkset this one breaks off; outside a world, they share a clock. */
   constructor(opts: LinksetOptions = {}, from?: Linkset) {
     this.owner = opts.owner ?? NULL_KEY
-    this.region = opts.region
+    this.rezRegion = opts.region
     this.startParameter = opts.startParameter ?? 0
     this.startString = opts.startString ?? ''
     this.animesh = opts.animesh ?? false
@@ -165,6 +165,12 @@ export class Linkset {
       ?? (((opts.world?.region(opts.region).flags ?? 0) & REGION_FLAG_ALLOW_DAMAGE) !== 0)
     this.damageThrottleExempt = from?.damageThrottleExempt ?? false
     this.peers.push(this)
+  }
+
+  /** A worn object is in its wearer's region. */
+  get region(): string | undefined {
+    const wearer = this.attachment && this.world?.avatars.find(avatar => avatar.key.toLowerCase() === this.attachment!.avatar.toLowerCase())
+    return wearer ? wearer.region : this.rezRegion
   }
 
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */
@@ -501,8 +507,9 @@ export class Linkset {
     const corner = this.world!.corner(avatar.region)
     const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
     const range = channel < 0 ? CHAT_RANGE.say! : CHAT_RANGE.shout!
-    this.broadcast((linkset, prim) => (channel >= 0 || linkset.region === avatar.region) &&
-      distanceSquared(origin, linkset.globalPosition(prim)) <= range ** 2,
+    // Attachment positions are fixture values, but a worn object always hears its wearer.
+    this.broadcast((linkset, prim) => linkset.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() ||
+      (channel >= 0 || linkset.region === avatar.region) && distanceSquared(origin, linkset.globalPosition(prim)) <= range ** 2,
       { channel, name: avatar.name, key: avatar.key, message })
   }
 
