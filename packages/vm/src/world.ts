@@ -1,5 +1,5 @@
 import { attemptAvatarEdit, attemptAvatarRez, type AvatarEditAction, type AvatarRezAction } from './rlv/edit.js'
-import { offerTeleport, respondTeleportOffer, type TeleportOffer, type TeleportOfferDecision } from './rlv/tpoffers.js'
+import { requestTeleport, respondTeleportRequest, type AvatarTeleportRequest, offerTeleport, respondTeleportOffer, type TeleportOffer, type TeleportOfferDecision } from './rlv/tpoffers.js'
 import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
 import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } from './rlv/touch.js'
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
@@ -483,6 +483,16 @@ export class World {
   /** Case-insensitive viewer region lookup; unknown names remain unresolved. */
   regionNamed(name: string): Region | undefined {
     return [...this.regions.values()].find(region => region.name.toLowerCase() === name.toLowerCase())
+  }
+
+  /** Request an offer to teleport to another avatar. */
+  requestTeleport(requester: WorldAvatar, recipient: WorldAvatar): AvatarTeleportRequest {
+    return requestTeleport(this, requester, recipient)
+  }
+
+  /** Accept a pending request by sending an offer, or decline it. */
+  respondTeleportRequest(avatar: WorldAvatar, request: AvatarTeleportRequest, decision: TeleportOfferDecision): AvatarTeleportRequest {
+    return respondTeleportRequest(this, avatar, request, decision)
   }
 
   /** Deliver a teleport offer with an explicit resolved global destination. */

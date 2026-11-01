@@ -219,6 +219,13 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 | [teleport-offers](#teleport-offers) | Firestorm RLVa 2.4.2 | <code>@tplure_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
 | [teleport-offers](#teleport-offers) | Firestorm RLVa 2.4.2 | <code>@accepttp[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
 | [teleport-offers](#teleport-offers) | Firestorm RLVa 2.4.2 | <code>@accepttp_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts) |
+| [teleport-requests](#teleport-requests) | Kokua RLV 2.09.35.00 | <code>@tprequest[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
+| [teleport-requests](#teleport-requests) | Kokua RLV 2.09.35.00 | <code>@tprequest_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
+| [teleport-requests](#teleport-requests) | Kokua RLV 2.09.35.00 | <code>@accepttprequest[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
+| [teleport-requests](#teleport-requests) | Firestorm RLVa 2.4.2 | <code>@tprequest[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
+| [teleport-requests](#teleport-requests) | Firestorm RLVa 2.4.2 | <code>@tprequest_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
+| [teleport-requests](#teleport-requests) | Firestorm RLVa 2.4.2 | <code>@accepttprequest[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
+| [teleport-requests](#teleport-requests) | Firestorm RLVa 2.4.2 | <code>@accepttprequest_sec[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmin[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fovmax[:&lt;option&gt;]=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
 | [camera-fov](#camera-fov) | Kokua RLV 2.09.35.00 | <code>@setcam_fov[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-camera.test.ts](../packages/vitest/test/rlv-camera.test.ts) |
@@ -1518,6 +1525,34 @@ Support depth: enforced. Offers supply resolved global coordinates and retain im
 Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canAcceptTpOffer</code>, <code>RlvActions::autoAcceptTeleportOffer</code>, <code>RlvHandler::isException</code>, <code>lure_callback</code>, <code>LLAgent::doTeleportViaLure</code>.
 
 Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tplure.test.ts](../packages/vitest/test/rlv-tplure.test.ts).
+
+### teleport-requests
+
+Forms: <code>@tprequest[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@tprequest_sec[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@accepttprequest[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>@accepttprequest_sec[:&lt;avatar-uuid&gt;]=n&#124;add&#124;y&#124;rem</code>, <code>Receive and respond to requests to teleport to another avatar</code>.
+
+Comparison: confirmed difference. Both profiles check tprequest exceptions before accepttprequest automatic acceptance. Secure tprequest and permissive scope exceptions by issuer. RLVa also supports accepttprequest_sec; Kokua retains that wire rule without auto-accepting. Accepting a request sends an ordinary teleport offer to the requester.
+
+#### Kokua RLV 2.09.35.00
+
+Support depth: enforced. Requests retain immutable receipt and response snapshots. tprequest and tprequest_sec block receipt unless the requester has the required exceptions. accepttprequest auto-accepts globally or by requester after those checks. accepttprequest_sec remains unsupported. Only the original recipient can consume a pending request once. Pending callbacks do not recheck later restrictions. Acceptance sends an ordinary offer to the requester at the host location when responding; its receipt and travel obey the requester offer policy. Host unsit, tplure, map and landmark locks do not block requests. Foreign and self requests refuse. Maturity, mute, busy and friend preferences, outgoing message filtering and simulator landing adjustments are outside the fixture.
+
+- Global and requester-specific tprequest and accepttprequest
+- Secure tprequest exceptions and permissive issuer scope
+- Pending request acceptance, decline and automatic acceptance through ordinary offers
+
+Reference symbols: <code>indra/newview/llimprocessing.cpp</code>: <code>LLIMProcessing::processNewMessage</code>, <code>RRInterface::containsWithoutException</code>, <code>teleport_request_callback</code>, <code>send_lures</code>.
+
+#### Firestorm RLVa 2.4.2
+
+Support depth: enforced. Requests retain immutable receipt and response snapshots. tprequest and tprequest_sec block receipt unless the requester has the required exceptions. accepttprequest and accepttprequest_sec auto-accept globally or by requester after those checks. Only the original recipient can consume a pending request once. Pending callbacks do not recheck later restrictions. Acceptance sends an ordinary offer to the requester at the host location when responding; its receipt and travel obey the requester offer policy. Host unsit, tplure, map and landmark locks do not block requests. Foreign and self requests refuse. Maturity, mute, busy and friend preferences, outgoing message filtering and simulator landing adjustments are outside the fixture.
+
+- Global and requester-specific tprequest and accepttprequest including secure aliases
+- Secure tprequest exceptions and permissive issuer scope
+- Pending request acceptance, decline and automatic acceptance through ordinary offers
+
+Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canAcceptTpRequest</code>, <code>RlvActions::autoAcceptTeleportRequest</code>, <code>RlvHandler::isException</code>, <code>RlvBehaviourDictionary</code>, <code>teleport_request_callback</code>, <code>send_lures</code>.
+
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-tprequest.test.ts](../packages/vitest/test/rlv-tprequest.test.ts).
 
 ### camera-fov
 
