@@ -5,11 +5,15 @@ import { rlvIntegerPrefix, type RlvParsedCommand } from './classifier.js'
 import type { ViewerProfile } from './profiles.js'
 import { isValidReplyChannel, sendViewerReply } from './reply.js'
 
+/** Group abilities from the "Parcel Content" folder that let a member see others' land impact. */
+export type GroupReturnPower = 'returnGroupOwned' | 'returnGroupSet' | 'returnNonGroup'
+
 /** Group membership and optional role data supplied by the avatar fixture. */
 export interface AvatarGroup {
   readonly key: string
   readonly name: string
-  readonly roles?: readonly { readonly key: string; readonly name: string }[]
+  /** Roles this avatar holds; a member has the union of their powers. */
+  readonly roles?: readonly { readonly key: string; readonly name: string; readonly powers?: readonly GroupReturnPower[] }[]
   activeRole?: string
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadLinkset, loadScript, World, NULL_KEY, type Vector } from '../src/index.js'
+import { loadLinkset, loadScript, World, NULL_KEY, type GroupReturnPower, type Vector } from '../src/index.js'
 
 const OWNER = '11111111-1111-1111-1111-111111111111'
 const OTHER = '22222222-2222-2222-2222-222222222222'
@@ -131,6 +131,59 @@ describe('parcel reads', () => {
     world.addParcel({ region: 'Sandbox', owner: OWNER, primOwners: owners })
     const { scripts, linkset } = await script(world, 'list p=llGetParcelPrimOwners(llGetPos()); out=[llGetListLength(p),llList2Key(p,0),llList2Key(p,-2),llList2Integer(p,-1)];', OWNER)
     expect(scripts.probe!.global('out')).toEqual([200, '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000100', 100])
+  })
+
+  // Docs: /LlGetParcelPrimOwners, "Ownership". On group-owned land a member's
+  // object sees the group's own stride with "return group owned objects", the
+  // owners of objects set to the group with "return group set objects", and all
+  // other owners with "return non-group objects"; otherwise the list is empty.
+  // The owner must be in the region. These success paths follow the wiki and are
+  // unmeasured: no group with return powers on group-owned land is available.
+  // In-world: issue-159 group scan, a 4 m grid of llGetParcelDetails over SLua
+  // Tideland (2 parcels) and SLua Tombolo (1 parcel) -> every parcel's owner
+  // differs from its group, llSameGroup(group) 0, llGetParcelPrimOwners [] with
+  // no errors (Aditi, 2026-11-03). No group-owned land was reachable to probe.
+  describe('group return powers on group-owned land', () => {
+    const SET = '55555555-5555-5555-5555-555555555555'
+    function groupLand(powers: readonly (readonly GroupReturnPower[])[], opts: { member?: boolean; region?: string; parcelOwner?: string } = {}) {
+      const world = new World(); world.addRegion('Sandbox', { x: 0, y: 0 }); world.addRegion('Neighbour', { x: 256, y: 0 })
+      world.addParcel({ region: 'Sandbox', owner: opts.parcelOwner ?? GROUP, group: GROUP,
+        primOwners: { [SET]: 7, [GROUP]: 3, [OTHER]: 15, [OWNER]: 5 }, groupSetOwners: [SET] })
+      world.addAvatar({ key: OWNER, region: opts.region ?? 'Sandbox', username: 'member.resident',
+        groups: opts.member === false ? [] : [{ key: GROUP, name: 'Landlords',
+          roles: powers.map((p, i) => ({ key: `role-${i}`, name: `Role ${i}`, powers: p })) }] })
+      return world
+    }
+    const read = 'out = llGetParcelPrimOwners(llGetPos());'
+
+    it.each([
+      [['returnGroupOwned'], [GROUP, 3]],
+      [['returnGroupSet'], [SET, 7]],
+      [['returnNonGroup'], [OWNER, 5, OTHER, 15]],
+    ] as const)('returns only the strides %j permits', async (powers, expected) => {
+      const { scripts } = await script(groupLand([powers]), read, OWNER)
+      expect(scripts.probe!.global('out')).toEqual(expected)
+    })
+
+    it('combines powers from every role the member holds, sorted by key', async () => {
+      const { scripts } = await script(groupLand([['returnGroupSet'], ['returnGroupOwned', 'returnNonGroup']]), read, OWNER)
+      expect(scripts.probe!.global('out')).toEqual([OWNER, 5, OTHER, 15, GROUP, 3, SET, 7])
+    })
+
+    it.each([
+      ['a member without return powers', groupLand([[]])],
+      ['a non-member', groupLand([['returnGroupOwned', 'returnGroupSet', 'returnNonGroup']], { member: false })],
+      ['a member outside the region', groupLand([['returnNonGroup']], { region: 'Neighbour' })],
+      ['a member on land the group does not own', groupLand([['returnNonGroup']], { parcelOwner: OTHER })],
+    ])('returns an empty list for %s', async (_, world) => {
+      const { scripts } = await script(world, read, OWNER)
+      expect(scripts.probe!.global('out')).toEqual([])
+    })
+
+    it('returns every stride to an object deeded to the owning group', async () => {
+      const { scripts } = await script(groupLand([]), read, GROUP)
+      expect(scripts.probe!.global('out')).toEqual([OWNER, 5, OTHER, 15, GROUP, 3, SET, 7])
+    })
   })
 
   // Docs: /LlOverMyLand. In-world: issue-159 reads -> 0 for the probe, its

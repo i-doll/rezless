@@ -491,8 +491,13 @@ Queries clamp x/y to the region edges and ignore z. Parcel details include
 category are explicit fixture values; VM objects do not change land impact.
 Capacity budgets may include fractions; queries truncate after aggregation.
 Same-owner totals include only parcels in the caller's region. `primOwners`
-maps owner UUIDs to land impact. Only the parcel owner can read it or `musicURL`;
-group return powers are not modeled. Without a parcel fixture, land is unowned
+maps owner UUIDs to land impact. Only the parcel owner can read it or `musicURL`.
+On group-owned land (`owner` equal to `group`), a group member's object also
+sees the `llGetParcelPrimOwners` strides its owner's role `powers` allow, while
+the owner is in the region. `returnGroupOwned` shows the group's own stride,
+`returnGroupSet` shows the owners listed in the parcel's `groupSetOwners`, and
+`returnNonGroup` shows every other owner. Roles come from the avatar's `groups`
+fixture. Without a parcel fixture, land is unowned
 with empty strings and zero land impact.
 
 Each configured parcel has an `effects` log. Entries contain `function`, `args`,
@@ -529,7 +534,8 @@ Refusals, errors, return codes and forced delays were measured on Aditi in
 SLua Tideland on 2026-11-01. Successful mutations and offers follow the wiki;
 land/estate rights were unavailable, and actual parcel edits, returns, ejections,
 payments and ownership transfers were prohibited. No debit permission was
-requested in-world. Group return powers remain unimplemented.
+requested in-world. Group return-power reads follow the wiki; no group with
+return powers on group-owned land was available to measure them.
 
 ### Paired RLV/RLVa fixtures
 
