@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/i-doll/rezless/compare/v0.11.1...v0.12.0) (2026-11-03)
+
+
+### Features
+
+* filter llGetParcelPrimOwners by group return powers ([#380](https://github.com/i-doll/rezless/issues/380)) ([e92ce87](https://github.com/i-doll/rezless/commit/e92ce87c25587d449dfdb86623915b4a088f5245))
+* implement environment setters and land changes ([#381](https://github.com/i-doll/rezless/issues/381)) ([33d62da](https://github.com/i-doll/rezless/commit/33d62dacc593c8a7e71e43a6790473b0a48decc8))
+
+
+### Bug Fixes
+
+* bound leash post names in selection dialogs ([c8a35e1](https://github.com/i-doll/rezless/commit/c8a35e1ae4f5cd81c40f40a9e8dee80876d1a2fc))
+
 ## [0.11.1](https://github.com/i-doll/rezless/compare/v0.11.0...v0.11.1) (2026-11-01)
 
 
