@@ -1,5 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
-import type { Region } from '../world.js'
+import type { Region, RegionSettings } from '../world.js'
+
+type RegionInfo = RegionSettings & Pick<Region, 'name' | 'corner'>
 import type { Vector } from '../values/types.js'
 import {
   REGION_FLAG_ALLOW_DIRECT_TELEPORT,
@@ -10,7 +12,7 @@ import {
 } from '../generated/constants.js'
 
 /** Where a linkset outside a world sits: a lone region with no neighbours. */
-const LONE_REGION: Region = { name: 'Rezless', corner: { x: 256000, y: 256000 } }
+const LONE_REGION: RegionInfo = { name: 'Rezless', corner: { x: 256000, y: 256000 } }
 
 // Measured with llGetEnv in SLua Tideland on Aditi (2026-10-31).
 const ENV: Readonly<Record<string, string>> = {
@@ -37,13 +39,13 @@ const ENV: Readonly<Record<string, string>> = {
   whisper_range: '10',
 }
 
-function regionOf(ctx: CallContext): Region {
+function regionOf(ctx: CallContext): RegionInfo {
   const { world, region } = ctx.linkset
   return world ? world.region(region) : LONE_REGION
 }
 
-const fps = (r: Region) => r.fps ?? 45
-const agentCount = (r: Region) => r.agentCount ?? 1
+const fps = (r: RegionInfo) => r.fps ?? 45
+const agentCount = (r: RegionInfo) => r.agentCount ?? 1
 
 /** llGetRegionName() */
 export const llGetRegionName: BuiltinImpl = (ctx) => regionOf(ctx).name

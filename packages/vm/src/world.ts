@@ -175,7 +175,7 @@ export interface RegionSettings {
    * llGetEnvironment result tuples by SKY_* / WATER_* parameter. Defaults
    * are fixed Aditi samples. Sun/moon rotations and directions always come
    * from sunRotation/moonRotation; day info comes from dayLength/dayOffset.
-   * This world has one environment per region and no land edit permissions.
+   * Scripts change the environment through Region.environmentChanges.
    */
   readonly environment?: Readonly<Record<number, readonly LslValue[]>>
   /** Seconds in the region's day cycle, read by llGetRegionDayLength and llGetDayLength. Default 14400. */
@@ -213,6 +213,44 @@ export type SkyRotation = Rotation | ((dayFraction: number) => Rotation)
 export interface Region extends RegionSettings {
   readonly name: string
   readonly corner: RegionCorner
+  /** llSetEnvironment overrides and llReplaceEnvironment settings for the whole region. */
+  readonly environmentChanges: EnvironmentChanges
+  /** Heights llModifyLand set, by whole-metre grid point `"x,y"`, over `ground`. */
+  readonly terrainEdits: Map<string, number>
+  /** Rules llSetGroundTexture applied, by TERRAIN_* number, with inventory names resolved to keys. */
+  readonly groundTextures: Map<number, readonly LslValue[]>
+  /** Unix times of llSetGroundTexture calls counted by its throttle. */
+  readonly groundTextureCalls: number[]
+}
+
+/** The parts of a settings inventory item llReplaceEnvironment reads. Unset parts keep the region's. */
+export interface EnvironmentAsset {
+  /** llGetEnvironment result tuples by SKY_* / WATER_* parameter. */
+  readonly environment?: Readonly<Record<number, readonly LslValue[]>>
+  readonly sunRotation?: SkyRotation
+  readonly moonRotation?: SkyRotation
+}
+
+/** What scripts changed in a region's or parcel's environment. */
+export interface EnvironmentChanges {
+  /** Settings applied with llReplaceEnvironment, by track: 0 water, 1 ground, 2 to 4 the sky tracks. */
+  readonly tracks: Map<number, EnvironmentAsset>
+  /** llSetEnvironment parameters by track (-1 for all tracks), then by SKY_* / WATER_* rule. */
+  readonly overrides: Map<number, Map<number, readonly LslValue[]>>
+  dayLength?: number
+  dayOffset?: number
+}
+
+export const newEnvironmentChanges = (): EnvironmentChanges => ({ tracks: new Map(), overrides: new Map() })
+
+type TerrainSource = RegionSettings & { readonly terrainEdits?: ReadonlyMap<string, number> }
+
+/** Grid heights from `ground` with llModifyLand's edits on top. */
+export function terrainHeights(settings: TerrainSource): (x: number, y: number) => number {
+  const ground = settings.ground ?? 22
+  const base = typeof ground === 'number' ? () => ground : ground
+  const edits = settings.terrainEdits
+  return edits?.size ? (x, y) => edits.get(`${x},${y}`) ?? base(x, y) : base
 }
 
 /** Region coordinates, inclusive minimum and exclusive maximum. */
@@ -279,6 +317,8 @@ export interface WorldParcelOptions {
 
 export interface Parcel extends WorldParcelOptions {
   musicURL?: string
+  /** The parcel's own environment, once llReplaceEnvironment gives it one. Reads fall back to the region's. */
+  environmentChanges?: EnvironmentChanges
   readonly effects: ParcelEffect[]
   readonly media: ParcelMedia
   sale?: { price: number; agent: string; objects: boolean }
@@ -562,7 +602,8 @@ export class World {
   }
 
   addRegion(name: string, corner: RegionCorner, settings: RegionSettings = {}): void {
-    this.regions.set(name, { ...settings, name, corner })
+    this.regions.set(name, { ...settings, name, corner, environmentChanges: newEnvironmentChanges(),
+      terrainEdits: new Map(), groundTextures: new Map(), groundTextureCalls: [] })
   }
 
   addParcel(opts: WorldParcelOptions): Parcel {
@@ -696,8 +737,7 @@ export class World {
       position = { ...point }
       lookAt = parcel.landingLookAt
     }
-    const ground = region.ground ?? 22
-    const height = typeof ground === 'number' ? () => ground : ground
+    const height = terrainHeights(region)
     const x = Math.floor(position.x), y = Math.floor(position.y)
     const u = position.x - x, v = position.y - y
     const south = height(x, y) * (1 - u) + height(x + 1, y) * u
@@ -808,9 +848,8 @@ export function castRayBoxes(linksets: readonly Linkset[], entities: readonly Wo
 }
 
 /** Intersect the same bilinear height grid used by llGround, from either side. */
-export function castRayTerrain(settings: RegionSettings, start: Vector, end: Vector): RayHit[] {
-  const ground = settings.ground ?? 22
-  const height = typeof ground === 'number' ? () => ground : ground
+export function castRayTerrain(settings: TerrainSource, start: Vector, end: Vector): RayHit[] {
+  const height = terrainHeights(settings)
   const delta = { x: end.x - start.x, y: end.y - start.y, z: end.z - start.z }
   const point = (t: number): Vector => ({ x: start.x + delta.x * t, y: start.y + delta.y * t, z: start.z + delta.z * t })
   // In each grid cell the height along the ray is quadratic. Split only at cell boundaries.

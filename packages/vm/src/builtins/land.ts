@@ -38,7 +38,7 @@ function parcelsOf(ctx: CallContext, parcel: Parcel, simWide: boolean): readonly
 
 const capacity = (parcels: readonly Parcel[]) => Math.trunc(parcels.reduce((sum, p) => sum + (p.maxPrims ?? 0), 0))
 const count = (p: WorldParcelOptions, category: number) => p.primCounts?.[category] ?? 0
-const owns = (ctx: CallContext, parcel: Parcel) => parcel.owner !== NULL_KEY && sameKey(parcel.owner, ctx.linkset.owner)
+export const owns = (ctx: CallContext, parcel: Parcel) => parcel.owner !== NULL_KEY && sameKey(parcel.owner, ctx.linkset.owner)
 
 export const llGetLandOwnerAt: BuiltinImpl = (ctx, args) => parcelAt(ctx, positionArg(args)).owner
 export const llGetParcelFlags: BuiltinImpl = (ctx, args) => parcelAt(ctx, positionArg(args)).flags ?? 0
@@ -155,7 +155,7 @@ const validKey = (key: unknown): key is string => typeof key === 'string' && key
 const permission = (ctx: CallContext, bit: number) => !!(ctx.state.permissions.granted & bit) &&
   sameKey(ctx.state.permissions.agent, ctx.linkset.owner)
 const current = (ctx: CallContext) => parcelAt(ctx, ctx.prim.regionPosition())
-const estateManager = (ctx: CallContext) => ctx.linkset.world !== undefined && ctx.linkset.region !== undefined &&
+export const estateManager = (ctx: CallContext) => ctx.linkset.world !== undefined && ctx.linkset.region !== undefined &&
   (ctx.linkset.world.region(ctx.linkset.region).estateManagers ?? []).some(id => sameKey(id, ctx.linkset.owner))
 
 export const llSetParcelMusicURL: BuiltinImpl = (ctx, args) => {

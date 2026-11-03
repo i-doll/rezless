@@ -74,6 +74,8 @@ export interface InventoryItem {
   notecardLines?: ReadonlyArray<string>
   /** Saved object contents. Rezzing copies this linkset with fresh prim keys. */
   object?: import('./linkset.js').Linkset
+  /** For type === INVENTORY_SETTING: what llReplaceEnvironment applies from it. */
+  environment?: import('./world.js').EnvironmentAsset
 }
 
 /** Second Life drops non-ASCII characters from an item's name when it enters a prim's inventory. */
@@ -96,5 +98,6 @@ export function makeInventoryItem(
   if (partial.script !== undefined) item.script = partial.script
   if (partial.notecardLines !== undefined) item.notecardLines = partial.notecardLines
   if (partial.object !== undefined) item.object = partial.object
+  if (partial.environment !== undefined) item.environment = partial.environment
   return item
 }
