@@ -1,62 +1,51 @@
 name: Release
 
-# Triggered by every push to main; the `check` job decides whether the
-# version in package.json has actually moved. If it has, `publish` runs.
-# Otherwise the workflow exits cheap and clean.
+# release-please keeps a release PR open with the next version and changelog.
+# Merging that PR creates the tag and GitHub Release, then `publish` ships to npm.
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.detect.outputs.version }}
-      should_release: ${{ steps.detect.outputs.should_release }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # need full tag history for the existence check
-
-      - id: detect
-        name: Read version + verify lockstep + check tag
-        run: |
-          # Single source of truth: packages/vitest/package.json. The bump
-          # script (`pnpm bump <version>`) keeps the root and the other
-          # publishables in sync; this guard catches manual edits that drift.
-          VERSION=$(node -p "require('./packages/vitest/package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-          for pkg in package.json packages/parser/package.json packages/vm/package.json; do
-            v=$(node -p "require('./$pkg').version")
-            if [ "$v" != "$VERSION" ]; then
-              echo "::error::$pkg is at version $v but packages/vitest is at $VERSION. Run \`pnpm bump $VERSION\`."
-              exit 1
-            fi
-          done
-
-          if git rev-parse --quiet --verify "refs/tags/v${VERSION}" >/dev/null; then
-            echo "Tag v${VERSION} already exists — version was not bumped, nothing to release."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Will release v${VERSION}."
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          fi
-
-  publish:
-    needs: check
-    if: needs.check.outputs.should_release == 'true'
+  release-please:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # push the new tag + create the GitHub Release
+      contents: write
+      pull-requests: write
+      actions: write
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      version: ${{ steps.rp.outputs.version }}
+      sha: ${{ steps.rp.outputs.sha }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v5
+
+      # PRs opened with GITHUB_TOKEN don't trigger pull_request workflows, so
+      # dispatch CI on the release branch to report the required `ci` check.
+      - name: Run CI on the release PR
+        if: steps.rp.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ fromJSON(steps.rp.outputs.pr).headBranchName }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
       id-token: write   # OIDC for npm Trusted Publishing
     steps:
+      # A queued run can release a newer commit than the one that triggered it.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -107,7 +96,6 @@ jobs:
       # Publishing, so no `--provenance` flag is required.
       #
       # Per-package + idempotent: a transient registry failure mid-publish
-      # (or a manual rerun after the tag-creation step failed downstream)
       # would otherwise leave us with parser@x already on npm and vitest@x
       # not yet. Loop, skip what's already there, publish the rest.
       - name: Publish @rezless/* to npm via OIDC (idempotent)
@@ -136,22 +124,9 @@ jobs:
             npm publish "$tarball" --access public
           done
 
-      - name: Tag the release commit and create a GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.check.outputs.version }}
-        run: |
-          git config user.name  'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag "v${VERSION}"
-          git push origin "v${VERSION}"
-          gh release create "v${VERSION}" \
-            --title "v${VERSION}" \
-            --generate-notes
-
       - name: Smoke-test installed package from npm
         env:
-          VERSION: ${{ needs.check.outputs.version }}
+          VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           # @rezless/vitest depends on parser+vm at the exact same version,
           # so the consumer install only succeeds once all three are
