@@ -1012,17 +1012,6 @@ same group read by `llSameGroup` and sensors; `getgroup` replies with the active
 name or `none`. Name matching, issuer exemptions and throttling follow each
 profile. See the vitest group documentation.
 
-## License
-
-The rezless project is licensed under the **Apache License, Version 2.0** —
-see [`LICENSE`](LICENSE).
-
-LSL function/event/constant signatures come from Linden Lab's official
-[secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
-vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
-License**; see [`NOTICE`](NOTICE) for the full attribution.
-
-
 Folder restrictions `attachthis`, `attachallthis`, `detachthis`, `detachallthis`
 and their `_except` forms constrain user inventory actions and force wear/removal.
 Node and subtree locks share the existing clothing and attachment checks;
@@ -1036,3 +1025,13 @@ object payments and original, copy or contents purchase requests. Kokua keeps
 both commands unsupported. Allowed injected object payments deliver `money` events;
 attachment payments go to the wearer. Purchases capture requests without money
 events. Balances, settlement and purchase inventory delivery are outside the fixture.
+
+## License
+
+The rezless project is licensed under the **Apache License, Version 2.0** —
+see [`LICENSE`](LICENSE).
+
+LSL function/event/constant signatures come from Linden Lab's official
+[secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
+vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
+License**; see [`NOTICE`](NOTICE) for the full attribution.
