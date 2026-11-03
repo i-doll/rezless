@@ -43,11 +43,11 @@ jobs:
       id-token: write   # OIDC for npm Trusted Publishing
     steps:
       # A queued run can release a newer commit than the one that triggered it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.sha }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: 10.28.2
 
@@ -61,7 +61,7 @@ jobs:
       # being sent as the auth header — npm rejects it with a 404. With
       # no registry-url, no .npmrc auth line is written, and npm's OIDC
       # flow takes over.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: pnpm
