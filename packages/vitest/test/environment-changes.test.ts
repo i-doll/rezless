@@ -226,6 +226,15 @@ describe('llSetEnvironment with estate rights', () => {
     expect(script.global('result')).toEqual([1, 0.25, 4, 0.25])
   })
 
+  it('keeps the latest water override whatever z it was set with', async () => {
+    const { script } = await edit(`
+      llSetEnvironment(<-1,-1,100>, [WATER_BLUR_MULTIPLIER, 0.125]);
+      llSetEnvironment(<-1,-1,-1>, [WATER_BLUR_MULTIPLIER, 0.25]);
+      result = llGetEnvironment(<-1,-1,0>, [WATER_BLUR_MULTIPLIER]) + llGetEnvironment(<-1,-1,2500>, [WATER_BLUR_MULTIPLIER]);
+    `)
+    expect(script.global('result')).toEqual([0.25, 0.25])
+  })
+
   // Wiki: SKY_SUN takes rotation, scale and colour; the getter adds texture flag, direction and lighting.
   it('moves the sun that the sun reads and SKY_SUN report', async () => {
     const { script } = await edit(`
@@ -243,9 +252,10 @@ describe('llSetEnvironment with estate rights', () => {
       list sun = llGetEnvironment(<-1,-1,0>, [SKY_SUN]); list moon = llGetEnvironment(<-1,-1,0>, [SKY_MOON]);
       list clouds = llGetEnvironment(<-1,-1,0>, [SKY_CLOUDS]);
       result += [llList2Integer(sun, 3), llList2Integer(moon, 3), llList2Integer(clouds, 7)]
-        + llGetEnvironment(<-1,-1,0>, [WATER_TEXTURE_DEFAULTS]);
+        + llGetEnvironment(<-1,-1,0>, [WATER_TEXTURE_DEFAULTS, SKY_TEXTURE_DEFAULTS]);
     `, { inventory: [texture] })
-    expect(script.global('result')).toEqual([1, 0, 0, 0, 0, 0])
+    // Wiki (llGetEnvironment): SKY_TEXTURE_DEFAULTS covers bloom, halo and rainbow, which these rules don't set.
+    expect(script.global('result')).toEqual([1, 0, 0, 0, 0, 0, 1, 1, 1])
   })
 
   // The wiki doesn't say what a bad list does; nothing from it is applied.

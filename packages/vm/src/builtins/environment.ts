@@ -317,7 +317,7 @@ function editTarget(ctx: CallContext, pos: Vector): { changes: EnvironmentChange
  * llSetEnvironment(vector pos, list params) — override environment
  * parameters on the region (<-1, -1, z>) or a parcel. z picks the sky track by
  * altitude, -1 the all-tracks slot; water rules always land on the water
- * track. An empty list removes every override. A parcel must already have
+ * track, so the latest water override wins. An empty list removes every override. A parcel must already have
  * its own environment (from llReplaceEnvironment). No throttle is modelled:
  * the wiki gives none.
  */
@@ -334,7 +334,8 @@ export const llSetEnvironment: BuiltinImpl = (ctx, args) => {
   }
   const scope: Scope = { region: regionOf(ctx), changes }
   for (const [rule, values] of rules) {
-    const slot = pos.z === -1 ? -1 : trackFor(scope, rule, pos.z)
+    // Water has one track, so its rules always go there, whatever z is.
+    const slot = isWaterRule(rule) ? 0 : pos.z === -1 ? -1 : skyTrack(scope, pos.z)
     let track = changes.overrides.get(slot)
     if (!track) changes.overrides.set(slot, track = new Map())
     track.set(rule, values)
