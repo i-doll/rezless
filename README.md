@@ -379,15 +379,36 @@ Unspecified parameters use fixed samples measured on Aditi. Sun and moon
 rotations and directions come from `sunRotation` and `moonRotation`, including
 when their other tuple values are supplied through `environment`.
 `ENVIRONMENT_DAYINFO` follows `dayLength`, `dayOffset` and the virtual clock.
-Each region has one environment, with no parcel or altitude-specific settings.
 Lighting and cloud samples stay fixed as time advances.
 
-Land edit rights are not modelled. `llSetEnvironment` and
-`llReplaceEnvironment` return `ENV_NO_PERMISSIONS`; `llModifyLand` leaves the
-terrain unchanged; `llSetGroundTexture` returns 0 and reports the missing
-estate permission on `DEBUG_CHANNEL`. Attempts remain in `script.calls`.
-Successful land edits and both agent environment functions remain unfinished
-under [#157](https://github.com/i-doll/rezless/issues/157).
+Scripts change the environment like this:
+
+- **`llSetEnvironment`** works on the region for an owner listed in `estateManagers`,
+  or on a parcel for its owner, once that parcel has its own environment. The
+  overrides are in `region.environmentChanges` (or `parcel.environmentChanges`),
+  by track. The z of the position picks the track from the `SKY_TRACKS`
+  altitudes, and -1 means every track.
+- **`llReplaceEnvironment`** applies a settings item from the prim's inventory:
+  `makeInventoryItem({ name, type: InventoryType.SETTING, environment: { environment, sunRotation } })`.
+  Replacing a parcel's environment gives the parcel its own copy of the region's.
+- **`llSetAgentEnvironment`** and **`llReplaceAgentEnvironment`** need the
+  script's `Experience`, allowed on the land and accepted by the agent. They
+  record what the viewer was told in `script.viewerRequests`.
+- **`llModifyLand`** writes `LAND_LEVEL` and `LAND_REVERT` edits over `ground`
+  in `region.terrainEdits`, on parcels the owner owns while the owner is in the
+  region. The ground reads and `llCastRay` see these edits. The other actions
+  change nothing, because the wiki doesn't say how much they move the land.
+- **`llSetGroundTexture`** records rules in `region.groundTextures` for an
+  estate manager, up to 4 calls every 2 minutes.
+
+```ts
+world.addRegion('Sandbox', { x: 0, y: 0 }, { estateManagers: [owner] })
+world.addParcel({ region: 'Sandbox', owner })
+```
+
+Second Life's responses when a script has rights follow the wiki; they
+haven't been checked in-world. Throttles other than the ground texture one
+aren't modelled.
 
 `loadScript` continues to work for single-script tests; under the hood it
 auto-allocates a 1-prim/1-script linkset, so existing tests are unaffected.
@@ -565,8 +586,8 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **parcel effects and payments**: `llSetParcelMusicURL`, the six land ban/pass list functions, `llEjectFromLand`, `llReturnObjectsByID`, `llReturnObjectsByOwner`, `llSetParcelForSale`, `llManageEstateAccess`, `llParcelMediaCommandList`, `llParcelMediaQuery`, `llGiveMoney`, `llTransferLindenDollars`, `llTransferOwnership`. See the fixture and record-only limits above.
 * **parcels**: `llGetParcelDetails`, `llGetParcelFlags`, `llGetParcelMaxPrims`, `llGetParcelPrimCount`, `llGetParcelPrimOwners`, `llGetParcelMusicURL`, `llGetLandOwnerAt`, `llOverMyLand`
 * **object reads**: `llKey2Name`, `llGetObjectDetails`, `llGetObjectLinkKey`, `llGetObjectPrimCount`, `llGetObjectMass`, `llGetBoundingBox`, `llGetGeometricCenter` (any prim in the caller's region; `llKey2Name` returns local avatar legacy names; `llGetObjectDetails` also reads local avatars, including seated roots and avatar resource totals), `llGetObjectPermMask`
-* **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment` and `llReplaceEnvironment` (permission refusal only), `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
-* **ground, water and wind**: `llModifyLand` and `llSetGroundTexture` (permission refusal only), `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
+* **environment**: `llGetEnvironment` (region values configured by parameter number), `llSetEnvironment`, `llReplaceEnvironment`, `llSetAgentEnvironment`, `llReplaceAgentEnvironment`, `llGetDayLength`, `llGetDayOffset`, `llGetRegionDayLength`, `llGetRegionDayOffset`, `llGetRegionTimeOfDay` (seconds into the region's day, moving with the virtual clock), `llGetSunRotation`, `llGetSunDirection`, `llGetMoonRotation`, `llGetMoonDirection` and their `llGetRegion*` forms
+* **ground, water and wind**: `llModifyLand` (levelling and reverting only) and `llSetGroundTexture`, `llGround` (interpolated between whole-metre heights), `llGroundNormal`, `llGroundSlope`, `llGroundContour`, `llWater` and `llWind`, read from the region's `ground`, `water` and `wind` settings
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
 * **email**: `llEmail`, `llGetNextEmail`, `llTargetedEmail` (each send sleeps 20 seconds) — mail to `<key>@lsl.secondlife.com` reaches that prim's queue, which holds 101 mails; queue a test's mail with `s.deliverEmail`
 * **pathfinding**: `llCreateCharacter`, `llUpdateCharacter`, `llDeleteCharacter`, `llEvade`, `llExecCharacterCmd`, `llFleeFrom`, `llNavigateTo`, `llPatrolPoints`, `llPursue`, `llWanderWithin`, `llGetClosestNavPoint`, `llGetStaticPath`. Inspect `s.character.options` for explicit requested configuration and `s.character.commands` for command history. The character belongs to the object and survives script resets. `s.pathUpdate(type)` sends an event with an empty reserved list to the root prim's scripts. Movement, capsule fitting, option clamping and navmesh baking are not simulated. Set fixed query answers with `s.setNavigationResults({ closestNavPoint: [point], staticPath: [start, end, 0] })`, or use `s.mock` for answers that depend on query arguments. Without fixtures, closest-point queries return `[]` and static-path queries return `[PU_FAILURE_INVALID_GOAL]`; an out-of-range static-path radius returns `[]`.

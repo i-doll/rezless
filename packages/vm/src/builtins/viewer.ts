@@ -3,6 +3,7 @@ import type { LslValue, Vector } from '../values/types.js'
 import { truncateUtf8 } from '../values/utf8.js'
 import { NULL_KEY } from '../values/types.js'
 import type { Linkset } from '../linkset.js'
+import type { EnvironmentAsset } from '../world.js'
 import { sayError } from './debug.js'
 
 /** Requests made by the script. Floater requests include the simulator's rejection code. */
@@ -11,6 +12,10 @@ export type ViewerRequest =
   | { readonly kind: 'mapDestination'; readonly agent: string; readonly region: string; readonly position: Vector; readonly lookAt: Vector }
   | { readonly kind: 'mapBeacon'; readonly agent: string; readonly region: string; readonly position: Vector; readonly options: ReadonlyArray<LslValue> }
   | { readonly kind: 'openFloater'; readonly agent: string; readonly floater: string; readonly url: string; readonly params: ReadonlyArray<LslValue>; readonly result: number }
+  /** llSetAgentEnvironment: rules with texture names resolved to keys; [] clears. */
+  | { readonly kind: 'agentEnvironment'; readonly agent: string; readonly transition: number; readonly params: ReadonlyArray<LslValue> }
+  /** llReplaceAgentEnvironment: the settings key, NULL_KEY to clear, and the item's settings if it is in inventory. */
+  | { readonly kind: 'replaceAgentEnvironment'; readonly agent: string; readonly transition: number; readonly environment: string; readonly asset?: EnvironmentAsset }
 
 const regions = new WeakMap<object, Map<string | undefined, Map<string, boolean>>>()
 
