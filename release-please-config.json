@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "rezless",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "extra-files": [
+        { "type": "json", "path": "packages/parser/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "packages/vm/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "packages/vitest/package.json", "jsonpath": "$.version" }
+      ]
+    }
+  }
+}
