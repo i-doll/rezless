@@ -1,5 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Parcel, WorldParcelOptions } from '../world.js'
+import type { GroupReturnPower } from '../rlv/group.js'
 import { NULL_KEY, ZERO_VECTOR, type LslType, type LslValue, type Vector } from '../values/types.js'
 import { listElementType, typedList } from '../values/list-types.js'
 import { findObjectPrim } from './object-reads.js'
@@ -56,13 +57,31 @@ export const llGetParcelMusicURL: BuiltinImpl = (ctx) => {
   return owns(ctx, parcel) ? parcel.musicURL ?? '' : ''
 }
 
-/** Group return powers are not modeled; only the parcel owner has access. */
+function returnPowers(ctx: CallContext, parcel: Parcel): Set<GroupReturnPower> {
+  const group = parcel.group ?? NULL_KEY
+  if (group === NULL_KEY || !sameKey(parcel.owner, group)) return new Set()
+  const avatar = ctx.linkset.world?.avatars.find(a => a.region === ctx.linkset.region && sameKey(a.key, ctx.linkset.owner))
+  const member = avatar?.groups.find(g => sameKey(g.key, group))
+  return new Set(member?.roles?.flatMap(role => role.powers ?? []))
+}
+
+/** Strides the caller may see: all for the parcel owner, else per group return power. */
+function visibleOwners(ctx: CallContext, parcel: Parcel): [string, number][] {
+  const entries = Object.entries(parcel.primOwners ?? {})
+  if (owns(ctx, parcel)) return entries
+  const powers = returnPowers(ctx, parcel)
+  if (!powers.size) return []
+  const groupSet = new Set((parcel.groupSetOwners ?? []).map(key => key.toLowerCase()))
+  return entries.filter(([owner]) =>
+    sameKey(owner, parcel.owner) ? powers.has('returnGroupOwned')
+      : groupSet.has(owner.toLowerCase()) ? powers.has('returnGroupSet')
+        : powers.has('returnNonGroup'))
+}
+
 export const llGetParcelPrimOwners: BuiltinImpl = (ctx, args) => {
-  const parcel = parcelAt(ctx, positionArg(args))
-  if (!owns(ctx, parcel)) return []
   const values: LslValue[] = []
   const types: LslType[] = []
-  for (const [owner, impact] of Object.entries(parcel.primOwners ?? {}).sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase())).slice(0, 100)) {
+  for (const [owner, impact] of visibleOwners(ctx, parcelAt(ctx, positionArg(args))).sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase())).slice(0, 100)) {
     values.push(owner, impact)
     types.push('key', 'integer')
   }

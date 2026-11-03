@@ -261,8 +261,10 @@ export interface WorldParcelOptions {
   readonly maxPrims?: number
   /** Land impact by PARCEL_COUNT_* category, including total at 0. Unset categories read 0. */
   readonly primCounts?: Readonly<Record<number, number>>
-  /** Land impact by owner UUID. Visible only to the parcel owner. */
+  /** Land impact by owner UUID. Visible to the parcel owner and, on group-owned land, to members with return powers. */
   readonly primOwners?: Readonly<Record<string, number>>
+  /** primOwners keys whose objects are set to the parcel's group. */
+  readonly groupSetOwners?: readonly string[]
   readonly musicURL?: string
   readonly media?: Partial<ParcelMedia>
   /** Explicit fixture for land held in escrow. */
