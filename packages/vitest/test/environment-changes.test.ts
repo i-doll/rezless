@@ -388,6 +388,27 @@ describe('llReplaceEnvironment with estate rights', () => {
       result += [llGetDayLength()] + llGetEnvironment(llGetPos(), [SKY_GAMMA]);
     `, { estate: false, parcelOwner: OWNER, inventory: [dusk], settings: { environment: { 5: [1.5] } } })
     expect(script.global('result')).toEqual([1, 3600, 14400, 9, 1, 14400, 1.5])
+    expect(parcel!.environmentChanges!.tracks.size).toBe(0)
+  })
+
+  // Wiki: overrides survive llReplaceEnvironment; llSetEnvironment with [] clears them.
+  it('keeps a parcel\'s overrides through removal and brings them back with the next environment', async () => {
+    const { script } = await edit(`
+      llReplaceEnvironment(<10,10,0>, "dusk", -1, -1, -1);
+      llSetEnvironment(<10,10,-1>, [SKY_GAMMA, 3.0]);
+      result += llReplaceEnvironment(<10,10,0>, "", -1, -1, -1);
+      result += llGetEnvironment(<10,10,0>, [SKY_GAMMA]);
+      result += llSetEnvironment(<10,10,-1>, [SKY_GAMMA, 4.0]);
+      result += llReplaceEnvironment(<10,10,0>, "dusk", -1, -1, -1);
+      result += llGetEnvironment(<10,10,0>, [SKY_GAMMA]);
+    `, { estate: false, parcelOwner: OWNER, inventory: [dusk], settings: { environment: { 5: [1.5] } } })
+    expect(script.global('result')).toEqual([1, 1.5, -3, 1, 3])
+  })
+
+  it('accepts removal on a parcel that has no environment', async () => {
+    const { script, parcel } = await edit('result += llReplaceEnvironment(<10,10,0>, "", 2, -1, -1);',
+      { estate: false, parcelOwner: OWNER })
+    expect(script.global('result')).toEqual([1])
     expect(parcel!.environmentChanges).toBeUndefined()
   })
 })

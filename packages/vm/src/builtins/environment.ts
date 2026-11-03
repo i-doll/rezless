@@ -29,8 +29,12 @@ function regionScope(ctx: CallContext): Scope {
 function scopeAt(ctx: CallContext, pos: Vector): Scope {
   const region = regionOf(ctx)
   if (!region || (pos.x === -1 && pos.y === -1)) return { region, changes: region?.environmentChanges }
-  return { region, changes: ctx.linkset.world!.parcelAt(region.name, pos)?.environmentChanges ?? region.environmentChanges }
+  const parcel = ctx.linkset.world!.parcelAt(region.name, pos)?.environmentChanges
+  return { region, changes: hasEnvironment(parcel) ? parcel! : region.environmentChanges }
 }
+
+/** A parcel has its own environment while it has settings on some track. Its overrides outlast removal. */
+const hasEnvironment = (changes: EnvironmentChanges | undefined): boolean => !!changes?.tracks.size
 
 const primScope = (ctx: CallContext) => scopeAt(ctx, ctx.prim.regionPosition())
 
@@ -310,7 +314,7 @@ function editTarget(ctx: CallContext, pos: Vector): { changes: EnvironmentChange
   const r = world!.region(region)
   if (isRegionTarget(pos)) return { changes: r.environmentChanges }
   const parcel = world!.parcelAt(r.name, pos)!
-  return { changes: parcel.environmentChanges, parcel }
+  return { changes: hasEnvironment(parcel.environmentChanges) ? parcel.environmentChanges : undefined, parcel }
 }
 
 /**
@@ -378,24 +382,28 @@ export const llReplaceEnvironment: BuiltinImpl = (ctx, args) => {
   if (!removal && !item && !isKey(ident)) return ENV_NO_ENVIRONMENT
   if (!removal && !item) return ENV_OK
   const target = editTarget(ctx, pos)
-  if (target.parcel && removal && track === -1) {
-    delete target.parcel.environmentChanges
-    return ENV_OK
-  }
-  const changes = target.changes ?? copyRegionEnvironment(ctx, target.parcel!)
+  if (target.parcel && !target.changes && removal) return ENV_OK
+  const changes = target.changes ?? startParcelEnvironment(ctx, target.parcel!)
   const tracks = track === -1 ? [0, 1, 2, 3, 4] : [track]
   for (const t of tracks) {
     if (removal) changes.tracks.delete(t)
     else changes.tracks.set(t, item!.environment ?? {})
+  }
+  if (target.parcel && !hasEnvironment(changes)) {
+    // The parcel is back on the region's environment; its overrides wait for the next one.
+    delete changes.dayLength
+    delete changes.dayOffset
+    return ENV_OK
   }
   if (length > 0) changes.dayLength = length
   if (offset >= 0) changes.dayOffset = offset
   return ENV_OK
 }
 
-function copyRegionEnvironment(ctx: CallContext, parcel: Parcel): EnvironmentChanges {
+/** Give a parcel the region's settings and day, keeping any overrides it had before. */
+function startParcelEnvironment(ctx: CallContext, parcel: Parcel): EnvironmentChanges {
   const region = regionOf(ctx)!.environmentChanges
-  const changes = newEnvironmentChanges()
+  const changes = parcel.environmentChanges ?? newEnvironmentChanges()
   for (const [track, asset] of region.tracks) changes.tracks.set(track, asset)
   if (region.dayLength !== undefined) changes.dayLength = region.dayLength
   if (region.dayOffset !== undefined) changes.dayOffset = region.dayOffset
