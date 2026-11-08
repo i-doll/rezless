@@ -61,7 +61,7 @@
     "@rezless/vm": "workspace:*"
   },
   "peerDependencies": {
-    "vitest": "^5.1.0"
+    "vitest": "^5.0.5"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
