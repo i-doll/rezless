@@ -26,11 +26,11 @@ import type { BuiltinImpl, Run, ScriptState, Suspension } from './runtime.js'
 import type { FunctionSignature, Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
-import { defaultEvalFor, isVector, isRotation, toFloat32Value } from './values/types.js'
+import { defaultEvalFor, isVector, isRotation, rot, toFloat32, toFloat32Value, vec } from './values/types.js'
 import { coerce } from './values/coerce.js'
-import { typedList } from './values/list-types.js'
+import { scriptList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
-import { Env } from './env.js'
+import { Env, stored } from './env.js'
 import { own } from './own.js'
 import { RuntimeError, StackHeapCollision, frameBytes } from './memory.js'
 import { HaltSignal } from './builtins/object.js'
@@ -191,7 +191,7 @@ function* callUserFunction(
   } catch (e) {
     if (e instanceof ReturnSignal) {
       if (fn.returnType === null) return { type: 'void', value: 0 }
-      return e.value ? coerce(e.value, fn.returnType as LslType) : defaultEvalFor(fn.returnType as LslType)
+      return e.value ? stored(coerce(e.value, fn.returnType as LslType)) : defaultEvalFor(fn.returnType as LslType)
     }
     if (e instanceof JumpSignal) {
       // A jump that escaped the function body means the label is undefined
@@ -267,7 +267,7 @@ function* execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): Exe
       yield* execVariableDeclaration(ctx, env, stmt)
       return
     case 'ExpressionStatement':
-      yield* evalExpression(
+      yield* evalDiscarded(
         ctx,
         env,
         stmt.expression.kind === 'PrintExpression' ? stmt.expression.argument : stmt.expression,
@@ -347,7 +347,7 @@ function* execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement)
 function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): Exec<void> {
   const child = env.push()
   const cov = ctx.state.coverage
-  for (const e of stmt.init) yield* evalExpression(ctx, child, e)
+  for (const e of stmt.init) yield* evalDiscarded(ctx, child, e)
   while (true) {
     if (stmt.test) {
       const t = truthy(yield* evalExpression(ctx, child, stmt.test))
@@ -358,7 +358,7 @@ function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): Exec<v
       cov.hitBranch(stmt.loc, true)
     }
     yield* execStatement(ctx, child, stmt.body)
-    for (const e of stmt.update) yield* evalExpression(ctx, child, e)
+    for (const e of stmt.update) yield* evalDiscarded(ctx, child, e)
     iterate(ctx)
   }
 }
@@ -409,7 +409,7 @@ function* evalVectorLiteral(ctx: InterpreterContext, env: Env, e: VectorLiteral)
   const x = coerce(yield* evalExpression(ctx, env, e.x), 'float').value as number
   const y = coerce(yield* evalExpression(ctx, env, e.y), 'float').value as number
   const z = coerce(yield* evalExpression(ctx, env, e.z), 'float').value as number
-  return { type: 'vector', value: { x, y, z } }
+  return { type: 'vector', value: vec(x, y, z) }
 }
 
 function* evalRotationLiteral(ctx: InterpreterContext, env: Env, e: RotationLiteral): Exec<EvalResult> {
@@ -417,7 +417,7 @@ function* evalRotationLiteral(ctx: InterpreterContext, env: Env, e: RotationLite
   const y = coerce(yield* evalExpression(ctx, env, e.y), 'float').value as number
   const z = coerce(yield* evalExpression(ctx, env, e.z), 'float').value as number
   const s = coerce(yield* evalExpression(ctx, env, e.s), 'float').value as number
-  return { type: 'rotation', value: { x, y, z, s } }
+  return { type: 'rotation', value: rot(x, y, z, s) }
 }
 
 function* evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): Exec<EvalResult> {
@@ -425,7 +425,7 @@ function* evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): Ex
   for (const el of e.elements) elements.push(yield* evalExpression(ctx, env, el))
   return {
     type: 'list',
-    value: typedList(
+    value: scriptList(
       elements.map((r) => r.value),
       elements.map((r) => r.type),
     ),
@@ -439,13 +439,25 @@ function* evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): Ex
   return applyBinary(e.operator, left, right)
 }
 
+/** Evaluate an expression whose value nothing uses: a statement, or a `for` init or update. */
+function* evalDiscarded(ctx: InterpreterContext, env: Env, e: Expression): Exec<void> {
+  if (e.kind === 'AssignmentExpression') yield* evalAssignment(ctx, env, e, false)
+  else yield* evalExpression(ctx, env, e)
+}
+
 function* evalAssignment(
   ctx: InterpreterContext,
   env: Env,
   e: AssignmentExpression,
+  used = true,
 ): Exec<EvalResult> {
   const newValue = yield* evalExpression(ctx, env, e.value)
-  return assignTo(ctx, env, e.target, e.operator, newValue)
+  const result = assignTo(ctx, env, e.target, e.operator, newValue)
+  // `integer *= float` stores its result, but Mono can't produce it as a value.
+  if (used && e.operator === '*=' && result.type === 'integer' && newValue.type === 'float') {
+    throw new RuntimeError('cannot take result of integer *= float')
+  }
+  return result
 }
 
 function assignTo(
@@ -498,21 +510,11 @@ function assignToMember(
       : reduceCompound(op, oldField, rhs)
   const updated: Record<string, number> = { ...obj, [member]: newField.value as number }
   const wrapped: EvalResult = isRotation(obj)
-    ? {
-        type: 'rotation',
-        value: {
-          x: updated.x!,
-          y: updated.y!,
-          z: updated.z!,
-          s: updated.s!,
-        },
-      }
-    : {
-        type: 'vector',
-        value: { x: updated.x!, y: updated.y!, z: updated.z! },
-      }
+    ? { type: 'rotation', value: rot(updated.x!, updated.y!, updated.z!, updated.s!) }
+    : { type: 'vector', value: vec(updated.x!, updated.y!, updated.z!) }
   env.set(target.object.name, wrapped)
-  return newField
+  // The assignment's value is the component as stored, in float32.
+  return stored(newField)
 }
 
 function* evalMember(ctx: InterpreterContext, env: Env, e: MemberExpression): Exec<EvalResult> {
@@ -539,9 +541,9 @@ function* evalUpdate(ctx: InterpreterContext, env: Env, e: UpdateExpression): Ex
   const current = yield* evalExpression(ctx, env, e.argument)
   const delta: EvalResult = { type: 'integer', value: e.operator === '++' ? 1 : -1 }
   const updated = reduceCompound('+=', current, delta)
-  // Write back
-  assignTo(ctx, env, e.argument, '=', updated)
-  return e.prefix ? updated : current
+  // Write back; a prefix update's value is the assignment's.
+  const assigned = assignTo(ctx, env, e.argument, '=', updated)
+  return e.prefix ? assigned : current
 }
 
 function* evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Exec<EvalResult> {
@@ -556,10 +558,10 @@ function* evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Exe
   // Builtin (real, generated stub, or user-mocked).
   const spec = specFor(call.callee)
   const declared = own(ctx.functions, call.callee)
-  // An integer passed for a float parameter becomes a 32-bit float before the call.
+  // A number passed for a float parameter becomes a 32-bit float before the call.
   const rawArgs: LslValue[] = evalArgs.map((r, i) =>
-    r.type === 'integer' && (spec?.params[i]?.type ?? declared?.params?.[i]) === 'float'
-      ? coerce(r, 'float').value
+    (r.type === 'integer' || r.type === 'float') && (spec?.params[i]?.type ?? declared?.params?.[i]) === 'float'
+      ? toFloat32(r.value as number)
       : r.value,
   )
   const result = yield* callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)

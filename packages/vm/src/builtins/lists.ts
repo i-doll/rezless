@@ -42,7 +42,8 @@ export const llList2Integer: BuiltinImpl = (_ctx, args) => {
   if (i < 0) return 0
   const v = l[i]
   if (typeof v === 'number') return floatToInteger(v)
-  if (typeof v === 'string') return parseLslInteger(v)
+  // Mono reads a key element as 0, whatever its text.
+  if (typeof v === 'string') return listElementType(l, i) === 'key' ? 0 : parseLslInteger(v)
   return 0
 }
 
@@ -54,6 +55,8 @@ export const llList2Float: BuiltinImpl = (_ctx, args) => {
   const v = l[i]
   if (typeof v === 'number') return v
   if (typeof v === 'string') {
+    // Mono reads a key element as 0.0, whatever its text.
+    if (listElementType(l, i) === 'key') return 0
     const n = Number.parseFloat(v)
     return Number.isNaN(n) ? 0 : n
   }
@@ -225,7 +228,16 @@ function lslElementsEqual(a: LslValue | undefined, b: LslValue | undefined): boo
 export const llDumpList2String: BuiltinImpl = (_ctx, args) => {
   const list = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const sep = (args[1] as string | undefined) ?? ''
-  return list.map((v, i) => formatListElement(v, listElementType(list, i))).join(sep)
+  return list.map((v, i) => formatListElement(unsignZero(v), listElementType(list, i))).join(sep)
+}
+
+/** Mono's llDumpList2String prints negative zero without its sign (SVC-1399). */
+function unsignZero(v: LslValue): LslValue {
+  const z = (n: number) => (n === 0 ? 0 : n)
+  if (typeof v === 'number') return z(v)
+  if (isRotation(v)) return { x: z(v.x), y: z(v.y), z: z(v.z), s: z(v.s) }
+  if (isVector(v)) return { x: z(v.x), y: z(v.y), z: z(v.z) }
+  return v
 }
 
 export const llList2CSV: BuiltinImpl = (_ctx, args) => {

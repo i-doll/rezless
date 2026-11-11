@@ -1,4 +1,4 @@
-key pending;
+key pending = NULL_KEY;
 string counter;
 string original;
 integer updating;

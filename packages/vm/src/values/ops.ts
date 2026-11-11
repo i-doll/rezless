@@ -1,7 +1,7 @@
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './types.js'
 import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './types.js'
 import { coerce, stringify } from './coerce.js'
-import { concatLists, typedList } from './list-types.js'
+import { concatLists, scriptList } from './list-types.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -226,8 +226,8 @@ function opAdd(a: EvalResult, b: EvalResult): EvalResult {
   }
   // List concat / append / prepend
   if (a.type === 'list' || b.type === 'list') {
-    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : typedList([a.value], [a.type])
-    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : typedList([b.value], [b.type])
+    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : scriptList([a.value], [a.type])
+    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : scriptList([b.value], [b.type])
     return { type: 'list', value: concatLists(left, right) }
   }
   // Vector / rotation
@@ -254,7 +254,7 @@ function opAdd(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32((x.value as number) + (y.value as number)) }
-    return { type: 'float', value: toFloat32((x.value as number) + (y.value as number)) }
+    return { type: 'float', value: (x.value as number) + (y.value as number) }
   }
   throw new Error(`cannot add ${a.type} and ${b.type}`)
 }
@@ -282,7 +282,7 @@ function opSub(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32((x.value as number) - (y.value as number)) }
-    return { type: 'float', value: toFloat32((x.value as number) - (y.value as number)) }
+    return { type: 'float', value: (x.value as number) - (y.value as number) }
   }
   throw new Error(`cannot subtract ${b.type} from ${a.type}`)
 }
@@ -318,7 +318,7 @@ function opMul(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32(Math.imul(x.value as number, y.value as number)) }
-    return { type: 'float', value: toFloat32((x.value as number) * (y.value as number)) }
+    return { type: 'float', value: (x.value as number) * (y.value as number) }
   }
   throw new Error(`cannot multiply ${a.type} and ${b.type}`)
 }
@@ -328,7 +328,9 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
   if (isVector(a.value) && (b.type === 'integer' || b.type === 'float')) {
     const k = toFloat32(b.value as number)
     if (k === 0) throw new Error('Math Error: divide by zero')
-    return { type: 'vector', value: vec(a.value.x / k, a.value.y / k, a.value.z / k) }
+    // Mono multiplies by the float reciprocal rather than dividing.
+    const m = toFloat32(1 / k)
+    return { type: 'vector', value: vec(a.value.x * m, a.value.y * m, a.value.z * m) }
   }
   // vector / rotation → rotate by inverse
   if (isVector(a.value) && isRotation(b.value)) {
@@ -349,8 +351,10 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
         value: toInt32(Math.trunc((x.value as number) / (y.value as number))),
       }
     }
-    if ((y.value as number) === 0) throw new Error('Math Error: divide by zero')
-    return { type: 'float', value: toFloat32((x.value as number) / (y.value as number)) }
+    const q = (x.value as number) / (y.value as number)
+    // Mono halts on a zero divisor, and on a NaN quotient such as inf / inf.
+    if ((y.value as number) === 0 || Number.isNaN(q)) throw new Error('Math Error: divide by zero')
+    return { type: 'float', value: q }
   }
   throw new Error(`cannot divide ${a.type} by ${b.type}`)
 }
@@ -398,11 +402,19 @@ export function conjugate(q: Rotation): Rotation {
   return rot(-q.x, -q.y, -q.z, q.s)
 }
 
+/**
+ * `v * q`, as Mono runs ScriptTypes.cs `Rotate`: the float inputs are
+ * widened to double, the expanded product is summed in this order, and each
+ * component is rounded to float once at the end.
+ */
 export function rotateVector(v: Vector, q: Rotation): Vector {
-  // v' = q * v * q⁻¹
-  const qv: Rotation = rot(v.x, v.y, v.z, 0)
-  const r = hamilton(hamilton(q, qv), conjugate(q))
-  return vec(r.x, r.y, r.z)
+  const { x, y, z, s } = q
+  const { x: vx, y: vy, z: vz } = v
+  return vec(
+    s * s * vx + 2 * y * s * vz - 2 * z * s * vy + x * x * vx + 2 * y * x * vy + 2 * z * x * vz - z * z * vx - y * y * vx,
+    2 * x * y * vx + y * y * vy + 2 * z * y * vz + 2 * s * z * vx - z * z * vy + s * s * vy - 2 * x * s * vz - x * x * vy,
+    2 * x * z * vx + 2 * y * z * vy + z * z * vz - 2 * s * y * vx - y * y * vz + 2 * s * x * vy - x * x * vz + s * s * vz,
+  )
 }
 
 /** For interpreter compound-assignment helpers. */

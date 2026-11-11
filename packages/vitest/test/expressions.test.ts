@@ -437,11 +437,14 @@ describe('Phase 2 — lists', () => {
 })
 
 describe('32-bit floats', () => {
-  it('rounds float arithmetic and int → float promotion to 32 bits', async () => {
+  // Mono keeps float temporaries in double and rounds to float32 only where
+  // a value is stored (secondlife/slua tests/conformance/float_precision.lsl).
+  it('rounds stored floats to 32 bits but keeps temporaries in double', async () => {
     const s = await run(`
       integer bigSum = 0;
       integer promoted = 0;
       integer tenths = 0;
+      integer storedTenths = 0;
       integer mixed = 0;
       default {
         state_entry() {
@@ -449,17 +452,20 @@ describe('32-bit floats', () => {
           float b = a + 1.0;
           integer i = 16777217;
           float c = i;
+          float t = 0.1 + 0.2;
           bigSum = b == a;
           promoted = c == a;
           tenths = 0.1 + 0.2 == 0.3;
+          storedTenths = t == 0.3;
           mixed = 16777217 * 1.0 == a;
         }
       }
     `)
     expect(s.global('bigSum')).toBe(1)
     expect(s.global('promoted')).toBe(1)
-    expect(s.global('tenths')).toBe(1)
-    expect(s.global('mixed')).toBe(1)
+    expect(s.global('tenths')).toBe(0)
+    expect(s.global('storedTenths')).toBe(1)
+    expect(s.global('mixed')).toBe(0)
   })
 
   it('rounds vector and rotation arithmetic to 32 bits', async () => {
@@ -530,6 +536,7 @@ describe('32-bit floats', () => {
       default {
         state_entry() {
           pi = PI;
+          // An integer converts to float exactly in a comparison.
           same = 16777217 == 16777216.0;
           differ = 16777217 != 16777216.0;
           localSame = gv == <16777217, 0.1, 0>;
@@ -539,8 +546,8 @@ describe('32-bit floats', () => {
     expect(s.global('gv')).toEqual({ x: 16777216, y: Math.fround(0.1), z: 0 })
     expect(s.global('gr')).toMatchObject({ x: 16777216 })
     expect(s.global('pi')).toBe(Math.fround(3.14159265))
-    expect(s.global('same')).toBe(1)
-    expect(s.global('differ')).toBe(0)
+    expect(s.global('same')).toBe(0)
+    expect(s.global('differ')).toBe(1)
     expect(s.global('localSame')).toBe(1)
   })
 
