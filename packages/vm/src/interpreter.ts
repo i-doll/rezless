@@ -160,6 +160,7 @@ function* execResumed(ctx: InterpreterContext, env: Env, stmt: Statement, path: 
       return yield* execDoWhile(ctx, env, stmt, path.slice(1))
     case 'ForStatement':
       return yield* execFor(ctx, env, stmt, path.slice(1))
+    /* istanbul ignore next -- pathIn only builds paths through blocks, ifs and loops */
     default:
       return
   }
@@ -475,14 +476,11 @@ function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement, resume:
       yield* execResumed(ctx, child, stmt.body, resume)
       resume = null
     } else {
-      if (stmt.test) {
-        const t = truthy(yield* evalExpression(ctx, child, stmt.test))
-        if (cov) cov.hitBranch(stmt.loc, t)
-        if (!t) break
-      } else if (cov) {
-        // Infinite loop: still useful to record "body entered".
-        cov.hitBranch(stmt.loc, true)
-      }
+      // The parser requires a condition (`for (;;)` is a syntax error in SL);
+      // a hand-built AST without one loops until a jump or state change.
+      const t = stmt.test ? truthy(yield* evalExpression(ctx, child, stmt.test)) : true
+      if (cov) cov.hitBranch(stmt.loc, t)
+      if (!t) break
       yield* execStatement(ctx, child, stmt.body)
     }
     for (const e of stmt.update) yield* evalDiscarded(ctx, child, e)

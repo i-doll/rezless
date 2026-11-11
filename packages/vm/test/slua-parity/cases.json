@@ -5765,5 +5765,12 @@
   "output": [
    "0"
   ]
+ },
+ {
+  "name": "manual/jump-onto-if-body-label",
+  "source": "default { state_entry() { integer c; jump in; if (c) @in; llOwnerSay(\"e\"); } }\n",
+  "output": [
+   "e"
+  ]
  }
 ]

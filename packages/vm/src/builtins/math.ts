@@ -44,9 +44,9 @@ export const llPow: BuiltinImpl = (_ctx, args) => {
     if (y > LARGEST_INT_DOUBLE) return Infinity
     if (y < -LARGEST_INT_DOUBLE) return 0
   }
-  const result = Math.pow(x, y)
-  if (Number.isNaN(result) && x === -1 && Math.abs(y) > LARGEST_INT_DOUBLE) return 1
-  return unsignedZero(result)
+  // C's pow(-1, y) is NaN for huge y in some libms, which SLua maps to 1;
+  // JavaScript already gives 1, as every double that large is even.
+  return unsignedZero(Math.pow(x, y))
 }
 export const llSqrt: BuiltinImpl = (_ctx, args) => Math.sqrt((args[0] as number) ?? 0)
 export const llSin: BuiltinImpl = (_ctx, args) => Math.sin((args[0] as number) ?? 0)
