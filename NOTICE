@@ -42,4 +42,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+--------------------------------------------------------------------------------
+
+The LSL conformance scripts under packages/vm/test/slua-conformance/fixtures/
+are copied unchanged from secondlife/slua (https://github.com/secondlife/slua,
+tests/conformance/*.lsl, commit af1379e6fc30d66ba991f15213f2d48d65175e55),
+licensed under the MIT License; its full text is in that directory's LICENSE.
+
+Copyright (c) 2025 Linden Lab
+Copyright (c) 2019-2026 Roblox Corporation
+Copyright (c) 1994–2019 Lua.org, PUC-Rio.
+
 Second Life is a registered trademark of Linden Research, Inc.

@@ -1,4 +1,5 @@
 import type { LslType, LslValue } from './types.js'
+import { toFloat32 } from './types.js'
 
 /**
  * LSL list elements keep their own type, but list values here are plain JS
@@ -21,6 +22,17 @@ export function typedList(
   if (types.includes('list')) throw new Error('Lists may not contain lists')
   if (types.some((t) => t !== undefined)) elementTypes.set(values, types)
   return values
+}
+
+/**
+ * Build a list from values the script computed: like `typedList`, but a
+ * float element, which may be a double temporary, is stored as float32.
+ */
+export function scriptList(
+  values: LslValue[],
+  types: ReadonlyArray<LslType | undefined>,
+): ReadonlyArray<LslValue> {
+  return typedList(values.map((v, i) => (types[i] === 'float' ? toFloat32(v as number) : v)), types)
 }
 
 /** The recorded element types of `list`, or undefined if none were recorded. */

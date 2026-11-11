@@ -1,7 +1,7 @@
 import type { EvalResult, LslType, LslValue } from './types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32, toFloat32 } from './types.js'
 import { formatFloatZeroRule, formatList, formatVector, formatRotation } from './format.js'
-import { typedList } from './list-types.js'
+import { scriptList } from './list-types.js'
 
 /**
  * Coerce a runtime value to a target LSL type.
@@ -22,12 +22,14 @@ export function coerce(from: EvalResult, target: LslType): EvalResult {
   const v = from.value
   switch (target) {
     case 'integer': {
-      if (typeof v === 'number') return { type: 'integer', value: floatToInteger(v) }
+      // Mono converts from float32, so a double temporary rounds first.
+      if (typeof v === 'number') return { type: 'integer', value: floatToInteger(toFloat32(v)) }
       if (typeof v === 'string') return { type: 'integer', value: parseLslInteger(v) }
       throw typeError(from, target)
     }
     case 'float': {
-      if (typeof v === 'number') return { type: 'float', value: toFloat32(v) }
+      // An integer converts exactly; the result rounds to float32 where it's stored.
+      if (typeof v === 'number') return { type: 'float', value: v }
       if (typeof v === 'string') return { type: 'float', value: parseLslFloat(v) }
       throw typeError(from, target)
     }
@@ -51,7 +53,7 @@ export function coerce(from: EvalResult, target: LslType): EvalResult {
     case 'list': {
       if (Array.isArray(v)) return { type: 'list', value: v }
       // Wrap any single value as a one-element list.
-      return { type: 'list', value: typedList([v as LslValue], [from.type]) }
+      return { type: 'list', value: scriptList([v as LslValue], [from.type]) }
     }
     case 'void':
       throw new Error('cannot coerce to void')
@@ -69,7 +71,7 @@ export function stringify(r: EvalResult): string {
     case 'integer':
       return String(toInt32(v as number))
     case 'float':
-      return formatFloatZeroRule(v as number)
+      return formatFloatZeroRule(toFloat32(v as number))
     case 'string':
       return v as string
     case 'key':

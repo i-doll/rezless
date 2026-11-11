@@ -1,5 +1,5 @@
 import type { EvalResult, LslType, LslValue } from './values/types.js'
-import { defaultEvalFor } from './values/types.js'
+import { defaultEvalFor, toFloat32 } from './values/types.js'
 import { coerce } from './values/coerce.js'
 import type { Memory } from './memory.js'
 import { globalBytes, listBytes, stringBytes } from './memory.js'
@@ -34,7 +34,7 @@ export class Env {
     if (this.slots.has(name)) {
       throw new Error(`variable '${name}' already declared in this scope`)
     }
-    const value = init ? coerce(init, type) : defaultEvalFor(type)
+    const value = init ? stored(coerce(init, type)) : uninitialized(type)
     const bytes = this.bytesFor(value)
     this.charge(bytes)
     this.slots.set(name, { type, value, bytes })
@@ -52,7 +52,7 @@ export class Env {
     const slot = this.slots.get(name)
     if (slot) {
       slot.type = type
-      this.store(slot, init ? coerce(init, type) : defaultEvalFor(type))
+      this.store(slot, init ? stored(coerce(init, type)) : uninitialized(type))
       return
     }
     this.declare(name, type, init)
@@ -65,15 +65,21 @@ export class Env {
     return slot.value
   }
 
-  /** Assign to an existing variable. Coerces to declared type. */
+  /**
+   * Assign to an existing variable, coerced to its declared type, and return
+   * the assignment's value. A float is stored as float32, but as in Mono an
+   * assignment to a local yields the unrounded value; one to a global yields
+   * the stored value.
+   */
   set(name: string, value: EvalResult): EvalResult {
     const slot = this.slots.get(name)
     if (!slot) {
       if (!this.parent) throw new Error(`undefined variable '${name}'`)
       return this.parent.set(name, value)
     }
-    this.store(slot, coerce(value, slot.type))
-    return slot.value
+    const coerced = coerce(value, slot.type)
+    this.store(slot, stored(coerced))
+    return this.global ? slot.value : coerced
   }
 
   hasOwn(name: string): boolean {
@@ -121,4 +127,14 @@ export class Env {
     }
     return null
   }
+}
+
+/** `value` as a variable holds it: a float rounds to float32. */
+export function stored(value: EvalResult): EvalResult {
+  return value.type === 'float' ? { type: 'float', value: toFloat32(value.value as number) } : value
+}
+
+/** A declared variable's starting value: as for its type, except a key starts as "", not NULL_KEY. */
+function uninitialized(type: LslType): EvalResult {
+  return type === 'key' ? { type, value: '' } : defaultEvalFor(type)
 }
