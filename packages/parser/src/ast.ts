@@ -2,6 +2,8 @@ import type { SourceLocation } from './diagnostics.js'
 
 export interface Node {
   readonly loc: SourceLocation
+  /** How many pairs of parentheses an expression was written in: 1 for `(x)`, 2 for `((x))`. */
+  readonly parens?: number
 }
 
 // ---- Top level ----

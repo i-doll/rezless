@@ -1,6 +1,6 @@
 import type { EvalResult, LslType, LslValue } from './types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32, toFloat32 } from './types.js'
-import { formatFloatZeroRule, formatList, formatVector, formatRotation } from './format.js'
+import { formatFloat, formatList, formatVector, formatRotation } from './format.js'
 import { scriptList } from './list-types.js'
 
 /**
@@ -22,8 +22,8 @@ export function coerce(from: EvalResult, target: LslType): EvalResult {
   const v = from.value
   switch (target) {
     case 'integer': {
-      // Mono converts from float32, so a double temporary rounds first.
-      if (typeof v === 'number') return { type: 'integer', value: floatToInteger(toFloat32(v)) }
+      // A double temporary truncates as it is (SLua's lsl_float_to_int).
+      if (typeof v === 'number') return { type: 'integer', value: floatToInteger(v) }
       if (typeof v === 'string') return { type: 'integer', value: parseLslInteger(v) }
       throw typeError(from, target)
     }
@@ -71,7 +71,7 @@ export function stringify(r: EvalResult): string {
     case 'integer':
       return String(toInt32(v as number))
     case 'float':
-      return formatFloatZeroRule(toFloat32(v as number))
+      return formatFloat(toFloat32(v as number))
     case 'string':
       return v as string
     case 'key':
@@ -94,14 +94,18 @@ export function floatToInteger(n: number): number {
 }
 
 /**
- * LSL `(integer)str` parsing.
- *   - Skip leading whitespace
- *   - Optional + or - sign
- *   - Optional `0x` for hex (not accepted after a '-')
- *   - Read decimal digits (or hex digits) until the first non-matching character
+ * LSL `(integer)str` parsing, as SLua does it (C `strtoul`):
+ *   - Hex only when the string starts with `0x` or `0X` (no leading space
+ *     or sign); octal is never used
+ *   - Otherwise skip leading whitespace, take an optional + or - sign
+ *   - Read digits until the first non-matching character
  *   - Empty / no-digits → 0
  */
 export function parseLslInteger(s: string): number {
+  if (s[0] === '0' && (s[1] === 'x' || s[1] === 'X')) {
+    const hex = /^[0-9a-fA-F]*/.exec(s.slice(2))![0]
+    return hex ? saturate(Number.parseInt(hex, 16), 1) : 0
+  }
   let i = 0
   while (i < s.length && /\s/.test(s[i]!)) i++
   let sign = 1
@@ -109,16 +113,6 @@ export function parseLslInteger(s: string): number {
   else if (s[i] === '-') {
     sign = -1
     i++
-  }
-  if (s[i] === '0' && (s[i + 1] === 'x' || s[i + 1] === 'X')) {
-    i += 2
-    let hex = ''
-    while (i < s.length && /[0-9a-fA-F]/.test(s[i]!)) {
-      hex += s[i]
-      i++
-    }
-    if (!hex || sign < 0) return 0
-    return saturate(Number.parseInt(hex, 16), sign)
   }
   let dec = ''
   while (i < s.length && /[0-9]/.test(s[i]!)) {

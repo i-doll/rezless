@@ -305,7 +305,8 @@ export function lex(
       continue
     }
 
-    pushErr(`unexpected character '${ch}'`, start)
+    // SLua's lexer skips a character it doesn't know; warn rather than fail.
+    diagnostics.push({ severity: 'warning', message: `ignored unexpected character '${ch}'`, filename, loc: start })
     advance()
   }
 

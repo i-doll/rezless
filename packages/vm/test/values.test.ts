@@ -67,9 +67,9 @@ describe('coerce — string → integer', () => {
   it('truncates floats toward zero; out of range and non-finite give -2147483648', () => {
     expect(coerce(F(3.9), 'integer').value).toBe(3)
     expect(coerce(F(-3.9), 'integer').value).toBe(-3)
-    expect(coerce(F(2147483520), 'integer').value).toBe(2147483520)
-    // The float rounds to 32 bits first: 2147483647 becomes 2^31, out of range.
-    expect(coerce(F(2147483647), 'integer').value).toBe(-2147483648)
+    // A double temporary truncates as it is, without rounding to float32 first.
+    expect(coerce(F(2147483647), 'integer').value).toBe(2147483647)
+    expect(coerce(F(2147483648), 'integer').value).toBe(-2147483648)
     expect(coerce(F(1e10), 'integer').value).toBe(-2147483648)
     expect(coerce(F(Number.POSITIVE_INFINITY), 'integer').value).toBe(-2147483648)
     expect(coerce(F(Number.NaN), 'integer').value).toBe(-2147483648)

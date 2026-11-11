@@ -82,3 +82,22 @@ describe('suspension', () => {
     expect({ locals: memory.locals, stack: memory['stack'] }).toEqual(before)
   })
 })
+
+describe('scripts run without a type check', () => {
+  // loadScript type-checks first and rejects these; a Script built straight
+  // from the AST reports them when they run.
+  it('reports a jump to an undefined label in a function', () => {
+    const s = load('f() { jump nowhere; } default { state_entry() { f(); } }')
+    expect(() => s.start()).toThrow("jump to undefined label 'nowhere' in function 'f'")
+  })
+
+  it('reports a variable declared twice in one block', () => {
+    const s = load('default { state_entry() { integer x; integer x; } }')
+    expect(() => s.start()).toThrow("duplicate declaration of 'x' in block")
+  })
+
+  it('reports a jump to an undefined label in an event handler', () => {
+    const s = load('default { state_entry() { jump nowhere; } }')
+    expect(() => s.start()).toThrow("jump to undefined label 'nowhere' in event handler 'state_entry'")
+  })
+})

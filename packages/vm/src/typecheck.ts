@@ -153,7 +153,6 @@ class Checker {
   /** Labels visible from the current block: its own and every enclosing block's. */
   private labelScopes: Array<Set<string>> = []
   /** Every label in the current function or handler; Mono rejects duplicates. */
-  private labels = new Set<string>()
   /** The function or handler being checked. */
   private owner: Node | null = null
   readonly invalid = new Set<Node>()
@@ -258,7 +257,6 @@ class Checker {
     }
     this.scopes = [scope]
     this.labelScopes = []
-    this.labels = new Set()
     this.block(body, 'denied')
   }
 
@@ -360,8 +358,8 @@ class Checker {
         }
         return []
       case 'LabelStatement':
-        if (this.labels.has(s.name)) this.error(s, `Duplicate label name: ${s.name}`)
-        this.labels.add(s.name)
+        // The same label name may appear again in another block (a jump goes to
+        // the last one, as SLua does); twice in one block is a redeclaration.
         this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, 'label')
         return []
     }
@@ -410,8 +408,12 @@ class Checker {
         for (const c of [e.x, e.y, e.z, e.s]) this.component(c)
         return 'rotation'
       case 'ListLiteral':
-        // SL compiles any element type; a list or void element only fails at runtime.
-        for (const el of e.elements) this.expr(el)
+        // A list or void element is a compile error, as in SLua.
+        for (const el of e.elements) {
+          const t = this.expr(el)
+          if (t === 'list') this.error(el, 'Lists may not contain other lists')
+          else if (t === 'void') this.error(el, 'Lists may not contain nulls')
+        }
         return 'list'
       case 'Identifier': {
         const t = this.lookup(e.name)
@@ -457,6 +459,11 @@ class Checker {
         return target
       }
       case 'CastExpression': {
+        const arg = e.argument
+        if (arg.kind === 'UnaryExpression' && !arg.parens && arg.argument.kind === 'Identifier' &&
+            !arg.argument.parens && !isNumericConstant(arg.argument.name)) {
+          this.error(e, 'Typecast requires parentheses')
+        }
         const t = this.expr(e.argument)
         if (t === 'unknown') return e.targetType
         if (t === 'void' || !CASTS[t].includes(e.targetType)) {
@@ -539,6 +546,8 @@ class Checker {
  * or (one level of) list literal.
  */
 function isSimpleGlobalInit(e: Expression, allowList: boolean): boolean {
+  // SLua rejects a parenthesized initializer, even `(1)`.
+  if (e.parens) return false
   switch (e.kind) {
     case 'IntegerLiteral':
     case 'FloatLiteral':
@@ -546,9 +555,15 @@ function isSimpleGlobalInit(e: Expression, allowList: boolean): boolean {
     case 'Identifier':
       return true
     case 'UnaryExpression':
+      // A negated number, or a negated integer or float LSL constant other
+      // than TRUE and FALSE (which SLua's lexer treats specially).
       return (
         e.operator === '-' &&
-        (e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral')
+        !e.argument.parens &&
+        (e.argument.kind === 'IntegerLiteral' ||
+          e.argument.kind === 'FloatLiteral' ||
+          (e.argument.kind === 'Identifier' && isNumericConstant(e.argument.name) &&
+            e.argument.name !== 'TRUE' && e.argument.name !== 'FALSE'))
       )
     case 'VectorLiteral':
       return [e.x, e.y, e.z].every((c) => isSimpleGlobalInit(c, false))
@@ -607,4 +622,10 @@ function labelsIn(stmts: ReadonlyArray<Statement>): Set<string> {
   }
   stmts.forEach(visit)
   return out
+}
+
+/** An LSL integer or float constant, such as PI or STATUS_PHYSICS. */
+function isNumericConstant(name: string): boolean {
+  const c = own(CONSTANT_TABLE, name)
+  return c !== undefined && (c.type === 'integer' || c.type === 'float')
 }

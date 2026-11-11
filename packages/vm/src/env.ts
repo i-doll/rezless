@@ -8,6 +8,8 @@ interface Slot {
   type: LslType
   value: EvalResult
   bytes: number
+  /** A function or event handler parameter. */
+  param?: boolean
 }
 
 /**
@@ -27,17 +29,37 @@ export class Env {
     private readonly parent: Env | null = null,
     private readonly memory: Memory | null = null,
     private readonly global = memory !== null,
-  ) {}
+  ) {
+    // One store per function or handler call, shared by its nested scopes.
+    this.lastValues = parent && !parent.global ? parent.lastValues : new WeakMap()
+  }
+
+  /**
+   * The value each local declaration last held during this call, keyed by
+   * its declaration. SLua keeps a local in one register for the whole call,
+   * so a jump that skips the declaration finds this value there.
+   */
+  private readonly lastValues: WeakMap<object, EvalResult>
+
+  /** The value the local declared by `decl` last held in this call, if any. */
+  lastValue(decl: object): EvalResult | undefined {
+    return this.lastValues.get(decl)
+  }
+
+  /** Record `name`'s current value as the last value of the local declared by `decl`. */
+  saveLastValue(decl: object, name: string): void {
+    this.lastValues.set(decl, this.get(name))
+  }
 
   /** Declare a new variable in the current scope. Coerces init to declared type. */
-  declare(name: string, type: LslType, init?: EvalResult): void {
+  declare(name: string, type: LslType, init?: EvalResult, param = false): void {
     if (this.slots.has(name)) {
       throw new Error(`variable '${name}' already declared in this scope`)
     }
     const value = init ? stored(coerce(init, type)) : uninitialized(type)
     const bytes = this.bytesFor(value)
     this.charge(bytes)
-    this.slots.set(name, { type, value, bytes })
+    this.slots.set(name, param ? { type, value, bytes, param } : { type, value, bytes })
   }
 
   /**
@@ -80,6 +102,15 @@ export class Env {
     const coerced = coerce(value, slot.type)
     this.store(slot, stored(coerced))
     return this.global ? slot.value : coerced
+  }
+
+  /** Whether `name` is a global, a parameter or a local, or undefined if it isn't declared. */
+  scopeOf(name: string): 'global' | 'param' | 'local' | undefined {
+    for (let env: Env | null = this; env; env = env.parent) {
+      const slot = env.slots.get(name)
+      if (slot) return env.global ? 'global' : slot.param ? 'param' : 'local'
+    }
+    return undefined
   }
 
   hasOwn(name: string): boolean {
