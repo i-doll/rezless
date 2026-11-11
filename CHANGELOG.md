@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.1](https://github.com/i-doll/rezless/compare/v0.12.0...v0.12.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* validate rezless against SLua's LSL implementation ([#389](https://github.com/i-doll/rezless/issues/389)) ([208f955](https://github.com/i-doll/rezless/commit/208f9559a74379dcfa54f6df4a7d8d358ec9ba52))
+* **vm:** conform to SLua's LSL conformance suite ([#387](https://github.com/i-doll/rezless/issues/387)) ([22013c1](https://github.com/i-doll/rezless/commit/22013c1859ffaff472ef225f77f5c8e4e9f1775c))
+
 ## [0.12.0](https://github.com/i-doll/rezless/compare/v0.11.1...v0.12.0) (2026-11-03)
 
 
