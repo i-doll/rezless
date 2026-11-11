@@ -113,9 +113,9 @@ export function applyBinary(
     case '%':
       return opMod(left, right)
     case '<<':
-      return intBinary(left, right, (a, b) => toInt32(a << (b & 31)))
+      return intBinary(left, right, shiftLeft)
     case '>>':
-      return intBinary(left, right, (a, b) => toInt32(a >> (b & 31)))
+      return intBinary(left, right, shiftRight)
     case '&':
       return intBinary(left, right, (a, b) => toInt32(a & b))
     case '^':
@@ -430,3 +430,23 @@ export function reduceCompound(
 }
 
 export { coerce, stringify }
+
+/**
+ * `a << b` as SLua runs it (Luau's bit32.lshift): a count of 32 or more
+ * gives 0, and a negative count shifts right (logically) instead.
+ */
+function shiftLeft(a: number, b: number): number {
+  const r = a >>> 0
+  if (b < 0) return -b >= 32 ? 0 : (r >>> -b) | 0
+  return b >= 32 ? 0 : (r << b) | 0
+}
+
+/**
+ * `a >> b` as SLua runs it (Luau's bit32.arshift): arithmetic, so a negative
+ * `a` shifted by 32 or more gives -1 and a non-negative one 0; a negative
+ * count shifts left instead.
+ */
+function shiftRight(a: number, b: number): number {
+  if (b < 0 || a >= 0) return shiftLeft(a, -b)
+  return b >= 32 ? -1 : a >> b
+}

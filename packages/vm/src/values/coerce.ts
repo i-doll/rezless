@@ -1,6 +1,6 @@
 import type { EvalResult, LslType, LslValue } from './types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32, toFloat32 } from './types.js'
-import { formatFloatZeroRule, formatList, formatVector, formatRotation } from './format.js'
+import { formatFloat, formatList, formatVector, formatRotation } from './format.js'
 import { scriptList } from './list-types.js'
 
 /**
@@ -22,8 +22,8 @@ export function coerce(from: EvalResult, target: LslType): EvalResult {
   const v = from.value
   switch (target) {
     case 'integer': {
-      // Mono converts from float32, so a double temporary rounds first.
-      if (typeof v === 'number') return { type: 'integer', value: floatToInteger(toFloat32(v)) }
+      // A double temporary truncates as it is (SLua's lsl_float_to_int).
+      if (typeof v === 'number') return { type: 'integer', value: floatToInteger(v) }
       if (typeof v === 'string') return { type: 'integer', value: parseLslInteger(v) }
       throw typeError(from, target)
     }
@@ -71,7 +71,7 @@ export function stringify(r: EvalResult): string {
     case 'integer':
       return String(toInt32(v as number))
     case 'float':
-      return formatFloatZeroRule(toFloat32(v as number))
+      return formatFloat(toFloat32(v as number))
     case 'string':
       return v as string
     case 'key':

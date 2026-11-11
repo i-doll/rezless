@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { formatFloatExact, formatListElement } from '../values/format.js'
+import { formatFloatExact, formatFloatPositiveZero, formatListElement } from '../values/format.js'
 import { floatToInteger, parseLslInteger } from '../values/coerce.js'
 import {
   LIST_STAT_GEOMETRIC_MEAN,
@@ -228,16 +228,8 @@ function lslElementsEqual(a: LslValue | undefined, b: LslValue | undefined): boo
 export const llDumpList2String: BuiltinImpl = (_ctx, args) => {
   const list = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const sep = (args[1] as string | undefined) ?? ''
-  return list.map((v, i) => formatListElement(unsignZero(v), listElementType(list, i))).join(sep)
-}
-
-/** Mono's llDumpList2String prints negative zero without its sign (SVC-1399). */
-function unsignZero(v: LslValue): LslValue {
-  const z = (n: number) => (n === 0 ? 0 : n)
-  if (typeof v === 'number') return z(v)
-  if (isRotation(v)) return { x: z(v.x), y: z(v.y), z: z(v.z), s: z(v.s) }
-  if (isVector(v)) return { x: z(v.x), y: z(v.y), z: z(v.z) }
-  return v
+  // Mono prints a negative float that rounds to zero without its sign here (SVC-1399).
+  return list.map((v, i) => formatListElement(v, listElementType(list, i), formatFloatPositiveZero)).join(sep)
 }
 
 export const llList2CSV: BuiltinImpl = (_ctx, args) => {

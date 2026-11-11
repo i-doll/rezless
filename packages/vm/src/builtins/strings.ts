@@ -1,5 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { decodeUtf8Lenient } from './base64.js'
+import { monoToLower, monoToUpper } from '../values/mono-case.js'
 import { STRING_TRIM_HEAD, STRING_TRIM_TAIL } from '../generated/constants.js'
 
 /** llStringLength(string s) — Unicode code-point count, not byte count. */
@@ -56,15 +57,8 @@ export const llStringTrim: BuiltinImpl = (_ctx, args) => {
   return s
 }
 
-export const llToLower: BuiltinImpl = (_ctx, args) =>
-  ((args[0] as string | undefined) ?? '').toLowerCase()
-export const llToUpper: BuiltinImpl = (_ctx, args) =>
-  [...((args[0] as string | undefined) ?? '')]
-    .map((ch) => {
-      const up = ch.toUpperCase()
-      return [...up].length > 1 ? ch : up
-    })
-    .join('')
+export const llToLower: BuiltinImpl = (_ctx, args) => monoToLower((args[0] as string | undefined) ?? '')
+export const llToUpper: BuiltinImpl = (_ctx, args) => monoToUpper((args[0] as string | undefined) ?? '')
 
 export const llReplaceSubString: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''

@@ -32,6 +32,7 @@ import { scriptList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
 import { Env, stored } from './env.js'
 import { own } from './own.js'
+import { CONSTANT_TABLE } from './generated/constants_table.js'
 import { RuntimeError, StackHeapCollision, frameBytes } from './memory.js'
 import { HaltSignal } from './builtins/object.js'
 
@@ -394,14 +395,40 @@ function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): E
       return yield* evalBinary(ctx, env, expr)
     case 'AssignmentExpression':
       return yield* evalAssignment(ctx, env, expr)
-    case 'CastExpression':
-      return coerce(yield* evalExpression(ctx, env, expr.argument), expr.targetType as LslType)
+    case 'CastExpression': {
+      const value = yield* evalExpression(ctx, env, expr.argument)
+      // SLua folds a constant float cast to integer at compile time, going
+      // through float32 first; at run time it truncates the double.
+      if (expr.targetType === 'integer' && value.type === 'float' && isConstantExpression(expr.argument)) {
+        return coerce({ type: 'float', value: toFloat32(value.value as number) }, 'integer')
+      }
+      return coerce(value, expr.targetType as LslType)
+    }
     case 'MemberExpression':
       return yield* evalMember(ctx, env, expr)
     case 'UpdateExpression':
       return yield* evalUpdate(ctx, env, expr)
     case 'PrintExpression':
       return defaultEvalFor((yield* evalExpression(ctx, env, expr.argument)).type)
+  }
+}
+
+/** Whether SLua's compiler folds `e` to a constant: literals and LSL constants under operators and casts. */
+function isConstantExpression(e: Expression): boolean {
+  switch (e.kind) {
+    case 'IntegerLiteral':
+    case 'FloatLiteral':
+    case 'StringLiteral':
+      return true
+    case 'Identifier':
+      return own(CONSTANT_TABLE, e.name) !== undefined
+    case 'UnaryExpression':
+    case 'CastExpression':
+      return isConstantExpression(e.argument)
+    case 'BinaryExpression':
+      return isConstantExpression(e.left) && isConstantExpression(e.right)
+    default:
+      return false
   }
 }
 

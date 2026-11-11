@@ -48,6 +48,9 @@ The LSL conformance scripts under packages/vm/test/slua-conformance/fixtures/
 are copied unchanged from secondlife/slua (https://github.com/secondlife/slua,
 tests/conformance/*.lsl, commit af1379e6fc30d66ba991f15213f2d48d65175e55),
 licensed under the MIT License; its full text is in that directory's LICENSE.
+The case-mapping tables in packages/vm/src/values/mono-case.ts are derived
+from the same project's VM/src/mono_strings.cpp, which takes them from Mono
+2.6 (mono/metadata/char-conversions.h, MIT License).
 
 Copyright (c) 2025 Linden Lab
 Copyright (c) 2019-2026 Roblox Corporation
