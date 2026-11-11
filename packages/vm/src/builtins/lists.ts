@@ -2,7 +2,7 @@ import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { formatFloatExact, formatFloatPositiveZero, formatListElement } from '../values/format.js'
-import { floatToInteger, parseLslInteger } from '../values/coerce.js'
+import { coerce, floatToInteger, parseLslInteger } from '../values/coerce.js'
 import {
   LIST_STAT_GEOMETRIC_MEAN,
   LIST_STAT_MAX,
@@ -57,8 +57,8 @@ export const llList2Float: BuiltinImpl = (_ctx, args) => {
   if (typeof v === 'string') {
     // Mono reads a key element as 0.0, whatever its text.
     if (listElementType(l, i) === 'key') return 0
-    const n = Number.parseFloat(v)
-    return Number.isNaN(n) ? 0 : n
+    // As a (float) cast: parsed and rounded to float32.
+    return coerce({ type: 'string', value: v }, 'float').value as number
   }
   return 0
 }

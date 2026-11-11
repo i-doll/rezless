@@ -546,10 +546,10 @@ function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): E
  * between integer and float: a number literal (negative ones included), an
  * LSL constant, or such a cast of one. It folds no other operators, and not
  * through parentheses, except the one pair a cast's grammar absorbs
- * (`(float)(1)`). A negated LSL constant folds when it meets a float, but
- * not under a cast.
+ * (`(float)(1)`). A negated LSL constant only folds where `negatedConstant`
+ * allows it (on the left of * / %, which SLua parses as `-(K * x)`).
  */
-function isFoldedConstant(e: Expression, castOperand: boolean): boolean {
+function isFoldedConstant(e: Expression, castOperand: boolean, negatedConstant = false): boolean {
   if ((e.parens ?? 0) > (castOperand ? 1 : 0)) return false
   switch (e.kind) {
     case 'IntegerLiteral':
@@ -560,7 +560,7 @@ function isFoldedConstant(e: Expression, castOperand: boolean): boolean {
     case 'UnaryExpression':
       if (e.operator !== '-' || e.argument.parens) return false
       return e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral' ||
-        (!castOperand && e.argument.kind === 'Identifier' && own(CONSTANT_TABLE, e.argument.name) !== undefined)
+        (negatedConstant && e.argument.kind === 'Identifier' && own(CONSTANT_TABLE, e.argument.name) !== undefined)
     case 'CastExpression':
       return (e.targetType === 'integer' || e.targetType === 'float') && isFoldedConstant(e.argument, true)
     default:
@@ -606,7 +606,10 @@ function* evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): Ex
     if (e.right.kind !== 'CastExpression' || current.type === right.type) right = current
   }
   // An integer constant that meets a float is converted at compile time, to float32.
-  if (left.type === 'integer' && right.type === 'float' && isFoldedConstant(e.left, false)) left = toFloatConstant(left)
+  // SLua parses `-K * x` as `-(K * x)`, so a negated LSL constant on the left
+  // of * / % still meets the float as a constant.
+  const negatedOk = e.operator === '*' || e.operator === '/' || e.operator === '%'
+  if (left.type === 'integer' && right.type === 'float' && isFoldedConstant(e.left, false, negatedOk)) left = toFloatConstant(left)
   if (right.type === 'integer' && left.type === 'float' && isFoldedConstant(e.right, false)) right = toFloatConstant(right)
   return applyBinary(e.operator, left, right)
 }
@@ -787,6 +790,9 @@ function* evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Exe
   const result = yield* callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
   const returnType = (spec?.returnType ?? declared?.returns ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }
-  // Builtins and mocks compute in doubles.
-  return { type: returnType, value: toFloat32Value(result ?? defaultEvalFor(returnType).value, returnType) }
+  // Builtins and mocks compute in doubles and return float32, except
+  // llList2Float, which casts an integer element to an exact double (SLua).
+  const value = result ?? defaultEvalFor(returnType).value
+  if (call.callee === 'llList2Float') return { type: returnType, value }
+  return { type: returnType, value: toFloat32Value(value, returnType) }
 }
