@@ -29,7 +29,27 @@ export class Env {
     private readonly parent: Env | null = null,
     private readonly memory: Memory | null = null,
     private readonly global = memory !== null,
-  ) {}
+  ) {
+    // One store per function or handler call, shared by its nested scopes.
+    this.lastValues = parent && !parent.global ? parent.lastValues : new WeakMap()
+  }
+
+  /**
+   * The value each local declaration last held during this call, keyed by
+   * its declaration. SLua keeps a local in one register for the whole call,
+   * so a jump that skips the declaration finds this value there.
+   */
+  private readonly lastValues: WeakMap<object, EvalResult>
+
+  /** The value the local declared by `decl` last held in this call, if any. */
+  lastValue(decl: object): EvalResult | undefined {
+    return this.lastValues.get(decl)
+  }
+
+  /** Record `name`'s current value as the last value of the local declared by `decl`. */
+  saveLastValue(decl: object, name: string): void {
+    this.lastValues.set(decl, this.get(name))
+  }
 
   /** Declare a new variable in the current scope. Coerces init to declared type. */
   declare(name: string, type: LslType, init?: EvalResult, param = false): void {

@@ -710,7 +710,7 @@ class Parser {
       const inner = this.parseExpression()
       if (!inner) return null
       if (!this.expect('rparen', "expected ')'")) return null
-      return { ...inner, parenthesized: true }
+      return { ...inner, parens: (inner.parens ?? 0) + 1 }
     }
     if (t.kind === 'lbracket') {
       return this.parseListLiteral()

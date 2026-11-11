@@ -110,22 +110,59 @@ function resolveJumps(body: BlockStatement): void {
 
 /** Why a jump that left its function or handler went nowhere. */
 function jumpError(e: JumpSignal, where: string): string {
-  return e.target
-    ? `rezless can't jump into the loop or if body holding label '${e.label}' in ${where}`
-    : `jump to undefined label '${e.label}' in ${where}`
+  return `jump to undefined label '${e.label}' in ${where}`
 }
 
-/** Statement indexes from `block` down to `target` through nested `{ }` blocks, or null. */
-function pathTo(block: BlockStatement, target: LabelStatement): number[] | null {
-  for (let i = 0; i < block.body.length; i++) {
-    const s = block.body[i]!
-    if (s === target) return [i]
-    if (s.kind === 'BlockStatement') {
-      const rest = pathTo(s, target)
-      if (rest) return [i, ...rest]
-    }
+/**
+ * How to reach a label from a statement: an index into a block, or the
+ * branch or loop body to enter. Empty when the statement is the label.
+ */
+type JumpPath = ReadonlyArray<number | 'then' | 'else' | 'body'>
+
+function pathIn(stmt: Statement, target: LabelStatement): JumpPath | null {
+  if (stmt === target) return []
+  const into = (step: 'then' | 'else' | 'body', child: Statement | null): JumpPath | null => {
+    const rest = child && pathIn(child, target)
+    return rest ? [step, ...rest] : null
   }
-  return null
+  switch (stmt.kind) {
+    case 'BlockStatement':
+      for (let i = 0; i < stmt.body.length; i++) {
+        const rest = pathIn(stmt.body[i]!, target)
+        if (rest) return [i, ...rest]
+      }
+      return null
+    case 'IfStatement':
+      return into('then', stmt.consequent) ?? into('else', stmt.alternate)
+    case 'WhileStatement':
+    case 'DoWhileStatement':
+    case 'ForStatement':
+      return into('body', stmt.body)
+    default:
+      return null
+  }
+}
+
+/**
+ * Run `stmt` from the label `path` leads to, as when a jump lands inside it:
+ * a branch carries on after the `if`, and a loop body carries on looping.
+ */
+function* execResumed(ctx: InterpreterContext, env: Env, stmt: Statement, path: JumpPath): Exec<void> {
+  if (path.length === 0) return
+  switch (stmt.kind) {
+    case 'BlockStatement':
+      return yield* execBlock(ctx, env, stmt, path)
+    case 'IfStatement':
+      return yield* execResumed(ctx, env, path[0] === 'then' ? stmt.consequent : stmt.alternate!, path.slice(1))
+    case 'WhileStatement':
+      return yield* execWhile(ctx, env, stmt, path.slice(1))
+    case 'DoWhileStatement':
+      return yield* execDoWhile(ctx, env, stmt, path.slice(1))
+    case 'ForStatement':
+      return yield* execFor(ctx, env, stmt, path.slice(1))
+    default:
+      return
+  }
 }
 
 export class StateChangeSignal {
@@ -264,14 +301,14 @@ function* callUserFunction(
 }
 
 /**
- * Run a block. `resume` starts it at a label instead: statement indexes down
- * through nested `{ }` blocks to the label, as when a jump lands inside.
+ * Run a block. `resume` starts it at a label instead, as when a jump lands
+ * inside: its first step is an index into this block.
  */
 function* execBlock(
   ctx: InterpreterContext,
   env: Env,
   block: BlockStatement,
-  resume: number[] | null = null,
+  resume: JumpPath | null = null,
 ): Exec<void> {
   const child = env.push()
   // Duplicate-decl detection has to run upfront because we use
@@ -285,14 +322,17 @@ function* execBlock(
     declaredNames.add(s.name)
   }
   let i = 0
-  let nested: number[] | null = null
-  // Land on `path`: locals declared before it that never ran keep their
-  // default values, as SLua initializes them.
-  const land = (path: number[]): void => {
-    i = path[0]!
+  let nested: JumpPath | null = null
+  // Land on `path`. SLua keeps each local in one register for the whole call,
+  // so a declaration the jump skips leaves the value the local last had (or
+  // its default, if it never had one).
+  const land = (path: JumpPath): void => {
+    i = path[0] as number
     for (let j = 0; j < i; j++) {
       const s = block.body[j]!
-      if (s.kind === 'VariableDeclaration' && !child.hasOwn(s.name)) child.declare(s.name, s.typeName as LslType)
+      if (s.kind === 'VariableDeclaration' && !child.hasOwn(s.name)) {
+        child.declare(s.name, s.typeName as LslType, child.lastValue(s))
+      }
     }
     if (path.length > 1) nested = path.slice(1)
     else i++
@@ -305,13 +345,13 @@ function* execBlock(
         if (nested) {
           const path = nested
           nested = null
-          yield* execBlock(ctx, child, stmt as BlockStatement, path)
+          yield* execResumed(ctx, child, stmt, path)
         } else yield* execStatement(ctx, child, stmt)
         i++
       } catch (e) {
-        const path = e instanceof JumpSignal && e.target ? pathTo(block, e.target) : null
+        const path = e instanceof JumpSignal && e.target ? pathIn(block, e.target) : null
         if (path) {
-          if (path[0]! <= i) iterate(ctx)
+          if ((path[0] as number) <= i) iterate(ctx)
           land(path)
           continue
         }
@@ -319,6 +359,10 @@ function* execBlock(
       }
     }
   } finally {
+    // Remember each local's value for a later jump that skips its declaration.
+    for (const s of block.body) {
+      if (s.kind === 'VariableDeclaration' && child.hasOwn(s.name)) child.saveLastValue(s, s.name)
+    }
     child.clear()
   }
 }
@@ -390,42 +434,57 @@ function* execIf(ctx: InterpreterContext, env: Env, stmt: IfStatement): Exec<voi
   }
 }
 
-function* execWhile(ctx: InterpreterContext, env: Env, stmt: WhileStatement): Exec<void> {
+/** `resume`, if given, is the path to a label in the body that a jump landed on. */
+function* execWhile(ctx: InterpreterContext, env: Env, stmt: WhileStatement, resume: JumpPath | null = null): Exec<void> {
   const cov = ctx.state.coverage
   while (true) {
-    const t = truthy(yield* evalExpression(ctx, env, stmt.test))
-    if (cov) cov.hitBranch(stmt.loc, t)
-    if (!t) break
-    yield* execStatement(ctx, env, stmt.body)
-    iterate(ctx)
-  }
-}
-
-function* execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement): Exec<void> {
-  const cov = ctx.state.coverage
-  while (true) {
-    yield* execStatement(ctx, env, stmt.body)
-    const t = truthy(yield* evalExpression(ctx, env, stmt.test))
-    if (cov) cov.hitBranch(stmt.loc, t)
-    if (!t) break
-    iterate(ctx)
-  }
-}
-
-function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement): Exec<void> {
-  const child = env.push()
-  const cov = ctx.state.coverage
-  for (const e of stmt.init) yield* evalDiscarded(ctx, child, e)
-  while (true) {
-    if (stmt.test) {
-      const t = truthy(yield* evalExpression(ctx, child, stmt.test))
+    if (resume) {
+      yield* execResumed(ctx, env, stmt.body, resume)
+      resume = null
+    } else {
+      const t = truthy(yield* evalExpression(ctx, env, stmt.test))
       if (cov) cov.hitBranch(stmt.loc, t)
       if (!t) break
-    } else if (cov) {
-      // Infinite loop: still useful to record "body entered".
-      cov.hitBranch(stmt.loc, true)
+      yield* execStatement(ctx, env, stmt.body)
     }
-    yield* execStatement(ctx, child, stmt.body)
+    iterate(ctx)
+  }
+}
+
+function* execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement, resume: JumpPath | null = null): Exec<void> {
+  const cov = ctx.state.coverage
+  while (true) {
+    if (resume) {
+      yield* execResumed(ctx, env, stmt.body, resume)
+      resume = null
+    } else yield* execStatement(ctx, env, stmt.body)
+    const t = truthy(yield* evalExpression(ctx, env, stmt.test))
+    if (cov) cov.hitBranch(stmt.loc, t)
+    if (!t) break
+    iterate(ctx)
+  }
+}
+
+function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement, resume: JumpPath | null = null): Exec<void> {
+  const child = env.push()
+  const cov = ctx.state.coverage
+  if (!resume) for (const e of stmt.init) yield* evalDiscarded(ctx, child, e)
+  while (true) {
+    if (resume) {
+      // A jump landed in the body: finish it, then update and test as usual.
+      yield* execResumed(ctx, child, stmt.body, resume)
+      resume = null
+    } else {
+      if (stmt.test) {
+        const t = truthy(yield* evalExpression(ctx, child, stmt.test))
+        if (cov) cov.hitBranch(stmt.loc, t)
+        if (!t) break
+      } else if (cov) {
+        // Infinite loop: still useful to record "body entered".
+        cov.hitBranch(stmt.loc, true)
+      }
+      yield* execStatement(ctx, child, stmt.body)
+    }
     for (const e of stmt.update) yield* evalDiscarded(ctx, child, e)
     iterate(ctx)
   }
@@ -467,7 +526,7 @@ function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): E
       // SLua folds an integer <-> float cast of a constant at compile time,
       // through float32; at run time int -> float is exact and float -> int
       // truncates the double.
-      if (isFoldedConstant(expr.argument)) {
+      if (isFoldedConstant(expr.argument, true)) {
         if (expr.targetType === 'integer' && value.type === 'float') return coerce(toFloatConstant(value), 'integer')
         if (expr.targetType === 'float' && value.type === 'integer') return toFloatConstant(value)
       }
@@ -483,11 +542,15 @@ function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): E
 }
 
 /**
- * Whether SLua's compiler turns `e` into a constant: a number literal
- * (negative ones included), an LSL constant, or an integer <-> float cast
- * of one. It folds no other operators.
+ * Whether SLua's compiler turns `e` into a constant when converting it
+ * between integer and float: a number literal (negative ones included), an
+ * LSL constant, or such a cast of one. It folds no other operators, and not
+ * through parentheses, except the one pair a cast's grammar absorbs
+ * (`(float)(1)`). A negated LSL constant folds when it meets a float, but
+ * not under a cast.
  */
-function isFoldedConstant(e: Expression): boolean {
+function isFoldedConstant(e: Expression, castOperand: boolean): boolean {
+  if ((e.parens ?? 0) > (castOperand ? 1 : 0)) return false
   switch (e.kind) {
     case 'IntegerLiteral':
     case 'FloatLiteral':
@@ -495,9 +558,11 @@ function isFoldedConstant(e: Expression): boolean {
     case 'Identifier':
       return own(CONSTANT_TABLE, e.name) !== undefined
     case 'UnaryExpression':
-      return e.operator === '-' && (e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral')
+      if (e.operator !== '-' || e.argument.parens) return false
+      return e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral' ||
+        (!castOperand && e.argument.kind === 'Identifier' && own(CONSTANT_TABLE, e.argument.name) !== undefined)
     case 'CastExpression':
-      return (e.targetType === 'integer' || e.targetType === 'float') && isFoldedConstant(e.argument)
+      return (e.targetType === 'integer' || e.targetType === 'float') && isFoldedConstant(e.argument, true)
     default:
       return false
   }
@@ -534,30 +599,59 @@ function* evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): Ex
   // LSL: && and || are NOT short-circuit, and the right operand runs first.
   let right = yield* evalExpression(ctx, env, e.right)
   let left = yield* evalExpression(ctx, env, e.left)
-  // SLua reads a variable on the right from its register after the left side
-  // has run, without copying it first, in two cases: a comparison with a
-  // local or parameter, and arithmetic with a parameter. So `(x = 4) == x`
-  // is 1. A type conversion between the operands makes a copy, so this only
-  // happens when both sides have the same type.
-  if (e.right.kind === 'Identifier' && left.type === right.type && READ_IN_PLACE.has(right.type)) {
-    const scope = env.scopeOf(e.right.name)
-    if ((COMPARISONS.has(e.operator) && scope !== 'global' && scope !== undefined) ||
-        (ARITHMETIC.has(e.operator) && scope === 'param')) {
-      right = env.get(e.right.name)
-    }
+  const name = inPlaceName(e.right)
+  if (name !== undefined && readsInPlace(e.operator, env.scopeOf(name), left, right)) {
+    const current = env.get(name)
+    // A cast is only dropped when it is to the variable's own type.
+    if (e.right.kind !== 'CastExpression' || current.type === right.type) right = current
   }
   // An integer constant that meets a float is converted at compile time, to float32.
-  if (left.type === 'integer' && right.type === 'float' && isFoldedConstant(e.left)) left = toFloatConstant(left)
-  if (right.type === 'integer' && left.type === 'float' && isFoldedConstant(e.right)) right = toFloatConstant(right)
+  if (left.type === 'integer' && right.type === 'float' && isFoldedConstant(e.left, false)) left = toFloatConstant(left)
+  if (right.type === 'integer' && left.type === 'float' && isFoldedConstant(e.right, false)) right = toFloatConstant(right)
   return applyBinary(e.operator, left, right)
 }
 
-const READ_IN_PLACE: ReadonlySet<LslType> = new Set(['integer', 'float', 'vector', 'rotation'])
+/**
+ * The variable a right operand reads straight from its register in SLua: an
+ * unparenthesized identifier, or a cast of one to its own type, which SLua's
+ * compiler drops. Undefined for anything else.
+ */
+function inPlaceName(e: Expression): string | undefined {
+  if (e.parens) return undefined
+  if (e.kind === 'Identifier') return e.name
+  if (e.kind === 'CastExpression' && !e.argument.parens && e.argument.kind === 'Identifier') return e.argument.name
+  return undefined
+}
+
+/**
+ * Whether SLua reads the right operand's variable after the left side runs,
+ * rather than copying it first, so `(x = 4) == x` is 1. A comparison never
+ * copies a local or parameter, except a local list; the other operators copy
+ * a local but read a parameter in place. Strings, bitwise operators and list
+ * concatenation always copy, as does a conversion of the right operand.
+ */
+function readsInPlace(op: string, scope: string | undefined, left: EvalResult, right: EvalResult): boolean {
+  if (scope !== 'local' && scope !== 'param') return false
+  // A cast in the source to the variable's own type is fine; an implicit conversion copies.
+  const converted = (right.type === 'integer' && left.type === 'float') || (right.type === 'key' && left.type === 'string')
+  if (converted) return false
+  if (COMPARISONS.has(op)) return right.type !== 'list' || scope === 'param'
+  if (scope !== 'param') return false
+  if (op === '&&' || op === '||') return true
+  return ARITHMETIC.has(op) && right.type !== 'string' && right.type !== 'list' && left.type !== 'list'
+}
+
 const COMPARISONS: ReadonlySet<string> = new Set(['==', '!=', '<', '>', '<=', '>='])
 const ARITHMETIC: ReadonlySet<string> = new Set(['+', '-', '*', '/', '%'])
 
 function toFloatConstant(r: EvalResult): EvalResult {
   return { type: 'float', value: toFloat32(r.value as number) }
+}
+
+/** Whether assigning to `target` stores a float: a float variable or a vector/rotation component. */
+function assignsFloat(env: Env, target: Expression): boolean {
+  if (target.kind === 'MemberExpression') return true
+  return target.kind === 'Identifier' && env.get(target.name).type === 'float'
 }
 
 /** Evaluate an expression whose value nothing uses: a statement, or a `for` init or update. */
@@ -572,7 +666,12 @@ function* evalAssignment(
   e: AssignmentExpression,
   used = true,
 ): Exec<EvalResult> {
-  const newValue = yield* evalExpression(ctx, env, e.value)
+  let newValue = yield* evalExpression(ctx, env, e.value)
+  // An integer constant assigned to a float (`f = 1`, `f += 1`, `v.x = 1`) is
+  // converted at compile time, to float32.
+  if (newValue.type === 'integer' && isFoldedConstant(e.value, false) && assignsFloat(env, e.target)) {
+    newValue = toFloatConstant(newValue)
+  }
   const result = assignTo(ctx, env, e.target, e.operator, newValue)
   // `integer *= float` stores its result, but Mono can't produce it as a value.
   if (used && e.operator === '*=' && result.type === 'integer' && newValue.type === 'float') {

@@ -460,8 +460,8 @@ class Checker {
       }
       case 'CastExpression': {
         const arg = e.argument
-        if (arg.kind === 'UnaryExpression' && !arg.parenthesized && arg.argument.kind === 'Identifier' &&
-            !arg.argument.parenthesized && !isNumericConstant(arg.argument.name)) {
+        if (arg.kind === 'UnaryExpression' && !arg.parens && arg.argument.kind === 'Identifier' &&
+            !arg.argument.parens && !isNumericConstant(arg.argument.name)) {
           this.error(e, 'Typecast requires parentheses')
         }
         const t = this.expr(e.argument)
@@ -547,7 +547,7 @@ class Checker {
  */
 function isSimpleGlobalInit(e: Expression, allowList: boolean): boolean {
   // SLua rejects a parenthesized initializer, even `(1)`.
-  if (e.parenthesized) return false
+  if (e.parens) return false
   switch (e.kind) {
     case 'IntegerLiteral':
     case 'FloatLiteral':
@@ -559,7 +559,7 @@ function isSimpleGlobalInit(e: Expression, allowList: boolean): boolean {
       // than TRUE and FALSE (which SLua's lexer treats specially).
       return (
         e.operator === '-' &&
-        !e.argument.parenthesized &&
+        !e.argument.parens &&
         (e.argument.kind === 'IntegerLiteral' ||
           e.argument.kind === 'FloatLiteral' ||
           (e.argument.kind === 'Identifier' && isNumericConstant(e.argument.name) &&
