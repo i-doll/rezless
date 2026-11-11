@@ -10,8 +10,16 @@ export const llAbs: BuiltinImpl = (_ctx, args) => {
 
 /** llFabs(float val) — absolute value (float). */
 export const llFabs: BuiltinImpl = (_ctx, args) => {
-  return Math.abs((args[0] as number | undefined) ?? 0)
+  // As Mono 2.x (and SLua): -0.0 is not below zero, so it keeps its sign.
+  const x = (args[0] as number | undefined) ?? 0
+  return x < 0 ? -x : x
 }
+
+/** C's `result == -0.0`, which is true for either zero: both become +0. */
+const unsignedZero = (n: number): number => (n === 0 ? 0 : n)
+
+/** Doubles beyond this are all even integers (SLua's LARGEST_INT_DOUBLE). */
+const LARGEST_INT_DOUBLE = 2 ** 53 - 1
 
 /** Second Life gives -2147483648 for a rounded result outside int32, NaN and infinity. */
 const toIntOrMin = (n: number): number =>
@@ -26,23 +34,41 @@ export const llCeil: BuiltinImpl = (_ctx, args) =>
 export const llFloor: BuiltinImpl = (_ctx, args) =>
   toIntOrMin(Math.floor((args[0] as number | undefined) ?? 0))
 
-export const llPow: BuiltinImpl = (_ctx, args) =>
-  Math.pow((args[0] as number) ?? 0, (args[1] as number) ?? 0)
+/** llPow, with the Mono 2.x limit cases SLua reproduces. */
+export const llPow: BuiltinImpl = (_ctx, args) => {
+  const x = (args[0] as number) ?? 0
+  const y = (args[1] as number) ?? 0
+  if (Number.isNaN(x) || Number.isNaN(y)) return NaN
+  if ((x === 1 || x === -1) && !Number.isFinite(y)) return NaN
+  if (x < -LARGEST_INT_DOUBLE) {
+    if (y > LARGEST_INT_DOUBLE) return Infinity
+    if (y < -LARGEST_INT_DOUBLE) return 0
+  }
+  const result = Math.pow(x, y)
+  if (Number.isNaN(result) && x === -1 && Math.abs(y) > LARGEST_INT_DOUBLE) return 1
+  return unsignedZero(result)
+}
 export const llSqrt: BuiltinImpl = (_ctx, args) => Math.sqrt((args[0] as number) ?? 0)
 export const llSin: BuiltinImpl = (_ctx, args) => Math.sin((args[0] as number) ?? 0)
 export const llCos: BuiltinImpl = (_ctx, args) => Math.cos((args[0] as number) ?? 0)
 export const llTan: BuiltinImpl = (_ctx, args) => Math.tan((args[0] as number) ?? 0)
 export const llAsin: BuiltinImpl = (_ctx, args) => Math.asin((args[0] as number) ?? 0)
 export const llAcos: BuiltinImpl = (_ctx, args) => Math.acos((args[0] as number) ?? 0)
-export const llAtan2: BuiltinImpl = (_ctx, args) =>
-  Math.atan2((args[0] as number) ?? 0, (args[1] as number) ?? 0)
+/** llAtan2: both arguments infinite gives NaN, and a zero result is +0 (Mono 2.x, as SLua). */
+export const llAtan2: BuiltinImpl = (_ctx, args) => {
+  const y = (args[0] as number) ?? 0
+  const x = (args[1] as number) ?? 0
+  if (!Number.isFinite(y) && !Number.isFinite(x) && !Number.isNaN(y) && !Number.isNaN(x)) return NaN
+  return unsignedZero(Math.atan2(y, x))
+}
 export const llLog: BuiltinImpl = (_ctx, args) => {
   const x = (args[0] as number | undefined) ?? 0
-  return x <= 0 ? 0 : Math.log(x)
+  // Anything not above zero, NaN included, gives 0.
+  return x > 0 ? Math.log(x) : 0
 }
 export const llLog10: BuiltinImpl = (_ctx, args) => {
   const x = (args[0] as number | undefined) ?? 0
-  return x <= 0 ? 0 : Math.log10(x)
+  return x > 0 ? Math.log10(x) : 0
 }
 
 /** llFrand(float mag) — seeded uniform [0, mag). Negative mag → [mag, 0). */

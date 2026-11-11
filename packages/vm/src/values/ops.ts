@@ -49,8 +49,7 @@ export function truthy(r: EvalResult): boolean {
     case 'string':
       return (r.value as string).length > 0
     case 'key':
-      // In LSL, a key is "true" if it is a valid UUID and not NULL_KEY.
-      return isValidUuid(r.value as string)
+      return isKeyTruthy(r.value as string)
     case 'vector':
       return !isVectorZero(r.value as Vector)
     case 'rotation': {
@@ -63,13 +62,6 @@ export function truthy(r: EvalResult): boolean {
     case 'void':
       return false
   }
-}
-
-function isValidUuid(k: string): boolean {
-  return (
-    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(k) &&
-    k !== NULL_KEY
-  )
 }
 
 function isVectorZero(v: Vector): boolean {
@@ -449,4 +441,28 @@ function shiftLeft(a: number, b: number): number {
 function shiftRight(a: number, b: number): number {
   if (b < 0 || a >= 0) return shiftLeft(a, -b)
   return b >= 32 ? -1 : a >> b
+}
+
+/**
+ * A key is true when it reads as a non-null UUID, by the simulator's lenient
+ * parser (SLua's validate_uuid_str): 32 hex digits, either case, in the
+ * 36-character layout or the old 35-character one missing its last dash.
+ * The separator characters themselves are not checked.
+ */
+function isKeyTruthy(key: string): boolean {
+  const bytes = new TextEncoder().encode(key)
+  const broken = bytes.length === 35
+  if (bytes.length !== 36 && !broken) return false
+  let pos = 0
+  let allZero = true
+  for (let i = 0; i < 16; i++) {
+    if (i === 4 || i === 6 || i === 8 || (i === 10 && !broken)) pos++
+    for (let j = 0; j < 2; j++, pos++) {
+      const c = bytes[pos]!
+      const hex = (c >= 0x30 && c <= 0x39) || (c >= 0x61 && c <= 0x66) || (c >= 0x41 && c <= 0x46)
+      if (!hex) return false
+      if (c !== 0x30) allZero = false
+    }
+  }
+  return !allZero
 }

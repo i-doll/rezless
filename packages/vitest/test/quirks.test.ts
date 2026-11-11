@@ -113,31 +113,21 @@ describe('Phase 2 — LSL quirks', () => {
     expect(() => s.start()).toThrow(/Math Error: divide by zero/)
   })
 
-  it('a list used as a list element throws at runtime', async () => {
-    const s = await loadScript({
-      source: `default { state_entry() { list x = [2]; list y = [x]; } }`,
-    })
-    expect(() => s.start()).toThrow(/Lists may not contain lists/)
+  // SLua rejects a list element at compile time (Tailslide: "Lists may not contain other lists").
+  it.each([
+    ['a list variable', 'list x = [2]; list y = [x];'],
+    ['an empty list', 'list once = []; list twice = [once, once];'],
+    ['a list cast', 'list y = [(list)1];'],
+  ])('rejects %s used as a list element at compile time', async (_name, body) => {
+    await expect(loadScript({ source: `default { state_entry() { ${body} } }` })).rejects.toThrow(
+      /Lists may not contain other lists/,
+    )
   })
 
-  it('an empty list used as a list element still throws', async () => {
-    const s = await loadScript({
-      source: `default { state_entry() { list once = []; list twice = [once, once]; } }`,
-    })
-    expect(() => s.start()).toThrow(/Lists may not contain lists/)
-  })
-
-  it('a list cast used as a list element throws', async () => {
-    const s = await loadScript({
-      source: `default { state_entry() { list y = [(list)1]; } }`,
-    })
-    expect(() => s.start()).toThrow(/Lists may not contain lists/)
-  })
-
-  it('a global list used as a global list element throws on load', async () => {
+  it('rejects a global list used as a global list element at compile time', async () => {
     await expect(
       loadScript({ source: `list a = [1]; list b = [a]; default { state_entry() {} }` }),
-    ).rejects.toThrow(/Lists may not contain lists/)
+    ).rejects.toThrow(/Lists may not contain other lists/)
   })
 
   it('list-to-string concatenates elements with no separator', async () => {

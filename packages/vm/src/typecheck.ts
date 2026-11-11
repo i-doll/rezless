@@ -410,8 +410,12 @@ class Checker {
         for (const c of [e.x, e.y, e.z, e.s]) this.component(c)
         return 'rotation'
       case 'ListLiteral':
-        // SL compiles any element type; a list or void element only fails at runtime.
-        for (const el of e.elements) this.expr(el)
+        // A list or void element is a compile error, as in SLua.
+        for (const el of e.elements) {
+          const t = this.expr(el)
+          if (t === 'list') this.error(el, 'Lists may not contain other lists')
+          else if (t === 'void') this.error(el, 'Lists may not contain nulls')
+        }
         return 'list'
       case 'Identifier': {
         const t = this.lookup(e.name)

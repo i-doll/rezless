@@ -94,14 +94,18 @@ export function floatToInteger(n: number): number {
 }
 
 /**
- * LSL `(integer)str` parsing.
- *   - Skip leading whitespace
- *   - Optional + or - sign
- *   - Optional `0x` for hex (not accepted after a '-')
- *   - Read decimal digits (or hex digits) until the first non-matching character
+ * LSL `(integer)str` parsing, as SLua does it (C `strtoul`):
+ *   - Hex only when the string starts with `0x` or `0X` (no leading space
+ *     or sign); octal is never used
+ *   - Otherwise skip leading whitespace, take an optional + or - sign
+ *   - Read digits until the first non-matching character
  *   - Empty / no-digits → 0
  */
 export function parseLslInteger(s: string): number {
+  if (s[0] === '0' && (s[1] === 'x' || s[1] === 'X')) {
+    const hex = /^[0-9a-fA-F]*/.exec(s.slice(2))![0]
+    return hex ? saturate(Number.parseInt(hex, 16), 1) : 0
+  }
   let i = 0
   while (i < s.length && /\s/.test(s[i]!)) i++
   let sign = 1
@@ -109,16 +113,6 @@ export function parseLslInteger(s: string): number {
   else if (s[i] === '-') {
     sign = -1
     i++
-  }
-  if (s[i] === '0' && (s[i + 1] === 'x' || s[i + 1] === 'X')) {
-    i += 2
-    let hex = ''
-    while (i < s.length && /[0-9a-fA-F]/.test(s[i]!)) {
-      hex += s[i]
-      i++
-    }
-    if (!hex || sign < 0) return 0
-    return saturate(Number.parseInt(hex, 16), sign)
   }
   let dec = ''
   while (i < s.length && /[0-9]/.test(s[i]!)) {

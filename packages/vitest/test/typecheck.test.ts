@@ -28,6 +28,9 @@ describe('load-time type checking (SL compiler parity)', () => {
   })
 
   const rejected: ReadonlyArray<[string, string, RegExp]> = [
+    // SLua's compiler (Tailslide) rejects these at compile time.
+    ['a list as a list element', inEntry('list x; list y = [x];'), /Lists may not contain other lists/],
+    ['a void call as a list element', inEntry('list y = [llSay(0, "")];'), /Lists may not contain nulls/],
     ['! on a float', inEntry('integer r = !1.0;'), /Type mismatch/],
     ['~ on a string', inEntry('integer r = ~"a";'), /Type mismatch/],
     ['- on a list', inEntry('list l = -[1];'), /Type mismatch/],
@@ -183,7 +186,6 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['a variable used before an inner label with its name', inEntry('integer done; { done = 1; @done; }')],
     ['a local variable shadowing a callable global function', `f() {} ${inEntry('integer f; f();')}`],
     ['member access on a variable', inEntry('vector v; rotation r; float f = v.x + r.s;')],
-    ['list and void elements (SL fails these at runtime)', inEntry('list x; list y = [x, llSay(0, "")];')],
     ['globals from literals, constants and earlier globals', `integer a = -1; float b = a; vector v = <a, -2.5, PI>; list l = [a, "s", v, NULL_KEY]; ${inEntry('')}`],
     ['a local shadowing a global', `integer n; ${inEntry('n = 1; { integer n = 2; }')}`],
     ['a local shadowing an outer local', inEntry('integer x; { string x; }')],
