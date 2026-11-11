@@ -446,6 +446,7 @@ describe('32-bit floats', () => {
       integer tenths = 0;
       integer storedTenths = 0;
       integer mixed = 0;
+      integer mixedVar = 0;
       default {
         state_entry() {
           float a = 16777216.0;
@@ -457,7 +458,10 @@ describe('32-bit floats', () => {
           promoted = c == a;
           tenths = 0.1 + 0.2 == 0.3;
           storedTenths = t == 0.3;
+          // An integer literal meeting a float is converted at compile time, to
+          // float32; an integer variable converts exactly.
           mixed = 16777217 * 1.0 == a;
+          mixedVar = i * 1.0 == a;
         }
       }
     `)
@@ -465,7 +469,8 @@ describe('32-bit floats', () => {
     expect(s.global('promoted')).toBe(1)
     expect(s.global('tenths')).toBe(0)
     expect(s.global('storedTenths')).toBe(1)
-    expect(s.global('mixed')).toBe(0)
+    expect(s.global('mixed')).toBe(1)
+    expect(s.global('mixedVar')).toBe(0)
   })
 
   it('rounds vector and rotation arithmetic to 32 bits', async () => {
@@ -536,7 +541,7 @@ describe('32-bit floats', () => {
       default {
         state_entry() {
           pi = PI;
-          // An integer converts to float exactly in a comparison.
+          // The integer literal is converted to float32 at compile time.
           same = 16777217 == 16777216.0;
           differ = 16777217 != 16777216.0;
           localSame = gv == <16777217, 0.1, 0>;
@@ -546,8 +551,8 @@ describe('32-bit floats', () => {
     expect(s.global('gv')).toEqual({ x: 16777216, y: Math.fround(0.1), z: 0 })
     expect(s.global('gr')).toMatchObject({ x: 16777216 })
     expect(s.global('pi')).toBe(Math.fround(3.14159265))
-    expect(s.global('same')).toBe(0)
-    expect(s.global('differ')).toBe(1)
+    expect(s.global('same')).toBe(1)
+    expect(s.global('differ')).toBe(0)
     expect(s.global('localSame')).toBe(1)
   })
 

@@ -305,7 +305,6 @@ describe('parser — cast operands', () => {
     )
 
   it.each([
-    ['a unary minus', 'string a = (string)-x;'],
     ['a logical not', 'integer b = (integer)!x;'],
     ['a bitwise not', 'integer b = (integer)~x;'],
     ['a prefix increment', 'string a = (string)++x;'],
@@ -313,6 +312,12 @@ describe('parser — cast operands', () => {
     ['a minus before a non-literal', 'string a = (string)-v.x;'],
   ])('rejects %s after a cast', (_, body) => {
     expect(parseBody(body).diagnostics.length).toBeGreaterThan(0)
+  })
+
+  // SLua's grammar allows `(type)-NAME`; the type checker then requires NAME
+  // to be an LSL integer or float constant.
+  it('parses a minus before a name after a cast', () => {
+    expect(parseBody('integer i = (integer)-PI;').diagnostics).toEqual([])
   })
 
   it.each([

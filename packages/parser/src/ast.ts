@@ -2,6 +2,8 @@ import type { SourceLocation } from './diagnostics.js'
 
 export interface Node {
   readonly loc: SourceLocation
+  /** Set on an expression written inside parentheses, e.g. `(1)`. */
+  readonly parenthesized?: boolean
 }
 
 // ---- Top level ----

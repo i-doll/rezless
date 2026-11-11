@@ -17,6 +17,8 @@ import type {
   DoWhileStatement,
   ForStatement,
   BlockStatement,
+  JumpStatement,
+  LabelStatement,
   VariableDeclaration,
   FunctionDeclaration,
   Node,
@@ -76,7 +78,54 @@ class ReturnSignal {
 }
 
 class JumpSignal {
-  constructor(public readonly label: string) {}
+  constructor(public readonly label: string, public readonly target: LabelStatement | undefined) {}
+}
+
+/** Each jump's target: the last label of that name in its function or handler body, as in SLua. */
+const jumpTargets = new WeakMap<JumpStatement, LabelStatement>()
+const resolvedBodies = new WeakSet<BlockStatement>()
+
+function resolveJumps(body: BlockStatement): void {
+  if (resolvedBodies.has(body)) return
+  resolvedBodies.add(body)
+  const labels = new Map<string, LabelStatement>()
+  const jumps: JumpStatement[] = []
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const n of node) visit(n)
+      return
+    }
+    if (node === null || typeof node !== 'object') return
+    const n = node as { kind?: string }
+    if (n.kind === 'LabelStatement') labels.set((n as LabelStatement).name, n as LabelStatement)
+    else if (n.kind === 'JumpStatement') jumps.push(n as JumpStatement)
+    for (const [key, child] of Object.entries(n)) if (key !== 'loc') visit(child)
+  }
+  visit(body)
+  for (const j of jumps) {
+    const target = labels.get(j.label)
+    if (target) jumpTargets.set(j, target)
+  }
+}
+
+/** Why a jump that left its function or handler went nowhere. */
+function jumpError(e: JumpSignal, where: string): string {
+  return e.target
+    ? `rezless can't jump into the loop or if body holding label '${e.label}' in ${where}`
+    : `jump to undefined label '${e.label}' in ${where}`
+}
+
+/** Statement indexes from `block` down to `target` through nested `{ }` blocks, or null. */
+function pathTo(block: BlockStatement, target: LabelStatement): number[] | null {
+  for (let i = 0; i < block.body.length; i++) {
+    const s = block.body[i]!
+    if (s === target) return [i]
+    if (s.kind === 'BlockStatement') {
+      const rest = pathTo(s, target)
+      if (rest) return [i, ...rest]
+    }
+  }
+  return null
 }
 
 export class StateChangeSignal {
@@ -152,11 +201,13 @@ function* runHandler(
     // Bind handler params (each carries declared LSL type).
     handler.params.forEach((p, i) => {
       const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
-      env.declare(p.name, p.typeName as LslType, a)
+      env.declare(p.name, p.typeName as LslType, a, true)
     })
+    resolveJumps(handler.body)
     yield* execBlock(ctx, env, handler.body)
   } catch (e) {
     if (e instanceof ReturnSignal) return
+    if (e instanceof JumpSignal) throw new Error(jumpError(e, `event handler '${handler.name}'`))
     throw e
   } finally {
     ctx.state.memory.releaseLocals(locals)
@@ -186,8 +237,9 @@ function* callUserFunction(
   try {
     fn.params.forEach((p, i) => {
       const a = args[i] ?? defaultEvalFor(p.typeName as LslType)
-      env.declare(p.name, p.typeName as LslType, a)
+      env.declare(p.name, p.typeName as LslType, a, true)
     })
+    resolveJumps(fn.body)
     yield* execBlock(ctx, env, fn.body)
   } catch (e) {
     if (e instanceof ReturnSignal) {
@@ -198,9 +250,7 @@ function* callUserFunction(
       // A jump that escaped the function body means the label is undefined
       // within the function. Without this catch the signal would bubble into
       // the calling handler and could land on an unrelated same-named label.
-      throw new Error(
-        `jump to undefined label '${e.label}' in function '${fn.name}'`,
-      )
+      throw new Error(jumpError(e, `function '${fn.name}'`))
     }
     // The host ran out of stack before the memory model did.
     if (e instanceof RangeError) throw new StackHeapCollision()
@@ -213,39 +263,56 @@ function* callUserFunction(
   return fn.returnType ? defaultEvalFor(fn.returnType as LslType) : { type: 'void', value: 0 }
 }
 
-function* execBlock(ctx: InterpreterContext, env: Env, block: BlockStatement): Exec<void> {
+/**
+ * Run a block. `resume` starts it at a label instead: statement indexes down
+ * through nested `{ }` blocks to the label, as when a jump lands inside.
+ */
+function* execBlock(
+  ctx: InterpreterContext,
+  env: Env,
+  block: BlockStatement,
+  resume: number[] | null = null,
+): Exec<void> {
   const child = env.push()
-  // Pre-scan: collect label positions and detect duplicate variable names.
   // Duplicate-decl detection has to run upfront because we use
   // declareOrReset below — that quietly tolerates re-running a declaration
   // (which is what backward `jump` does), but a real source-level duplicate
   // like `integer x; integer x;` should still error.
-  let labels: Map<string, number> | null = null
   const declaredNames = new Set<string>()
-  for (let i = 0; i < block.body.length; i++) {
-    const s = block.body[i]!
-    if (s.kind === 'LabelStatement') {
-      if (!labels) labels = new Map()
-      labels.set(s.name, i)
-    } else if (s.kind === 'VariableDeclaration') {
-      if (declaredNames.has(s.name)) {
-        throw new Error(`duplicate declaration of '${s.name}' in block`)
-      }
-      declaredNames.add(s.name)
-    }
+  for (const s of block.body) {
+    if (s.kind !== 'VariableDeclaration') continue
+    if (declaredNames.has(s.name)) throw new Error(`duplicate declaration of '${s.name}' in block`)
+    declaredNames.add(s.name)
   }
   let i = 0
+  let nested: number[] | null = null
+  // Land on `path`: locals declared before it that never ran keep their
+  // default values, as SLua initializes them.
+  const land = (path: number[]): void => {
+    i = path[0]!
+    for (let j = 0; j < i; j++) {
+      const s = block.body[j]!
+      if (s.kind === 'VariableDeclaration' && !child.hasOwn(s.name)) child.declare(s.name, s.typeName as LslType)
+    }
+    if (path.length > 1) nested = path.slice(1)
+    else i++
+  }
+  if (resume) land(resume)
   try {
     while (i < block.body.length) {
       const stmt = block.body[i]!
       try {
-        yield* execStatement(ctx, child, stmt)
+        if (nested) {
+          const path = nested
+          nested = null
+          yield* execBlock(ctx, child, stmt as BlockStatement, path)
+        } else yield* execStatement(ctx, child, stmt)
         i++
       } catch (e) {
-        if (e instanceof JumpSignal && labels && labels.has(e.label)) {
-          const at = labels.get(e.label)!
-          if (at < i) iterate(ctx)
-          i = at + 1
+        const path = e instanceof JumpSignal && e.target ? pathTo(block, e.target) : null
+        if (path) {
+          if (path[0]! <= i) iterate(ctx)
+          land(path)
           continue
         }
         throw e
@@ -293,7 +360,7 @@ function* execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): Exe
     case 'StateChangeStatement':
       throw new StateChangeSignal(stmt.target)
     case 'JumpStatement':
-      throw new JumpSignal(stmt.label)
+      throw new JumpSignal(stmt.label, jumpTargets.get(stmt))
     case 'LabelStatement':
       // No-op at execution time; labels are landing pads for `jump`.
       return
@@ -397,10 +464,12 @@ function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): E
       return yield* evalAssignment(ctx, env, expr)
     case 'CastExpression': {
       const value = yield* evalExpression(ctx, env, expr.argument)
-      // SLua folds a constant float cast to integer at compile time, going
-      // through float32 first; at run time it truncates the double.
-      if (expr.targetType === 'integer' && value.type === 'float' && isConstantExpression(expr.argument)) {
-        return coerce({ type: 'float', value: toFloat32(value.value as number) }, 'integer')
+      // SLua folds an integer <-> float cast of a constant at compile time,
+      // through float32; at run time int -> float is exact and float -> int
+      // truncates the double.
+      if (isFoldedConstant(expr.argument)) {
+        if (expr.targetType === 'integer' && value.type === 'float') return coerce(toFloatConstant(value), 'integer')
+        if (expr.targetType === 'float' && value.type === 'integer') return toFloatConstant(value)
       }
       return coerce(value, expr.targetType as LslType)
     }
@@ -413,20 +482,22 @@ function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): E
   }
 }
 
-/** Whether SLua's compiler folds `e` to a constant: literals and LSL constants under operators and casts. */
-function isConstantExpression(e: Expression): boolean {
+/**
+ * Whether SLua's compiler turns `e` into a constant: a number literal
+ * (negative ones included), an LSL constant, or an integer <-> float cast
+ * of one. It folds no other operators.
+ */
+function isFoldedConstant(e: Expression): boolean {
   switch (e.kind) {
     case 'IntegerLiteral':
     case 'FloatLiteral':
-    case 'StringLiteral':
       return true
     case 'Identifier':
       return own(CONSTANT_TABLE, e.name) !== undefined
     case 'UnaryExpression':
+      return e.operator === '-' && (e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral')
     case 'CastExpression':
-      return isConstantExpression(e.argument)
-    case 'BinaryExpression':
-      return isConstantExpression(e.left) && isConstantExpression(e.right)
+      return (e.targetType === 'integer' || e.targetType === 'float') && isFoldedConstant(e.argument)
     default:
       return false
   }
@@ -461,9 +532,32 @@ function* evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): Ex
 
 function* evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): Exec<EvalResult> {
   // LSL: && and || are NOT short-circuit, and the right operand runs first.
-  const right = yield* evalExpression(ctx, env, e.right)
-  const left = yield* evalExpression(ctx, env, e.left)
+  let right = yield* evalExpression(ctx, env, e.right)
+  let left = yield* evalExpression(ctx, env, e.left)
+  // SLua reads a variable on the right from its register after the left side
+  // has run, without copying it first, in two cases: a comparison with a
+  // local or parameter, and arithmetic with a parameter. So `(x = 4) == x`
+  // is 1. A type conversion between the operands makes a copy, so this only
+  // happens when both sides have the same type.
+  if (e.right.kind === 'Identifier' && left.type === right.type && READ_IN_PLACE.has(right.type)) {
+    const scope = env.scopeOf(e.right.name)
+    if ((COMPARISONS.has(e.operator) && scope !== 'global' && scope !== undefined) ||
+        (ARITHMETIC.has(e.operator) && scope === 'param')) {
+      right = env.get(e.right.name)
+    }
+  }
+  // An integer constant that meets a float is converted at compile time, to float32.
+  if (left.type === 'integer' && right.type === 'float' && isFoldedConstant(e.left)) left = toFloatConstant(left)
+  if (right.type === 'integer' && left.type === 'float' && isFoldedConstant(e.right)) right = toFloatConstant(right)
   return applyBinary(e.operator, left, right)
+}
+
+const READ_IN_PLACE: ReadonlySet<LslType> = new Set(['integer', 'float', 'vector', 'rotation'])
+const COMPARISONS: ReadonlySet<string> = new Set(['==', '!=', '<', '>', '<=', '>='])
+const ARITHMETIC: ReadonlySet<string> = new Set(['+', '-', '*', '/', '%'])
+
+function toFloatConstant(r: EvalResult): EvalResult {
+  return { type: 'float', value: toFloat32(r.value as number) }
 }
 
 /** Evaluate an expression whose value nothing uses: a statement, or a `for` init or update. */

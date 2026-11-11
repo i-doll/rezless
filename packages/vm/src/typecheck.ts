@@ -153,7 +153,6 @@ class Checker {
   /** Labels visible from the current block: its own and every enclosing block's. */
   private labelScopes: Array<Set<string>> = []
   /** Every label in the current function or handler; Mono rejects duplicates. */
-  private labels = new Set<string>()
   /** The function or handler being checked. */
   private owner: Node | null = null
   readonly invalid = new Set<Node>()
@@ -258,7 +257,6 @@ class Checker {
     }
     this.scopes = [scope]
     this.labelScopes = []
-    this.labels = new Set()
     this.block(body, 'denied')
   }
 
@@ -360,8 +358,8 @@ class Checker {
         }
         return []
       case 'LabelStatement':
-        if (this.labels.has(s.name)) this.error(s, `Duplicate label name: ${s.name}`)
-        this.labels.add(s.name)
+        // The same label name may appear again in another block (a jump goes to
+        // the last one, as SLua does); twice in one block is a redeclaration.
         this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, 'label')
         return []
     }
@@ -461,6 +459,11 @@ class Checker {
         return target
       }
       case 'CastExpression': {
+        const arg = e.argument
+        if (arg.kind === 'UnaryExpression' && !arg.parenthesized && arg.argument.kind === 'Identifier' &&
+            !arg.argument.parenthesized && !isNumericConstant(arg.argument.name)) {
+          this.error(e, 'Typecast requires parentheses')
+        }
         const t = this.expr(e.argument)
         if (t === 'unknown') return e.targetType
         if (t === 'void' || !CASTS[t].includes(e.targetType)) {
@@ -543,6 +546,8 @@ class Checker {
  * or (one level of) list literal.
  */
 function isSimpleGlobalInit(e: Expression, allowList: boolean): boolean {
+  // SLua rejects a parenthesized initializer, even `(1)`.
+  if (e.parenthesized) return false
   switch (e.kind) {
     case 'IntegerLiteral':
     case 'FloatLiteral':
@@ -550,9 +555,15 @@ function isSimpleGlobalInit(e: Expression, allowList: boolean): boolean {
     case 'Identifier':
       return true
     case 'UnaryExpression':
+      // A negated number, or a negated integer or float LSL constant other
+      // than TRUE and FALSE (which SLua's lexer treats specially).
       return (
         e.operator === '-' &&
-        (e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral')
+        !e.argument.parenthesized &&
+        (e.argument.kind === 'IntegerLiteral' ||
+          e.argument.kind === 'FloatLiteral' ||
+          (e.argument.kind === 'Identifier' && isNumericConstant(e.argument.name) &&
+            e.argument.name !== 'TRUE' && e.argument.name !== 'FALSE'))
       )
     case 'VectorLiteral':
       return [e.x, e.y, e.z].every((c) => isSimpleGlobalInit(c, false))
@@ -611,4 +622,10 @@ function labelsIn(stmts: ReadonlyArray<Statement>): Set<string> {
   }
   stmts.forEach(visit)
   return out
+}
+
+/** An LSL integer or float constant, such as PI or STATUS_PHYSICS. */
+function isNumericConstant(name: string): boolean {
+  const c = own(CONSTANT_TABLE, name)
+  return c !== undefined && (c.type === 'integer' || c.type === 'float')
 }

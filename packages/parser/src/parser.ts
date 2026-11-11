@@ -580,6 +580,18 @@ class Parser {
       if (!arg) return null
       return { kind: 'UnaryExpression', loc: t.loc, operator: '-', argument: arg }
     }
+    // `(type)-NAME` parses too; the type checker accepts it only for an LSL
+    // integer or float constant, as SLua's grammar does.
+    if (t.kind === 'op' && t.text === '-' && next?.kind === 'identifier' && !['lparen', 'dot'].includes(this.tokens[this.pos + 2]?.kind ?? '')) {
+      this.advance()
+      const id = this.advance()
+      return {
+        kind: 'UnaryExpression',
+        loc: t.loc,
+        operator: '-',
+        argument: { kind: 'Identifier', loc: id.loc, name: id.text },
+      }
+    }
     const isUnaryOp = t.kind === 'op' && ['-', '+', '!', '~', '++', '--'].includes(t.text)
     if (isUnaryOp || this.atCast()) {
       this.diag('put parentheses around the expression being cast', t.loc)
@@ -698,7 +710,7 @@ class Parser {
       const inner = this.parseExpression()
       if (!inner) return null
       if (!this.expect('rparen', "expected ')'")) return null
-      return inner
+      return { ...inner, parenthesized: true }
     }
     if (t.kind === 'lbracket') {
       return this.parseListLiteral()

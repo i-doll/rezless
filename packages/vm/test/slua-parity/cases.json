@@ -1,0 +1,1922 @@
+[
+ {
+  "name": "cases1/int-arith",
+  "source": "default { state_entry() {\nllOwnerSay((string)(7/2));\nllOwnerSay((string)(-7/2));\nllOwnerSay((string)(7%3));\nllOwnerSay((string)(-7%3));\nllOwnerSay((string)(7%-3));\nllOwnerSay((string)(0x7fffffff+1));\nllOwnerSay((string)(-0x80000000));\nllOwnerSay((string)(0x80000000*-1));\n} }\n",
+  "output": [
+   "3",
+   "-3",
+   "1",
+   "-1",
+   "1",
+   "-2147483648",
+   "-2147483648",
+   "-2147483648"
+  ]
+ },
+ {
+  "name": "cases1/int-min-div",
+  "source": "default { state_entry() {\nllOwnerSay((string)(0x80000000 / -1));\n} }\n",
+  "output": [
+   "-2147483648"
+  ]
+ },
+ {
+  "name": "cases1/int-min-mod",
+  "source": "default { state_entry() {\nllOwnerSay((string)(0x80000000 % -1));\n} }\n",
+  "output": [
+   "0"
+  ]
+ },
+ {
+  "name": "cases1/shifts",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1<<31));\nllOwnerSay((string)(1<<32));\nllOwnerSay((string)(1<<33));\nllOwnerSay((string)(1<<-1));\nllOwnerSay((string)(-8>>1));\nllOwnerSay((string)(-8>>33));\nllOwnerSay((string)(0x80000000>>31));\nllOwnerSay((string)(5>>-1));\n} }\n",
+  "output": [
+   "-2147483648",
+   "0",
+   "0",
+   "0",
+   "-4",
+   "-1",
+   "-1",
+   "10"
+  ]
+ },
+ {
+  "name": "cases1/bitops",
+  "source": "default { state_entry() {\nllOwnerSay((string)(~0));\nllOwnerSay((string)(!0));\nllOwnerSay((string)(!5));\nllOwnerSay((string)(5&3));\nllOwnerSay((string)(5|3));\nllOwnerSay((string)(5^3));\nllOwnerSay((string)(!-1));\n} }\n",
+  "output": [
+   "-1",
+   "1",
+   "0",
+   "1",
+   "7",
+   "6",
+   "0"
+  ]
+ },
+ {
+  "name": "cases1/logic",
+  "source": "default { state_entry() {\nllOwnerSay((string)(0 && 1));\nllOwnerSay((string)(2 && 3));\nllOwnerSay((string)(0 || 0));\nllOwnerSay((string)(0 || 7));\nllOwnerSay((string)(-1 || 0));\n} }\n",
+  "output": [
+   "0",
+   "1",
+   "0",
+   "1",
+   "1"
+  ]
+ },
+ {
+  "name": "cases1/cmp",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1<2));\nllOwnerSay((string)(2.5>2));\nllOwnerSay((string)(\"a\"==\"a\"));\nllOwnerSay((string)(\"a\"!=\"b\"));\nllOwnerSay((string)((key)\"a\"==\"a\"));\nllOwnerSay((string)(1==1.0));\nllOwnerSay((string)(<1,2,3>==<1,2,3>));\nllOwnerSay((string)(<1,2,3>!=<1,2,4>));\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases1/float-fmt",
+  "source": "default { state_entry() {\nllOwnerSay((string)(0.0));\nllOwnerSay((string)(-0.0));\nllOwnerSay((string)(1.0));\nllOwnerSay((string)(1e10));\nllOwnerSay((string)(1e20));\nllOwnerSay((string)(1e-7));\nllOwnerSay((string)(123456.789));\nllOwnerSay((string)(3.4028235e38));\nllOwnerSay((string)(1.0/3));\nllOwnerSay((string)(-2.5));\nllOwnerSay((string)(0.0000005));\nllOwnerSay((string)(0.0000004999));\n} }\n",
+  "output": [
+   "0.000000",
+   "-0.000000",
+   "1.000000",
+   "10000000000.000000",
+   "100000000000000000000.000000",
+   "0.000000",
+   "123456.800000",
+   "340282300000000000000000000000000000000.000000",
+   "0.333333",
+   "-2.500000",
+   "0.000001",
+   "0.000000"
+  ]
+ },
+ {
+  "name": "cases1/float-fmt-big",
+  "source": "default { state_entry() {\nllOwnerSay((string)(16777216.0));\nllOwnerSay((string)(1e7));\nllOwnerSay((string)(99999999.0));\nllOwnerSay((string)(123456789.0));\nllOwnerSay((string)(2147483647.0));\nllOwnerSay((string)(1e30));\nllOwnerSay((string)(1e38));\n} }\n",
+  "output": [
+   "16777220.000000",
+   "10000000.000000",
+   "100000000.000000",
+   "123456800.000000",
+   "2147484000.000000",
+   "1000000000000000000000000000000.000000",
+   "100000000000000000000000000000000000000.000000"
+  ]
+ },
+ {
+  "name": "cases1/float-inf",
+  "source": "default { state_entry() {\nllOwnerSay((string)((float)\"inf\"));\nllOwnerSay((string)(-(float)\"inf\"));\nllOwnerSay((string)((float)\"nan\"));\n} }\n",
+  "output": [
+   "Infinity",
+   "-Infinity",
+   "NaN"
+  ]
+ },
+ {
+  "name": "cases1/vec-fmt",
+  "source": "default { state_entry() {\nllOwnerSay((string)(<1,2,3>));\nllOwnerSay((string)(<-0.0,0,1e10>));\nllOwnerSay((string)(<0.123456,1.5e-6,-3>));\nllOwnerSay((string)(<1,2,3,4>));\nllOwnerSay((string)([<1,2,3>]));\nllOwnerSay((string)([<1,2,3,4>]));\nllOwnerSay((string)([1.5]));\nllOwnerSay((string)([<0.1234567,0,0>]));\n} }\n",
+  "output": [
+   "<1.00000, 2.00000, 3.00000>",
+   "<-0.00000, 0.00000, 10000000000.00000>",
+   "<0.12346, 0.00000, -3.00000>",
+   "<1.00000, 2.00000, 3.00000, 4.00000>",
+   "<1.000000, 2.000000, 3.000000>",
+   "<1.000000, 2.000000, 3.000000, 4.000000>",
+   "1.500000",
+   "<0.123457, 0.000000, 0.000000>"
+  ]
+ },
+ {
+  "name": "cases1/cast-float",
+  "source": "default { state_entry() {\nllOwnerSay((string)((float)\"1.5abc\"));\nllOwnerSay((string)((float)\" 2e3\"));\nllOwnerSay((string)((float)\".5\"));\nllOwnerSay((string)((float)\"5.\"));\nllOwnerSay((string)((float)\"-\"));\nllOwnerSay((string)((float)\"0x10\"));\nllOwnerSay((string)((float)\"1e\"));\nllOwnerSay((string)((float)\"1e-50\"));\nllOwnerSay((string)((float)\"1e50\"));\nllOwnerSay((string)((float)\"infinity\"));\nllOwnerSay((string)((float)\"NaN\"));\nllOwnerSay((string)((float)\"  +3.25\"));\nllOwnerSay((string)((float)\"0x1p4\"));\n} }\n",
+  "output": [
+   "1.500000",
+   "2000.000000",
+   "0.500000",
+   "5.000000",
+   "0.000000",
+   "16.000000",
+   "1.000000",
+   "0.000000",
+   "Infinity",
+   "Infinity",
+   "NaN",
+   "3.250000",
+   "16.000000"
+  ]
+ },
+ {
+  "name": "cases1/cast-vec",
+  "source": "default { state_entry() {\nllOwnerSay((string)((vector)\"<1,2,3>\"));\nllOwnerSay((string)((vector)\"<1, 2, 3, 4>\"));\nllOwnerSay((string)((vector)\"1,2,3\"));\nllOwnerSay((string)((vector)\"<1,2>\"));\nllOwnerSay((string)((vector)\" <1,2,3>\"));\nllOwnerSay((string)((vector)\"<a,b,c>\"));\nllOwnerSay((string)((vector)\"<1e2,0x10,-1>\"));\n} }\n",
+  "output": [
+   "<1.00000, 2.00000, 3.00000>",
+   "<1.00000, 2.00000, 3.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<100.00000, 16.00000, -1.00000>"
+  ]
+ },
+ {
+  "name": "cases1/cast-rot",
+  "source": "default { state_entry() {\nllOwnerSay((string)((rotation)\"<1,2,3,4>\"));\nllOwnerSay((string)((rotation)\"<1,2,3>\"));\nllOwnerSay((string)((rotation)\"<1,2,3,4,5>\"));\n} }\n",
+  "output": [
+   "<1.00000, 2.00000, 3.00000, 4.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>",
+   "<1.00000, 2.00000, 3.00000, 4.00000>"
+  ]
+ },
+ {
+  "name": "cases1/cast-list",
+  "source": "default { state_entry() {\nllOwnerSay((string)((string)[1, 2.5, \"x\", (key)\"k\", <1,2,3>, <1,2,3,4>]));\nllOwnerSay((string)((string)[]));\nllOwnerSay((string)((list)5));\nllOwnerSay((string)((list)\"ab\"));\n} }\n",
+  "output": [
+   "12.500000xk<1.000000, 2.000000, 3.000000><1.000000, 2.000000, 3.000000, 4.000000>",
+   "",
+   "5",
+   "ab"
+  ]
+ },
+ {
+  "name": "cases1/list-cmp",
+  "source": "default { state_entry() {\nllOwnerSay((string)([1,2,3]==[4,5,6]));\nllOwnerSay((string)([1,2]!=[1,2,3]));\nllOwnerSay((string)([]==[]));\nllOwnerSay((string)([1]!=[]));\n} }\n",
+  "output": [
+   "1",
+   "-1",
+   "1",
+   "1"
+  ]
+ },
+ {
+  "name": "cases1/string-ops",
+  "source": "default { state_entry() {\nllOwnerSay((string)(\"a\"+\"b\"));\nllOwnerSay((string)(\"x\"+(string)5));\nllOwnerSay((string)((string)(key)\"abc\"));\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases1/vec-ops",
+  "source": "default { state_entry() {\nllOwnerSay((string)(<1,2,3>+<1,1,1>));\nllOwnerSay((string)(<1,2,3>-<1,1,1>));\nllOwnerSay((string)(<1,2,3>*2));\nllOwnerSay((string)(2*<1,2,3>));\nllOwnerSay((string)(<1,2,3>/2));\nllOwnerSay((string)(<1,2,3>*<4,5,6>));\nllOwnerSay((string)(<1,0,0>%<0,1,0>));\nllOwnerSay((string)(-<1,2,3>));\n} }\n",
+  "output": [
+   "<2.00000, 3.00000, 4.00000>",
+   "<0.00000, 1.00000, 2.00000>",
+   "<2.00000, 4.00000, 6.00000>",
+   "<2.00000, 4.00000, 6.00000>",
+   "<0.50000, 1.00000, 1.50000>",
+   "32.000000",
+   "<0.00000, 0.00000, 1.00000>",
+   "<-1.00000, -2.00000, -3.00000>"
+  ]
+ },
+ {
+  "name": "cases1/rot-ops",
+  "source": "default { state_entry() {\nllOwnerSay((string)(<0,0,0,1>*<0,0,0.7071068,0.7071068>));\nllOwnerSay((string)(<1,2,3,4>/<0,0,0,1>));\nllOwnerSay((string)(-<1,2,3,4>));\nllOwnerSay((string)(<1,2,3,4>+<1,1,1,1>));\nllOwnerSay((string)(<1,2,3,4>-<1,1,1,1>));\nllOwnerSay((string)(<1,0,0>*<0,0,0.7071068,0.7071068>));\nllOwnerSay((string)(<1,0,0>/<0,0,0.7071068,0.7071068>));\n} }\n",
+  "output": [
+   "<0.00000, 0.00000, 0.70711, 0.70711>",
+   "<1.00000, 2.00000, 3.00000, 4.00000>",
+   "<-1.00000, -2.00000, -3.00000, -4.00000>",
+   "<2.00000, 3.00000, 4.00000, 5.00000>",
+   "<0.00000, 1.00000, 2.00000, 3.00000>",
+   "<0.00000, 1.00000, 0.00000>",
+   "<0.00000, -1.00000, 0.00000>"
+  ]
+ },
+ {
+  "name": "cases1/math",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llAbs(-5)));\nllOwnerSay((string)(llAbs(0x80000000)));\nllOwnerSay((string)(llFabs(-2.5)));\nllOwnerSay((string)(llFloor(2.7)));\nllOwnerSay((string)(llFloor(-2.5)));\nllOwnerSay((string)(llCeil(2.1)));\nllOwnerSay((string)(llCeil(-2.1)));\nllOwnerSay((string)(llFloor(1e20)));\nllOwnerSay((string)(llCeil(-1e20)));\nllOwnerSay((string)(llSqrt(16)));\nllOwnerSay((string)(llSqrt(-1)));\nllOwnerSay((string)(llPow(2,10)));\nllOwnerSay((string)(llPow(-8, 0.5)));\nllOwnerSay((string)(llPow(0,-1)));\nllOwnerSay((string)(llLog(0)));\nllOwnerSay((string)(llLog(-1)));\nllOwnerSay((string)(llLog10(1000)));\nllOwnerSay((string)(llSin(1)));\nllOwnerSay((string)(llCos(1)));\nllOwnerSay((string)(llTan(1)));\nllOwnerSay((string)(llAsin(2)));\nllOwnerSay((string)(llAcos(0.5)));\nllOwnerSay((string)(llAtan2(1,1)));\n} }\n",
+  "output": [
+   "5",
+   "-2147483648",
+   "2.500000",
+   "2",
+   "-3",
+   "3",
+   "-2",
+   "-2147483648",
+   "-2147483648",
+   "4.000000",
+   "NaN",
+   "1024.000000",
+   "NaN",
+   "Infinity",
+   "0.000000",
+   "0.000000",
+   "3.000000",
+   "0.841471",
+   "0.540302",
+   "1.557408",
+   "NaN",
+   "1.047198",
+   "0.785398"
+  ]
+ },
+ {
+  "name": "cases1/substr",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llGetSubString(\"abcdef\",1,3)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",-3,-1)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",4,1)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",-1,0)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",10,20)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",0,-10)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",-10,2)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",3,3)));\nllOwnerSay((string)(llGetSubString(\"\",0,0)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",5,-6)));\nllOwnerSay((string)(llGetSubString(\"abcdef\",7,-8)));\n} }\n",
+  "output": [
+   "bcd",
+   "def",
+   "abef",
+   "af",
+   "",
+   "abcdef",
+   "abc",
+   "d",
+   "",
+   "af",
+   ""
+  ]
+ },
+ {
+  "name": "cases1/strlen",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llStringLength(\"héllo\")));\nllOwnerSay((string)(llStringLength(\"😀\")));\nllOwnerSay((string)(llStringLength(\"\")));\nllOwnerSay((string)(llGetSubString(\"a😀b\",1,1)));\n} }\n",
+  "output": [
+   "5",
+   "1",
+   "0",
+   "😀"
+  ]
+ },
+ {
+  "name": "cases1/case",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llToUpper(\"abc ß ﬁ ı\")));\nllOwnerSay((string)(llToLower(\"ABC İ Σ\")));\nllOwnerSay((string)(llToUpper(\"ǆ\")));\n} }\n",
+  "output": [
+   "ABC ß ﬁ ı",
+   "abc İ σ",
+   "Ǆ"
+  ]
+ },
+ {
+  "name": "cases1/list-access",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llList2String([1,2.5,\"x\",(key)\"k\",<1,2,3>],1)));\nllOwnerSay((string)(llList2String([<1,2,3>],0)));\nllOwnerSay((string)(llList2Integer([\"0x10\"],0)));\nllOwnerSay((string)(llList2Integer([2.9],0)));\nllOwnerSay((string)(llList2Integer([-2.9],0)));\nllOwnerSay((string)(llList2Float([\"abc\"],0)));\nllOwnerSay((string)(llList2Float([3],0)));\nllOwnerSay((string)(llList2Key([\"abc\"],0)));\nllOwnerSay((string)(llList2Key([5],0)));\nllOwnerSay((string)(llList2Vector([\"<1,2,3>\"],0)));\nllOwnerSay((string)(llList2Vector([5],0)));\nllOwnerSay((string)(llList2Rot([\"<1,2,3,4>\"],0)));\nllOwnerSay((string)(llList2Rot([<1,2,3>],0)));\nllOwnerSay((string)(llList2String([1],5)));\nllOwnerSay((string)(llList2Integer([1,2,3],-1)));\n} }\n",
+  "output": [
+   "2.500000",
+   "<1.000000, 2.000000, 3.000000>",
+   "16",
+   "2",
+   "-2",
+   "0.000000",
+   "3.000000",
+   "abc",
+   "",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>",
+   "",
+   "3"
+  ]
+ },
+ {
+  "name": "cases1/list-types",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llGetListEntryType([1],0)));\nllOwnerSay((string)(llGetListEntryType([1.0],0)));\nllOwnerSay((string)(llGetListEntryType([\"a\"],0)));\nllOwnerSay((string)(llGetListEntryType([(key)\"a\"],0)));\nllOwnerSay((string)(llGetListEntryType([<1,2,3>],0)));\nllOwnerSay((string)(llGetListEntryType([<1,2,3,4>],0)));\nllOwnerSay((string)(llGetListEntryType([],0)));\nllOwnerSay((string)(llGetListEntryType([1],-1)));\nllOwnerSay((string)(llGetListEntryType([1],5)));\n} }\n",
+  "output": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "0",
+   "1",
+   "0"
+  ]
+ },
+ {
+  "name": "cases1/list2list",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llList2List([1,2,3,4,5],1,3)));\nllOwnerSay((string)(llList2List([1,2,3,4,5],3,1)));\nllOwnerSay((string)(llList2List([1,2,3,4,5],-2,-1)));\nllOwnerSay((string)(llList2List([1,2,3,4,5],-1,0)));\nllOwnerSay((string)(llList2List([1,2,3,4,5],7,9)));\nllOwnerSay((string)(llList2List([1,2,3,4,5],0,-9)));\nllOwnerSay((string)(llList2List([],0,0)));\nllOwnerSay((string)(llList2List([1,2,3],-9,9)));\n} }\n",
+  "output": [
+   "234",
+   "1245",
+   "45",
+   "15",
+   "",
+   "12345",
+   "",
+   "123"
+  ]
+ },
+ {
+  "name": "cases1/delsublist",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llDeleteSubList([1,2,3,4,5],1,3)));\nllOwnerSay((string)(llDeleteSubList([1,2,3,4,5],3,1)));\nllOwnerSay((string)(llDeleteSubList([1,2,3,4,5],-2,-1)));\nllOwnerSay((string)(llDeleteSubList([1,2,3,4,5],7,9)));\nllOwnerSay((string)(llDeleteSubList([1,2,3,4,5],-9,9)));\nllOwnerSay((string)(llDeleteSubList([1,2,3,4,5],0,-9)));\n} }\n",
+  "output": [
+   "15",
+   "3",
+   "123",
+   "12345",
+   "",
+   ""
+  ]
+ },
+ {
+  "name": "cases1/insertlist",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llListInsertList([1,2,3],[\"a\"],1)));\nllOwnerSay((string)(llListInsertList([1,2,3],[\"a\"],-1)));\nllOwnerSay((string)(llListInsertList([1,2,3],[\"a\"],9)));\nllOwnerSay((string)(llListInsertList([1,2,3],[\"a\"],-9)));\nllOwnerSay((string)(llListInsertList([],[\"a\"],0)));\n} }\n",
+  "output": [
+   "1a23",
+   "12a3",
+   "123a",
+   "a123",
+   "a"
+  ]
+ },
+ {
+  "name": "cases1/replacelist",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llListReplaceList([1,2,3,4],[\"a\",\"b\"],1,2)));\nllOwnerSay((string)(llListReplaceList([1,2,3,4],[\"a\"],2,1)));\nllOwnerSay((string)(llListReplaceList([1,2,3,4],[\"a\"],-1,-1)));\nllOwnerSay((string)(llListReplaceList([1,2,3,4],[\"a\"],9,9)));\nllOwnerSay((string)(llListReplaceList([1,2,3,4],[\"a\"],-9,-9)));\n} }\n",
+  "output": [
+   "1ab4",
+   "a",
+   "123a",
+   "1234a",
+   "1234"
+  ]
+ },
+ {
+  "name": "cases1/dump",
+  "source": "default { state_entry() {\nllOwnerSay((string)(llDumpList2String([1,2.5,\"a\",<1,2,3>,<1,2,3,4>,(key)\"k\"],\"|\")));\nllOwnerSay((string)(llDumpList2String([],\"|\")));\nllOwnerSay((string)(llGetListLength([1,2,3])));\n} }\n",
+  "output": [
+   "1|2.500000|a|<1.000000, 2.000000, 3.000000>|<1.000000, 2.000000, 3.000000, 4.000000>|k",
+   "",
+   "3"
+  ]
+ },
+ {
+  "name": "cases1/eval-order",
+  "source": "integer n; integer f(integer x){ llOwnerSay(\"f\"+(string)x); return x; }\ndefault { state_entry() { integer a = f(1) + f(2); llOwnerSay((string)a); a = f(3) - f(4); llOwnerSay((string)a); a = f(5) && f(6); a = f(7) || f(8); llOwnerSay((string)(f(9) == f(10))); llOwnerSay((string)[f(11), f(12)]); llOwnerSay((string)<f(13), f(14), f(15)>); } }",
+  "output": [
+   "f2",
+   "f1",
+   "3",
+   "f4",
+   "f3",
+   "-1",
+   "f6",
+   "f5",
+   "f8",
+   "f7",
+   "f10",
+   "f9",
+   "0",
+   "f11",
+   "f12",
+   "1112",
+   "f13",
+   "f14",
+   "f15",
+   "<13.00000, 14.00000, 15.00000>"
+  ]
+ },
+ {
+  "name": "cases1/args-order",
+  "source": "integer f(integer x){ llOwnerSay(\"f\"+(string)x); return x; }\ng(integer a, integer b){ llOwnerSay((string)a+(string)b); }\ndefault { state_entry() { g(f(1), f(2)); llOwnerSay(llGetSubString(\"abcdef\", f(1), f(3))); } }",
+  "output": [
+   "f1",
+   "f2",
+   "12",
+   "f1",
+   "f3",
+   "bcd"
+  ]
+ },
+ {
+  "name": "cases1/defaults",
+  "source": "integer i; float f; string s; key k; vector v; rotation r; list l;\ndefault { state_entry() { integer li; float lf; string ls; key lk; vector lv; rotation lr; list ll;\nllOwnerSay((string)[i,f,s,\"|\",k,\"|\",v,r,llGetListLength(l)]); llOwnerSay((string)[li,lf,ls,\"|\",lk,\"|\",lv,lr,llGetListLength(ll)]); } }",
+  "output": [
+   "00.000000||<0.000000, 0.000000, 0.000000><0.000000, 0.000000, 0.000000, 1.000000>0",
+   "00.000000||<0.000000, 0.000000, 0.000000><0.000000, 0.000000, 0.000000, 1.000000>0"
+  ]
+ },
+ {
+  "name": "cases1/key-truth",
+  "source": "default { state_entry() {\nif ((key)\"\") llOwnerSay(\"empty true\"); else llOwnerSay(\"empty false\");\nif ((key)NULL_KEY) llOwnerSay(\"null true\"); else llOwnerSay(\"null false\");\nif ((key)\"abc\") llOwnerSay(\"abc true\"); else llOwnerSay(\"abc false\");\nif ((key)\"a822ff2b-ff02-461d-b45d-dcd10a2de0c2\") llOwnerSay(\"valid true\"); else llOwnerSay(\"valid false\");\nif (\"\") llOwnerSay(\"s true\"); else llOwnerSay(\"s false\");\nif ([]) llOwnerSay(\"l true\"); else llOwnerSay(\"l false\");\nif ([0]) llOwnerSay(\"l0 true\"); else llOwnerSay(\"l0 false\");\nif (<0,0,0>) llOwnerSay(\"v true\"); else llOwnerSay(\"v false\");\nif (<0,0,0,1>) llOwnerSay(\"r true\"); else llOwnerSay(\"r false\");\nif (0.0) llOwnerSay(\"f true\"); else llOwnerSay(\"f false\");\n} }\n",
+  "output": [
+   "empty false",
+   "null false",
+   "abc false",
+   "valid true",
+   "s false",
+   "l false",
+   "l0 true",
+   "v false",
+   "r false",
+   "f false"
+  ]
+ },
+ {
+  "name": "cases1/compound",
+  "source": "default { state_entry() {\ninteger i = 5; i += 2; i -= 1; i *= 3; i /= 4; i %= 3; llOwnerSay((string)i);\nfloat f = 1; f += 1; f *= 2.5; f /= 2; f -= 0.5; llOwnerSay((string)f);\nvector v = <1,2,3>; v *= 2; v += <1,1,1>; v /= 2; v -= <1,1,1>; llOwnerSay((string)v);\nv = <1,0,0>; v *= <0,0,0.7071068,0.7071068>; llOwnerSay((string)v);\nrotation r = <0,0,0,1>; r *= <0,0,0.7071068,0.7071068>; r /= <0,0,0.7071068,0.7071068>; llOwnerSay((string)r);\nlist l = [1]; l += 2; l += [3,4]; l += \"x\"; llOwnerSay((string)l);\nstring s = \"a\"; s += \"b\"; llOwnerSay(s);\ninteger j = 7; j *= 2.5; llOwnerSay((string)j);\n} }\n",
+  "output": [
+   "1",
+   "2.000000",
+   "<0.50000, 1.50000, 2.50000>",
+   "<0.00000, 1.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>",
+   "1234x",
+   "ab",
+   "17"
+  ]
+ },
+ {
+  "name": "cases1/incdec-members",
+  "source": "default { state_entry() {\nvector v = <1,2,3>; v.x++; ++v.y; v.z--; llOwnerSay((string)v); rotation r = <1,2,3,4>; r.s += 1; llOwnerSay((string)r);\nfloat f = 1.5; f++; llOwnerSay((string)f);\n} }\n",
+  "output": [
+   "<2.00000, 3.00000, 2.00000>",
+   "<1.00000, 2.00000, 3.00000, 5.00000>",
+   "2.500000"
+  ]
+ },
+ {
+  "name": "cases1/string-escapes",
+  "source": "default { state_entry() {\nllOwnerSay(\"a\\tb\"); llOwnerSay(\"a\\nb\"); llOwnerSay(\"q\\\"q\"); llOwnerSay(\"back\\\\slash\"); llOwnerSay(\"unk\\qx\"); llOwnerSay((string)llStringLength(\"a\\tb\"));\n} }\n",
+  "output": [
+   "a    b",
+   "a",
+   "b",
+   "q\"q",
+   "back\\slash",
+   "unkqx",
+   "6"
+  ]
+ },
+ {
+  "name": "cases1/literals",
+  "source": "default { state_entry() {\nllOwnerSay((string)1e3); llOwnerSay((string).5); llOwnerSay((string)5.); llOwnerSay((string)0xFFFFFFFF); llOwnerSay((string)0x100000000); llOwnerSay((string)4294967296); llOwnerSay((string)2147483648); llOwnerSay((string)-2147483648); llOwnerSay((string)1.5e-3); llOwnerSay((string)1E2); llOwnerSay((string)0X1f);\n} }\n",
+  "output": [
+   "1000.000000",
+   "0.500000",
+   "5.000000",
+   "-1",
+   "-1",
+   "-1",
+   "-2147483648",
+   "-2147483648",
+   "0.001500",
+   "100.000000",
+   "31"
+  ]
+ },
+ {
+  "name": "cases1/jump-loop",
+  "source": "default { state_entry() {\ninteger i; @top; i++; if (i < 5) jump top; llOwnerSay((string)i);\n} }\n",
+  "output": [
+   "5"
+  ]
+ },
+ {
+  "name": "cases1/globals-init",
+  "source": "integer a = 5; integer b = a; vector v = <a, 2, 3>; list l = [a, b, v]; float f = -2; string s = \"x\"; key k = s;\ndefault { state_entry() { llOwnerSay((string)[a,b,v,l,f,s,k]); } }",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases1/string-key-concat",
+  "source": "default { state_entry() {\nkey k = \"abc\"; string s = k + \"def\"; llOwnerSay(s); llOwnerSay((string)(k == \"abc\"));\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases1/float-prec-misc",
+  "source": "default { state_entry() {\nfloat a = 0.1; float b = 0.2; llOwnerSay((string)(a+b==0.3)); llOwnerSay((string)(a+b)); integer big = 16777217; float fb = big; llOwnerSay((string)fb); llOwnerSay((string)(big*1.0)); llOwnerSay((string)((integer)(big*1.0)));\n} }\n",
+  "output": [
+   "0",
+   "0.300000",
+   "16777220.000000",
+   "16777220.000000",
+   "16777217"
+  ]
+ },
+ {
+  "name": "cases1/vec-components-cast",
+  "source": "default { state_entry() {\nvector v = <1.23456789, 2, 3>; llOwnerSay((string)v.x); llOwnerSay((string)[v.x]); llOwnerSay((string)(v*v));\n} }\n",
+  "output": [
+   "1.234568",
+   "1.234568",
+   "14.524160"
+  ]
+ },
+ {
+  "name": "cases1/list-in-list-err",
+  "source": "default { state_entry() {\nlist a = [1]; list b = [a]; llOwnerSay((string)llGetListLength(b));\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases1/div-zero-mod",
+  "source": "default { state_entry() {\ninteger z = 0; llOwnerSay((string)(5 % z));\n} }\n",
+  "output": [
+   "ERROR"
+  ]
+ },
+ {
+  "name": "cases1/vec-rot-div-zero",
+  "source": "default { state_entry() {\nfloat z = 0; rotation r = <0,0,0,0>; llOwnerSay((string)(<1,2,3>/r));\n} }\n",
+  "output": [
+   "<0.00000, 0.00000, 0.00000>"
+  ]
+ },
+ {
+  "name": "cases1/tan-pi2",
+  "source": "default { state_entry() {\nllOwnerSay((string)llTan(PI_BY_TWO)); llOwnerSay((string)PI); llOwnerSay((string)TWO_PI); llOwnerSay((string)DEG_TO_RAD); llOwnerSay((string)SQRT2);\n} }\n",
+  "output": [
+   "-22877330.000000",
+   "3.141593",
+   "6.283185",
+   "0.017453",
+   "1.414214"
+  ]
+ },
+ {
+  "name": "cases2/round-edges",
+  "source": "default { state_entry() {\nllOwnerSay((string)(0.0000005));\nllOwnerSay((string)(0.0000015));\nllOwnerSay((string)(0.0000025));\nllOwnerSay((string)(0.1234565));\nllOwnerSay((string)(1.0000005));\nllOwnerSay((string)(2.5e-6));\nllOwnerSay((string)(0.00000049999));\nllOwnerSay((string)(999999.5));\nllOwnerSay((string)(9999999.5));\nllOwnerSay((string)(0.000001));\nllOwnerSay((string)(1.9999999));\nllOwnerSay((string)(0.9999995));\n} }\n",
+  "output": [
+   "0.000001",
+   "0.000002",
+   "0.000003",
+   "0.123457",
+   "1.000000",
+   "0.000003",
+   "0.000000",
+   "999999.500000",
+   "10000000.000000",
+   "0.000001",
+   "2.000000",
+   "1.000000"
+  ]
+ },
+ {
+  "name": "cases2/round-edges-vec",
+  "source": "default { state_entry() {\nllOwnerSay((string)(<0.000005, 0.000015, 0.123455>));\nllOwnerSay((string)(<1.234565, 9.999995, 0.000004>));\n} }\n",
+  "output": [
+   "<0.00001, 0.00002, 0.12346>",
+   "<1.23457, 10.00000, 0.00000>"
+  ]
+ },
+ {
+  "name": "cases2/big-fmt",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1e15));\nllOwnerSay((string)(1.5e15));\nllOwnerSay((string)(123456789012.0));\nllOwnerSay((string)(3e38));\nllOwnerSay((string)(1.17549435e-38));\nllOwnerSay((string)(1e-45));\n} }\n",
+  "output": [
+   "1000000000000000.000000",
+   "1500000000000000.000000",
+   "123456800000.000000",
+   "300000000000000000000000000000000000000.000000",
+   "0.000000",
+   "0.000000"
+  ]
+ },
+ {
+  "name": "cases3/fmt-f",
+  "source": "default { state_entry() {\nfloat a=123456789.0; float b=1e15; float c=9999999.5; float d=0.0000045; float e=0.0001235; float f=-5e-7; float g=3.4028235e38; float h=2.0/3; integer i=2147483647; float j=16777216;\nllOwnerSay((string)(a));\nllOwnerSay((string)(b));\nllOwnerSay((string)(c));\nllOwnerSay((string)(d));\nllOwnerSay((string)(e));\nllOwnerSay((string)(f));\nllOwnerSay((string)(g));\nllOwnerSay((string)(h));\nllOwnerSay((string)((float)i));\nllOwnerSay((string)(j+1));\n} }\n",
+  "output": [
+   "123456800.000000",
+   "1000000000000000.000000",
+   "10000000.000000",
+   "0.000005",
+   "0.000124",
+   "-0.000001",
+   "340282300000000000000000000000000000000.000000",
+   "0.666667",
+   "2147484000.000000",
+   "16777220.000000"
+  ]
+ },
+ {
+  "name": "cases3/fmt-v",
+  "source": "default { state_entry() {\nvector v=<0.000025,0,0>; vector w=<-0.0,0,0>; float inf=(float)\"inf\"; vector x=<inf,0,0>;\nllOwnerSay((string)(v));\nllOwnerSay((string)(w));\nllOwnerSay((string)(ZERO_ROTATION));\nllOwnerSay((string)(x));\nllOwnerSay((string)([w]));\n} }\n",
+  "output": [
+   "<0.00003, 0.00000, 0.00000>",
+   "<-0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>",
+   "<Infinity, 0.00000, 0.00000>",
+   "<-0.000000, 0.000000, 0.000000>"
+  ]
+ },
+ {
+  "name": "cases3/str2float",
+  "source": "default { state_entry() {\nstring a=\"  1.5e2xyz\"; string b=\"1,5\"; string c=\"0x10\"; string d=\"INF\"; string e=\"1e39\"; string f=\"-1e-50\"; string g=\"-nan\"; string h=\"1e\";\nllOwnerSay((string)((float)a));\nllOwnerSay((string)((float)b));\nllOwnerSay((string)((float)c));\nllOwnerSay((string)((float)d));\nllOwnerSay((string)((float)e));\nllOwnerSay((string)((float)f));\nllOwnerSay((string)((float)g));\nllOwnerSay((string)((float)h));\n} }\n",
+  "output": [
+   "150.000000",
+   "1.000000",
+   "16.000000",
+   "Infinity",
+   "Infinity",
+   "-0.000000",
+   "NaN",
+   "1.000000"
+  ]
+ },
+ {
+  "name": "cases3/float2int",
+  "source": "default { state_entry() {\nfloat a=-1.9; float b=1e20; float c=2147483648.0; float d=2147483520.0; float n=(float)\"nan\"; integer i=0x7FFFFFFE; float big=16777217;\nllOwnerSay((string)((integer)a));\nllOwnerSay((string)((integer)b));\nllOwnerSay((string)((integer)c));\nllOwnerSay((string)((integer)d));\nllOwnerSay((string)((integer)n));\nllOwnerSay((string)((integer)((float)i)));\nllOwnerSay((string)((integer)(big*1.0)));\n} }\n",
+  "output": [
+   "-1",
+   "-2147483648",
+   "-2147483648",
+   "2147483520",
+   "-2147483648",
+   "2147483646",
+   "16777216"
+  ]
+ },
+ {
+  "name": "cases3/str2vec",
+  "source": "default { state_entry() {\nstring a=\"<1,2,3\"; string b=\"<1,2,3>junk\"; string c=\"< 1,\\t2,\\n3>\"; string d=\" <1,2,3>\"; string e=\"<1 ,2,3>\"; string f=\"<1;2;3>\"; string g=\"<inf,nan,0x10>\"; string h=\"<1,2,3,4,5>\"; string k=\"<1,2,3>\";\nllOwnerSay((string)((vector)a));\nllOwnerSay((string)((vector)b));\nllOwnerSay((string)((vector)c));\nllOwnerSay((string)((vector)d));\nllOwnerSay((string)((vector)e));\nllOwnerSay((string)((vector)f));\nllOwnerSay((string)((vector)g));\nllOwnerSay((string)((rotation)h));\nllOwnerSay((string)((rotation)k));\n} }\n",
+  "output": [
+   "<1.00000, 2.00000, 3.00000>",
+   "<1.00000, 2.00000, 3.00000>",
+   "<1.00000, 2.00000, 3.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "<Infinity, NaN, 16.00000>",
+   "<1.00000, 2.00000, 3.00000, 4.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>"
+  ]
+ },
+ {
+  "name": "cases3/keys",
+  "source": "default { state_entry() {\nkey a = \"ABCDEF00-0000-0000-0000-000000000000\"; key b = \"abcdef00-0000-0000-0000-000000000000\";\nllOwnerSay((string)(a == b)); llOwnerSay((string)(a == \"abcdef00-0000-0000-0000-000000000000\")); llOwnerSay((string)a);\nif (a) llOwnerSay(\"A true\"); else llOwnerSay(\"A false\");\nkey c = \"ffffffffXffffXffffXffffXffffffffffff\"; if (c) llOwnerSay(\"c true\"); else llOwnerSay(\"c false\");\nkey d = \"01234567-0123-0123-0123012345678901\"; if (d) llOwnerSay(\"d true\"); else llOwnerSay(\"d false\");\nkey e = \"00000000-0000-0000-0000-000000000001\"; if (e) llOwnerSay(\"e true\"); else llOwnerSay(\"e false\");\nkey f = \"foo\"; if (f) llOwnerSay(\"f true\"); else llOwnerSay(\"f false\");\nif (NULL_KEY) llOwnerSay(\"NULL_KEY true\"); else llOwnerSay(\"NULL_KEY false\");\nkey g = llList2Key([1.0], 0); llOwnerSay(\"[\" + (string)g + \"]\"); if (g == NULL_KEY) llOwnerSay(\"g null\"); else llOwnerSay(\"g not null\");\n} }\n",
+  "output": [
+   "0",
+   "0",
+   "ABCDEF00-0000-0000-0000-000000000000",
+   "A true",
+   "c true",
+   "d true",
+   "e true",
+   "f false",
+   "NULL_KEY true",
+   "[]",
+   "g not null"
+  ]
+ },
+ {
+  "name": "cases3/intarith",
+  "source": "default { state_entry() {\ninteger a=2147483647; integer m=-2147483648; integer n7=-7;\nllOwnerSay((string)(a+1));\nllOwnerSay((string)(-m));\nllOwnerSay((string)(m*-1));\nllOwnerSay((string)(m/-1));\nllOwnerSay((string)(m%-1));\nllOwnerSay((string)(n7/2));\nllOwnerSay((string)(n7%2));\n} }\n",
+  "output": [
+   "-2147483648",
+   "-2147483648",
+   "-2147483648",
+   "-2147483648",
+   "0",
+   "-3",
+   "-1"
+  ]
+ },
+ {
+  "name": "cases3/nan-div",
+  "source": "default { state_entry() {\nfloat n=(float)\"nan\"; llOwnerSay((string)(n/1.0));\n} }\n",
+  "output": [
+   "ERROR"
+  ]
+ },
+ {
+  "name": "cases3/nan-ops",
+  "source": "default { state_entry() {\nfloat i=(float)\"inf\"; llOwnerSay((string)(i-i)); llOwnerSay((string)(i*0)); float n=(float)\"nan\"; llOwnerSay((string)(n>1)); llOwnerSay((string)(n<1)); llOwnerSay((string)(n==n)); if (n) llOwnerSay(\"nan true\"); else llOwnerSay(\"nan false\"); float z=-0.0; if (z) llOwnerSay(\"nz true\"); else llOwnerSay(\"nz false\");\n} }\n",
+  "output": [
+   "NaN",
+   "NaN",
+   "0",
+   "0",
+   "0",
+   "nan true",
+   "nz false"
+  ]
+ },
+ {
+  "name": "cases3/vec-div-int0",
+  "source": "default { state_entry() {\nvector v=<1,2,3>; integer z=0; llOwnerSay((string)(v/z));\n} }\n",
+  "output": [
+   "ERROR"
+  ]
+ },
+ {
+  "name": "cases3/shifts-rt",
+  "source": "default { state_entry() {\ninteger one=1; integer eight=8; integer neg=-8; integer f=0xFAAAAAAA; integer n1=-1; integer t2=32; integer t3=33;\nllOwnerSay((string)(one<<t2));\nllOwnerSay((string)(one<<t3));\nllOwnerSay((string)(one<<n1));\nllOwnerSay((string)(eight>>n1));\nllOwnerSay((string)(eight>>t2));\nllOwnerSay((string)(neg>>t2));\nllOwnerSay((string)(neg>>1));\nllOwnerSay((string)(f>>4));\n} }\n",
+  "output": [
+   "0",
+   "0",
+   "0",
+   "16",
+   "0",
+   "-1",
+   "-4",
+   "-5592406"
+  ]
+ },
+ {
+  "name": "cases3/truthiness",
+  "source": "default { state_entry() {\nrotation r=<0,0,0,1>; rotation r0=<0,0,0,0>; if (r) llOwnerSay(\"r true\"); else llOwnerSay(\"r false\"); if (r0) llOwnerSay(\"r0 true\"); else llOwnerSay(\"r0 false\"); vector v=<0,0,0>; if (v) llOwnerSay(\"v true\"); else llOwnerSay(\"v false\"); list l=[]; if (l) llOwnerSay(\"l true\"); else llOwnerSay(\"l false\");\n} }\n",
+  "output": [
+   "r false",
+   "r0 true",
+   "v false",
+   "l false"
+  ]
+ },
+ {
+  "name": "cases3/rot-eq",
+  "source": "default { state_entry() {\nrotation a=<-0.0,0,0,1>; rotation b=<0,0,0,1>; vector c=<-0.0,0,0>; vector d=<0,0,0>;\nllOwnerSay((string)(a==b));\nllOwnerSay((string)(c==d));\nllOwnerSay((string)(a!=b));\n} }\n",
+  "output": [
+   "1",
+   "1",
+   "0"
+  ]
+ },
+ {
+  "name": "cases3/vecops",
+  "source": "default { state_entry() {\nvector a=<1,3,-5>; vector b=<4,-2,-1>; vector c=<1,2,3>; vector d=<4,5,6>; rotation p=<1,2,3,4>; rotation q=<5,6,7,8>; vector m=<-1,0,0>; rotation h=<0,0,0.707,0.707>;\nllOwnerSay((string)(a*b));\nllOwnerSay((string)(c%d));\nllOwnerSay((string)(p*q));\nllOwnerSay((string)(p/q));\nllOwnerSay((string)(m*h));\nllOwnerSay((string)(m/h));\nllOwnerSay((string)(c/3.0));\nllOwnerSay((string)(c*0.5));\n} }\n",
+  "output": [
+   "3.000000",
+   "<-3.00000, 6.00000, -3.00000>",
+   "<32.00000, 32.00000, 56.00000, -6.00000>",
+   "<-16.00000, 0.00000, -8.00000, 70.00000>",
+   "<0.00000, -0.99970, 0.00000>",
+   "<0.00000, 0.99970, 0.00000>",
+   "<0.33333, 0.66667, 1.00000>",
+   "<0.50000, 1.00000, 1.50000>"
+  ]
+ },
+ {
+  "name": "cases3/list-access",
+  "source": "default { state_entry() {\nlist s=[\"1\",\"2\",\"3\"]; list m=[1,1.9,-1.9,1e10,\"0x1F\",\"  -0x1F\",\"1.9\",<1,2,3>,(key)\"123foo\"];\nllOwnerSay((string)(llList2String(s,-2)));\nllOwnerSay((string)(llList2String(s,3)));\nllOwnerSay((string)(llList2String(s,-4)));\nllOwnerSay((string)(llList2Integer(m,1)));\nllOwnerSay((string)(llList2Integer(m,2)));\nllOwnerSay((string)(llList2Integer(m,3)));\nllOwnerSay((string)(llList2Integer(m,4)));\nllOwnerSay((string)(llList2Integer(m,5)));\nllOwnerSay((string)(llList2Integer(m,6)));\nllOwnerSay((string)(llList2Integer(m,7)));\nllOwnerSay((string)(llList2Integer(m,8)));\nllOwnerSay((string)(llList2Float([\"1e3\"],0)));\nllOwnerSay((string)(llList2Float([<1,2,3>],0)));\nllOwnerSay((string)(llList2Float([16777217],0)));\nllOwnerSay((string)(llList2Vector([\"<1,2,3>\"],0)));\nllOwnerSay((string)(llList2Rot([\"<1,2,3,4>\"],0)));\nllOwnerSay((string)(llList2Rot([<1,2,3>],0)));\nllOwnerSay((string)(llList2Vector([<1,2,3,4>],0)));\nllOwnerSay((string)(llGetListEntryType([1,\"a\"],-1)));\nllOwnerSay((string)(llGetListEntryType([1],-5)));\nllOwnerSay((string)(llList2String([16777216.0],0)));\nllOwnerSay((string)(llList2String([-0.0],0)));\n} }\n",
+  "output": [
+   "2",
+   "",
+   "",
+   "1",
+   "-1",
+   "-2147483648",
+   "31",
+   "0",
+   "1",
+   "0",
+   "0",
+   "1000.000000",
+   "0.000000",
+   "16777220.000000",
+   "<0.00000, 0.00000, 0.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>",
+   "<0.00000, 0.00000, 0.00000, 1.00000>",
+   "<0.00000, 0.00000, 0.00000>",
+   "3",
+   "0",
+   "16777220.000000",
+   "-0.000000"
+  ]
+ },
+ {
+  "name": "cases3/ranges",
+  "source": "default { state_entry() {\nlist L=[0,1,2,3,4,5,6,7,8,9];\nllOwnerSay((string)(llList2List(L,8,1)));\nllOwnerSay((string)(llList2List(L,-200,1)));\nllOwnerSay((string)(llList2List(L,-200,-199)));\nllOwnerSay((string)(llList2List(L,201,200)));\nllOwnerSay((string)(llList2List(L,1,200)));\nllOwnerSay((string)(llList2List(L,5,4)));\nllOwnerSay((string)(llList2List(L,5,-20)));\nllOwnerSay((string)(llList2List(L,15,2)));\nllOwnerSay((string)(llList2List(L,0,-11)));\nllOwnerSay((string)(llList2List(L,5,-2147483648)));\nllOwnerSay((string)(llList2List(L,2147483647,-2147483648)));\nllOwnerSay((string)(llDeleteSubList(L,15,2)));\nllOwnerSay((string)(llDeleteSubList(L,5,-20)));\nllOwnerSay((string)(llDeleteSubList(L,20,30)));\nllOwnerSay((string)(llDeleteSubList([\"a\",\"b\",\"c\",\"d\"],2,1)));\nllOwnerSay((string)(llDeleteSubList([\"a\",\"b\",\"c\",\"d\"],0,-1)));\nllOwnerSay((string)(llDeleteSubList([\"a\",\"b\",\"c\",\"d\"],-1,0)));\n} }\n",
+  "output": [
+   "0189",
+   "01",
+   "",
+   "0123456789",
+   "123456789",
+   "0123456789",
+   "56789",
+   "012",
+   "0123456789",
+   "56789",
+   "",
+   "3456789",
+   "01234",
+   "0123456789",
+   "",
+   "",
+   "bc"
+  ]
+ },
+ {
+  "name": "cases3/insert-replace",
+  "source": "default { state_entry() {\nlist foo=[\"1\",\"2\",\"3\",\"4\"]; list bar=[\"a\",\"b\"];\nllOwnerSay((string)(llListInsertList([1,2,3],[9],-1)));\nllOwnerSay((string)(llListInsertList([1,2,3],[9],-10)));\nllOwnerSay((string)(llListInsertList([1,2,3],[9],100)));\nllOwnerSay((string)(llListInsertList([],[9],5)));\nllOwnerSay((string)(llListReplaceList(foo,bar,0,0)));\nllOwnerSay((string)(llListReplaceList(foo,bar,-1,-1)));\nllOwnerSay((string)(llListReplaceList(foo,bar,0,-1)));\nllOwnerSay((string)(llListReplaceList(foo,bar,6,6)));\nllOwnerSay((string)(llListReplaceList(foo,bar,1,2)));\nllOwnerSay((string)(llListReplaceList(foo,bar,2,1)));\nllOwnerSay((string)(llListReplaceList(foo,bar,3,1)));\nllOwnerSay((string)(llListReplaceList(foo,bar,-10,1)));\nllOwnerSay((string)(llListReplaceList(foo,bar,-10,-8)));\nllOwnerSay((string)(llListReplaceList(foo,bar,10,1)));\nllOwnerSay((string)(llListReplaceList([],bar,0,0)));\nllOwnerSay((string)(llListReplaceList([],bar,-1,-1)));\nllOwnerSay((string)(llListReplaceList(foo,[],1,1)));\n} }\n",
+  "output": [
+   "1293",
+   "9123",
+   "1239",
+   "9",
+   "ab234",
+   "123ab",
+   "ab",
+   "1234ab",
+   "1ab4",
+   "ab",
+   "3ab",
+   "34",
+   "1234",
+   "34ab",
+   "ab",
+   "",
+   "134"
+  ]
+ },
+ {
+  "name": "cases3/dump",
+  "source": "default { state_entry() {\nlist l=[-0.0, <-0.0,0,0>, 1.1];\nllOwnerSay((string)(llDumpList2String(l,\"|\")));\n} }\n",
+  "output": [
+   "0.000000|<0.000000, 0.000000, 0.000000>|1.100000"
+  ]
+ },
+ {
+  "name": "cases3/substr",
+  "source": "default { state_entry() {\nstring s=\"abcdefghij\"; string t=\"abc\";\nllOwnerSay((string)(llGetSubString(s,8,1)));\nllOwnerSay((string)(llGetSubString(s,-5,-3)));\nllOwnerSay((string)(llGetSubString(s,201,200)));\nllOwnerSay((string)(llGetSubString(\"x\",1,0)));\nllOwnerSay((string)(llGetSubString(t,-1,0)));\nllOwnerSay((string)(llGetSubString(t,2,1)));\n} }\n",
+  "output": [
+   "abij",
+   "fgh",
+   "abcdefghij",
+   "x",
+   "ac",
+   "abc"
+  ]
+ },
+ {
+  "name": "cases3/math",
+  "source": "default { state_entry() {\ninteger m=-2147483648; float nz=-0.0; float n=(float)\"nan\"; float inf=(float)\"inf\";\nllOwnerSay((string)(llAbs(m)));\nllOwnerSay((string)(llFabs(nz)));\nllOwnerSay((string)(llFloor(-0.5)));\nllOwnerSay((string)(llCeil(-0.5)));\nllOwnerSay((string)(llFloor(1e10)));\nllOwnerSay((string)(llFloor(2147483647.0)));\nllOwnerSay((string)(llCeil(n)));\nllOwnerSay((string)(llSqrt(-4)));\nllOwnerSay((string)(llSqrt(nz)));\nllOwnerSay((string)(llSqrt(2)));\nllOwnerSay((string)(llPow(n,0)));\nllOwnerSay((string)(llPow(1,n)));\nllOwnerSay((string)(llPow(1,inf)));\nllOwnerSay((string)(llPow(-1,inf)));\nllOwnerSay((string)(llPow(-8,0.333333)));\nllOwnerSay((string)(llPow(0,-1)));\nllOwnerSay((string)(llPow(nz,3)));\nllOwnerSay((string)(llPow(-2,3)));\nllOwnerSay((string)(llPow(-1e20,1e20)));\nllOwnerSay((string)(llPow(-1e20,-1e20)));\nllOwnerSay((string)(llLog(0)));\nllOwnerSay((string)(llLog(-1)));\nllOwnerSay((string)(llLog(n)));\nllOwnerSay((string)(llLog(inf)));\nllOwnerSay((string)(llLog10(0)));\nllOwnerSay((string)(llAcos(1.5)));\nllOwnerSay((string)(llAsin(-2)));\nllOwnerSay((string)(llAtan2(nz,1)));\nllOwnerSay((string)(llAtan2(0,-1)));\nllOwnerSay((string)(llAtan2(nz,-1)));\nllOwnerSay((string)(llAtan2(inf,inf)));\nllOwnerSay((string)(llSin(inf)));\n} }\n",
+  "output": [
+   "-2147483648",
+   "-0.000000",
+   "-1",
+   "0",
+   "-2147483648",
+   "-2147483648",
+   "-2147483648",
+   "NaN",
+   "-0.000000",
+   "1.414214",
+   "NaN",
+   "NaN",
+   "NaN",
+   "NaN",
+   "NaN",
+   "Infinity",
+   "0.000000",
+   "-8.000000",
+   "Infinity",
+   "0.000000",
+   "0.000000",
+   "0.000000",
+   "0.000000",
+   "Infinity",
+   "0.000000",
+   "NaN",
+   "NaN",
+   "0.000000",
+   "3.141593",
+   "-3.141593",
+   "NaN",
+   "NaN"
+  ]
+ },
+ {
+  "name": "cases3/case2",
+  "source": "default { state_entry() {\nstring a=\"ß ÿ µ\"; string b=\"İ ı ſ\"; string c=\"ς Σ Ǆ ǆ ǅ Ⅰ Ⓐ ⓐ\"; string d=\"K Ω ẞ 😀\";\nllOwnerSay((string)(llToUpper(a)));\nllOwnerSay((string)(llToLower(b)));\nllOwnerSay((string)(llToUpper(b)));\nllOwnerSay((string)(llToUpper(c)));\nllOwnerSay((string)(llToLower(c)));\nllOwnerSay((string)(llToLower(d)));\nllOwnerSay((string)(llToUpper(d)));\n} }\n",
+  "output": [
+   "ß Ÿ µ",
+   "İ ı ſ",
+   "İ ı ſ",
+   "Σ Σ Ǆ Ǆ ǅ Ⅰ Ⓐ Ⓐ",
+   "ς σ ǆ ǆ ǅ ⅰ ⓐ ⓐ",
+   "k ω ẞ 😀",
+   "K Ω ẞ 😀"
+  ]
+ },
+ {
+  "name": "cases3/strlen-tab",
+  "source": "default { state_entry() {\nllOwnerSay((string)llStringLength(\"\\t\")); llOwnerSay((string)llStringLength(\"\\\\\")); llOwnerSay(\"[\" + \"a\\tb\" + \"]\");\n} }\n",
+  "output": [
+   "4",
+   "1",
+   "[a    b]"
+  ]
+ },
+ {
+  "name": "cases3/eval-order-ops",
+  "source": "integer f(integer x){ llOwnerSay(\"f\"+(string)x); return x; }\nstring s(string x){ llOwnerSay(\"s\"+x); return x; }\ndefault { state_entry() { integer r = f(1) && f(2); r = f(3) | f(4); r = f(5) < f(6); string t = s(\"a\") + s(\"b\"); list l = [f(7)] + [f(8)]; r = f(9) * f(10); vector v = <1,1,1> * f(11); } }",
+  "output": [
+   "f2",
+   "f1",
+   "f4",
+   "f3",
+   "f6",
+   "f5",
+   "sb",
+   "sa",
+   "f8",
+   "f7",
+   "f10",
+   "f9",
+   "f11"
+  ]
+ },
+ {
+  "name": "cases4/A1-order",
+  "source": "string o; integer f(integer x){ o += (string)x; return x; }\ndefault{state_entry(){ integer r;\n o=\"\"; r = f(1) - f(2) - f(3); llOwnerSay(o+\" \"+(string)r);\n o=\"\"; r = f(1) == f(2); llOwnerSay(o);\n o=\"\"; r = f(1) < f(2); llOwnerSay(o);\n o=\"\"; r = f(1) & f(2); llOwnerSay(o);\n o=\"\"; r = f(1) << f(2); llOwnerSay(o);\n o=\"\"; r = f(0) && f(2); llOwnerSay(o+\" \"+(string)r);\n o=\"\"; r = f(1) || f(2); llOwnerSay(o+\" \"+(string)r); }}",
+  "output": [
+   "321 -4",
+   "21",
+   "21",
+   "21",
+   "21",
+   "20 0",
+   "21 1"
+  ]
+ },
+ {
+  "name": "cases4/A2-mixed",
+  "source": "list g; integer c(integer n){ g += [n]; return 1; }\ndefault{state_entry(){ if (TRUE || c(0)*c(1) && c(2) | c(3) ^ c(4) / c(5) || TRUE) ; llOwnerSay(llDumpList2String(g,\",\")); }}",
+  "output": [
+   "5,4,3,2,1,0"
+  ]
+ },
+ {
+  "name": "cases4/A3-strcat",
+  "source": "string o; string s(string x){ o += x; return x; }\ndefault{state_entry(){ string r = s(\"a\") + s(\"b\"); llOwnerSay(o + \" \" + r); }}",
+  "output": [
+   "ba ab"
+  ]
+ },
+ {
+  "name": "cases4/A4-listcat",
+  "source": "string o; integer f(integer x){ o += (string)x; return x; }\ndefault{state_entry(){ list l = [f(1)] + [f(2)]; llOwnerSay(o+\" \"+(string)l); }}",
+  "output": [
+   "21 12"
+  ]
+ },
+ {
+  "name": "cases4/A5-args",
+  "source": "string o; integer f(integer x){ o += (string)x; return x; } h(integer a,integer b,integer c){}\ndefault{state_entry(){ o=\"\"; h(f(1),f(2),f(3)); llOwnerSay(o); o=\"\"; list l=[f(1),f(2),f(3)]; llOwnerSay(o); o=\"\"; vector v=<f(1),f(2),f(3)>; llOwnerSay(o); }}",
+  "output": [
+   "123",
+   "123",
+   "123"
+  ]
+ },
+ {
+  "name": "cases4/A6-assign-left",
+  "source": "default { state_entry() {\nfloat f = 4.0; llOwnerSay((string)((f = 2.0) + f)); integer x = 4; llOwnerSay((string)((x = 2) + x));\n} }\n",
+  "output": [
+   "6.000000",
+   "6"
+  ]
+ },
+ {
+  "name": "cases4/A7-incs",
+  "source": "default { state_entry() {\nfloat f=4; llOwnerSay((string)((f++) + (++f))); f=4; llOwnerSay((string)((++f) + (f++)));\n} }\n",
+  "output": [
+   "10.000000",
+   "10.000000"
+  ]
+ },
+ {
+  "name": "cases4/A8-cmp-local",
+  "source": "default { state_entry() {\ninteger x=1; llOwnerSay((string)((x = 4) == x)); x=1; llOwnerSay((string)((x++) == x)); x=1; llOwnerSay((string)((++x) == x));\n} }\n",
+  "output": [
+   "1",
+   "0",
+   "1"
+  ]
+ },
+ {
+  "name": "cases4/A9-param",
+  "source": "integer p(integer a){ return (a = 4) + a; } default{state_entry(){ llOwnerSay((string)p(1)); }}",
+  "output": [
+   "8"
+  ]
+ },
+ {
+  "name": "cases4/A10-compound-order",
+  "source": "integer g = 1; integer bump(){ g = 10; return 1; } default{state_entry(){ g += bump(); llOwnerSay((string)g); }}",
+  "output": [
+   "11"
+  ]
+ },
+ {
+  "name": "cases4/A11-inc-cat",
+  "source": "integer g = 5; default{state_entry(){ llOwnerSay((string)(g++) + \" \" + (string)g); llOwnerSay((string)g); }}",
+  "output": [
+   "5 5",
+   "6"
+  ]
+ },
+ {
+  "name": "cases4/B12",
+  "source": "default { state_entry() {\nllOwnerSay((string)(2 && 3)+(string)(0 || -5)+(string)(0 && 7)+(string)(!5)+(string)(!0));\n} }\n",
+  "output": [
+   "11001"
+  ]
+ },
+ {
+  "name": "cases4/B13-prec",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1 || 0 && 0));\n} }\n",
+  "output": [
+   "0"
+  ]
+ },
+ {
+  "name": "cases4/B14-prec",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1 & 2 == 2)+\" \"+(string)(1 << 2 + 1)+\" \"+(string)(!1 + 1)+\" \"+(string)(1 < 2 == 1));\n} }\n",
+  "output": [
+   "1 8 1 1"
+  ]
+ },
+ {
+  "name": "cases4/B15a-err",
+  "source": "default { state_entry() {\ninteger r = !1.0;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/B15b-err",
+  "source": "default { state_entry() {\ninteger r = 1.0 && 1;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/C17-incprec",
+  "source": "float g; default{state_entry(){ float l=16777216.0; g=16777216.0; llOwnerSay((string)((integer)(++l - 1))+\" \"+(string)((integer)(++g - 1))+\" \"+(string)((integer)l)+\" \"+(string)((integer)g)); }}",
+  "output": [
+   "16777216 16777215 16777216 16777216"
+  ]
+ },
+ {
+  "name": "cases4/C18",
+  "source": "default { state_entry() {\ninteger i=3; i = i++; llOwnerSay((string)i);\n} }\n",
+  "output": [
+   "3"
+  ]
+ },
+ {
+  "name": "cases4/C19-err",
+  "source": "default { state_entry() {\nvector v; v++;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/C20",
+  "source": "default { state_entry() {\ninteger c=5; vector v; v.y = c++; rotation r; r.s = 20; llOwnerSay((string)c+\" \"+(string)v+\" \"+(string)r);\n} }\n",
+  "output": [
+   "6 <0.00000, 5.00000, 0.00000> <0.00000, 0.00000, 0.00000, 20.00000>"
+  ]
+ },
+ {
+  "name": "cases4/D21",
+  "source": "default { state_entry() {\nfloat f=1; f+=1; vector v=<1,2,3>; v*=2; v/=4; v%=<0,0,1>; rotation r=<1,2,3,4>; r*=<5,6,7,8>; llOwnerSay((string)f+\" \"+(string)v+\" \"+(string)r);\n} }\n",
+  "output": [
+   "2.000000 <1.00000, -0.50000, 0.00000> <32.00000, 32.00000, 56.00000, -6.00000>"
+  ]
+ },
+ {
+  "name": "cases4/D22",
+  "source": "default { state_entry() {\ninteger i=3; i*=2.5; integer j=-3; j*=2.5; integer k=1; k*=0.5; llOwnerSay((string)i+\" \"+(string)j+\" \"+(string)k);\n} }\n",
+  "output": [
+   "7 -7 0"
+  ]
+ },
+ {
+  "name": "cases4/D24a-err",
+  "source": "default { state_entry() {\ninteger i; i+=1.5;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/D24b-err",
+  "source": "default { state_entry() {\nvector v; v*=<1,1,1>;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/D24c-err",
+  "source": "default { state_entry() {\nstring s; s+=(key)\"x\";\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/D24d-err",
+  "source": "default { state_entry() {\nkey k; k+=\"a\";\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/D24e-err",
+  "source": "default { state_entry() {\nfloat f; f%=2;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/D25",
+  "source": "default { state_entry() {\nlist l=[1]; l+=2; l+=[3,4]; l+=<1,2,3>; l = \"a\" + l; llOwnerSay((string)l+\" \"+(string)llGetListLength(l));\n} }\n",
+  "output": [
+   "a1234<1.000000, 2.000000, 3.000000> 6"
+  ]
+ },
+ {
+  "name": "cases4/E26-err",
+  "source": "default { state_entry() {\nstring s = \"a\" + (key)\"b\";\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/E27",
+  "source": "default { state_entry() {\nkey k=\"foo\"; llOwnerSay((string)(k==\"foo\")+(string)(\"foo\"!=k)+(string)(\"a\"!=\"b\")+(string)((key)\"x\"==(key)\"x\"));\n} }\n",
+  "output": [
+   "1011"
+  ]
+ },
+ {
+  "name": "cases4/F28",
+  "source": "float half(float x){ return x/2; } float five(){ return 5; } default{state_entry(){ float f=7; llOwnerSay((string)half(7)+\" \"+(string)five()+\" \"+(string)f+\" \"+(string)(7/2)+\" \"+(string)(7/2.0)); }}",
+  "output": [
+   "3.500000 5.000000 7.000000 3 3.500000"
+  ]
+ },
+ {
+  "name": "cases4/F29a-err",
+  "source": "default { state_entry() {\ninteger i = 1.5;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/F29b-err",
+  "source": "default { state_entry() {\nstring s = 5;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/F29c-err",
+  "source": "default { state_entry() {\nlist l = 5;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/F29d-err",
+  "source": "default { state_entry() {\nllOwnerSay(5);\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/F29e-err",
+  "source": "default { state_entry() {\nllOwnerSay([1]);\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/G30",
+  "source": "default { state_entry() {\nllOwnerSay((string)-5+\"|\"+(string)1.5+\"|\"+(string)(-0.0)+\"|\"+(string)<1,2,3>+\"|\"+(string)<1,2,3,4>+\"|\"+(string)[<1,2,3>]);\n} }\n",
+  "output": [
+   "-5|1.500000|-0.000000|<1.00000, 2.00000, 3.00000>|<1.00000, 2.00000, 3.00000, 4.00000>|<1.000000, 2.000000, 3.000000>"
+  ]
+ },
+ {
+  "name": "cases4/G31",
+  "source": "default { state_entry() {\nllOwnerSay((string)[1, 2.5, \"a\", <1,2,3>, <1,2,3,4>, (key)\"k\", -0.0]);\n} }\n",
+  "output": [
+   "12.500000a<1.000000, 2.000000, 3.000000><1.000000, 2.000000, 3.000000, 4.000000>k-0.000000"
+  ]
+ },
+ {
+  "name": "cases4/G32",
+  "source": "default { state_entry() {\ninteger i=16777216; llOwnerSay((string)((float)i)+\"|\"+(string)123456.789+\"|\"+(string)((float)2147483647));\n} }\n",
+  "output": [
+   "16777220.000000|123456.800000|2147484000.000000"
+  ]
+ },
+ {
+  "name": "cases4/G33",
+  "source": "default { state_entry() {\nllOwnerSay((string)2.0e+99999+\" \"+(string)-2.0e+99999+\" \"+(string)((float)\"nan\"));\n} }\n",
+  "output": [
+   "Infinity -Infinity NaN"
+  ]
+ },
+ {
+  "name": "cases4/G34",
+  "source": "default { state_entry() {\nfloat h=1e10; llOwnerSay((string)((integer)1.9)+\" \"+(string)((integer)-1.9)+\" \"+(string)((integer)h)+\" \"+(string)((integer)((float)\"nan\"))+\" \"+(string)((integer)2147483520.0));\n} }\n",
+  "output": [
+   "1 -1 -2147483648 -2147483648 2147483520"
+  ]
+ },
+ {
+  "name": "cases4/G35",
+  "source": "default { state_entry() {\nllOwnerSay((string)((integer)\"0x1F\")+\" \"+(string)((integer)\"  42\")+\" \"+(string)((integer)\"12abc\")+\" \"+(string)((integer)\"-7\")+\" \"+(string)((integer)\"abc\")+\" \"+(string)((integer)\"1e3\")+\" \"+(string)((integer)\" 0x10\")+\" \"+(string)((integer)\"4294967295\")+\" \"+(string)((integer)\"010\"));\n} }\n",
+  "output": [
+   "31 42 12 -7 0 1 0 -1 10"
+  ]
+ },
+ {
+  "name": "cases4/G37",
+  "source": "default { state_entry() {\nllOwnerSay((string)((float)\"1.5abc\")+\" \"+(string)((float)\"abc\")+\" \"+(string)((float)\"1e3\")+\" \"+(string)((float)\".5\")+\" \"+(string)((float)\"inf\")+\" \"+(string)((float)\"0x10\"));\n} }\n",
+  "output": [
+   "1.500000 0.000000 1000.000000 0.500000 Infinity 16.000000"
+  ]
+ },
+ {
+  "name": "cases4/G39",
+  "source": "default { state_entry() {\nllOwnerSay((string)((vector)\"<1,2,3\")+\"|\"+(string)((vector)\"<1,2>\")+\"|\"+(string)((vector)\"1,2,3\")+\"|\"+(string)((rotation)\"foo\")+\"|\"+(string)((vector)\" <1,2,3>\"));\n} }\n",
+  "output": [
+   "<1.00000, 2.00000, 3.00000>|<0.00000, 0.00000, 0.00000>|<0.00000, 0.00000, 0.00000>|<0.00000, 0.00000, 0.00000, 1.00000>|<0.00000, 0.00000, 0.00000>"
+  ]
+ },
+ {
+  "name": "cases4/G41",
+  "source": "default { state_entry() {\nllOwnerSay((string)llGetListLength((list)\"a\")+\" \"+(string)((list)5));\n} }\n",
+  "output": [
+   "1 5"
+  ]
+ },
+ {
+  "name": "cases4/G42a-err",
+  "source": "default { state_entry() {\ninteger i = (integer)<1,2,3>;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/G42b-err",
+  "source": "default { state_entry() {\nkey k = (key)5;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/G42c-err",
+  "source": "default { state_entry() {\nvector v = (vector)5;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/G42d-err",
+  "source": "default { state_entry() {\nrotation r = (rotation)<1,2,3>;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/G42e-err",
+  "source": "default { state_entry() {\ninteger i = (integer)[1];\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/G42f-err",
+  "source": "default { state_entry() {\ninteger i = (integer)(key)\"5\";\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/G43",
+  "source": "default { state_entry() {\nllOwnerSay((string)((integer)1.9 * 2)+\" \"+(string)((integer)(1.9*2))+\" \"+(string)1+\"a\"+\" \"+(string)((integer)-PI));\n} }\n",
+  "output": [
+   "2 3 1a -3"
+  ]
+ },
+ {
+  "name": "cases4/G43-err",
+  "source": "default { state_entry() {\nfloat x = 1; integer i = (integer)-x;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/H44",
+  "source": "default { state_entry() {\ninteger m=0x80000000; integer n=-1; llOwnerSay((string)(-7/2)+\" \"+(string)(-7%2)+\" \"+(string)(7%-2)+\" \"+(string)(m/n)+\" \"+(string)(m%n)+\" \"+(string)(5%1)+\" \"+(string)(2147483647+1)+\" \"+(string)(0x7FFFFFFF*2)+\" \"+(string)(-m));\n} }\n",
+  "output": [
+   "-3 -1 1 -2147483648 0 0 -2147483648 -2 -2147483648"
+  ]
+ },
+ {
+  "name": "cases4/H45",
+  "source": "default { state_entry() {\ninteger a=1; integer b=0; llOwnerSay((string)(a/b));\n} }\n",
+  "output": [
+   "ERROR"
+  ]
+ },
+ {
+  "name": "cases4/H46a",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1.0/0.0));\n} }\n",
+  "output": [
+   "ERROR"
+  ]
+ },
+ {
+  "name": "cases4/H46b",
+  "source": "default { state_entry() {\nfloat i=(float)\"inf\"; llOwnerSay((string)(i-i));\n} }\n",
+  "output": [
+   "NaN"
+  ]
+ },
+ {
+  "name": "cases4/H47",
+  "source": "default { state_entry() {\nllOwnerSay((string)(0xFAaaAAaa >> 4)+\" \"+(string)(1<<31)+\" \"+(string)(-8>>1)+\" \"+(string)(~10)+\" \"+(string)(~0xFFffFFf0)+\" \"+(string)(10^25)+\" \"+(string)(523<<2));\n} }\n",
+  "output": [
+   "-5592406 -2147483648 -4 -11 15 19 2092"
+  ]
+ },
+ {
+  "name": "cases4/H48",
+  "source": "default { state_entry() {\ninteger s=32; integer t=-1; llOwnerSay((string)(1<<s)+\" \"+(string)(8>>s)+\" \"+(string)(-1>>40)+\" \"+(string)(1<<t));\n} }\n",
+  "output": [
+   "0 0 -1 0"
+  ]
+ },
+ {
+  "name": "cases4/H48-const",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1<<32)+\" \"+(string)(8>>32)+\" \"+(string)(1<<-1));\n} }\n",
+  "output": [
+   "0 0 0"
+  ]
+ },
+ {
+  "name": "cases4/I49",
+  "source": "default { state_entry() {\nfloat a=0.1; float b=0.2; float c=a+b; llOwnerSay((string)((a+b)==0.3)+\" \"+(string)(c==0.3));\n} }\n",
+  "output": [
+   "0 1"
+  ]
+ },
+ {
+  "name": "cases4/I50",
+  "source": "default { state_entry() {\ninteger i=16777217; float f=i; llOwnerSay((string)((integer)((float)i))+\" \"+(string)((integer)f));\n} }\n",
+  "output": [
+   "16777217 16777216"
+  ]
+ },
+ {
+  "name": "cases4/I51",
+  "source": "default { state_entry() {\ninteger i=16777217; llOwnerSay((string)(16777217 == 16777216.0)+\" \"+(string)(i == 16777216.0));\n} }\n",
+  "output": [
+   "1 0"
+  ]
+ },
+ {
+  "name": "cases4/I52",
+  "source": "default { state_entry() {\ninteger i=2147483647; llOwnerSay((string)((integer)((float)i + 0.4)));\n} }\n",
+  "output": [
+   "2147483647"
+  ]
+ },
+ {
+  "name": "cases4/I53",
+  "source": "float DELTA=5; integer F=16777216; float rf(float v){ return v-DELTA; } default{state_entry(){ llOwnerSay((string)((F+DELTA-DELTA)==F)+\" \"+(string)(rf(F+DELTA)==16777215)); }}",
+  "output": [
+   "1 1"
+  ]
+ },
+ {
+  "name": "cases4/J54",
+  "source": "default { state_entry() {\nllOwnerSay((string)4294967296+\" \"+(string)0x100000000+\" \"+(string)2147483648+\" \"+(string)0xFFFFFFFF+\" \"+(string)3000000000+\" \"+(string)010+\" \"+(string)99999999999999999999);\n} }\n",
+  "output": [
+   "-1 -1 -2147483648 -1 -1294967296 10 -1"
+  ]
+ },
+ {
+  "name": "cases4/J55",
+  "source": "default { state_entry() {\nllOwnerSay((string)1e3+\" \"+(string).5+\" \"+(string)5.+\" \"+(string)1.5f+\" \"+(string)1.e2+\" \"+(string)1E-1);\n} }\n",
+  "output": [
+   "1000.000000 0.500000 5.000000 1.500000 100.000000 0.100000"
+  ]
+ },
+ {
+  "name": "cases4/J56-err",
+  "source": "default { state_entry() {\nfloat f = 1e3f;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/J57",
+  "source": "default { state_entry() {\nllOwnerSay(\"[\\t]\"); llOwnerSay(\"a\\rb\\qc\"); llOwnerSay(\"q\\\"\\\\\"); llOwnerSay((string)llStringLength(\"\\t\"));\n} }\n",
+  "output": [
+   "[    ]",
+   "arbqc",
+   "q\"\\",
+   "4"
+  ]
+ },
+ {
+  "name": "cases4/J58",
+  "source": "default { state_entry() {\nllOwnerSay(L\"abc\");\n} }\n",
+  "output": [
+   "\"abc"
+  ]
+ },
+ {
+  "name": "cases4/J59",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1 + $ 2));\n} }\n",
+  "output": [
+   "3"
+  ]
+ },
+ {
+  "name": "cases4/J60",
+  "source": "default { state_entry() {\nllOwnerSay((string)(-(-2147483648))+\" \"+(string)(-0x80000000));\n} }\n",
+  "output": [
+   "-2147483648 -2147483648"
+  ]
+ },
+ {
+  "name": "cases4/K61",
+  "source": "default { state_entry() {\nlist a=[1,2,3]; list b=[2]; llOwnerSay((string)(a!=b)+\" \"+(string)(b!=a)+\" \"+(string)([1]==[2])+\" \"+(string)([1]!=[2,3])+\" \"+(string)(a!=[])+\" \"+(string)([]!=a));\n} }\n",
+  "output": [
+   "2 -2 1 -1 3 -3"
+  ]
+ },
+ {
+  "name": "cases4/K62",
+  "source": "default { state_entry() {\nfloat n=(float)\"nan\"; llOwnerSay((string)(n==n)+(string)(n!=n)+(string)(n<1)+(string)(n>1)+(string)(n>=n));\n} }\n",
+  "output": [
+   "01000"
+  ]
+ },
+ {
+  "name": "cases4/K63a-err",
+  "source": "default { state_entry() {\ninteger r = \"a\" < \"b\";\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/K63b-err",
+  "source": "default { state_entry() {\ninteger r = <1,2,3> < <1,2,3>;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/L64",
+  "source": "default { state_entry() {\nllOwnerSay((string)(<1,3,-5>*<4,-2,-1>)+\"|\"+(string)(<1,2,3>%<4,5,6>)+\"|\"+(string)(<1,0,0>*<0,0,1,0>)+\"|\"+(string)(<1,2,3,4>*<5,6,7,8>)+\"|\"+(string)(<1,2,3,4>/<5,6,7,8>));\n} }\n",
+  "output": [
+   "3.000000|<-3.00000, 6.00000, -3.00000>|<-1.00000, 0.00000, 0.00000>|<32.00000, 32.00000, 56.00000, -6.00000>|<-16.00000, 0.00000, -8.00000, 70.00000>"
+  ]
+ },
+ {
+  "name": "cases4/L65",
+  "source": "default { state_entry() {\nllOwnerSay((string)(-<1,2,3>)+\"|\"+(string)(-ZERO_VECTOR)+\"|\"+(string)(-ZERO_ROTATION));\n} }\n",
+  "output": [
+   "<-1.00000, -2.00000, -3.00000>|<-0.00000, -0.00000, -0.00000>|<-0.00000, -0.00000, -0.00000, -1.00000>"
+  ]
+ },
+ {
+  "name": "cases4/L66",
+  "source": "default { state_entry() {\nllOwnerSay((string)(2*<1,2,3>)+\" \"+(string)(<1,2,3>/2));\n} }\n",
+  "output": [
+   "<2.00000, 4.00000, 6.00000> <0.50000, 1.00000, 1.50000>"
+  ]
+ },
+ {
+  "name": "cases4/L67a-err",
+  "source": "default { state_entry() {\nvector v = <0,0,0,1>*<1,2,3>;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/L67b-err",
+  "source": "default { state_entry() {\nrotation r = <0,0,0,1>*2.0;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/L67c-err",
+  "source": "default { state_entry() {\nvector v = <1,2,3>+1.0;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/M68",
+  "source": "default { state_entry() {\nstring r; if(0.0)r+=\"1\";else r+=\"0\"; if(-0.0)r+=\"1\";else r+=\"0\"; if(\"\")r+=\"1\";else r+=\"0\"; if(\"0\")r+=\"1\";else r+=\"0\"; if([])r+=\"1\";else r+=\"0\"; if([0])r+=\"1\";else r+=\"0\"; if(ZERO_VECTOR)r+=\"1\";else r+=\"0\"; if(ZERO_ROTATION)r+=\"1\";else r+=\"0\"; if(<0,0,0,0>)r+=\"1\";else r+=\"0\"; if(NULL_KEY)r+=\"1\";else r+=\"0\"; if((key)NULL_KEY)r+=\"1\";else r+=\"0\"; if((key)\"abc\")r+=\"1\";else r+=\"0\"; if((key)\"00000000-0000-0000-0000-000000000001\")r+=\"1\";else r+=\"0\"; llOwnerSay(r);\n} }\n",
+  "output": [
+   "0001010011001"
+  ]
+ },
+ {
+  "name": "cases4/N69",
+  "source": "default { state_entry() {\n{ jump x; llOwnerSay(\"A\"); @x; llOwnerSay(\"B\"); } { llOwnerSay(\"C\"); @x; llOwnerSay(\"D\"); }\n} }\n",
+  "output": [
+   "D"
+  ]
+ },
+ {
+  "name": "cases4/N70",
+  "source": "default { state_entry() {\njump skip; integer x=5; @skip; llOwnerSay((string)x);\n} }\n",
+  "output": [
+   "0"
+  ]
+ },
+ {
+  "name": "cases4/N71-err",
+  "source": "default { state_entry() {\njump x; { @x; }\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/N72",
+  "source": "default { state_entry() {\ninteger i; for(i=0;i<3;i++){ integer x; x+=1; llOwnerSay((string)x); }\n} }\n",
+  "output": [
+   "1",
+   "1",
+   "1"
+  ]
+ },
+ {
+  "name": "cases4/O75-err",
+  "source": "go(){ state two; } default{state_entry(){ go(); }} state two{ state_entry(){} }",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/P77",
+  "source": "integer gi; float gf; string gs; key gk; vector gv; rotation gr; list gl; default{state_entry(){ key lk; llOwnerSay((string)gi+\"|\"+(string)gf+\"|\"+gs+\"|\"+(string)gk+\"|\"+(string)gv+\"|\"+(string)gr+\"|\"+(string)gl+\"|\"+(string)(gk==NULL_KEY)+(string)(lk==\"\")); }}",
+  "output": [
+   "0|0.000000|||<0.00000, 0.00000, 0.00000>|<0.00000, 0.00000, 0.00000, 1.00000>||01"
+  ]
+ },
+ {
+  "name": "cases4/Q78",
+  "source": "integer a=5; integer b=a; float c=a; vector v=<a,2,-3>; list l=[a,b,\"x\"]; float p=-PI; key k=NULL_KEY; default{state_entry(){ llOwnerSay((string)b+\" \"+(string)c+\" \"+(string)v+\" \"+(string)l+\" \"+(string)p+\" \"+(string)k); }}",
+  "output": [
+   "5 5.000000 <5.00000, 2.00000, -3.00000> 55x -3.141593 00000000-0000-0000-0000-000000000000"
+  ]
+ },
+ {
+  "name": "cases4/Q79a-err",
+  "source": "integer a=1; integer d = a + 1; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/Q79b-err",
+  "source": "integer a=1; integer e = -a; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/Q79c-err",
+  "source": "float g = (float)1; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/Q79d-err",
+  "source": "integer h = llAbs(1); default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/Q79e-err",
+  "source": "integer t = -TRUE; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/Q79f-err",
+  "source": "integer e = (1); default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/Q80-err",
+  "source": "integer j = k; integer k = 1; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/R81",
+  "source": "integer x=1; f(integer x){ llOwnerSay((string)x); { integer x=3; llOwnerSay((string)x); } llOwnerSay((string)x); } default{state_entry(){ integer x=2; llOwnerSay((string)x); f(9); llOwnerSay((string)x); }}",
+  "output": [
+   "2",
+   "9",
+   "3",
+   "9",
+   "2"
+  ]
+ },
+ {
+  "name": "cases4/R82",
+  "source": "f(integer a){ integer a=5; llOwnerSay((string)a); } default{state_entry(){ f(1); }}",
+  "output": [
+   "5"
+  ]
+ },
+ {
+  "name": "cases4/R83a-err",
+  "source": "integer PI; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/R83b-err",
+  "source": "integer llAbs; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/R83c",
+  "source": "f(){ llOwnerSay(\"f\"); } default{state_entry(){ integer llAbs=3; integer f=2; f(); llOwnerSay((string)(llAbs+f)); }}",
+  "output": [
+   "f",
+   "5"
+  ]
+ },
+ {
+  "name": "cases4/S84",
+  "source": "default{state_entry(){ if(1) return llOwnerSay(\"x\"); }}",
+  "output": [
+   "x"
+  ]
+ },
+ {
+  "name": "cases4/S84-err",
+  "source": "default{state_entry(){ return 1; }}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/S85",
+  "source": "float f(){ return 5; } default{state_entry(){ llOwnerSay((string)f()); }}",
+  "output": [
+   "5.000000"
+  ]
+ },
+ {
+  "name": "cases4/S85a-err",
+  "source": "integer f(){ return 1.5; } default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/S85b-err",
+  "source": "integer f(){ if (1) return 1; } default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87a-err",
+  "source": "default { state_entry() {\nif(1) integer x;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87b-err",
+  "source": "default { state_entry() {\nwhile(llOwnerSay(\"\")) ;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87c-err",
+  "source": "default { state_entry() {\nfloat f = ZERO_VECTOR.x;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87d-err",
+  "source": "default { state_entry() {\nvector v; float f = v.s;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87e-err",
+  "source": "default { state_entry() {\nTRUE = 0;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87f-err",
+  "source": "default{ touch_start(float n){} }",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87g-err",
+  "source": "f(integer a){} default{state_entry(){ f(1.5); }}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/U87h-err",
+  "source": "default { state_entry() {\ninteger i; i <<= 1;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases4/V89",
+  "source": "default { state_entry() {\nlist l=[1,2,3]; l=[llList2Integer(l,0)]; list c=[\"t\"]; c=[c!=[]]; llOwnerSay((string)l+(string)c);\n} }\n",
+  "output": [
+   "11"
+  ]
+ },
+ {
+  "name": "cases4/V90",
+  "source": "default { state_entry() {\nlist a=[]; list b=a; a+=[\"foo\"]; list l=[42]; l+1; llOwnerSay((string)llGetListLength(b)+\" \"+(string)l);\n} }\n",
+  "output": [
+   "0 42"
+  ]
+ },
+ {
+  "name": "cases4/V91",
+  "source": "float glob; default{state_entry(){ float g; integer i; llOwnerSay((string)(g = glob = 4.0)+\" \"+(string)(i = 5)); vector v; llOwnerSay((string)(v.z = 6)); }}",
+  "output": [
+   "4.000000 5",
+   "6.000000"
+  ]
+ },
+ {
+  "name": "cases4/V92",
+  "source": "default { state_entry() {\nquaternion q = <0,0,0,1>; llOwnerSay((string)q);\n} }\n",
+  "output": [
+   "<0.00000, 0.00000, 0.00000, 1.00000>"
+  ]
+ },
+ {
+  "name": "cases5/jump-nested-last",
+  "source": "default { state_entry() {\ninteger n; @a; n++; { if (n < 3) jump a; @a; } llOwnerSay((string)n);\n} }\n",
+  "output": [
+   "1"
+  ]
+ },
+ {
+  "name": "cases5/jump-outer-last",
+  "source": "default { state_entry() {\ninteger n; { @a; n++; } if (n < 3) jump a; @a; llOwnerSay((string)n);\n} }\n",
+  "output": [
+   "1"
+  ]
+ },
+ {
+  "name": "cases5/jump-into-sibling-locals",
+  "source": "default { state_entry() {\ninteger y = 7; { jump x; integer z = 1; } { integer w = 2; @x; llOwnerSay((string)y + (string)w); }\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases5/jump-back-loop",
+  "source": "default { state_entry() {\ninteger i; @top; integer k; k++; i++; if (i < 3) jump top; llOwnerSay((string)i + \" \" + (string)k);\n} }\n",
+  "output": [
+   "3 1"
+  ]
+ },
+ {
+  "name": "cases5/jump-skip-string",
+  "source": "default { state_entry() {\njump skip; string s = \"x\"; vector v = <1,2,3>; key k = \"a\"; @skip; llOwnerSay(\"[\" + s + \"]\" + (string)v + \"[\" + (string)k + \"]\");\n} }\n",
+  "output": [
+   "[]<0.00000, 0.00000, 0.00000>[]"
+  ]
+ },
+ {
+  "name": "cases5/jump-func",
+  "source": "integer f(integer a){ if (a) jump out; return 1; @out; return 2; } default{state_entry(){ llOwnerSay((string)f(0) + (string)f(1)); }}",
+  "output": [
+   "12"
+  ]
+ },
+ {
+  "name": "cases5/paren-cast",
+  "source": "default { state_entry() {\nfloat x = 2.5; llOwnerSay((string)((integer)(-x)) + \" \" + (string)((integer)-PI) + \" \" + (string)((float)-STATUS_PHYSICS));\n} }\n",
+  "output": [
+   "-2 -3 -1.000000"
+  ]
+ },
+ {
+  "name": "cases5/glob-neg-const",
+  "source": "float p = -PI; integer s = -STATUS_PHYSICS; list l = [-PI, -1, -2.5]; rotation r = <-PI, 0, 0, 1>; default{state_entry(){ llOwnerSay((string)p + \" \" + (string)s + \" \" + (string)l + \" \" + (string)r); }}",
+  "output": [
+   "-3.141593 -1 -3.141593-1-2.500000 <-3.14159, 0.00000, 0.00000, 1.00000>"
+  ]
+ },
+ {
+  "name": "cases5/glob-paren-err",
+  "source": "vector v = <(1), 2, 3>; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases5/glob-negtrue-err",
+  "source": "integer t = -FALSE; default{state_entry(){}}",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ },
+ {
+  "name": "cases5/cmp-inplace",
+  "source": "default { state_entry() {\ninteger x = 1; float f = 1; vector v = <1,1,1>; llOwnerSay((string)((x = 5) == x) + (string)((f = 2) == f) + (string)((v = <2,2,2>) == v) + (string)((x = 3) < x) + (string)((x = 3) <= x));\n} }\n",
+  "output": [
+   "11101"
+  ]
+ },
+ {
+  "name": "cases5/cmp-mixed-copy",
+  "source": "default { state_entry() {\ninteger x = 1; float f = 1.0; llOwnerSay((string)((f = 5.0) == x) + (string)((x = 7) == f));\n} }\n",
+  "output": [
+   "00"
+  ]
+ },
+ {
+  "name": "cases5/param-arith",
+  "source": "integer p(integer a, float b, vector c){ return (a = 4) + a + (integer)((b = 2) * b) + (integer)((c = <3,0,0>) * c); } default{state_entry(){ llOwnerSay((string)p(1, 1, <1,0,0>)); }}",
+  "output": [
+   "21"
+  ]
+ },
+ {
+  "name": "cases5/event-param",
+  "source": "default{ state_entry(){ llOwnerSay(\"ok\"); } touch_start(integer n){ llOwnerSay((string)((n = 4) + n)); } }",
+  "output": [
+   "ok"
+  ]
+ },
+ {
+  "name": "cases5/lit-promote",
+  "source": "default { state_entry() {\ninteger i = 16777217; llOwnerSay((string)(16777217 + 0.0 == 16777216.0) + (string)(i + 0.0 == 16777216.0) + (string)((float)16777217 == 16777216.0) + (string)((float)i == 16777216.0) + (string)(-16777217 == -16777216.0) + (string)(STATUS_PHYSICS * 1.5));\n} }\n",
+  "output": [
+   "101011.500000"
+  ]
+ },
+ {
+  "name": "cases5/unknown-char",
+  "source": "default { state_entry() {\nllOwnerSay((string)(1 + 2)); # @ ` ;\n} }\n",
+  "output": [
+   "COMPILE ERROR"
+  ]
+ }
+]
