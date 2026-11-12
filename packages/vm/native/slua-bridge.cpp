@@ -50,6 +50,9 @@ struct RzScript : lua_SLRuntimeState
 {
     lua_State* GL = nullptr;     // main state
     lua_State* thread = nullptr; // sandboxed thread that owns the script's globals
+    // The one thread the top level and every handler run on, kept in slot 1 of
+    // `thread`'s stack so its memory counts towards the script's (as SLua's host).
+    lua_State* handler = nullptr;
     int threadRef = LUA_NOREF;
     int handleEventRef = LUA_NOREF;
     int lleventsRef = LUA_NOREF;
@@ -65,12 +68,25 @@ struct RzScript : lua_SLRuntimeState
     std::vector<int32_t> statementHits;
     std::vector<int32_t> branchHits; // [true, false] per branch
     std::vector<int32_t> functionHits;
-    std::unordered_map<lua_State*, int> eventThreads; // references keeping them alive
 };
 
 static RzScript* rz(lua_State* L)
 {
     return static_cast<RzScript*>(lua_getthreaddata(L));
+}
+
+// As SLua's host: scripts may not act on the instance thread, the handler
+// thread (looking is allowed) or a thread stopped at a break.
+static int thread_use_callback(lua_State* L, lua_State* co, int inspect)
+{
+    if (lua_getmemcat(co) < LUA_FIRST_USER_MEMCAT || lua_status(co) == LUA_BREAK)
+        return 1;
+    RzScript* s = rz(L);
+    if (co == s->thread)
+        return 1;
+    if (!inspect && co == s->handler)
+        return 1;
+    return 0;
 }
 
 static void userthread_callback(lua_State* LP, lua_State* L)
@@ -94,6 +110,32 @@ static int ll_forward(lua_State* L)
     lua_concat(L, 2);
     lua_error(L);
 }
+
+// As SLua's host (Executor/src/Executor.cpp): the script's own memory in KB.
+static int rz_gcinfo(lua_State* L)
+{
+    RzScript* s = rz(L);
+    lua_pushnumber(L, (double)(lua_userthreadgc(s->thread, &s->freeObjects) + s->bytecodeSize) / 1024);
+    return 1;
+}
+
+// The libraries SLua's host gives scripts (Executor/src/Executor.cpp kSafeLuaLibs).
+static const luaL_Reg kSafeLuaLibs[] = {
+    {"", luaopen_base},
+    {LUA_COLIBNAME, luaopen_coroutine},
+    {LUA_TABLIBNAME, luaopen_table},
+    {LUA_OSLIBNAME, luaopen_os},
+    {LUA_STRLIBNAME, luaopen_string},
+    {LUA_MATHLIBNAME, luaopen_math},
+    {LUA_DBLIBNAME, luaopen_debug},
+    {LUA_UTF8LIBNAME, luaopen_utf8},
+    {LUA_BITLIBNAME, luaopen_bit32},
+    {LUA_BUFFERLIBNAME, luaopen_buffer},
+    {LUA_VECLIBNAME, luaopen_vector},
+    {LUA_CJSONLIBNAME, luaopen_cjson},
+    {LUA_LLBASE64LIBNAME, luaopen_llbase64},
+    {NULL, NULL},
+};
 
 static int rz_print(lua_State* L)
 {
@@ -127,8 +169,11 @@ static int cov_branch(lua_State* L)
     auto* s = rz(L);
     size_t id = (size_t)lua_tonumber(L, 1);
     bool taken = lua_toboolean(L, 2);
+    // A third argument takes the count back: a for loop left by break
+    // doesn't run out, though the counter after it still runs.
+    int delta = lua_gettop(L) >= 3 ? -1 : 1;
     if (id * 2 + 1 < s->branchHits.size())
-        s->branchHits[id * 2 + (taken ? 0 : 1)]++;
+        s->branchHits[id * 2 + (taken ? 0 : 1)] += delta;
     lua_settop(L, 2);
     return 1;
 }
@@ -219,19 +264,29 @@ RZ_EXPORT RzScript* rz_new()
     s->GL = L;
     lua_setthreaddata(L, s);
     lua_callbacks(L)->userthread = userthread_callback;
+    lua_callbacks(L)->beforethreaduse = thread_use_callback;
     lua_callbacks(L)->interrupt = interrupt_callback;
     lua_callbacks(L)->beforeallocate = before_allocate;
 
-    // As SLua's own CLI sets up an SL-mode VM (CLI/src/Repl.cpp setupState).
-    luaL_openlibs(L);
+    // As SLua's host sets up a script environment (Executor/src/Executor.cpp),
+    // with the LSL constants SLua's CLI adds.
+    for (const luaL_Reg* lib = kSafeLuaLibs; lib->func; lib++)
+    {
+        lua_pushcfunction(L, lib->func, NULL);
+        lua_pushstring(L, lib->name);
+        lua_call(L, 1, 0);
+    }
+    // Scripts can't change environments, which would de-optimize them.
+    lua_pushnil(L);
+    lua_setglobal(L, "getfenv");
+    lua_pushnil(L);
+    lua_setglobal(L, "setfenv");
+    lua_pushcfunction(L, rz_gcinfo, "gcinfo");
+    lua_setglobal(L, "gcinfo");
     luaopen_sl(L, 0);
     luaopen_ll(L, 0);
     lua_pop(L, 1);
     luaSL_set_constant_globals(L);
-    luaopen_cjson(L);
-    lua_pop(L, 1);
-    luaopen_llbase64(L);
-    lua_pop(L, 1);
 
     lua_pushcfunction(L, rz_print, "print");
     lua_setglobal(L, "print");
@@ -276,6 +331,24 @@ struct Instrumenter : AstVisitor
     int statements = 0, branches = 0, functions = 0;
     std::unordered_set<AstNode*> synthetic;
     std::unordered_map<AstStat*, int> loopIds;
+    // `break`s that leave a for loop, with that loop's branch.
+    std::unordered_map<AstStat*, int> forBreaks;
+
+    // The breaks in a loop body that leave that loop (not an inner loop).
+    struct BreakFinder : AstVisitor
+    {
+        std::vector<AstStat*> found;
+        bool visit(AstStatBreak* b) override
+        {
+            found.push_back(b);
+            return false;
+        }
+        bool visit(AstStatWhile*) override { return false; }
+        bool visit(AstStatRepeat*) override { return false; }
+        bool visit(AstStatFor*) override { return false; }
+        bool visit(AstStatForIn*) override { return false; }
+        bool visit(AstExprFunction*) override { return false; }
+    };
     std::unordered_map<AstExprFunction*, std::string> eventNames;
     std::unordered_map<AstExprFunction*, std::string> functionNames;
 
@@ -388,6 +461,16 @@ struct Instrumenter : AstVisitor
                 entry("s", id, stat->location, kind);
                 body.push_back(counter("__rz_s", id, stat->location));
             }
+            auto leaving = forBreaks.find(stat);
+            if (leaving != forBreaks.end())
+            {
+                auto* undo = allocator.alloc<AstStatExpr>(stat->location,
+                    call("__rz_b", stat->location,
+                        {number(leaving->second, stat->location), allocator.alloc<AstExprConstantBool>(stat->location, false),
+                            allocator.alloc<AstExprConstantBool>(stat->location, true)}));
+                synthetic.insert(undo);
+                body.push_back(undo);
+            }
             body.push_back(stat);
             // A numeric or generic for loop's "not taken" outcome: the loop finished.
             if (stat->is<AstStatFor>() || stat->is<AstStatForIn>())
@@ -417,6 +500,11 @@ struct Instrumenter : AstVisitor
         auto* taken = allocator.alloc<AstStatExpr>(
             loop->location, call("__rz_b", loop->location, {number(it->second, loop->location), allocator.alloc<AstExprConstantBool>(loop->location, true)}));
         synthetic.insert(taken);
+        BreakFinder breaks;
+        for (AstStat* stat : body->body)
+            stat->visit(&breaks);
+        for (AstStat* b : breaks.found)
+            forBreaks[b] = it->second;
         prepend(body, taken);
     }
 
@@ -680,36 +768,48 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
         lua_pop(L, 1);
         return 1;
     }
+    // What the script starts with costs it nothing (as SLua's host, which
+    // collects these before it creates the handler thread).
     s->freeObjects = lua_collectfreeobjects(L);
+    // As SLua's host: stage the main function on the persistent handler thread,
+    // which sits in slot 1 of the instance thread's stack.
+    lua_newthread(L);
+    lua_insert(L, 1);
+    s->handler = lua_tothread(L, 1);
+    lua_xmove(L, s->handler, 1);
     return 0;
 }
 
-// A new coroutine for one event, with LLEvents' dispatcher, LLEvents and the
-// event name pushed. Push the arguments, then rz_resume(thread, 2 + nargs).
+// The handler thread, ready to run LLEvents' dispatcher for `event`: push the
+// arguments, then rz_resume(thread, 2 + nargs).
 RZ_EXPORT lua_State* rz_event_thread(RzScript* s, const char* event)
 {
-    lua_State* T = lua_newthread(s->thread);
-    // Keep it alive until the host lets go of it (rz_release).
-    s->eventThreads[T] = lua_ref(s->thread, -1);
-    lua_pop(s->thread, 1);
+    // A handler that failed, or was abandoned mid-run, leaves the thread unusable:
+    // carry on with a fresh one.
+    if (lua_costatus(s->thread, s->handler) != LUA_COFIN)
+    {
+        lua_newthread(s->thread);
+        lua_replace(s->thread, 1);
+        s->handler = lua_tothread(s->thread, 1);
+    }
+    lua_State* T = s->handler;
+    lua_settop(T, 0);
     lua_getref(T, s->handleEventRef);
     lua_getref(T, s->lleventsRef);
     lua_pushstring(T, event);
     return T;
 }
 
-RZ_EXPORT void rz_release(RzScript* s, lua_State* T)
-{
-    auto it = s->eventThreads.find(T);
-    if (it == s->eventThreads.end())
-        return;
-    lua_unref(s->thread, it->second);
-    s->eventThreads.erase(it);
-}
-
-RZ_EXPORT lua_State* rz_main_thread(RzScript* s)
+// The instance thread, which owns the script's globals.
+RZ_EXPORT lua_State* rz_instance_thread(RzScript* s)
 {
     return s->thread;
+}
+
+// The handler thread with the script's main function staged on it.
+RZ_EXPORT lua_State* rz_main_thread(RzScript* s)
+{
+    return s->handler;
 }
 
 // Resume T with nargs values on its stack. Returns LUA_OK, LUA_YIELD, or an
@@ -720,6 +820,9 @@ RZ_EXPORT int rz_resume(RzScript* s, lua_State* T, int nargs)
     s->exactSize = 0;
     int status = lua_resume(T, nullptr, nargs);
     s->inExecution = false;
+    // A break asked for in a run that ended first is moot.
+    if (status != LUA_BREAK && status != LUA_YIELD)
+        s->breakPending = false;
     if (status != LUA_OK && status != LUA_YIELD && status != LUA_BREAK)
     {
         // As SLua's host words a fault (Executor/src/Script.cpp).

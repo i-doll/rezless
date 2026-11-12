@@ -407,9 +407,14 @@ describe('SLua as SLua runs it', () => {
   })
 
   it('formats numbers passed as strings the way Lua does', async () => {
-    const s = await slua(`ll.OwnerSay(1.5); ll.OwnerSay(3); ll.OwnerSay(0.1); ll.OwnerSay(integer.create(7)); ll.OwnerSay(1/0)`)
+    const s = await slua(`ll.OwnerSay(1.5); ll.OwnerSay(3); ll.OwnerSay(0.1); ll.OwnerSay(1/0)`)
     s.start()
-    expect(s.chat.map((c) => c.text)).toEqual(['1.5', '3', '0.1', '7', 'inf'])
+    expect(s.chat.map((c) => c.text)).toEqual(['1.5', '3', '0.1', 'inf'])
+    // luaL_checkstring takes numbers, but not integers or uuids.
+    for (const [value, type] of [['integer.create(7)', 'integer'], ['ll.GetOwner()', 'uuid']]) {
+      const wrong = await slua(`ll.OwnerSay(${value})`)
+      expect(() => wrong.start()).toThrow(`invalid argument #1 to 'OwnerSay' (string expected, got ${type})`)
+    }
   })
 
   it('takes numeric strings for numbers, and booleans only where LSL means a boolean', async () => {
@@ -596,5 +601,78 @@ describe('SLua review follow-ups', () => {
     copy.markDead()
     expect(s.coverage!.statements[0]!.hits).toBe(2)
     expect(s.coverage!.functions.find((f) => f.kind === 'event')!.hits).toBe(1)
+  })
+})
+
+describe('SLua as its host runs it', () => {
+  it('counts and limits memory a handler holds', async () => {
+    const used = await slua(`LLEvents:on("touch_start", function()
+      local t = {} for i = 1, 3000 do t[i] = "s" .. i end
+      ll.OwnerSay(tostring(ll.GetUsedMemory() > 50000))
+    end)`)
+    used.start()
+    used.fire('touch_start', { num_detected: 1 })
+    expect(used).toHaveSaid(0, 'true')
+    const limited = await slua(`LLEvents:on("touch_start", function()
+      local t = {} for i = 1, 20000 do t[i] = "s" .. i end
+      ll.OwnerSay("done")
+    end)`, { memoryLimit: true })
+    limited.start()
+    expect(() => limited.fire('touch_start', { num_detected: 1 })).toThrow(/not enough memory/)
+  })
+
+  it('runs the top level and every handler on one thread scripts may not act on', async () => {
+    const s = await slua(`
+      main = coroutine.running()
+      LLEvents:on("touch_start", function()
+        print(coroutine.running() == main, coroutine.status(main), (pcall(coroutine.close, main)))
+      end)
+    `)
+    s.start()
+    s.fire('touch_start', { num_detected: 1 })
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.printed).toEqual(['true\trunning\tfalse', 'true\trunning\tfalse'])
+  })
+
+  it('carries on with a fresh handler thread after a handler fails', async () => {
+    const s = await slua(`LLEvents:on("touch_start", function(e) print("touch") error("boom") end)`)
+    s.start()
+    expect(() => s.fire('touch_start', { num_detected: 1 })).toThrow(/boom/)
+    s.running = true
+    expect(() => s.fire('touch_start', { num_detected: 1 })).toThrow(/boom/)
+    expect(s.printed).toEqual(['touch', 'touch'])
+  })
+
+  it('gives scripts the libraries SLua does', async () => {
+    const s = await slua(`print(typeof(getfenv), typeof(setfenv), typeof(ares), typeof(lljson), typeof(llbase64), gcinfo() == ll.GetUsedMemory() / 1024)`)
+    s.start()
+    expect(s.printed).toEqual(['nil\tnil\tnil\ttable\ttable\ttrue'])
+  })
+
+  it('refuses unhooking an event SLua does not deliver', async () => {
+    const s = await slua(`LLEvents:off("bogus", print)`)
+    expect(() => s.start()).toThrow(/'bogus' is not a supported event name/)
+  })
+
+  it('does not count a for loop left by break as finished', async () => {
+    const s = await slua(['for i = 1, 3 do if i == 2 then break end end', 'for _, v in {1, 2} do do break end end', 'for i = 1, 2 do while true do break end end'].join('\n'), { coverage: true })
+    s.start()
+    const loops = s.coverage!.branches.filter((b) => b.kind === 'for' || b.kind === 'for-in').map((b) => `${b.line}:${b.hits.join('/')}`)
+    expect(loops).toEqual(['1:2/0', '2:1/0', '3:2/1'])
+  })
+
+  it('dies without coverage', async () => {
+    const s = await slua('ll.Die(); ll.OwnerSay("bye")', { coverage: false })
+    s.start()
+    expect(s.dead).toBe(true)
+    s.linkset.remove()
+    expect(s.coverage).toBeNull()
+  })
+
+  it('counts code that runs after ll.Die', async () => {
+    const s = await slua('ll.Die()\nlocal x = 1\nll.OwnerSay("bye")', { coverage: true })
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual(['bye'])
+    expect(s.coverage!.statements.map((st) => st.hits)).toEqual([1, 1, 1])
   })
 })

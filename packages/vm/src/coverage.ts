@@ -73,6 +73,12 @@ export interface BranchHit extends BranchInfo {
    * (zero true outcomes, one false outcome that ended the loop) even
    * though the body executed once — body-entered counts live in statement
    * coverage on the body, not branch coverage on the loop.
+   *
+   * SLua: `repeat` counts its `until` condition, so true means the loop
+   * ended. A numeric or generic `for` counts true for each iteration
+   * started and false when it ran out; leaving by `break` or `return` is
+   * neither. `and`/`or` count each term that can short-circuit, by whether
+   * the term was truthy.
    */
   readonly hits: readonly [number, number]
 }

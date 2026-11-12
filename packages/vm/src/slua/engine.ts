@@ -112,8 +112,8 @@ interface Exports {
   rz_add_ll(s: number, name: number, fn: number, replace: number): void
   rz_load(s: number, name: number, source: number, len: number, coverage: number): number
   rz_event_thread(s: number, event: number): number
-  rz_release(s: number, t: number): void
   rz_main_thread(s: number): number
+  rz_instance_thread(s: number): number
   rz_resume(s: number, t: number, nargs: number): number
   rz_string(s: number): number
   rz_string_len(s: number): number
@@ -174,6 +174,8 @@ export class SluaEngine {
   private pendingThrow: unknown = null
   /** Whether the script's top level has run. */
   started = false
+  /** Threads being run (more than one when an ll call fires an event into the script). */
+  private depth = 0
   private readonly handlerCounts = new Map<string, number>()
   readonly plan: ReadonlyArray<SluaPlanEntry>
 
@@ -194,7 +196,7 @@ export class SluaEngine {
         rz_event_registered: (ptr: number, len: number, registered: number) => {
           const event = this.readUtf8(ptr, len)
           // SLua refuses a handler for an event the host doesn't deliver.
-          if (registered && !supportedEvent(event)) return 0
+          if (!supportedEvent(event)) return 0
           this.handlerCounts.set(event, Math.max(0, (this.handlerCounts.get(event) ?? 0) + (registered ? 1 : -1)))
           return 1
         },
@@ -256,7 +258,7 @@ export class SluaEngine {
   /** Run the script's main chunk, as a script starts. */
   *start(): Generator<Suspension, void, unknown> {
     this.started = true
-    yield* this.drive(this.x.rz_main_thread(this.s), 0, false)
+    yield* this.drive(this.x.rz_main_thread(this.s), 0)
   }
 
 
@@ -271,7 +273,7 @@ export class SluaEngine {
       else if (stringParams.has(i)) this.pushString(L, a.value as string)
       else this.push(L, a.value, a.type, false)
     })
-    yield* this.drive(L, 2 + args.length, true)
+    yield* this.drive(L, 2 + args.length)
   }
 
   /** Whether any LLEvents handler (LLTimers' included) listens for `event`. */
@@ -281,7 +283,7 @@ export class SluaEngine {
 
   /** The script's global `name` as an LSL value, or undefined if it is nil or not convertible. */
   global(name: string): LslValue | undefined {
-    const L = this.x.rz_main_thread(this.s)
+    const L = this.x.rz_instance_thread(this.s)
     this.x.rz_getglobal(this.s, this.cString(name))
     try {
       return this.read(L, -1)?.value
@@ -292,7 +294,7 @@ export class SluaEngine {
 
   /** Set the script's global `name`. */
   setGlobal(name: string, value: LslValue, type: LslType): void {
-    const L = this.x.rz_main_thread(this.s)
+    const L = this.x.rz_instance_thread(this.s)
     this.push(L, value, type, false)
     this.x.rz_setglobal(this.s, this.cString(name))
   }
@@ -320,8 +322,21 @@ export class SluaEngine {
    * script breaks at its next yieldable point (or when it finishes), and a
    * stop unwinds the VM with an uncatchable error before it is rethrown here.
    */
-  private *drive(L: number, nargs: number, release: boolean): Generator<Suspension, void, unknown> {
+  /** Whether the script is in the middle of running. */
+  get running(): boolean {
+    return this.depth > 0
+  }
+
+  private *drive(L: number, nargs: number): Generator<Suspension, void, unknown> {
+    this.depth++
     try {
+      yield* this.run(L, nargs)
+    } finally {
+      this.depth--
+    }
+  }
+
+  private *run(L: number, nargs: number): Generator<Suspension, void, unknown> {
       let status = this.x.rz_resume(this.s, L, nargs)
       for (;;) {
         if (this.pendingThrow !== null) {
@@ -347,9 +362,6 @@ export class SluaEngine {
       if (status !== Status.Ok) throw new SluaRuntimeError(this.scratch())
       // A sleep the script never reached a yieldable point for.
       yield* this.sleep()
-    } finally {
-      if (release) this.x.rz_release(this.s, L)
-    }
   }
 
   private *sleep(): Generator<Suspension, void, unknown> {
@@ -430,7 +442,8 @@ export class SluaEngine {
       case 'float':
         return numeric ? x.rz_tonumber(L, slot) : undefined
       case 'string':
-        if (t !== T.String && t !== T.Number && t !== T.Integer && t !== T.Uuid) return undefined
+        // luaL_checkstring: strings, and numbers as Lua formats them.
+        if (t !== T.String && t !== T.Number) return undefined
         x.rz_tostring(this.s, L, slot)
         return this.scratch()
       case 'key':

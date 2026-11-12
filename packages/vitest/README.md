@@ -1944,9 +1944,9 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **`ll` and `llcompat`**: `ll` uses SLua's native conventions. Indexes are
   1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
-  Missing or wrong-typed arguments raise SLua's errors. Numbers passed as
-  strings are formatted the way Lua formats them. Numeric strings are
-  accepted as numbers. Booleans are accepted only where LSL means a boolean.
+  Missing or wrong-typed arguments raise SLua's errors. String parameters
+  take strings and numbers (formatted the way Lua formats them), but not
+  `uuid`s or `integer`s. Numeric strings are accepted as numbers. Booleans are accepted only where LSL means a boolean.
   A list argument holding anything LSL lists can't hold raises
   `non-LSL value in list`.
 * **What runs where**: list and math helpers that SLua implements itself
@@ -1956,10 +1956,16 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **Crashes and resets**: a run-time error crashes the script as in LSL: it
   reports on `DEBUG_CHANNEL` and throws from the call that ran it.
   `ll.ResetScript` starts a fresh VM and runs the script again. `pcall`
-  can't catch `ll.ResetScript`, `ll.Die`, or an error thrown by a mock.
-* **Memory**: SLua scripts get 128 KiB. With `memoryLimit: true` the VM
-  enforces it, and a script that goes past it fails with
-  `not enough memory`.
+  can't catch `ll.ResetScript` or an error thrown by a mock. `ll.Die`
+  returns, and the script stops at its next `ll` call (which still runs),
+  as LSL scripts do in rezless.
+* **Environment**: scripts get the libraries SLua's host gives them. There
+  is no `getfenv`, `setfenv` or `ares`. `gcinfo()` reports the script's own
+  memory. The top level and every handler run on one thread, which scripts
+  can't close or resume.
+* **Memory**: SLua scripts get 128 KiB, counting what running handlers
+  hold. With `memoryLimit: true` the VM enforces it, and a script that goes
+  past it fails with `not enough memory`.
 * **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
   write Lua globals (not locals). `s.printed` collects `print()` output.
   `s.language` is `'slua'`.
@@ -1968,7 +1974,10 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **Coverage**: the reporters cover SLua scripts too.
   * Statements.
   * Branches: `if`/`elseif`, `while`, `repeat`, numeric and generic `for`,
-    `and`/`or`, and if-expressions.
+    `and`/`or`, and if-expressions. A `for` loop's two outcomes are "another
+    iteration" and "ran out" (leaving by `break` or `return` counts as
+    neither). A `repeat` loop's are its `until` condition's, so "true" is
+    the loop ending.
   * Functions: event handlers are named after their event.
   * Coverage adds its counters to the script as the globals `__rz_s`,
     `__rz_b` and `__rz_f`, and only when coverage is on. Memory use is
@@ -1985,6 +1994,8 @@ Not modelled yet:
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
   would in SLua.
 * Mocks of functions SLua implements itself (see above) are never called.
+* `s.global(name)` reads a table as a list of its LSL values, skipping
+  nested tables and functions. It can't read a function.
 
 `scripts/build-slua-wasm.sh` rebuilds `packages/vm/wasm/slua.wasm` from SLua's
 source. It needs Emscripten and CMake.

@@ -1287,7 +1287,14 @@ export class Script {
       if (e instanceof ResetScriptSignal) return true
       if (e instanceof HaltSignal) return false
       throw e
+    } finally {
+      if (this.dead) this.retireSlua()
     }
+  }
+
+  /** Stop counting a dead script's VM, keeping what it counted. */
+  private retireSlua(): void {
+    if (this.state.coverage instanceof SluaCoverage) this.state.coverage.retire(this.slua!)
   }
 
   /** An `ll.*` call from SLua: the same builtin, mock or stub an LSL script would reach. */
@@ -1345,8 +1352,9 @@ export class Script {
     clearTargetMotion(this)
     this.clockView.cancelTimer()
     this.abandon()
-    // Keep the dead VM's counts, but not the VM.
-    if (this.slua && this.state.coverage instanceof SluaCoverage) this.state.coverage.retire(this.slua)
+    // Keep the dead VM's counts, but not the VM, once it stops running (llDie
+    // lets the script carry on to its next ll call).
+    if (this.slua && !this.slua.running) this.retireSlua()
   }
 
   /**
