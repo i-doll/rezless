@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/i-doll/rezless/compare/v0.12.1...v0.13.0) (2026-11-12)
+
+
+### Features
+
+* run SLua scripts in SLua's own VM, compiled to WebAssembly ([#390](https://github.com/i-doll/rezless/issues/390)) ([316e94f](https://github.com/i-doll/rezless/commit/316e94f77998d5530f5b854741fb2ee24cadf96f))
+
 ## [0.12.1](https://github.com/i-doll/rezless/compare/v0.12.0...v0.12.1) (2026-11-11)
 
 
