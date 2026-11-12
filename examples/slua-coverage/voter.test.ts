@@ -29,6 +29,7 @@ describe('voter.luau coverage', () => {
     expect(s.chat.map((c) => c.text)).toEqual(['3', '2'])
     const r = s.coverage!
     expect(r.functions.find((f) => f.name === 'bump')!.hits).toBe(2)
+    // Nobody said "reset", so coverage reports it as missed.
     expect(r.functions.find((f) => f.name === 'reset')!.hits).toBe(0)
     // The listen handler is named after its event.
     expect(r.functions.find((f) => f.kind === 'event')).toMatchObject({ name: 'listen', hits: 2 })
@@ -47,9 +48,19 @@ describe('voter.luau coverage', () => {
     // The vote was ignored twice and counted once, and the one counted vote
     // reached the tally of 10, so that check never went the other way.
     const ifs = r.branches.filter((b) => b.kind === 'if')
+    // The first `if` is the reset check, which no vote matched.
     expect(ifs.map((b) => b.hits)).toEqual([
+      [0, 3],
       [2, 1],
       [1, 0],
     ])
+  })
+
+  it('counts a function once the test reaches it', () => {
+    vote(s, '12')
+    vote(s, 'reset')
+    vote(s, '4')
+    expect(s.chat.map((c) => c.text)).toEqual(['12', 'Result: 12', 'Reset', '4'])
+    expect(s.coverage!.functions.find((f) => f.name === 'reset')!.hits).toBe(1)
   })
 })
