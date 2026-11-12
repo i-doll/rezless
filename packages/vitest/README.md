@@ -1948,8 +1948,9 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   take strings and numbers (formatted the way Lua formats them), but not
   `uuid`s or `integer`s, except where the definitions allow a `uuid` (as
   `ll.MessageLinked`'s text does). Numeric strings are accepted as numbers.
-  In selector and rule lists (`ll.GetObjectDetails`,
-  `ll.GetPrimitiveParams`, …), whole numbers are passed as LSL integers. Booleans are accepted only where LSL means a boolean.
+  Lua numbers in lists are LSL floats, as in SLua, but selectors and rules
+  (`ll.GetObjectDetails`, `ll.SetPrimMediaParams`, `ll.ParticleSystem`, …)
+  read a whole number as the integer they want. Booleans are accepted only where LSL means a boolean.
   A list argument holding anything LSL lists can't hold raises
   `non-LSL value in list`.
 * **What runs where**: list and math helpers that SLua implements itself

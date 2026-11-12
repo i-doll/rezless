@@ -724,3 +724,22 @@ describe('SLua code size', () => {
     expect(unlimited.printed[0]!.length).toBe(140000)
   })
 })
+
+describe('SLua numbers in rule lists', () => {
+  it('reads whole numbers as integers where a rule wants one', async () => {
+    const s = await slua(`
+      ll.OwnerSay(tostring(ll.SetPrimMediaParams(0, {PRIM_MEDIA_CURRENT_URL, "https://example.com"})))
+      ll.OwnerSay(ll.List2CSV(ll.GetPrimMediaParams(0, {PRIM_MEDIA_CURRENT_URL})))
+      ll.ParticleSystem({PSYS_PART_FLAGS, PSYS_PART_EMISSIVE_MASK, PSYS_PART_START_ALPHA, 1})
+    `)
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual(['0', 'https://example.com'])
+    expect(s.host.particles).not.toBeNull()
+  })
+
+  it('still formats them as floats', async () => {
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({1, 2}))`)
+    s.start()
+    expect(s).toHaveSaid(0, '1.000000, 2.000000')
+  })
+})

@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
-import { listElementType, typedList } from '../values/list-types.js'
+import { listElementType, ruleElementType, typedList } from '../values/list-types.js'
 import { numberOfSides } from '../prim-params.js'
 import {
   CHANGED_MEDIA, LINK_THIS, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
@@ -31,7 +31,7 @@ function faceStatus(ctx: CallContext, prim: Prim, face: number): number {
 }
 
 function integer(list: ReadonlyArray<LslValue>, index: number): boolean {
-  const type = listElementType(list, index)
+  const type = ruleElementType(list, index)
   return type === 'integer' || (type === undefined && typeof list[index] === 'number' && Number.isInteger(list[index]))
 }
 

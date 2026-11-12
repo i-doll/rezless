@@ -4,7 +4,7 @@ import type { LslValue, Vector } from '../values/types.js'
 import { NULL_KEY, isVector, toFloat32, vec } from '../values/types.js'
 import { terrainHeights } from '../world.js'
 import { InventoryType } from '../inventory.js'
-import { listElementType } from '../values/list-types.js'
+import { ruleElementType } from '../values/list-types.js'
 import { sayError } from './debug.js'
 import { estateManager, owns } from './land.js'
 import { isAgentInRegion, isKey } from './viewer.js'
@@ -164,7 +164,7 @@ export const llSetGroundTexture: BuiltinImpl = (ctx, args) => {
   const parsed: [number, LslValue[]][] = []
   for (let i = 0; i < changes.length;) {
     const rule = changes[i++]
-    const shape = typeof rule === 'number' && (listElementType(changes, i - 1) ?? 'integer') === 'integer'
+    const shape = typeof rule === 'number' && (ruleElementType(changes, i - 1) ?? 'integer') === 'integer'
       ? groundTextureRule(rule) : undefined
     if (!shape) return 0
     const values: LslValue[] = []

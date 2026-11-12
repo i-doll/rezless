@@ -4,7 +4,7 @@ import type { LinksetClock } from '../clock.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
 import { ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
 import { conjugate, mulRotation } from '../values/ops.js'
-import { listElementType } from '../values/list-types.js'
+import { ruleElementType } from '../values/list-types.js'
 import { KFM_COMMAND, KFM_DATA, KFM_MODE, KFM_ROTATION, KFM_TRANSLATION,
   KFM_FORWARD, KFM_LOOP, KFM_REVERSE, KFM_PING_PONG,
   KFM_CMD_PLAY, KFM_CMD_PAUSE, KFM_CMD_STOP, STATUS_PHYSICS,
@@ -184,7 +184,7 @@ function rotation(v: LslValue | undefined): v is Rotation {
   return [r.x,r.y,r.z,r.s].every(Number.isFinite) && Math.abs(r.x*r.x+r.y*r.y+r.z*r.z+r.s*r.s-1)<=1e-6
 }
 function integer(list: readonly LslValue[], index: number): boolean {
-  return typeof list[index]==='number' && Number.isInteger(list[index]) && listElementType(list,index)!=='float'
+  return typeof list[index]==='number' && Number.isInteger(list[index]) && ruleElementType(list,index)!=='float'
 }
 
 export const llSetKeyframedMotion: BuiltinImpl = (ctx,args) => {

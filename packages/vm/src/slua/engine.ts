@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { isRotation, toFloat32Value, toInt32 } from '../values/types.js'
-import { listElementTypes, typedList } from '../values/list-types.js'
+import { listElementTypes, markLuaNumbers, typedList } from '../values/list-types.js'
 import { BUILTIN_SPECS } from '../generated/functions.js'
 import type { BuiltinSpec } from '../generated/functions.js'
 import { EVENT_SPECS } from '../generated/events.js'
@@ -490,7 +490,7 @@ export class SluaEngine {
       values.push(toFloat32Value(el.value, el.type))
       types.push(el.type)
     }
-    return typedList(values, types)
+    return markLuaNumbers(typedList(values, types))
   }
 
   private pushResult(L: number, spec: BuiltinSpec, compat: boolean, value: LslValue | undefined): number {

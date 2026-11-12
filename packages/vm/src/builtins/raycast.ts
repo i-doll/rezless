@@ -1,6 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector } from '../values/types.js'
-import { listElementType, typedList } from '../values/list-types.js'
+import { ruleElementType, typedList } from '../values/list-types.js'
 import { castRayBoxes, castRayTerrain } from '../world.js'
 
 // In-world: batch.py, Aditi / SLua Tideland, 2026-11-01.
@@ -16,7 +16,7 @@ export const llCastRay: BuiltinImpl = (ctx, args) => {
     const rule = options[i]
     const value = options[i + 1]
     if ([i, i + 1].some(index => typeof options[index] !== 'number' || !Number.isInteger(options[index])
-      || (listElementType(options, index) !== undefined && listElementType(options, index) !== 'integer'))) return []
+      || (ruleElementType(options, index) !== undefined && ruleElementType(options, index) !== 'integer'))) return []
     const n = Number(value)
     if (rule === 0) {
       if (n < 0 || n > 14) return []

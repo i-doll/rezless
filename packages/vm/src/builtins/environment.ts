@@ -3,7 +3,7 @@ import type { EnvironmentChanges, Parcel, Region } from '../world.js'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { NULL_KEY, isRotation, isVector, rot, toFloat32, toFloat32Value, vec } from '../values/types.js'
 import { rotateVector } from '../values/ops.js'
-import { typedList, listElementType } from '../values/list-types.js'
+import { ruleElementType, typedList } from '../values/list-types.js'
 import { InventoryType } from '../inventory.js'
 import { newEnvironmentChanges } from '../world.js'
 import { estateManager, owns } from './land.js'
@@ -171,7 +171,7 @@ export const llGetEnvironment: BuiltinImpl = (ctx, args) => {
   // A bad rule invalidates the entire request, including earlier valid rules.
   // Measured float and string IDs are rejected rather than coerced.
   if (requested.some((rule, i) => typeof rule !== 'number' ||
-      (listElementType(requested, i) ?? 'integer') !== 'integer' || !Object.hasOwn(ENVIRONMENT_TYPES, rule))) return []
+      (ruleElementType(requested, i) ?? 'integer') !== 'integer' || !Object.hasOwn(ENVIRONMENT_TYPES, rule))) return []
   const scope = scopeAt(ctx, pos)
   const values: LslValue[] = []
   const types: LslType[] = []
@@ -276,7 +276,7 @@ function parseRules(ctx: CallContext, params: readonly LslValue[]): number | Map
   const rules = new Map<number, LslValue[]>()
   for (let i = 0; i < params.length;) {
     const rule = params[i]
-    const shape = typeof rule === 'number' && (listElementType(params, i) ?? 'integer') === 'integer'
+    const shape = typeof rule === 'number' && (ruleElementType(params, i) ?? 'integer') === 'integer'
       ? SET_RULES[rule] : undefined
     if (!shape) return ENV_INVALID_RULE
     const values: LslValue[] = []
