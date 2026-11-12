@@ -401,13 +401,15 @@ export class SluaEngine {
   private readArgs(L: number, spec: BuiltinSpec, compat: boolean, nargs: number): LslValue[] | string {
     const indexParams = new Set(spec.slua?.indexParams ?? [])
     const boolParams = new Set(spec.slua?.boolParams ?? [])
+    const uuidParams = new Set(spec.slua?.uuidParams ?? [])
+    const integerLists = new Set(spec.slua?.integerListParams ?? [])
     const name = spec.name.slice(2)
     const args: LslValue[] = []
     for (const [i, p] of spec.params.entries()) {
       const slot = i + 1
       const expected = EXPECTED[p.type]!
       if (slot > nargs) return `missing argument #${slot} to '${name}' (${expected} expected)`
-      const value = this.readArg(L, slot, p.type, boolParams.has(i))
+      const value = this.readArg(L, slot, p.type, { boolean: boolParams.has(i), uuid: uuidParams.has(i), integers: integerLists.has(i) })
       if (value === undefined) {
         this.x.rz_typename(this.s, L, slot)
         const got = this.scratch()
@@ -431,19 +433,24 @@ export class SluaEngine {
    * Lua formats them), undefined if it is the wrong type, or an error for a
    * list holding something LSL can't.
    */
-  private readArg(L: number, slot: number, type: LslType, boolean: boolean): LslValue | { error: string } | undefined {
+  private readArg(
+    L: number,
+    slot: number,
+    type: LslType,
+    takes: { boolean: boolean; uuid: boolean; integers: boolean },
+  ): LslValue | { error: string } | undefined {
     const x = this.x
     const t = x.rz_type(L, slot)
     const numeric = t === T.Number || t === T.Integer || (t === T.String && x.rz_isnumber(L, slot) !== 0)
     switch (type) {
       case 'integer':
-        if (boolean && t === T.Boolean) return x.rz_toboolean(L, slot)
+        if (takes.boolean && t === T.Boolean) return x.rz_toboolean(L, slot)
         return numeric ? toInt32(Math.trunc(x.rz_tonumber(L, slot))) : undefined
       case 'float':
         return numeric ? x.rz_tonumber(L, slot) : undefined
       case 'string':
         // luaL_checkstring: strings, and numbers as Lua formats them.
-        if (t !== T.String && t !== T.Number) return undefined
+        if (t !== T.String && t !== T.Number && !(takes.uuid && t === T.Uuid)) return undefined
         x.rz_tostring(this.s, L, slot)
         return this.scratch()
       case 'key':
@@ -451,7 +458,7 @@ export class SluaEngine {
         x.rz_tostring(this.s, L, slot)
         return this.scratch()
       case 'list':
-        return t === T.Table ? this.readList(L, slot) : undefined
+        return t === T.Table ? this.readList(L, slot, takes.integers) : undefined
       default: {
         const want = type === 'vector' ? T.Vector : T.Quaternion
         return t === want ? this.read(L, slot)!.value : undefined
@@ -460,7 +467,7 @@ export class SluaEngine {
   }
 
   /** A table as an LSL list, as SLua's own list functions read one. */
-  private readList(L: number, slot: number): LslValue | { error: string } {
+  private readList(L: number, slot: number, integers: boolean): LslValue | { error: string } {
     const x = this.x
     const n = x.rz_objlen(L, slot)
     const values: LslValue[] = []
@@ -470,6 +477,11 @@ export class SluaEngine {
       const el = this.readElement(L, -1)
       x.rz_pop(L, 1)
       if (!el) return { error: 'non-LSL value in list' }
+      if (integers && el.type === 'float' && Number.isInteger(el.value)) {
+        values.push(toInt32(el.value as number))
+        types.push('integer')
+        continue
+      }
       // LSL floats are 32-bit.
       values.push(toFloat32Value(el.value, el.type))
       types.push(el.type)

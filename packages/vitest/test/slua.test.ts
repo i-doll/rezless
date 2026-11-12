@@ -693,3 +693,20 @@ describe('SLua third review', () => {
     expect(s.coverage!.branches.map((b) => b.hits)).toEqual([[1, 0]])
   })
 })
+
+describe('SLua parameter types from the definitions', () => {
+  it('passes whole numbers in selector lists as integers', async () => {
+    const s = await slua(`
+      ll.OwnerSay(tostring(#ll.GetObjectDetails(ll.GetKey(), {OBJECT_NAME, OBJECT_DESC})))
+      ll.OwnerSay(tostring(ll.ListStatistics(LIST_STAT_MEAN, {1, 2.5})))
+    `)
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual(['2', '1.75'])
+  })
+
+  it('takes a uuid as llMessageLinked text', async () => {
+    const s = await slua(`ll.MessageLinked(LINK_SET, 0, ll.GetKey(), NULL_KEY)`)
+    s.start()
+    expect(s.calls[1]!.args[2]).toBe(s.host.key)
+  })
+})

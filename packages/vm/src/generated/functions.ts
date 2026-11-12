@@ -22,6 +22,10 @@ export interface SluaSpec {
   readonly boolParams?: ReadonlyArray<number>
   /** Key parameters SLua passes as plain strings. */
   readonly stringParams?: ReadonlyArray<number>
+  /** String parameters that also take a uuid. */
+  readonly uuidParams?: ReadonlyArray<number>
+  /** List parameters whose whole numbers are LSL integers (selectors and rules). */
+  readonly integerListParams?: ReadonlyArray<number>
 }
 
 export interface BuiltinSpec {
@@ -149,7 +153,7 @@ export const BUILTIN_SPECS = {
   "llGetDisplayName": { name: "llGetDisplayName", returnType: "string", delay: 0, status: "normal", params: [{ name: "id", type: "key" }] },
   "llGetEnergy": { name: "llGetEnergy", returnType: "float", delay: 0, status: "normal", params: [] },
   "llGetEnv": { name: "llGetEnv", returnType: "string", delay: 0, status: "normal", params: [{ name: "name", type: "string" }] },
-  "llGetEnvironment": { name: "llGetEnvironment", returnType: "list", delay: 0, status: "normal", params: [{ name: "pos", type: "vector" }, { name: "params", type: "list" }], slua: { returnBool: true } },
+  "llGetEnvironment": { name: "llGetEnvironment", returnType: "list", delay: 0, status: "normal", params: [{ name: "pos", type: "vector" }, { name: "params", type: "list" }], slua: { returnBool: true, integerListParams: [1] } },
   "llGetExperienceDetails": { name: "llGetExperienceDetails", returnType: "list", delay: 0, status: "normal", params: [{ name: "experience_id", type: "key" }] },
   "llGetExperienceErrorMessage": { name: "llGetExperienceErrorMessage", returnType: "string", delay: 0, status: "normal", params: [{ name: "error", type: "integer" }] },
   "llGetExperienceList": { name: "llGetExperienceList", returnType: "list", delay: 0, status: "deprecated", params: [{ name: "agentid", type: "key" }] },
@@ -174,11 +178,11 @@ export const BUILTIN_SPECS = {
   "llGetKey": { name: "llGetKey", returnType: "key", delay: 0, status: "normal", params: [] },
   "llGetLandOwnerAt": { name: "llGetLandOwnerAt", returnType: "key", delay: 0, status: "normal", params: [{ name: "pos", type: "vector" }] },
   "llGetLinkKey": { name: "llGetLinkKey", returnType: "key", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }] },
-  "llGetLinkMedia": { name: "llGetLinkMedia", returnType: "list", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "face", type: "integer" }, { name: "params", type: "list" }], slua: { returnBool: true } },
+  "llGetLinkMedia": { name: "llGetLinkMedia", returnType: "list", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "face", type: "integer" }, { name: "params", type: "list" }], slua: { returnBool: true, integerListParams: [2] } },
   "llGetLinkName": { name: "llGetLinkName", returnType: "string", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }] },
   "llGetLinkNumber": { name: "llGetLinkNumber", returnType: "integer", delay: 0, status: "normal", params: [] },
   "llGetLinkNumberOfSides": { name: "llGetLinkNumberOfSides", returnType: "integer", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }] },
-  "llGetLinkPrimitiveParams": { name: "llGetLinkPrimitiveParams", returnType: "list", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "params", type: "list" }], slua: { returnBool: true } },
+  "llGetLinkPrimitiveParams": { name: "llGetLinkPrimitiveParams", returnType: "list", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "params", type: "list" }], slua: { returnBool: true, integerListParams: [1] } },
   "llGetLinkSitFlags": { name: "llGetLinkSitFlags", returnType: "integer", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }] },
   "llGetListEntryType": { name: "llGetListEntryType", returnType: "integer", delay: 0, status: "normal", params: [{ name: "src", type: "list" }, { name: "index", type: "integer" }], slua: { indexParams: [1] } },
   "llGetListLength": { name: "llGetListLength", returnType: "integer", delay: 0, status: "normal", params: [{ name: "src", type: "list" }] },
@@ -199,7 +203,7 @@ export const BUILTIN_SPECS = {
   "llGetNumberOfSides": { name: "llGetNumberOfSides", returnType: "integer", delay: 0, status: "normal", params: [] },
   "llGetObjectAnimationNames": { name: "llGetObjectAnimationNames", returnType: "list", delay: 0, status: "normal", params: [] },
   "llGetObjectDesc": { name: "llGetObjectDesc", returnType: "string", delay: 0, status: "normal", params: [] },
-  "llGetObjectDetails": { name: "llGetObjectDetails", returnType: "list", delay: 0, status: "normal", params: [{ name: "id", type: "key" }, { name: "params", type: "list" }], slua: { returnBool: true } },
+  "llGetObjectDetails": { name: "llGetObjectDetails", returnType: "list", delay: 0, status: "normal", params: [{ name: "id", type: "key" }, { name: "params", type: "list" }], slua: { returnBool: true, integerListParams: [1] } },
   "llGetObjectLinkKey": { name: "llGetObjectLinkKey", returnType: "key", delay: 0, status: "normal", params: [{ name: "object_id", type: "key" }, { name: "link", type: "integer" }] },
   "llGetObjectMass": { name: "llGetObjectMass", returnType: "float", delay: 0, status: "normal", params: [{ name: "id", type: "key" }] },
   "llGetObjectName": { name: "llGetObjectName", returnType: "string", delay: 0, status: "normal", params: [] },
@@ -208,7 +212,7 @@ export const BUILTIN_SPECS = {
   "llGetOmega": { name: "llGetOmega", returnType: "vector", delay: 0, status: "normal", params: [] },
   "llGetOwner": { name: "llGetOwner", returnType: "key", delay: 0, status: "normal", params: [] },
   "llGetOwnerKey": { name: "llGetOwnerKey", returnType: "key", delay: 0, status: "normal", params: [{ name: "id", type: "key" }] },
-  "llGetParcelDetails": { name: "llGetParcelDetails", returnType: "list", delay: 0, status: "normal", params: [{ name: "pos", type: "vector" }, { name: "params", type: "list" }], slua: { returnBool: true } },
+  "llGetParcelDetails": { name: "llGetParcelDetails", returnType: "list", delay: 0, status: "normal", params: [{ name: "pos", type: "vector" }, { name: "params", type: "list" }], slua: { returnBool: true, integerListParams: [1] } },
   "llGetParcelFlags": { name: "llGetParcelFlags", returnType: "integer", delay: 0, status: "normal", params: [{ name: "pos", type: "vector" }] },
   "llGetParcelMaxPrims": { name: "llGetParcelMaxPrims", returnType: "integer", delay: 0, status: "normal", params: [{ name: "pos", type: "vector" }, { name: "sim_wide", type: "integer" }], slua: { boolParams: [1] } },
   "llGetParcelMusicURL": { name: "llGetParcelMusicURL", returnType: "string", delay: 0, status: "normal", params: [] },
@@ -218,8 +222,8 @@ export const BUILTIN_SPECS = {
   "llGetPermissionsKey": { name: "llGetPermissionsKey", returnType: "key", delay: 0, status: "normal", params: [] },
   "llGetPhysicsMaterial": { name: "llGetPhysicsMaterial", returnType: "list", delay: 0, status: "normal", params: [] },
   "llGetPos": { name: "llGetPos", returnType: "vector", delay: 0, status: "normal", params: [] },
-  "llGetPrimMediaParams": { name: "llGetPrimMediaParams", returnType: "list", delay: 1, status: "normal", params: [{ name: "face", type: "integer" }, { name: "params", type: "list" }], slua: { returnBool: true } },
-  "llGetPrimitiveParams": { name: "llGetPrimitiveParams", returnType: "list", delay: 0.2, status: "normal", params: [{ name: "params", type: "list" }], slua: { returnBool: true } },
+  "llGetPrimMediaParams": { name: "llGetPrimMediaParams", returnType: "list", delay: 1, status: "normal", params: [{ name: "face", type: "integer" }, { name: "params", type: "list" }], slua: { returnBool: true, integerListParams: [1] } },
+  "llGetPrimitiveParams": { name: "llGetPrimitiveParams", returnType: "list", delay: 0.2, status: "normal", params: [{ name: "params", type: "list" }], slua: { returnBool: true, integerListParams: [0] } },
   "llGetRegionAgentCount": { name: "llGetRegionAgentCount", returnType: "integer", delay: 0, status: "normal", params: [] },
   "llGetRegionCorner": { name: "llGetRegionCorner", returnType: "vector", delay: 0, status: "normal", params: [] },
   "llGetRegionDayLength": { name: "llGetRegionDayLength", returnType: "integer", delay: 0, status: "normal", params: [] },
@@ -330,7 +334,7 @@ export const BUILTIN_SPECS = {
   "llListReplaceList": { name: "llListReplaceList", returnType: "list", delay: 0, status: "normal", params: [{ name: "dest", type: "list" }, { name: "src", type: "list" }, { name: "start_index", type: "integer" }, { name: "end_index", type: "integer" }], slua: { indexParams: [2, 3] } },
   "llListSort": { name: "llListSort", returnType: "list", delay: 0, status: "normal", params: [{ name: "src", type: "list" }, { name: "stride", type: "integer" }, { name: "ascending", type: "integer" }], slua: { boolParams: [2] } },
   "llListSortStrided": { name: "llListSortStrided", returnType: "list", delay: 0, status: "normal", params: [{ name: "src", type: "list" }, { name: "stride", type: "integer" }, { name: "stride_index", type: "integer" }, { name: "ascending", type: "integer" }], slua: { indexParams: [2], boolParams: [3] } },
-  "llListStatistics": { name: "llListStatistics", returnType: "float", delay: 0, status: "normal", params: [{ name: "operation", type: "integer" }, { name: "src", type: "list" }] },
+  "llListStatistics": { name: "llListStatistics", returnType: "float", delay: 0, status: "normal", params: [{ name: "operation", type: "integer" }, { name: "src", type: "list" }], slua: { integerListParams: [1] } },
   "llListen": { name: "llListen", returnType: "integer", delay: 0, status: "normal", params: [{ name: "channel", type: "integer" }, { name: "name", type: "string" }, { name: "id", type: "key" }, { name: "msg", type: "string" }] },
   "llListenControl": { name: "llListenControl", returnType: "void", delay: 0, status: "normal", params: [{ name: "handle", type: "integer" }, { name: "active", type: "integer" }], slua: { boolParams: [1] } },
   "llListenRemove": { name: "llListenRemove", returnType: "void", delay: 0, status: "normal", params: [{ name: "handle", type: "integer" }] },
@@ -349,7 +353,7 @@ export const BUILTIN_SPECS = {
   "llManageEstateAccess": { name: "llManageEstateAccess", returnType: "integer", delay: 0, status: "normal", params: [{ name: "action", type: "integer" }, { name: "avatar", type: "key" }], slua: { returnBool: true } },
   "llMapBeacon": { name: "llMapBeacon", returnType: "void", delay: 1, status: "normal", params: [{ name: "region_name", type: "string" }, { name: "pos", type: "vector" }, { name: "options", type: "list" }] },
   "llMapDestination": { name: "llMapDestination", returnType: "void", delay: 1, status: "normal", params: [{ name: "simname", type: "string" }, { name: "pos", type: "vector" }, { name: "look_at", type: "vector" }] },
-  "llMessageLinked": { name: "llMessageLinked", returnType: "void", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }] },
+  "llMessageLinked": { name: "llMessageLinked", returnType: "void", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }], slua: { uuidParams: [2] } },
   "llMinEventDelay": { name: "llMinEventDelay", returnType: "void", delay: 0, status: "normal", params: [{ name: "delay", type: "float" }] },
   "llModPow": { name: "llModPow", returnType: "integer", delay: 0, status: "normal", params: [{ name: "base", type: "integer" }, { name: "exponent", type: "integer" }, { name: "modulus", type: "integer" }] },
   "llModifyLand": { name: "llModifyLand", returnType: "void", delay: 0, status: "normal", params: [{ name: "action", type: "integer" }, { name: "brush", type: "integer" }] },
@@ -363,7 +367,7 @@ export const BUILTIN_SPECS = {
   "llOverMyLand": { name: "llOverMyLand", returnType: "integer", delay: 0, status: "normal", params: [{ name: "id", type: "key" }], slua: { returnBool: true } },
   "llOwnerSay": { name: "llOwnerSay", returnType: "void", delay: 0, status: "normal", params: [{ name: "msg", type: "string" }] },
   "llParcelMediaCommandList": { name: "llParcelMediaCommandList", returnType: "void", delay: 2, status: "normal", params: [{ name: "commandList", type: "list" }] },
-  "llParcelMediaQuery": { name: "llParcelMediaQuery", returnType: "list", delay: 2, status: "normal", params: [{ name: "query", type: "list" }], slua: { returnBool: true } },
+  "llParcelMediaQuery": { name: "llParcelMediaQuery", returnType: "list", delay: 2, status: "normal", params: [{ name: "query", type: "list" }], slua: { returnBool: true, integerListParams: [0] } },
   "llParseString2List": { name: "llParseString2List", returnType: "list", delay: 0, status: "normal", params: [{ name: "src", type: "string" }, { name: "separators", type: "list" }, { name: "spacers", type: "list" }] },
   "llParseStringKeepNulls": { name: "llParseStringKeepNulls", returnType: "list", delay: 0, status: "normal", params: [{ name: "src", type: "string" }, { name: "separators", type: "list" }, { name: "spacers", type: "list" }] },
   "llParticleSystem": { name: "llParticleSystem", returnType: "void", delay: 0, status: "normal", params: [{ name: "rules", type: "list" }] },
@@ -479,7 +483,7 @@ export const BUILTIN_SPECS = {
   "llSetObjectPermMask": { name: "llSetObjectPermMask", returnType: "void", delay: 0, status: "godmode", params: [{ name: "group", type: "integer" }, { name: "flags", type: "integer" }] },
   "llSetParcelForSale": { name: "llSetParcelForSale", returnType: "integer", delay: 0, status: "normal", params: [{ name: "ForSale", type: "integer" }, { name: "Options", type: "list" }], slua: { boolParams: [0] } },
   "llSetParcelMusicURL": { name: "llSetParcelMusicURL", returnType: "void", delay: 2, status: "normal", params: [{ name: "url", type: "string" }] },
-  "llSetPayPrice": { name: "llSetPayPrice", returnType: "void", delay: 0, status: "normal", params: [{ name: "price", type: "integer" }, { name: "quick_pay_buttons", type: "list" }] },
+  "llSetPayPrice": { name: "llSetPayPrice", returnType: "void", delay: 0, status: "normal", params: [{ name: "price", type: "integer" }, { name: "quick_pay_buttons", type: "list" }], slua: { integerListParams: [1] } },
   "llSetPhysicsMaterial": { name: "llSetPhysicsMaterial", returnType: "void", delay: 0, status: "normal", params: [{ name: "mask", type: "integer" }, { name: "gravity_multiplier", type: "float" }, { name: "restitution", type: "float" }, { name: "friction", type: "float" }, { name: "density", type: "float" }] },
   "llSetPos": { name: "llSetPos", returnType: "void", delay: 0.2, status: "normal", params: [{ name: "pos", type: "vector" }] },
   "llSetPrimMediaParams": { name: "llSetPrimMediaParams", returnType: "integer", delay: 1, status: "normal", params: [{ name: "face", type: "integer" }, { name: "params", type: "list" }] },
