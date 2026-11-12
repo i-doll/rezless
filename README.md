@@ -48,7 +48,7 @@ requests, and script globals.
 | Package | Purpose |
 |---|---|
 | `@rezless/parser` | Hand-written recursive-descent LSL parser |
-| `@rezless/vm` | Tree-walking interpreter, virtual clock, dispatch |
+| `@rezless/vm` | Tree-walking LSL interpreter, SLua VM (WebAssembly), virtual clock, dispatch |
 | `@rezless/vitest` | `loadScript()` + custom matchers |
 
 ## Install
@@ -648,6 +648,60 @@ The full LSL constant surface (every `PRIM_*`, `STATUS_*`, `LINK_*`,
 `@rezless/vitest`, so tests can compare numeric returns against named
 constants instead of magic numbers.
 
+## SLua scripts
+
+rezless also runs SLua scripts: Luau written against Second Life's `ll`,
+`LLEvents` and `LLTimers` APIs. They run in SLua's own VM
+([secondlife/slua](https://github.com/secondlife/slua), compiled to
+WebAssembly and shipped in `@rezless/vm`), so the language behaves exactly as
+it does in SLua, while `ll.*` calls reach the same rezless functions, mocks
+and world fixtures LSL scripts use.
+
+```ts
+const s = await loadScript('./greeter.luau') // .lua / .luau files load as SLua
+// or: await loadScript({ source, language: 'slua' })
+s.start() // runs the script from the top
+s.fire('touch_start', { num_detected: 1, detected: [{ key: 'k', name: 'Alice' }] })
+expect(s).toHaveSaid(0, 'Hello, Alice!')
+```
+
+* **Events**: `start()` runs the script's top level, which registers its
+  handlers with `LLEvents`. `fire` takes the same payloads as for LSL. Touch,
+  collision, sensor and damage handlers receive their `DetectedEvent` list.
+  `LLTimers` and `ll.Sleep` run on the virtual clock.
+* **`ll` and `llcompat`**: `ll` uses SLua's native conventions. Indexes are
+  1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
+  Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
+  Missing or wrong-typed arguments raise SLua's errors.
+* **What runs where**: list and math helpers that SLua implements itself
+  (`ll.List2String`, `ll.DumpList2String`, `ll.Abs`, …) run in the VM.
+  Everything else reaches rezless and can be mocked with
+  `s.mock('llName', …)`.
+* **Crashes and resets**: a run-time error crashes the script as in LSL: it
+  reports on `DEBUG_CHANNEL` and throws from the call that ran it.
+  `ll.ResetScript` starts a fresh VM and runs the script again.
+* **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
+  write Lua globals (not locals). `s.printed` collects `print()` output.
+  `s.language` is `'slua'`.
+* **Mixed objects**: `loadLinkset` takes `.luau` scripts next to `.lsl` ones,
+  and they talk through link messages, chat and the rest as usual.
+* **Coverage**: the reporters cover SLua scripts too.
+  * Statements.
+  * Branches: `if`/`elseif`, `while`, `repeat`, numeric and generic `for`,
+    `and`/`or`, and if-expressions.
+  * Functions: event handlers are named after their event.
+
+Not modelled yet:
+
+* SLua script state isn't serialized, so a copy (rezzed from inventory,
+  remote-loaded) starts afresh.
+* Boolean-like entries inside list results (such as from
+  `ll.GetPrimitiveParams`) stay integers.
+* `print()` goes to `s.printed`, not chat.
+
+`scripts/build-slua-wasm.sh` rebuilds `packages/vm/wasm/slua.wasm` from SLua's
+source. It needs Emscripten and CMake.
+
 ## Coverage
 
 `@rezless/vitest` ships an LSL coverage collector that tracks four kinds of
@@ -712,6 +766,8 @@ the lines it changed) and project coverage vs the `main` baseline.
 
 * **hello** — minimal `state_entry { llSay(...) }` + matchers.
 * **greeter** — touch + name greeting + state transition + reminder timer.
+* **slua-greeter** — the greeter as an SLua script: an `LLEvents` touch
+  handler and an `LLTimers` reminder that is replaced on each touch.
 * **long-press** — a lamp that tells a short tap from a long press with `linkset.touch`'s `hold`.
 * **keypad** — a door keypad that reads which key was clicked from `llDetectedTouchST`.
 * **menu** — a lamp with a colour menu, answered with `s.answerDialog`.

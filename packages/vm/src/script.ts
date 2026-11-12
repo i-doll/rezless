@@ -71,6 +71,12 @@ import { invalidPrograms } from './typecheck.js'
 import type { Experience } from './experience.js'
 import type { ExperienceRequestEntry } from './builtins/experience.js'
 import { grantExperience } from './builtins/experience.js'
+import { SluaEngine } from './slua/engine.js'
+import { SluaCoverage } from './slua/coverage.js'
+import { callBuiltin } from './dispatch.js'
+import { BUILTIN_SPECS } from './generated/functions.js'
+import type { BuiltinSpec } from './generated/functions.js'
+import { parse } from '@rezless/parser'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -179,8 +185,26 @@ export class Script {
   private task: Task | null = null
   /** Virtual time this script last started a handler or woke from a sleep. */
   resumedAt = 0
+  /** For an SLua script: its source, and the VM running it. */
+  private readonly sluaSource: string | undefined
+  private slua: SluaEngine | null = null
+  /** What an SLua script passed to print(), in order. */
+  readonly printed: string[] = []
 
-  constructor(private readonly ast: Ast, private readonly options: ScriptOptions = {}) {
+  /**
+   * Load an SLua script: Luau source run in SLua's own VM. Throws a
+   * SluaCompileError if it doesn't compile.
+   */
+  static fromSlua(source: string, options: ScriptOptions = {}): Script {
+    return new Script(SLUA_PLACEHOLDER, { ...options, source }, source)
+  }
+
+  /** 'slua' for a script loaded with fromSlua, else 'lsl'. */
+  get language(): 'lsl' | 'slua' {
+    return this.sluaSource === undefined ? 'lsl' : 'slua'
+  }
+
+  constructor(private readonly ast: Ast, private readonly options: ScriptOptions = {}, sluaSource?: string) {
     // Auto-wrap: if no host prim was provided, create a default 1-prim linkset.
     let host = options.host
     if (!host) {
@@ -231,7 +255,7 @@ export class Script {
 
     const filename = options.filename ?? '<inline>'
     const source = options.source ?? ''
-    const coverage = options.coverage
+    const coverage = options.coverage && sluaSource === undefined
       ? new CoverageCollector(buildCoveragePlan(ast, filename, source))
       : null
 
@@ -300,6 +324,15 @@ export class Script {
     this.handlersByState = indexHandlers(ast)
     if (!this.handlersByState.has('default')) {
       throw new Error('LSL script has no default state')
+    }
+    this.sluaSource = sluaSource
+    if (sluaSource !== undefined) {
+      const engine = this.newSluaEngine()
+      if (options.coverage) {
+        const collector = new SluaCoverage(engine.plan, filename, source)
+        collector.attach(engine)
+        this.state.coverage = collector
+      }
     }
 
     // Register with the prim only once the script is fully built, so a failed
@@ -839,12 +872,21 @@ export class Script {
 
   /** Read a global variable's current value. White-box hook for tests. */
   global(name: string): LslValue {
+    if (this.slua) {
+      const value = this.slua.global(name)
+      if (value === undefined) throw new Error(`undefined variable '${name}'`)
+      return value
+    }
     return this.globals.get(name).value
   }
 
   /** Seed a global variable. The value is coerced to the global's declared type. */
   setGlobal(name: string, value: LslValue, type?: LslType): void {
     const inferred: LslType = type ?? inferType(value)
+    if (this.slua) {
+      this.slua.setGlobal(name, value, inferred)
+      return
+    }
     this.globals.set(name, { type: inferred, value } as EvalResult)
   }
 
@@ -873,6 +915,10 @@ export class Script {
     }
     if (!this.started) {
       this.started = true
+      if (this.slua && eventName !== 'state_entry') {
+        this.beginSluaMain()
+        this.linkset.settle([this])
+      }
       const entry = this.handlersByState.get(this.state.currentState)?.get('state_entry')
       if (entry && eventName !== 'state_entry') {
         this.begin(entry, [], {})
@@ -908,6 +954,7 @@ export class Script {
 
   /** Copy inventory code; fresh copies omit saved runtime state for remote loading. */
   copyTo(host: Prim, opts: { fresh?: boolean } = {}): Script {
+    if (this.sluaSource !== undefined) return this.copySluaTo(host)
     const copy = new Script(this.ast, { ...this.options, host, coverage: false })
     Object.assign(copy.mocks, this.mocks)
     copy.state.coverage = this.state.coverage
@@ -949,6 +996,10 @@ export class Script {
 
   private boot(): void {
     this.started = true
+    if (this.slua) {
+      this.beginSluaMain()
+      return
+    }
     const entry = this.handlersByState.get('default')?.get('state_entry')
     if (entry) this.begin(entry, [], {})
   }
@@ -968,6 +1019,15 @@ export class Script {
   private restart(): void {
     this.abandon()
     this.state.memory.releaseStack()
+    if (this.slua) {
+      // An SLua reset discards the VM and runs the script from the top again.
+      const old = this.slua
+      const engine = this.newSluaEngine()
+      if (this.state.coverage instanceof SluaCoverage) {
+        this.state.coverage.retire(old)
+        this.state.coverage.attach(engine)
+      }
+    }
     this.globals.clear()
     try {
       initGlobals(this.globals, this.ast.globals)
@@ -1017,14 +1077,28 @@ export class Script {
       this.restart()
       return
     }
+    if (this.slua) {
+      // SLua has no states: the "first event" is running the script itself.
+      if (event === 'state_entry') {
+        this.beginSluaMain()
+        return
+      }
+      if (!this.slua.handles(event)) return
+      if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+      const engine = this.slua
+      const args = bindPayload(event, payload)
+      this.step({ run: this.runHandler(event, () => this.sluaRun(engine.dispatch(event, args)), payload), startedAt: this.now, wakeAt: 0 })
+      return
+    }
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
     if (!handler) return
     if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
     this.begin(handler, bindPayload(event, payload), payload)
   }
 
-  /** Whether the current state has a handler for `event`. */
+  /** Whether the script handles `event` now: a handler in the current LSL state, or an SLua LLEvents handler. */
   handles(event: string): boolean {
+    if (this.slua) return this.slua.handles(event)
     return this.handlersByState.get(this.state.currentState)!.has(event)
   }
 
@@ -1042,7 +1116,7 @@ export class Script {
   }
 
   private begin(handler: EventHandler, args: ReadonlyArray<EvalResult>, payload: Record<string, unknown>): void {
-    this.step({ run: this.runHandler(handler, args, payload), startedAt: this.now, wakeAt: 0 })
+    this.step({ run: this.runHandler(handler.name, () => this.runHandlerChain(handler, args), payload), startedAt: this.now, wakeAt: 0 })
   }
 
   private step(task: Task): void {
@@ -1085,21 +1159,21 @@ export class Script {
    * does `state foo;` continues the chain correctly.
    */
   private *runHandler(
-    handler: EventHandler,
-    args: ReadonlyArray<EvalResult>,
+    event: string,
+    body: () => Generator<Suspension, boolean, unknown>,
     payload: Record<string, unknown>,
   ): Generator<Suspension, boolean, unknown> {
-    this.state.gameControlSnapshot = handler.name === 'game_control'
+    this.state.gameControlSnapshot = event === 'game_control'
       ? (payload['gameControlSnapshot'] as GameControlSnapshot | null | undefined) ?? null : null
     enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
     if (pushed) this.state.detectedStack.push({
-      entries: detected as ReadonlyArray<DetectedEntry>, event: handler.name,
+      entries: detected as ReadonlyArray<DetectedEntry>, event,
     })
     try {
       this.state.memory.startEvent()
-      return yield* this.runHandlerChain(handler, args)
+      return yield* body()
     } catch (e) {
       if (e instanceof RuntimeError) this.crash(e)
       throw e
@@ -1171,6 +1245,67 @@ export class Script {
       }
     }
     return false
+  }
+
+  /** A new SLua VM for this script, replacing any it had. */
+  private newSluaEngine(): SluaEngine {
+    const engine = new SluaEngine(
+      {
+        call: (name, args) => this.sluaCall(name, args),
+        clock: () => this.now / 1000,
+        unixTime: () => this.clockView.unixMicros() / 1e6,
+        setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
+        print: (text) => this.printed.push(text),
+      },
+      this.state.filename,
+      this.sluaSource!,
+      this.options.coverage ?? false,
+    )
+    this.slua = engine
+    return engine
+  }
+
+  /** Run the SLua script from the top, as a script starts. */
+  private beginSluaMain(): void {
+    const engine = this.slua!
+    this.step({ run: this.runHandler('state_entry', () => this.sluaRun(engine.start()), {}), startedAt: this.now, wakeAt: 0 })
+  }
+
+  /** Run SLua code; true when it ended in llResetScript. */
+  private *sluaRun(run: Generator<Suspension, void, unknown>): Generator<Suspension, boolean, unknown> {
+    try {
+      yield* run
+      return false
+    } catch (e) {
+      if (e instanceof ResetScriptSignal) return true
+      if (e instanceof HaltSignal) return false
+      throw e
+    }
+  }
+
+  /** An `ll.*` call from SLua: the same builtin, mock or stub an LSL script would reach. */
+  private *sluaCall(name: string, args: LslValue[]): Generator<Suspension, LslValue | undefined, unknown> {
+    const spec = BUILTIN_SPECS[name as keyof typeof BUILTIN_SPECS] as BuiltinSpec
+    // SLua passes floats to LSL functions as 32-bit floats.
+    const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
+    if (name === 'llGetUsedMemory' && !this.mocks[name]) return this.slua!.usedMemory()
+    if (name === 'llGetFreeMemory' && !this.mocks[name]) return Math.max(0, this.state.memory.limit - this.slua!.usedMemory())
+    const result = yield* callBuiltin({ state: this.state, mocks: this.mocks, script: this }, name, lslArgs)
+    return spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
+  }
+
+  /** A copy of this SLua script in `host`. The copy starts afresh: SLua state isn't carried over. */
+  private copySluaTo(host: Prim): Script {
+    const coverage = this.state.coverage instanceof SluaCoverage ? this.state.coverage : null
+    // An instrumented VM when the original is covered, counting into the original's collector.
+    const copy = Script.fromSlua(this.sluaSource!, { ...this.options, host, coverage: coverage !== null })
+    Object.assign(copy.mocks, this.mocks)
+    if (coverage) {
+      copy.state.coverage = coverage
+      coverage.attach(copy.slua!)
+    }
+    copy.running = this.running && !this.dead
+    return copy
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
@@ -1345,7 +1480,7 @@ function lookupGlobal(env: Env, name: string): EvalResult | undefined {
 function deriveScriptName(filename: string | undefined): string {
   if (!filename) return 'script'
   const last = filename.split('/').pop() ?? filename
-  return last.replace(/\.lsl$/i, '')
+  return last.replace(/\.(lsl|luau?)$/i, '')
 }
 
 function inferType(v: LslValue): LslType {
@@ -1374,3 +1509,6 @@ function buildConstantsEnv(): Env {
   }
   return env
 }
+
+/** The (empty) LSL program an SLua script carries for the parts of Script that read one. */
+const SLUA_PLACEHOLDER: Ast = parse('default {}', '<slua>').script

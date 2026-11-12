@@ -17,7 +17,7 @@ import { isCoverageEnabled } from './coverage-config.js'
 import { registerScript } from './coverage-registry.js'
 
 export interface InlineSource {
-  /** LSL source code as a string. */
+  /** Script source code as a string. */
   readonly source: string
   /** Optional virtual filename for diagnostics; defaults to "<inline>". */
   readonly filename?: string
@@ -30,6 +30,8 @@ export interface ScriptInput extends Omit<ScriptOptions, 'source'> {
   readonly source: ScriptSource
   /** Inventory name override (defaults to scriptName / filename basename). */
   readonly name?: string
+  /** 'slua' runs the source as SLua; default 'lsl', or 'slua' for a .lua / .luau filename. */
+  readonly language?: 'lsl' | 'slua'
 }
 
 export interface PrimInput extends PrimOptions {
@@ -104,15 +106,18 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
     }
     for (const sInput of primInput.scripts ?? []) {
       const { source, filename } = await readScriptSource(sInput.source)
-      const { script: ast, diagnostics } = parse(source, filename)
-      const errors = diagnostics.filter((d) => d.severity === 'error')
-      if (errors.length === 0) errors.push(...typecheck(ast, filename, sInput.functions))
-      if (errors.length > 0) throw new LslParseError(errors)
+      const slua = sInput.language === 'slua' || (sInput.language === undefined && /\.luau?$/i.test(filename))
+      const ast = slua ? null : parse(source, filename)
+      if (ast) {
+        const errors = ast.diagnostics.filter((d) => d.severity === 'error')
+        if (errors.length === 0) errors.push(...typecheck(ast.script, filename, sInput.functions))
+        if (errors.length > 0) throw new LslParseError(errors)
+      }
       // Build options without the loadLinkset-only fields. The inventory
       // `name` is also surfaced as `scriptName` so llGetScriptName /
       // llSetScriptState / llResetOtherScript all agree on the script's
       // identity.
-      const { source: _src, name: invName, ...rest } = sInput
+      const { source: _src, name: invName, language: _language, ...rest } = sInput
       const coverage = rest.coverage ?? isCoverageEnabled()
       const opts: ScriptOptions = { ...rest, filename, host: prim, source, coverage }
       const inventoryName = invName ?? rest.scriptName
@@ -120,7 +125,7 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
         ;(opts as { -readonly [K in keyof ScriptOptions]: ScriptOptions[K] }).scriptName =
           inventoryName
       }
-      const s = new Script(ast, opts)
+      const s = ast ? new Script(ast.script, opts) : Script.fromSlua(source, opts)
       if (coverage) registerScript(s)
       const finalName = s.scriptName
       const item = prim.inventory.find((it) => it.script === s)

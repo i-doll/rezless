@@ -1,6 +1,11 @@
 import type { Script as Ast, Statement, SourceLocation } from '@rezless/parser'
 
-export type StatementKind = Statement['kind']
+/** SLua statement kinds, as the SLua instrumenter names them. */
+export type SluaStatementKind =
+  | 'local' | 'assign' | 'compound-assign' | 'expression' | 'if' | 'while' | 'repeat' | 'for' | 'for-in'
+  | 'return' | 'break' | 'continue' | 'function' | 'local-function' | 'do'
+
+export type StatementKind = Statement['kind'] | SluaStatementKind
 
 export interface StatementInfo {
   readonly id: number
@@ -9,7 +14,11 @@ export interface StatementInfo {
   readonly kind: StatementKind
 }
 
-export type BranchKind = 'if' | 'while' | 'do-while' | 'for'
+/**
+ * LSL's `if` and loops, plus SLua's: `repeat`, generic `for-in`, the left
+ * side of `and` / `or` (true or false) and if-then-else expressions.
+ */
+export type BranchKind = 'if' | 'while' | 'do-while' | 'for' | 'repeat' | 'for-in' | 'and' | 'or' | 'if-expression'
 
 export interface BranchInfo {
   readonly id: number

@@ -6,10 +6,15 @@ import { isCoverageEnabled } from './coverage-config.js'
 import { registerScript } from './coverage-registry.js'
 
 export interface InlineScriptInput extends ScriptOptions {
-  /** LSL source code as a string. */
+  /** Script source code as a string. */
   readonly source: string
   /** Optional virtual filename for diagnostics; defaults to "<inline>". */
   readonly filename?: string
+  /**
+   * 'slua' runs the source as SLua (Luau, in SLua's own VM); default 'lsl',
+   * or 'slua' when the filename ends in .lua or .luau.
+   */
+  readonly language?: 'lsl' | 'slua'
 }
 
 export type LoadScriptInput = string | InlineScriptInput
@@ -24,7 +29,10 @@ export type LoadScriptInput = string | InlineScriptInput
  * Coverage activates when any of: `coverage: true` in options, the Vitest
  * coverage reporter has been installed, or `LSL_COVERAGE=1` in the env.
  *
- * Parse and type errors throw `LslParseError`, which Vitest renders with the
+ * A `.lua` / `.luau` file, or `language: 'slua'`, loads an SLua script,
+ * run in SLua's own VM; a compile error throws `SluaCompileError`.
+ *
+ * LSL parse and type errors throw `LslParseError`, which Vitest renders with the
  * offending `file:line:col`.
  */
 export async function loadScript(input: LoadScriptInput): Promise<Script> {
@@ -39,6 +47,13 @@ export async function loadScript(input: LoadScriptInput): Promise<Script> {
     source = input.source
     filename = input.filename ?? '<inline>'
     baseOptions = { ...input, filename }
+  }
+  const language = typeof input === 'string' ? undefined : input.language
+  if (language === 'slua' || (language === undefined && /\.luau?$/i.test(filename))) {
+    const coverage = baseOptions.coverage ?? isCoverageEnabled()
+    const script = Script.fromSlua(source, { ...baseOptions, source, coverage })
+    if (coverage) registerScript(script)
+    return script
   }
   const { script: ast, diagnostics } = parse(source, filename)
   const errors = diagnostics.filter((d) => d.severity === 'error')

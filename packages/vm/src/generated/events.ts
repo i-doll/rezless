@@ -12,6 +12,8 @@ export interface EventParamSpec {
 export interface EventSpec {
   readonly name: string
   readonly params: ReadonlyArray<EventParamSpec>
+  /** How SLua delivers this event differently: removed, or boolean parameters. */
+  readonly slua?: { readonly removed?: boolean; readonly boolParams?: ReadonlyArray<number> }
 }
 
 export const EVENT_SPECS = {
@@ -51,13 +53,13 @@ export const EVENT_SPECS = {
   "remote_data": { name: "remote_data", params: [{ name: "event_type", type: "integer" }, { name: "channel", type: "key" }, { name: "message_id", type: "key" }, { name: "sender", type: "string" }, { name: "idata", type: "integer" }, { name: "sdata", type: "string" }] },
   "run_time_permissions": { name: "run_time_permissions", params: [{ name: "perm", type: "integer" }] },
   "sensor": { name: "sensor", params: [{ name: "num_detected", type: "integer" }] },
-  "state_entry": { name: "state_entry", params: [] },
-  "state_exit": { name: "state_exit", params: [] },
+  "state_entry": { name: "state_entry", params: [], slua: { removed: true } },
+  "state_exit": { name: "state_exit", params: [], slua: { removed: true } },
   "timer": { name: "timer", params: [] },
   "touch": { name: "touch", params: [{ name: "num_detected", type: "integer" }] },
   "touch_end": { name: "touch_end", params: [{ name: "num_detected", type: "integer" }] },
   "touch_start": { name: "touch_start", params: [{ name: "num_detected", type: "integer" }] },
-  "transaction_result": { name: "transaction_result", params: [{ name: "id", type: "key" }, { name: "success", type: "integer" }, { name: "data", type: "string" }] },
+  "transaction_result": { name: "transaction_result", params: [{ name: "id", type: "key" }, { name: "success", type: "integer" }, { name: "data", type: "string" }], slua: { boolParams: [1] } },
 } as const satisfies Record<string, EventSpec>
 
 export type EventName = keyof typeof EVENT_SPECS

@@ -1,4 +1,5 @@
 export { Script } from './script.js'
+export { SluaCompileError, SluaRuntimeError } from './slua/engine.js'
 export { typecheck } from './typecheck.js'
 export type { FunctionSignature, ScriptOptions } from './script.js'
 export { CoverageCollector, buildCoveragePlan, mergeReports } from './coverage.js'

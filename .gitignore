@@ -14,3 +14,6 @@ tasks/
 .vscode/
 .idea/
 .claude/
+
+# SLua wasm build work directory (scripts/build-slua-wasm.sh)
+.slua-build/
