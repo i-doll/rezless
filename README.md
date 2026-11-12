@@ -702,7 +702,8 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   can't close or resume.
 * **Memory**: SLua scripts get 128 KiB, counting what running handlers
   hold. With `memoryLimit: true` the VM enforces it, and a script that goes
-  past it fails with `not enough memory`.
+  past it fails with `not enough memory`. A script whose code alone takes
+  all 128 KiB fails that way as it starts, before any of it runs.
 * **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
   write Lua globals (not locals). `s.printed` collects `print()` output.
   `s.language` is `'slua'`.

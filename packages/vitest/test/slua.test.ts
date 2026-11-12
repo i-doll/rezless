@@ -710,3 +710,17 @@ describe('SLua parameter types from the definitions', () => {
     expect(s.calls[1]!.args[2]).toBe(s.host.key)
   })
 })
+
+describe('SLua code size', () => {
+  it('refuses to run a script whose code takes all its memory, with memoryLimit', async () => {
+    // A literal the compiler can't fold away, so it stays in the bytecode.
+    const source = `print("${'x'.repeat(140000)}")`
+    const limited = await slua(source, { memoryLimit: true })
+    expect(() => limited.start()).toThrow(/not enough memory/)
+    expect(limited.printed).toEqual([])
+    expect(limited.chat.map((c) => c.text)).toEqual(['Script run-time error', 'not enough memory'])
+    const unlimited = await slua(source)
+    unlimited.start()
+    expect(unlimited.printed[0]!.length).toBe(140000)
+  })
+})
