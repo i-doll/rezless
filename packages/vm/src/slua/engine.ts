@@ -12,7 +12,7 @@
  */
 import { readFileSync } from 'node:fs'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
-import { isRotation, toInt32 } from '../values/types.js'
+import { isRotation, toFloat32Value, toInt32 } from '../values/types.js'
 import { listElementTypes, typedList } from '../values/list-types.js'
 import { BUILTIN_SPECS } from '../generated/functions.js'
 import type { BuiltinSpec } from '../generated/functions.js'
@@ -457,7 +457,8 @@ export class SluaEngine {
       const el = this.readElement(L, -1)
       x.rz_pop(L, 1)
       if (!el) return { error: 'non-LSL value in list' }
-      values.push(el.value)
+      // LSL floats are 32-bit.
+      values.push(toFloat32Value(el.value, el.type))
       types.push(el.type)
     }
     return typedList(values, types)

@@ -25,6 +25,8 @@ export class SluaCoverage extends CoverageCollector {
 
   /** Stop following `engine`, keeping the hits it has counted. */
   retire(engine: SluaEngine): void {
+    // Once only: a dead script can be marked dead again, or reset.
+    if (!this.engines.includes(engine)) return
     this.engines = this.engines.filter((e) => e !== engine)
     const h = engine.hits()
     add(this.retired.statements, h.statements)

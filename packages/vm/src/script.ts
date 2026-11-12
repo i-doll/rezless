@@ -917,9 +917,11 @@ export class Script {
     }
     if (!this.started) {
       this.started = true
-      if (this.slua && eventName !== 'state_entry') {
+      if (this.slua) {
+        // The script's top level is its state_entry.
         this.beginSluaMain()
         this.linkset.settle([this])
+        if (eventName === 'state_entry') return
       }
       const entry = this.handlersByState.get(this.state.currentState)?.get('state_entry')
       if (entry && eventName !== 'state_entry') {
@@ -1294,9 +1296,12 @@ export class Script {
     const engine = this.slua!
     // SLua passes floats to LSL functions as 32-bit floats.
     const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
-    if (!this.mocks[name]) {
-      if (name === 'llGetUsedMemory') return { value: engine.usedMemory(), delayMs: null }
-      if (name === 'llGetFreeMemory') return { value: Math.max(0, this.state.memory.limit - engine.usedMemory()), delayMs: null }
+    if (!this.mocks[name] && (name === 'llGetUsedMemory' || name === 'llGetFreeMemory')) {
+      // The VM's own count, logged as any call is.
+      const used = engine.usedMemory()
+      const value = name === 'llGetUsedMemory' ? used : Math.max(0, this.state.memory.limit - used)
+      this.state.calls.push({ name, args: lslArgs, returned: value })
+      return { value, delayMs: null }
     }
     const { result, delayMs } = invokeBuiltin({ state: this.state, mocks: this.mocks, script: this }, name, lslArgs)
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
@@ -1340,6 +1345,8 @@ export class Script {
     clearTargetMotion(this)
     this.clockView.cancelTimer()
     this.abandon()
+    // Keep the dead VM's counts, but not the VM.
+    if (this.slua && this.state.coverage instanceof SluaCoverage) this.state.coverage.retire(this.slua)
   }
 
   /**

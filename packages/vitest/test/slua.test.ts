@@ -560,3 +560,41 @@ describe('SLua edges', () => {
     expect([s.language, lsl.language]).toEqual(['slua', 'lsl'])
   })
 })
+
+describe('SLua review follow-ups', () => {
+  it('logs the memory queries SLua answers itself', async () => {
+    const s = await slua(`ll.GetUsedMemory(); ll.GetFreeMemory()`)
+    s.start()
+    expect(s.calls.map((c) => c.name)).toEqual(['llGetUsedMemory', 'llGetFreeMemory'])
+  })
+
+  it('passes list floats to LSL as 32-bit floats', async () => {
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({16777217.0, integer.create(16777217)}))`)
+    s.start()
+    expect(s).toHaveSaid(0, '16777216.000000, 16777217')
+  })
+
+  it('runs the top level to the end when state_entry is the first event', async () => {
+    const s = await slua(`ll.Sleep(1); ll.OwnerSay("awake")`)
+    s.fire('state_entry')
+    expect(s).toHaveSaid(0, 'awake')
+    s.fire('state_entry')
+    expect(s.chat.length).toBe(1)
+  })
+
+  it('lets go of a removed copy, keeping its coverage', async () => {
+    const s = await slua(`ll.OwnerSay("hi"); LLEvents:on("touch_start", function() ll.Die() end)`, { coverage: true })
+    s.start()
+    const other = new Prim({ key: '22222222-2222-2222-2222-222222222222', name: 'Other' })
+    s.linkset.addPrim(other)
+    const copy = s.copyTo(other)
+    copy.start()
+    copy.fire('touch_start', { num_detected: 1 })
+    expect(copy.dead).toBe(true)
+    expect(s.coverage!.statements[0]!.hits).toBe(2)
+    // Counted once, however often the copy is marked dead.
+    copy.markDead()
+    expect(s.coverage!.statements[0]!.hits).toBe(2)
+    expect(s.coverage!.functions.find((f) => f.kind === 'event')!.hits).toBe(1)
+  })
+})
