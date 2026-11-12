@@ -418,14 +418,13 @@ export class SluaEngine {
     const indexParams = new Set(spec.slua?.indexParams ?? [])
     const boolParams = new Set(spec.slua?.boolParams ?? [])
     const uuidParams = new Set(spec.slua?.uuidParams ?? [])
-    const integerLists = new Set(spec.slua?.integerListParams ?? [])
     const name = spec.name.slice(2)
     const args: LslValue[] = []
     for (const [i, p] of spec.params.entries()) {
       const slot = i + 1
       const expected = EXPECTED[p.type]!
       if (slot > nargs) return `missing argument #${slot} to '${name}' (${expected} expected)`
-      const value = this.readArg(L, slot, p.type, { boolean: boolParams.has(i), uuid: uuidParams.has(i), integers: integerLists.has(i) })
+      const value = this.readArg(L, slot, p.type, { boolean: boolParams.has(i), uuid: uuidParams.has(i) })
       if (value === undefined) {
         this.x.rz_typename(this.s, L, slot)
         const got = this.scratch()
@@ -453,7 +452,7 @@ export class SluaEngine {
     L: number,
     slot: number,
     type: LslType,
-    takes: { boolean: boolean; uuid: boolean; integers: boolean },
+    takes: { boolean: boolean; uuid: boolean },
   ): LslValue | { error: string } | undefined {
     const x = this.x
     const t = x.rz_type(L, slot)
@@ -474,7 +473,7 @@ export class SluaEngine {
         x.rz_tostring(this.s, L, slot)
         return this.scratch()
       case 'list':
-        return t === T.Table ? this.readList(L, slot, takes.integers) : undefined
+        return t === T.Table ? this.readList(L, slot) : undefined
       default: {
         const want = type === 'vector' ? T.Vector : T.Quaternion
         return t === want ? this.read(L, slot)!.value : undefined
@@ -483,7 +482,7 @@ export class SluaEngine {
   }
 
   /** A table as an LSL list, as SLua's own list functions read one. */
-  private readList(L: number, slot: number, integers: boolean): LslValue | { error: string } {
+  private readList(L: number, slot: number): LslValue | { error: string } {
     const x = this.x
     const n = x.rz_objlen(L, slot)
     const values: LslValue[] = []
@@ -493,11 +492,6 @@ export class SluaEngine {
       const el = this.readElement(L, -1)
       x.rz_pop(L, 1)
       if (!el) return { error: 'non-LSL value in list' }
-      if (integers && el.type === 'float' && Number.isInteger(el.value)) {
-        values.push(toInt32(el.value as number))
-        types.push('integer')
-        continue
-      }
       // LSL floats are 32-bit.
       values.push(toFloat32Value(el.value, el.type))
       types.push(el.type)

@@ -695,13 +695,15 @@ describe('SLua third review', () => {
 })
 
 describe('SLua parameter types from the definitions', () => {
-  it('passes whole numbers in selector lists as integers', async () => {
+  it('lets selector lists take whole numbers, and keeps data lists as floats', async () => {
     const s = await slua(`
       ll.OwnerSay(tostring(#ll.GetObjectDetails(ll.GetKey(), {OBJECT_NAME, OBJECT_DESC})))
       ll.OwnerSay(tostring(ll.ListStatistics(LIST_STAT_MEAN, {1, 2.5})))
+      ll.OwnerSay(tostring(ll.ListStatistics(LIST_STAT_SUM, {2147483648})))
     `)
     s.start()
-    expect(s.chat.map((c) => c.text)).toEqual(['2', '1.75'])
+    // Statistics take the numbers as floats, so whole ones past int32 survive.
+    expect(s.chat.map((c) => c.text)).toEqual(['2', '1.75', '2147483648'])
   })
 
   it('takes a uuid as llMessageLinked text', async () => {

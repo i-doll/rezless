@@ -60,7 +60,6 @@ function sluaLiteral(
   const boolParams: number[] = []
   const stringParams: number[] = []
   const uuidParams: number[] = []
-  const integerListParams: number[] = []
   ;(args ?? []).flatMap((a) => Object.values(a)).forEach((p, i) => {
     if (p['index-semantics']) indexParams.push(i)
     if (p['bool-semantics']) boolParams.push(i)
@@ -70,9 +69,6 @@ function sluaLiteral(
     // Events only pass values to scripts, so these read-side flags are for functions.
     if (flags.event) return
     if (p.type === 'string' && p['slua-type'] === 'string | uuid') uuidParams.push(i)
-    // A list of selectors or rules (or llListStatistics' numbers): SLua's
-    // whole numbers are LSL integers there.
-    if (p.type === 'list' && p['slua-type'] === '{number}') integerListParams.push(i)
   })
   const parts: string[] = []
   if (flags.removed) parts.push('removed: true')
@@ -82,7 +78,6 @@ function sluaLiteral(
   if (boolParams.length) parts.push(`boolParams: [${boolParams.join(', ')}]`)
   if (stringParams.length) parts.push(`stringParams: [${stringParams.join(', ')}]`)
   if (uuidParams.length) parts.push(`uuidParams: [${uuidParams.join(', ')}]`)
-  if (integerListParams.length) parts.push(`integerListParams: [${integerListParams.join(', ')}]`)
   return parts.length ? `, slua: { ${parts.join(', ')} }` : ''
 }
 
@@ -343,8 +338,6 @@ export interface SluaSpec {
   readonly stringParams?: ReadonlyArray<number>
   /** String parameters that also take a uuid. */
   readonly uuidParams?: ReadonlyArray<number>
-  /** List parameters whose whole numbers are LSL integers (selectors and rules). */
-  readonly integerListParams?: ReadonlyArray<number>
 }
 
 export interface BuiltinSpec {
