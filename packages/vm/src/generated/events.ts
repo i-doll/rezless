@@ -12,8 +12,12 @@ export interface EventParamSpec {
 export interface EventSpec {
   readonly name: string
   readonly params: ReadonlyArray<EventParamSpec>
-  /** How SLua delivers this event differently: removed, or boolean parameters. */
-  readonly slua?: { readonly removed?: boolean; readonly boolParams?: ReadonlyArray<number> }
+  /** How SLua delivers this event differently: removed, boolean parameters, or keys passed as strings. */
+  readonly slua?: {
+    readonly removed?: boolean
+    readonly boolParams?: ReadonlyArray<number>
+    readonly stringParams?: ReadonlyArray<number>
+  }
 }
 
 export const EVENT_SPECS = {
@@ -36,7 +40,7 @@ export const EVENT_SPECS = {
   "land_collision": { name: "land_collision", params: [{ name: "pos", type: "vector" }] },
   "land_collision_end": { name: "land_collision_end", params: [{ name: "pos", type: "vector" }] },
   "land_collision_start": { name: "land_collision_start", params: [{ name: "pos", type: "vector" }] },
-  "link_message": { name: "link_message", params: [{ name: "sender_num", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }] },
+  "link_message": { name: "link_message", params: [{ name: "sender_num", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }], slua: { stringParams: [3] } },
   "linkset_data": { name: "linkset_data", params: [{ name: "action", type: "integer" }, { name: "name", type: "string" }, { name: "value", type: "string" }] },
   "listen": { name: "listen", params: [{ name: "channel", type: "integer" }, { name: "name", type: "string" }, { name: "id", type: "key" }, { name: "msg", type: "string" }] },
   "money": { name: "money", params: [{ name: "id", type: "key" }, { name: "amount", type: "integer" }] },

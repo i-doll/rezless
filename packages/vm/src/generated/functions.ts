@@ -20,6 +20,8 @@ export interface SluaSpec {
   readonly returnBool?: boolean
   readonly indexParams?: ReadonlyArray<number>
   readonly boolParams?: ReadonlyArray<number>
+  /** Key parameters SLua passes as plain strings. */
+  readonly stringParams?: ReadonlyArray<number>
 }
 
 export interface BuiltinSpec {

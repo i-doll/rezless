@@ -1934,18 +1934,32 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **Events**: `start()` runs the script's top level, which registers its
   handlers with `LLEvents`. `fire` takes the same payloads as for LSL. Touch,
   collision, sensor and damage handlers receive their `DetectedEvent` list.
-  `LLTimers` and `ll.Sleep` run on the virtual clock.
+  `LLTimers` and `ll.Sleep` run on the virtual clock. Handlers for events
+  SLua doesn't deliver are refused, as in SLua. `ll.GetTime`, `os.clock`
+  and `LLTimers` share one clock, which restarts on a reset.
+* **Sleeps**: as in SLua, a sleeping call (`ll.Sleep`, or a function with a
+  built-in delay) returns at once and the script sleeps at its next point
+  where it can yield. That is usually right away, even inside coroutines. A
+  sleep inside a metamethod waits for the next such point.
 * **`ll` and `llcompat`**: `ll` uses SLua's native conventions. Indexes are
   1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
-  Missing or wrong-typed arguments raise SLua's errors.
+  Missing or wrong-typed arguments raise SLua's errors. Numbers passed as
+  strings are formatted the way Lua formats them. Numeric strings are
+  accepted as numbers. Booleans are accepted only where LSL means a boolean.
+  A list argument holding anything LSL lists can't hold raises
+  `non-LSL value in list`.
 * **What runs where**: list and math helpers that SLua implements itself
   (`ll.List2String`, `ll.DumpList2String`, `ll.Abs`, …) run in the VM.
   Everything else reaches rezless and can be mocked with
   `s.mock('llName', …)`.
 * **Crashes and resets**: a run-time error crashes the script as in LSL: it
   reports on `DEBUG_CHANNEL` and throws from the call that ran it.
-  `ll.ResetScript` starts a fresh VM and runs the script again.
+  `ll.ResetScript` starts a fresh VM and runs the script again. `pcall`
+  can't catch `ll.ResetScript`, `ll.Die`, or an error thrown by a mock.
+* **Memory**: SLua scripts get 128 KiB. With `memoryLimit: true` the VM
+  enforces it, and a script that goes past it fails with
+  `not enough memory`.
 * **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
   write Lua globals (not locals). `s.printed` collects `print()` output.
   `s.language` is `'slua'`.
@@ -1956,6 +1970,9 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   * Branches: `if`/`elseif`, `while`, `repeat`, numeric and generic `for`,
     `and`/`or`, and if-expressions.
   * Functions: event handlers are named after their event.
+  * Coverage adds its counters to the script as the globals `__rz_s`,
+    `__rz_b` and `__rz_f`, and only when coverage is on. Memory use is
+    unaffected.
 
 Not modelled yet:
 
@@ -1964,6 +1981,10 @@ Not modelled yet:
 * Boolean-like entries inside list results (such as from
   `ll.GetPrimitiveParams`) stay integers.
 * `print()` goes to `s.printed`, not chat.
+* A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
+  So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
+  would in SLua.
+* Mocks of functions SLua implements itself (see above) are never called.
 
 `scripts/build-slua-wasm.sh` rebuilds `packages/vm/wasm/slua.wasm` from SLua's
 source. It needs Emscripten and CMake.

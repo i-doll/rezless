@@ -31,16 +31,18 @@
 // ---- Imports (implemented in packages/vm/src/slua/engine.ts) ----
 
 // Run ll function `fn` with `nargs` arguments on L's stack. Returns the number
-// of results it pushed, RZ_YIELD to suspend the thread, or RZ_ERROR with an
-// error message pushed.
+// of results it pushed, RZ_ERROR with an error message pushed, or RZ_KILL to
+// stop the script (llDie, llResetScript, a crash). A call that sleeps returns
+// its results and asks for a break (rz_request_break), as SLua's host does.
 extern "C" RZ_IMPORT("rz_call") int rz_host_call(lua_State* L, int fn, int compat, int nargs);
 extern "C" RZ_IMPORT("rz_clock") double rz_host_clock();
 extern "C" RZ_IMPORT("rz_set_timer") void rz_host_set_timer(double seconds);
-extern "C" RZ_IMPORT("rz_event_registered") void rz_host_event_registered(const char* name, int len, int registered);
+// Whether `name` may be (un)registered as an LLEvents handler.
+extern "C" RZ_IMPORT("rz_event_registered") int rz_host_event_registered(const char* name, int len, int registered);
 extern "C" RZ_IMPORT("rz_print") void rz_host_print(const char* text, int len);
 
-static const int RZ_YIELD = -1;
 static const int RZ_ERROR = -2;
+static const int RZ_KILL = -3;
 
 // ---- Script instance ----
 
@@ -51,7 +53,12 @@ struct RzScript : lua_SLRuntimeState
     int threadRef = LUA_NOREF;
     int handleEventRef = LUA_NOREF;
     int lleventsRef = LUA_NOREF;
-    size_t bytecodeSize = 0;
+    size_t bytecodeSize = 0; // without coverage instrumentation, as SLua charges it
+    bool breakPending = false;
+    bool inExecution = false;
+    int memoryLimit = 0; // 0: not enforced
+    int exactSize = 0;
+    int maxPossibleSize = 0;
     lua_OpaqueGCObjectSet freeObjects;
     std::string scratch;    // string results handed to JavaScript
     std::string plan;       // coverage plan, JSON
@@ -79,8 +86,8 @@ static int ll_forward(lua_State* L)
     int r = rz_host_call(L, fn, compat, lua_gettop(L));
     if (r >= 0)
         return r;
-    if (r == RZ_YIELD)
-        return lua_yield(L, 0);
+    if (r == RZ_KILL)
+        lua_killerror(L, "rezless: script stopped");
     // Error message on top: prefix the caller's position, as luaL_error does.
     luaL_where(L, 1);
     lua_insert(L, -2);
@@ -135,6 +142,57 @@ static int cov_function(lua_State* L)
     return 0;
 }
 
+// As SLua's host (Executor/src/Script.cpp interruptHandler / tryYield): a
+// pending sleep breaks out of the script at the first point it may yield,
+// through any coroutines it is in.
+static void interrupt_callback(lua_State* L, int gc)
+{
+    if (gc >= 0)
+        return;
+    auto* s = rz(L);
+    if (s->breakPending && luaSL_may_interrupt(L) == YieldableStatus::OK)
+    {
+        s->breakPending = false;
+        lua_break(L);
+    }
+}
+
+// As SLua's host (Executor/src/Script.cpp memoryLimitCallback): refuse an
+// allocation that would take the script's own memory past its limit.
+static int before_allocate(lua_State* L, size_t osize, size_t nsize)
+{
+    auto* s = rz(L);
+    if (!s || !s->inExecution || s->memoryLimit == 0 || !s->thread || osize >= nsize)
+        return 0;
+    size_t gain = nsize - osize;
+    if (gain > (size_t)s->memoryLimit)
+        return 1;
+    s->maxPossibleSize += (int)gain;
+    if (s->exactSize == 0 || s->maxPossibleSize > s->memoryLimit)
+    {
+        int current = (int)(lua_userthreadgc(s->thread, &s->freeObjects) + s->bytecodeSize);
+        int next = current + (int)gain;
+        if (next > s->memoryLimit)
+        {
+            s->exactSize = s->maxPossibleSize = current;
+            return 1;
+        }
+        s->exactSize = s->maxPossibleSize = next;
+    }
+    return 0;
+}
+
+RZ_EXPORT void rz_request_break(RzScript* s)
+{
+    s->breakPending = true;
+}
+
+RZ_EXPORT void rz_set_memory_limit(RzScript* s, int limit)
+{
+    s->memoryLimit = limit;
+    s->exactSize = 0;
+}
+
 RZ_EXPORT RzScript* rz_new()
 {
     // Process-wide set-up SLua's CLI does before running SL scripts:
@@ -154,14 +212,15 @@ RZ_EXPORT RzScript* rz_new()
     s->performanceClockProvider = [](lua_State*) { return rz_host_clock(); };
     s->eventHandlerRegistrationCb = [](lua_State*, const char* name, bool registered)
     {
-        rz_host_event_registered(name, (int)strlen(name), registered ? 1 : 0);
-        return true;
+        return rz_host_event_registered(name, (int)strlen(name), registered ? 1 : 0) != 0;
     };
 
     lua_State* L = luaL_newstate();
     s->GL = L;
     lua_setthreaddata(L, s);
     lua_callbacks(L)->userthread = userthread_callback;
+    lua_callbacks(L)->interrupt = interrupt_callback;
+    lua_callbacks(L)->beforeallocate = before_allocate;
 
     // As SLua's own CLI sets up an SL-mode VM (CLI/src/Repl.cpp setupState).
     luaL_openlibs(L);
@@ -176,12 +235,6 @@ RZ_EXPORT RzScript* rz_new()
 
     lua_pushcfunction(L, rz_print, "print");
     lua_setglobal(L, "print");
-    lua_pushcfunction(L, cov_statement, "__rz_s");
-    lua_setglobal(L, "__rz_s");
-    lua_pushcfunction(L, cov_branch, "__rz_b");
-    lua_setglobal(L, "__rz_b");
-    lua_pushcfunction(L, cov_function, "__rz_f");
-    lua_setglobal(L, "__rz_f");
     return s;
 }
 
@@ -283,8 +336,17 @@ struct Instrumenter : AstVisitor
         return stat;
     }
 
+    // A constant condition only ever goes one way, so it isn't a branch.
+    static bool constant(AstExpr* e)
+    {
+        return e->is<AstExprConstantBool>() || e->is<AstExprConstantNil>() || e->is<AstExprConstantNumber>() ||
+               e->is<AstExprConstantInteger>() || e->is<AstExprConstantString>();
+    }
+
     AstExpr* branch(AstExpr* cond, const char* kind, const Location& loc, bool hasElse)
     {
+        if (constant(cond))
+            return cond;
         int id = branches++;
         entry("b", id, loc, kind, std::string(",\"else\":") + (hasElse ? "true" : "false"));
         return call("__rz_b", cond->location, {number(id, cond->location), cond});
@@ -398,10 +460,44 @@ struct Instrumenter : AstVisitor
         return true;
     }
 
+    // `a or b or c`: one branch per term that can short-circuit (a and b),
+    // recorded where the term is. Terms are wrapped one level deep, so long
+    // chains don't nest calls.
+    std::unordered_set<AstExprBinary*> chained;
+
+    void chain(AstExprBinary* e, AstExprBinary::Op op, bool top)
+    {
+        chained.insert(e);
+        const char* kind = op == AstExprBinary::And ? "and" : "or";
+        auto* left = e->left->as<AstExprBinary>();
+        if (left && left->op == op)
+            chain(left, op, false);
+        else
+            e->left = branch(e->left, kind, e->left->location, true);
+        if (!top)
+            e->right = branch(e->right, kind, e->right->location, true);
+    }
+
     bool visit(AstExprBinary* e) override
     {
-        if (e->op == AstExprBinary::And || e->op == AstExprBinary::Or)
-            e->left = branch(e->left, e->op == AstExprBinary::And ? "and" : "or", e->location, true);
+        if ((e->op == AstExprBinary::And || e->op == AstExprBinary::Or) && !chained.count(e))
+            chain(e, e->op, true);
+        return true;
+    }
+
+    // Type functions run in the type checker, not the script.
+    bool visit(AstStatTypeFunction*) override
+    {
+        return false;
+    }
+
+    // `function LLEvents.touch_start(...)` names its handler after the event.
+    bool visit(AstStatFunction* f) override
+    {
+        auto* index = f->name->as<AstExprIndexName>();
+        auto* owner = index ? index->expr->as<AstExprGlobal>() : nullptr;
+        if (owner && owner->name == "LLEvents")
+            eventNames[f->func] = index->index.value;
         return true;
     }
 
@@ -492,8 +588,23 @@ RZ_EXPORT int rz_load(RzScript* s, const char* name, const char* source, int sou
 static int load(RzScript* s, const char* name, const char* source, int sourceLen, int coverage)
 {
     lua_State* GL = s->GL;
+    if (coverage)
+    {
+        lua_pushcfunction(GL, cov_statement, "__rz_s");
+        lua_setglobal(GL, "__rz_s");
+        lua_pushcfunction(GL, cov_branch, "__rz_b");
+        lua_setglobal(GL, "__rz_b");
+        lua_pushcfunction(GL, cov_function, "__rz_f");
+        lua_setglobal(GL, "__rz_f");
+    }
     luaL_sandbox(GL);
     lua_fixallcollectable(GL);
+
+    Luau::CompileOptions options;
+    options.optimizationLevel = 1;
+    options.debugLevel = 1;
+    options.typeInfoLevel = 1;
+    options.libraryMemberConstantCb = &luauSL_lookup_constant_cb;
 
     Luau::Allocator allocator;
     Luau::AstNameTable names(allocator);
@@ -506,6 +617,18 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
     }
     if (coverage)
     {
+        // Memory is charged for the script's own bytecode, not the instrumentation.
+        try
+        {
+            Luau::BytecodeBuilder plain;
+            Luau::compileOrThrow(plain, parsed, names, options);
+            s->bytecodeSize = plain.getBytecode().size();
+        }
+        catch (Luau::CompileError& e)
+        {
+            s->scratch = std::string(name) + ":" + std::to_string(e.getLocation().begin.line + 1) + ": " + e.what();
+            return 1;
+        }
         Instrumenter instrumenter(allocator, names);
         parsed.root->visit(&instrumenter);
         s->plan = "[" + instrumenter.plan + "]";
@@ -514,11 +637,6 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
         s->functionHits.assign(instrumenter.functions, 0);
     }
 
-    Luau::CompileOptions options;
-    options.optimizationLevel = 1;
-    options.debugLevel = 1;
-    options.typeInfoLevel = 1;
-    options.libraryMemberConstantCb = &luauSL_lookup_constant_cb;
     Luau::BytecodeBuilder bcb;
     try
     {
@@ -530,7 +648,8 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
         return 1;
     }
     std::string bytecode = bcb.getBytecode();
-    s->bytecodeSize = bytecode.size();
+    if (!coverage)
+        s->bytecodeSize = bytecode.size();
 
     // As SLua's CLI runs a script: user allocations on a sandboxed thread.
     lua_setmemcat(GL, LUA_FIRST_USER_MEMCAT);
@@ -597,16 +716,27 @@ RZ_EXPORT lua_State* rz_main_thread(RzScript* s)
 // error status with the message (and traceback) in rz_string.
 RZ_EXPORT int rz_resume(RzScript* s, lua_State* T, int nargs)
 {
+    s->inExecution = true;
+    s->exactSize = 0;
     int status = lua_resume(T, nullptr, nargs);
-    if (status != LUA_OK && status != LUA_YIELD)
+    s->inExecution = false;
+    if (status != LUA_OK && status != LUA_YIELD && status != LUA_BREAK)
     {
-        const char* msg = lua_tostring(T, -1);
-        s->scratch = msg ? msg : "unknown error";
+        // As SLua's host words a fault (Executor/src/Script.cpp).
+        if (lua_type(T, -1) == LUA_TSTRING)
+            s->scratch = lua_tostring(T, -1);
+        else
+            s->scratch = std::string("error object is a ") + lua_typename(T, lua_type(T, -1)) + " value";
         lua_pop(T, 1);
     }
     else if (status == LUA_OK)
         lua_settop(T, 0);
     return status;
+}
+
+RZ_EXPORT int rz_isnumber(lua_State* L, int i)
+{
+    return lua_isnumber(L, i);
 }
 
 RZ_EXPORT const char* rz_string(RzScript* s)
@@ -667,6 +797,13 @@ RZ_EXPORT int rz_gettop(lua_State* L)
 RZ_EXPORT void rz_settop(lua_State* L, int top)
 {
     lua_settop(L, top);
+}
+
+// Lua's name for the type of the value at `i`, into the scratch buffer, as
+// argument errors give it (luaL_typeerror).
+RZ_EXPORT void rz_typename(RzScript* s, lua_State* L, int i)
+{
+    s->scratch = luaL_typename(L, i);
 }
 
 RZ_EXPORT int rz_type(lua_State* L, int i)

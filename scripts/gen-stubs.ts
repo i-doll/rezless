@@ -26,7 +26,9 @@ const PARSER_OUT_DIR = resolve(ROOT, 'packages/parser/src/generated')
 
 // ---- YAML loading ----
 
-type RawArguments = Array<Record<string, { type: string; 'index-semantics'?: boolean; 'bool-semantics'?: boolean }>>
+type RawArguments = Array<
+  Record<string, { type: string; 'index-semantics'?: boolean; 'bool-semantics'?: boolean; 'slua-type'?: string }>
+>
 
 interface RawFunction {
   arguments?: RawArguments
@@ -56,9 +58,12 @@ function sluaLiteral(
 ): string {
   const indexParams: number[] = []
   const boolParams: number[] = []
+  const stringParams: number[] = []
   ;(args ?? []).flatMap((a) => Object.values(a)).forEach((p, i) => {
     if (p['index-semantics']) indexParams.push(i)
     if (p['bool-semantics']) boolParams.push(i)
+    // A key parameter SLua passes as a plain string (link_message's id).
+    if (p.type === 'key' && p['slua-type'] === 'string') stringParams.push(i)
   })
   const parts: string[] = []
   if (flags.removed) parts.push('removed: true')
@@ -66,6 +71,7 @@ function sluaLiteral(
   if (flags.returnBool) parts.push('returnBool: true')
   if (indexParams.length) parts.push(`indexParams: [${indexParams.join(', ')}]`)
   if (boolParams.length) parts.push(`boolParams: [${boolParams.join(', ')}]`)
+  if (stringParams.length) parts.push(`stringParams: [${stringParams.join(', ')}]`)
   return parts.length ? `, slua: { ${parts.join(', ')} }` : ''
 }
 
@@ -322,6 +328,8 @@ export interface SluaSpec {
   readonly returnBool?: boolean
   readonly indexParams?: ReadonlyArray<number>
   readonly boolParams?: ReadonlyArray<number>
+  /** Key parameters SLua passes as plain strings. */
+  readonly stringParams?: ReadonlyArray<number>
 }
 
 export interface BuiltinSpec {
@@ -403,8 +411,12 @@ export interface EventParamSpec {
 export interface EventSpec {
   readonly name: string
   readonly params: ReadonlyArray<EventParamSpec>
-  /** How SLua delivers this event differently: removed, or boolean parameters. */
-  readonly slua?: { readonly removed?: boolean; readonly boolParams?: ReadonlyArray<number> }
+  /** How SLua delivers this event differently: removed, boolean parameters, or keys passed as strings. */
+  readonly slua?: {
+    readonly removed?: boolean
+    readonly boolParams?: ReadonlyArray<number>
+    readonly stringParams?: ReadonlyArray<number>
+  }
 }
 
 export const EVENT_SPECS = {

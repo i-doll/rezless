@@ -26,11 +26,14 @@ import { RuntimeError } from '../memory.js'
 /** What the engine needs from the script hosting it. */
 export interface SluaHost {
   /**
-   * Run builtin `name` with LSL arguments, as the LSL interpreter would: a
-   * generator that yields while the call sleeps and returns the result.
+   * Run builtin `name` with LSL arguments now: its result, and how long the
+   * script must then sleep (null for not at all). Throws to stop the script
+   * (llDie, llResetScript, a crash).
    */
-  call(name: string, args: LslValue[]): Generator<Suspension, LslValue | undefined, unknown>
-  /** Virtual time in seconds, for LLTimers and os.clock. */
+  call(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null }
+  /** Virtual time in milliseconds. */
+  now(): number
+  /** The script's clock in seconds (since it started or reset): ll.GetTime, os.clock, LLTimers. */
   clock(): number
   /** Unix time in seconds, for os.time. */
   unixTime(): number
@@ -57,19 +60,23 @@ export class SluaRuntimeError extends RuntimeError {
 }
 
 /** One coverage plan entry from the instrumenter. */
-export interface SluaPlanEntry {
-  readonly t: 's' | 'b' | 'f'
+interface PlanEntryBase {
   readonly id: number
   readonly line: number
   readonly col: number
   readonly kind: string
-  readonly else?: boolean
-  readonly name?: string
 }
+
+/** One counter the instrumentation added: a statement, a branch (with whether it has an else) or a function. */
+export type SluaPlanEntry =
+  | (PlanEntryBase & { readonly t: 's' })
+  | (PlanEntryBase & { readonly t: 'b'; readonly else: boolean })
+  | (PlanEntryBase & { readonly t: 'f'; readonly name: string })
 
 const enum Status {
   Ok = 0,
   Yield = 1,
+  Break = 6,
 }
 
 const enum T {
@@ -95,11 +102,8 @@ interface WasmApi {
 }
 const wasm = (globalThis as unknown as { WebAssembly: WasmApi }).WebAssembly
 
-const RZ_YIELD = -1
 const RZ_ERROR = -2
-
-/** Functions SLua runs itself but rezless must answer, so test state stays consistent. */
-const REPLACE = new Set(['llGetTime'])
+const RZ_KILL = -3
 
 interface Exports {
   memory: WasmMemory
@@ -117,6 +121,10 @@ interface Exports {
   rz_plan(s: number): number
   rz_plan_len(s: number): number
   rz_hits(s: number, kind: number): number
+  rz_request_break(s: number): void
+  rz_set_memory_limit(s: number, limit: number): void
+  rz_isnumber(L: number, i: number): number
+  rz_typename(s: number, L: number, i: number): void
   rz_gettop(L: number): number
   rz_settop(L: number, top: number): void
   rz_type(L: number, i: number): number
@@ -157,19 +165,15 @@ const LL_FUNCTIONS: ReadonlyArray<BuiltinSpec> = Object.values(BUILTIN_SPECS as 
 const utf8 = new TextEncoder()
 const fromUtf8 = new TextDecoder()
 
-/** A pending `ll.*` call that slept: resumed when the script wakes. */
-interface Pending {
-  readonly run: Generator<Suspension, LslValue | undefined, unknown>
-  readonly suspension: Suspension
-  readonly spec: BuiltinSpec
-  readonly compat: boolean
-}
-
 export class SluaEngine {
   private readonly x: Exports
   private readonly s: number
-  private pending: Pending | null = null
+  /** Sleep the script owes (ms), taken at its next break or when the code finishes. */
+  private sleepMs: number | null = null
+  /** Why an ll call stopped the script, rethrown once the VM has unwound. */
   private pendingThrow: unknown = null
+  /** Whether the script's top level has run. */
+  started = false
   private readonly handlerCounts = new Map<string, number>()
   readonly plan: ReadonlyArray<SluaPlanEntry>
 
@@ -178,6 +182,7 @@ export class SluaEngine {
     name: string,
     source: string,
     coverage: boolean,
+    memoryLimit = 0,
   ) {
     let x!: Exports
     const view = () => new DataView(x.memory.buffer)
@@ -188,7 +193,10 @@ export class SluaEngine {
         rz_set_timer: (seconds: number) => this.host.setTimer(seconds),
         rz_event_registered: (ptr: number, len: number, registered: number) => {
           const event = this.readUtf8(ptr, len)
+          // SLua refuses a handler for an event the host doesn't deliver.
+          if (registered && !supportedEvent(event)) return 0
           this.handlerCounts.set(event, Math.max(0, (this.handlerCounts.get(event) ?? 0) + (registered ? 1 : -1)))
+          return 1
         },
         rz_print: (ptr: number, len: number) => this.host.print(this.readUtf8(ptr, len)),
       },
@@ -227,10 +235,8 @@ export class SluaEngine {
     this.x = x
     x._initialize()
     this.s = x.rz_new()
-    LL_FUNCTIONS.forEach((spec, fn) => {
-      const short = spec.name.slice(2)
-      x.rz_add_ll(this.s, this.cString(short), fn, REPLACE.has(spec.name) ? 1 : 0)
-    })
+    LL_FUNCTIONS.forEach((spec, fn) => x.rz_add_ll(this.s, this.cString(spec.name.slice(2)), fn, 0))
+    if (memoryLimit > 0) x.rz_set_memory_limit(this.s, memoryLimit)
     // Source and name share one buffer: source, NUL, name, NUL.
     const bytes = utf8.encode(source)
     const nameBytes = utf8.encode(name)
@@ -249,16 +255,20 @@ export class SluaEngine {
 
   /** Run the script's main chunk, as a script starts. */
   *start(): Generator<Suspension, void, unknown> {
+    this.started = true
     yield* this.drive(this.x.rz_main_thread(this.s), 0, false)
   }
+
 
   /** Deliver an LSL event (arguments as the LSL interpreter binds them) to LLEvents' handlers. */
   *dispatch(event: string, args: ReadonlyArray<EvalResult>): Generator<Suspension, void, unknown> {
     const spec = own(EVENT_SPECS as Record<string, EventSpec>, event)
     const L = this.x.rz_event_thread(this.s, this.cString(event))
     const boolParams = new Set(spec?.slua?.boolParams ?? [])
+    const stringParams = new Set(spec?.slua?.stringParams ?? [])
     args.forEach((a, i) => {
       if (boolParams.has(i)) this.x.rz_pushboolean(L, (a.value as number) !== 0 ? 1 : 0)
+      else if (stringParams.has(i)) this.pushString(L, a.value as string)
       else this.push(L, a.value, a.type, false)
     })
     yield* this.drive(L, 2 + args.length, true)
@@ -305,27 +315,48 @@ export class SluaEngine {
 
   // ---- Running threads ----
 
+  /**
+   * Run a thread to the end. As SLua's host does, a sleep is taken when the
+   * script breaks at its next yieldable point (or when it finishes), and a
+   * stop unwinds the VM with an uncatchable error before it is rethrown here.
+   */
   private *drive(L: number, nargs: number, release: boolean): Generator<Suspension, void, unknown> {
     try {
       let status = this.x.rz_resume(this.s, L, nargs)
-      while (status === Status.Yield) {
+      for (;;) {
         if (this.pendingThrow !== null) {
           const e = this.pendingThrow
           this.pendingThrow = null
+          this.sleepMs = null
           throw e
         }
-        const pending = this.pending
-        if (!pending) throw new SluaRuntimeError('script yielded outside of an ll call')
-        this.pending = null
-        yield pending.suspension
-        // A builtin suspends at most once (callBuiltin folds sleeps and delays together).
-        const r = pending.run.next()
-        status = this.x.rz_resume(this.s, L, this.pushResult(L, pending.spec, pending.compat, r.value as LslValue | undefined))
+        if (status === Status.Break) {
+          yield* this.sleep()
+          status = this.x.rz_resume(this.s, L, 0)
+          continue
+        }
+        if (status === Status.Yield) {
+          // A bare coroutine.yield() on the handler thread is preemption: carry
+          // on. Values are reserved for the engine (Executor/src/Script.cpp).
+          if (this.x.rz_gettop(L) > 0) throw new SluaRuntimeError('unexpected yield')
+          status = this.x.rz_resume(this.s, L, 0)
+          continue
+        }
+        break
       }
       if (status !== Status.Ok) throw new SluaRuntimeError(this.scratch())
+      // A sleep the script never reached a yieldable point for.
+      yield* this.sleep()
     } finally {
       if (release) this.x.rz_release(this.s, L)
     }
+  }
+
+  private *sleep(): Generator<Suspension, void, unknown> {
+    if (this.sleepMs === null) return
+    const ms = this.sleepMs
+    this.sleepMs = null
+    yield { until: this.host.now() + ms }
   }
 
   /** An `ll.*` / `llcompat.*` call from the VM. */
@@ -336,18 +367,19 @@ export class SluaEngine {
       this.pushString(L, args)
       return RZ_ERROR
     }
+    let result: { value: LslValue | undefined; delayMs: number | null }
     try {
-      const run = this.host.call(spec.name, args)
-      const r = run.next()
-      if (r.done) return this.pushResult(L, spec, compat, r.value)
-      this.pending = { run, suspension: r.value, spec, compat }
-      return RZ_YIELD
+      result = this.host.call(spec.name, args)
     } catch (e) {
-      // Script control flow (llDie, llResetScript, crashes) and harness
-      // errors leave the VM by suspending the thread for good.
+      // Script control flow (llDie, llResetScript, crashes) and harness errors.
       this.pendingThrow = e
-      return RZ_YIELD
+      return RZ_KILL
     }
+    if (result.delayMs !== null) {
+      this.sleepMs = (this.sleepMs ?? 0) + result.delayMs
+      this.x.rz_request_break(this.s)
+    }
+    return this.pushResult(L, spec, compat, result.value)
   }
 
   /**
@@ -356,25 +388,79 @@ export class SluaEngine {
    */
   private readArgs(L: number, spec: BuiltinSpec, compat: boolean, nargs: number): LslValue[] | string {
     const indexParams = new Set(spec.slua?.indexParams ?? [])
+    const boolParams = new Set(spec.slua?.boolParams ?? [])
     const name = spec.name.slice(2)
     const args: LslValue[] = []
     for (const [i, p] of spec.params.entries()) {
       const slot = i + 1
       const expected = EXPECTED[p.type]!
       if (slot > nargs) return `missing argument #${slot} to '${name}' (${expected} expected)`
-      const type = this.x.rz_type(L, slot)
-      if (!ACCEPTS[p.type]!.includes(type)) {
-        return `invalid argument #${slot} to '${name}' (${expected} expected, got ${TYPE_NAMES[type] ?? 'userdata'})`
+      const value = this.readArg(L, slot, p.type, boolParams.has(i))
+      if (value === undefined) {
+        this.x.rz_typename(this.s, L, slot)
+        const got = this.scratch()
+        return `invalid argument #${slot} to '${name}' (${expected} expected, got ${got})`
       }
-      let value = coerceArg(this.read(L, slot)!, p.type)
+      if (typeof value === 'object' && 'error' in value) return value.error
+      let v = value
       if (indexParams.has(i) && !compat) {
-        const n = value as number
+        const n = v as number
         if (n === 0) return 'passed 0 when a 1-based index was expected'
-        if (n >= 1) value = n - 1
+        if (n >= 1) v = n - 1
       }
-      args.push(value)
+      args.push(v)
     }
     return args
+  }
+
+  /**
+   * Argument `slot` as LSL parameter type `type` takes it, as luaL_check*
+   * would accept it (numbers from numeric strings, strings from numbers as
+   * Lua formats them), undefined if it is the wrong type, or an error for a
+   * list holding something LSL can't.
+   */
+  private readArg(L: number, slot: number, type: LslType, boolean: boolean): LslValue | { error: string } | undefined {
+    const x = this.x
+    const t = x.rz_type(L, slot)
+    const numeric = t === T.Number || t === T.Integer || (t === T.String && x.rz_isnumber(L, slot) !== 0)
+    switch (type) {
+      case 'integer':
+        if (boolean && t === T.Boolean) return x.rz_toboolean(L, slot)
+        return numeric ? toInt32(Math.trunc(x.rz_tonumber(L, slot))) : undefined
+      case 'float':
+        return numeric ? x.rz_tonumber(L, slot) : undefined
+      case 'string':
+        if (t !== T.String && t !== T.Number && t !== T.Integer && t !== T.Uuid) return undefined
+        x.rz_tostring(this.s, L, slot)
+        return this.scratch()
+      case 'key':
+        if (t !== T.String && t !== T.Uuid) return undefined
+        x.rz_tostring(this.s, L, slot)
+        return this.scratch()
+      case 'list':
+        return t === T.Table ? this.readList(L, slot) : undefined
+      default: {
+        const want = type === 'vector' ? T.Vector : T.Quaternion
+        return t === want ? this.read(L, slot)!.value : undefined
+      }
+    }
+  }
+
+  /** A table as an LSL list, as SLua's own list functions read one. */
+  private readList(L: number, slot: number): LslValue | { error: string } {
+    const x = this.x
+    const n = x.rz_objlen(L, slot)
+    const values: LslValue[] = []
+    const types: LslType[] = []
+    for (let k = 1; k <= n; k++) {
+      x.rz_rawgeti(L, slot, k)
+      const el = this.readElement(L, -1)
+      x.rz_pop(L, 1)
+      if (!el) return { error: 'non-LSL value in list' }
+      values.push(el.value)
+      types.push(el.type)
+    }
+    return typedList(values, types)
   }
 
   private pushResult(L: number, spec: BuiltinSpec, compat: boolean, value: LslValue | undefined): number {
@@ -401,12 +487,27 @@ export class SluaEngine {
 
   // ---- Values ----
 
-  /** The value at stack slot `i`, as an LSL value with its type. */
+  /** The value at stack slot `i` as an LSL value: a table as a list of its LSL elements. */
   private read(L: number, i: number): EvalResult | undefined {
+    if (this.x.rz_type(L, i) !== T.Table) return this.readElement(L, i)
+    const n = this.x.rz_objlen(L, i)
+    const values: LslValue[] = []
+    const types: LslType[] = []
+    for (let k = 1; k <= n; k++) {
+      this.x.rz_rawgeti(L, i, k)
+      const el = this.readElement(L, -1)
+      this.x.rz_pop(L, 1)
+      if (!el) continue
+      values.push(el.value)
+      types.push(el.type)
+    }
+    return { type: 'list', value: typedList(values, types) }
+  }
+
+  /** A value LSL lists can hold, or undefined (nil, tables, functions and the rest). */
+  private readElement(L: number, i: number): EvalResult | undefined {
     const x = this.x
     switch (x.rz_type(L, i)) {
-      case T.Nil:
-        return undefined
       case T.Boolean:
         return { type: 'integer', value: x.rz_toboolean(L, i) }
       case T.Integer:
@@ -429,24 +530,8 @@ export class SluaEngine {
         const f = new Float32Array(x.memory.buffer, p, 4)
         return { type: 'rotation', value: { x: f[0]!, y: f[1]!, z: f[2]!, s: f[3]! } }
       }
-      case T.Table: {
-        const n = x.rz_objlen(L, i)
-        const values: LslValue[] = []
-        const types: (LslType | undefined)[] = []
-        for (let k = 1; k <= n; k++) {
-          x.rz_rawgeti(L, i, k)
-          const el = this.read(L, -1)
-          x.rz_pop(L, 1)
-          if (!el || el.type === 'list') continue
-          values.push(el.value)
-          types.push(el.type)
-        }
-        return { type: 'list', value: typedList(values, types) }
-      }
-      default: {
-        x.rz_tostring(this.s, L, i)
-        return { type: 'string', value: this.scratch() }
-      }
+      default:
+        return undefined
     }
   }
 
@@ -519,22 +604,10 @@ export class SluaEngine {
   }
 }
 
-/** A Lua argument, already checked against ACCEPTS, as the LSL parameter type takes it. */
-function coerceArg(v: EvalResult, type: LslType): LslValue {
-  if (type === 'integer') return toInt32(Math.trunc(v.value as number))
-  if ((type === 'string' || type === 'key') && typeof v.value === 'number') return String(v.value)
-  return v.value
-}
-
-/** The Lua value types each LSL parameter type accepts. */
-const ACCEPTS: Partial<Record<LslType, ReadonlyArray<number>>> = {
-  integer: [T.Number, T.Integer, T.Boolean],
-  float: [T.Number, T.Integer],
-  string: [T.String, T.Number, T.Uuid],
-  key: [T.Uuid, T.String],
-  vector: [T.Vector],
-  rotation: [T.Quaternion],
-  list: [T.Table],
+/** Whether SLua delivers `event` to LLEvents handlers. */
+function supportedEvent(event: string): boolean {
+  const spec = own(EVENT_SPECS as Record<string, EventSpec>, event)
+  return spec !== undefined && !spec.slua?.removed
 }
 
 /** What an error message calls each LSL parameter type. */
@@ -546,20 +619,6 @@ const EXPECTED: Partial<Record<LslType, string>> = {
   vector: 'vector',
   rotation: 'quaternion',
   list: 'table',
-}
-
-/** Lua's names for the value types, as luaT_objtypename gives them. */
-const TYPE_NAMES: Record<number, string> = {
-  [T.Nil]: 'nil',
-  [T.Boolean]: 'boolean',
-  [T.Number]: 'number',
-  [T.Integer]: 'integer',
-  [T.String]: 'string',
-  [T.Vector]: 'vector',
-  [T.Quaternion]: 'quaternion',
-  [T.Uuid]: 'uuid',
-  [T.Table]: 'table',
-  [T.Function]: 'function',
 }
 
 /** The type of an untyped list element (from a mock). Lists don't nest, so the rest are vectors. */

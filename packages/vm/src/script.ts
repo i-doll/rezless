@@ -73,7 +73,7 @@ import type { ExperienceRequestEntry } from './builtins/experience.js'
 import { grantExperience } from './builtins/experience.js'
 import { SluaEngine } from './slua/engine.js'
 import { SluaCoverage } from './slua/coverage.js'
-import { callBuiltin } from './dispatch.js'
+import { invokeBuiltin } from './dispatch.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { parse } from '@rezless/parser'
@@ -327,6 +327,8 @@ export class Script {
     }
     this.sluaSource = sluaSource
     if (sluaSource !== undefined) {
+      // SLua scripts get 128 KiB (Executor/src/Script.cpp).
+      this.state.memory.limit = SLUA_MEMORY_LIMIT
       const engine = this.newSluaEngine()
       if (options.coverage) {
         const collector = new SluaCoverage(engine.plan, filename, source)
@@ -1080,7 +1082,8 @@ export class Script {
     if (this.slua) {
       // SLua has no states: the "first event" is running the script itself.
       if (event === 'state_entry') {
-        this.beginSluaMain()
+        // Only the start (or a reset) runs the script's top level.
+        if (!this.slua.started) this.beginSluaMain()
         return
       }
       if (!this.slua.handles(event)) return
@@ -1252,7 +1255,8 @@ export class Script {
     const engine = new SluaEngine(
       {
         call: (name, args) => this.sluaCall(name, args),
-        clock: () => this.now / 1000,
+        now: () => this.now,
+        clock: () => this.clockView.elapsedSeconds(),
         unixTime: () => this.clockView.unixMicros() / 1e6,
         setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
         print: (text) => this.printed.push(text),
@@ -1260,6 +1264,7 @@ export class Script {
       this.state.filename,
       this.sluaSource!,
       this.options.coverage ?? false,
+      this.options.memoryLimit ? this.state.memory.limit : 0,
     )
     this.slua = engine
     return engine
@@ -1284,14 +1289,18 @@ export class Script {
   }
 
   /** An `ll.*` call from SLua: the same builtin, mock or stub an LSL script would reach. */
-  private *sluaCall(name: string, args: LslValue[]): Generator<Suspension, LslValue | undefined, unknown> {
+  private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null } {
     const spec = BUILTIN_SPECS[name as keyof typeof BUILTIN_SPECS] as BuiltinSpec
+    const engine = this.slua!
     // SLua passes floats to LSL functions as 32-bit floats.
     const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
-    if (name === 'llGetUsedMemory' && !this.mocks[name]) return this.slua!.usedMemory()
-    if (name === 'llGetFreeMemory' && !this.mocks[name]) return Math.max(0, this.state.memory.limit - this.slua!.usedMemory())
-    const result = yield* callBuiltin({ state: this.state, mocks: this.mocks, script: this }, name, lslArgs)
-    return spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
+    if (!this.mocks[name]) {
+      if (name === 'llGetUsedMemory') return { value: engine.usedMemory(), delayMs: null }
+      if (name === 'llGetFreeMemory') return { value: Math.max(0, this.state.memory.limit - engine.usedMemory()), delayMs: null }
+    }
+    const { result, delayMs } = invokeBuiltin({ state: this.state, mocks: this.mocks, script: this }, name, lslArgs)
+    const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
+    return { value, delayMs }
   }
 
   /** A copy of this SLua script in `host`. The copy starts afresh: SLua state isn't carried over. */
@@ -1511,4 +1520,5 @@ function buildConstantsEnv(): Env {
 }
 
 /** The (empty) LSL program an SLua script carries for the parts of Script that read one. */
+const SLUA_MEMORY_LIMIT = 131072
 const SLUA_PLACEHOLDER: Ast = parse('default {}', '<slua>').script

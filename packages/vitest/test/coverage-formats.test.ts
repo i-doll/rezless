@@ -230,7 +230,7 @@ describe('Istanbul writer with SLua', () => {
       language: 'slua',
       filename: '/tmp/y.luau',
       coverage: true,
-      source: 'local a = ll.GetLinkNumber() > 0 and 1 or 2\nlocal b = if a == 1 then "x" else "y"\nwhile false do end',
+      source: 'local a = ll.GetLinkNumber() > 0 and 1 or 2\nlocal b = if a == 1 then "x" else "y"\nwhile ll.GetLinkNumber() > 0 do end',
     })
     s.start()
     const file = renderIstanbul([s.coverage!])['/tmp/y.luau']!

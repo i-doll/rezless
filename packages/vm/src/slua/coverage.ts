@@ -11,10 +11,11 @@ import type { SluaEngine, SluaPlanEntry } from './engine.js'
  */
 export class SluaCoverage extends CoverageCollector {
   private engines: SluaEngine[] = []
-  private readonly retired = { statements: [] as number[], branches: [] as number[], functions: [] as number[] }
+  private readonly retired: Counts
 
   constructor(entries: ReadonlyArray<SluaPlanEntry>, filename: string, source: string) {
     super(planFrom(entries, filename, source))
+    this.retired = zeroCounts(this.plan)
   }
 
   /** Count `engine`'s hits from now on. */
@@ -35,6 +36,7 @@ export class SluaCoverage extends CoverageCollector {
     const statements = [...this.retired.statements]
     const branches = [...this.retired.branches]
     const functions = [...this.retired.functions]
+    // Every VM counts into arrays the plan's size.
     for (const e of this.engines) {
       const h = e.hits()
       add(statements, h.statements)
@@ -45,19 +47,30 @@ export class SluaCoverage extends CoverageCollector {
     return Object.freeze({
       filename: plan.filename,
       source: plan.source,
-      statements: plan.statements.map((s) => ({ ...s, hits: statements[s.id] ?? 0 })),
+      statements: plan.statements.map((s) => ({ ...s, hits: statements[s.id]! })),
       branches: plan.branches.map((b) => ({
         ...b,
-        hits: [branches[b.id * 2] ?? 0, branches[b.id * 2 + 1] ?? 0] as const,
+        hits: [branches[b.id * 2]!, branches[b.id * 2 + 1]!] as const,
       })),
-      functions: plan.functions.map((f) => ({ ...f, hits: functions[f.id] ?? 0 })),
+      functions: plan.functions.map((f) => ({ ...f, hits: functions[f.id]! })),
       states: [],
     })
   }
 }
 
+interface Counts {
+  readonly statements: number[]
+  readonly branches: number[]
+  readonly functions: number[]
+}
+
+function zeroCounts(plan: CoveragePlan): Counts {
+  const zeros = (n: number) => new Array<number>(n).fill(0)
+  return { statements: zeros(plan.statements.length), branches: zeros(plan.branches.length * 2), functions: zeros(plan.functions.length) }
+}
+
 function add(into: number[], from: ArrayLike<number>): void {
-  for (let i = 0; i < from.length; i++) into[i] = (into[i] ?? 0) + from[i]!
+  for (let i = 0; i < from.length; i++) into[i]! += from[i]!
 }
 
 function planFrom(entries: ReadonlyArray<SluaPlanEntry>, filename: string, source: string): CoveragePlan {
@@ -68,12 +81,12 @@ function planFrom(entries: ReadonlyArray<SluaPlanEntry>, filename: string, sourc
     statements: entries.filter((e) => e.t === 's').map((e) => ({ ...at(e), kind: e.kind as StatementKind })),
     branches: entries
       .filter((e) => e.t === 'b')
-      .map((e) => ({ ...at(e), kind: e.kind as BranchKind, hasElse: e.else ?? false })),
+      .map((e) => ({ ...at(e), kind: e.kind as BranchKind, hasElse: e.else })),
     functions: entries
       .filter((e) => e.t === 'f')
       .map((e) => ({
         ...at(e),
-        name: e.name ?? '(anonymous)',
+        name: e.name,
         kind: e.kind === 'event' ? ('event' as const) : ('function' as const),
         ...(e.kind === 'event' ? { state: 'LLEvents' } : {}),
       })),
