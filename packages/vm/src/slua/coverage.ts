@@ -47,6 +47,7 @@ export class SluaCoverage extends CoverageCollector {
     }
     const { plan } = this
     return Object.freeze({
+      language: 'slua' as const,
       filename: plan.filename,
       source: plan.source,
       statements: plan.statements.map((s) => ({ ...s, hits: statements[s.id]! })),

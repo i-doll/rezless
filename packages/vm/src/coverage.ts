@@ -92,6 +92,8 @@ export interface StateHit extends StateInfo {
 }
 
 export interface CoverageReport {
+  /** 'slua' for an SLua script; absent for LSL. */
+  readonly language?: 'slua'
   readonly filename: string
   readonly source: string
   readonly statements: ReadonlyArray<StatementHit>
@@ -325,6 +327,7 @@ export function mergeReports(reports: ReadonlyArray<CoverageReport>): CoverageRe
     hits: reports.reduce((acc, r) => acc + r.states[i]!.hits, 0),
   }))
   return {
+    ...(head.language ? { language: head.language } : {}),
     filename: head.filename,
     source: head.source,
     statements,

@@ -112,3 +112,4 @@ jobs:
           components: |
             js=coverage/lcov.info
             lsl=coverage/lsl/lcov.info
+            slua=coverage/slua/lcov.info

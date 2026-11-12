@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -72,6 +72,47 @@ describe('LslCoverageReporter', () => {
     )
     expect(istanbul[sampleFile]).toBeDefined()
     expect(istanbul[sampleFile].path).toBe(sampleFile)
+  })
+
+  it('writes SLua scripts to their own directory, so they are their own component', () => {
+    const sluaFile = path.join(sampleDir, 'y.luau')
+    const source = 'll.Say(0, "hi")'
+    fs.writeFileSync(sluaFile, source)
+    const slua = Script.fromSlua(source, { filename: sluaFile, source, coverage: true })
+    slua.start()
+    const sluaOutputDir = path.join(outputDir, '..', path.basename(outputDir) + '-slua')
+    const reporter = new LslCoverageReporter({ mode: 'always', outputDir, sluaOutputDir, disableConsole: true })
+    reporter.onInit()
+    // Two workers ran it: merging keeps it an SLua report.
+    fs.writeFileSync(path.join(dumpDir, 'pid-1.json'), JSON.stringify([freshReport(), slua.coverage!]))
+    fs.writeFileSync(path.join(dumpDir, 'pid-2.json'), JSON.stringify([slua.coverage!]))
+    reporter.onTestRunEnd()
+    expect(fs.readFileSync(path.join(outputDir, 'lcov.info'), 'utf8')).not.toContain('y.luau')
+    const sluaLcov = fs.readFileSync(path.join(sluaOutputDir, 'lcov.info'), 'utf8')
+    expect(sluaLcov).toContain('y.luau')
+    expect(sluaLcov).toContain('DA:1,2')
+    expect(fs.existsSync(path.join(sluaOutputDir, 'html', 'index.html'))).toBe(true)
+    fs.rmSync(sluaOutputDir, { recursive: true, force: true })
+  })
+
+  it('defaults the SLua directory next to the LSL one, under the reports directory', () => {
+    const reportsDirectory = tmpdir('lslcov-reports-')
+    const sluaFile = path.join(sampleDir, 'z.luau')
+    const source = 'll.Say(0, "hi")'
+    fs.writeFileSync(sluaFile, source)
+    const slua = Script.fromSlua(source, { filename: sluaFile, source, coverage: true })
+    slua.start()
+    const reporter = new LslCoverageReporter({ mode: 'always' })
+    reporter.onInit({ config: { coverage: { reportsDirectory } } })
+    fs.writeFileSync(path.join(dumpDir, 'pid-1.json'), JSON.stringify([slua.coverage!]))
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    reporter.onTestRunEnd()
+    const printed = write.mock.calls.map((c) => String(c[0])).join('')
+    write.mockRestore()
+    expect(fs.existsSync(path.join(reportsDirectory, 'slua', 'lcov.info'))).toBe(true)
+    expect(fs.existsSync(path.join(reportsDirectory, 'lsl'))).toBe(false)
+    expect(printed).toContain(`SLua HTML report: ${path.join(reportsDirectory, 'slua', 'html', 'index.html')}`)
+    fs.rmSync(reportsDirectory, { recursive: true, force: true })
   })
 
   it('merges multiple worker dumps for the same file', () => {

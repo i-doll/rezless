@@ -2033,11 +2033,15 @@ The reporter is dormant during plain `vitest run`. When you invoke
 `vitest run --coverage`, both pipelines fire:
 
 - JS coverage from `@vitest/coverage-v8` lands at `coverage/`.
-- LSL coverage lands at `coverage/lsl/`:
+- LSL coverage lands at `coverage/lsl/`, and SLua coverage at
+  `coverage/slua/`, so each can be its own component in a coverage service.
+  Each holds:
   - `lcov.info` — opens in VS Code Coverage Gutters / Codecov / Coveralls
   - `coverage-final.json` — Istanbul-shaped, mergeable with JS coverage
   - `html/index.html` — browseable per-file source view with line annotations
-  - per-file pass/total table on stdout
+- A per-file pass/total table on stdout, for both languages.
+- `LslCoverageReporter`'s `outputDir` and `sluaOutputDir` options, and
+  `rezless-coverage`'s `-o` and `--slua-output` flags, move them.
 
 Two alternative activation paths:
 
