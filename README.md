@@ -800,7 +800,7 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 `examples/coverage/` has a runnable demo.
 
 CI records both pipelines to Huginn — a coverage-memory service — as separate
-components (`js`, `lsl`): each PR gets a sticky comment with patch coverage (of
+components (`js`, `lsl`, `slua`): each PR gets a sticky comment with patch coverage (of
 the lines it changed) and project coverage vs the `main` baseline.
 
 ## Examples
@@ -811,6 +811,14 @@ the lines it changed) and project coverage vs the `main` baseline.
 * **greeter** — touch + name greeting + state transition + reminder timer.
 * **slua-greeter** — the greeter as an SLua script: an `LLEvents` touch
   handler and an `LLTimers` reminder that is replaced on each touch.
+* **slua-menu** — the menu in SLua: a `listen` handler, `ll.Dialog`, and an
+  `LLTimers` timeout that closes the menu.
+* **slua-multi-script** — an SLua counter in the root prim driving an LSL
+  display in a child prim with link messages.
+* **slua-settings** — owner-only chat commands that keep settings as JSON
+  (`lljson`) in linkset data, so they survive `ll.ResetScript`.
+* **slua-coverage** — statement, branch (per `and`/`or` term) and function
+  coverage of a `.luau` script.
 * **long-press** — a lamp that tells a short tap from a long press with `linkset.touch`'s `hold`.
 * **keypad** — a door keypad that reads which key was clicked from `llDetectedTouchST`.
 * **menu** — a lamp with a colour menu, answered with `s.answerDialog`.
