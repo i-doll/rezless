@@ -676,3 +676,20 @@ describe('SLua as its host runs it', () => {
     expect(s.coverage!.statements.map((st) => st.hits)).toEqual([1, 1, 1])
   })
 })
+
+describe('SLua third review', () => {
+  it('stops a dying script at a memory query, as at any ll call', async () => {
+    for (const query of ['ll.GetUsedMemory()', 'll.GetFreeMemory()']) {
+      const s = await slua(`ll.Die(); ${query}; print("after")`)
+      s.start()
+      expect(s.printed, query).toEqual([])
+    }
+  })
+
+  it('counts a branch on a call that returns several values', async () => {
+    const s = await slua('local function f() return true, 7 end\nif f() then print("yes") end', { coverage: true })
+    s.start()
+    expect(s.printed).toEqual(['yes'])
+    expect(s.coverage!.branches.map((b) => b.hits)).toEqual([[1, 0]])
+  })
+})

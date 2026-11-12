@@ -422,7 +422,9 @@ struct Instrumenter : AstVisitor
             return cond;
         int id = branches++;
         entry("b", id, loc, kind, std::string(",\"else\":") + (hasElse ? "true" : "false"));
-        return call("__rz_b", cond->location, {number(id, cond->location), cond});
+        // In parentheses: a call's extra results would otherwise become arguments.
+        auto* single = allocator.alloc<AstExprGroup>(cond->location, cond);
+        return call("__rz_b", cond->location, {number(id, cond->location), single});
     }
 
     static const char* statementKind(AstStat* s)

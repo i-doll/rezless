@@ -1303,14 +1303,14 @@ export class Script {
     const engine = this.slua!
     // SLua passes floats to LSL functions as 32-bit floats.
     const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
-    if (!this.mocks[name] && (name === 'llGetUsedMemory' || name === 'llGetFreeMemory')) {
-      // The VM's own count, logged as any call is.
+    let mocks = this.mocks
+    if (!mocks[name] && (name === 'llGetUsedMemory' || name === 'llGetFreeMemory')) {
+      // The VM's own count, through the usual dispatch (logging, llDie, removal).
       const used = engine.usedMemory()
       const value = name === 'llGetUsedMemory' ? used : Math.max(0, this.state.memory.limit - used)
-      this.state.calls.push({ name, args: lslArgs, returned: value })
-      return { value, delayMs: null }
+      mocks = { ...mocks, [name]: () => value }
     }
-    const { result, delayMs } = invokeBuiltin({ state: this.state, mocks: this.mocks, script: this }, name, lslArgs)
+    const { result, delayMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
     return { value, delayMs }
   }
