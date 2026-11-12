@@ -2,15 +2,13 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import type { CoverageReport } from '@rezless/vm'
-import { renderLcov } from './format/lcov.js'
-import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
-import { renderHtml } from './format/html.js'
-import { renderSummary } from './format/summary.js'
 import { aggregateReports } from './coverage-aggregate.js'
+import { splitByLanguage, writeCoverage } from './coverage-write.js'
 
 interface Options {
   outputDir: string
+  sluaOutputDir: string
   dumpDir: string
   keepDumps: boolean
   silent: boolean
@@ -20,6 +18,7 @@ interface Options {
 function parseArgs(argv: ReadonlyArray<string>): Options {
   const opts: Options = {
     outputDir: path.join(process.cwd(), 'coverage', 'lsl'),
+    sluaOutputDir: path.join(process.cwd(), 'coverage', 'slua'),
     dumpDir: process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.rezless-coverage'),
     keepDumps: false,
     silent: false,
@@ -37,6 +36,9 @@ function parseArgs(argv: ReadonlyArray<string>): Options {
     const a = argv[i]!
     if (a === '--output' || a === '-o') {
       opts.outputDir = requireValue(a, i)
+      i++
+    } else if (a === '--slua-output') {
+      opts.sluaOutputDir = requireValue(a, i)
       i++
     } else if (a === '--dump-dir') {
       opts.dumpDir = requireValue(a, i)
@@ -57,11 +59,13 @@ function parseArgs(argv: ReadonlyArray<string>): Options {
 
 const USAGE = `Usage: rezless-coverage [options]
 
-  Render LSL coverage artifacts from per-worker JSON dumps left behind by
-  a test run that ran under LSL_COVERAGE=1.
+  Render LSL and SLua coverage artifacts from per-worker JSON dumps left
+  behind by a test run that ran under LSL_COVERAGE=1. LSL and SLua scripts
+  go to separate directories, so each can be its own coverage component.
 
 Options:
-  -o, --output <dir>      Output directory (default: coverage/lsl)
+  -o, --output <dir>      Output directory for LSL scripts (default: coverage/lsl)
+      --slua-output <dir> Output directory for SLua scripts (default: coverage/slua)
       --dump-dir <dir>    Where to look for *.json dumps
                           (default: $LSL_COVERAGE_DIR or .rezless-coverage)
       --keep-dumps        Don't delete dumps after rendering
@@ -115,24 +119,15 @@ function main(): void {
     process.exit(1)
   }
 
-  fs.mkdirSync(opts.outputDir, { recursive: true })
-  const lcovPath = path.join(opts.outputDir, 'lcov.info')
-  const istanbulPath = path.join(opts.outputDir, 'coverage-final.json')
-  const summaryPath = path.join(opts.outputDir, 'coverage-summary.json')
-  const htmlDir = path.join(opts.outputDir, 'html')
-  fs.writeFileSync(lcovPath, renderLcov(merged))
-  fs.writeFileSync(istanbulPath, JSON.stringify(renderIstanbul(merged), null, 2))
-  fs.writeFileSync(summaryPath, JSON.stringify(renderSummary(merged), null, 2))
-  fs.mkdirSync(htmlDir, { recursive: true })
-  for (const [name, content] of renderHtml(merged)) {
-    fs.writeFileSync(path.join(htmlDir, name), content)
-  }
+  const { lsl, slua } = splitByLanguage(merged)
+  const written = [
+    ...(lsl.length > 0 ? writeCoverage(opts.outputDir, lsl) : []),
+    ...(slua.length > 0 ? writeCoverage(opts.sluaOutputDir, slua) : []),
+  ]
 
   if (!opts.silent) {
     process.stdout.write('\n' + renderConsoleSummary(merged))
-    process.stdout.write(
-      `\nWrote ${lcovPath}\nWrote ${istanbulPath}\nWrote ${summaryPath}\nWrote ${path.join(htmlDir, 'index.html')}\n`,
-    )
+    process.stdout.write('\n' + written.map((file) => `Wrote ${file}\n`).join(''))
   }
 
   if (!opts.keepDumps) {

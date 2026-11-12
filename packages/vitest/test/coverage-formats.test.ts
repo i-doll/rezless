@@ -222,3 +222,18 @@ describe('HTML writer', () => {
     for (const k of detailKeys) expect(index).toContain(`href="${k}"`)
   })
 })
+
+describe('Istanbul writer with SLua', () => {
+  it('names and/or and if-expression branches as Istanbul does', async () => {
+    const { loadScript } = await import('../src/index.js')
+    const s = await loadScript({
+      language: 'slua',
+      filename: '/tmp/y.luau',
+      coverage: true,
+      source: 'local a = ll.GetLinkNumber() > 0 and 1 or 2\nlocal b = if a == 1 then "x" else "y"\nwhile ll.GetLinkNumber() > 0 do end',
+    })
+    s.start()
+    const file = renderIstanbul([s.coverage!])['/tmp/y.luau']!
+    expect(Object.values(file.branchMap).map((b) => b.type).sort()).toEqual(['binary-expr', 'binary-expr', 'cond-expr', 'loop'])
+  })
+})

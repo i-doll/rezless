@@ -1,6 +1,11 @@
 import type { Script as Ast, Statement, SourceLocation } from '@rezless/parser'
 
-export type StatementKind = Statement['kind']
+/** SLua statement kinds, as the SLua instrumenter names them. */
+export type SluaStatementKind =
+  | 'local' | 'assign' | 'compound-assign' | 'expression' | 'if' | 'while' | 'repeat' | 'for' | 'for-in'
+  | 'return' | 'break' | 'continue' | 'function' | 'local-function' | 'do'
+
+export type StatementKind = Statement['kind'] | SluaStatementKind
 
 export interface StatementInfo {
   readonly id: number
@@ -9,7 +14,11 @@ export interface StatementInfo {
   readonly kind: StatementKind
 }
 
-export type BranchKind = 'if' | 'while' | 'do-while' | 'for'
+/**
+ * LSL's `if` and loops, plus SLua's: `repeat`, generic `for-in`, the left
+ * side of `and` / `or` (true or false) and if-then-else expressions.
+ */
+export type BranchKind = 'if' | 'while' | 'do-while' | 'for' | 'repeat' | 'for-in' | 'and' | 'or' | 'if-expression'
 
 export interface BranchInfo {
   readonly id: number
@@ -64,6 +73,12 @@ export interface BranchHit extends BranchInfo {
    * (zero true outcomes, one false outcome that ended the loop) even
    * though the body executed once — body-entered counts live in statement
    * coverage on the body, not branch coverage on the loop.
+   *
+   * SLua: `repeat` counts its `until` condition, so true means the loop
+   * ended. A numeric or generic `for` counts true for each iteration
+   * started and false when it ran out; leaving by `break` or `return` is
+   * neither. `and`/`or` count each term that can short-circuit, by whether
+   * the term was truthy.
    */
   readonly hits: readonly [number, number]
 }
@@ -77,6 +92,8 @@ export interface StateHit extends StateInfo {
 }
 
 export interface CoverageReport {
+  /** 'slua' for an SLua script; absent for LSL. */
+  readonly language?: 'slua'
   readonly filename: string
   readonly source: string
   readonly statements: ReadonlyArray<StatementHit>
@@ -310,6 +327,7 @@ export function mergeReports(reports: ReadonlyArray<CoverageReport>): CoverageRe
     hits: reports.reduce((acc, r) => acc + r.states[i]!.hits, 0),
   }))
   return {
+    ...(head.language ? { language: head.language } : {}),
     filename: head.filename,
     source: head.source,
     statements,

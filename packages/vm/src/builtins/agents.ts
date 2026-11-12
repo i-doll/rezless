@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { WorldAvatar } from '../world.js'
 import { NULL_KEY, ZERO_VECTOR, type LslValue, type LslType } from '../values/types.js'
-import { listElementType, typedList, uniformList } from '../values/list-types.js'
+import { ruleElementType, typedList, uniformList } from '../values/list-types.js'
 import { nextDataserverKey } from './dataserver.js'
 import { findObjectPrim } from './object-reads.js'
 
@@ -79,7 +79,7 @@ export const llGetVisualParams: BuiltinImpl = (ctx, args) => {
   const params = args[1] as readonly LslValue[]
   const types: LslType[] = []
   const values = params.map((param, i) => {
-    const type = listElementType(params, i)
+    const type = ruleElementType(params, i)
     const id = type === 'integer' ? param as number
       : type === 'string' ? visualNames[(param as string).toLowerCase()] : undefined
     if (id === undefined || !visualIDs.has(id)) { types.push('string'); return '' }

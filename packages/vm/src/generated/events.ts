@@ -12,6 +12,12 @@ export interface EventParamSpec {
 export interface EventSpec {
   readonly name: string
   readonly params: ReadonlyArray<EventParamSpec>
+  /** How SLua delivers this event differently: removed, boolean parameters, or keys passed as strings. */
+  readonly slua?: {
+    readonly removed?: boolean
+    readonly boolParams?: ReadonlyArray<number>
+    readonly stringParams?: ReadonlyArray<number>
+  }
 }
 
 export const EVENT_SPECS = {
@@ -34,7 +40,7 @@ export const EVENT_SPECS = {
   "land_collision": { name: "land_collision", params: [{ name: "pos", type: "vector" }] },
   "land_collision_end": { name: "land_collision_end", params: [{ name: "pos", type: "vector" }] },
   "land_collision_start": { name: "land_collision_start", params: [{ name: "pos", type: "vector" }] },
-  "link_message": { name: "link_message", params: [{ name: "sender_num", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }] },
+  "link_message": { name: "link_message", params: [{ name: "sender_num", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }], slua: { stringParams: [3] } },
   "linkset_data": { name: "linkset_data", params: [{ name: "action", type: "integer" }, { name: "name", type: "string" }, { name: "value", type: "string" }] },
   "listen": { name: "listen", params: [{ name: "channel", type: "integer" }, { name: "name", type: "string" }, { name: "id", type: "key" }, { name: "msg", type: "string" }] },
   "money": { name: "money", params: [{ name: "id", type: "key" }, { name: "amount", type: "integer" }] },
@@ -51,13 +57,13 @@ export const EVENT_SPECS = {
   "remote_data": { name: "remote_data", params: [{ name: "event_type", type: "integer" }, { name: "channel", type: "key" }, { name: "message_id", type: "key" }, { name: "sender", type: "string" }, { name: "idata", type: "integer" }, { name: "sdata", type: "string" }] },
   "run_time_permissions": { name: "run_time_permissions", params: [{ name: "perm", type: "integer" }] },
   "sensor": { name: "sensor", params: [{ name: "num_detected", type: "integer" }] },
-  "state_entry": { name: "state_entry", params: [] },
-  "state_exit": { name: "state_exit", params: [] },
+  "state_entry": { name: "state_entry", params: [], slua: { removed: true } },
+  "state_exit": { name: "state_exit", params: [], slua: { removed: true } },
   "timer": { name: "timer", params: [] },
   "touch": { name: "touch", params: [{ name: "num_detected", type: "integer" }] },
   "touch_end": { name: "touch_end", params: [{ name: "num_detected", type: "integer" }] },
   "touch_start": { name: "touch_start", params: [{ name: "num_detected", type: "integer" }] },
-  "transaction_result": { name: "transaction_result", params: [{ name: "id", type: "key" }, { name: "success", type: "integer" }, { name: "data", type: "string" }] },
+  "transaction_result": { name: "transaction_result", params: [{ name: "id", type: "key" }, { name: "success", type: "integer" }, { name: "data", type: "string" }], slua: { boolParams: [1] } },
 } as const satisfies Record<string, EventSpec>
 
 export type EventName = keyof typeof EVENT_SPECS

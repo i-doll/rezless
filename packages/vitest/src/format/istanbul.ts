@@ -63,7 +63,7 @@ export function renderIstanbul(
       const pos = { line: br.line, column: Math.max(0, br.col - 1) }
       branchMap[String(i)] = {
         line: br.line,
-        type: br.kind === 'if' ? 'if' : 'loop',
+        type: istanbulBranchType(br.kind),
         locations: [
           { start: pos, end: pos },
           { start: pos, end: pos },
@@ -83,4 +83,12 @@ export function renderIstanbul(
     }
   }
   return out
+}
+
+/** Istanbul's name for a branch kind. */
+function istanbulBranchType(kind: string): string {
+  if (kind === 'if') return 'if'
+  if (kind === 'and' || kind === 'or') return 'binary-expr'
+  if (kind === 'if-expression') return 'cond-expr'
+  return 'loop'
 }

@@ -31,6 +31,22 @@ export function* callBuiltin(
   name: string,
   args: ReadonlyArray<LslValue>,
 ): Run<LslValue | undefined> {
+  const { result, delayMs } = invokeBuiltin(dctx, name, args)
+  if (delayMs !== null) yield { until: dctx.state.clock.now + delayMs }
+  return result
+}
+
+/**
+ * Run a builtin now: its result, and how long the script must then sleep
+ * (its own sleeps plus the function's forced delay), or null when it doesn't
+ * (a zero-length llSleep still suspends). SLua's host returns the result first
+ * and sleeps after; callBuiltin does both in order.
+ */
+export function invokeBuiltin(
+  dctx: DispatchContext,
+  name: string,
+  args: ReadonlyArray<LslValue>,
+): { result: LslValue | undefined; delayMs: number | null } {
   const spec = specFor(name)
   const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(dctx.script, name)
   let sleptMs: number | null = null
@@ -50,8 +66,7 @@ export function* callBuiltin(
   dctx.state.calls.push({ name, args, returned: result })
   if (dying) throw new HaltSignal()
   const delayMs = spec ? spec.delay * 1000 : 0
-  if (sleptMs !== null || delayMs > 0) yield { until: dctx.state.clock.now + (sleptMs ?? 0) + delayMs }
-  return result
+  return { result, delayMs: sleptMs === null && delayMs === 0 ? null : (sleptMs ?? 0) + delayMs }
 }
 
 function makeStub(script: Script, name: string): BuiltinImpl {

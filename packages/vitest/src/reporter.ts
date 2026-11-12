@@ -1,11 +1,7 @@
-import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { renderLcov } from './format/lcov.js'
-import { renderIstanbul } from './format/istanbul.js'
 import { renderConsoleSummary } from './format/console.js'
-import { renderHtml } from './format/html.js'
-import { renderSummary } from './format/summary.js'
+import { splitByLanguage, writeCoverage } from './coverage-write.js'
 import { readWorkerDumps, clearWorkerDumps } from './coverage-registry.js'
 import { aggregateReports } from './coverage-aggregate.js'
 
@@ -22,8 +18,10 @@ export interface LslCoverageReporterOptions {
    *   - 'never': stay dormant. Useful for conditional config.
    */
   readonly mode?: ReporterMode
-  /** Output directory; defaults to `<vitest reportsDirectory>/lsl` (or `coverage/lsl`). */
+  /** Output directory for LSL scripts; defaults to `<vitest reportsDirectory>/lsl` (or `coverage/lsl`). */
   readonly outputDir?: string
+  /** Output directory for SLua scripts; defaults to `<vitest reportsDirectory>/slua` (or `coverage/slua`). */
+  readonly sluaOutputDir?: string
   /** Skip the per-file `lcov.info` write. */
   readonly disableLcov?: boolean
   /** Skip the `coverage-final.json` write. */
@@ -68,10 +66,12 @@ function coverageSetupFilePath(): string {
  * In its default `mode: 'auto'`, the reporter is dormant unless Vitest's
  * `--coverage` flag is set. When active, it enables collection in test
  * workers (via `LSL_COVERAGE=1`), reads per-worker coverage dumps at
- * end-of-run, and writes:
- *   - `<outputDir>/lcov.info`         (LCOV)
- *   - `<outputDir>/coverage-final.json` (Istanbul)
- *   - a console summary table
+ * end-of-run, and writes, for LSL scripts into `<outputDir>` and SLua
+ * scripts into `<sluaOutputDir>` (so each can be its own coverage component):
+ *   - `lcov.info`             (LCOV)
+ *   - `coverage-final.json`   (Istanbul)
+ *   - `coverage-summary.json` and `html/`
+ * and a console summary table.
  *
  * Wire it up once in your `vitest.config.ts`:
  *
@@ -88,23 +88,24 @@ function coverageSetupFilePath(): string {
 export class LslCoverageReporter {
   private readonly opts: LslCoverageReporterOptions
   private outputDir: string | undefined
+  private sluaOutputDir: string | undefined
   private active = false
 
   constructor(opts: LslCoverageReporterOptions = {}) {
     this.opts = opts
     this.outputDir = opts.outputDir
+    this.sluaOutputDir = opts.sluaOutputDir
   }
 
   onInit(vitest?: VitestLike): void {
     this.active = this.shouldActivate(vitest)
     if (!this.active) return
 
-    // Resolve output dir: explicit option > Vitest's reportsDirectory + /lsl > coverage/lsl.
-    const fallback = path.join(process.cwd(), 'coverage', 'lsl')
-    if (!this.outputDir) {
-      const reportsDir = vitest?.config?.coverage?.reportsDirectory
-      this.outputDir = reportsDir ? path.join(reportsDir, 'lsl') : fallback
-    }
+    // Resolve output dirs: explicit option > Vitest's reportsDirectory + /lsl
+    // (or /slua) > coverage/lsl (or coverage/slua).
+    const reportsDir = vitest?.config?.coverage?.reportsDirectory ?? path.join(process.cwd(), 'coverage')
+    this.outputDir ??= path.join(reportsDir, 'lsl')
+    this.sluaOutputDir ??= path.join(reportsDir, 'slua')
 
     // Tell workers to collect (env var is read by loadScript / loadLinkset).
     process.env['LSL_COVERAGE'] = '1'
@@ -171,39 +172,18 @@ export class LslCoverageReporter {
       return
     }
 
-    const outputDir = this.outputDir ?? path.join(process.cwd(), 'coverage', 'lsl')
-    fs.mkdirSync(outputDir, { recursive: true })
-
-    if (!this.opts.disableLcov) {
-      const lcovPath = path.join(outputDir, 'lcov.info')
-      fs.writeFileSync(lcovPath, renderLcov(merged))
-    }
-
-    if (!this.opts.disableIstanbul) {
-      const istanbulPath = path.join(outputDir, 'coverage-final.json')
-      fs.writeFileSync(istanbulPath, JSON.stringify(renderIstanbul(merged), null, 2))
-    }
-
-    // Summary is its own toggle so CI tooling that only consumes the
-    // summary can still get it when the heavier per-file Istanbul detail
-    // is turned off.
-    if (!this.opts.disableSummary) {
-      const summaryPath = path.join(outputDir, 'coverage-summary.json')
-      fs.writeFileSync(summaryPath, JSON.stringify(renderSummary(merged), null, 2))
-    }
-
-    if (!this.opts.disableHtml) {
-      const htmlDir = path.join(outputDir, 'html')
-      fs.mkdirSync(htmlDir, { recursive: true })
-      for (const [name, content] of renderHtml(merged)) {
-        fs.writeFileSync(path.join(htmlDir, name), content)
-      }
-    }
+    // Each language is its own coverage component, written only when present.
+    const { lsl, slua } = splitByLanguage(merged)
+    const groups = [
+      { label: 'LSL', dir: this.outputDir!, reports: lsl },
+      { label: 'SLua', dir: this.sluaOutputDir!, reports: slua },
+    ].filter((g) => g.reports.length > 0)
+    for (const g of groups) writeCoverage(g.dir, g.reports, this.opts)
 
     if (!this.opts.disableConsole) {
       process.stdout.write('\n' + renderConsoleSummary(merged))
       if (!this.opts.disableHtml) {
-        process.stdout.write(`\nLSL HTML report: ${path.join(outputDir, 'html', 'index.html')}\n`)
+        for (const g of groups) process.stdout.write(`\n${g.label} HTML report: ${path.join(g.dir, 'html', 'index.html')}\n`)
       }
     }
 

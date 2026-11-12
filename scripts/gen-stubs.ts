@@ -26,7 +26,9 @@ const PARSER_OUT_DIR = resolve(ROOT, 'packages/parser/src/generated')
 
 // ---- YAML loading ----
 
-type RawArguments = Array<Record<string, { type: string }>>
+type RawArguments = Array<
+  Record<string, { type: string; 'index-semantics'?: boolean; 'bool-semantics'?: boolean; 'slua-type'?: string }>
+>
 
 interface RawFunction {
   arguments?: RawArguments
@@ -35,10 +37,48 @@ interface RawFunction {
   'mono-sleep'?: number
   deprecated?: unknown
   'god-mode'?: boolean
+  'slua-removed'?: boolean
+  'index-semantics'?: boolean
+  'bool-semantics'?: boolean
 }
 
 interface RawEvent {
   arguments?: RawArguments
+  'slua-removed'?: boolean
+}
+
+/**
+ * How SLua's `ll` table changes a function or event from LSL, as a TS object
+ * literal, or '' when it doesn't: removed entirely, or an integer argument or
+ * result that is a 0-based index (1-based in SLua) or a boolean.
+ */
+function sluaLiteral(
+  args: RawArguments | undefined,
+  flags: { removed?: boolean; returnIndex?: boolean; returnBool?: boolean; event?: boolean },
+): string {
+  const indexParams: number[] = []
+  const boolParams: number[] = []
+  const stringParams: number[] = []
+  const uuidParams: number[] = []
+  ;(args ?? []).flatMap((a) => Object.values(a)).forEach((p, i) => {
+    if (p['index-semantics']) indexParams.push(i)
+    if (p['bool-semantics']) boolParams.push(i)
+    // A key parameter SLua passes as a plain string (link_message's id).
+    if (p.type === 'key' && p['slua-type'] === 'string') stringParams.push(i)
+    // A string parameter that takes a uuid too (llMessageLinked's str).
+    // Events only pass values to scripts, so these read-side flags are for functions.
+    if (flags.event) return
+    if (p.type === 'string' && p['slua-type'] === 'string | uuid') uuidParams.push(i)
+  })
+  const parts: string[] = []
+  if (flags.removed) parts.push('removed: true')
+  if (flags.returnIndex) parts.push('returnIndex: true')
+  if (flags.returnBool) parts.push('returnBool: true')
+  if (indexParams.length) parts.push(`indexParams: [${indexParams.join(', ')}]`)
+  if (boolParams.length) parts.push(`boolParams: [${boolParams.join(', ')}]`)
+  if (stringParams.length) parts.push(`stringParams: [${stringParams.join(', ')}]`)
+  if (uuidParams.length) parts.push(`uuidParams: [${uuidParams.join(', ')}]`)
+  return parts.length ? `, slua: { ${parts.join(', ')} }` : ''
 }
 
 interface RawConstant {
@@ -264,8 +304,13 @@ function emitFunctions(defs: RawDefs): string {
     const paramsLit = params(f.arguments)
       .map((p) => `{ name: ${JSON.stringify(p.name)}, type: ${tsTypeLiteral(p.type)} }`)
       .join(', ')
+    const slua = sluaLiteral(f.arguments, {
+      removed: f['slua-removed'],
+      returnIndex: f['index-semantics'],
+      returnBool: f['bool-semantics'],
+    })
     lines.push(
-      `  ${JSON.stringify(name)}: { name: ${JSON.stringify(name)}, returnType: ${tsTypeLiteral(ret)}, delay: ${delay}, status: ${JSON.stringify(status)}, params: [${paramsLit}] },`,
+      `  ${JSON.stringify(name)}: { name: ${JSON.stringify(name)}, returnType: ${tsTypeLiteral(ret)}, delay: ${delay}, status: ${JSON.stringify(status)}, params: [${paramsLit}]${slua} },`,
     )
   }
   const body = lines.sort().join('\n')
@@ -278,6 +323,23 @@ export interface ParamSpec {
   readonly type: LslType
 }
 
+/**
+ * How SLua's \`ll\` table differs from LSL for a function or event: removed,
+ * or integer arguments / results (by position) that are 0-based indexes
+ * (1-based in SLua) or booleans.
+ */
+export interface SluaSpec {
+  readonly removed?: boolean
+  readonly returnIndex?: boolean
+  readonly returnBool?: boolean
+  readonly indexParams?: ReadonlyArray<number>
+  readonly boolParams?: ReadonlyArray<number>
+  /** Key parameters SLua passes as plain strings. */
+  readonly stringParams?: ReadonlyArray<number>
+  /** String parameters that also take a uuid. */
+  readonly uuidParams?: ReadonlyArray<number>
+}
+
 export interface BuiltinSpec {
   readonly name: string
   readonly returnType: LslType
@@ -285,6 +347,7 @@ export interface BuiltinSpec {
   readonly delay: number
   readonly status: 'normal' | 'deprecated' | 'godmode'
   readonly params: ReadonlyArray<ParamSpec>
+  readonly slua?: SluaSpec
 }
 
 export const BUILTIN_SPECS = {
@@ -300,6 +363,7 @@ function emitEvents(defs: RawDefs): string {
   const entries = Object.entries(defs.events).map(([name, e]) => ({
     name,
     params: params(e.arguments),
+    slua: sluaLiteral(e.arguments, { removed: e['slua-removed'], event: true }),
   }))
   entries.sort((a, b) => a.name.localeCompare(b.name))
 
@@ -308,7 +372,7 @@ function emitEvents(defs: RawDefs): string {
       const paramsLit = e.params
         .map((p) => `{ name: ${JSON.stringify(p.name)}, type: ${tsTypeLiteral(p.type)} }`)
         .join(', ')
-      return `  ${JSON.stringify(e.name)}: { name: ${JSON.stringify(e.name)}, params: [${paramsLit}] },`
+      return `  ${JSON.stringify(e.name)}: { name: ${JSON.stringify(e.name)}, params: [${paramsLit}]${e.slua} },`
     })
     .join('\n')
 
@@ -355,6 +419,12 @@ export interface EventParamSpec {
 export interface EventSpec {
   readonly name: string
   readonly params: ReadonlyArray<EventParamSpec>
+  /** How SLua delivers this event differently: removed, boolean parameters, or keys passed as strings. */
+  readonly slua?: {
+    readonly removed?: boolean
+    readonly boolParams?: ReadonlyArray<number>
+    readonly stringParams?: ReadonlyArray<number>
+  }
 }
 
 export const EVENT_SPECS = {

@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Parcel, WorldParcelOptions } from '../world.js'
 import type { GroupReturnPower } from '../rlv/group.js'
 import { NULL_KEY, ZERO_VECTOR, type LslType, type LslValue, type Vector } from '../values/types.js'
-import { listElementType, typedList } from '../values/list-types.js'
+import { ruleElementType, typedList } from '../values/list-types.js'
 import { findObjectPrim } from './object-reads.js'
 import { llScriptDanger } from './region.js'
 import { sayError } from './debug.js'
@@ -97,7 +97,7 @@ export const llGetParcelDetails: BuiltinImpl = (ctx, args) => {
   const types: LslType[] = []
   for (let i = 0; i < params.length; i++) {
     const rule = params[i]
-    const type = listElementType(params, i)
+    const type = ruleElementType(params, i)
     if (typeof rule !== 'number' || (type !== undefined && type !== 'integer')) continue
     let value: LslValue
     let resultType: LslType = 'integer'

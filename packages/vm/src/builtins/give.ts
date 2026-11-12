@@ -5,7 +5,7 @@ import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
 import { formatListElement } from '../values/format.js'
-import { listElementType } from '../values/list-types.js'
+import { listElementType, ruleElementType } from '../values/list-types.js'
 import { PERM_COPY, PERM_TRANSFER, CHANGED_INVENTORY, CHANGED_ALLOWED_DROP, TRANSFER_DEST, TRANSFER_FLAGS } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isAgentInRegion, isKey } from './viewer.js'
@@ -113,10 +113,10 @@ function rootPath(options: ReadonlyArray<LslValue>): string[] | number {
   let path: string[] = []
   for (let i = 0; i < options.length; i += 2) {
     const rule = options[i]
-    const ruleType = listElementType(options, i)
+    const ruleType = ruleElementType(options, i)
     if (typeof rule !== 'number' || !Number.isInteger(rule) || (ruleType !== undefined && ruleType !== 'integer')) return -1
     const value = options[i + 1]
-    const type = listElementType(options, i + 1)
+    const type = ruleElementType(options, i + 1)
     if (rule === TRANSFER_DEST) {
       if (typeof value !== 'string' || (type !== undefined && type !== 'string')) return -1
       path = value.split('|').filter(Boolean)

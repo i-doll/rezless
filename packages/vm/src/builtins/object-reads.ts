@@ -5,7 +5,7 @@ import type { PrimShape } from '../prim-params.js'
 import type { Script } from '../script.js'
 import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR, type LslType, type LslValue, type Rotation, type Vector } from '../values/types.js'
 import { mulRotation, rotateVector } from '../values/ops.js'
-import { listElementType, typedList } from '../values/list-types.js'
+import { ruleElementType, typedList } from '../values/list-types.js'
 import { formatTimestamp } from './time.js'
 import {
   LINK_THIS,
@@ -506,7 +506,7 @@ export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
   const flags = (args[1] as LslValue[] | undefined) ?? []
   const out: Entry[] = []
   flags.forEach((flag, i) => {
-    const type = listElementType(flags, i) ?? (typeof flag === 'number' && Number.isInteger(flag) ? 'integer' : undefined)
+    const type = ruleElementType(flags, i) ?? (typeof flag === 'number' && Number.isInteger(flag) ? 'integer' : undefined)
     if (type !== 'integer') {
       if (out.length > 0) out[out.length - 1] = [OBJECT_UNKNOWN_DETAIL, 'integer']
       return

@@ -50,6 +50,35 @@ export function listElementType(list: ReadonlyArray<LslValue>, index: number): L
   return elementTypes.get(list)?.[index]
 }
 
+/**
+ * Lists an SLua script passed, whose float elements are Lua numbers. SLua has
+ * no integer type for plain numbers, so it sends every number as an LSL float
+ * (SLua's own rule helpers push rule tags as numbers too), and the rules that
+ * want an integer take a whole one.
+ */
+const luaNumberLists = new WeakSet<ReadonlyArray<LslValue>>()
+
+/** Record that `list`'s float elements are Lua numbers. */
+export function markLuaNumbers(list: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
+  luaNumberLists.add(list)
+  return list
+}
+
+/**
+ * The type of `list[index]` as a rule or selector reads it: as
+ * listElementType, except that a whole Lua number from SLua reads as an
+ * integer. Formatting keeps using listElementType, so those still print as
+ * floats.
+ */
+export function ruleElementType(list: ReadonlyArray<LslValue>, index: number): LslType | undefined {
+  const type = listElementType(list, index)
+  const value = list[index]
+  if (type === 'float' && luaNumberLists.has(list) && typeof value === 'number' && Number.isInteger(value) && value === (value | 0)) {
+    return 'integer'
+  }
+  return type
+}
+
 /** `list.slice(start, end)`, keeping element types. */
 export function sliceList(list: ReadonlyArray<LslValue>, start: number, end?: number): ReadonlyArray<LslValue> {
   const types = elementTypes.get(list)

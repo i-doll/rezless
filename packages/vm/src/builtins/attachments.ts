@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Linkset } from '../linkset.js'
 import { ZERO_VECTOR, type LslValue, type Vector } from '../values/types.js'
 import { conjugate, rotateVector } from '../values/ops.js'
-import { listElementType, uniformList } from '../values/list-types.js'
+import { ruleElementType, uniformList } from '../values/list-types.js'
 import { PERMISSION_ATTACH, PERMISSION_TRACK_CAMERA, CHANGED_OWNER, PERM_TRANSFER } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isAgentInRegion } from './viewer.js'
@@ -86,7 +86,7 @@ export const llGetAttachedListFiltered: BuiltinImpl = (ctx, args) => {
   let flags = 0
   if (options.length % 2) return []
   for (let i = 0; i < options.length; i += 2) {
-    if (listElementType(options, i) !== 'integer' || listElementType(options, i + 1) !== 'integer') return []
+    if (ruleElementType(options, i) !== 'integer' || ruleElementType(options, i + 1) !== 'integer') return []
     const rule = options[i] as number
     const value = options[i + 1] as number
     if (rule === 1) points.add(value)

@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { isVector, NULL_KEY } from '../values/types.js'
-import { listElementType, sliceList } from '../values/list-types.js'
+import { ruleElementType, sliceList } from '../values/list-types.js'
 import { InventoryType } from '../inventory.js'
 import { PSYS_SRC_TEXTURE } from '../generated/constants.js'
 
@@ -12,7 +12,7 @@ const vectors = new Set([1, 3, 5, 6, 8, 21])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function integer(rules: ReadonlyArray<LslValue>, index: number): boolean {
-  const type = listElementType(rules, index)
+  const type = ruleElementType(rules, index)
   return type === 'integer' || (type === undefined && typeof rules[index] === 'number' && Number.isInteger(rules[index]))
 }
 

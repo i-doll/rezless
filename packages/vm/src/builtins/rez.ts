@@ -3,7 +3,7 @@ import type { Linkset } from '../linkset.js'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR, isVector, isRotation } from '../values/types.js'
 import { rotateVector, mulRotation } from '../values/ops.js'
-import { listElementType } from '../values/list-types.js'
+import { ruleElementType } from '../values/list-types.js'
 import { truncateUtf8 } from '../values/utf8.js'
 import { requestKey } from '../keys.js'
 import { InventoryType } from '../inventory.js'
@@ -62,7 +62,7 @@ const signatures: Readonly<Record<number, readonly LslType[]>> = {
 function matches(list: readonly LslValue[], i: number, type: LslType): boolean {
   const value = list[i]
   if (value === undefined) return false
-  if (type === 'integer') return typeof value === 'number' && (listElementType(list, i) ?? 'integer') === 'integer'
+  if (type === 'integer') return typeof value === 'number' && (ruleElementType(list, i) ?? 'integer') === 'integer'
   if (type === 'float') return typeof value === 'number'
   if (type === 'vector') return isVector(value)
   if (type === 'rotation') return isRotation(value)
