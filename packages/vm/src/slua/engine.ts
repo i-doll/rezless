@@ -123,6 +123,8 @@ interface Exports {
   rz_hits(s: number, kind: number): number
   rz_request_break(s: number): void
   rz_set_memory_limit(s: number, limit: number): void
+  rz_profile(s: number, on: number): void
+  rz_peak_memory(s: number): number
   rz_isnumber(L: number, i: number): number
   rz_typename(s: number, L: number, i: number): void
   rz_gettop(L: number): number
@@ -307,6 +309,16 @@ export class SluaEngine {
   usedMemory(): number {
     return this.x.rz_used_memory(this.s)
   }
+  /** Start (from what the script uses now) or stop tracking its peak memory. */
+  profileMemory(on: boolean): void {
+    this.x.rz_profile(this.s, on ? 1 : 0)
+  }
+
+  /** The most memory the script used while profiled. */
+  peakMemory(): number {
+    return this.x.rz_peak_memory(this.s)
+  }
+
 
   /** Coverage counts, by plan id: statements, [true, false] per branch, functions. */
   hits(): { statements: Int32Array; branches: Int32Array; functions: Int32Array } {

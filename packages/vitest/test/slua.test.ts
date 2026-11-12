@@ -743,3 +743,20 @@ describe('SLua numbers in rule lists', () => {
     expect(s).toHaveSaid(0, '1.000000, 2.000000')
   })
 })
+
+describe('SLua memory profiling', () => {
+  it('tracks the VM peak from ll.ScriptProfiler to ll.GetSPMaxMemory', async () => {
+    const s = await slua(`
+      ll.ScriptProfiler(PROFILE_SCRIPT_MEMORY)
+      local t = {} for i = 1, 1000 do t[i] = "s" .. i end
+      local live = ll.GetUsedMemory()
+      t = nil
+      ll.ScriptProfiler(PROFILE_NONE)
+      local peak = ll.GetSPMaxMemory()
+      ll.OwnerSay(tostring(peak >= live) .. " " .. tostring(live > 20000))
+    `)
+    s.start()
+    expect(s).toHaveSaid(0, 'true true')
+    expect(s.calls.map((c) => c.name)).toContain('llGetSPMaxMemory')
+  })
+})

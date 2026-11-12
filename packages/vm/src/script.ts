@@ -1,6 +1,6 @@
 import { clearTargetMotion } from './builtins/motion.js'
 import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
-import { PERMISSION_GAME_CONTROL } from './generated/constants.js'
+import { PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { stopSensors } from './builtins/sensor.js'
@@ -1304,15 +1304,32 @@ export class Script {
     // SLua passes floats to LSL functions as 32-bit floats.
     const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
     let mocks = this.mocks
-    if (!mocks[name] && (name === 'llGetUsedMemory' || name === 'llGetFreeMemory')) {
-      // The VM's own count, through the usual dispatch (logging, llDie, removal).
-      const used = engine.usedMemory()
-      const value = name === 'llGetUsedMemory' ? used : Math.max(0, this.state.memory.limit - used)
-      mocks = { ...mocks, [name]: () => value }
-    }
+    // Memory is the VM's own count, answered through the usual dispatch (logging, llDie, removal).
+    const vmMemory = this.sluaMemoryBuiltin(name, lslArgs)
+    if (!mocks[name] && vmMemory) mocks = { ...mocks, [name]: vmMemory }
     const { result, delayMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
     return { value, delayMs }
+  }
+
+  /** The VM-backed implementation of a memory builtin, or undefined for the rest. */
+  private sluaMemoryBuiltin(name: string, args: LslValue[]): (() => LslValue | undefined) | undefined {
+    const engine = this.slua!
+    switch (name) {
+      case 'llGetUsedMemory':
+        return () => engine.usedMemory()
+      case 'llGetFreeMemory':
+        return () => Math.max(0, this.state.memory.limit - engine.usedMemory())
+      case 'llScriptProfiler':
+        return () => {
+          engine.profileMemory(args[0] === PROFILE_SCRIPT_MEMORY)
+          return undefined
+        }
+      case 'llGetSPMaxMemory':
+        return () => engine.peakMemory()
+      default:
+        return undefined
+    }
   }
 
   /** A copy of this SLua script in `host`. The copy starts afresh: SLua state isn't carried over. */

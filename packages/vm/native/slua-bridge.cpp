@@ -58,6 +58,12 @@ struct RzScript : lua_SLRuntimeState
     int lleventsRef = LUA_NOREF;
     size_t bytecodeSize = 0; // without coverage instrumentation, as SLua charges it
     bool breakPending = false;
+    // llScriptProfiler(PROFILE_SCRIPT_MEMORY): the most memory the script has
+    // used since profiling started, and an upper bound on its use since that
+    // was last measured exactly.
+    bool profiling = false;
+    int peak = 0;
+    int profileBound = 0;
     bool inExecution = false;
     int memoryLimit = 0; // 0: not enforced
     int exactSize = 0;
@@ -111,11 +117,13 @@ static int ll_forward(lua_State* L)
     lua_error(L);
 }
 
+static int used_memory(RzScript* s);
+
 // As SLua's host (Executor/src/Executor.cpp): the script's own memory in KB.
 static int rz_gcinfo(lua_State* L)
 {
     RzScript* s = rz(L);
-    lua_pushnumber(L, (double)(lua_userthreadgc(s->thread, &s->freeObjects) + s->bytecodeSize) / 1024);
+    lua_pushnumber(L, (double)used_memory(s) / 1024);
     return 1;
 }
 
@@ -204,27 +212,60 @@ static void interrupt_callback(lua_State* L, int gc)
 
 // As SLua's host (Executor/src/Script.cpp memoryLimitCallback): refuse an
 // allocation that would take the script's own memory past its limit.
+static int used_memory(RzScript* s)
+{
+    return (int)(lua_userthreadgc(s->thread, &s->freeObjects) + s->bytecodeSize);
+}
+
 static int before_allocate(lua_State* L, size_t osize, size_t nsize)
 {
     auto* s = rz(L);
-    if (!s || !s->inExecution || s->memoryLimit == 0 || !s->thread || osize >= nsize)
+    if (!s || !s->inExecution || !s->thread || osize >= nsize)
         return 0;
     size_t gain = nsize - osize;
-    if (gain > (size_t)s->memoryLimit)
-        return 1;
-    s->maxPossibleSize += (int)gain;
-    if (s->exactSize == 0 || s->maxPossibleSize > s->memoryLimit)
+    if (s->memoryLimit != 0)
     {
-        int current = (int)(lua_userthreadgc(s->thread, &s->freeObjects) + s->bytecodeSize);
-        int next = current + (int)gain;
-        if (next > s->memoryLimit)
-        {
-            s->exactSize = s->maxPossibleSize = current;
+        if (gain > (size_t)s->memoryLimit)
             return 1;
+        s->maxPossibleSize += (int)gain;
+        if (s->exactSize == 0 || s->maxPossibleSize > s->memoryLimit)
+        {
+            int current = used_memory(s);
+            int next = current + (int)gain;
+            if (next > s->memoryLimit)
+            {
+                s->exactSize = s->maxPossibleSize = current;
+                return 1;
+            }
+            s->exactSize = s->maxPossibleSize = next;
         }
-        s->exactSize = s->maxPossibleSize = next;
+    }
+    // Measure exactly only when the bound says the peak may have been passed.
+    if (s->profiling)
+    {
+        s->profileBound += (int)gain;
+        if (s->profileBound > s->peak)
+        {
+            int next = used_memory(s) + (int)gain;
+            if (next > s->peak)
+                s->peak = next;
+            s->profileBound = next;
+        }
     }
     return 0;
+}
+
+// Start (or stop) tracking the script's peak memory, from what it uses now.
+RZ_EXPORT void rz_profile(RzScript* s, int on)
+{
+    s->profiling = on != 0;
+    if (s->profiling)
+        s->peak = s->profileBound = used_memory(s);
+}
+
+RZ_EXPORT int rz_peak_memory(RzScript* s)
+{
+    return s->peak;
 }
 
 RZ_EXPORT void rz_request_break(RzScript* s)
@@ -856,7 +897,7 @@ RZ_EXPORT int rz_string_len(RzScript* s)
 
 RZ_EXPORT int rz_used_memory(RzScript* s)
 {
-    return (int)(lua_userthreadgc(s->thread, &s->freeObjects) + s->bytecodeSize);
+    return used_memory(s);
 }
 
 // ---- Coverage readout ----

@@ -1971,6 +1971,8 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   hold. With `memoryLimit: true` the VM enforces it, and a script that goes
   past it fails with `not enough memory`. A script whose code alone takes
   all 128 KiB fails that way as it starts, before any of it runs.
+  `ll.GetUsedMemory`, `ll.GetFreeMemory`, and `ll.ScriptProfiler` with
+  `ll.GetSPMaxMemory` all read the VM's own count.
 * **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
   write Lua globals (not locals). `s.printed` collects `print()` output.
   `s.language` is `'slua'`.
