@@ -65,6 +65,18 @@ export function markLuaList(list: ReadonlyArray<LslValue>, kinds: ReadonlyArray<
   return list
 }
 
+/**
+ * `list` as the functions that hand an SLua list back read it: every Lua
+ * number, whole or not, as a 32-bit float. Other lists come back as they are.
+ */
+export function luaNumbersAsFloats(list: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
+  const kinds = luaKinds.get(list)
+  if (!kinds) return list
+  const values = list.map((v, i) => (kinds[i] === 'number' ? toFloat32(v as number) : v))
+  const types = values.map((_, i) => (kinds[i] === 'number' ? 'float' : listElementType(list, i)))
+  return markLuaList(typedList(values, types), kinds)
+}
+
 /** What `list[index]` was in Lua: a number, a boolean, or neither (or `list` isn't from SLua). */
 export function luaKind(list: ReadonlyArray<LslValue>, index: number): LuaKind {
   return luaKinds.get(list)?.[index]

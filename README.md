@@ -761,9 +761,10 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   measured.
   In a list, a whole Lua number that fits an LSL integer is sent as an
   integer and any other number as a float, so `ll.List2CSV({1, 1.5})` is
-  `1, 1.500000` and a whole number works as a JSON specifier. The sort,
-  find and statistics functions still read every Lua number as a 32-bit
-  float, so `ll.ListSort` orders whole and fractional numbers
+  `1, 1.500000` and a whole number works as a JSON specifier. `ll.ListSort`,
+  `ll.ListSortStrided`, `ll.ListFindList`, `ll.ListFindListNext`,
+  `ll.ListFindStrided`, `ll.ListStatistics`, `ll.ListRandomize` and
+  `ll.List2ListStrided` still read every Lua number as a 32-bit float, so `ll.ListSort` orders whole and fractional numbers
   together, where LSL sorts each type on its own. A boolean in a list is
   sent as 1 or 0, but `ll.ListFindList` only matches it with another
   boolean and `ll.ListSort` orders booleans among themselves.

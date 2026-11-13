@@ -365,6 +365,17 @@ describe('SLua: booleans as arguments', () => {
       ['t(function() return ll.List2CSV(ll.ListSort({true, 0.5, 2, false, 1.5}, 1, true)) end)', 'string:0, 0.500000, 1.500000, 1, 2'],
       // In-world: ll.List2CSV(ll.ListSort({true, 0.5, false}, 1, true)) -> "0, 0.500000, 1"
       ['t(function() return ll.List2CSV(ll.ListSort({true, 0.5, false}, 1, true)) end)', 'string:0, 0.500000, 1'],
+      // In-world: ll.List2CSV(ll.ListSort({true, "x", false, "y"}, 2, true)) -> "0, y, 1, x";
+      // ll.List2CSV(ll.ListSortStrided({"x", true, "y", false}, 2, 2, true)) -> "y, 0, x, 1"
+      ['t(function() return ll.List2CSV(ll.ListSort({true, "x", false, "y"}, 2, true)) end)', 'string:0, y, 1, x'],
+      ['t(function() return ll.List2CSV(ll.ListSortStrided({"x", true, "y", false}, 2, 2, true)) end)', 'string:y, 0, x, 1'],
+      // In-world: ll.List2CSV(ll.ListSort({true, "b", false, "a", 2, 1}, 1, false)) -> "2, 1, a, 0, b, 1"
+      ['t(function() return ll.List2CSV(ll.ListSort({true, "b", false, "a", 2, 1}, 1, false)) end)', 'string:2, 1, a, 0, b, 1'],
+      // In-world: ll.ListStatistics(LIST_STAT_NUM_COUNT, {true, "1", 2, U}) -> 2; (LIST_STAT_MAX, {true, 0.5}) -> 1;
+      // ll.ListStatistics(true, {1, 4}) -> 1 (operation 1 is LIST_STAT_MIN)
+      ['t(ll.ListStatistics, LIST_STAT_NUM_COUNT, {true, "1", 2, U})', 'number:2'],
+      ['t(ll.ListStatistics, LIST_STAT_MAX, {true, 0.5})', 'number:1'],
+      ['t(ll.ListStatistics, true, {1, 4})', 'number:1'],
       // In-world: ll.ListSort({true, 2, false, 1}, 1, true) -> {0, 1, 1, 2}, as numbers
       ['t(ll.ListSort, {true, 2, false, 1}, 1, true)', '{number:0 | number:1 | number:1 | number:2}'],
     ])
@@ -459,6 +470,10 @@ describe('SLua: a list argument that is not a list', () => {
       ['t(ll.List2CSV, {1, 2, x = 3})', 'string:1, 2'],
       ['t(ll.List2CSV, {1, 2, nil})', 'string:1, 2'],
       ['t(ll.List2CSV, {})', 'string:'],
+      // In-world: local x = {}; x[1] = 1; x[3] = 3; ll.List2CSV(x) -> "1"
+      ['t(function() local x = {}; x[1] = 1; x[3] = 3; return ll.List2CSV(x) end)', 'string:1'],
+      // In-world: local x = {1, 2, 3}; x[2] = nil; ll.List2CSV(x) -> ... (Can't have undefined in an argument)
+      ['t(function() local x = {1, 2, 3}; x[2] = nil; return ll.List2CSV(x) end)', "!! invalid argument #-1 to 'List2CSV' (Can't have undefined in an argument)"],
       // In-world: ll.List2CSV of a table whose metatable has __len and __index -> ""
       ['t(ll.List2CSV, setmetatable({}, {__index = function() return 1 end, __len = function() return 2 end}))', 'string:'],
     ])
@@ -521,6 +536,14 @@ describe('SLua: the texture a face holds', () => {
     ])
   })
 
+  it('comes back as a uuid from a mock too', async () => {
+    const got = await results(['t(ll.GetTexture, 0)', 't(ll.PlaySound, "x")'], '', (s) => {
+      s.mock('llGetTexture', () => U)
+      s.mock('llPlaySound', () => undefined)
+    })
+    expect(got).toEqual([`uuid:${U}`, '!! Fewer arguments than expected, 1 < 2'])
+  })
+
   it('is not a string any more', async () => {
     await expectResults([
       // In-world: ll.GetTexture(0) .. "" -> attempt to concatenate uuid with string
@@ -535,7 +558,7 @@ describe('SLua: the texture a face holds', () => {
   it('comes back as a string when it is the name of a texture in the prim', async () => {
     // Not measured in-world: it needs a texture item in the probe prim. The
     // test avatar has none that is known to be copyable, and uploading one
-    // costs L$. LSL returns the inventory name here (gltf.test.ts), and a name
+    // costs L$ (a paid action). LSL returns the inventory name here (gltf.test.ts), and a name
     // is not a uuid, so rezless gives the string. For the same reason nothing
     // says what a texture item named like a key comes back as; rezless can't
     // tell it from a key here and gives a uuid.
@@ -782,6 +805,20 @@ describe('SLua: numbers in lists', () => {
       ['t(function() return ll.List2CSV(ll.ListSort({16777217, 16777216}, 1, true)) end)', 'string:16777216, 16777216'],
       // In-world: ll.List2CSV(ll.ListSort({16777218, 16777217, 16777216}, 1, true)) -> "16777216, 16777216, 16777218"
       ['t(function() return ll.List2CSV(ll.ListSort({16777218, 16777217, 16777216}, 1, true)) end)', 'string:16777216, 16777216, 16777218'],
+      // In-world: ll.List2CSV(ll.ListSort({16777217, 5, 3}, 2, true)), where the length doesn't fit the stride,
+      // and ll.List2CSV(ll.ListSortStrided({16777217, 5, 3}, 2, 1, true)) -> "16777216, 5, 3"
+      ['t(function() return ll.List2CSV(ll.ListSort({16777217, 5, 3}, 2, true)) end)', 'string:16777216, 5, 3'],
+      ['t(function() return ll.List2CSV(ll.ListSortStrided({16777217, 5, 3}, 2, 1, true)) end)', 'string:16777216, 5, 3'],
+      // In-world: ll.List2CSV(ll.ListRandomize({16777217}, 1)) -> "16777216";
+      // ll.List2CSV(ll.List2ListStrided({16777217, 1}, 1, -1, 1)) -> "16777216, 1"
+      ['t(function() return ll.List2CSV(ll.ListRandomize({16777217}, 1)) end)', 'string:16777216'],
+      ['t(function() return ll.List2CSV(ll.List2ListStrided({16777217, 1}, 1, -1, 1)) end)', 'string:16777216, 1'],
+      // In-world: the list functions SLua runs itself keep the number: ll.List2CSV(ll.List2List({16777217, 1}, 1, 2))
+      // -> "16777217, 1"; ll.List2CSV(ll.ListInsertList({16777217}, {1.5}, 1)) -> "1.500000, 16777217"
+      ['t(function() return ll.List2CSV(ll.List2List({16777217, 1}, 1, 2)) end)', 'string:16777217, 1'],
+      ['t(function() return ll.List2CSV(ll.ListInsertList({16777217}, {1.5}, 1)) end)', 'string:1.500000, 16777217'],
+      // In-world: ll.ListFindList({0/0}, {0/0}) -> nil
+      ['t(ll.ListFindList, {0/0}, {0/0})', 'nil:nil'],
       // In-world: ll.ListFindListNext({1, 1.5, 1}, {1}, 2) -> 3; ({1, true, 1, true}, {true}, 2) -> 4; (…, {1}, 2) -> 3
       ['t(ll.ListFindListNext, {1, 1.5, 1}, {1}, 2)', 'number:3'],
       ['t(ll.ListFindListNext, {1, true, 1, true}, {true}, 2)', 'number:4'],

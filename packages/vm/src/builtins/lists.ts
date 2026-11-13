@@ -15,7 +15,15 @@ import {
   LIST_STAT_SUM,
   LIST_STAT_SUM_SQUARES,
 } from '../generated/constants.js'
-import { concatLists, listElementType, luaKind, sliceList, typedList, uniformList } from '../values/list-types.js'
+import {
+  concatLists,
+  listElementType,
+  luaKind,
+  luaNumbersAsFloats,
+  sliceList,
+  typedList,
+  uniformList,
+} from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
 export const llGetListLength: BuiltinImpl = (_ctx, args) => {
@@ -336,15 +344,15 @@ function sortStrided(
   index: number,
   ascending: LslValue | undefined,
 ): ReadonlyArray<LslValue> {
-  const src = (list as ReadonlyArray<LslValue> | undefined) ?? []
+  const src = luaNumbersAsFloats((list as ReadonlyArray<LslValue> | undefined) ?? [])
   const stride = Math.max(1, (strideArg as number | undefined) ?? 1)
   const descending = ((ascending as number | undefined) ?? 0) !== 1
   if (index < 0) index += stride
   if (index < 0 || index >= stride) return []
   const len = src.length
   if (len % stride !== 0) return src
-  const values = src.map((v, i) => (luaKind(src, i) === 'number' ? Math.fround(v as number) : v))
-  const types = values.map((_, i) => (luaKind(src, i) === 'number' ? 'float' : listElementType(src, i)))
+  const values = [...src]
+  const types = values.map((_, i) => listElementType(src, i))
   const sortTypes = types.map((t, i): LslType | 'boolean' | undefined => (luaKind(src, i) === 'boolean' ? 'boolean' : t))
   const swap = (i: number, j: number) => {
     for (let k = 0; k < stride; k++) {
@@ -415,7 +423,7 @@ function pick(src: ReadonlyArray<LslValue>, indexes: number[]): ReadonlyArray<Ls
  * and start after end selects the whole list.
  */
 export const llList2ListStrided: BuiltinImpl = (_ctx, args) => {
-  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const src = luaNumbersAsFloats((args[0] as ReadonlyArray<LslValue> | undefined) ?? [])
   const start = (args[1] as number | undefined) ?? 0
   const end = (args[2] as number | undefined) ?? 0
   const stride = Math.abs((args[3] as number | undefined) ?? 1) || 1
@@ -454,7 +462,7 @@ export const llList2ListSlice: BuiltinImpl = (_ctx, args) => {
  * back unchanged.
  */
 export const llListRandomize: BuiltinImpl = (ctx, args) => {
-  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const src = luaNumbersAsFloats((args[0] as ReadonlyArray<LslValue> | undefined) ?? [])
   const stride = Math.max(1, (args[1] as number | undefined) ?? 1)
   if (src.length % stride !== 0) return src
   const blocks = Array.from({ length: src.length / stride }, (_, b) => b)
