@@ -563,7 +563,8 @@ describe('SLua: whole and fractional numbers as text', () => {
       // In-world: ll.List2CSV(ll.CSV2List("1,1.0,2.5")) -> 1, 1.0, 2.5 (strings stay as written)
       ['ll.List2CSV(ll.CSV2List("1,1.0,2.5"))', '1, 1.0, 2.5'],
       // In-world: ll.List2CSV({ll.Floor(1.5), ll.Ceil(1.5), ll.Round(1.5), ll.Abs(-2), ll.Fabs(-2), ll.Pow(2, 0.5),
-      // ll.Sqrt(9), ll.GetNumberOfSides()}) -> 1, 2, 2, 2, 2, 1.414214, 3, 6; ll.DumpList2String({ll.Floor(1.5),
+      // ll.Sqrt(9), ll.Frand(0), true, ll.GetNumberOfSides(), false}) -> 1, 2, 2, 2, 2, 1.414214, 3, 0, 1, 6, 0 (the
+      // case below leaves out the last four but one); ll.DumpList2String({ll.Floor(1.5),
       // ll.Fabs(-2), ll.GetNumberOfSides(), ll.GetAlpha(0)}, "|") -> 1.000000|2.000000|6.000000|1.000000
       ['ll.List2CSV({ll.Floor(1.5), ll.Ceil(1.5), ll.Round(1.5), ll.Abs(-2), ll.Fabs(-2), ll.Pow(2, 0.5), ll.Sqrt(9), ll.GetNumberOfSides()})', '1, 2, 2, 2, 2, 1.414214, 3, 6'],
       ['ll.DumpList2String({ll.Floor(1.5), ll.Fabs(-2), ll.GetNumberOfSides(), ll.GetAlpha(0)}, "|")', '1.000000|2.000000|6.000000|1.000000'],
@@ -620,6 +621,8 @@ describe('SLua: integer arguments that do not fit', () => {
       [roundTrip('-1.9'), 'number:-1'],
       [roundTrip('2 ^ 31 + 0.5'), 'number:-2147483648'],
       [roundTrip('"4294967301"'), 'number:5'],
+      // In-world: "0x1p40" -> 0
+      [roundTrip('"0x1p40"'), 'number:0'],
     ])
   })
 
@@ -763,6 +766,10 @@ describe('SLua: where an error says it happened', () => {
         'door.luau',
       ),
     ).toEqual(['lua_script 2', 'lua_script 1 f', '[C] -1 Say', 'm / lua_script:1 function f / lua_script:5 / '])
+    // In-world: debug.info(print, "s"), "l" and "n" -> [C], -1, lsl_print
+    expect(await said('ll.Say(7777, debug.info(print, "s") .. " " .. debug.info(print, "l") .. " " .. debug.info(print, "n"))')).toEqual([
+      '[C] -1 lsl_print',
+    ])
   })
 
   it('says lua_script inside a timer callback and a coroutine too', async () => {
@@ -782,9 +789,11 @@ describe('SLua: where an error says it happened', () => {
   })
 
   it('crashes with the position in lua_script, and names the file in a compile error', async () => {
-    // In-world: a script whose line 3 calls error("uncaught F") stops there; its pcall-visible text is
-    // lua_script:3: uncaught F. A compile error is shown to the author as ":2: Expected identifier when parsing
-    // expression, got '='", with no chunk name; rezless puts the file's name in front, since a script can't see it.
+    // A crash throws the message a pcall would have caught, so it names lua_script too. (In-world a script whose
+    // line 3 calls error("uncaught F") stops there; a listener hears only "Script run-time error" and "runtime
+    // error".) In-world: saving a script whose line 2 is `local y = = 2` reports ":2: Expected identifier when
+    // parsing expression, got '='", and one whose line 2 is `break` reports ":2: break statement must be inside
+    // a loop", with no chunk name; rezless puts the file's name in front, since a script can't see it.
     const s = await loadScript({ source: 'local x = 1\nlocal function f()\n  error("uncaught F")\nend\nf()', language: 'slua', filename: 'door.luau' })
     expect(() => s.start()).toThrow('lua_script:3: uncaught F')
     await expect(loadScript({ source: 'local x = 1\nlocal y = = 2', language: 'slua', filename: 'door.luau' })).rejects.toThrow(
@@ -897,8 +906,9 @@ describe('SLua: the functions only llcompat has', () => {
       // In-world: llcompat.SetMemoryLimit() -> Fewer arguments than expected, 0 < 1; ("x") -> (number expected, got string)
       ['t(llcompat.SetMemoryLimit)', '!! Fewer arguments than expected, 0 < 1'],
       ['t(llcompat.SetMemoryLimit, "x")', "!! invalid argument #1 to 'SetMemoryLimit' (number expected, got string)"],
-      // In-world: llcompat.SetMemoryLimit(1), (1e9) and (-1) -> number 0, and ll.GetMemoryLimit() stays 131072.
-      // (llcompat.SetMemoryLimit(100000) -> 1 in-world; rezless keeps LSL's 64 KiB ceiling and answers 0.)
+      // In-world: ll.GetMemoryLimit() -> 131072 at first; llcompat.SetMemoryLimit(1), (1e9) and (-1) -> number 0
+      // and leave the limit alone. (llcompat.SetMemoryLimit(100000) -> 1 in-world, and the limit then read 100000;
+      // rezless keeps LSL's 64 KiB ceiling and answers 0. The README lists that as not modelled.)
       ['show({llcompat.SetMemoryLimit(1), llcompat.SetMemoryLimit(1e9), llcompat.SetMemoryLimit(-1), ll.GetMemoryLimit()})', '{number:0 | number:0 | number:0 | number:131072}'],
     ])
   })
@@ -930,12 +940,14 @@ describe('SLua: the functions only llcompat has', () => {
 
   it('fires timer handlers from llcompat.SetTimerEvent, on the timer LLTimers uses', async () => {
     // In-world: a no_sensor event every second drove these steps; each line is the number of `timer` handler
-    // calls, LLTimers:every callbacks and LLTimers:once callbacks since the step before.
-    //   llcompat.SetTimerEvent(0.5)                      -> the handler gets no arguments; about 6 ticks in 3 s
-    //   LLTimers:every(0.4, …) added                     -> ticks at both rates (11 in 3 s), 7 callbacks
-    //   llcompat.SetTimerEvent(0)                        -> no ticks and no LLTimers callbacks either
-    //   llcompat.SetTimerEvent(1.0), LLTimers still set  -> both run again (8 ticks, 6 callbacks in 3 s)
-    //   LLTimers:off(every)                              -> no ticks: the SetTimerEvent timer stopped with it
+    // calls, LLTimers:every callbacks and LLTimers:once callbacks in the 3 s after the step.
+    //   llcompat.SetTimerEvent(0.5)                      -> the handler gets no arguments; 6 0 0
+    //   LLTimers:every(0.4, …) added                     -> 11 7 0
+    //   llcompat.SetTimerEvent(0)                        -> 0 0 0: the LLTimers callbacks stop too
+    //   llcompat.SetTimerEvent(1.0), LLTimers still set  -> 8 6 0: both run again
+    //   LLTimers:off(every)                              -> 0 0 0: the SetTimerEvent timer stopped with it
+    // What is pinned is which steps tick and which don't. The counts below are rezless's on its exact clock;
+    // the region's ran one or two ticks higher, where a timer event came just before an LLTimers callback was due.
     expect(
       await run(
         `local steps = {}
@@ -952,10 +964,12 @@ describe('SLua: the functions only llcompat has', () => {
     ).toEqual(['0 0 0', 'args 0', '5 0 0', 'args 0', '10 7 0', '0 0 0', 'args 0', '6 5 0', '0 0 0'])
   })
 
-  it('keeps the timer across llcompat.ResetTime, but an LLTimers callback set before it does not run', async () => {
+  it('keeps the timer across llcompat.ResetTime, and puts off an LLTimers callback the timer was stopped under', async () => {
     // In-world: llcompat.SetTimerEvent(0.5) then llcompat.ResetTime() -> the timer keeps ticking (6 in 3 s).
     // llcompat.SetTimerEvent(0), LLTimers:once(0.5, …), llcompat.ResetTime() -> one tick and no callback in 2 s.
     // LLTimers:once(0.5, …) then llcompat.SetTimerEvent(0) -> no tick and no callback in 2 s.
+    // LLTimers:every(0.5, …) then llcompat.SetTimerEvent(2.0) -> the timer runs again and both put-off callbacks
+    // run (6 ticks, 5 every-callbacks, 2 once-callbacks in 4 s in-world; rezless counts 4 and 4 on its clock).
     expect(
       await run(
         `local steps = {}
@@ -963,9 +977,10 @@ describe('SLua: the functions only llcompat has', () => {
         steps[1] = function() llcompat.SetTimerEvent(0.5); llcompat.ResetTime() end
         steps[4] = function() llcompat.SetTimerEvent(0); LLTimers:once(0.5, function() once += 1 end); llcompat.ResetTime() end
         steps[6] = function() LLTimers:once(0.5, function() once += 1 end); llcompat.SetTimerEvent(0) end
-        steps[8] = function() ll.SensorRemove() end`,
-        12000,
+        steps[8] = function() LLTimers:every(0.5, function() lt += 1 end); llcompat.SetTimerEvent(2.0) end
+        steps[12] = function() llcompat.SetTimerEvent(0); ll.SensorRemove() end`,
+        16000,
       ),
-    ).toEqual(['0 0 0', 'args 0', '5 0 0', 'args 0', '1 0 0', '0 0 0'])
+    ).toEqual(['0 0 0', 'args 0', '5 0 0', 'args 0', '1 0 0', '0 0 0', 'args 0', '4 4 2'])
   })
 })

@@ -166,6 +166,7 @@ interface Exports {
 
 /** What Second Life calls every script's chunk, in error positions and `debug.info`. */
 const CHUNK_NAME = 'lua_script'
+const COMPILE_ERROR_CHUNK = /^lua_script(?=:)/
 
 let module: object | null = null
 
@@ -275,7 +276,7 @@ export class SluaEngine {
     mem[namePtr + nameBytes.length] = 0
     if (x.rz_load(this.s, namePtr, sourcePtr, bytes.length, coverage ? 1 : 0) !== 0) {
       // A script never sees its own compile error, so this one names the file.
-      throw new SluaCompileError(this.scratch().replace(CHUNK_NAME, () => name))
+      throw new SluaCompileError(this.scratch().replace(COMPILE_ERROR_CHUNK, () => name))
     }
     this.plan = coverage ? (JSON.parse(this.readUtf8(x.rz_plan(this.s), x.rz_plan_len(this.s))) as SluaPlanEntry[]) : []
   }
@@ -638,8 +639,8 @@ export class SluaEngine {
         list.forEach((el, k) => {
           const kind = luaResultKind(list, k)
           if (kind === 'boolean' && !compat) x.rz_pushboolean(L, el !== 0 ? 1 : 0)
-          else if (kind === 'uuid' && isKey(el as string)) this.push(L, (el as string).toLowerCase(), 'key', compat)
-          else if (kind === 'uuid' || kind === 'string') this.pushString(L, el as string)
+          else if (kind === 'uuid' && typeof el === 'string' && isKey(el)) this.push(L, el.toLowerCase(), 'key', compat)
+          else if ((kind === 'uuid' || kind === 'string') && typeof el === 'string') this.pushString(L, el)
           else this.push(L, el, types?.[k] ?? inferType(el), compat)
           x.rz_rawseti(L, -2, k + 1)
         })

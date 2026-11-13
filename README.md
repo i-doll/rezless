@@ -847,8 +847,8 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   number to a whole 64-bit number and keeps its low 32 bits, so
   `ll.IntegerToBase64(2^32 + 5)` encodes 5. A number that doesn't fit 64
   bits (`1e20`, infinity, NaN) is 0. A 1-based index in `ll` from 2^31 up,
-  or below -2^31, lands before the start: `ll.InsertString("abc", 2^31, "x")`
-  is `"xabc"`. The functions SLua runs itself (`ll.GetSubString`,
+  or below -2^31, is read as the lowest integer, which is before the start
+  of any string: `ll.InsertString("abc", 2^31, "x")` is `"xabc"`. The functions SLua runs itself (`ll.GetSubString`,
   `ll.List2String`, …) do their own conversion and are not changed.
 * **Only in `llcompat`**: `llcompat.SetTimerEvent`, `llcompat.ResetTime`,
   `llcompat.GetAndResetTime` and `llcompat.SetMemoryLimit` exist, and `ll`
