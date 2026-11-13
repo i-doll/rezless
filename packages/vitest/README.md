@@ -477,8 +477,9 @@ its sitter only while the target is enabled. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
 
-A seated avatar is a link of the object, numbered after the prims in seating
-order. `llGetNumberOfPrims` counts it, `llGetObjectPrimCount` does not, and a
+A seated avatar is a link of the object, numbered after the prims. Several
+sitters are numbered in seating order; that order is from the Second Life wiki
+and was not measured, since it needs a second avatar. `llGetNumberOfPrims` counts it, `llGetObjectPrimCount` does not, and a
 lone prim is link 1 instead of 0 while someone sits on it. `llGetLinkKey`,
 `llGetLinkName`, `llGetObjectLinkKey` and `llGetLinkPrimitiveParams` read the
 avatar at its link number. `llSetLinkPrimitiveParams(Fast)` moves the sitter

@@ -310,6 +310,8 @@ describe('reading an avatar link with llGetLinkPrimitiveParams', () => {
   // rotation times the root's (measured with the rolled root of this fixture).
   // Second Life also seats an avatar above its sit target by an amount that
   // depends on the avatar (0.35 m here); the fixture seats it on the target.
+  // So the position literals below are derived from the measured formulas with
+  // that offset left out, not read in-world. The rotations are measured.
   it('reads name, size and placement', async () => {
     const f = await fixture('out = llGetLinkPrimitiveParams(a, [PRIM_NAME, PRIM_DESC, PRIM_SIZE, PRIM_POS_LOCAL, PRIM_ROT_LOCAL, PRIM_POSITION, PRIM_ROTATION]) + llGetObjectDetails(A, [OBJECT_POS, OBJECT_ROT]);')
     f.sit()
@@ -324,6 +326,11 @@ describe('reading an avatar link with llGetLinkPrimitiveParams', () => {
   // and PRIM_ROTATION <0.224224, 0.409480, -0.104557, 0.878133> (that times the
   // root's). Its PRIM_POS_LOCAL was relative to the root: the child's position
   // plus the target offset turned by the child, plus the avatar's own offset.
+  // The position literals here are derived and leave that offset out; the
+  // rotation literals are the measured ones.
+  // Without a sit target Second Life stands the avatar upright on the prim's
+  // surface instead (measured on a rolled child: region rotation a plain yaw,
+  // position above the prim). The fixture does not model that placement.
   it('reads placement relative to the root when seated on a child', async () => {
     const f = await fixture('out = llGetLinkPrimitiveParams(a, [PRIM_POS_LOCAL, PRIM_ROT_LOCAL, PRIM_POSITION, PRIM_ROTATION]) + [llAvatarOnLinkSitTarget(2)];', { prims: 3, target: 'child' })
     f.sit()
@@ -379,6 +386,15 @@ describe('reading an avatar link with llGetLinkPrimitiveParams', () => {
     const f = await fixture('out = llGetLinkPrimitiveParams(1, [PRIM_NAME, PRIM_LINK_TARGET, a, PRIM_COLOR, 0, PRIM_LINK_TARGET, 1, PRIM_DESC]);')
     f.sit()
     expect(f.touch()).toEqual(['Root'])
+  })
+
+  // In-world: llGetLinkPrimitiveParams(LINK_THIS, [PRIM_LINK_TARGET, avatar link,
+  // PRIM_POS_LOCAL, PRIM_NAME]) read the avatar; a PRIM_LINK_TARGET back to a
+  // prim reads that prim again, as the set side does.
+  it('retargets a read from the avatar link back to a prim', async () => {
+    const f = await fixture('out = llGetLinkPrimitiveParams(a, [PRIM_NAME, PRIM_LINK_TARGET, 1, PRIM_NAME, PRIM_LINK_TARGET, a, PRIM_NAME]);')
+    f.sit()
+    expect(f.touch()).toEqual(['Test Resident', 'Root', 'Test Resident'])
   })
 
   // In-world: [PRIM_CLICK_ACTION, PRIM_NAME] on the avatar link returned only the name.
@@ -444,6 +460,18 @@ describe('moving a sitter with llSetLinkPrimitiveParamsFast', () => {
     f.sit()
     const out = f.touch() as unknown[]
     expect([out[1], out[3]]).toEqual([near({ x: 0.642664, y: -0.211869, z: 0.201868, s: 0.708056 }), near({ x: 0.850914, y: -0.165375, z: 0.342326, s: 0.362505 })])
+  })
+
+  // In-world: with the avatar on child link 2's sit target, PRIM_ROTATION
+  // llEuler2Rot(<0.7, -0.4, 0.2>) gave the same local and region rotations as
+  // from the root's seat, and PRIM_ROTATION <0, 0, 0, 0> read back as
+  // PRIM_ROT_LOCAL equal to the root's rotation: identity times the root's.
+  it('multiplies PRIM_ROTATION by the root rotation on a child seat too', async () => {
+    const f = await fixture(`llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, llEuler2Rot(<0.7, -0.4, 0.2>)]); out = llGetLinkPrimitiveParams(a, [PRIM_ROT_LOCAL, PRIM_ROTATION]);
+      llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, <0, 0, 0, 0>]); out += llGetLinkPrimitiveParams(a, [PRIM_ROT_LOCAL, PRIM_ROTATION]);`, { prims: 3, target: 'child' })
+    f.sit()
+    expect(f.touch()).toEqual([near({ x: 0.642664, y: -0.211869, z: 0.201868, s: 0.708056 }), near({ x: 0.850914, y: -0.165375, z: 0.342326, s: 0.362505 }),
+      near(ROOT_ROT), near({ x: 0.599728, y: -0.160721, z: 0.441484, s: 0.647755 })])
   })
 
   // In-world: llSetLinkPrimitiveParams and PRIM_LINK_TARGET move the sitter too.
@@ -644,15 +672,16 @@ describe('moving a sitter with llSetLinkPrimitiveParamsFast', () => {
 describe('colouring an avatar link', () => {
   // In-world: llSetLinkAlpha and llSetLinkColor on the avatar link left the
   // root's colour and alpha alone and raised changed(CHANGED_COLOR) in the root's
-  // script only, also when a child's script made the call. PRIM_COLOR through
-  // llSetLinkPrimitiveParamsFast raised nothing.
+  // script only: not in the caller when a child's script made the call, and not
+  // in the seat prim when the avatar sat on child link 2's sit target.
+  // PRIM_COLOR through llSetLinkPrimitiveParamsFast raised nothing.
   it.each(['llSetLinkAlpha(a, 0.25, ALL_SIDES);', 'llSetLinkColor(a, <0, 1, 0>, ALL_SIDES);'])('raises CHANGED_COLOR in the root for %s', async (call) => {
-    const f = await fixture(`${call} out = llGetLinkPrimitiveParams(1, [PRIM_COLOR, 0]);`, { prims: 3, childBody: call })
+    const f = await fixture(`${call} out = llGetLinkPrimitiveParams(1, [PRIM_COLOR, 0]);`, { prims: 3, target: 'child', childBody: call })
     f.sit()
     expect(f.touch()).toEqual([{ x: 1, y: 1, z: 1 }, 1])
     f.linkset.advanceTime(100)
     expect(f.script.global('log')).toEqual([CHANGED_LINK, 1, 4, CHANGED_COLOR, 1, 4])
-    f.touch(2)
+    f.touch(3)
     f.linkset.advanceTime(100)
     expect(f.script.global('log')).toEqual([CHANGED_LINK, 1, 4, CHANGED_COLOR, 1, 4, CHANGED_COLOR, 1, 4])
     expect(f.scripts.p1!.global('log')).toEqual([CHANGED_LINK, 2, 4])
@@ -664,6 +693,16 @@ describe('colouring an avatar link', () => {
 // https://wiki.secondlife.com/wiki/LlLinkSitTarget
 // https://wiki.secondlife.com/wiki/LlSetLinkMedia
 describe('other link functions on an avatar link', () => {
+  // In-world: on a seated lone box llSetLinkMedia(-2, 0, ...) returned 0 and
+  // llGetLinkMedia(-2, 0, ...) and llGetLinkMedia(avatar link, 0, ...) both read
+  // the value back, while the box's face had no media: a negative link is the
+  // first other link, here the avatar, as for llGetLinkKey.
+  it('reaches the sitter of a lone prim through a negative media link', async () => {
+    const f = await fixture('out = [llSetLinkMedia(-2, 0, [PRIM_MEDIA_AUTO_PLAY, TRUE])]; out += llGetLinkMedia(-2, 0, [PRIM_MEDIA_AUTO_PLAY]); out += llGetLinkMedia(a, 0, [PRIM_MEDIA_AUTO_PLAY]); out += llGetLinkMedia(1, 0, [PRIM_MEDIA_AUTO_PLAY]); out += llClearLinkMedia(-2, 0); out += llGetLinkMedia(a, 0, [PRIM_MEDIA_AUTO_PLAY]);')
+    f.sit()
+    expect(f.touch()).toEqual([0, 1, 1, 0])
+  })
+
   // In-world: on the avatar link of a seated lone box, llSetLinkTexture,
   // llSetLinkTextureAnim, llSetLinkRenderMaterial, llSetLinkGLTFOverrides,
   // llSetLinkSitFlags, llLinkSitTarget, llLinkParticleSystem, llLinkPlaySound,
@@ -686,20 +725,23 @@ describe('other link functions on an avatar link', () => {
   })
 
   // In-world: llSetLinkMedia on the avatar link returned 0 and raised
-  // changed(CHANGED_MEDIA) in the root's script, also when a child made the
-  // call. llGetLinkMedia on the avatar link then read the values back, on
+  // changed(CHANGED_MEDIA) in the root's script only, also when a child made the
+  // call and when the avatar sat on a child's sit target. llGetLinkMedia on the avatar link then read the values back, on
   // faces 0 and 9, while the root's faces had no media. The media stayed with
   // the avatar: it read back after standing and sitting again, and from the
   // avatar link of another object. llClearLinkMedia returned 0, raised
   // CHANGED_MEDIA and emptied the face. The link past the avatar gave 0 and []
-  // with no event.
+  // with no event. Faces 0 to 44 took media; faces 45, 255 and 100000 returned
+  // 1003 and stored nothing (the avatar also said a "PRIM_MEDIA error: face N on
+  // object ... not found" line on DEBUG_CHANNEL, which is not modelled).
   it('keeps media set through an avatar link with the avatar', async () => {
     const MEDIA = '[PRIM_MEDIA_AUTO_PLAY, PRIM_MEDIA_WIDTH_PIXELS, PRIM_MEDIA_PERMS_INTERACT, PRIM_MEDIA_HOME_URL]'
     const body = `integer face = llDetectedTouchFace(0);
       if (face == 0) out = [llSetLinkMedia(a, 0, [PRIM_MEDIA_AUTO_PLAY, TRUE, PRIM_MEDIA_HOME_URL, "http://example.com/", PRIM_MEDIA_WIDTH_PIXELS, 512]), llSetLinkMedia(a, 9, [PRIM_MEDIA_AUTO_PLAY, FALSE])];
       else if (face == 1) out = llGetLinkMedia(a, 0, ${MEDIA}) + ["|"] + llGetLinkMedia(a, 9, ${MEDIA}) + ["|"] + llGetLinkMedia(a, 1, ${MEDIA}) + llGetLinkMedia(1, 0, ${MEDIA}) + llGetLinkMedia(a + 1, 0, ${MEDIA});
+      else if (face == 3) { out = [llSetLinkMedia(a, 44, [PRIM_MEDIA_AUTO_PLAY, TRUE])]; out += llClearLinkMedia(a, 44); out += llSetLinkMedia(a, 45, [PRIM_MEDIA_AUTO_PLAY, TRUE]); out += llClearLinkMedia(a, 45); out += llGetLinkMedia(a, 45, ${MEDIA}); }
       else if (face == 2) { out = [llClearLinkMedia(a, 0)]; out += llClearLinkMedia(a + 1, 0); out += llSetLinkMedia(a + 1, 0, [PRIM_MEDIA_AUTO_PLAY, TRUE]); out += llGetLinkMedia(a, 0, ${MEDIA}); }`
-    const f = await fixture(body, { prims: 2, childBody: 'llSetLinkMedia(a, 0, [PRIM_MEDIA_AUTO_PLAY, TRUE]);' })
+    const f = await fixture(body, { prims: 2, target: 'child', childBody: 'llSetLinkMedia(a, 0, [PRIM_MEDIA_AUTO_PLAY, TRUE]);' })
     const touch = (face: number) => {
       f.linkset.touch(1, { avatar: { key: AVATAR, name: 'Test Resident' }, face })
       return f.script.global('out')
@@ -721,6 +763,8 @@ describe('other link functions on an avatar link', () => {
     expect(touch(2)).toEqual([0, 0, 0])
     f.linkset.advanceTime(100)
     expect(f.script.global('log').slice(-3)).toEqual([CHANGED_MEDIA, 1, 3])
+    expect(touch(3)).toEqual([0, 0, 1003, 1003])
+    expect(f.scripts.p1!.global('log').filter((v, i) => i % 3 === 0)).not.toContain(CHANGED_MEDIA)
 
     const other = await loadLinkset({ world: f.world, region: 'home', position: { x: 116, y: 51, z: 20 }, prims: [{ scripts: [{ name: 'other', source: { source:
       `list out; default { touch_start(integer n) { out = llGetLinkMedia(llGetNumberOfPrims(), 9, ${MEDIA}); } }` } }] }] })
@@ -764,6 +808,33 @@ describe('removing an avatar link', () => {
     expect(f.avatar.sittingOn).toBeNull()
     f.linkset.advanceTime(100)
     expect(f.script.global('log')).toEqual([CHANGED_LINK, 1, 5, CHANGED_LINK, 1, 3])
+  })
+
+  // In-world: the avatar stood for each of these: llBreakLink(1) with it on the
+  // root of a three-prim linkset, llBreakLink(2) with it on child link 2's sit
+  // target, and llBreakLink(2) on a two-prim object with it on the root.
+  it.each([[3, 'root', 1], [3, 'child', 2], [2, 'root', 2]] as const)('stands the sitter of a %i-prim object (seat: %s) for llBreakLink(%i)', async (prims, target, link) => {
+    const f = await fixture(`if (llGetPermissions() & PERMISSION_CHANGE_LINKS) { llBreakLink(${link}); out = llGetObjectDetails(A, [OBJECT_ROOT, OBJECT_LINK_NUMBER]); }
+      else llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS);`, { prims, target })
+    f.sit()
+    f.touch()
+    f.script.grantPermissions()
+    f.linkset.advanceTime(100)
+    expect(f.touch()).toEqual([AVATAR, 0])
+    expect(f.avatar.sittingOn).toBeNull()
+  })
+
+  // In-world: on a seated lone box llBreakLink(1) and llBreakLink(LINK_THIS)
+  // stood the avatar (changed(32), the box back at link 0 of 1), and
+  // llBreakLink(-2), which names the avatar link, left it seated.
+  it.each([['1', [1, 0]], ['LINK_THIS', [1, 0]], ['-2', [2, 1]]] as const)('on a seated lone prim, llBreakLink(%s) leaves %j', async (link, counts) => {
+    const f = await fixture(`if (llGetPermissions() & PERMISSION_CHANGE_LINKS) { llBreakLink(${link}); out = [llGetNumberOfPrims(), llGetLinkNumber()]; }
+      else llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS);`)
+    f.sit()
+    f.touch()
+    f.script.grantPermissions()
+    f.linkset.advanceTime(100)
+    expect(f.touch()).toEqual(counts)
   })
 
   // In-world: llBreakAllLinks with an avatar seated on a six-link object left

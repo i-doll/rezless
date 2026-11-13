@@ -338,11 +338,11 @@ export class Linkset {
    * keeps the linkset data; when `prim` is the root, the rest stay linked
    * under the next prim with no data. Every prim of both parts gets
    * changed(CHANGED_LINK), and avatars seated on the object stand. A lone
-   * prim is left alone.
+   * prim only loses its sitters.
    */
   breakOff(prim: Prim): void {
-    if (this.prims.length < 2) return
     this.standSitters()
+    if (this.prims.length < 2) return
     const rest = this.prims.filter((p) => p !== prim)
     const all = [...this.prims]
     if (prim === this.prims[0]) {

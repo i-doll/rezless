@@ -37,11 +37,12 @@ const avatarMedia = new WeakMap<WorldAvatar, MediaHolder['media']>()
 function holder(ctx: CallContext, link: number): MediaHolder | undefined {
   const prim = target(ctx, link)
   if (prim) return primHolder(prim)
-  const sitter = link > 0 ? ctx.linkset.sitterAt(link) : undefined
+  // A negative link is the first other link, which on a seated lone prim is the sitter.
+  const sitter = link > 0 ? ctx.linkset.sitterAt(link) : link < 0 && link !== LINK_THIS ? ctx.linkset.sitters()[0] : undefined
   if (!sitter) return undefined
   if (!avatarMedia.has(sitter)) avatarMedia.set(sitter, new Map())
-  // An avatar link takes media on any face; its changed event goes to the root.
-  return { media: avatarMedia.get(sitter)!, sides: Infinity, changed: () => raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_MEDIA) }
+  // An avatar link has 45 media faces; its changed event goes to the root.
+  return { media: avatarMedia.get(sitter)!, sides: 45, changed: () => raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_MEDIA) }
 }
 
 const primHolder = (prim: Prim): MediaHolder =>
