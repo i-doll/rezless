@@ -537,10 +537,6 @@ started on and not from the calling prim. `llGetLinkNumberOfSides`,
 `llIsLinkGLTFMaterial` and `llGetObjectLinkKey` answer `LINK_THIS` and no other
 negative number. `llBreakLink` reads `LINK_THIS` as the root and every other
 negative number as link 2, whichever prim calls it.
-Link 0 is the root seen from a child and no link seen from the root, in every
-call above. `llGetLinkSitFlags` and `PRIM_SIT_FLAGS` report
-`SIT_FLAG_SIT_TARGET` while the prim has a sit target; setting that bit does
-nothing.
 
 `llSetAgentRot` requires animation permission and changes yaw. A rotation
 requested while sitting applies when standing. `llTeleportAgent` and

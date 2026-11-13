@@ -18,6 +18,8 @@ function resolve(ctx: CallContext, name: string): string | undefined {
 }
 
 function targets(ctx: CallContext, link: number): Prim[] {
+  // The documented legacy link-0 alias applies when a child addresses its root.
+  if (link === 0 && ctx.prim.linkNumber > 1) return [ctx.linkset.prims[0]!]
   return ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
 }
 

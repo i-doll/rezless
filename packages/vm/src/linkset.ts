@@ -479,9 +479,8 @@ export class Linkset {
   /**
    * The links `link` names, seen from the prim `from`, in a call that takes
    * LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN as groups. The groups hold
-   * prims only. Any other number names one link, as in `oneLink`: a number
-   * below LINK_THIS is the first other link, and that or a positive number can
-   * name a seated avatar.
+   * prims only. A number below LINK_THIS is the first other link, and that or
+   * a positive number can name a seated avatar.
    */
   linksFrom(from: Prim, link: number): { prims: Prim[]; sitter: WorldAvatar | undefined } {
     const group = link === LINK_THIS ? [from]
@@ -490,7 +489,8 @@ export class Linkset {
       : link === LINK_ALL_CHILDREN ? this.prims.slice(1)
       : undefined
     if (group) return { prims: group, sitter: undefined }
-    const one = this.oneLink(from, link)
+    // Here link 0 names only a lone prim nobody sits on. Callers that read it as the root from a child do that themselves.
+    const one = link === 0 ? this.prims.find((p) => p.linkNumber === 0) : link < 0 ? this.firstOtherLink(from) : this.linkAt(link)
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
   }
 

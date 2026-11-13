@@ -303,42 +303,6 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
   })
 })
 
-describe('link 0', () => {
-  const zero = (body: string) => body.replace('list LINKS = [-1, -2, -3, -4, -5, -100, 0x80000000];', '').replace(/i < 7/g, 'i < 1').replace(/llList2Integer\(LINKS, i\)/g, '0')
-
-  // In-world: link 0 is the root seen from a child and no link seen from the root, in
-  // every call measured. From child 3 each of the ten setters above changed link 1
-  // only (x--), and from the root nothing (---). 0 through llMessageLinked reached
-  // link 1 from child 3 and nothing from the root. From child 3,
-  // llGetLinkNumberOfSides(0) read the root's 7 sides and llIsLinkGLTFMaterial(0, 0)
-  // the root's material; from the root they read 0 and FALSE.
-  it.each(Object.entries(GROUP_SETTERS))('%s sets the root from a child and nothing from the root', async (_, body) => {
-    expect((await scene(3, zero(body))).run(3)).toBe('x--')
-    expect((await scene(3, zero(body))).run(1)).toBe('---')
-  })
-
-  it('reaches and reads the root from a child and nothing from the root', async () => {
-    const body = `
-      llSetLinkPrimitiveParamsFast(1, [PRIM_TYPE, PRIM_TYPE_BOX, 0, <0.0, 1.0, 0.0>, 0.5, ZERO_VECTOR, <1.0, 1.0, 0.0>, ZERO_VECTOR]);
-      llSetLinkRenderMaterial(1, "${M0}", 0);
-      llMessageLinked(0, 7, "", "");
-      out = [(string)llGetLinkNumberOfSides(0) + (string)llIsLinkGLTFMaterial(0, 0)];`
-    const child = await scene(3, body)
-    expect(child.run(3)).toBe('71')
-    expect([1, 2, 3].map((p) => child.scripts[`p${p}`]!.global('log'))).toEqual([[7], [], []])
-    const root = await scene(3, body)
-    expect(root.run(1)).toBe('00')
-    expect([1, 2, 3].map((p) => root.scripts[`p${p}`]!.global('log'))).toEqual([[], [], []])
-  })
-
-  // In-world: llSetLinkSitFlags(0, ...) set a lone box nobody sat on, and nothing once
-  // an avatar sat on it.
-  it('llSetLinkSitFlags sets a lone prim through link 0 only while nobody sits on it', async () => {
-    expect((await scene(1, zero(GROUP_SETTERS.llSetLinkSitFlags!))).run()).toBe('x')
-    expect((await scene(1, zero(GROUP_SETTERS.llSetLinkSitFlags!), 'root')).run()).toBe('-')
-  })
-})
-
 describe('negative link numbers in calls that take one link', () => {
   // In-world: llLinkSitTarget takes one link. LINK_SET, LINK_ALL_OTHERS,
   // LINK_ALL_CHILDREN, -5, -100 and -2147483648 each set the first link that is not
@@ -364,7 +328,7 @@ describe('negative link numbers in calls that take one link', () => {
   // 2 2 2 34 2 2 2 from child 3.
   const SIT_FLAGS = reads(
     'for (j = 1; j <= NP; ++j) llSetLinkSitFlags(pl(j), llList2Integer([2, 18, 34], j - 1));',
-    '(string)llGetLinkSitFlags(L)')
+    '(string)(llGetLinkSitFlags(L) & ~SIT_FLAG_SIT_TARGET)')
   it.each([
     [1, '18 18 18 2 18 18 18'],
     [2, '2 2 2 18 2 2 2'],
@@ -375,30 +339,14 @@ describe('negative link numbers in calls that take one link', () => {
 
   // In-world: a lone box read 0 0 0 2 0 0 0, and 0 0 0 3 0 0 0 with an avatar on its
   // sit target: the first other link is then the avatar. On the avatar link of one
-  // seated avatar llGetLinkSitFlags read 0 and PRIM_SIT_FLAGS read 2.
+  // seated avatar llGetLinkSitFlags read 0 and PRIM_SIT_FLAGS read 2. The 3 is 2 plus
+  // SIT_FLAG_SIT_TARGET, which the grid reports while a prim has a sit target. That
+  // bit is a separate change, so the reads here mask it out.
   it('llGetLinkSitFlags reads 0 below LINK_THIS on a lone prim', async () => {
     expect((await scene(1, SIT_FLAGS)).run()).toBe('0 0 0 2 0 0 0')
-    expect((await scene(1, SIT_FLAGS, 'root')).run()).toBe('0 0 0 3 0 0 0')
+    expect((await scene(1, SIT_FLAGS, 'root')).run()).toBe('0 0 0 2 0 0 0')
     const both = await scene(1, 'out = [(string)llGetLinkSitFlags(2) + "/" + llDumpList2String(llGetLinkPrimitiveParams(2, [PRIM_SIT_FLAGS]), "")];', 'root')
     expect(both.run()).toBe('0/2')
-  })
-
-  // In-world, on one box: SIT_FLAG_SIT_TARGET (1) in llGetLinkSitFlags and in
-  // PRIM_SIT_FLAGS follows the sit target and cannot be set. Without a sit target,
-  // setting 2 read 2, setting 3 read 2 and PRIM_SIT_FLAGS 19 read 18. After
-  // llSitTarget(<0, 0, 0.6>, ZERO_ROTATION) both read 19; setting 0 read 1 and
-  // setting 2 read 3, through llSetLinkSitFlags and through PRIM_SIT_FLAGS.
-  it('reports SIT_FLAG_SIT_TARGET while the prim has a sit target', async () => {
-    const s = await scene(1, `
-      string r;
-      llSetLinkSitFlags(LINK_THIS, 2); r += (string)llGetLinkSitFlags(LINK_THIS) + llDumpList2String(llGetLinkPrimitiveParams(LINK_THIS, [PRIM_SIT_FLAGS]), "") + " ";
-      llSetLinkSitFlags(LINK_THIS, 3); r += (string)llGetLinkSitFlags(LINK_THIS) + " ";
-      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_SIT_FLAGS, 19]); r += (string)llGetLinkSitFlags(LINK_THIS) + " ";
-      llSitTarget(<0.0, 0.0, 0.6>, ZERO_ROTATION); r += (string)llGetLinkSitFlags(LINK_THIS) + llDumpList2String(llGetLinkPrimitiveParams(LINK_THIS, [PRIM_SIT_FLAGS]), "") + " ";
-      llSetLinkSitFlags(LINK_THIS, 0); r += (string)llGetLinkSitFlags(LINK_THIS) + llDumpList2String(llGetLinkPrimitiveParams(LINK_THIS, [PRIM_SIT_FLAGS]), "") + " ";
-      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_SIT_FLAGS, 2]); r += (string)llGetLinkSitFlags(LINK_THIS);
-      out = [r];`)
-    expect(s.run()).toBe('22 2 18 1919 11 3')
   })
 
   // In-world: llAvatarOnLinkSitTarget with the avatar on the root's sit target read

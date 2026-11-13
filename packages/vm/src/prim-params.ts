@@ -51,7 +51,6 @@ import {
   PRIM_SCULPT_TYPE_SPHERE,
   PRIM_SHINY_NONE,
   PRIM_SIT_FLAGS,
-  SIT_FLAG_SIT_TARGET,
   PRIM_SIT_TARGET,
   PRIM_SIZE,
   PRIM_SLICE,
@@ -904,7 +903,7 @@ export function readPrimParam(
     case PRIM_SCRIPTED_SIT_ONLY:
       return { values: [p.scriptedSitOnly ? 1 : 0], consumed: 0 }
     case PRIM_SIT_FLAGS:
-      return { values: [sitFlagsOf(p)], consumed: 0 }
+      return { values: [p.sitFlags], consumed: 0 }
     case PRIM_CLICK_ACTION:
       return { values: [p.clickAction], consumed: 0 }
     case PRIM_HEALTH:
@@ -1274,11 +1273,6 @@ function remapFaces(p: PrimParams, oldShape: PrimShape): void {
 }
 
 /** Face count of a prim shape, as llGetNumberOfSides reports it. */
-/** The sit flags as scripts read them: SIT_FLAG_SIT_TARGET follows the sit target, whatever was set. */
-export function sitFlagsOf(p: PrimParams): number {
-  return (p.sitFlags & ~SIT_FLAG_SIT_TARGET) | (p.sitTarget.enabled ? SIT_FLAG_SIT_TARGET : 0)
-}
-
 export function numberOfSides(shape: PrimShape): number {
   return faceRoles(shape).length
 }

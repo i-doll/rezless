@@ -47,6 +47,7 @@ function set(prim: Prim, rules: ReadonlyArray<LslValue>): void {
 }
 
 function targets(ctx: CallContext, link: number): Prim[] {
+  if (link === 0 && ctx.prim.linkNumber > 1) return [ctx.linkset.prims[0]!]
   return ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
 }
 
