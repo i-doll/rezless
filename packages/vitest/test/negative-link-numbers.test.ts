@@ -10,9 +10,8 @@ import { loadLinkset, World } from '../src/index.js'
 // touch ran every call with the link numbers -1, -2, -3, -4, -5, -100 and
 // -2147483648. Before each call the script set a known value on every prim
 // through its positive link number, and after it read every prim back the same
-// way. The runs were repeated with one avatar seated on the root and on the lone
-// box, and the sit calls also with the avatar on child 2. Every "In-world:" note
-// in this file is from those probes.
+// way. The runs were repeated with one avatar seated on the root, on child 2 and
+// on the lone box. Every "In-world:" note in this file is from those probes.
 //
 // The seven columns of each expected string are those seven link numbers. In a
 // setter row "x" marks a prim the call changed, one letter per prim in link order.
@@ -146,18 +145,17 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
   // xxx x-x -xx -x- x-- x-- x--. From child 3: xxx xx- -xx --x x-- x-- x--.
   // LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN are groups, and -5, -100 and
   // -2147483648 are the first link that is not the caller: link 2 from the root,
-  // the root from a child. The prim-parameter calls and llSetLinkSitFlags were run
-  // again with an avatar seated on the root and gave the same rows.
-  const SEATED = ['llSetLinkPrimitiveParamsFast', 'llSetLinkPrimitiveParams', 'PRIM_LINK_TARGET in llSetLinkPrimitiveParamsFast',
-    'PRIM_LINK_TARGET in llSetPrimitiveParams', 'llSetLinkSitFlags']
-  describe.each(Object.entries(GROUP_SETTERS))('%s', (name, body) => {
+  // the root from a child. All ten gave the same rows with an avatar seated on the
+  // root and with it seated on child 2.
+  describe.each(Object.entries(GROUP_SETTERS))('%s', (_, body) => {
     it.each([
       [1, 'xxx -xx -xx x-- -x- -x- -x-'],
       [2, 'xxx x-x -xx -x- x-- x-- x--'],
       [3, 'xxx xx- -xx --x x-- x-- x--'],
     ])('sets the first other prim from link %i of a linkset', async (caller, want) => {
       expect((await scene(3, body)).run(caller)).toBe(want)
-      if (SEATED.includes(name)) expect((await scene(3, body, 'root')).run(caller)).toBe(want)
+      expect((await scene(3, body, 'root')).run(caller)).toBe(want)
+      expect((await scene(3, body, 'child')).run(caller)).toBe(want)
     })
 
     // In-world: on a lone box only LINK_SET and LINK_THIS changed it (x - - x - - -),
@@ -172,13 +170,14 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
   // In-world: llMessageLinked with each link number, from the root: LINK_SET reached
   // links 1, 2 and 3, LINK_ALL_OTHERS and LINK_ALL_CHILDREN links 2 and 3, LINK_THIS
   // link 1, and -5, -100 and -2147483648 link 2 only. From child 2 and from child 3
-  // the last three reached link 1 only. Seated on the root gave the same.
+  // the last three reached link 1 only. Seated on the root and seated on child 2
+  // gave the same.
   it.each([
     [1, [[0, 3], [0, 1, 2, 4, 5, 6], [0, 1, 2]]],
     [2, [[0, 1, 4, 5, 6], [0, 2, 3], [0, 1, 2]]],
     [3, [[0, 1, 4, 5, 6], [0, 1, 2], [0, 2, 3]]],
   ])('llMessageLinked reaches the first other prim from link %i', async (caller, want) => {
-    for (const seat of [undefined, 'root'] as const) {
+    for (const seat of [undefined, 'root', 'child'] as const) {
       const s = await scene(3, 'integer i; for (i = 0; i < 7; ++i) llMessageLinked(llList2Integer(LINKS, i), i, "", "");', seat)
       s.run(caller)
       expect([1, 2, 3].map((p) => s.scripts[`p${p}`]!.global('log'))).toEqual(want)
@@ -304,6 +303,42 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
   })
 })
 
+describe('link 0', () => {
+  const zero = (body: string) => body.replace('list LINKS = [-1, -2, -3, -4, -5, -100, 0x80000000];', '').replace(/i < 7/g, 'i < 1').replace(/llList2Integer\(LINKS, i\)/g, '0')
+
+  // In-world: link 0 is the root seen from a child and no link seen from the root, in
+  // every call measured. From child 3 each of the ten setters above changed link 1
+  // only (x--), and from the root nothing (---). 0 through llMessageLinked reached
+  // link 1 from child 3 and nothing from the root. From child 3,
+  // llGetLinkNumberOfSides(0) read the root's 7 sides and llIsLinkGLTFMaterial(0, 0)
+  // the root's material; from the root they read 0 and FALSE.
+  it.each(Object.entries(GROUP_SETTERS))('%s sets the root from a child and nothing from the root', async (_, body) => {
+    expect((await scene(3, zero(body))).run(3)).toBe('x--')
+    expect((await scene(3, zero(body))).run(1)).toBe('---')
+  })
+
+  it('reaches and reads the root from a child and nothing from the root', async () => {
+    const body = `
+      llSetLinkPrimitiveParamsFast(1, [PRIM_TYPE, PRIM_TYPE_BOX, 0, <0.0, 1.0, 0.0>, 0.5, ZERO_VECTOR, <1.0, 1.0, 0.0>, ZERO_VECTOR]);
+      llSetLinkRenderMaterial(1, "${M0}", 0);
+      llMessageLinked(0, 7, "", "");
+      out = [(string)llGetLinkNumberOfSides(0) + (string)llIsLinkGLTFMaterial(0, 0)];`
+    const child = await scene(3, body)
+    expect(child.run(3)).toBe('71')
+    expect([1, 2, 3].map((p) => child.scripts[`p${p}`]!.global('log'))).toEqual([[7], [], []])
+    const root = await scene(3, body)
+    expect(root.run(1)).toBe('00')
+    expect([1, 2, 3].map((p) => root.scripts[`p${p}`]!.global('log'))).toEqual([[], [], []])
+  })
+
+  // In-world: llSetLinkSitFlags(0, ...) set a lone box nobody sat on, and nothing once
+  // an avatar sat on it.
+  it('llSetLinkSitFlags sets a lone prim through link 0 only while nobody sits on it', async () => {
+    expect((await scene(1, zero(GROUP_SETTERS.llSetLinkSitFlags!))).run()).toBe('x')
+    expect((await scene(1, zero(GROUP_SETTERS.llSetLinkSitFlags!), 'root')).run()).toBe('-')
+  })
+})
+
 describe('negative link numbers in calls that take one link', () => {
   // In-world: llLinkSitTarget takes one link. LINK_SET, LINK_ALL_OTHERS,
   // LINK_ALL_CHILDREN, -5, -100 and -2147483648 each set the first link that is not
@@ -329,7 +364,7 @@ describe('negative link numbers in calls that take one link', () => {
   // 2 2 2 34 2 2 2 from child 3.
   const SIT_FLAGS = reads(
     'for (j = 1; j <= NP; ++j) llSetLinkSitFlags(pl(j), llList2Integer([2, 18, 34], j - 1));',
-    '(string)(llGetLinkSitFlags(L) & ~SIT_FLAG_SIT_TARGET)')
+    '(string)llGetLinkSitFlags(L)')
   it.each([
     [1, '18 18 18 2 18 18 18'],
     [2, '2 2 2 18 2 2 2'],
@@ -339,12 +374,31 @@ describe('negative link numbers in calls that take one link', () => {
   })
 
   // In-world: a lone box read 0 0 0 2 0 0 0, and 0 0 0 3 0 0 0 with an avatar on its
-  // sit target: the first other link is then the avatar. llGetLinkSitFlags reads 0
-  // on an avatar link, where PRIM_SIT_FLAGS on the same link reads 2.
-  // The 3 is 2 plus SIT_FLAG_SIT_TARGET, which the read here masks out.
+  // sit target: the first other link is then the avatar. On the avatar link of one
+  // seated avatar llGetLinkSitFlags read 0 and PRIM_SIT_FLAGS read 2.
   it('llGetLinkSitFlags reads 0 below LINK_THIS on a lone prim', async () => {
     expect((await scene(1, SIT_FLAGS)).run()).toBe('0 0 0 2 0 0 0')
-    expect((await scene(1, SIT_FLAGS, 'root')).run()).toBe('0 0 0 2 0 0 0')
+    expect((await scene(1, SIT_FLAGS, 'root')).run()).toBe('0 0 0 3 0 0 0')
+    const both = await scene(1, 'out = [(string)llGetLinkSitFlags(2) + "/" + llDumpList2String(llGetLinkPrimitiveParams(2, [PRIM_SIT_FLAGS]), "")];', 'root')
+    expect(both.run()).toBe('0/2')
+  })
+
+  // In-world, on one box: SIT_FLAG_SIT_TARGET (1) in llGetLinkSitFlags and in
+  // PRIM_SIT_FLAGS follows the sit target and cannot be set. Without a sit target,
+  // setting 2 read 2, setting 3 read 2 and PRIM_SIT_FLAGS 19 read 18. After
+  // llSitTarget(<0, 0, 0.6>, ZERO_ROTATION) both read 19; setting 0 read 1 and
+  // setting 2 read 3, through llSetLinkSitFlags and through PRIM_SIT_FLAGS.
+  it('reports SIT_FLAG_SIT_TARGET while the prim has a sit target', async () => {
+    const s = await scene(1, `
+      string r;
+      llSetLinkSitFlags(LINK_THIS, 2); r += (string)llGetLinkSitFlags(LINK_THIS) + llDumpList2String(llGetLinkPrimitiveParams(LINK_THIS, [PRIM_SIT_FLAGS]), "") + " ";
+      llSetLinkSitFlags(LINK_THIS, 3); r += (string)llGetLinkSitFlags(LINK_THIS) + " ";
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_SIT_FLAGS, 19]); r += (string)llGetLinkSitFlags(LINK_THIS) + " ";
+      llSitTarget(<0.0, 0.0, 0.6>, ZERO_ROTATION); r += (string)llGetLinkSitFlags(LINK_THIS) + llDumpList2String(llGetLinkPrimitiveParams(LINK_THIS, [PRIM_SIT_FLAGS]), "") + " ";
+      llSetLinkSitFlags(LINK_THIS, 0); r += (string)llGetLinkSitFlags(LINK_THIS) + llDumpList2String(llGetLinkPrimitiveParams(LINK_THIS, [PRIM_SIT_FLAGS]), "") + " ";
+      llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_SIT_FLAGS, 2]); r += (string)llGetLinkSitFlags(LINK_THIS);
+      out = [r];`)
+    expect(s.run()).toBe('22 2 18 1919 11 3')
   })
 
   // In-world: llAvatarOnLinkSitTarget with the avatar on the root's sit target read
@@ -427,6 +481,89 @@ describe('negative link numbers in calls that take one link', () => {
     expect((await scene(3, MEDIA)).run(3)).toBe('600 L1 L1 L1 L3 L1 L1 L1 0 2 2')
     expect((await scene(1, MEDIA, 'root')).run()).toBe('06 L2 L2 L2 L1 L2 L2 L2 2 0')
     expect((await scene(1, MEDIA)).run()).toBe('0 [] [] [] L1 [] [] [] 2')
+  })
+
+  // In-world: seated on a lone box, llSetLinkMedia with -1, -3, -5 and -100 on faces 0
+  // to 3 returned 0 and put all four on the avatar and none on the box;
+  // llGetLinkMedia with the same numbers read them back; llClearLinkMedia with the
+  // same numbers returned 0 and emptied the four avatar faces.
+  it('sets, reads and clears the sitter\'s media through -1, -3, -5 and -100', async () => {
+    const s = await scene(1, `
+      string r; integer k; integer j; list ls = [-1, -3, -5, -100];
+      for (k = 0; k < 4; ++k) r += (string)llSetLinkMedia(llList2Integer(ls, k), k, [PRIM_MEDIA_HOME_URL, "https://example.invalid/" + (string)k]);
+      r += " ";
+      for (j = 1; j <= 2; ++j) for (k = 0; k < 4; ++k) r += (string)(llGetLinkMedia(j, k, [PRIM_MEDIA_HOME_URL]) != []);
+      r += " ";
+      for (k = 0; k < 4; ++k) r += llGetSubString(llList2String(llGetLinkMedia(llList2Integer(ls, k), k, [PRIM_MEDIA_HOME_URL]), 0), -1, -1);
+      r += " ";
+      for (k = 0; k < 4; ++k) r += (string)llClearLinkMedia(llList2Integer(ls, k), k);
+      r += " ";
+      for (k = 0; k < 4; ++k) r += (string)(llGetLinkMedia(2, k, [PRIM_MEDIA_HOME_URL]) != []);
+      out = [r];`, 'root')
+    expect(s.run()).toBe('0000 00001111 0123 0000 0000')
+  })
+
+  // In-world: seated on a lone box, llSetLinkMedia(2, ALL_SIDES, ...), llGetLinkMedia(2,
+  // ALL_SIDES, ...) and llClearLinkMedia(2, ALL_SIDES) on the avatar link each said
+  // "PRIM_MEDIA error: ALL_SIDES not supported" on DEBUG_CHANNEL; set and clear
+  // returned 1004, the read returned [], and no face took media. The box link did the
+  // same. In-world the avatar's name is on the message for the avatar link; here the
+  // script says it.
+  it('refuses ALL_SIDES on an avatar link as on a prim', async () => {
+    const s = await scene(1, `
+      out = [(string)llSetLinkMedia(2, ALL_SIDES, [PRIM_MEDIA_HOME_URL, "https://example.invalid/a"])
+        + names(llGetLinkMedia(2, ALL_SIDES, [PRIM_MEDIA_HOME_URL])) + (string)llClearLinkMedia(2, ALL_SIDES)
+        + names(llGetLinkMedia(2, 0, [PRIM_MEDIA_HOME_URL])) + (string)llSetLinkMedia(1, ALL_SIDES, [PRIM_MEDIA_HOME_URL, "https://example.invalid/a"])];`, 'root')
+    expect(s.run()).toBe('1004[]1004[]1004')
+    expect(s.scripts.p1!.chat.filter((c) => c.channel === 2147483647).map((c) => c.text)).toEqual(Array(4).fill('PRIM_MEDIA error: ALL_SIDES not supported'))
+  })
+
+  // In-world: llGetPrimMediaParams(ALL_SIDES, ...), llGetLinkMedia(LINK_THIS, ALL_SIDES,
+  // ...) and llGetLinkMedia(LINK_THIS, -2, ...) on a box each said the ALL_SIDES error
+  // and returned []. On face 6 of the box and on face 45 of the avatar link,
+  // llSetLinkMedia and llClearLinkMedia returned 1003, llGetLinkMedia returned [], and
+  // each call said "PRIM_MEDIA error: face N on object K not found", K being the
+  // box's key or the avatar's.
+  it('says which face is missing, on a prim and on an avatar link', async () => {
+    const s = await scene(1, `
+      string r = names(llGetPrimMediaParams(ALL_SIDES, [PRIM_MEDIA_HOME_URL])) + names(llGetLinkMedia(LINK_THIS, -2, [PRIM_MEDIA_HOME_URL]));
+      list links = [1, 2]; list faces = [6, 45]; integer i;
+      for (i = 0; i < 2; ++i) {
+        integer L = llList2Integer(links, i); integer F = llList2Integer(faces, i);
+        r += " " + (string)llSetLinkMedia(L, F, [PRIM_MEDIA_HOME_URL, "https://example.invalid/a"]) + names(llGetLinkMedia(L, F, [PRIM_MEDIA_HOME_URL])) + (string)llClearLinkMedia(L, F);
+      }
+      out = [r];`, 'root')
+    expect(s.run()).toBe('[][] 1003[]1003 1003[]1003')
+    const box = `PRIM_MEDIA error: face 6 on object ${s.linkset.prims[0]!.key} not found`
+    const av = `PRIM_MEDIA error: face 45 on object ${AVATAR} not found`
+    expect(s.scripts.p1!.chat.filter((c) => c.channel === 2147483647).map((c) => c.text)).toEqual([
+      'PRIM_MEDIA error: ALL_SIDES not supported', 'PRIM_MEDIA error: ALL_SIDES not supported', box, box, box, av, av, av,
+    ])
+  })
+
+  // In-world: seated on a lone box, one call every three seconds. llClearLinkMedia on
+  // an avatar-link face that held no media (face 4 through link 2, face 0 through -5
+  // and through 2, and a face cleared three seconds earlier) returned 0 and raised no
+  // event. Setting a face and clearing a face that held media each raised
+  // changed(CHANGED_MEDIA). A set and a clear of one face inside one event left one
+  // more CHANGED_MEDIA for the next clear of that face; that is not modelled.
+  it('raises no event for clearing an avatar-link face that holds no media', async () => {
+    const s = await scene(1, `
+      if (step == 0) changes = [];
+      if (step == 0) out += llClearLinkMedia(2, 4);
+      if (step == 1) out += llClearLinkMedia(-5, 0);
+      if (step == 2) out += llSetLinkMedia(2, 1, [PRIM_MEDIA_HOME_URL, "https://example.invalid/a"]);
+      if (step == 3) out += llClearLinkMedia(2, 1);
+      if (step == 4) out += llClearLinkMedia(2, 1);
+      ++step;`, 'root')
+    const events: number[] = []
+    for (let i = 0; i < 5; i++) {
+      s.run()
+      events.push((s.scripts.p1!.global('changes') as number[]).length)
+    }
+    expect(s.scripts.p1!.global('out')).toEqual([0, 0, 0, 0, 0])
+    expect(events).toEqual([0, 0, 1, 2, 2])
+    expect(new Set(s.scripts.p1!.global('changes') as number[])).toEqual(new Set([2048]))
   })
 
   // In-world: seated on a lone box, llSetLinkCamera with -5, -100, -2147483648,
@@ -579,6 +716,44 @@ describe('negative link numbers in llGetLinkPrimitiveParams', () => {
       }
       out = [r];`)
     expect(s.run(3)).toBe('--x x-- xx- '.repeat(5))
+  })
+})
+
+describe('llBreakLink keeps its own rule', () => {
+  // https://wiki.secondlife.com/wiki/LlBreakLink
+  // In-world: on a five-box object b1 to b5 with PERMISSION_CHANGE_LINKS, child b4
+  // called llBreakLink(-5): b2 left, and b4 became link 3. It then called
+  // llBreakLink(-100): b3, the new link 2, left. A negative number other than
+  // LINK_THIS is link 2 whichever prim calls, not the first other link, which from a
+  // child would be the root.
+  it('breaks link 2 for a number below LINK_THIS called from a child', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const { linkset, scripts } = await loadLinkset({
+      world, region: 'home', owner: AVATAR, position: { x: 116, y: 50, z: 20 },
+      prims: [1, 2, 3, 4, 5].map((i) => ({
+        name: `b${i}`,
+        scripts: i === 4 ? [{ name: 'b', source: { source: `integer k; list out;
+          default {
+            state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+            touch_start(integer n) {
+              llBreakLink(llList2Integer([-5, -100], k)); ++k;
+              string r; integer i;
+              for (i = 1; i <= llGetNumberOfPrims(); ++i) r += llGetLinkName(i);
+              out += [r, llGetLinkNumber()];
+            }
+          }` } }] : [],
+      })),
+    })
+    const script = scripts.b!
+    script.start()
+    script.grantPermissions()
+    linkset.advanceTime(100)
+    for (let i = 0; i < 2; i++) {
+      linkset.touch(linkset.prims.find((p) => p.name === 'b4')!.linkNumber)
+      linkset.advanceTime(100)
+    }
+    expect(script.global('out')).toEqual(['b1b3b4b5', 3, 'b1b4b5', 2])
   })
 })
 

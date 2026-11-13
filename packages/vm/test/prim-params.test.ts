@@ -118,7 +118,8 @@ describe('prim-params helpers', () => {
       ['POINT_LIGHT', PRIM_POINT_LIGHT, [1, v(1, 0, 0), 0.8, 12, 0.5], [1, v(1, 0, 0), 0.8, 12, 0.5]],
       ['FLEXIBLE', PRIM_FLEXIBLE, [1, 2, 0.3, 0.4, 0.5, 0.6, v(0, 0, -1)], [1, 2, 0.3, 0.4, 0.5, 0.6, v(0, 0, -1)]],
       ['SIT_TARGET', PRIM_SIT_TARGET, [1, v(0, 0, 1), r(0, 0, 0, 1)], [1, v(0, 0, 1), r(0, 0, 0, 1)]],
-      ['SIT_FLAGS', PRIM_SIT_FLAGS, [3], [3]],
+      // In-world: SIT_FLAG_SIT_TARGET cannot be set; without a sit target, flags 3 read back as 2.
+      ['SIT_FLAGS', PRIM_SIT_FLAGS, [3], [2]],
       ['REFLECTION_PROBE', PRIM_REFLECTION_PROBE, [1, 0.5, 8, 4], [1, 0.5, 8, 4]],
       ['PROJECTOR', PRIM_PROJECTOR, ['tex-key', 1.2, 0.7, 0.3], ['tex-key', 1.2, 0.7, 0.3]],
       ['TEXT', PRIM_TEXT, ['hi', v(1, 0, 0), 0.5], ['hi', v(1, 0, 0), 0.5]],

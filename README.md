@@ -539,6 +539,10 @@ started on and not from the calling prim. `llGetLinkNumberOfSides`,
 `llIsLinkGLTFMaterial` and `llGetObjectLinkKey` answer `LINK_THIS` and no other
 negative number. `llBreakLink` reads `LINK_THIS` as the root and every other
 negative number as link 2, whichever prim calls it.
+Link 0 is the root seen from a child and no link seen from the root, in every
+call above. `llGetLinkSitFlags` and `PRIM_SIT_FLAGS` report
+`SIT_FLAG_SIT_TARGET` while the prim has a sit target; setting that bit does
+nothing.
 
 With `standtp=n`, user stand, force unsit, `llUnSit` and seat deletion return the
 avatar to its saved global origin. Viewer object-sit requests save that origin;

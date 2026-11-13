@@ -19,6 +19,7 @@ const strings = new Set([2, 3, 12])
 interface MediaHolder {
   readonly media: Map<number, PrimMediaParams>
   readonly sides: number
+  readonly key: string
   changed(): void
 }
 
@@ -35,18 +36,20 @@ function holder(ctx: CallContext, link: number): MediaHolder | undefined {
   if (!sitter) return undefined
   if (!avatarMedia.has(sitter)) avatarMedia.set(sitter, new Map())
   // An avatar link has 45 media faces; its changed event goes to the root.
-  return { media: avatarMedia.get(sitter)!, sides: 45, changed: () => raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_MEDIA) }
+  return { media: avatarMedia.get(sitter)!, sides: 45, key: sitter.key, changed: () => raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_MEDIA) }
 }
 
 const primHolder = (prim: Prim): MediaHolder =>
-  ({ media: prim.media, sides: numberOfSides(prim.params.shape), changed: () => raisePrimChanged(prim, CHANGED_MEDIA) })
+  ({ media: prim.media, sides: numberOfSides(prim.params.shape), key: prim.key, changed: () => raisePrimChanged(prim, CHANGED_MEDIA) })
 
 function faceStatus(ctx: CallContext, holder: MediaHolder, face: number): number {
   if (face < 0) {
     sayError(ctx, 'PRIM_MEDIA error: ALL_SIDES not supported')
     return STATUS_NOT_SUPPORTED
   }
-  return face < holder.sides ? STATUS_OK : STATUS_NOT_FOUND
+  if (face < holder.sides) return STATUS_OK
+  sayError(ctx, `PRIM_MEDIA error: face ${face} on object ${holder.key} not found`)
+  return STATUS_NOT_FOUND
 }
 
 function integer(list: ReadonlyArray<LslValue>, index: number): boolean {
@@ -152,8 +155,9 @@ function set(ctx: CallContext, prim: MediaHolder | undefined, face: number, rule
 }
 
 function get(ctx: CallContext, prim: MediaHolder | undefined, face: number, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
-  const media = prim?.media.get(face)
-  if (!media || !prim || face >= prim.sides) return []
+  if (!prim || faceStatus(ctx, prim, face) !== STATUS_OK) return []
+  const media = prim.media.get(face)
+  if (!media) return []
   const values: LslValue[] = []
   for (let i = 0; i < rules.length; i++) {
     if (!integer(rules, i)) continue
