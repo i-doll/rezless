@@ -573,12 +573,13 @@ export class Linkset {
     this.broadcast(reaches, { channel, name: from.name, key: from.key, message })
   }
 
-  /** Queue a say by `avatar` on the listens of every prim within 20 m of it. */
+  /** Queue a say by `avatar` on the listens of every prim within 20 m of it and of what it wears. */
   routeAvatarSay(avatar: WorldAvatar, channel: number, message: string): void {
     const corner = this.world!.corner(avatar.region)
     const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
     const range = CHAT_RANGE.say!
-    this.broadcast((linkset, p) => distanceSquared(origin, linkset.globalPosition(p)) <= range * range,
+    this.broadcast((linkset, p) => linkset.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() ||
+      distanceSquared(origin, linkset.globalPosition(p)) <= range * range,
       { channel, name: avatar.name, key: avatar.key, message })
   }
 

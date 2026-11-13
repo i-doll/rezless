@@ -1,5 +1,5 @@
 import { rlvAtof, rlvStof } from './numbers.js'
-import { AGENT_FLYING, AGENT_SITTING } from '../generated/constants.js'
+import { AGENT_FLYING, AGENT_SITTING, SIT_FLAG_SCRIPTED_ONLY } from '../generated/constants.js'
 import { NULL_KEY, ZERO_VECTOR, type Vector } from '../values/types.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
@@ -53,10 +53,7 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
   const seats = requested.linkset!
   // Reject invalid world targets before considering their geometry or range.
   if (seats.dead || seats.attachment || seats.region !== avatar.region) return record('refused', 'world-constraint')
-  const free = (p: Prim) => !world.avatars.some(a => a !== avatar && a.sittingOn === p)
-  const configured = [requested, ...seats.prims.filter(p => p !== requested)]
-    .filter(p => p.params.sitTarget.enabled)
-  const seat = configured.find(free) ?? (configured.length ? undefined : requested)
+  const seat = resolveSitRequest(world, avatar, requested)
   if (!seat) return record('refused', 'world-constraint')
   const outcome = requestViewerSit(world, avatar, seat, outcome => record(outcome, outcome === 'refused' ? 'world-constraint' : undefined))
   return record(outcome, outcome === 'refused' ? 'world-constraint' : undefined)
@@ -155,12 +152,32 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
       if (profile === 'rlva' ? !(distance ** 2 < Math.fround(limit * limit)) : !(distance < limit)) return false
     }
   }
-  const free = (prim: Prim) => !world.avatars.some(other => other !== avatar && other.sittingOn === prim)
-  const configured = [requested, ...linkset.prims.filter(prim => prim !== requested)].filter(prim => prim.params.sitTarget.enabled)
-  const seat = configured.find(free) ?? (configured.length ? undefined : requested)
+  const seat = resolveSitRequest(world, avatar, requested)
   if (!seat || !Object.values(seat.regionPosition()).every(Number.isFinite) ||
     !Object.values(seat.params.sitTarget.offset).every(Number.isFinite)) return false
   return requestViewerSit(world, avatar, seat) !== 'refused'
+}
+
+/**
+ * The prim a viewer's sit request on `requested` seats the avatar on, or
+ * undefined when the region refuses it. The request takes a free sit target,
+ * the requested prim's first, and passes over those with
+ * SIT_FLAG_SCRIPTED_ONLY. With no sit target to take, one scripted-only prim
+ * anywhere in the object refuses the request, and the region has by then
+ * stood the avatar up from any other object it sat on.
+ */
+function resolveSitRequest(world: World, avatar: WorldAvatar, requested: Prim): Prim | undefined {
+  const linkset = requested.linkset!
+  const scriptedOnly = (prim: Prim) => !!(prim.params.sitFlags & SIT_FLAG_SCRIPTED_ONLY)
+  const free = (prim: Prim) => !world.avatars.some(other => other !== avatar && other.sittingOn === prim)
+  const configured = [requested, ...linkset.prims.filter(prim => prim !== requested)].filter(prim => prim.params.sitTarget.enabled)
+  const seat = configured.find(prim => !scriptedOnly(prim) && free(prim))
+  if (seat) return seat
+  if (linkset.prims.some(scriptedOnly)) {
+    if (avatar.sittingOn && avatar.sittingOn.linkset !== linkset) world.standAvatar(avatar)
+    return undefined
+  }
+  return configured.length ? undefined : requested
 }
 
 const pendingSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()

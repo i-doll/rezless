@@ -213,10 +213,10 @@ export const llKey2Name: BuiltinImpl = (ctx, args) => {
   return findObjectPrim(ctx, id)?.name ?? findObjectAvatar(ctx, id)?.name ?? ''
 }
 
-/** llGetObjectPrimCount(key id) — prims in the linkset holding `id`, or 0. */
+/** llGetObjectPrimCount(key id) — prims in the linkset holding `id`, or 0. An attachment reads 0. */
 export const llGetObjectPrimCount: BuiltinImpl = (ctx, args) => {
   const prim = findObjectPrim(ctx, keyArg(args))
-  return prim ? primsOf(prim).length : 0
+  return prim && !prim.linkset?.attachment ? primsOf(prim).length : 0
 }
 
 /**
