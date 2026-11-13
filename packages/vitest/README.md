@@ -2012,7 +2012,12 @@ rezless also runs SLua scripts: Luau written against Second Life's `ll`,
 ([secondlife/slua](https://github.com/secondlife/slua), compiled to
 WebAssembly and shipped in `@rezless/vm`), so the language behaves exactly as
 it does in SLua, while `ll.*` calls reach the same rezless functions, mocks
-and world fixtures LSL scripts use.
+and world fixtures LSL scripts use. The VM is built from SLua's `v0.710.12`
+release, with Luau's flags left off. A region on the Aditi beta grid,
+measured in November 2026, has that release's libraries and gave its
+answers for the list, math and string helpers SLua runs itself. SLua's
+`main` branch is different: it has an `integer` library and more in `math`
+and `buffer`, which the region measured didn't have.
 
 ```ts
 const s = await loadScript('./greeter.luau') // .lua / .luau files load as SLua
@@ -2043,8 +2048,7 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   `ll.OwnerSay(5)` raises `string expected, got number`. Second Life did
   this for every function measured, whether SLua's type definitions write
   the parameter `string | uuid` or `string`. `integer`s are refused as
-  well; that one isn't measured, because the region measured has no
-  `integer` type. Three functions that are SLua's own code differ, as
+  well. Three functions that are SLua's own code differ, as
   measured: `ll.ToUpper` and `ll.ToLower` take a number but not a `uuid`,
   and `ll.DumpList2String`'s separator takes neither. In a list, a `uuid`
   or a number is not read as a string where that was measured:
@@ -2070,6 +2074,18 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   `ll.GetTexture` returns a `uuid` when the face holds a texture by key.
   The other functions measured that return a name or a key are as LSL
   types them.
+* **Integers**: there is no `integer` library, so `integer.create(7)` fails
+  with `attempt to index nil with 'create'`. `ll.GetListEntryType` (and
+  `llcompat.GetListEntryType`) returns an `integer`, not a number. Every
+  other function measured returns numbers unless it is handed an `integer`.
+  An `integer` never equals a number, so write
+  `tonumber(ll.GetListEntryType(list, i)) == TYPE_FLOAT`. It can't be
+  compared with `<` to a number or concatenated, indexing a list with one
+  gives `nil`, and an `integer` 0 counts as false. Arithmetic with a number gives a number.
+  In a list it is an LSL integer. The functions SLua runs itself don't take
+  a boolean as a list value: `ll.DumpList2String({true}, ",")` raises
+  `non-LSL value in list`, `ll.List2String({true}, 1)` is `""` and
+  `ll.List2Float({true}, 1)` is 0.
 * **What runs where**: list and math helpers that SLua implements itself
   (`ll.List2String`, `ll.DumpList2String`, `ll.Abs`, …) run in the VM.
   Everything else reaches rezless and can be mocked with
@@ -2116,6 +2132,11 @@ Not modelled yet:
   remote-loaded) starts afresh.
 * Boolean-like entries inside list results (such as from
   `ll.GetPrimitiveParams`) stay integers.
+* `llcompat.SetTimerEvent`, `llcompat.ResetTime`,
+  `llcompat.GetAndResetTime` and `llcompat.SetMemoryLimit`, which Second
+  Life has in `llcompat` but not in `ll`.
+* `coroutine.running()` returns the thread the script runs on. In Second
+  Life it is `nil` at the top level and in a handler.
 * `print()` goes to `s.printed`, not chat.
 * A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
@@ -2125,7 +2146,7 @@ Not modelled yet:
   nested tables and functions. It can't read a function.
 
 `scripts/build-slua-wasm.sh` rebuilds `packages/vm/wasm/slua.wasm` from SLua's
-source. It needs Emscripten and CMake.
+source at that release. It needs Emscripten and CMake.
 
 ## Coverage
 

@@ -1,0 +1,189 @@
+B1 I typeof=integer type=userdata str=2
+B2 I == 2 -> boolean:false
+B3 I == TYPE_FLOAT -> boolean:false
+B4 I == J -> boolean:true
+B5 I == S3 -> boolean:false
+B6 rawequal(I,J) -> boolean:true
+B7 I ~= 2 -> boolean:true
+B8 I + 1 -> number:3
+B9 1 + I -> number:3
+B10 I + I -> integer:4
+B11 I - 1 -> number:1
+B12 I * 3 -> number:6
+B13 I / 4 -> number:0.5
+B14 S3 / I -> number:1.5
+B15 I // 4 -> number:0
+B16 I % 2 -> number:0
+B17 I ^ 2 -> number:4
+B18 -I -> integer:-2
+B19 I < 3 !! lua_script:58: attempt to compare integer < number
+B20 I < S3 -> boolean:true
+B21 I <= J -> boolean:true
+B22 I .. '' !! lua_script:61: attempt to concatenate integer with string
+B23 #I !! lua_script:62: attempt to get length of a integer value
+B24 I.x !! lua_script:63: attempt to index integer with 'x'
+B25 I() !! lua_script:64: attempt to call a integer value
+B26 tonumber(I) -> number:2
+B27 tostring(I) -> string:2
+B28 math.floor(I) -> number:2
+B29 math.abs(I) -> number:2
+B30 math.max(I,1) -> number:2
+B31 string.format('%d',I) -> string:2
+B32 string.format('%s',I) !! lua_script:71: invalid argument #2 to 'format' (string expected, got integer)
+B33 string.rep('a',I) -> string:aa
+B34 bit32.band(I,3) -> number:2
+B35 typeof(bit32.band(3,1)) -> string:number
+B36 getmetatable(I) -> string:nil nil
+B37 tbl[I] -> string:a a nil
+B38 ({10,20,30})[I] -> nil:nil
+B39 if I then -> string:truthy
+B40 zero truthy -> string:integer 0 falsy false
+B41 lljson.encode(I) -> string:2
+B42 lljson.encode({I}) -> string:[2]
+B43 List2CSV({I}) -> string:2
+B44 List2Json({I}) -> string:[2]
+B45 DumpList2String({I},',') -> string:2
+B46 List2String({I},1) -> string:2
+B47 List2Integer({I},1) -> number:2
+B48 List2Float({I},1) -> number:2
+B49 GetListEntryType({I},1) -> integer:1
+B50 typeof(List2List({I},1,1)[1]) -> string:{integer:2}
+B51 ListSort({S3,I,1.5},1,true) -> string:{number:2 | number:3 | number:1.5}
+B52 ListFindList({I},{2}) -> nil:nil
+B53 ListFindList({2},{I}) -> nil:nil
+B54 ListFindList({I},{J}) -> number:1
+B55 ListStatistics(SUM,{I,I}) -> number:4
+B56 GetListLength({I}) -> number:1
+B57 ListInsertList({I},{I},1) -> string:{integer:2 | integer:2}
+B58 OwnerSay(I) !! invalid argument #1 to 'OwnerSay' (string expected, got integer)
+B59 StringLength(I) !! invalid argument #1 to 'StringLength' (string expected, got integer)
+B60 ToUpper(I) !! invalid argument #1 to 'ToUpper' (string expected, got integer)
+B61 Say(I,'x') -> (nothing)
+B62 Abs(I) -> number:2
+B63 Fabs(I) -> number:2
+B64 Pow(I,I) -> number:4
+B65 Floor(I) -> number:2
+B66 Sin(I) -> number:0.9092974066734314
+B67 IntegerToBase64(I) -> string:AAAAAg==
+B68 GetSubString('abcdef',I,S3) -> string:bc
+B69 llcompat.GetSubString('abcdef',I,S3) -> string:cd
+B70 SetAlpha(I,0) -> (nothing)
+B71 GetAlpha(I) -> number:1
+B72 Key2Name(I) !! invalid argument #1 to 'Key2Name' (uuid expected, got integer)
+B73 VecMag(I) !! invalid argument #1 to 'VecMag' (vector expected, got integer)
+B74 vector(I,I,I) -> vector:<2, 2, 2>
+B75 V * I -> vector:<2, 4, 6>
+B76 I * V -> vector:<2, 4, 6>
+B77 tovector/touuid(I) -> string:nil
+B78 SetPrimitiveParams({PRIM_GLOW,ALL_SIDES,I}) -> string:{number:0}
+B79 SetPrimitiveParams({PRIM_GLOW,ALL_SIDES,0}) -> string:{number:0}
+B80 MessageLinked num I -> (nothing)
+B81 table.concat({I}) !! lua_script:120: invalid value (integer) at index 1 in table for 'concat'
+B82 select('#', I) -> number:1
+B83 string.char(I+63?) -> string:
+B84 for i=1,I -> number:2
+B85 T ll.GetListEntryType({1}) -> integer:2
+B86 T ll.GetListEntryType({1.5}) -> integer:2
+B87 T ll.GetListEntryType({'s'}) -> integer:3
+B88 T ll.GetListEntryType({U}) -> integer:4
+B89 T ll.GetListEntryType({V}) -> integer:5
+B90 T ll.GetListEntryType({Q}) -> integer:6
+B91 T ll.GetListEntryType({true}) -> integer:8
+B92 T ll.GetListEntryType({I}) -> integer:1
+B93 T ll.GetListEntryType({{}}) -> integer:7
+B94 T ll.GetListEntryType({print}) -> integer:8
+B95 T ll.GetListEntryType({1},5) -> integer:0
+B96 T ll.GetListEntryType({1},-1) -> integer:2
+B97 T ll.GetListEntryType({1},0) !! passed 0 when a 1-based index was expected
+B98 T ll.GetListLength({1,2}) -> number:2
+B99 T ll.List2Integer({1}) -> number:1
+B100 T ll.List2Float({1}) -> number:1
+B101 T ll.ListFindList({1},{1}) -> number:1
+B102 T ll.ListFindList({1},{2}) -> nil:nil
+B103 T ll.Abs(-1) -> number:1
+B104 T ll.Fabs(-1) -> number:1
+B105 T ll.Floor(1.5) -> number:1
+B106 T ll.Ceil(1.5) -> number:2
+B107 T ll.Round(1.5) -> number:2
+B108 T ll.Pow(2,2) -> number:4
+B109 T ll.Sqrt(4) -> number:2
+B110 T ll.Log(1) -> number:0
+B111 T ll.StringLength('abc') -> number:3
+B112 T ll.SubStringIndex('abc','b') -> number:2
+B113 T ll.GetUnixTime() -> number:1794602701
+B114 T ll.GetNumberOfSides() -> number:6
+B115 T ll.GetUsedMemory() -> number:20936
+B116 T ll.GetFreeMemory() -> number:110094
+B117 T ll.DetectedTouchFace(1) -> number:0
+B118 T ll.Base64ToInteger('AAAAAQ==') -> number:1
+B119 T ll.Ord('a') -> number:97
+B120 T ll.ModPow(2,3,5) -> number:3
+B121 T ll.GetStatus(STATUS_PHANTOM) -> boolean:false
+B122 T ll.GetTime() -> boolean:true
+B123 T ll.Listen -> number:1
+B124 T ll.GetObjectDetails OBJECT_PRIM_COUNT -> string:{number:1}
+B125 T ll.GetPrimitiveParams PRIM_MATERIAL -> string:{number:3}
+B126 T ll.List2List({1,2},..) -> string:{number:1}
+B127 T ll.CSV2List('1,2') -> string:{string:1 | string:2}
+B128 T ll.ParseString2List -> string:{string:1 | string:2}
+B129 T ll.Json2List('[1,2.5]') -> string:{number:1 | number:2.5}
+B130 T llcompat.GetListEntryType({1}) -> integer:2
+B131 T llcompat.GetListEntryType({1.5}) -> integer:2
+B132 T llcompat.GetListEntryType({'s'}) -> integer:3
+B133 T llcompat.GetListEntryType({U}) -> integer:4
+B134 T llcompat.GetListEntryType({V}) -> integer:5
+B135 T llcompat.GetListEntryType({Q}) -> integer:6
+B136 T llcompat.GetListEntryType({true}) -> integer:8
+B137 T llcompat.GetListEntryType({I}) -> integer:1
+B138 T llcompat.GetListEntryType({{}}) -> integer:7
+B139 T llcompat.GetListEntryType({print}) -> integer:8
+B140 T llcompat.GetListEntryType({1},5) -> integer:0
+B141 T llcompat.GetListEntryType({1},-1) -> integer:2
+B142 T llcompat.GetListEntryType({1},0) -> integer:2
+B143 T llcompat.GetListLength({1,2}) -> number:2
+B144 T llcompat.List2Integer({1}) -> number:1
+B145 T llcompat.List2Float({1}) -> number:1
+B146 T llcompat.ListFindList({1},{1}) -> number:0
+B147 T llcompat.ListFindList({1},{2}) -> number:-1
+B148 T llcompat.Abs(-1) -> number:1
+B149 T llcompat.Fabs(-1) -> number:1
+B150 T llcompat.Floor(1.5) -> number:1
+B151 T llcompat.Ceil(1.5) -> number:2
+B152 T llcompat.Round(1.5) -> number:2
+B153 T llcompat.Pow(2,2) -> number:4
+B154 T llcompat.Sqrt(4) -> number:2
+B155 T llcompat.Log(1) -> number:0
+B156 T llcompat.StringLength('abc') -> number:3
+B157 T llcompat.SubStringIndex('abc','b') -> number:1
+B158 T llcompat.GetUnixTime() -> number:1794602703
+B159 T llcompat.GetNumberOfSides() -> number:6
+B160 T llcompat.GetUsedMemory() -> number:21190
+B161 T llcompat.GetFreeMemory() -> number:109834
+B162 T llcompat.DetectedTouchFace(0) -> number:0
+B163 T llcompat.Base64ToInteger('AAAAAQ==') -> number:1
+B164 T llcompat.Ord('a') -> number:97
+B165 T llcompat.ModPow(2,3,5) -> number:3
+B166 T llcompat.GetStatus(STATUS_PHANTOM) -> number:0
+B167 T llcompat.GetTime() -> boolean:true
+B168 T llcompat.Listen -> number:1
+B169 T llcompat.GetObjectDetails OBJECT_PRIM_COUNT -> string:{number:1}
+B170 T llcompat.GetPrimitiveParams PRIM_MATERIAL -> string:{number:3}
+B171 T llcompat.List2List({1,2},..) -> string:{number:1}
+B172 T llcompat.CSV2List('1,2') -> string:{string:1 | string:2}
+B173 T llcompat.ParseString2List -> string:{string:1 | string:2}
+B174 T llcompat.Json2List('[1,2.5]') -> string:{number:1 | number:2.5}
+B175 T bit32.bor(1,2) -> number:3
+B176 T bit32.lshift(1,31) -> number:2147483648
+B177 T bit32.bnot(0) -> number:4294967295
+B178 T bit32.arshift(-1,1) -> number:4294967295
+B179 T bit32.s32 -> number:-1
+B180 T bit32.smul -> number:0
+B181 T TYPE_INTEGER -> number:1
+B182 T #'abc' -> number:3
+B183 T lljson.decode('1') -> number:1
+B184 T lljson.decode('[1,2.5]') -> string:{number:1 | number:2.5}
+B185 T lljson.sldecode -> string:{number:1 | vector:<1, 2, 3>}
+B186 T lljson.slencode(I) -> string:[2,1,1.5,"!v<1,2,3>","!u5748decc-f629-461c-9a36-a35a221fe21f"]
+B187 T os.time() -> boolean:true
+B188 T utf8.len -> number:3
+B189 DONE

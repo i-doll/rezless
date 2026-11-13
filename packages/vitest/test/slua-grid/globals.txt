@@ -1,0 +1,106 @@
+A1 integer type=nil typeof=nil
+A2 uuid type=table typeof=table keys=create
+A3 touuid type=function typeof=function
+A4 vector type=table typeof=table keys=abs,angle,ceil,clamp,create,cross,dot,floor,lerp,magnitude,max,min,normalize,one,sign,zero
+A5 tovector type=function typeof=function
+A6 quaternion type=table typeof=table keys=conjugate,create,dot,identity,magnitude,normalize,slerp,tofwd,toleft,toup
+A7 rotation type=table typeof=table keys=conjugate,create,dot,identity,magnitude,normalize,slerp,tofwd,toleft,toup
+A8 toquaternion type=function typeof=function
+A9 torotation type=function typeof=function
+A10 bit32 type=table typeof=table keys=arshift,band,bnot,bor,btest,bxor,byteswap,countlz,countrz,extract,lrotate,lshift,replace,rrotate,rshift,s32,smul
+A11 ll type=nil typeof=nil
+A12 ll type=table typeof=table
+A13 llcompat type=table typeof=table
+A14 lljson type=table typeof=table keys=array_mt,decode,empty_array,empty_object,encode,null,object_mt,remove,sldecode,slencode
+A15 llbase64 type=table typeof=table keys=decode,encode
+A16 LLEvents type=userdata typeof=LLEvents str=LLEvents: 0x0000000016697520
+A17 LLTimers type=userdata typeof=LLTimers str=LLTimers{timers=0}
+A18 buffer type=table typeof=table keys=copy,create,fill,fromstring,len,readbits,readf32,readf64,readi16,readi32,readi8,readstring,readu16,readu32,readu8,tostring,writebits,writef32,writef64,writei16,writei32,writei8,writestring,writeu16,writeu32,writeu8
+A19 utf8 type=table typeof=table keys=char,charpattern,codepoint,codes,len,offset
+A20 os type=table typeof=table keys=clock,date,difftime,time
+A21 debug type=table typeof=table keys=info,traceback
+A22 math type=table typeof=table keys=abs,acos,asin,atan,atan2,ceil,clamp,cos,cosh,deg,exp,floor,fmod,frexp,huge,isfinite,isinf,isnan,ldexp,lerp,log,log10,map,max,min,modf,noise,pi,pow,rad,random,randomseed,round,sign,sin,sinh,sqrt,tan,tanh
+A23 string type=table typeof=table keys=byte,char,find,format,gmatch,gsub,len,lower,match,pack,packsize,rep,reverse,split,sub,unpack,upper
+A24 table type=table typeof=table keys=append,clear,clone,concat,create,extend,find,foreach,foreachi,freeze,getn,insert,isfrozen,maxn,move,pack,remove,shrink,sort,unpack
+A25 coroutine type=table typeof=table keys=close,create,isyieldable,resume,running,status,wrap,yield
+A26 _VERSION type=string typeof=string str=Luau
+A27 require type=nil typeof=nil
+A28 loadstring type=nil typeof=nil
+A29 getfenv type=nil typeof=nil
+A30 setfenv type=nil typeof=nil
+A31 newproxy type=function typeof=function
+A32 gcinfo type=function typeof=function
+A33 collectgarbage type=nil typeof=nil
+A34 dangerouslyexecuterequiredmodule type=function typeof=function
+A35 print type=function typeof=function
+A36 callable type=nil typeof=nil
+A37 lsl type=nil typeof=nil
+A38 class type=nil typeof=nil
+A39 int64 type=nil typeof=nil
+A40 _G type=nil typeof=nil
+A41 _G type=table
+A42 script type=nil typeof=nil
+A43 state type=nil typeof=nil
+A44 select type=function typeof=function
+A45 unpack type=function typeof=function
+A46 rawlen type=function typeof=function
+A47 TYPE_INTEGER type=number typeof=number str=1
+A48 TRUE type=nil typeof=nil
+A49 NULL_KEY type=userdata typeof=uuid str=00000000-0000-0000-0000-000000000000
+A50 ZERO_VECTOR type=vector typeof=vector str=<0, 0, 0>
+A51 ZERO_ROTATION type=userdata typeof=quaternion str=<0, 0, 0, 1>
+A52 PI type=number typeof=number str=3.1415927410125732
+A53 EOF type=string typeof=string str=
+A54 lljson.null type=userdata typeof=lljson_constant str=lljson_constant: 0x0000000000000003
+A55 lljson.empty_array type=table typeof=table keys=
+A56 lljson.array_mt type=table typeof=table keys=__jsonhint
+A57 lljson.object_mt type=table typeof=table keys=__jsonhint
+A58 lljson.remove type=userdata typeof=lljson_constant str=lljson_constant: 0x0000000000000006
+A59 getmetatable(LLEvents) -> string:table table: 0x0000000017f19820
+A60 LLEvents members -> string:on=function off=function once=function listeners=nil eventNames=function handlers=function emit=nil _handleEvent=nil
+A61 LLTimers members -> string:on=nil off=function once=function every=function _tick=nil
+A62 getmetatable(vector(1,2,3)) -> string:table table: 0x0000000017f19ca8
+A63 getmetatable(uuid) -> string:table table: 0x0000000017f19b18
+A64 GetEnv("simulator_version") -> string:
+A65 GetEnv("sim_version") -> string:2026-11-10.42914476267
+A66 GetEnv("sim_channel") -> string:Luau
+A67 GetEnv("region_product_name") -> string:Estate / Full Region
+A68 GetEnv("slua_version") -> string:
+A69 GetEnv("luau_version") -> string:
+A70 GetEnv("script_engine") -> string:
+A71 GetEnv("lua_version") -> string:
+A73 ll count -> number:525
+A74 llcompat count -> number:529
+A75 ll names missing/extra probe -> string:GetListEntryType=function/function List2Bool=nil/nil IsFriend=function/function GetUsedMemory=function/function SetTimerEvent=nil/function ResetTime=nil/function GetAndResetTime=nil/function ResetScript=function/function Sleep=function/function GetTime=function/function Log10=function/function Tan=function/function Acos=function/function Asin=function/function DetectedTouchFace=function/function GenerateKey=function/functio
+A76 integer(5) !! lua_script:133: attempt to call a nil value
+A77 integer.create(7) !! lua_script:134: attempt to index nil with 'create'
+A78 tostring(print) -> string:function: 0x0000000015fa0d50
+A79 tostring(ll.Abs) -> string:function: 0x000000001601e690
+A80 tostring(ll.OwnerSay) -> string:function: 0x0000000015faf970
+A81 debug.info(ll.Abs,'sn') -> string:[C] Abs
+A82 debug.info(ll.Say,'sn') -> string:[C] Say
+A83 math.lerp -> number:5
+A84 vector.lerp -> vector:<1, 1, 1>
+A85 buffer.readbits -> string:function
+A86 math.isnan -> string:functionfunctionfunction
+A87 string.format %* -> string:1.5
+A88 table.find -> number:2
+A89 1//2 -> number:3
+A90 typeof(vector(1,2,3)) -> string:vector vector
+A91 typeof(quaternion) -> string:quaternion userdata
+A92 typeof(uuid) -> string:uuid userdata
+A93 typeof(buffer) -> string:buffer buffer
+A94 ll.GetUsedMemory/Free -> string:16541 114531 131072
+A95 llprim type=table typeof=table keys=ParamsSetter
+A96 llruleset type=nil typeof=nil
+A97 llprim members -> string:ParamsSetter=table ParamSetter=nil ParamsGetter=nil ParamGetter=nil
+A98 getmetatable(llprim) -> string:nil
+A99 typeof(LLEvents.on) -> string:function: 0x0000000015fa01d0
+A100 vector meta __call -> string:<1, 2, 3> <1, 2, 3> <1, 2, 3, 4> 1.5 0.1 <0.1, 10000000000, -0>
+A101 string.split -> number:3
+A102 tostring(-0.0), 1e15, 2^53, 1e100, nan, inf -> string:-0 1000000000000000 9007199254740992 1e+100 nan inf
+A103 error object -> string:table
+A104 error string level -> string:lua_script:161: boom
+A105 error no pcall position -> string:lua_script:162: attempt to index nil with 'y'
+A106 xpcall traceback -> string:lua_script:163: boom
+A107 DONE
