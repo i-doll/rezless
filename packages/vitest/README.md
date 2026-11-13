@@ -1952,8 +1952,10 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   well; that one isn't measured, because the region measured has no
   `integer` type. Three functions that are SLua's own code differ, as
   measured: `ll.ToUpper` and `ll.ToLower` take a number but not a `uuid`,
-  and `ll.DumpList2String`'s separator takes neither. `ll.Dialog` doesn't read a `uuid` or a number in its
-  button list as a string, and reports the list as LSL does.
+  and `ll.DumpList2String`'s separator takes neither. In a list, a `uuid`
+  or a number is not read as a string where that was measured:
+  `ll.Dialog` reports such a button list as LSL does, and
+  `ll.ParseString2List` ignores one among its separators and spacers.
   Numeric strings are accepted as numbers.
   Lua numbers in lists are LSL floats, as in SLua, but selectors and rules
   (`ll.GetObjectDetails`, `ll.SetPrimMediaParams`, `ll.ParticleSystem`, …)

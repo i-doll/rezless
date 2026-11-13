@@ -478,8 +478,9 @@ describe('SLua as SLua runs it', () => {
   })
 
   it('takes a uuid in the other functions measured', async () => {
-    // In-world: each call ran without a Lua error. What OwnerSay delivered wasn't
-    // captured; that a uuid is read as its text is measured in the test above.
+    // In-world: each call ran without a Lua error. What OwnerSay delivered can't
+    // be heard by a listener; Say, Whisper and RegionSayTo delivered u's text
+    // (next test).
     const s = await slua(`
       local u = touuid("${KEY}")
       ll.OwnerSay(u)
@@ -513,13 +514,15 @@ describe('SLua as SLua runs it', () => {
   it('takes a uuid for a later string parameter too', async () => {
     const s = await slua(`
       local u = touuid("${KEY}")
+      ll.Say(7778, u)
+      ll.Whisper(7778, u)
       ll.RegionSayTo(ll.GetOwner(), 7778, u)
       ll.Dialog(ll.GetOwner(), u, {"ok"}, -7779)
     `)
     s.start()
-    // In-world: both calls ran without a Lua error or a DEBUG_CHANNEL message.
-    // The text they delivered wasn't captured; see the string functions above.
-    expect(s.chat.filter((c) => c.channel === 7778).map((c) => c.text)).toEqual([KEY])
+    // In-world: a listener heard u's text from Say, Whisper and RegionSayTo.
+    // Dialog ran without a Lua error or a DEBUG_CHANNEL message.
+    expect(s.chat.filter((c) => c.channel === 7778).map((c) => c.text)).toEqual([KEY, KEY, KEY])
     expect(s.calls.find((c) => c.name === 'llDialog')!.args[1]).toBe(KEY)
     expect(s.chat.filter((c) => c.channel === DEBUG)).toEqual([])
     // In-world: invalid argument #3 to 'RegionSayTo' (string expected, got number).
@@ -543,6 +546,32 @@ describe('SLua as SLua runs it', () => {
         [0, 'after'],
       ])
     }
+  })
+
+  it('ignores a uuid or a number among separators and spacers', async () => {
+    const s = await slua(`
+      local K = "${KEY}"
+      local u = touuid(K)
+      local function parse(...) local r = ll.ParseString2List(...); ll.OwnerSay(#r .. ":" .. ll.List2CSV(r)) end
+      parse("a" .. K .. "b", {u}, {})
+      parse("a" .. K .. "b", {K}, {})
+      parse("a5b", {5}, {})
+      parse("a5b", {"5"}, {})
+      parse("a" .. K .. "b", {}, {u})
+      parse("a5b", {}, {5})
+      parse("a1.5b", {1.5}, {})
+    `)
+    s.start()
+    // In-world: only the string separators split; the rest gave the source back whole.
+    expect(s.chat.map((c) => c.text)).toEqual([
+      `1:a${KEY}b`,
+      '2:a, b',
+      '1:a5b',
+      '2:a, b',
+      `1:a${KEY}b`,
+      '1:a5b',
+      '1:a1.5b',
+    ])
   })
 
   it('reads the null uuid as its 36 characters, and has no uuid for text that is not one', async () => {
