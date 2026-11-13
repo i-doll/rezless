@@ -555,10 +555,9 @@ export class Linkset {
    * shout reach prims within 10, 20 and 100 m in any region; llRegionSay
    * reaches the sender's region. llRegionSayTo reaches the prim keyed `to`,
    * or the target avatar's attachments on nonzero channels, in that region.
-   * A prim never hears its own chat. `speaker` names who is heard saying it,
-   * when that is not the prim.
+   * A prim never hears its own chat.
    */
-  routeChat(from: Prim, type: ChatType, channel: number, message: string, to?: string, speaker: { name: string; key: string } = from): void {
+  routeChat(from: Prim, type: ChatType, channel: number, message: string, to?: string): void {
     deliverObjectReceivedChat(this, from, type, channel, message, to)
     const origin = this.globalPosition(from)
     const range = CHAT_RANGE[type] ?? 0
@@ -570,7 +569,16 @@ export class Linkset {
           linkset.attachment.avatar.toLowerCase() === to?.toLowerCase())
       return distanceSquared(origin, linkset.globalPosition(p)) <= range * range
     }
-    this.broadcast(reaches, { channel, name: speaker.name, key: speaker.key, message })
+    this.broadcast(reaches, { channel, name: from.name, key: from.key, message })
+  }
+
+  /** Queue a say by `avatar` on the listens of every prim within 20 m of it. */
+  routeAvatarSay(avatar: WorldAvatar, channel: number, message: string): void {
+    const corner = this.world!.corner(avatar.region)
+    const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
+    const range = CHAT_RANGE.say!
+    this.broadcast((linkset, p) => distanceSquared(origin, linkset.globalPosition(p)) <= range * range,
+      { channel, name: avatar.name, key: avatar.key, message })
   }
 
   /**

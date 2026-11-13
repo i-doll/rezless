@@ -7,12 +7,13 @@ import { loadLinkset, World } from '../src/index.js'
 // Measured on the Aditi beta grid (SLua Tideland, Firestorm 7.3.0, 2026-11-13):
 // one avatar seated on a lone box, so the box is link 1 and the avatar link 2.
 // A second box 7 m away listened on DEBUG_CHANNEL and reported each speaker's
-// name and key. Every "In-world:" note in this file is from those probes.
+// name and key, and so did the seat's own script. Every "In-world:" note in
+// this file is from those probes.
 
 const AVATAR = 'abcdefab-1234-1234-1234-abcdefabcdef'
 const CHANGED_MEDIA = 2048
 
-async function scene(body: string) {
+async function scene(body: string, sitHeight = 0.6) {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   const avatar = world.addAvatar({
@@ -22,9 +23,11 @@ async function scene(body: string) {
   const seat = await loadLinkset({
     world, region: 'home', owner: AVATAR, position: { x: 116, y: 50, z: 20 },
     prims: [{ name: 'box', scripts: [{ name: 'box', source: { source: `
-      list out; list changes; integer step;
+      list out; list changes; list heard; integer step;
       string U = "https://example.com/";
       default {
+        state_entry() { llListen(DEBUG_CHANNEL, "", NULL_KEY, ""); }
+        listen(integer c, string name, key id, string msg) { heard += [name]; }
         changed(integer c) { changes += [c]; }
         touch_start(integer n) { ${body} ++step; }
       }` } }] }],
@@ -42,7 +45,7 @@ async function scene(body: string) {
   box.start()
   listener.scripts.listener!.start()
   const prim = seat.linkset.prims[0]!
-  prim.params.sitTarget = { enabled: true, offset: { x: 0, y: 0, z: 0.6 }, rotation: { x: 0, y: 0, z: 0, s: 1 } }
+  prim.params.sitTarget = { enabled: true, offset: { x: 0, y: 0, z: sitHeight }, rotation: { x: 0, y: 0, z: 0, s: 1 } }
   expect(world.sitAvatar(avatar, prim)).toBe(true)
   seat.linkset.advanceTime(100)
   const run = () => {
@@ -51,16 +54,18 @@ async function scene(body: string) {
     const changes = (box.global('changes') as number[]).filter((c) => c === CHANGED_MEDIA).length
     return { out: box.global('out') as unknown[], changes }
   }
-  return { run, box, prim, heard: () => listener.scripts.listener!.global('heard') as string[] }
+  return { world, run, box, prim, heard: () => listener.scripts.listener!.global('heard') as string[] }
 }
 
 describe('media errors on an avatar link', () => {
   // In-world: llSetLinkMedia(2, 45, ...) returned 1003, llGetLinkMedia(2, ALL_SIDES,
   // ...) returned [], llSetLinkMedia(2, 0, [99, 1]) returned 1000, and with media on
   // the avatar's face 0 llGetLinkMedia(2, 0, [99]) returned []. The listener heard
-  // each error from the avatar: its name, and its key as the speaker. The same
-  // calls on the box (face 6, and [99, 1] on face 0) were heard from the box, by
-  // name and key.
+  // each error from the avatar: its name, and its key as the speaker. So did
+  // llClearLinkMedia(2, 45), llGetLinkMedia(2, 45, ...), a type mismatch and a
+  // bounds error in llSetLinkMedia(2, 0, ...). The seat's own script heard them
+  // too. The same calls on the box (face 6, and [99, 1] on face 0) were heard from
+  // the box, by name and key, and the box did not hear itself.
   it('are heard from the avatar, and a prim link errors from the prim', async () => {
     const s = await scene(`
       out = [llSetLinkMedia(2, 45, [PRIM_MEDIA_HOME_URL, U + "a"])];
@@ -79,6 +84,74 @@ describe('media errors on an avatar link', () => {
       'box', s.prim.key, `PRIM_MEDIA error: face 6 on object ${s.prim.key} not found`,
       'box', s.prim.key, malformed,
     ])
+    expect(s.box.global('heard')).toEqual(Array(4).fill('Av Atar'))
+  })
+
+  it.each([
+    ['llClearLinkMedia(2, 45);', 'PRIM_MEDIA error: face 45 on object abcdefab-1234-1234-1234-abcdefabcdef not found'],
+    ['llGetLinkMedia(2, 45, [PRIM_MEDIA_HOME_URL]);', 'PRIM_MEDIA error: face 45 on object abcdefab-1234-1234-1234-abcdefabcdef not found'],
+    ['llSetLinkMedia(2, 0, [PRIM_MEDIA_HOME_URL, 5]);', 'llSetPrimMediaParams error: Type mismatch near parameter #0, param=3.  No values have been set.'],
+    ['llSetLinkMedia(2, 0, [PRIM_MEDIA_WIDTH_PIXELS, 99999]);', 'llSetPrimMediaParams error: Bounds error near parameter #0, param=9.  No values have been set.'],
+  ])('are heard from the avatar: %s', async (call, error) => {
+    const s = await scene(call)
+    s.run()
+    expect(s.heard()).toEqual(['Av Atar', AVATAR, error])
+  })
+
+  // In-world: with the sit target 30 m above the box, llSetLinkMedia(2, 45, ...)
+  // was heard by a listener 2 m from the avatar and not by the listener 4 m from
+  // the box, nor by the box's own script. The avatar says it from where it is.
+  it('are said from where the avatar is', async () => {
+    const s = await scene('llSetLinkMedia(2, 45, [PRIM_MEDIA_HOME_URL, U]);', 30)
+    const far = await loadLinkset({
+      world: s.world, region: 'home', owner: AVATAR, position: { x: 116, y: 52, z: 50 },
+      prims: [{ name: 'far', scripts: [{ name: 'far', source: { source: `
+        list heard;
+        default {
+          state_entry() { llListen(DEBUG_CHANNEL, "", NULL_KEY, ""); }
+          listen(integer c, string name, key id, string msg) { heard += [name]; }
+        }` } }] }],
+    })
+    far.scripts.far!.start()
+    s.run()
+    far.linkset.advanceTime(1000)
+    expect(far.scripts.far!.global('heard')).toEqual(['Av Atar'])
+    expect(s.heard()).toEqual([])
+    expect(s.box.global('heard')).toEqual([])
+  })
+
+  // In-world, two linked boxes: llSetLinkMedia(2, 6, ...) and llGetLinkMedia(2,
+  // ALL_SIDES, ...) from the root were heard from child 2, by its name and key,
+  // by the root's script and by a listener in another object. Child 2 did not
+  // hear them. The same calls from child 2 on link 1 were heard from the root.
+  it('for another prim of the object are heard from that prim', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const source = `
+      list heard;
+      default {
+        state_entry() { llListen(DEBUG_CHANNEL, "", NULL_KEY, ""); }
+        listen(integer c, string name, key id, string msg) { heard += [name, (string)id]; }
+        touch_start(integer n) {
+          integer other = 3 - llGetLinkNumber();
+          llSetLinkMedia(other, 6, [PRIM_MEDIA_HOME_URL, "https://example.com/"]);
+          llGetLinkMedia(other, ALL_SIDES, [PRIM_MEDIA_HOME_URL]);
+        }
+      }`
+    const { linkset, scripts } = await loadLinkset({
+      world, region: 'home', owner: AVATAR, position: { x: 116, y: 50, z: 20 },
+      prims: ['e1', 'e2'].map((name) => ({ name, scripts: [{ name, source: { source } }] })),
+    })
+    for (const script of Object.values(scripts)) script.start()
+    const [e1, e2] = linkset.prims.map((prim) => prim.key)
+    linkset.touch(1)
+    linkset.advanceTime(1000)
+    expect(scripts.e1!.global('heard')).toEqual(['e2', e2, 'e2', e2])
+    expect(scripts.e2!.global('heard')).toEqual([])
+    linkset.touch(2)
+    linkset.advanceTime(1000)
+    expect(scripts.e1!.global('heard')).toEqual(['e2', e2, 'e2', e2])
+    expect(scripts.e2!.global('heard')).toEqual(['e1', e1, 'e1', e1])
   })
 
   // In-world: llGetLinkMedia(2, 0, [99]) on an avatar face that held no media

@@ -10,7 +10,7 @@ import {
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { raisePrimChanged } from '../prim-changed.js'
-import { isPrim } from '../linkset.js'
+import { isPrim, type Link } from '../linkset.js'
 
 const defaults = (): (number | string)[] => [0, 0, '', '', 0, 0, 0, 0, 0, 0, 0, 0, '', 7, 7]
 const strings = new Set([2, 3, 12])
@@ -20,8 +20,8 @@ interface MediaHolder {
   readonly media: Map<number, PrimMediaParams>
   readonly sides: number
   readonly key: string
-  /** Who is heard saying this holder's errors, when it is not the calling prim. */
-  readonly speaker?: { name: string; key: string }
+  /** The link that says this holder's errors: the prim or avatar itself, not the calling prim. */
+  readonly speaker: Link
   changed(): void
 }
 
@@ -42,7 +42,7 @@ function holder(ctx: CallContext, link: number): MediaHolder | undefined {
 }
 
 const primHolder = (prim: Prim): MediaHolder =>
-  ({ media: prim.media, sides: numberOfSides(prim.params.shape), key: prim.key, changed: () => raisePrimChanged(prim, CHANGED_MEDIA) })
+  ({ media: prim.media, sides: numberOfSides(prim.params.shape), key: prim.key, speaker: prim, changed: () => raisePrimChanged(prim, CHANGED_MEDIA) })
 
 function faceStatus(ctx: CallContext, holder: MediaHolder, face: number): number {
   if (face < 0) {
