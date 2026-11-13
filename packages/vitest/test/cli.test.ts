@@ -47,6 +47,17 @@ async function runCli(args: string[]): Promise<string> {
 describe('rezless-coverage CLI', () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it('points at the setup file when a run left no dumps', async () => {
+    const errors = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`exit ${code}`)
+    })
+    await expect(runCli(['--dump-dir', tmpdir('rezless-cli-empty-')])).rejects.toThrow('exit 1')
+    const message = errors.mock.calls.map((c) => String(c[0])).join('')
+    expect(message).toContain('LSL_COVERAGE=1')
+    expect(message).toContain("needs '@rezless/vitest/coverage-setup' in your Vitest setupFiles")
+  })
+
   it('writes LSL and SLua scripts to separate directories', async () => {
     const dumps = tmpdir('rezless-cli-dumps-')
     const lsl = path.join(dir, 'out-lsl')

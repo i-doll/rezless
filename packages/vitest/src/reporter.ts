@@ -111,9 +111,9 @@ export class LslCoverageReporter {
     process.env['LSL_COVERAGE'] = '1'
 
     // Inject our coverage-setup.js into vitest's setupFiles so each worker
-    // drains its registry to disk after every test file. Without this, the
-    // worker-thread's `process.on('exit')` doesn't fire until after the
-    // reporter's onTestRunEnd has already run.
+    // drains its registry to disk after every test file. Nothing else can:
+    // Vitest stops its workers without running their `process.on('exit')`
+    // handlers.
     this.injectSetupFile(vitest)
 
     // Best-effort: clear stale per-worker dumps from a previous run so we

@@ -77,6 +77,7 @@ Options:
   -h, --help              Show this help
 
 Workflow:
+  Add '@rezless/vitest/coverage-setup' to setupFiles in vitest.config.ts, then:
   LSL_COVERAGE=1 pnpm test
   pnpm exec rezless-coverage
 `
@@ -104,7 +105,8 @@ function main(): void {
   if (dumps.length === 0) {
     process.stderr.write(
       `rezless-coverage: no dumps found in ${opts.dumpDir}.\n` +
-        '  Did you run your tests with LSL_COVERAGE=1?\n',
+        '  Did you run your tests with LSL_COVERAGE=1? Without LslCoverageReporter,\n' +
+        "  that also needs '@rezless/vitest/coverage-setup' in your Vitest setupFiles.\n",
     )
     process.exit(1)
   }
