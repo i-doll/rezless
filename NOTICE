@@ -50,7 +50,9 @@ tests/conformance/*.lsl, commit af1379e6fc30d66ba991f15213f2d48d65175e55),
 licensed under the MIT License; its full text is in that directory's LICENSE.
 The case-mapping tables in packages/vm/src/values/mono-case.ts are derived
 from the same project's VM/src/mono_strings.cpp, which takes them from Mono
-2.6 (mono/metadata/char-conversions.h, MIT License).
+2.6.4 (mono/metadata/char-conversions.h). That Mono file has no notice of its
+own; what is known about its licence is in section 7 of
+packages/vm/wasm/THIRD-PARTY-LICENSES.txt.
 
 Copyright (c) 2025 Linden Lab
 Copyright (c) 2019-2026 Roblox Corporation
@@ -59,16 +61,75 @@ Copyright (c) 1994–2019 Lua.org, PUC-Rio.
 --------------------------------------------------------------------------------
 
 packages/vm/wasm/slua.wasm runs SLua scripts. It is built (by
-scripts/build-slua-wasm.sh, from packages/vm/native/slua-bridge.cpp) from:
+scripts/build-slua-wasm.sh, from packages/vm/native/slua-bridge.cpp) from the
+third-party code below. The licence texts are in
+packages/vm/wasm/THIRD-PARTY-LICENSES.txt, which the @rezless/vm package ships
+as wasm/THIRD-PARTY-LICENSES.txt.
 
-  secondlife/slua, tag v0.710.12 (commit
-  728d25f17f75bf1ebcf68c91e54450cbed4bba34): SLua's VM and compiler, which
-  include Luau and code derived from Lua. MIT License, with the text quoted
-  above (Copyright (c) 2025 Linden Lab; Copyright (c) 2019-2025 Roblox
-  Corporation; Copyright (c) 1994-2019 Lua.org, PUC-Rio).
+From secondlife/slua, tag v0.710.12 (commit
+728d25f17f75bf1ebcf68c91e54450cbed4bba34):
 
-  Emscripten's system libraries, linked in: musl libc (MIT License), libc++
-  and libc++abi (Apache License 2.0 with LLVM Exceptions), and dlmalloc
-  (public domain).
+  SLua's VM and compiler, which include Luau and code derived from Lua.
+  MIT License.
+    Copyright (c) 2025 Linden Lab
+    Copyright (c) 2019-2025 Roblox Corporation
+    Copyright (c) 1994–2019 Lua.org, PUC-Rio.
+
+  Ares (VM/src/ares.cpp), based on Eris, which is based on Pluto. MIT License.
+    Copyright (c) 2022 by Harold Cindy
+    Copyright (c) 2013-2015 by Florian Nuecke.
+
+  Lua CJSON, OpenResty's fork (VM/src/cjson, and VM/src/lstrbuf.cpp which is
+  based on it). MIT License.
+    Copyright (c) 2010-2012  Mark Pulford <mark@kyne.com.au>
+
+  Base64 routines from the Apache Portable Runtime (VM/src/apr), modified by
+  Linden Lab. Apache License, Version 2.0 (see LICENSE). The attribution
+  notices from the Apache Portable Runtime's NOTICE file that apply to them:
+
+    Apache Portable Runtime
+    Copyright 2026 The Apache Software Foundation.
+
+    This product includes software developed at
+    The Apache Software Foundation (http://www.apache.org/).
+
+    Portions of this software were developed at the National Center
+    for Supercomputing Applications (NCSA) at the University of
+    Illinois at Urbana-Champaign.
+
+  y2038 (VM/src/miniy2038.cpp). MIT License. Compiled, but not linked into
+  this build of slua.wasm.
+    Copyright (c) 2007-2010 Michael G Schwern
+
+  Number formatting adapted from Mono (VM/src/mono_floats.cpp). MIT License.
+    Copyright (C) 2004 Novell, Inc (http://www.novell.com)
+    Copyright (C) 2008 Mainsoft Co. (http://www.mainsoft.com)
+    Copyright (C) 2024 Harold Cindy
+
+  Case-mapping tables from Mono 2.6.4 (VM/src/mono_strings.cpp), as described
+  above.
+
+  A table derived from Unicode's confusables.txt, version 10.0.0
+  (Ast/src/Confusables.cpp). Unicode, Inc. License Agreement - Data Files and
+  Software.
+    © 2017 Unicode®, Inc.
+    Copyright © 1991-2017 Unicode, Inc. All rights reserved. Distributed under
+    the Terms of Use in http://www.unicode.org/copyright.html.
+
+From the system libraries of Emscripten 3.1.74, the version the build script
+records:
+
+  Emscripten's runtime code. MIT License or University of Illinois/NCSA Open
+  Source License.
+    Copyright (c) 2010-2014 Emscripten authors, see AUTHORS file.
+
+  musl libc 1.2.5. MIT License, with parts under other permissive terms listed
+  in its COPYRIGHT file.
+    Copyright © 2005-2020 Rich Felker, et al.
+
+  dlmalloc, by Doug Lea. Released to the public domain.
+
+  libc++, libc++abi, libunwind and compiler-rt, from the LLVM project. Apache
+  License, Version 2.0 with LLVM Exceptions.
 
 Second Life is a registered trademark of Linden Research, Inc.

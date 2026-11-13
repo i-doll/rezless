@@ -1,0 +1,80 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+
+const root = fileURLToPath(new URL('../../../', import.meta.url))
+const read = (p: string) => readFileSync(root + p, 'utf8')
+const packages = readdirSync(root + 'packages').filter((d) =>
+  existsSync(`${root}packages/${d}/package.json`),
+)
+
+describe('licence files in the published packages', () => {
+  it.each(packages)('%s ships LICENSE and the current NOTICE', (dir) => {
+    const { files } = JSON.parse(read(`packages/${dir}/package.json`))
+    expect(files).toEqual(expect.arrayContaining(['LICENSE', 'NOTICE']))
+    expect(read(`packages/${dir}/LICENSE`)).toBe(read('LICENSE'))
+    expect(read(`packages/${dir}/NOTICE`)).toBe(read('NOTICE'))
+  })
+
+  it('ships the third-party licence texts next to slua.wasm', () => {
+    const { files } = JSON.parse(read('packages/vm/package.json'))
+    expect(files).toContain('wasm')
+    expect(existsSync(root + 'packages/vm/wasm/THIRD-PARTY-LICENSES.txt')).toBe(true)
+    expect(read('NOTICE')).toContain('packages/vm/wasm/THIRD-PARTY-LICENSES.txt')
+  })
+})
+
+describe('third-party notices for slua.wasm', () => {
+  const notice = read('NOTICE')
+  const texts = read('packages/vm/wasm/THIRD-PARTY-LICENSES.txt')
+
+  // The component list was read from the SLua sources at one commit. Moving
+  // the pin means reading them again.
+  it('name the SLua commit the build script pins', () => {
+    const pin = /SLUA_COMMIT:-([0-9a-f]{40})\}/.exec(read('scripts/build-slua-wasm.sh'))?.[1]
+    expect(pin).toBeDefined()
+    expect(notice).toContain(pin)
+    expect(texts).toContain(pin)
+  })
+
+  it('name the SLua tag and Emscripten version the build script records', () => {
+    const script = read('scripts/build-slua-wasm.sh')
+    const tag = /SLUA_COMMIT=.*# (v[\d.]+)/.exec(script)?.[1]
+    const emscripten = /built with (Emscripten [\d.]+)\./.exec(script)?.[1]
+    expect(tag).toBeDefined()
+    expect(emscripten).toBeDefined()
+    for (const text of [notice, texts]) {
+      expect(text).toContain(`tag ${tag}`)
+      expect(text).toContain(emscripten)
+    }
+  })
+
+  it.each([
+    'Copyright (c) 2025 Linden Lab',
+    'Copyright (c) 2019-2025 Roblox Corporation',
+    'Copyright (c) 1994–2019 Lua.org, PUC-Rio.',
+    'Copyright (c) 2022 by Harold Cindy',
+    'Copyright (c) 2013-2015 by Florian Nuecke.',
+    'Copyright (c) 2010-2012  Mark Pulford <mark@kyne.com.au>',
+    'Copyright (c) 2007-2010 Michael G Schwern',
+    'Copyright (C) 2004 Novell, Inc (http://www.novell.com)',
+    'Copyright (C) 2008 Mainsoft Co. (http://www.mainsoft.com)',
+    'Copyright (C) 2024 Harold Cindy',
+    'Copyright © 1991-2017 Unicode, Inc. All rights reserved.',
+    'Copyright (c) 2010-2014 Emscripten authors, see AUTHORS file.',
+    'Copyright © 2005-2020 Rich Felker, et al.',
+  ])('carry the notice "%s"', (line) => {
+    expect(notice).toContain(line)
+    expect(texts).toContain(line)
+  })
+
+  it('reproduce the APR attribution notices in NOTICE', () => {
+    const flat = notice.replace(/\s+/g, ' ')
+    expect(flat).toContain(
+      'This product includes software developed at The Apache Software Foundation (http://www.apache.org/).',
+    )
+    expect(flat).toContain(
+      'Portions of this software were developed at the National Center for Supercomputing Applications (NCSA)',
+    )
+  })
+})
