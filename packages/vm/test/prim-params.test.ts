@@ -270,8 +270,9 @@ describe('prim-params helpers', () => {
     })
     it('SCULPT', () => {
       const p = freshPrim()
-      writePrimParam(p, PRIM_TYPE, [PRIM_TYPE_SCULPT, 'map-key', 5], 0)
-      expect(readPrimParam(p, PRIM_TYPE, [], 0)?.values).toEqual([PRIM_TYPE_SCULPT, 'map-key', 5])
+      const map = '5748decc-f629-461c-9a36-a35a221fe21f'
+      writePrimParam(p, PRIM_TYPE, [PRIM_TYPE_SCULPT, map, 5], 0)
+      expect(readPrimParam(p, PRIM_TYPE, [], 0)?.values).toEqual([PRIM_TYPE_SCULPT, map, 5])
     })
     it('TORUS shape distinct from BOX (no field bleed)', () => {
       const p = freshPrim()
@@ -362,7 +363,7 @@ describe('face slots follow the shape (measured in Second Life)', () => {
   })
 
   it('a sculpt has one face', () => {
-    expect(sides([PRIM_TYPE_SCULPT, 'map', 1])).toBe(1)
+    expect(sides([PRIM_TYPE_SCULPT, '5748decc-f629-461c-9a36-a35a221fe21f', 1])).toBe(1)
   })
 
   const paint = (p: Prim) => {

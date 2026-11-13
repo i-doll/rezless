@@ -234,21 +234,24 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const findItem = (prim: Prim, type: number, name: string) =>
   prim.inventory.find((it) => it.type === type && it.name === name)
 
-/** The key a render material argument names: "" (none), a key, or a material item's name; null if it names nothing. */
+/**
+ * The key a render material argument names: "" (none), a key, or a material
+ * item's name; null if it names nothing. A key is stored in lower case.
+ */
 export function renderMaterialKey(prim: Prim, material: string): string | null {
   if (material === '') return NULL_KEY
-  if (UUID.test(material)) return material
-  return findItem(prim, InventoryType.MATERIAL, material)?.key ?? null
+  if (UUID.test(material)) return material.toLowerCase()
+  return findItem(prim, InventoryType.MATERIAL, material)?.key.toLowerCase() ?? null
 }
 
 export function textureKey(prim: Prim, texture: string): string | null {
   if (texture === '') return NULL_KEY
-  if (UUID.test(texture)) return texture
-  return findItem(prim, InventoryType.TEXTURE, texture)?.key ?? null
+  if (UUID.test(texture)) return texture.toLowerCase()
+  return findItem(prim, InventoryType.TEXTURE, texture)?.key.toLowerCase() ?? null
 }
 
 const itemName = (prim: Prim, type: number, key: string): string =>
-  key === NULL_KEY ? key : (prim.inventory.find((it) => it.type === type && it.key === key)?.name ?? key)
+  key === NULL_KEY ? key : (prim.inventory.find((it) => it.type === type && it.key.toLowerCase() === key)?.name ?? key)
 
 export const textureName = (prim: Prim, key: string): string => itemName(prim, InventoryType.TEXTURE, key)
 
@@ -594,7 +597,7 @@ export function writePrimParam(
       }
       return 3
     case PRIM_TYPE:
-      return writePrimType(p, rules, cursor)
+      return writePrimType(p, rules, cursor, caller)
     case PRIM_COLOR: {
       const faces = facesOf(p, rules[cursor])
       const color = asVec(rules[cursor + 1])
@@ -670,9 +673,11 @@ export function writePrimParam(
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const key = textureKey(caller, tex) ?? NULL_KEY
-      const repeats = tex === '' ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
-      const offsets = tex === '' ? zero() : asVec(rules[cursor + 3])
-      const rot = tex === '' ? 0 : num(rules[cursor + 4])
+      // Without a texture, the rule's other values are dropped for the defaults.
+      const reset = key === NULL_KEY
+      const repeats = reset ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
+      const offsets = reset ? zero() : asVec(rules[cursor + 3])
+      const rot = reset ? 0 : num(rules[cursor + 4])
       for (const f of faces) {
         p.faces[f]!.normal = {
           texture: key,
@@ -687,7 +692,7 @@ export function writePrimParam(
       const faces = facesOf(p, rules[cursor])
       const tex = str(rules[cursor + 1])
       const key = textureKey(caller, tex) ?? NULL_KEY
-      const reset = tex === ''
+      const reset = key === NULL_KEY
       const repeats = reset ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
       const offsets = reset ? zero() : asVec(rules[cursor + 3])
       const rot = reset ? 0 : num(rules[cursor + 4])
@@ -770,7 +775,9 @@ function writeGltf<K extends keyof PrimFace['gltf']>(
     textureRotation: num(rules[cursor + 4]),
   }
   const name = str(rules[cursor + 1])
-  const texture = name === '' ? '' : (textureKey(caller, name) ?? NULL_KEY)
+  // "" clears the override, but an empty key is the null key.
+  const clear = name === '' && listElementType(rules, cursor + 1) !== 'key'
+  const texture = clear ? '' : (textureKey(caller, name) ?? NULL_KEY)
   for (const f of facesOf(prim.params, rules[cursor])) {
     const face = prim.params.faces[f]!
     const overrides = face.renderMaterial === NULL_KEY ? {} : { texture, ...values }
@@ -781,7 +788,7 @@ function writeGltf<K extends keyof PrimFace['gltf']>(
 /** Names and descriptions can't hold the separator characters; they become `?`. */
 const plainText = (s: string): string => s.replace(/[|\n]/g, '?')
 
-function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number): number | null {
+function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number, caller: Prim): number | null {
   const kind = (num(rules[cursor]) | 0)
   const old = p.shape
   switch (kind) {
@@ -826,13 +833,27 @@ function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: nu
         skew: num(rules[cursor + 11]),
       }
       break
-    case SHAPE_SCULPT:
-      p.shape = {
-        kind: SHAPE_SCULPT,
-        map: str(rules[cursor + 1]),
-        type: num(rules[cursor + 2]) | 0,
-      }
+    case SHAPE_SCULPT: {
+      const map = textureKey(caller, str(rules[cursor + 1]))
+      // A map that names no texture leaves a plain torus.
+      if (map === null || map === NULL_KEY) {
+        p.shape = {
+          kind: SHAPE_TORUS,
+          hole: 0,
+          cut: { x: 0, y: 1, z: 0 },
+          hollow: 0,
+          twist: zero(),
+          holeSize: { x: 1, y: 0.5, z: 0 },
+          topShear: zero(),
+          advancedCut: { x: 0, y: 1, z: 0 },
+          taper: zero(),
+          revolutions: 1,
+          radiusOffset: 0,
+          skew: 0,
+        }
+      } else p.shape = { kind: SHAPE_SCULPT, map, type: num(rules[cursor + 2]) & 0xff }
       break
+    }
     default:
       // Unknown PRIM_TYPE_* kind: terminate the walk rather than guessing
       // a slot count. Matches writePrimParamSlots' default behavior so
@@ -936,7 +957,7 @@ export function readPrimParam(
       return { values: [s.enabled ? 1 : 0, s.offset, s.rotation], consumed: 0 }
     }
     case PRIM_TYPE:
-      return { values: readPrimType(p), consumed: 0 }
+      return { values: readPrimType(p, prim), consumed: 0 }
     case PRIM_COLOR: {
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
@@ -1063,7 +1084,7 @@ export function readPrimParam(
   }
 }
 
-function readPrimType(p: PrimParams): LslValue[] {
+function readPrimType(p: PrimParams, prim: Prim): LslValue[] {
   const s = p.shape
   if (s.kind === SHAPE_SPHERE) {
     return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.dimple]
@@ -1072,7 +1093,7 @@ function readPrimType(p: PrimParams): LslValue[] {
     return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.holeSize, s.topShear, s.advancedCut, s.taper, s.revolutions, s.radiusOffset, s.skew]
   }
   if (s.kind === SHAPE_SCULPT) {
-    return [s.kind, s.map, s.type]
+    return [s.kind, textureName(prim, s.map), s.type]
   }
   if (s.kind === SHAPE_BOX || s.kind === SHAPE_CYLINDER || s.kind === SHAPE_PRISM) {
     return [s.kind, s.hole, s.cut, s.hollow, s.twist, s.topSize, s.topShear]
