@@ -455,8 +455,7 @@ describe('negative link numbers in calls that take one link', () => {
   // ALL_SIDES, ...) and llClearLinkMedia(2, ALL_SIDES) on the avatar link each said
   // "PRIM_MEDIA error: ALL_SIDES not supported" on DEBUG_CHANNEL; set and clear
   // returned 1004, the read returned [], and no face took media. The box link did the
-  // same. In-world the avatar's name is on the message for the avatar link; here the
-  // script says it.
+  // same. The avatar says the avatar link's errors; avatar-link-media.test.ts has that.
   it('refuses ALL_SIDES on an avatar link as on a prim', async () => {
     const s = await scene(1, `
       out = [(string)llSetLinkMedia(2, ALL_SIDES, [PRIM_MEDIA_HOME_URL, "https://example.invalid/a"])
@@ -493,8 +492,7 @@ describe('negative link numbers in calls that take one link', () => {
   // an avatar-link face that held no media (face 4 through link 2, face 0 through -5
   // and through 2, and a face cleared three seconds earlier) returned 0 and raised no
   // event. Setting a face and clearing a face that held media each raised
-  // changed(CHANGED_MEDIA). A set and a clear of one face inside one event left one
-  // more CHANGED_MEDIA for the next clear of that face; that is not modelled.
+  // changed(CHANGED_MEDIA). avatar-link-media.test.ts has a set and a clear inside one event.
   it('raises no event for clearing an avatar-link face that holds no media', async () => {
     const s = await scene(1, `
       if (step == 0) changes = [];

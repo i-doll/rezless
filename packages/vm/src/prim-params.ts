@@ -604,11 +604,10 @@ export function writePrimParam(
       }
       return 7
     case PRIM_SIT_TARGET:
-      p.sitTarget = {
-        enabled: num(rules[cursor]) !== 0,
-        offset: asVec(rules[cursor + 1]),
-        rotation: asRot(rules[cursor + 2]),
-      }
+      // A removed sit target keeps no offset or rotation.
+      p.sitTarget = num(rules[cursor]) !== 0
+        ? { enabled: true, offset: asVec(rules[cursor + 1]), rotation: asRot(rules[cursor + 2]) }
+        : { enabled: false, offset: zero(), rotation: identityRot() }
       return 3
     case PRIM_TYPE:
       return writePrimType(p, rules, cursor, caller)

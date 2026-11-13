@@ -459,20 +459,14 @@ export class Linkset {
   /**
    * The link `link` names, seen from `from`, in a call that takes one link.
    * LINK_THIS is `from` and every other negative number is the first other
-   * link.
+   * link. Link 0 is the root seen from another link, and a lone prim nobody
+   * sits on; seen from the root of a linkset, or of a lone prim someone sits
+   * on, it names nothing.
    */
   oneLink(from: Link, link: number): Link | undefined {
     if (link === LINK_THIS) return from
     if (link < 0) return this.firstOtherLink(from)
-    return link > 0 ? this.linkAt(link) : this.linkZero(from)
-  }
-
-  /**
-   * The prim link 0 names, seen from `from`: the root seen from another link,
-   * and a lone prim nobody sits on. Seen from the root of a linkset, or of a
-   * lone prim someone sits on, link 0 names nothing.
-   */
-  linkZero(from: Link): Prim | undefined {
+    if (link > 0) return this.linkAt(link)
     const root = this.prims[0]
     return from !== root || root?.linkNumber === 0 ? root : undefined
   }
@@ -486,8 +480,9 @@ export class Linkset {
   /**
    * The links `link` names, seen from the prim `from`, in a call that takes
    * LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN as groups. The groups hold
-   * prims only. A number below LINK_THIS is the first other link, and that or
-   * a positive number can name a seated avatar. Link 0 is what `linkZero` says.
+   * prims only. Any other number names one link, as in `oneLink`: a number
+   * below LINK_THIS is the first other link, and that or a positive number can
+   * name a seated avatar.
    */
   linksFrom(from: Prim, link: number): { prims: Prim[]; sitter: WorldAvatar | undefined } {
     const group = link === LINK_THIS ? [from]
@@ -496,7 +491,7 @@ export class Linkset {
       : link === LINK_ALL_CHILDREN ? this.prims.slice(1)
       : undefined
     if (group) return { prims: group, sitter: undefined }
-    const one = link === 0 ? this.linkZero(from) : link < 0 ? this.firstOtherLink(from) : this.linkAt(link)
+    const one = this.oneLink(from, link)
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
   }
 
@@ -560,9 +555,10 @@ export class Linkset {
    * shout reach prims within 10, 20 and 100 m in any region; llRegionSay
    * reaches the sender's region. llRegionSayTo reaches the prim keyed `to`,
    * or the target avatar's attachments on nonzero channels, in that region.
-   * A prim never hears its own chat.
+   * A prim never hears its own chat. `speaker` names who is heard saying it,
+   * when that is not the prim.
    */
-  routeChat(from: Prim, type: ChatType, channel: number, message: string, to?: string): void {
+  routeChat(from: Prim, type: ChatType, channel: number, message: string, to?: string, speaker: { name: string; key: string } = from): void {
     deliverObjectReceivedChat(this, from, type, channel, message, to)
     const origin = this.globalPosition(from)
     const range = CHAT_RANGE[type] ?? 0
@@ -574,7 +570,7 @@ export class Linkset {
           linkset.attachment.avatar.toLowerCase() === to?.toLowerCase())
       return distanceSquared(origin, linkset.globalPosition(p)) <= range * range
     }
-    this.broadcast(reaches, { channel, name: from.name, key: from.key, message })
+    this.broadcast(reaches, { channel, name: speaker.name, key: speaker.key, message })
   }
 
   /**

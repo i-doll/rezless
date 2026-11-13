@@ -566,6 +566,14 @@ started on and not from the calling prim. `llGetLinkNumberOfSides`,
 negative number. `llBreakLink` reads `LINK_THIS` as the root and every other
 negative number as link 2, whichever prim calls it.
 
+Link 0 is the root when a child prim calls and names nothing when the root
+calls, in every link-taking call but `llBreakLink` and `llSitOnLink`. A lone
+prim is link 0 until an avatar sits on it. `llGetLinkSitFlags` and
+`PRIM_SIT_FLAGS` report `SIT_FLAG_SIT_TARGET` while the prim has a sit target;
+a script cannot set that bit. `PRIM_ALLOW_UNSIT` and `PRIM_SCRIPTED_SIT_ONLY`
+are the matching bits of the sit flags. Media errors for an avatar link are
+heard from the avatar.
+
 With `standtp=n`, user stand, force unsit, `llUnSit` and seat deletion return the
 avatar to its saved global origin. Viewer object-sit requests save that origin;
 Kokua also saves it when a new standtp rule is added. RLVa refuses another object
