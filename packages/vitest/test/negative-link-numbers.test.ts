@@ -140,7 +140,7 @@ const SIT_TARGET = marks(
 
 describe('link numbers below LINK_THIS in calls that take groups of links', () => {
   // In-world: llSetLinkPrimitiveParamsFast, llSetLinkPrimitiveParams, PRIM_LINK_TARGET
-  // inside both set calls, llSetLinkAlpha, llSetLinkColor, llSetLinkTexture,
+  // inside llSetLinkPrimitiveParamsFast and llSetPrimitiveParams, llSetLinkAlpha, llSetLinkColor, llSetLinkTexture,
   // llSetLinkRenderMaterial, llSetLinkGLTFOverrides and llSetLinkSitFlags all gave
   // the same rows. From the root: xxx -xx -xx x-- -x- -x- -x-. From child 2:
   // xxx x-x -xx -x- x-- x-- x--. From child 3: xxx xx- -xx --x x-- x-- x--.
@@ -161,7 +161,7 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
     })
 
     // In-world: on a lone box only LINK_SET and LINK_THIS changed it (x - - x - - -),
-    // with nobody seated and with an avatar seated on it. Seated, the first other
+    // for all ten calls, with nobody seated and with an avatar seated on it. Seated, the first other
     // link is the avatar, and none of these values can be set on an avatar.
     it('sets nothing on a lone prim, seated or not', async () => {
       expect((await scene(1, body)).run()).toBe('x - - x - - -')
@@ -288,8 +288,9 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
     expect(s.linkset.prims[other]!.sound.current).toBeNull()
   })
 
-  // The same holds on a lone prim: nobody seated, there is no other link; seated,
-  // the other link is the avatar, which takes no sound or texture animation.
+  // Not measured either, for the same reason: on a lone prim there is no other link
+  // until someone sits, and then the other link is the avatar, which is taken to
+  // have no sound or texture animation to set.
   it('gives the sound and texture animation calls no link below LINK_THIS on a lone prim', async () => {
     for (const seat of [undefined, 'root'] as const) {
       const s = await scene(1, `
@@ -392,7 +393,8 @@ describe('negative link numbers in calls that take one link', () => {
     expect((await scene(1, ZERO, 'root')).run()).toBe('- 0 -')
   })
 
-  // In-world: llSetLinkMedia with LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, -5,
+  // The media calls were measured from the root and a child for an earlier change
+  // (media.test.ts). In-world, for this one: llSetLinkMedia with LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, -5,
   // -100 and -2147483648, each on its own face 0 to 5, put all six on link 1 from
   // child 3, on the avatar (link 2) seated on a lone box, and nowhere on a lone box
   // nobody sits on. llGetLinkMedia after llSetLinkMedia put a different URL on faces 0
@@ -586,7 +588,7 @@ describe('negative link numbers in calls that read nothing for them', () => {
   // LINK_THIS only, from the root and from both children, seated or not: 0 0 0 n 0 0 0
   // sides, FALSE, and NULL_KEY for every other negative number.
   it.each([1, 2, 3])('reads only LINK_THIS from link %i', async (caller) => {
-    const s = await scene(3, `
+    const SIDES = `
       llSetLinkPrimitiveParamsFast(1, [PRIM_TYPE, PRIM_TYPE_BOX, 0, <0.0, 1.0, 0.0>, 0.5, ZERO_VECTOR, <1.0, 1.0, 0.0>, ZERO_VECTOR]);
       llSetLinkPrimitiveParamsFast(2, [PRIM_TYPE, PRIM_TYPE_CYLINDER, 0, <0.0, 1.0, 0.0>, 0.0, ZERO_VECTOR, <1.0, 1.0, 0.0>, ZERO_VECTOR]);
       llSetLinkPrimitiveParamsFast(3, [PRIM_TYPE, PRIM_TYPE_SPHERE, 0, <0.0, 1.0, 0.0>, 0.0, ZERO_VECTOR, <0.0, 1.0, 0.0>]);
@@ -597,7 +599,9 @@ describe('negative link numbers in calls that read nothing for them', () => {
         if (i) r += " ";
         r += (string)llGetLinkNumberOfSides(L) + (string)llIsLinkGLTFMaterial(L, 0) + who(llGetObjectLinkKey(llGetKey(), L));
       }
-      out = [r];`, 'root')
+      out = [r];`
+    const s = await scene(3, SIDES, 'root')
     expect(s.run(caller)).toBe(`00- 00- 00- ${[7, 3, 1][caller - 1]}1p${caller} 00- 00- 00-`)
+    expect((await scene(3, SIDES)).run(caller)).toBe(`00- 00- 00- ${[7, 3, 1][caller - 1]}1p${caller} 00- 00- 00-`)
   })
 })
