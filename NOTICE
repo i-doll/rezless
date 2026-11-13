@@ -61,11 +61,11 @@ Copyright (c) 1994–2019 Lua.org, PUC-Rio.
 packages/vm/wasm/slua.wasm runs SLua scripts. It is built (by
 scripts/build-slua-wasm.sh, from packages/vm/native/slua-bridge.cpp) from:
 
-  secondlife/slua, commit af1379e6fc30d66ba991f15213f2d48d65175e55: SLua's VM
-  and compiler, which include Luau and code derived from Lua, and Tailslide.
-  MIT License, as quoted above (Copyright (c) 2025 Linden Lab; Copyright (c)
-  2019-2026 Roblox Corporation; Copyright (c) 1994-2019 Lua.org, PUC-Rio;
-  Tailslide: MIT License).
+  secondlife/slua, tag v0.710.12 (commit
+  728d25f17f75bf1ebcf68c91e54450cbed4bba34): SLua's VM and compiler, which
+  include Luau and code derived from Lua. MIT License, with the text quoted
+  above (Copyright (c) 2025 Linden Lab; Copyright (c) 2019-2025 Roblox
+  Corporation; Copyright (c) 1994-2019 Lua.org, PUC-Rio).
 
   Emscripten's system libraries, linked in: musl libc (MIT License), libc++
   and libc++abi (Apache License 2.0 with LLVM Exceptions), and dlmalloc

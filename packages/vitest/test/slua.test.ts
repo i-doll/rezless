@@ -221,7 +221,7 @@ describe('SLua values and errors', () => {
   })
 
   it('converts list arguments element by element', async () => {
-    const s = await slua(`ll.OwnerSay(ll.List2CSV({integer.create(1), 2.5, "a", true, vector(1, 2, 3), ll.GetOwner()}))`)
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({1, 2.5, "a", true, vector(1, 2, 3), ll.GetOwner()}))`)
     s.start()
     expect(s.chat[0]!.text).toMatch(/^1, 2\.500000, a, 1, <1\.000000, 2\.000000, 3\.000000>, [0-9a-f-]{36}$/)
   })
@@ -342,11 +342,16 @@ describe('SLua starting', () => {
   })
 
   it('takes integer values where LSL wants integers', async () => {
-    // Can't be measured in-world: the region's SLua has no integer type (see
-    // the string-parameter tests below).
-    const s = await slua(`ll.Say(integer.create(0), "a")`)
+    // In-world, with two = ll.GetListEntryType({1}, 1): ll.Say(two, "x") -> no error;
+    // ll.GetSubString("abcdef", two, two) -> "b"; ll.List2String({"a", "b", "c"}, two) -> "b";
+    // ll.IntegerToBase64(two) -> "AAAAAg==" (Aditi, SLua Tideland, 2026-11-13)
+    const s = await slua(`
+      local two = ll.GetListEntryType({1}, 1)
+      ll.Say(two, "x")
+      ll.OwnerSay(ll.GetSubString("abcdef", two, two) .. ll.List2String({"a", "b", "c"}, two) .. ll.IntegerToBase64(two))
+    `)
     s.start()
-    expect(s.chat.map((c) => c.text)).toEqual(['a'])
+    expect(s.chat.map((c) => c.text)).toEqual(['x', 'bbAAAAAg=='])
   })
 })
 
@@ -640,10 +645,13 @@ describe('SLua as SLua runs it', () => {
       const s = await slua(source)
       expect(() => s.start(), source).toThrow(error)
     }
-    // Can't be measured: the region's SLua has no integer type. integer.create(7)
-    // raised "attempt to index nil with 'create'", and llcompat results are numbers.
-    const integer = await slua(`ll.OwnerSay(integer.create(7))`)
-    expect(() => integer.start()).toThrow("invalid argument #1 to 'OwnerSay' (string expected, got integer)")
+    // In-world: ll.OwnerSay(ll.GetListEntryType({1}, 1)) -> invalid argument #1 to 'OwnerSay'
+    // (string expected, got integer); ll.StringLength and ll.ToUpper refuse it the same way
+    // (Aditi, SLua Tideland, 2026-11-13)
+    for (const name of ['OwnerSay', 'StringLength', 'ToUpper']) {
+      const integer = await slua(`ll.${name}(ll.GetListEntryType({1}, 1))`)
+      expect(() => integer.start()).toThrow(`invalid argument #1 to '${name}' (string expected, got integer)`)
+    }
   })
 
   it('leaves the functions SLua runs in its own VM to check their own string arguments', async () => {
@@ -864,7 +872,7 @@ describe('SLua review follow-ups', () => {
   it('passes list floats to LSL as 32-bit floats', async () => {
     // In-world: ll.List2CSV({1e15}) -> "999999986991104.000000", the 32-bit float nearest it
     // (Aditi, SLua Tideland, 2026-11-13)
-    const s = await slua(`ll.OwnerSay(ll.List2CSV({1e15, integer.create(16777217)}))`)
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({1e15, 16777217}))`)
     s.start()
     expect(s).toHaveSaid(0, '999999986991104.000000, 16777217')
   })
@@ -912,6 +920,8 @@ describe('SLua as its host runs it', () => {
   })
 
   it('runs the top level and every handler on one thread scripts may not act on', async () => {
+    // Not as Second Life: there coroutine.running() is nil at the top level and in a handler,
+    // so a script can't name that thread (Aditi, SLua Tideland, 2026-11-13). Not modelled yet.
     const s = await slua(`
       main = coroutine.running()
       LLEvents:on("touch_start", function()
