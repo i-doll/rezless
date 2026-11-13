@@ -193,6 +193,7 @@ export class Prim {
    */
   addInventory(item: InventoryItem): InventoryItem {
     const base = inventoryItemName(item.name)
+    if (!base) throw new Error('addInventory: the item name has no ASCII characters')
     let name = base
     let suffix = 0
     while (this.inventory.some((it) => it.name === name)) name = `${base} ${++suffix}`

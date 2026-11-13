@@ -79,6 +79,12 @@ describe('owner adds an item', () => {
     expect(prims[0]!.addInventory(notecard('nc')).name).toBe('nc 2')
   })
 
+  it('refuses an item whose name is empty once non-ASCII characters are dropped', async () => {
+    const { prims, scripts } = await load()
+    expect(() => prims[0]!.addInventory(notecard('é'))).toThrow('addInventory: the item name has no ASCII characters')
+    expect(scripts['a']!.global('seen')).toEqual([])
+  })
+
   it('is not heard by a script that has not started yet', async () => {
     // In-world: a script dropped into the prim started with state_entry and
     // logged no changed event for its own arrival or for the items already there.
