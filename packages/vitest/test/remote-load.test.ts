@@ -347,6 +347,26 @@ describe('changed(CHANGED_INVENTORY) from a remote load', () => {
     expect(copy.global('seen')).toEqual([1])
   })
 
+  it('does not tell a copy that was loaded stopped about a later load', async () => {
+    // In-world: a load with running FALSE, then a load of another script 3 s
+    // later, then llSetScriptState(TRUE) on the first copy -> it said
+    // state_entry with its own start parameter and no changed. The next load
+    // -> it said changed(1).
+    const { root, a, tell, load } = await rig('llRemoteLoadScriptPin(ROOT, "payload2", 42, FALSE, 80); llRemoteLoadScriptPin(ROOT, "payload", 42, TRUE, 81);')
+    load()
+    const copy = root.findScript('payload2')!
+    expect(a.global('seen')).toEqual([1, 1])
+    expect(copy.running).toBe(false)
+    tell('state', 1, 'payload2')
+    root.linkset!.advanceTime(100)
+    expect(copy.global('entries')).toBe(1)
+    expect(copy.global('param')).toBe(80)
+    expect(copy.global('seen')).toEqual([])
+    const next = await loadScript({ host: root.linkset!.peers.find(l => l !== root.linkset)!.prims[0]!, scriptName: 'next', source: `default { state_entry() { llRemoteLoadScriptPin("${root.key}", "payload", 42, TRUE, 82); } }` })
+    next.start()
+    expect(copy.global('seen')).toEqual([1])
+  })
+
   it('sends the event when a running script is replaced by a stopped one and back', async () => {
     // In-world: running FALSE over a running script of that name -> changed(1)
     // to the others, llGetScriptState 0 and no state_entry; running TRUE over
@@ -631,17 +651,22 @@ describe('changed(CHANGED_INVENTORY) from a remote load', () => {
   })
 
   it('reports an illegal load onto another owner\'s object when the PIN does not match', async () => {
+    // The in-world target had no script, so what a script there would hear
+    // was not measured; the watcher here only pins that the refusal queues
+    // nothing.
     // In-world: a load aimed at an unscripted object owned by another resident
     // in the region, with a nonzero PIN and with PIN 0 -> each said the
     // illegal-load error, naming that object. A matching PIN on a foreign object needs a second avatar to
     // set it, so that case is not measured.
     const { loader } = await rig('')
     const world = loader.linkset.world!
-    const foreign = await loadLinkset({ world, region: 'load', owner: '00000000-0000-0000-0000-000000000001', prims: [{ name: 'Object' }] })
+    const foreign = await loadLinkset({ world, region: 'load', owner: '00000000-0000-0000-0000-000000000001', prims: [{ name: 'Object', scripts: [script('watcher')] }] })
+    foreign.scripts['watcher']!.start()
     const send = await loadScript({ host: loader.prims[0]!, scriptName: 'send2', source: `default { state_entry() { llRemoteLoadScriptPin("${foreign.prims[0]!.key}", "payload", 987654321, TRUE, 5); llRemoteLoadScriptPin("${foreign.prims[0]!.key}", "payload", 0, TRUE, 5); } }` })
     send.start()
     const error = "Task 'Loader' trying to illegally load script onto task 'Object'!"
     expect(send.chat.filter(c => c.channel === 2147483647).map(c => c.text)).toEqual([error, error])
-    expect(foreign.prims[0]!.inventory).toHaveLength(0)
+    expect(foreign.prims[0]!.inventory).toHaveLength(1)
+    expect(foreign.scripts['watcher']!.global('seen')).toEqual([])
   })
 })
