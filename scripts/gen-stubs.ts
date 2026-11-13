@@ -54,21 +54,16 @@ interface RawEvent {
  */
 function sluaLiteral(
   args: RawArguments | undefined,
-  flags: { removed?: boolean; returnIndex?: boolean; returnBool?: boolean; event?: boolean },
+  flags: { removed?: boolean; returnIndex?: boolean; returnBool?: boolean },
 ): string {
   const indexParams: number[] = []
   const boolParams: number[] = []
   const stringParams: number[] = []
-  const uuidParams: number[] = []
   ;(args ?? []).flatMap((a) => Object.values(a)).forEach((p, i) => {
     if (p['index-semantics']) indexParams.push(i)
     if (p['bool-semantics']) boolParams.push(i)
     // A key parameter SLua passes as a plain string (link_message's id).
     if (p.type === 'key' && p['slua-type'] === 'string') stringParams.push(i)
-    // A string parameter that takes a uuid too (llMessageLinked's str).
-    // Events only pass values to scripts, so these read-side flags are for functions.
-    if (flags.event) return
-    if (p.type === 'string' && p['slua-type'] === 'string | uuid') uuidParams.push(i)
   })
   const parts: string[] = []
   if (flags.removed) parts.push('removed: true')
@@ -77,7 +72,6 @@ function sluaLiteral(
   if (indexParams.length) parts.push(`indexParams: [${indexParams.join(', ')}]`)
   if (boolParams.length) parts.push(`boolParams: [${boolParams.join(', ')}]`)
   if (stringParams.length) parts.push(`stringParams: [${stringParams.join(', ')}]`)
-  if (uuidParams.length) parts.push(`uuidParams: [${uuidParams.join(', ')}]`)
   return parts.length ? `, slua: { ${parts.join(', ')} }` : ''
 }
 
@@ -336,8 +330,6 @@ export interface SluaSpec {
   readonly boolParams?: ReadonlyArray<number>
   /** Key parameters SLua passes as plain strings. */
   readonly stringParams?: ReadonlyArray<number>
-  /** String parameters that also take a uuid. */
-  readonly uuidParams?: ReadonlyArray<number>
 }
 
 export interface BuiltinSpec {
@@ -363,7 +355,7 @@ function emitEvents(defs: RawDefs): string {
   const entries = Object.entries(defs.events).map(([name, e]) => ({
     name,
     params: params(e.arguments),
-    slua: sluaLiteral(e.arguments, { removed: e['slua-removed'], event: true }),
+    slua: sluaLiteral(e.arguments, { removed: e['slua-removed'] }),
   }))
   entries.sort((a, b) => a.name.localeCompare(b.name))
 

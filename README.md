@@ -679,9 +679,16 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
   Missing or wrong-typed arguments raise SLua's errors. String parameters
-  take strings and numbers (formatted the way Lua formats them), but not
-  `uuid`s or `integer`s, except where the definitions allow a `uuid` (as
-  `ll.MessageLinked`'s text does). Numeric strings are accepted as numbers.
+  take strings and `uuid`s (read as their text), but not numbers:
+  `ll.OwnerSay(5)` raises `string expected, got number`. Second Life did
+  this for every function measured, whether SLua's type definitions write
+  the parameter `string | uuid` or `string`. `integer`s are refused as
+  well; that one isn't measured, because the region measured has no
+  `integer` type. Three functions that are SLua's own code differ, as
+  measured: `ll.ToUpper` and `ll.ToLower` take a number but not a `uuid`,
+  and `ll.DumpList2String`'s separator takes neither. `ll.Dialog` doesn't read a `uuid` or a number in its
+  button list as a string, and reports the list as LSL does.
+  Numeric strings are accepted as numbers.
   Lua numbers in lists are LSL floats, as in SLua, but selectors and rules
   (`ll.GetObjectDetails`, `ll.SetPrimMediaParams`, `ll.ParticleSystem`, …)
   read a whole number as the integer they want. Booleans are accepted only where LSL means a boolean.
