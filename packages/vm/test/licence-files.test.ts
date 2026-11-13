@@ -68,6 +68,25 @@ describe('third-party notices for slua.wasm', () => {
     expect(texts).toContain(line)
   })
 
+  it('put the Mono case tables under the LGPL v2 and ship its text and their source', () => {
+    const { files } = JSON.parse(read('packages/vm/package.json'))
+    expect(files).toContain('src/values/mono-case.ts')
+    const header = read('packages/vm/src/values/mono-case.ts').split('/**')[0]!
+    for (const text of [notice, texts, header]) {
+      expect(text.replace(/(\n\/\/)?\s+/g, ' ')).toContain(
+        'GNU Library General Public License, version 2',
+      )
+    }
+    expect(header).toMatch(/Changed from the original on \d{4}-\d{2}-\d{2}/)
+    expect(header).toContain('wasm/THIRD-PARTY-LICENSES.txt')
+    expect(notice).toContain('Copyright 2001-2003 Ximian, Inc (http://www.ximian.com)')
+    expect(notice).toContain('Copyright 2004-2009 Novell, Inc (http://www.novell.com)')
+    expect(texts).toContain('GNU LIBRARY GENERAL PUBLIC LICENSE\n')
+    expect(texts).toContain('Version 2, June 1991')
+    expect(texts).toContain('END OF TERMS AND CONDITIONS')
+    expect(texts).toContain('16. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW')
+  })
+
   it('reproduce the APR attribution notices in NOTICE', () => {
     const flat = notice.replace(/\s+/g, ' ')
     expect(flat).toContain(

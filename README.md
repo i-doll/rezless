@@ -1338,3 +1338,10 @@ LSL function/event/constant signatures come from Linden Lab's official
 [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions),
 vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
+
+`@rezless/vm` includes third-party code under other licences. The case-mapping
+tables behind `llToLower` and `llToUpper` come from Mono 2.6.4 and are under
+the **GNU Library General Public License, version 2**, and `slua.wasm` is built
+from SLua and the libraries listed in [`NOTICE`](NOTICE). The licence texts
+are in
+[`packages/vm/wasm/THIRD-PARTY-LICENSES.txt`](packages/vm/wasm/THIRD-PARTY-LICENSES.txt).

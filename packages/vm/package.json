@@ -32,6 +32,7 @@
   },
   "files": [
     "dist",
+    "src/values/mono-case.ts",
     "wasm",
     "LICENSE",
     "NOTICE",

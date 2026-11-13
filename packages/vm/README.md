@@ -25,3 +25,9 @@ full framework documentation, including the `loadScript` /
 ## License
 
 Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+This package includes third-party code under other licences. The case-mapping
+tables behind `llToLower` and `llToUpper` come from Mono 2.6.4 and are under
+the GNU Library General Public License, version 2; `wasm/slua.wasm` is built
+from SLua and the libraries listed in `NOTICE`. The licence texts are in
+[`wasm/THIRD-PARTY-LICENSES.txt`](wasm/THIRD-PARTY-LICENSES.txt).
