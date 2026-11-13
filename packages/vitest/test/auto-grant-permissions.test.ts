@@ -332,6 +332,21 @@ describe('controls and camera control taken back', () => {
     expect(f.held()).toEqual([16, OWNER])
   })
 
+  // In-world: a sitter holding 2068 on the root of a two-prim object, each prim with a sit target,
+  // was told to sit on the other prim -> no changed event, still on the first sit target, still
+  // 2068. The viewer and simulator would not move a sitter within one object, so what such a
+  // move does to permissions could not be measured; the avatar never leaves the object here, and
+  // the script keeps what it holds.
+  it('keeps them when the sitter moves between prims of the same object', async () => {
+    const f = await fixture('seated', [CONTROLS | ANIMATION | CAMERA], { sitOn: 'child' })
+    f.ask()
+    expect(f.world.sitAvatar(f.avatar, f.linkset.prims[0]!)).toBe(true)
+    expect(f.held()).toEqual([2068, OWNER])
+    f.script.sendControl(1)
+    f.linkset.advanceTime(0)
+    expect(f.script.global('controls')).toBe(1)
+  })
+
   // In-world: a seat holding 20 called llUnSit on its sitter -> llGetPermissions() on the next
   // line was 16.
   it('takes them back on the line after llUnSit', async () => {
@@ -367,6 +382,15 @@ describe('controls and camera control taken back', () => {
     f.script.sendControl(1)
     f.linkset.advanceTime(0)
     expect(f.script.global('controls')).toBe(1)
+  })
+
+  it('drops a control event still on its way when the sitter stands', async () => {
+    const f = await fixture('seated', [CONTROLS])
+    f.ask()
+    f.world.clock.schedule(f.script, f.world.clock.now + 100, 'control', { id: OWNER, level: 1, edge: 1 })
+    f.world.standAvatar(f.avatar)
+    f.linkset.advanceTime(200)
+    expect(f.script.global('controls')).toBe(0)
   })
 
   it('drops control events parked for a stopped script', async () => {
@@ -428,6 +452,58 @@ describe('controls and camera control taken back', () => {
   })
 })
 
+describe('the scripted camera', () => {
+  const camera = `
+    default {
+      changed(integer c) { if (c & CHANGED_LINK) llRequestPermissions(llGetOwner(), 3092); }
+      attach(key id) { if (id) llRequestPermissions(id, 3124); }
+      touch_start(integer n) { llSetCameraParams([CAMERA_ACTIVE, 1, CAMERA_POSITION, llGetPos() + <0, 0, 20>, CAMERA_POSITION_LOCKED, 1]); }
+    }`
+  async function cameraFixture() {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const owner = world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
+    const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'cam', source: { source: camera } }] }] })
+    const script = scripts.cam!
+    script.start()
+    const set = () => { script.fire('touch_start', { num_detected: 1 }); linkset.advanceTime(0) }
+    return { world, owner, linkset, script, set }
+  }
+
+  // In-world: a seat granted 3092 put a locked camera 20 m above itself and llGetCameraPos()
+  // followed it. Four seconds after the sitter stood the camera was back behind the avatar. The
+  // avatar sat again and was granted 3092 again, the script set nothing, and the camera stayed
+  // the avatar's own.
+  it('goes back to the avatar when the sitter stands, and stays there on the next sit', async () => {
+    const f = await cameraFixture()
+    f.world.sitAvatar(f.owner, f.linkset.prims[0]!)
+    f.linkset.advanceTime(0)
+    f.set()
+    expect(f.script.cameraParams.size).toBe(3)
+    f.world.standAvatar(f.owner)
+    expect(f.script.cameraParams.size).toBe(0)
+    f.world.sitAvatar(f.owner, f.linkset.prims[0]!)
+    f.linkset.advanceTime(0)
+    expect(f.script.cameraParams.size).toBe(0)
+  })
+
+  // In-world: a worn probe granted 3124 set the same camera, detached itself and was rezzed on
+  // the ground -> it held 1072 and llGetCameraPos() was back at the position read before the
+  // camera was set.
+  it('goes back to the avatar when the attachment is detached and rezzed again', async () => {
+    const f = await cameraFixture()
+    f.linkset.attachToAvatar(OWNER, 5)
+    f.linkset.advanceTime(0)
+    f.set()
+    expect(f.script.cameraParams.size).toBe(3)
+    f.linkset.detachFromAvatar()
+    f.linkset.advanceTime(0)
+    f.linkset.attachToAvatar(OWNER, 5)
+    f.linkset.advanceTime(0)
+    expect(f.script.cameraParams.size).toBe(0)
+  })
+})
+
 describe('attaching from the ground', () => {
   // In-world: a rezzed probe granted 36 (4|32) through the dialog called llAttachToAvatar -> its
   // attach event and a read 2 s later both said 36, so attaching takes nothing back.
@@ -478,6 +554,16 @@ describe('requests left waiting when another is answered', () => {
     expect(() => f.script.grantPermissions()).toThrow('no pending permission request')
     expect(() => f.script.denyPermissions()).toThrow('no pending permission request')
     expect(f.script.global('events')).toEqual([16])
+  })
+
+  // In-world: a seated probe asked for 128 (dialog), then for 0 -> run_time_permissions(0) fired,
+  // and Yes on the 128 dialog afterwards fired nothing.
+  it('drops a waiting request when a sitter is then asked for nothing', async () => {
+    const f = await fixture('seated', [LINKS, 0])
+    f.ask(2)
+    expect(f.script.global('events')).toEqual([0])
+    expect(() => f.script.grantPermissions()).toThrow('no pending permission request')
+    expect(f.script.global('events')).toEqual([0])
   })
 
   // In-world: a probe asked its standing owner for 128 and then for 16, leaving both dialogs open.

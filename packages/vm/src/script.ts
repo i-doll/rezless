@@ -591,13 +591,15 @@ export class Script {
   /**
    * Second Life takes controls and camera control back, with no event, when
    * the avatar stops sitting on the object and by the time a detached
-   * attachment is rezzed again. The permission key goes with the last bit.
+   * attachment is rezzed again. The permission key goes with the last bit,
+   * and the avatar's camera goes back to its own rules.
    */
   private dropSeatPermissions(): void {
     const held = this.state.permissions
     if (!(held.granted & (PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA))) return
     held.granted &= ~(PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA)
     this.state.controls.taken = null
+    this.state.cameraParams.clear()
     this.linkset.clock.purgeEvent(this, 'control')
     for (let i = this.parkedEvents.length - 1; i >= 0; i--) {
       if (this.parkedEvents[i]!.event === 'control') this.parkedEvents.splice(i, 1)
