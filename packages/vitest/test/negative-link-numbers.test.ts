@@ -146,15 +146,18 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
   // xxx x-x -xx -x- x-- x-- x--. From child 3: xxx xx- -xx --x x-- x-- x--.
   // LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN are groups, and -5, -100 and
   // -2147483648 are the first link that is not the caller: link 2 from the root,
-  // the root from a child. The rows were the same with an avatar seated on the root.
-  describe.each(Object.entries(GROUP_SETTERS))('%s', (_, body) => {
+  // the root from a child. The prim-parameter calls and llSetLinkSitFlags were run
+  // again with an avatar seated on the root and gave the same rows.
+  const SEATED = ['llSetLinkPrimitiveParamsFast', 'llSetLinkPrimitiveParams', 'PRIM_LINK_TARGET in llSetLinkPrimitiveParamsFast',
+    'PRIM_LINK_TARGET in llSetPrimitiveParams', 'llSetLinkSitFlags']
+  describe.each(Object.entries(GROUP_SETTERS))('%s', (name, body) => {
     it.each([
       [1, 'xxx -xx -xx x-- -x- -x- -x-'],
       [2, 'xxx x-x -xx -x- x-- x-- x--'],
       [3, 'xxx xx- -xx --x x-- x-- x--'],
     ])('sets the first other prim from link %i of a linkset', async (caller, want) => {
       expect((await scene(3, body)).run(caller)).toBe(want)
-      expect((await scene(3, body, 'root')).run(caller)).toBe(want)
+      if (SEATED.includes(name)) expect((await scene(3, body, 'root')).run(caller)).toBe(want)
     })
 
     // In-world: on a lone box only LINK_SET and LINK_THIS changed it (x - - x - - -),
