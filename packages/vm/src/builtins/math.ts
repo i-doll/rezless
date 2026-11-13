@@ -1,4 +1,4 @@
-import type { BuiltinImpl } from '../runtime.js'
+import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, rot, vec } from '../values/types.js'
 import { rotateVector } from '../values/ops.js'
@@ -49,9 +49,11 @@ export const llPow: BuiltinImpl = (_ctx, args) => {
   return unsignedZero(Math.pow(x, y))
 }
 export const llSqrt: BuiltinImpl = (_ctx, args) => Math.sqrt((args[0] as number) ?? 0)
-export const llSin: BuiltinImpl = (_ctx, args) => Math.sin((args[0] as number) ?? 0)
+/** Mono gives 0.0 for the sine and tangent of -0.0. SLua keeps the sign. */
+const monoZero = (ctx: CallContext, n: number): number => (ctx.script.language === 'lsl' ? unsignedZero(n) : n)
+export const llSin: BuiltinImpl = (ctx, args) => monoZero(ctx, Math.sin((args[0] as number) ?? 0))
 export const llCos: BuiltinImpl = (_ctx, args) => Math.cos((args[0] as number) ?? 0)
-export const llTan: BuiltinImpl = (_ctx, args) => Math.tan((args[0] as number) ?? 0)
+export const llTan: BuiltinImpl = (ctx, args) => monoZero(ctx, Math.tan((args[0] as number) ?? 0))
 export const llAsin: BuiltinImpl = (_ctx, args) => Math.asin((args[0] as number) ?? 0)
 export const llAcos: BuiltinImpl = (_ctx, args) => Math.acos((args[0] as number) ?? 0)
 /** llAtan2: both arguments infinite gives NaN, and a zero result is +0 (Mono 2.x, as SLua). */
@@ -71,10 +73,10 @@ export const llLog10: BuiltinImpl = (_ctx, args) => {
   return x > 0 ? Math.log10(x) : 0
 }
 
-/** llFrand(float mag) — seeded uniform [0, mag). Negative mag → [mag, 0). */
+/** llFrand(float mag) — seeded uniform [0, mag). Negative mag → [mag, 0). A zero result is +0. */
 export const llFrand: BuiltinImpl = (ctx, args) => {
   const mag = (args[0] as number | undefined) ?? 0
-  return ctx.state.random.next() * mag
+  return unsignedZero(ctx.state.random.next() * mag)
 }
 
 // ---- Vector / rotation math ----
@@ -86,12 +88,15 @@ export const llVecMag: BuiltinImpl = (_ctx, args) => {
   return Math.sqrt(u.x * u.x + u.y * u.y + u.z * u.z)
 }
 
+/** Second Life normalises a vector no longer than this to ZERO_VECTOR. */
+const NORMALISE_THRESHOLD = Math.fround(1e-7)
+
 export const llVecNorm: BuiltinImpl = (_ctx, args) => {
   const v = args[0]
   if (!v || typeof v !== 'object' || !isVector(v as Vector)) return { x: 0, y: 0, z: 0 }
   const u = v as Vector
   const m = Math.sqrt(u.x * u.x + u.y * u.y + u.z * u.z)
-  if (m === 0) return { x: 0, y: 0, z: 0 }
+  if (!(m > NORMALISE_THRESHOLD)) return { x: 0, y: 0, z: 0 }
   return { x: u.x / m, y: u.y / m, z: u.z / m }
 }
 
@@ -107,6 +112,15 @@ export const llVecDist: BuiltinImpl = (_ctx, args) => {
 
 /** Below this cos(y), llRot2Euler treats the rotation as gimbal-locked. */
 const GIMBAL_THRESHOLD = 0.000436
+
+/** Second Life gives each angle of llRot2Euler in steps of 1e-7 degrees, so a zero is never negative. */
+function stepAngle(radians: number): number {
+  const steps = Math.round(Math.abs(radians) * (180 / Math.PI) * 1e7)
+  const stepped = (steps / 1e7) * (Math.PI / 180)
+  return radians < 0 && steps !== 0 ? -stepped : stepped
+}
+
+const steppedAngles = (x: number, y: number, z: number): Vector => vec(stepAngle(x), stepAngle(y), stepAngle(z))
 
 /**
  * llRot2Euler(rotation r) → vector (x, y, z) Euler angles in radians, the
@@ -125,11 +139,11 @@ export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
   const cx = ys - xz
   const cy = Math.sqrt(sx * sx + cx * cx)
   if (cy > GIMBAL_THRESHOLD) {
-    return vec(Math.atan2(sx, cx), Math.atan2(sy, cy), Math.atan2(2 * (q.z * q.s - q.x * q.y), ys + xz))
+    return steppedAngles(Math.atan2(sx, cx), Math.atan2(sy, cy), Math.atan2(2 * (q.z * q.s - q.x * q.y), ys + xz))
   }
   // Gimbal lock: x and z turn about the same axis, so z carries both.
-  if (sy > 0) return vec(0, Math.PI / 2, 2 * Math.atan2(q.z + q.x, q.s + q.y))
-  return vec(0, -Math.PI / 2, 2 * Math.atan2(q.z - q.x, q.s - q.y))
+  if (sy > 0) return steppedAngles(0, Math.PI / 2, 2 * Math.atan2(q.z + q.x, q.s + q.y))
+  return steppedAngles(0, -Math.PI / 2, 2 * Math.atan2(q.z - q.x, q.s - q.y))
 }
 
 /**

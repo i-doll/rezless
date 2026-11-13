@@ -1,6 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
-import { isVector, isRotation } from '../values/types.js'
+import { isVector, isRotation, toFloat32 } from '../values/types.js'
 import { listElementType, typedList } from '../values/list-types.js'
 import { formatFloatExact, formatRotation, formatVector } from '../values/format.js'
 import { parseLslInteger } from '../values/coerce.js'
@@ -511,7 +511,7 @@ function jsonNodeToLslListItem(n: JNode): LslValue {
       return JSON_FALSE
     case 'num':
       // `+ 0` turns -0 into 0
-      return isJsonInteger(n.raw) ? Math.max(-2147483648, Math.min(2147483647, Number(n.raw))) + 0 : Number(n.raw)
+      return isJsonInteger(n.raw) ? Math.max(-2147483648, Math.min(2147483647, Number(n.raw))) + 0 : toFloat32(Number(n.raw))
     case 'str':
       return n.v
     case 'empty':

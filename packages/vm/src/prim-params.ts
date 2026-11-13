@@ -81,6 +81,7 @@ import {
 import type { LslType, LslValue, Rotation, Vector } from './values/types.js'
 import { NULL_KEY, isRotation, isVector } from './values/types.js'
 import { listElementType } from './values/list-types.js'
+import type { InventoryItem } from './inventory.js'
 import { InventoryType } from './inventory.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { Prim } from './prim.js'
@@ -271,6 +272,37 @@ const itemName = (prim: Prim, type: number, key: string): string =>
 
 export const textureName = (prim: Prim, key: string): string => itemName(prim, InventoryType.TEXTURE, key)
 
+const SCULPT_MAP_DEFAULT = 'be293869-d0d9-0a69-5989-ad27f1946fd4'
+
+/**
+ * Stop using the asset of an inventory item that is leaving `prim`. Faces
+ * showing a removed texture go back to plywood and keep their repeats,
+ * offsets and rotation; normal and specular maps go back to the defaults; a
+ * sculpt takes the default sculpt map. Faces with a removed material lose it
+ * and their GLTF overrides. Returns whether a material was cleared.
+ */
+export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean {
+  const key = item.key.toLowerCase()
+  if (key === NULL_KEY) return false
+  const p = prim.params
+  if (item.type === InventoryType.MATERIAL) {
+    const faces = p.faces.filter((face) => face.renderMaterial === key)
+    for (const face of faces) {
+      face.renderMaterial = NULL_KEY
+      clearGltfOverrides(face.gltf)
+    }
+    return faces.length > 0
+  }
+  if (item.type !== InventoryType.TEXTURE) return false
+  for (const face of p.faces) {
+    if (face.texture === key) face.texture = TEXTURE_DEFAULT
+    if (face.normal.texture === key) face.normal = defaultFace().normal
+    if (face.specular.texture === key) face.specular = defaultFace().specular
+  }
+  if (p.shape.kind === SHAPE_SCULPT && p.shape.map === key) p.shape = { ...p.shape, map: SCULPT_MAP_DEFAULT }
+  return false
+}
+
 export const materialName = (prim: Prim, key: string): string => itemName(prim, InventoryType.MATERIAL, key)
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
@@ -389,6 +421,7 @@ const asRot = (v: LslValue | undefined): Rotation => {
   return identityRot()
 }
 const toByteChannel = (c: number): number => Math.floor(Math.min(1, Math.max(0, c)) * 255) / 255
+const roundToByte = (c: number): number => Math.round(Math.min(1, Math.max(0, Math.fround(c))) * 255) / 255
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const clampVec = (v: Vector, lo: number, hi: number): Vector =>
   ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
@@ -567,22 +600,30 @@ export function writePrimParam(
       }
       return 3
     }
-    case PRIM_POINT_LIGHT:
-      p.pointLight = {
-        enabled: num(rules[cursor]) !== 0,
-        color: asVec(rules[cursor + 1]),
-        intensity: num(rules[cursor + 2]),
-        radius: num(rules[cursor + 3]),
-        falloff: num(rules[cursor + 4]),
-      }
+    case PRIM_POINT_LIGHT: {
+      // A light that is off keeps none of its values. Colour and intensity are stored in 8 bits.
+      const color = asVec(rules[cursor + 1])
+      p.pointLight = num(rules[cursor]) !== 0
+        ? {
+            enabled: true,
+            color: { x: roundToByte(color.x), y: roundToByte(color.y), z: roundToByte(color.z) },
+            intensity: roundToByte(num(rules[cursor + 2])),
+            radius: clamp(num(rules[cursor + 3]), 0, 20),
+            falloff: clamp(num(rules[cursor + 4]), 0, 2),
+          }
+        : { enabled: false, color: zero(), intensity: 0, radius: 0, falloff: 0 }
       return 5
+    }
     case PRIM_REFLECTION_PROBE:
-      p.reflectionProbe = {
-        enabled: num(rules[cursor]) !== 0,
-        ambiance: num(rules[cursor + 1]),
-        clipDistance: num(rules[cursor + 2]),
-        flags: num(rules[cursor + 3]) | 0,
-      }
+      // A probe that is off keeps none of its values.
+      p.reflectionProbe = num(rules[cursor]) !== 0
+        ? {
+            enabled: true,
+            ambiance: Math.max(0, num(rules[cursor + 1])),
+            clipDistance: clamp(num(rules[cursor + 2]), 0, 1024),
+            flags: num(rules[cursor + 3]) & 7,
+          }
+        : { enabled: false, ambiance: 0, clipDistance: 0, flags: 0 }
       return 4
     case PRIM_PROJECTOR:
       p.projector = {
@@ -954,10 +995,9 @@ export function readPrimParam(
       const r = p.reflectionProbe
       return { values: [r.enabled ? 1 : 0, r.ambiance, r.clipDistance, r.flags], consumed: 0 }
     }
-    case PRIM_PROJECTOR: {
-      const j = p.projector
-      return { values: [j.texture, j.fov, j.focus, j.ambiance], consumed: 0 }
-    }
+    // A projector can't be read: the rule gives nothing and ends the read.
+    case PRIM_PROJECTOR:
+      return null
     case PRIM_FLEXIBLE: {
       const f = p.flexible
       return {
@@ -1167,7 +1207,7 @@ const PRIM_PARAM_TYPES: Readonly<Record<number, ReadonlyArray<LslType>>> = {
 
 /** LSL types of PRIM_TYPE's values, which depend on the shape. */
 function primTypeTypes(kind: LslValue | undefined): ReadonlyArray<LslType> {
-  if (kind === SHAPE_SCULPT) return ['integer', 'string', 'integer']
+  if (kind === SHAPE_SCULPT) return ['integer', 'key', 'integer']
   const common: LslType[] = ['integer', 'integer', 'vector', 'float', 'vector']
   if (kind === SHAPE_SPHERE) return [...common, 'vector']
   if (kind === SHAPE_TORUS || kind === SHAPE_TUBE || kind === SHAPE_RING) {
@@ -1182,7 +1222,12 @@ const GLTF_RULES = new Set([PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL, PRIM_GLTF_ME
 /** LSL types of the values `readPrimParam` returns for `param`. */
 export function primParamTypes(param: number, values: ReadonlyArray<LslValue>): Array<LslType | undefined> {
   const pattern = param === PRIM_TYPE ? primTypeTypes(values[0]) : (PRIM_PARAM_TYPES[param] ?? [])
-  return values.map((v, i) => (GLTF_RULES.has(param) && v === '' ? 'string' : pattern[i % pattern.length]))
+  return values.map((v, i) => {
+    if (GLTF_RULES.has(param) && v === '') return 'string'
+    const type = pattern[i % pattern.length]
+    // A map reads back as a key, or as a string when it is an inventory item's name.
+    return type === 'key' && !UUID.test(v as string) ? 'string' : type
+  })
 }
 
 const PER_FACE_RULES: ReadonlySet<number> = new Set([

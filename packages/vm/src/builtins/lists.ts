@@ -489,8 +489,11 @@ export const llListStatistics: BuiltinImpl = (_ctx, args) => {
       return sorted[sorted.length - 1]! - sorted[0]!
     case LIST_STAT_MIN:
       return sorted[0]!
-    case LIST_STAT_MAX:
-      return sorted[sorted.length - 1]!
+    case LIST_STAT_MAX: {
+      // The first of equal maximums, which matters for 0.0 and -0.0.
+      const max = sorted[sorted.length - 1]!
+      return nums.find((n) => n === max) ?? max
+    }
     case LIST_STAT_MEAN:
       return mean
     case LIST_STAT_MEDIAN: {
