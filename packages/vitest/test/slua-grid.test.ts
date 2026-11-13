@@ -33,13 +33,7 @@ const TRANSCRIPTS: Record<string, { tag: string; skipped?: Record<number, string
     tag: 'B',
     skipped: { 113: 'the clock', 115: 'memory in use', 116: 'memory in use', 158: 'the clock', 160: 'memory in use', 161: 'memory in use' },
   },
-  'integer-arithmetic': {
-    tag: 'E',
-    skipped: {
-      1: 'not modelled: llcompat has four functions ll lacks',
-      25: 'not modelled: a boolean-like entry in a list result stays a number',
-    },
-  },
+  'integer-arithmetic': { tag: 'E', skipped: { 1: 'not modelled: llcompat has four functions ll lacks' } },
   scalars: { tag: 'C' },
   lists: { tag: 'D' },
 }

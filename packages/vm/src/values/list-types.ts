@@ -82,6 +82,27 @@ export function luaKind(list: ReadonlyArray<LslValue>, index: number): LuaKind {
   return luaKinds.get(list)?.[index]
 }
 
+/** What SLua's `ll` hands back for an element of a list result, where LSL's type doesn't say. */
+export type LuaResultKind = 'boolean' | 'uuid' | 'string' | undefined
+
+const luaResultKinds = new WeakMap<ReadonlyArray<LslValue>, ReadonlyArray<LuaResultKind>>()
+
+/**
+ * Record which elements of a list a builtin returns reach an SLua script
+ * as a boolean (an LSL integer that is TRUE or FALSE), as a uuid (an LSL
+ * string that names an asset by key) or as a string (an LSL key that holds
+ * an item's name).
+ */
+export function markLuaResult(list: ReadonlyArray<LslValue>, kinds: ReadonlyArray<LuaResultKind>): ReadonlyArray<LslValue> {
+  if (kinds.some((k) => k !== undefined)) luaResultKinds.set(list, kinds)
+  return list
+}
+
+/** What `list[index]` of a builtin's result is in SLua, if not what its LSL type says. */
+export function luaResultKind(list: ReadonlyArray<LslValue>, index: number): LuaResultKind {
+  return luaResultKinds.get(list)?.[index]
+}
+
 /**
  * The type of `list[index]` as a rule or selector reads it. SLua sends a
  * whole Lua number as an LSL integer, so this is listElementType.

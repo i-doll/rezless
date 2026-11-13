@@ -815,9 +815,49 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   holding anything LSL lists can't hold raises `Don't know how to decode
   this`, or `Can't have undefined in an argument` for a `nil` in the
   middle.
-  `ll.GetTexture` returns a `uuid` when the face holds a texture by key.
-  The other functions measured that return a name or a key are as LSL
-  types them.
+  `ll.GetTexture` returns a `uuid` when the face holds a texture by key,
+  and the item's name as a string when the prim holds the texture as an
+  item, even if that name reads like a key. The other functions measured
+  that return a name or a key are as LSL types them.
+* **List results**: some entries of a list result are not what LSL's types
+  say. These were measured entry by entry:
+  * Booleans from `ll`, numbers from `llcompat`:
+    `PRIM_PHYSICS`, `PRIM_PHANTOM`, `PRIM_TEMP_ON_REZ`, `PRIM_FULLBRIGHT`,
+    `PRIM_ALLOW_UNSIT`, `PRIM_SCRIPTED_SIT_ONLY`, the first value of
+    `PRIM_FLEXIBLE`, `PRIM_POINT_LIGHT`, `PRIM_SIT_TARGET` and
+    `PRIM_REFLECTION_PROBE`, and the double-sided flag of
+    `PRIM_GLTF_BASE_COLOR`; `OBJECT_PHYSICS`, `OBJECT_PHANTOM`,
+    `OBJECT_TEMP_ON_REZ`, `OBJECT_TEMP_ATTACHED`, `OBJECT_LOCKED` and
+    `OBJECT_VOLUME_DETECT`; `PARCEL_DETAILS_SEE_AVATARS` and
+    `PARCEL_DETAILS_SCRIPT_DANGER`; the seven on/off prim media settings;
+    `SKY_TEXTURE_DEFAULTS`, `WATER_TEXTURE_DEFAULTS` and the on/off value
+    of `SKY_CLOUDS`, `SKY_MOON` and `SKY_SUN`. Every other entry measured
+    is a number, such as `PRIM_SIT_FLAGS`, `PRIM_BUMP_SHINY` and
+    `OBJECT_SELECT_COUNT`.
+  * `uuid`s from both `ll` and `llcompat`: the texture of `PRIM_TEXTURE`,
+    `PRIM_NORMAL`, `PRIM_SPECULAR`, a sculpt's map in `PRIM_TYPE` and the
+    `PRIM_GLTF_*` rules, and `PRIM_RENDER_MATERIAL`. When the prim holds
+    the asset as an item, the entry is the item's name as a string, except
+    in the `PRIM_GLTF_*` rules, which give the key. An unset `PRIM_GLTF_*`
+    texture is `""`.
+
+  A boolean entry stays a boolean when it goes back into a list function:
+  `ll.ListFindList` finds it with `false`, not with `0`.
+* **Integer arguments out of range**: an integer parameter cuts a Lua
+  number to a whole 64-bit number and keeps its low 32 bits, so
+  `ll.IntegerToBase64(2^32 + 5)` encodes 5. A number that doesn't fit 64
+  bits (`1e20`, infinity, NaN) is 0. A 1-based index in `ll` from 2^31 up,
+  or below -2^31, lands before the start: `ll.InsertString("abc", 2^31, "x")`
+  is `"xabc"`. The functions SLua runs itself (`ll.GetSubString`,
+  `ll.List2String`, …) do their own conversion and are not changed.
+* **Item lists**: `ll.GiveInventoryList` and `ll.GiveAgentInventory` take
+  only strings as item names, as their LSL forms do. A number or a `uuid`
+  in the list names nothing, even when an item is called that.
+* **Error positions**: every script's chunk is called `lua_script`, as in
+  Second Life, whatever file the test loaded. A message caught by `pcall`
+  reads `lua_script:12: …`, and `debug.info` and `debug.traceback` say the
+  same. A compile error still names the file, since a script never sees
+  its own.
 * **Integers**: there is no `integer` library, so `integer.create(7)` fails
   with `attempt to index nil with 'create'`. `ll.GetListEntryType` (and
   `llcompat.GetListEntryType`) returns an `integer`, not a number. Every
@@ -874,13 +914,12 @@ Not modelled yet:
 
 * SLua script state isn't serialized, so a copy (rezzed from inventory,
   remote-loaded) starts afresh.
-* Boolean-like entries inside list results (such as from
-  `ll.GetPrimitiveParams`) stay integers.
 * `llcompat.SetTimerEvent`, `llcompat.ResetTime`,
   `llcompat.GetAndResetTime` and `llcompat.SetMemoryLimit`, which Second
   Life has in `llcompat` but not in `ll`.
 * `coroutine.running()` returns the thread the script runs on. In Second
   Life it is `nil` at the top level and in a handler.
+* `debug.info(print, "n")` is `print`. In Second Life it is `lsl_print`.
 * `print()` goes to `s.printed`, not chat.
 * A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key

@@ -35,7 +35,7 @@ async function results(cases: ReadonlyArray<string>, setup = '', prepare?: (s: A
   prepare?.(s)
   s.start()
   // An error raised inside a Lua function starts with where; the cases here are about the rest.
-  return s.chat.filter((c) => c.channel === 7777).map((c) => c.text.replace(/^!! test\.luau:\d+: /, '!! '))
+  return s.chat.filter((c) => c.channel === 7777).map((c) => c.text.replace(/^!! lua_script:\d+: /, '!! '))
 }
 
 async function expectResults(cases: ReadonlyArray<readonly [string, string]>, setup = '') {
@@ -556,12 +556,8 @@ describe('SLua: the texture a face holds', () => {
   })
 
   it('comes back as a string when it is the name of a texture in the prim', async () => {
-    // Not measured in-world: it needs a texture item in the probe prim. The
-    // test avatar has none that is known to be copyable, and uploading one
-    // costs L$ (a paid action). LSL returns the inventory name here (gltf.test.ts), and a name
-    // is not a uuid, so rezless gives the string. For the same reason nothing
-    // says what a texture item named like a key comes back as; rezless can't
-    // tell it from a key here and gives a uuid.
+    // In-world: with a texture item "probe420 tex" in the prim, ll.SetTexture("probe420 tex", 1), then
+    // ll.GetTexture(1) -> string "probe420 tex". slua-results.test.ts has the item named like a key.
     const got = await results(['t(function() ll.SetTexture("Wood", 2); return ll.GetTexture(2) end)'], '', (s) =>
       s.host.addInventory(makeInventoryItem({ name: 'Wood', type: InventoryType.TEXTURE, key: U })),
     )

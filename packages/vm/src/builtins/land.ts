@@ -2,7 +2,8 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Parcel, WorldParcelOptions } from '../world.js'
 import type { GroupReturnPower } from '../rlv/group.js'
 import { NULL_KEY, ZERO_VECTOR, type LslType, type LslValue, type Vector } from '../values/types.js'
-import { ruleElementType, typedList } from '../values/list-types.js'
+import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
+import { parcelDetailLuaKind } from './slua-result-kinds.js'
 import { findObjectPrim } from './object-reads.js'
 import { llScriptDanger } from './region.js'
 import { sayError } from './debug.js'
@@ -95,6 +96,7 @@ export const llGetParcelDetails: BuiltinImpl = (ctx, args) => {
   const params = args[1] as readonly LslValue[]
   const values: LslValue[] = []
   const types: LslType[] = []
+  const kinds: LuaResultKind[] = []
   for (let i = 0; i < params.length; i++) {
     const rule = params[i]
     const type = ruleElementType(params, i)
@@ -120,12 +122,13 @@ export const llGetParcelDetails: BuiltinImpl = (ctx, args) => {
       case PARCEL_DETAILS_TP_ROUTING: value = parcel.tpRouting ?? 1; break
       case PARCEL_DETAILS_FLAGS: value = parcel.flags ?? 0; break
       case PARCEL_DETAILS_SCRIPT_DANGER: value = llScriptDanger(ctx, [position]) as number; break
-      default: return typedList(values, types)
+      default: return markLuaResult(typedList(values, types), kinds)
     }
     values.push(value)
     types.push(resultType)
+    kinds.push(parcelDetailLuaKind(rule))
   }
-  return typedList(values, types)
+  return markLuaResult(typedList(values, types), kinds)
 }
 
 export const llOverMyLand: BuiltinImpl = (ctx, args) => {

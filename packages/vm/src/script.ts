@@ -43,7 +43,7 @@ import type { AnimationState } from './builtins/animation.js'
 import { animationAvatars, playingAnimations, setAnimationState } from './builtins/animation.js'
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
-import { inventoryItemName } from './inventory.js'
+import { InventoryType, inventoryItemName } from './inventory.js'
 import { typedList, listElementTypes } from './values/list-types.js'
 import { NULL_KEY } from './values/types.js'
 import { execHandler, StateChangeSignal } from './interpreter.js'
@@ -1376,6 +1376,7 @@ export class Script {
         unixTime: () => this.clockView.unixMicros() / 1e6,
         setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
         print: (text) => this.printed.push(text),
+        holdsTexture: (name) => this.host.inventory.some((it) => it.type === InventoryType.TEXTURE && it.name === name),
       },
       this.state.filename,
       this.sluaSource!,

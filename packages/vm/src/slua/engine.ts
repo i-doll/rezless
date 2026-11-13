@@ -8,12 +8,13 @@
  * event handler registration. `ll.*` calls are translated as SLua's native
  * `ll` table does: 0-based index arguments and results become 1-based
  * (-1 becomes nil), boolean-like results become booleans, keys become uuids
- * and lists become tables. `llcompat.*` keeps LSL's values.
+ * and lists become tables. `llcompat.*` keeps LSL's values, except that an
+ * asset a list result names by key is a uuid there too.
  */
 import { readFileSync } from 'node:fs'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { isRotation, toFloat32Value, toInt32 } from '../values/types.js'
-import { listElementTypes, markLuaList, typedList } from '../values/list-types.js'
+import { listElementTypes, luaResultKind, markLuaList, typedList } from '../values/list-types.js'
 import type { LuaKind } from '../values/list-types.js'
 import { BUILTIN_SPECS } from '../generated/functions.js'
 import type { BuiltinSpec } from '../generated/functions.js'
@@ -43,6 +44,8 @@ export interface SluaHost {
   setTimer(seconds: number): void
   /** Text from Lua's print(). */
   print(text: string): void
+  /** Whether the script's prim holds a texture item called `name`. */
+  holdsTexture(name: string): boolean
 }
 
 /** A script that failed to compile. */
@@ -161,6 +164,9 @@ interface Exports {
   rz_buffer(size: number): number
 }
 
+/** What Second Life calls every script's chunk, in error positions and `debug.info`. */
+const CHUNK_NAME = 'lua_script'
+
 let module: object | null = null
 
 function wasmModule(): object {
@@ -252,7 +258,7 @@ export class SluaEngine {
     if (memoryLimit > 0) x.rz_set_memory_limit(this.s, memoryLimit)
     // Source and name share one buffer: source, NUL, name, NUL.
     const bytes = utf8.encode(source)
-    const nameBytes = utf8.encode(name)
+    const nameBytes = utf8.encode(CHUNK_NAME)
     const sourcePtr = x.rz_buffer(bytes.length + nameBytes.length + 2)
     const namePtr = sourcePtr + bytes.length + 1
     const mem = new Uint8Array(x.memory.buffer)
@@ -261,7 +267,8 @@ export class SluaEngine {
     mem.set(nameBytes, namePtr)
     mem[namePtr + nameBytes.length] = 0
     if (x.rz_load(this.s, namePtr, sourcePtr, bytes.length, coverage ? 1 : 0) !== 0) {
-      throw new SluaCompileError(this.scratch())
+      // A script never sees its own compile error, so this one names the file.
+      throw new SluaCompileError(this.scratch().replace(CHUNK_NAME, () => name))
     }
     this.plan = coverage ? (JSON.parse(this.readUtf8(x.rz_plan(this.s), x.rz_plan_len(this.s))) as SluaPlanEntry[]) : []
   }
@@ -469,7 +476,8 @@ export class SluaEngine {
     switch (type) {
       case 'integer':
         if (takesBoolean && t === T.Boolean) return x.rz_toboolean(L, slot)
-        return numeric ? toInt32(Math.trunc(x.rz_tonumber(L, slot))) : undefined
+        if (!numeric) return undefined
+        return takesBoolean ? integerArgument(x.rz_tonumber(L, slot)) : indexArgument(x.rz_tonumber(L, slot))
       case 'float':
         return numeric ? x.rz_tonumber(L, slot) : undefined
       case 'string':
@@ -519,9 +527,8 @@ export class SluaEngine {
     if (spec.returnType === 'void') return 0
     // The host fills in a result for every non-void call.
     const v = value!
-    // Index and boolean results are integers. (On a list result such as
-    // llGetPrimitiveParams, bool-semantics marks boolean entries inside the
-    // list, which depend on the rules asked for; those stay integers here.)
+    // Index and boolean results are integers. (The builtin that builds a
+    // list result marks its boolean entries itself; push reads the marks.)
     const integer = spec.returnType === 'integer'
     if (!compat && integer && spec.slua?.returnIndex) {
       const n = v as number
@@ -533,8 +540,8 @@ export class SluaEngine {
       this.x.rz_pushboolean(L, (v as number) !== 0 ? 1 : 0)
       return 1
     }
-    // The texture a face holds by key comes back as a uuid.
-    if (spec.name === 'llGetTexture' && isKey(v as string)) this.push(L, (v as string).toLowerCase(), 'key', compat)
+    // The texture a face holds by key comes back as a uuid; an item's name stays a string, key-like or not.
+    if (spec.name === 'llGetTexture' && isKey(v as string) && !this.host.holdsTexture(v as string)) this.push(L, (v as string).toLowerCase(), 'key', compat)
     else this.push(L, v, spec.returnType, compat)
     return 1
   }
@@ -622,7 +629,11 @@ export class SluaEngine {
         const types = listElementTypes(list)
         x.rz_newtable(L, list.length)
         list.forEach((el, k) => {
-          this.push(L, el, types?.[k] ?? inferType(el), compat)
+          const kind = luaResultKind(list, k)
+          if (kind === 'boolean' && !compat) x.rz_pushboolean(L, el !== 0 ? 1 : 0)
+          else if (kind === 'uuid' && isKey(el as string)) this.push(L, (el as string).toLowerCase(), 'key', compat)
+          else if (kind === 'uuid' || kind === 'string') this.pushString(L, el as string)
+          else this.push(L, el, types?.[k] ?? inferType(el), compat)
           x.rz_rawseti(L, -2, k + 1)
         })
         return
@@ -672,6 +683,21 @@ const EXPECTED: Partial<Record<LslType, string>> = {
   key: 'uuid',
   vector: 'vector',
   rotation: 'quaternion',
+}
+
+/**
+ * A Lua number as an integer parameter reads it: cut to a whole number of
+ * 64 bits, of which the low 32 are kept. A number that doesn't fit 64 bits
+ * (or isn't one) is 0.
+ */
+function integerArgument(n: number): number {
+  return Math.abs(n) < 2 ** 63 ? toInt32(Math.trunc(n)) : 0
+}
+
+/** A Lua number as a 1-based index in `ll` reads it: one that doesn't fit 32 bits is the lowest integer. */
+function indexArgument(n: number): number {
+  const whole = Math.trunc(n)
+  return whole >= -0x80000000 && whole <= 0x7fffffff ? whole : -0x80000000
 }
 
 /** Whether a Lua number is whole and fits an LSL integer. */
