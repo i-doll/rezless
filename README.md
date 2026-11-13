@@ -154,8 +154,8 @@ s.grantUrls() / s.denyUrls()                    // grant (default) or deny later
 s.deliverEmail({ from, subject, message })      // queue mail on the prim for llGetNextEmail; false when the queue is full
 s.respondToDataserver(key, value)               // fire `dataserver` for a captured llRequest*
 s.respondToLastDataserver(value)                // same, for the most recent
-s.grantPermissions(perms?)                      // answer the latest llRequestPermissions; fires `run_time_permissions`
-s.denyPermissions()                             // answer it with No
+s.grantPermissions(perms?, request?)            // answer the latest llRequestPermissions, or the given entry of s.permissionRequests; fires `run_time_permissions`
+s.denyPermissions(request?)                     // answer it with No
 s.grantExperiencePermissions()                  // accept the latest llRequestExperiencePermissions; fires `experience_permissions`
 s.denyExperiencePermissions(reason?)            // decline it; fires `experience_permissions_denied` (XP_ERROR_NOT_PERMITTED by default)
 s.answerDialog(text, { name? })                 // answer the latest llDialog / llTextBox as its avatar; fires `listen`
@@ -184,6 +184,7 @@ s.targetedEmails                                // [{ target, subject, message, 
 s.inbox                                         // mail queued on the prim, oldest first
 s.dataserverRequests                            // [{ key, source, args, fulfilled }]
 s.permissionRequests                            // [{ agent, permissions, answered }]
+s.autoGrantPermissions = 'none'                 // 'sl' (default), 'none', or (request) => boolean: which requests the simulator grants itself
 s.experience                                    // the Experience the script was given, or null
 s.experienceRequests                            // [{ agent, answered }] from llRequestExperiencePermissions
 s.teleportRequests                              // teleport attempts, including denials, with time and destination
@@ -618,7 +619,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **giving inventory**: `llGiveInventory`, `llGiveInventoryList`, `llGiveAgentInventory`; inspect `s.inventoryOffers`. World prim recipients receive items and `changed`; `llAllowInventoryDrop` lets the root enable foreign-owner drops, excluding scripts. List variants omit missing/no-copy items. Avatar offers are recorded without simulating acceptance or throttles. Foreign permissions and no-copy moves follow the wiki and need a second avatar for in-world validation. Attachment inventory restrictions and automatic child/recent avatar presence are not modeled.
 * **remote script loading**: `llRemoteLoadScriptPin` copies an executable inventory script into a same-owner prim with a matching nonzero PIN, including negative PINs. It replaces the same inventory name, discards saved state, starts running or stopped with the supplied start parameter, and sleeps three seconds. Existing receiver scripts get `CHANGED_INVENTORY`; the fresh copy starts with `state_entry`, without `on_rez`. Reset clears its start parameter. Missing/wrong-type names, mismatched PINs and self-loads report the measured errors. Unknown targets are silent. Cross-owner modification grants are unsupported and denied. No-copy sources are refused with a generic error; exact no-copy errors and foreign-owner permission behavior need a second owner for in-world measurement. Passive script assets without an executable `Script` instance cannot be loaded.
 * **viewer requests**: `llLoadURL`, `llMapDestination`, `llMapBeacon`; inspect `s.viewerRequests`. Region presence reads World avatar fixtures, with the owner or current detected avatar as defaults; override it with `s.setAgentInRegion`. `llOpenFloater` records arguments and returns `-1`: the fixture cannot represent a Linden-owned privileged experience. Requests record viewer instructions; they do not open UI.
-* **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`
+* **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`. A request to an avatar sitting on the object or wearing it is granted at once, as in Second Life, when it asks only for controls, animation, camera tracking, camera control or game control; a wearer is also granted attach and animation overrides. One other bit leaves the whole request waiting. A request that was granted this way has nothing left to answer, so `s.grantPermissions()` after it throws. Set `s.autoGrantPermissions = 'none'` before the request to switch these grants off, or give it a function that decides per request; `new World({ autoGrantPermissions })` sets it for every script that has no setting of its own. Copies of the script keep the setting, and a viewer under `@acceptpermission` still replies. Bits outside 1 to 12 and 14 to 20 are dropped from a request. A sitter or wearer who is asked for nothing gets `run_time_permissions(0)` whatever the setting, and anyone else gets no event. The first grant or answer, Yes or No, drops every other request still waiting; pass an entry of `s.permissionRequests` to answer an older one first. A script loses controls and camera control, with no event, when its sitter stands, moves to another seat or is unseated, and when its attachment is rezzed again after a detach; the other bits stay.
 * **experiences**: `llGetExperienceDetails`, `llGetExperienceErrorMessage`, `llAgentInExperience`, `llRequestExperiencePermissions` (an agent who already accepted is granted at once; answer others with `s.grantExperiencePermissions` / `s.denyExperiencePermissions`), and the key-value store: `llCreateKeyValue`, `llReadKeyValue`, `llUpdateKeyValue`, `llDeleteKeyValue`, `llKeyCountKeyValue`, `llKeysKeyValue`, `llDataSizeKeyValue`, which answer through `dataserver` on every script in the prim with `1,<result>` or `0,<XP_ERROR_*>`. Without an experience they answer `0,5`. Seed or inspect the store with `experience.seed([['k', 'v']])` and `experience.store`; pass `allowedHere: false` for land that doesn't allow the experience.
 * **game control**: `llGetGameControlMode`, `llGetGameControlModeAxes`, `llGetGameControlModeButtons`. Set an avatar's viewer-derived values with `s.setGameControl(agent, { mode, axes, buttons })`, then use `s.sendGameControl(agent, { buttons, axes })` to supply separate raw event input. Delivery requires `PERMISSION_GAME_CONTROL` from that agent. Each event retains its own semantic snapshot across sleeps and later fixture updates. Outside the event, queries return `-1`, `[]` and `0`. Axes are floats with the supplied mode-dependent length, including cursor pixel coordinates. Fixtures share state within a World and can be cleared with `s.setGameControl(agent, null)`. Controller mapping and automatic viewer mode changes are not simulated.
 * **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
@@ -896,8 +897,10 @@ controls, animation while sitting, and attach permission from owned objects,
 including worn objects. Firestorm covers controls and attach permission from
 owned objects that are not already attachments. Requests with any other bits
 stay pending for `grantPermissions` or `denyPermissions`. Activation applies to
-all requesting objects; UUID options do not create exceptions. Simulator implicit
-permissions and alternate auto-attach settings are outside this contract.
+all requesting objects; UUID options do not create exceptions. The simulator's
+own grants to a sitter or a wearer come first and apply with or without the
+rule; set `s.autoGrantPermissions = 'none'` to see the viewer's replies alone.
+Alternate auto-attach settings are outside this contract.
 
 Optional per-avatar RLV and RLVa fixtures expose immutable per-prim restriction
 snapshots for no-option `detach`, `sendchat`, `sit`, `unsit`, `tploc`, and `tplm`.

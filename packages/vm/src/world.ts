@@ -149,6 +149,8 @@ export interface SensorObjectProperties {
 export interface WorldOptions {
   /** Unix time in seconds at virtual time 0, read by llGetUnixTime and friends. Default 0. */
   readonly startUnixTime?: number
+  /** Which llRequestPermissions requests are granted without a dialog, for scripts that don't set their own. Default 'sl'. */
+  readonly autoGrantPermissions?: import('./builtins/permissions.js').AutoGrantPermissions
 }
 
 /** Global position of a region's south-west corner, in metres. Regions are 256 m squares. */
@@ -346,9 +348,11 @@ export class World {
   /** Optional sensor metadata for linksets loaded with loadLinkset. */
   readonly sensorProperties = new Map<Linkset, SensorObjectProperties>()
   private readonly regions = new Map<string, Region>()
+  autoGrantPermissions: import('./builtins/permissions.js').AutoGrantPermissions
 
   constructor(opts: WorldOptions = {}) {
     this.clock = new LinksetClock(opts.startUnixTime)
+    this.autoGrantPermissions = opts.autoGrantPermissions ?? 'sl'
   }
 
   /** Play a prepared gesture, recording its outcome and any emitted chat. */
@@ -462,6 +466,7 @@ export class World {
         const changingSeat = value !== seat && !!(info & AGENT_SITTING)
         snapshotSeat()
         if (value && value.linkset !== seat?.linkset) sittingOrder = ++world.nextSittingOrder
+        if (seat?.linkset && seat.linkset !== value?.linkset) for (const script of seat.linkset.allScripts()) script.sitterLeft(avatar.key)
         seat = value
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
         if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
