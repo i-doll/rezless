@@ -824,11 +824,11 @@ describe('removing an avatar link', () => {
     expect(f.avatar.sittingOn).toBeNull()
   })
 
-  // In-world: on a seated lone box llBreakLink(1) and llBreakLink(LINK_THIS)
-  // stood the avatar (changed(32), the box back at link 0 of 1), and
-  // llBreakLink(-2), which names the avatar link, left it seated.
-  it.each([['1', [1, 0]], ['LINK_THIS', [1, 0]], ['-2', [2, 1]]] as const)('on a seated lone prim, llBreakLink(%s) leaves %j', async (link, counts) => {
-    const f = await fixture(`if (llGetPermissions() & PERMISSION_CHANGE_LINKS) { llBreakLink(${link}); out = [llGetNumberOfPrims(), llGetLinkNumber()]; }
+  // In-world: on a seated lone box llBreakLink(1), llBreakLink(LINK_THIS) and
+  // llBreakAllLinks() stood the avatar (changed(32), the box back at link 0 of
+  // 1), and llBreakLink(-2), which names the avatar link, left it seated.
+  it.each([['llBreakLink(1)', [1, 0]], ['llBreakLink(LINK_THIS)', [1, 0]], ['llBreakAllLinks()', [1, 0]], ['llBreakLink(-2)', [2, 1]]] as const)('on a seated lone prim, %s leaves %j', async (call, counts) => {
+    const f = await fixture(`if (llGetPermissions() & PERMISSION_CHANGE_LINKS) { ${call}; out = [llGetNumberOfPrims(), llGetLinkNumber()]; }
       else llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS);`)
     f.sit()
     f.touch()

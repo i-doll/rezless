@@ -357,8 +357,8 @@ export class Linkset {
 
   /** llBreakAllLinks: break every prim apart; each gets changed(CHANGED_LINK). */
   breakAll(): void {
-    if (this.prims.length < 2) return
     this.standSitters()
+    if (this.prims.length < 2) return
     const all = [...this.prims]
     for (const p of all.slice(1)) this.splitOff([p])
     this.place([all[0]!])
