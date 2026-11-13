@@ -50,33 +50,32 @@ export function listElementType(list: ReadonlyArray<LslValue>, index: number): L
   return elementTypes.get(list)?.[index]
 }
 
-/**
- * Lists an SLua script passed, whose float elements are Lua numbers. SLua has
- * no integer type for plain numbers, so it sends every number as an LSL float
- * (SLua's own rule helpers push rule tags as numbers too), and the rules that
- * want an integer take a whole one.
- */
-const luaNumberLists = new WeakSet<ReadonlyArray<LslValue>>()
+/** What an element of a list from an SLua script was in Lua, where LSL's type doesn't say. */
+export type LuaKind = 'number' | 'boolean' | undefined
 
-/** Record that `list`'s float elements are Lua numbers. */
-export function markLuaNumbers(list: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
-  luaNumberLists.add(list)
+/**
+ * Lists an SLua script passed. A Lua number arrives as an LSL integer or
+ * float and a boolean as an integer, but SLua still tells them apart.
+ */
+const luaKinds = new WeakMap<ReadonlyArray<LslValue>, ReadonlyArray<LuaKind>>()
+
+/** Record what the elements of a list an SLua script passed were in Lua. */
+export function markLuaList(list: ReadonlyArray<LslValue>, kinds: ReadonlyArray<LuaKind>): ReadonlyArray<LslValue> {
+  luaKinds.set(list, kinds)
   return list
 }
 
+/** What `list[index]` was in Lua: a number, a boolean, or neither (or `list` isn't from SLua). */
+export function luaKind(list: ReadonlyArray<LslValue>, index: number): LuaKind {
+  return luaKinds.get(list)?.[index]
+}
+
 /**
- * The type of `list[index]` as a rule or selector reads it: as
- * listElementType, except that a whole Lua number from SLua reads as an
- * integer. Formatting keeps using listElementType, so those still print as
- * floats.
+ * The type of `list[index]` as a rule or selector reads it. SLua sends a
+ * whole Lua number as an LSL integer, so this is listElementType.
  */
 export function ruleElementType(list: ReadonlyArray<LslValue>, index: number): LslType | undefined {
-  const type = listElementType(list, index)
-  const value = list[index]
-  if (type === 'float' && luaNumberLists.has(list) && typeof value === 'number' && Number.isInteger(value) && value === (value | 0)) {
-    return 'integer'
-  }
-  return type
+  return listElementType(list, index)
 }
 
 /** `list.slice(start, end)`, keeping element types. */

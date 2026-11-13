@@ -223,15 +223,19 @@ describe('SLua values and errors', () => {
   })
 
   it('refuses a list holding something LSL lists cannot, as SLua does', async () => {
-    for (const element of ['{3}', 'print', 'nil, 1']) {
+    // The wording is measured in slua-arguments.test.ts.
+    for (const element of ['{3}', 'print']) {
       const s = await slua(`ll.OwnerSay(ll.List2CSV({1, ${element}}))`)
-      expect(() => s.start()).toThrow(/non-LSL value in list/)
+      expect(() => s.start()).toThrow(/invalid argument #-1 to 'List2CSV' \(Don't know how to decode this\)/)
     }
+    const hole = await slua(`ll.OwnerSay(ll.List2CSV({1, nil, 1}))`)
+    expect(() => hole.start()).toThrow(/invalid argument #-1 to 'List2CSV' \(Can't have undefined in an argument\)/)
   })
 
   it('raises SLua errors for missing and wrong-typed arguments', async () => {
+    // In-world: ll.SetPos() -> Fewer arguments than expected, 0 < 1 (Aditi, SLua Tideland, 2026-11-13)
     const missing = await slua(`ll.SetPos()`)
-    expect(() => missing.start()).toThrow(/missing argument #1 to 'SetPos' \(vector expected\)/)
+    expect(() => missing.start()).toThrow(/Fewer arguments than expected, 0 < 1/)
     const wrong = await slua(`ll.SetPos("here")`)
     expect(() => wrong.start()).toThrow(/invalid argument #1 to 'SetPos' \(vector expected, got string\)/)
     const nil = await slua(`ll.SetRot(nil)`)
@@ -692,15 +696,20 @@ describe('SLua as SLua runs it', () => {
     }
   })
 
-  it('takes numeric strings for numbers, and booleans only where LSL means a boolean', async () => {
+  it('takes numeric strings for numbers, and booleans for integers', async () => {
     const s = await slua(`ll.Say("-5", "x"); ll.SetAlpha(" 0.5 ", ALL_SIDES)`)
     s.start()
     expect(s.calls.map((c) => c.args)).toEqual([[-5, 'x'], [0.5, -1]])
     const flag = await slua(`ll.AllowInventoryDrop(true)`)
     flag.start()
     expect(flag.calls.find((c) => c.name === 'llAllowInventoryDrop')!.args).toEqual([1])
-    const notFlag = await slua(`ll.Say(true, "x")`)
-    expect(() => notFlag.start()).toThrow(/invalid argument #1 to 'Say' \(number expected, got boolean\)/)
+    // In-world: ll.Say(true, "x") -> heard on channel 1; ll.SetAlpha(true, 0) -> (number expected, got boolean)
+    // (Aditi, SLua Tideland, 2026-11-13)
+    const channel = await slua(`ll.Say(true, "x")`)
+    channel.start()
+    expect(channel).toHaveSaid(1, 'x')
+    const notFloat = await slua(`ll.SetAlpha(true, 0)`)
+    expect(() => notFloat.start()).toThrow(/invalid argument #1 to 'SetAlpha' \(number expected, got boolean\)/)
     const notNumber = await slua(`ll.SetAlpha("half", ALL_SIDES)`)
     expect(() => notNumber.start()).toThrow(/invalid argument #1 to 'SetAlpha' \(number expected, got string\)/)
   })
@@ -782,7 +791,7 @@ describe('SLua edges', () => {
       ['ll.SetAlpha({}, 0)', /'SetAlpha' \(number expected, got table\)/],
       ['ll.OwnerSay({})', /'OwnerSay' \(string expected, got table\)/],
       ['ll.Key2Name(5)', /invalid argument #1 to 'Key2Name' \(uuid expected, got number\)/],
-      ['ll.List2CSV("x")', /'List2CSV' \(table expected, got string\)/],
+      ['ll.List2CSV("x")', /invalid argument #1 to 'List2CSV' \(expected a table\)/],
     ]
     for (const [source, error] of cases) {
       const s = await slua(source)
@@ -849,9 +858,11 @@ describe('SLua review follow-ups', () => {
   })
 
   it('passes list floats to LSL as 32-bit floats', async () => {
-    const s = await slua(`ll.OwnerSay(ll.List2CSV({16777217.0, integer.create(16777217)}))`)
+    // In-world: ll.List2CSV({1e15}) -> "999999986991104.000000", the 32-bit float nearest it
+    // (Aditi, SLua Tideland, 2026-11-13)
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({1e15, integer.create(16777217)}))`)
     s.start()
-    expect(s).toHaveSaid(0, '16777216.000000, 16777217')
+    expect(s).toHaveSaid(0, '999999986991104.000000, 16777217')
   })
 
   it('runs the top level to the end when state_entry is the first event', async () => {
@@ -970,14 +981,15 @@ describe('SLua third review', () => {
 })
 
 describe('SLua parameter types from the definitions', () => {
-  it('lets selector lists take whole numbers, and keeps data lists as floats', async () => {
+  it('lets selector lists take whole numbers, and statistics read numbers as floats', async () => {
     const s = await slua(`
       ll.OwnerSay(tostring(#ll.GetObjectDetails(ll.GetKey(), {OBJECT_NAME, OBJECT_DESC})))
       ll.OwnerSay(tostring(ll.ListStatistics(LIST_STAT_MEAN, {1, 2.5})))
       ll.OwnerSay(tostring(ll.ListStatistics(LIST_STAT_SUM, {2147483648})))
     `)
     s.start()
-    // Statistics take the numbers as floats, so whole ones past int32 survive.
+    // In-world: ll.ListStatistics(LIST_STAT_SUM, {2147483647, 1}) -> 2147483648, past int32
+    // (Aditi, SLua Tideland, 2026-11-13)
     expect(s.chat.map((c) => c.text)).toEqual(['2', '1.75', '2147483648'])
   })
 
@@ -1003,7 +1015,7 @@ describe('SLua code size', () => {
 })
 
 describe('SLua numbers in rule lists', () => {
-  it('reads whole numbers as integers where a rule wants one', async () => {
+  it('sends whole numbers as the integers a rule wants', async () => {
     const s = await slua(`
       ll.OwnerSay(tostring(ll.SetPrimMediaParams(0, {PRIM_MEDIA_CURRENT_URL, "https://example.com"})))
       ll.OwnerSay(ll.List2CSV(ll.GetPrimMediaParams(0, {PRIM_MEDIA_CURRENT_URL})))
@@ -1014,10 +1026,11 @@ describe('SLua numbers in rule lists', () => {
     expect(s.host.particles).not.toBeNull()
   })
 
-  it('still formats them as floats', async () => {
-    const s = await slua(`ll.OwnerSay(ll.List2CSV({1, 2}))`)
+  it('formats them as integers', async () => {
+    // In-world: ll.List2CSV({1}) -> "1"; ll.List2CSV({1.5}) -> "1.500000" (Aditi, SLua Tideland, 2026-11-13)
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({1, 2, 2.5}))`)
     s.start()
-    expect(s).toHaveSaid(0, '1.000000, 2.000000')
+    expect(s).toHaveSaid(0, '1, 2, 2.500000')
   })
 })
 

@@ -50,18 +50,20 @@ interface RawEvent {
 /**
  * How SLua's `ll` table changes a function or event from LSL, as a TS object
  * literal, or '' when it doesn't: removed entirely, or an integer argument or
- * result that is a 0-based index (1-based in SLua) or a boolean.
+ * result that is a 0-based index (1-based in SLua) or a boolean. Boolean
+ * arguments are listed for events only: a function takes a boolean for any
+ * integer argument that isn't a 1-based index.
  */
 function sluaLiteral(
   args: RawArguments | undefined,
-  flags: { removed?: boolean; returnIndex?: boolean; returnBool?: boolean },
+  flags: { removed?: boolean; returnIndex?: boolean; returnBool?: boolean; event?: boolean },
 ): string {
   const indexParams: number[] = []
   const boolParams: number[] = []
   const stringParams: number[] = []
   ;(args ?? []).flatMap((a) => Object.values(a)).forEach((p, i) => {
     if (p['index-semantics']) indexParams.push(i)
-    if (p['bool-semantics']) boolParams.push(i)
+    if (flags.event && p['bool-semantics']) boolParams.push(i)
     // A key parameter SLua passes as a plain string (link_message's id).
     if (p.type === 'key' && p['slua-type'] === 'string') stringParams.push(i)
   })
@@ -318,16 +320,15 @@ export interface ParamSpec {
 }
 
 /**
- * How SLua's \`ll\` table differs from LSL for a function or event: removed,
- * or integer arguments / results (by position) that are 0-based indexes
- * (1-based in SLua) or booleans.
+ * How SLua's \`ll\` table differs from LSL for a function: removed, integer
+ * arguments (by position) that are 0-based indexes (1-based in SLua), or an
+ * integer result that is such an index or a boolean.
  */
 export interface SluaSpec {
   readonly removed?: boolean
   readonly returnIndex?: boolean
   readonly returnBool?: boolean
   readonly indexParams?: ReadonlyArray<number>
-  readonly boolParams?: ReadonlyArray<number>
   /** Key parameters SLua passes as plain strings. */
   readonly stringParams?: ReadonlyArray<number>
 }
@@ -355,7 +356,7 @@ function emitEvents(defs: RawDefs): string {
   const entries = Object.entries(defs.events).map(([name, e]) => ({
     name,
     params: params(e.arguments),
-    slua: sluaLiteral(e.arguments, { removed: e['slua-removed'] }),
+    slua: sluaLiteral(e.arguments, { removed: e['slua-removed'], event: true }),
   }))
   entries.sort((a, b) => a.name.localeCompare(b.name))
 
