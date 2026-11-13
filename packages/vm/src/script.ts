@@ -599,6 +599,9 @@ export class Script {
     held.granted &= ~(PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA)
     this.state.controls.taken = null
     this.linkset.clock.purgeEvent(this, 'control')
+    for (let i = this.parkedEvents.length - 1; i >= 0; i--) {
+      if (this.parkedEvents[i]!.event === 'control') this.parkedEvents.splice(i, 1)
+    }
     if (!held.granted) held.agent = NULL_KEY
   }
 

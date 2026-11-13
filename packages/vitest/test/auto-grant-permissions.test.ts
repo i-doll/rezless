@@ -369,6 +369,18 @@ describe('controls and camera control taken back', () => {
     expect(f.script.global('controls')).toBe(1)
   })
 
+  it('drops control events parked for a stopped script', async () => {
+    const f = await fixture('seated', [CONTROLS])
+    f.ask()
+    f.script.running = false
+    f.script.sendControl(1)
+    f.world.standAvatar(f.avatar)
+    f.script.running = true
+    f.script.resumeParked()
+    f.linkset.advanceTime(0)
+    expect(f.script.global('controls')).toBe(0)
+  })
+
   // In-world: a worn probe holding 2052 (4|2048) reported it every 2 s while its wearer sat on a
   // different object and stood again -> 2052 throughout. A rezzed probe holding 4 from a dialog,
   // never sat on, still held 4 after the avatar sat on and stood from other objects.
