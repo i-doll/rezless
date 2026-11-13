@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
-import { InventoryType, queueInventoryChanged } from '../inventory.js'
+import { InventoryType, freeInventoryName, queueInventoryChanged } from '../inventory.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
@@ -49,10 +49,7 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
   const copies = items.map(i => snapshot(i, foreign))
   if (prim) {
     for (const item of copies) {
-      let name = item.name
-      let suffix = 0
-      while (prim.inventory.some(i => i.name === name)) name = `${item.name} ${++suffix}`
-      prim.placeInventory({ ...item, name, acquireTimeMs: ctx.state.clock.now })
+      prim.placeInventory({ ...item, name: freeInventoryName(prim.inventory, item.name), acquireTimeMs: ctx.state.clock.now })
     }
     for (const script of prim.scripts) {
       if (!script.running) continue

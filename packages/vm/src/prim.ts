@@ -4,7 +4,7 @@ import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } fro
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
-import { InventoryType, inventoryItemName, queueInventoryChanged } from './inventory.js'
+import { InventoryType, freeInventoryName, inventoryItemName, queueInventoryChanged } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
@@ -194,10 +194,7 @@ export class Prim {
   addInventory(item: InventoryItem): InventoryItem {
     const base = inventoryItemName(item.name)
     if (!base) throw new Error('addInventory: the item name has no ASCII characters')
-    let name = base
-    let suffix = 0
-    while (this.inventory.some((it) => it.name === name)) name = `${base} ${++suffix}`
-    const added = this.placeInventory({ ...item, name })
+    const added = this.placeInventory({ ...item, name: freeInventoryName(this.inventory, base) })
     this.#ownerEditedInventory()
     return added
   }
@@ -272,6 +269,7 @@ export class Prim {
     const linkset = this.linkset
     if (!linkset) return
     const scripts = this.scripts.filter((script) => script.running && script.hasStarted)
+    if (!scripts.length) return
     for (const script of scripts) queueInventoryChanged(script)
     linkset.settle(scripts.filter((script) => script.wakeAt === undefined))
   }

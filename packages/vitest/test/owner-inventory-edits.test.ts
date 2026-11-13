@@ -79,6 +79,32 @@ describe('owner adds an item', () => {
     expect(prims[0]!.addInventory(notecard('nc')).name).toBe('nc 2')
   })
 
+  it('cuts a taken 63-character name to fit the number', async () => {
+    // In-world: a notecard with a 63-character name dropped on a prim twice ->
+    // the second is the first 61 characters and " 1". A third copy given by
+    // llGiveInventory -> the first 61 characters and " 2".
+    const { prims } = await load()
+    const long = 'a395' + 'x'.repeat(59)
+    expect(prims[0]!.addInventory(notecard(long)).name).toBe(long)
+    expect(prims[0]!.addInventory(notecard(long)).name).toBe(`${long.slice(0, 61)} 1`)
+    expect(prims[0]!.addInventory(notecard(long)).name).toBe(`${long.slice(0, 61)} 2`)
+  })
+
+  it('runs nothing when no script can hear it', async () => {
+    const { linkset, prims, scripts } = await loadLinkset({
+      prims: [
+        { scripts: [{ source: { source: logger, filename: 'a.lsl' }, name: 'a' }] },
+        { scripts: [{ source: { source: 'integer got; default { link_message(integer s, integer n, string m, key k) { got = 1; } }', filename: 'c.lsl' }, name: 'c' }] },
+      ],
+    })
+    scripts['c']!.start()
+    linkset.clock.schedule(scripts['c']!, linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
+    prims[0]!.addInventory(notecard('nc'))
+    expect(scripts['c']!.global('got')).toBe(0)
+    linkset.advanceTime(0)
+    expect(scripts['c']!.global('got')).toBe(1)
+  })
+
   it('refuses an item whose name is empty once non-ASCII characters are dropped', async () => {
     const { prims, scripts } = await load()
     expect(() => prims[0]!.addInventory(notecard('é'))).toThrow('addInventory: the item name has no ASCII characters')
@@ -295,7 +321,33 @@ describe('a script that is not running', () => {
   })
 })
 
+describe('loadLinkset', () => {
+  it('stores fixture inventory as given', async () => {
+    const { prims } = await loadLinkset({ prims: [{ inventory: [notecard('nc'), notecard('nc')] }] })
+    expect(prims[0]!.inventory.map((item) => item.name)).toEqual(['nc', 'nc'])
+  })
+})
+
 describe('a gift from another prim', () => {
+  it.each([['in one go', '', [3, 3]], ['a second apart', 'llSleep(1.0);', [2, 3]]])('sends an idle script one event per gift when two are given %s', async (_when, between, counts) => {
+    // In-world: a child script gave the root two notecards in one touch_start,
+    // back to back and with a 1 s sleep between -> the root's idle logging
+    // script logged changed(1) twice both times, counting one more item each time.
+    // Here a handler runs to its next sleep before another script's event, so
+    // back-to-back gifts are both counted by the time the first event runs.
+    const { linkset, prims, scripts } = await loadLinkset({
+      prims: [
+        { scripts: [{ source: { source: logger, filename: 'a.lsl' }, name: 'a' }] },
+        { inventory: [notecard('g2')], scripts: [{ source: { source: `default { touch_start(integer n) { llGiveInventory(llGetLinkKey(1), "g2"); ${between} llGiveInventory(llGetLinkKey(1), "g2"); } }`, filename: 'giver.lsl' }, name: 'giver' }] },
+      ],
+    })
+    for (const script of Object.values(scripts)) script.start()
+    linkset.touch(2)
+    expect(prims[0]!.inventory.map((item) => item.name).sort()).toEqual(['a', 'g2', 'g2 1'])
+    expect(scripts['a']!.global('seen')).toEqual([1, 1])
+    expect(scripts['a']!.global('counts')).toEqual(counts)
+  })
+
   it('is not heard by a stopped script, even after it restarts', async () => {
     // In-world: llSetScriptState(FALSE) on the root's logging script, then a
     // child script gave the root a notecard with llGiveInventory, then
