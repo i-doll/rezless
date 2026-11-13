@@ -221,8 +221,8 @@ export const llGetObjectPrimCount: BuiltinImpl = (ctx, args) => {
 
 /**
  * llGetObjectLinkKey(key id, integer link) — the key of link `link` in the
- * linkset holding `id`. Link 0 is the root (or a lone prim) and LINK_THIS is
- * the prim `id` itself.
+ * linkset holding `id`. Link 0 is the root (or a lone prim), LINK_THIS is
+ * the prim `id` itself, and links past the prims are the seated avatars.
  */
 export const llGetObjectLinkKey: BuiltinImpl = (ctx, args) => {
   const prim = findObjectPrim(ctx, keyArg(args))
@@ -231,7 +231,7 @@ export const llGetObjectLinkKey: BuiltinImpl = (ctx, args) => {
   if (link === LINK_THIS) return prim.key
   const prims = primsOf(prim)
   if (link === 0 || (link === 1 && prims.length === 1)) return rootOf(prim).key
-  return prims.find((p) => p.linkNumber === link)?.key ?? NULL_KEY
+  return (prims.find((p) => p.linkNumber === link) ?? prim.linkset?.sitterAt(link))?.key ?? NULL_KEY
 }
 
 /**
@@ -454,9 +454,7 @@ function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number): Entr
       return float(root ? primsOf(root).length / 2 + scriptsOf(root).length / 4 : 0)
     case OBJECT_LINK_NUMBER: {
       if (!root) return int(0)
-      const seated = ctx.linkset.world!.avatars.filter(a => a.sittingOn?.linkset === root.linkset)
-        .sort((a, b) => a.sittingOrder - b.sittingOrder)
-      return int(primsOf(root).length + seated.indexOf(avatar) + 1)
+      return int(primsOf(root).length + root.linkset!.sitters().indexOf(avatar) + 1)
     }
     case OBJECT_PATHFINDING_TYPE: return int(1)
     case OBJECT_MATERIAL: return int(4)

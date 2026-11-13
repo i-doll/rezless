@@ -224,6 +224,11 @@ export const llRotateTexture: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
+/** Colouring a seated avatar's link changes nothing, but the root's scripts still get CHANGED_COLOR. */
+function raiseSitterColorChanged(linkset: Linkset, link: number): void {
+  if (linkset.sitterAt(link)) raisePrimChanged(linkset.prims[0]!, CHANGED_COLOR)
+}
+
 /* ------------------------------------------------------------------ */
 /*  Link variants                                                      */
 /* ------------------------------------------------------------------ */
@@ -237,6 +242,7 @@ export const llSetLinkColor: BuiltinImpl = (ctx, args) => {
     for (const f of faceIndices(p.params, face)) p.params.faces[f]!.color = { x: color.x, y: color.y, z: color.z }
     raisePrimChanged(p, CHANGED_COLOR)
   }
+  raiseSitterColorChanged(ctx.linkset, link)
   return undefined
 }
 export const llSetLinkAlpha: BuiltinImpl = (ctx, args) => {
@@ -247,6 +253,7 @@ export const llSetLinkAlpha: BuiltinImpl = (ctx, args) => {
     for (const f of faceIndices(p.params, face)) p.params.faces[f]!.alpha = alpha
     raisePrimChanged(p, CHANGED_COLOR)
   }
+  raiseSitterColorChanged(ctx.linkset, link)
   return undefined
 }
 export const llSetLinkTexture: BuiltinImpl = (ctx, args) => {
