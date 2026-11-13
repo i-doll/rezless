@@ -241,12 +241,14 @@ describe('changed(CHANGED_INVENTORY) from a remote load', () => {
       link_message(integer s, integer n, string m, key k) {
         if (m == "nap") llSleep((float)n);
         else if (m == "naps") { integer i; for (; i < n / 100; ++i) llSleep((float)(n % 100)); }
+        else if (m == "crash") { integer zero; integer q = 1 / zero; }
         else return;
         seenAtWake = llGetListLength(seen);
       }
     }`
   const control = `default { link_message(integer s, integer n, string m, key k) {
     if (m == "state") llSetScriptState((string)k, n);
+    else if (m == "reset") llResetOtherScript((string)k);
   } }`
   const script = (name: string, source = observer) => ({ name, source: { source, filename: `${name}.lsl` } })
   const notecard = (name: string) => makeInventoryItem({ name, type: InventoryType.NOTECARD, notecardLines: ['probe'] })
@@ -398,6 +400,25 @@ describe('changed(CHANGED_INVENTORY) from a remote load', () => {
     tell('state', 1, 'a')
     target.linkset.advanceTime(100)
     expect(a.running).toBe(true)
+    expect(a.global('seen')).toEqual([])
+    expect(b.global('seen')).toEqual([1])
+    load()
+    expect(a.global('seen')).toEqual([1])
+  })
+
+  it('is not heard by a crashed script, even after it is reset', async () => {
+    // In-world: a root logging script divided by zero (llGetScriptState 0), a
+    // load into the root, then llResetOtherScript -> it ran state_entry and
+    // said no changed, while the others said changed(1). The next load -> it
+    // said changed(1).
+    const { target, a, b, tell, load } = await rig('llRemoteLoadScriptPin(ROOT, "payload", 42, TRUE, 13);')
+    expect(() => a.fire('link_message', { sender_num: 1, num: 0, str: 'crash', id: NULL_KEY })).toThrow('Math Error')
+    expect(a.running).toBe(false)
+    load()
+    tell('reset', 0, 'a')
+    target.linkset.advanceTime(100)
+    expect(a.running).toBe(true)
+    expect(a.global('entries')).toBe(1)
     expect(a.global('seen')).toEqual([])
     expect(b.global('seen')).toEqual([1])
     load()

@@ -257,7 +257,7 @@ describe('script memory: Stack-Heap Collision', () => {
     const s = await loadScript({ source: GROW, scriptName: 'grower', memoryLimit: true })
     expect(() => s.start()).toThrow('Stack-Heap Collision')
     expect(s.chat).toEqual([
-      { channel: 2147483647, text: 'Script run-time error', type: 'say' },
+      { channel: 2147483647, text: 'Object [script:grower] Script run-time error', type: 'say' },
       { channel: 2147483647, text: 'Stack-Heap Collision', type: 'say' },
     ])
     expect(s.running).toBe(false)
@@ -355,7 +355,7 @@ describe('script memory: Stack-Heap Collision', () => {
     expect(() => s.reset()).toThrow('Stack-Heap Collision')
     expect(s.running).toBe(false)
     expect(s.chat.filter((c) => c.channel === 2147483647).map((c) => c.text)).toEqual([
-      'Script run-time error',
+      'Object [script:<inline>] Script run-time error',
       'Stack-Heap Collision',
     ])
   })

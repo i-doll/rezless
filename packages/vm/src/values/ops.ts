@@ -2,6 +2,7 @@ import type { EvalResult, LslType, LslValue, Vector, Rotation } from './types.js
 import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './types.js'
 import { coerce, stringify } from './coerce.js'
 import { concatLists, scriptList } from './list-types.js'
+import { RuntimeError } from '../memory.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -319,7 +320,7 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
   // vector / float
   if (isVector(a.value) && (b.type === 'integer' || b.type === 'float')) {
     const k = toFloat32(b.value as number)
-    if (k === 0) throw new Error('Math Error: divide by zero')
+    if (k === 0) throw new RuntimeError('Math Error')
     // Mono multiplies by the float reciprocal rather than dividing.
     const m = toFloat32(1 / k)
     return { type: 'vector', value: vec(a.value.x * m, a.value.y * m, a.value.z * m) }
@@ -337,7 +338,7 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
   if (p) {
     const [x, y] = p
     if (x.type === 'integer') {
-      if ((y.value as number) === 0) throw new Error('Math Error: divide by zero')
+      if ((y.value as number) === 0) throw new RuntimeError('Math Error')
       return {
         type: 'integer',
         value: toInt32(Math.trunc((x.value as number) / (y.value as number))),
@@ -345,7 +346,7 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
     }
     const q = (x.value as number) / (y.value as number)
     // Mono halts on a zero divisor, and on a NaN quotient such as inf / inf.
-    if ((y.value as number) === 0 || Number.isNaN(q)) throw new Error('Math Error: divide by zero')
+    if ((y.value as number) === 0 || Number.isNaN(q)) throw new RuntimeError('Math Error')
     return { type: 'float', value: q }
   }
   throw new Error(`cannot divide ${a.type} by ${b.type}`)
@@ -368,7 +369,7 @@ function opMod(a: EvalResult, b: EvalResult): EvalResult {
   ) {
     const x = coerce(a, 'integer').value as number
     const y = coerce(b, 'integer').value as number
-    if (y === 0) throw new Error('Math Error: modulo by zero')
+    if (y === 0) throw new RuntimeError('Math Error')
     return { type: 'integer', value: toInt32(x % y) }
   }
   throw new Error(`cannot modulo ${a.type} and ${b.type}`)

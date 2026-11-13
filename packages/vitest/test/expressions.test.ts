@@ -598,7 +598,8 @@ describe('print', () => {
   it('halts on entering a handler that uses the value of a key print, before any statement runs', async () => {
     // In-world: a timer with (key)"x" == print((key)"k") in a branch that never runs said nothing, reported
     // "Script run-time error" and "System.InvalidProgramException: Invalid IL code in LSL :timer (): IL_...",
-    // and a later touch got no reply.
+    // and a later touch got no reply. A listener in another object heard the first line as
+    // "<prim name> [script:<script name>] Script run-time error" (Aditi, SLua Tideland, 2026-11-13).
     const s = await loadScript({
       source: `
         integer r;
@@ -618,7 +619,7 @@ describe('print', () => {
     expect(s.global('r')).toBe(0)
     s.fire('touch_start', { num_detected: 1 })
     expect(s.chat.map((c) => c.text)).toEqual([
-      'Script run-time error',
+      'Object [script:<inline>] Script run-time error',
       'System.InvalidProgramException: Invalid IL code in LSL :timer ()',
     ])
   })
@@ -636,7 +637,7 @@ describe('print', () => {
     expect(s.running).toBe(false)
     expect(s.global('r')).toBe(1)
     expect(s.chat.map((c) => c.text)).toEqual([
-      'Script run-time error',
+      'Object [script:<inline>] Script run-time error',
       'System.InvalidProgramException: Invalid IL code in LSL :f ()',
     ])
   })

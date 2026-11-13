@@ -1,5 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { NULL_KEY } from '../values/types.js'
+import { RuntimeError } from '../memory.js'
 
 /**
  * A registered listen filter. Tests inspect these via Script.listens
@@ -46,7 +47,7 @@ export const llListen: BuiltinImpl = (ctx, args) => {
     (l) => l.active && l.channel === channel && l.name === name && l.key === id && l.message === msg,
   )
   if (existing) return existing.handle
-  if (ctx.state.listens.length >= MAX_LISTENS) throw new Error('Too Many Listens')
+  if (ctx.state.listens.length >= MAX_LISTENS) throw new RuntimeError('Too Many Listens')
   const handle = nextListenHandle(ctx.state)
   ctx.state.listens.push({
     handle,

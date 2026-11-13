@@ -171,7 +171,8 @@ s.reset()                                       // re-init globals + return to d
 s.currentState                                  // current LSL state name
 s.now                                           // virtual time in ms
 s.timerInterval                                 // configured llSetTimerEvent interval (sec, 0 = unset)
-s.running                                       // false while paused via llSetScriptState
+s.running                                       // false while paused via llSetScriptState, or after a run-time error
+s.crashed                                       // true after a run-time error, until the script runs again
 s.global(name)                                  // read a script global
 s.setGlobal(name, value)                        // seed a script global
 s.chat                                          // [{ channel, text, type, to? }, ...]
@@ -1982,7 +1983,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 
 * **avatar animations**: `llStartAnimation`, `llStopAnimation`, `llGetAnimation`, `llGetAnimationList`, `llGetAnimationOverride`, `llSetAnimationOverride`, `llResetAnimationOverride`. Start/stop require `PERMISSION_TRIGGER_ANIMATION`; set/reset overrides require `PERMISSION_OVERRIDE_ANIMATIONS`; reading overrides accepts either. Inventory animation names take priority over built-ins. Raw UUIDs work for stop only.
 * **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.
-* **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
+* **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events. A run-time error crashes the script, for example `Math Error` (a division or modulo by zero, or a float division that gives NaN), `Too Many Listens` or `Stack-Heap Collision`: the prim says `<prim name> [script:<script name>] Script run-time error` and then the error on `DEBUG_CHANNEL`, the call that ran the handler throws, and `llGetScriptState` reads 0. `llSetScriptState` can't start a crashed script. `llResetOtherScript` restarts it, and a crashed LSL script in an object rezzed from inventory runs `state_entry` of the state it was in
 * **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
 * **primitive params**: `llSetPrimitiveParams`, `llSetLinkPrimitiveParams`, `llSetLinkPrimitiveParamsFast`, `llGetPrimitiveParams`, `llGetLinkPrimitiveParams` — full `PRIM_*` rule surface (position / rotation / size / colour / alpha / texture / glow / fullbright / material / physics / flexible / point light / projector / sculpt / GLTF PBR / sit target / click action / text / name / desc / omega / damage / temp-on-rez / cast shadows / …). Honors `PRIM_LINK_TARGET` mid-rule redirects, `ALL_SIDES` expansion, multi-prim get concatenation, unknown-rule termination on get, and the 0.2 s delay on the slow link variant.
 * **primitive rotations**: `PRIM_ROTATION` and `llGetRot` read a child's region rotation; `PRIM_ROT_LOCAL` and `llGetLocalRot` read its rotation relative to the root. Setting a child's `PRIM_ROTATION` stores the requested rotation multiplied by the root rotation in LSL order, unless it already equals the child's local rotation. Root setters use the requested rotation directly. On an attachment root with a wearer fixture, `PRIM_ROTATION` and `llGetRot` return the avatar rotation, while local reads return the attachment rotation. Attachment children compose their local rotation with the avatar rotation for global reads, independent of the attachment root's rotation.
@@ -2071,8 +2072,11 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   (`ll.List2String`, `ll.DumpList2String`, `ll.Abs`, …) run in the VM.
   Everything else reaches rezless and can be mocked with
   `s.mock('llName', …)`.
-* **Crashes and resets**: a run-time error crashes the script as in LSL: it
-  reports on `DEBUG_CHANNEL` and throws from the call that ran it.
+* **Crashes and resets**: a run-time error crashes the script as in LSL. The
+  prim says the same first line on `DEBUG_CHANNEL`, then `runtime error`
+  (`Unknown runtime error` when the error value is not a string or a number,
+  `not enough memory` when memory runs out, `Too Many Listens` for the 66th
+  listen, which `pcall` can't catch). The call that ran it throws the Lua message.
   `ll.ResetScript` starts a fresh VM and runs the script again. `pcall`
   can't catch `ll.ResetScript` or an error thrown by a mock. `ll.Die`
   returns, and the script stops at its next `ll` call (which still runs),

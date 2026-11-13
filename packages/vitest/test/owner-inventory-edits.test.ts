@@ -305,14 +305,17 @@ describe('a script that is not running', () => {
   })
 
   it('gets no event for an edit made after it crashed, even after it is reset', async () => {
-    // In-world: the logging script divided by zero, a notecard was dropped in,
-    // then llResetOtherScript -> it ran state_entry and logged nothing. The
-    // next drop logged changed(1).
+    // In-world: the logging script divided by zero (llGetScriptState 0), a
+    // notecard was dropped in, then llResetOtherScript -> it ran state_entry
+    // and logged nothing. The next drop logged changed(1).
     const { linkset, prims, scripts } = await loadWith(control('llResetOtherScript("a");'))
-    expect(() => scripts['a']!.fire('link_message', { sender_num: 1, num: 0, str: 'crash', id: NULL_KEY })).toThrow('divide by zero')
+    expect(() => scripts['a']!.fire('link_message', { sender_num: 1, num: 0, str: 'crash', id: NULL_KEY })).toThrow('Math Error')
+    expect(scripts['a']!.running).toBe(false)
     prims[0]!.addInventory(notecard('x1'))
+    expect(scripts['b']!.global('seen')).toEqual([1])
     scripts['ctl']!.fire('link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
     linkset.advanceTime(100)
+    expect(scripts['a']!.running).toBe(true)
     expect(scripts['a']!.global('seen')).toEqual([])
     prims[0]!.addInventory(notecard('x2'))
     expect(scripts['a']!.global('seen')).toEqual([1])

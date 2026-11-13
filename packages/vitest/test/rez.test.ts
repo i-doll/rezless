@@ -360,6 +360,82 @@ it('preserves a saved nondefault LSL state without rerunning state_entry', async
   expect(child.global('n')).toBe(23)
 })
 
+it('runs a crashed LSL script again from state_entry of its state when the object is rezzed', async () => {
+  // In-world (Aditi, SLua Tideland, Mono, 2026-11-13): a script in state two
+  // with g = 7 divided by zero (llGetScriptState 0). The owner took the object
+  // and rezzed it again -> the script said state_entry in state two with
+  // g = 7, then on_rez, and llGetScriptState read 1. The same happened when
+  // a script rezzed the taken object with llRezObject and when the owner
+  // attached it from inventory.
+  const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', source: { source: `
+    integer g; list log;
+    default { state_entry() { g = 7; state two; } }
+    state two {
+      state_entry() { log += "entry two " + (string)g; }
+      on_rez(integer p) { log += "on_rez"; }
+      touch_start(integer n) { integer z; log += (string)(1 / z); }
+    }
+  ` } }] }] })
+  const saved = payload.scripts['child']!
+  saved.start()
+  expect(() => saved.fire('touch_start', { num_detected: 1 })).toThrow('Math Error')
+  expect(saved.crashed).toBe(true)
+  const f = await fixture('result=llRezObjectWithParams("payload", []);', payload.linkset)
+  f.parent.start()
+  const child = f.world.linksets[1]!.allScripts()[0]!
+  expect(child.running).toBe(true)
+  expect(child.crashed).toBe(false)
+  expect(child.currentState).toBe('two')
+  expect(child.global('log')).toEqual(['entry two 7', 'entry two 7', 'on_rez'])
+})
+
+it('starts a remote-loaded copy of a crashed SLua script like any other copy', async () => {
+  // In-world (Aditi, SLua Tideland, Mono, 2026-11-13): llRemoteLoadScriptPin
+  // of a script that had crashed in the loader, running TRUE -> the copy said
+  // state_entry in default; running FALSE -> llGetScriptState 0, and
+  // llSetScriptState(TRUE) started it. The probe script was LSL.
+  const world = new World()
+  world.addRegion('load', { x: 0, y: 0 })
+  const target = await loadLinkset({ world, region: 'load', prims: [{ scripts: [{ name: 'ctl', source: { source:
+    'default { touch_start(integer n) { llSetScriptState("payload", TRUE); } }' } }] }] })
+  target.prims[0]!.remoteScriptAccessPin = 42
+  const sender = await loadLinkset({ world, region: 'load', prims: [{ scripts: [
+    { name: 'payload', language: 'slua', source: { source: 'LLEvents:on("touch_start", function() error("x") end)', filename: 'payload.luau' } },
+    { name: 'send', source: { source: `default { link_message(integer s, integer n, string m, key k) { llRemoteLoadScriptPin("${target.prims[0]!.key}", "payload", 42, FALSE, 1); } }` } },
+  ] }] })
+  for (const s of Object.values(sender.scripts)) s.start()
+  expect(() => sender.scripts['payload']!.fire('touch_start', { num_detected: 1, detected: [{ key: NULL_KEY, name: 'A' }] })).toThrow('x')
+  sender.scripts['send']!.fire('link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
+  sender.linkset.advanceTime(3000)
+  const copy = target.prims[0]!.findScript('payload')!
+  expect(copy.running).toBe(false)
+  expect(copy.crashed).toBe(false)
+  target.scripts['ctl']!.start()
+  target.scripts['ctl']!.fire('touch_start', { num_detected: 1 })
+  expect(copy.running).toBe(true)
+})
+
+it('leaves a crashed SLua script crashed when the object is rezzed', async () => {
+  // In-world (Aditi, SLua Tideland, 2026-11-13): an SLua script crashed on
+  // error("x"); after the owner took and rezzed the object (and after
+  // llRezObject, and after an attach from inventory) the prim said the
+  // run-time error again, the script ran no on_rez and llGetScriptState read
+  // 0. rezless does not repeat the error text.
+  const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', language: 'slua', source: { source: `
+    rezzed = 0
+    LLEvents:on("on_rez", function(p) rezzed += 1 end)
+    LLEvents:on("touch_start", function() error("x") end)
+  `, filename: 'child.luau' } }] }] })
+  const saved = payload.scripts['child']!
+  saved.start()
+  expect(() => saved.fire('touch_start', { num_detected: 1, detected: [{ key: NULL_KEY, name: 'A' }] })).toThrow('x')
+  const f = await fixture('result=llRezObjectWithParams("payload", []);', payload.linkset)
+  f.parent.start()
+  const child = f.world.linksets[1]!.allScripts()[0]!
+  expect(child.running).toBe(false)
+  expect(child.crashed).toBe(true)
+})
+
 it('keeps the saved running state and resumes saved timers in the new World', async () => {
   const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', source: { source: `
     integer ticks; default { state_entry() { llSetTimerEvent(1); } timer() { ++ticks; } }

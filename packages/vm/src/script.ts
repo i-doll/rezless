@@ -178,7 +178,9 @@ export class Script {
   readonly host: Prim
   readonly scriptName: string
   /** When false, drainQueue parks events instead of delivering them. */
-  running = true
+  private isRunning = true
+  /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
+  crashed = false
   /** Events parked while `running === false`; replayed when re-enabled. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
@@ -1007,7 +1009,7 @@ export class Script {
 
   /** Copy inventory code; fresh copies omit saved runtime state for remote loading. */
   copyTo(host: Prim, opts: { fresh?: boolean } = {}): Script {
-    if (this.sluaSource !== undefined) return this.copySluaTo(host)
+    if (this.sluaSource !== undefined) return this.copySluaTo(host, opts.fresh)
     const copy = new Script(this.ast, { ...this.options, host, coverage: false })
     Object.assign(copy.mocks, this.mocks)
     copy.state.permissions.autoGrant = this.state.permissions.autoGrant
@@ -1024,6 +1026,7 @@ export class Script {
     copy.state.currentState = this.state.currentState
     copy.started = this.started
     copy.running = this.running && !this.dead
+    copy.crashed = this.crashed
     Object.assign(copy.state.random, this.state.random)
     copy.state.listens.push(...structuredClone(this.state.listens))
     copy.state.listenHandleCounter = this.state.listenHandleCounter
@@ -1042,6 +1045,15 @@ export class Script {
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
     this.dropSeatPermissions()
+    // A crashed LSL script runs again when its object is rezzed: state_entry
+    // of the state it was in, with its globals, then on_rez. A crashed SLua
+    // script stays crashed.
+    if (this.crashed && !this.slua) {
+      this.running = true
+      this.started = true
+      this.parkedEvents.length = 0
+      this.clockView.schedule(this.now, 'state_entry')
+    }
     if (!this.running) return
     if (!this.started) {
       this.started = true
@@ -1070,6 +1082,17 @@ export class Script {
   reset(): void {
     this.restart()
     this.linkset.settle([this])
+  }
+
+  /**
+   * llResetOtherScript on a crashed script: it reads as running at once and
+   * starts over with state_entry as its next event. Nothing it held or had
+   * waiting survives.
+   */
+  recover(): void {
+    this.restart()
+    this.running = true
+    this.queueStart()
   }
 
   private restart(): void {
@@ -1385,7 +1408,7 @@ export class Script {
   }
 
   /** A copy of this SLua script in `host`. The copy starts afresh: SLua state isn't carried over. */
-  private copySluaTo(host: Prim): Script {
+  private copySluaTo(host: Prim, fresh = false): Script {
     const coverage = this.state.coverage instanceof SluaCoverage ? this.state.coverage : null
     // An instrumented VM when the original is covered, counting into the original's collector.
     const copy = Script.fromSlua(this.sluaSource!, { ...this.options, host, coverage: coverage !== null })
@@ -1396,18 +1419,29 @@ export class Script {
       coverage.attach(copy.slua!)
     }
     copy.running = this.running && !this.dead
+    copy.crashed = this.crashed && !fresh
     return copy
+  }
+
+  get running(): boolean {
+    return this.isRunning
+  }
+
+  set running(value: boolean) {
+    this.isRunning = value
+    if (value) this.crashed = false
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
   private crash(error: RuntimeError): void {
     if (error.reported) return
     error.reported = true
-    for (const text of ['Script run-time error', error.message]) {
+    for (const text of [`${this.host.name} [script:${this.scriptName}] Script run-time error`, error.said]) {
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
     this.running = false
+    this.crashed = true
   }
 
   /**
