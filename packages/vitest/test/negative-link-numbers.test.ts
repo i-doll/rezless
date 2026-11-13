@@ -389,13 +389,23 @@ describe('negative link numbers in calls that take one link', () => {
     expect((await scene(1, ZERO, 'root')).run()).toBe('- 0 -')
   })
 
-  // In-world: llGetLinkMedia after llSetLinkMedia put a different URL on face 0 of
-  // every link: from child 3 every number but LINK_THIS read link 1's URL; seated on
-  // a lone box they read the avatar's (link 2). llClearLinkMedia(-100, 0) and
+  // In-world: llSetLinkMedia with LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, -5,
+  // -100 and -2147483648, each on its own face 0 to 5, put all six on link 1 from
+  // child 3, on the avatar (link 2) seated on a lone box, and nowhere on a lone box
+  // nobody sits on. llGetLinkMedia after llSetLinkMedia put a different URL on faces 0
+  // and 1 of every link: from child 3 every number but LINK_THIS read link 1's URL;
+  // seated on a lone box they read the avatar's. llClearLinkMedia(-100, 0) and
   // llClearLinkMedia(-2147483648, 1) cleared those faces on that link only. On a lone
   // box nobody sits on, only LINK_THIS read anything.
   const MEDIA = `
     string r; integer i; integer j;
+    for (i = 0; i < 7; ++i) if (i != 3) llSetLinkMedia(llList2Integer(LINKS, i), i - (i > 3), [PRIM_MEDIA_HOME_URL, "https://example.invalid/set"]);
+    for (j = 1; j <= TOT; ++j) {
+      integer faces;
+      for (i = 0; i < 6; ++i) faces += llGetLinkMedia(pl(j), i, [PRIM_MEDIA_HOME_URL]) != [];
+      r += (string)faces;
+    }
+    r += " ";
     for (j = 1; j <= TOT; ++j) {
       llSetLinkMedia(pl(j), 0, [PRIM_MEDIA_HOME_URL, "https://example.invalid/L" + (string)j]);
       llSetLinkMedia(pl(j), 1, [PRIM_MEDIA_HOME_URL, "https://example.invalid/L" + (string)j]);
@@ -409,9 +419,9 @@ describe('negative link numbers in calls that take one link', () => {
     for (j = 1; j <= TOT; ++j) r += " " + (string)llGetListLength(llGetLinkMedia(pl(j), 0, [PRIM_MEDIA_HOME_URL]) + llGetLinkMedia(pl(j), 1, [PRIM_MEDIA_HOME_URL]));
     out = [r];`
   it('the media calls read, set and clear the first other link', async () => {
-    expect((await scene(3, MEDIA)).run(3)).toBe('L1 L1 L1 L3 L1 L1 L1 0 2 2')
-    expect((await scene(1, MEDIA, 'root')).run()).toBe('L2 L2 L2 L1 L2 L2 L2 2 0')
-    expect((await scene(1, MEDIA)).run()).toBe('[] [] [] L1 [] [] [] 2')
+    expect((await scene(3, MEDIA)).run(3)).toBe('600 L1 L1 L1 L3 L1 L1 L1 0 2 2')
+    expect((await scene(1, MEDIA, 'root')).run()).toBe('06 L2 L2 L2 L1 L2 L2 L2 2 0')
+    expect((await scene(1, MEDIA)).run()).toBe('0 [] [] [] L1 [] [] [] 2')
   })
 
   // In-world: seated on a lone box, llSetLinkCamera with -5, -100, -2147483648,
@@ -574,6 +584,9 @@ describe('negative link numbers in calls that read nothing for them', () => {
   // sides, FALSE, and NULL_KEY for every other negative number.
   it.each([1, 2, 3])('reads only LINK_THIS from link %i', async (caller) => {
     const s = await scene(3, `
+      llSetLinkPrimitiveParamsFast(1, [PRIM_TYPE, PRIM_TYPE_BOX, 0, <0.0, 1.0, 0.0>, 0.5, ZERO_VECTOR, <1.0, 1.0, 0.0>, ZERO_VECTOR]);
+      llSetLinkPrimitiveParamsFast(2, [PRIM_TYPE, PRIM_TYPE_CYLINDER, 0, <0.0, 1.0, 0.0>, 0.0, ZERO_VECTOR, <1.0, 1.0, 0.0>, ZERO_VECTOR]);
+      llSetLinkPrimitiveParamsFast(3, [PRIM_TYPE, PRIM_TYPE_SPHERE, 0, <0.0, 1.0, 0.0>, 0.0, ZERO_VECTOR, <0.0, 1.0, 0.0>]);
       llSetLinkRenderMaterial(LINK_SET, "${M0}", 0);
       string r; integer i;
       for (i = 0; i < 7; ++i) {
@@ -582,6 +595,6 @@ describe('negative link numbers in calls that read nothing for them', () => {
         r += (string)llGetLinkNumberOfSides(L) + (string)llIsLinkGLTFMaterial(L, 0) + who(llGetObjectLinkKey(llGetKey(), L));
       }
       out = [r];`, 'root')
-    expect(s.run(caller)).toBe(`00- 00- 00- 61p${caller} 00- 00- 00-`)
+    expect(s.run(caller)).toBe(`00- 00- 00- ${[7, 3, 1][caller - 1]}1p${caller} 00- 00- 00-`)
   })
 })

@@ -522,17 +522,23 @@ the prims only. Unlinking a prim stands everyone seated on the object; linking
 keeps them seated where they are. Media set through an avatar link with
 `llSetLinkMedia` stays with the avatar.
 
-A link number below `LINK_THIS`, such as -5 or -100, names the first link that
-is not the caller: link 2 from the root, the root from a child, and the sitter
-from a lone prim someone sits on. Calls that take `LINK_SET`, `LINK_ALL_OTHERS`
-and `LINK_ALL_CHILDREN` as groups read it that way. Calls that take one link
-(`llGetLinkKey`, `llGetLinkName`, `llGetLinkSitFlags`, `llAvatarOnLinkSitTarget`,
-`llLinkSitTarget`, `llSetLinkCamera`, the link media calls) read those three
-flags as the first other link as well. `llGetLinkPrimitiveParams` returns an
-empty list for the three flags, and a `PRIM_LINK_TARGET` inside it takes one
-link, counted from the link the read started on and not from the calling prim.
-`llGetLinkNumberOfSides`, `llIsLinkGLTFMaterial` and `llGetObjectLinkKey`
-answer `LINK_THIS` and no other negative number.
+In most link-taking calls a link number below `LINK_THIS`, such as -5 or -100,
+names the first link that is not the caller: link 2 from the root, the root
+from a child, and the sitter from a lone prim someone sits on. Calls that take
+`LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` as groups of prims read
+it that way. That was measured in Second Life for `llMessageLinked` and the
+calls that set prim parameters, colour, alpha, texture, material and sit flags.
+The link sound calls and `llSetLinkTextureAnim` follow the same rule without a
+measurement, because no script can read their effect back. Calls that take one
+link (`llGetLinkKey`, `llGetLinkName`, `llGetLinkSitFlags`,
+`llAvatarOnLinkSitTarget`, `llLinkSitTarget`, `llSetLinkCamera`, the link media
+calls) read the three group flags as the first other link as well.
+`llGetLinkPrimitiveParams` returns an empty list for the three flags, and a
+`PRIM_LINK_TARGET` inside it takes one link, counted from the link the read
+started on and not from the calling prim. `llGetLinkNumberOfSides`,
+`llIsLinkGLTFMaterial` and `llGetObjectLinkKey` answer `LINK_THIS` and no other
+negative number. `llBreakLink` reads `LINK_THIS` as the root and every other
+negative number as link 2, whichever prim calls it.
 
 With `standtp=n`, user stand, force unsit, `llUnSit` and seat deletion return the
 avatar to its saved global origin. Viewer object-sit requests save that origin;
