@@ -459,13 +459,20 @@ export class Linkset {
   /**
    * The link `link` names, seen from `from`, in a call that takes one link.
    * LINK_THIS is `from` and every other negative number is the first other
-   * link. Link 0 is the root seen from another link, and a lone prim nobody
-   * sits on.
+   * link.
    */
   oneLink(from: Link, link: number): Link | undefined {
     if (link === LINK_THIS) return from
     if (link < 0) return this.firstOtherLink(from)
-    if (link > 0) return this.linkAt(link)
+    return link > 0 ? this.linkAt(link) : this.linkZero(from)
+  }
+
+  /**
+   * The prim link 0 names, seen from `from`: the root seen from another link,
+   * and a lone prim nobody sits on. Seen from the root of a linkset, or of a
+   * lone prim someone sits on, link 0 names nothing.
+   */
+  linkZero(from: Link): Prim | undefined {
     const root = this.prims[0]
     return from !== root || root?.linkNumber === 0 ? root : undefined
   }
@@ -480,7 +487,7 @@ export class Linkset {
    * The links `link` names, seen from the prim `from`, in a call that takes
    * LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN as groups. The groups hold
    * prims only. A number below LINK_THIS is the first other link, and that or
-   * a positive number can name a seated avatar.
+   * a positive number can name a seated avatar. Link 0 is what `linkZero` says.
    */
   linksFrom(from: Prim, link: number): { prims: Prim[]; sitter: WorldAvatar | undefined } {
     const group = link === LINK_THIS ? [from]
@@ -489,8 +496,7 @@ export class Linkset {
       : link === LINK_ALL_CHILDREN ? this.prims.slice(1)
       : undefined
     if (group) return { prims: group, sitter: undefined }
-    // Here link 0 names only a lone prim nobody sits on. Callers that read it as the root from a child do that themselves.
-    const one = link === 0 ? this.prims.find((p) => p.linkNumber === 0) : link < 0 ? this.firstOtherLink(from) : this.linkAt(link)
+    const one = link === 0 ? this.linkZero(from) : link < 0 ? this.firstOtherLink(from) : this.linkAt(link)
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
   }
 

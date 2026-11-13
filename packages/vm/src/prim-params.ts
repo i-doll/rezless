@@ -51,6 +51,11 @@ import {
   PRIM_SCULPT_TYPE_SPHERE,
   PRIM_SHINY_NONE,
   PRIM_SIT_FLAGS,
+  SIT_FLAG_ALLOW_UNSIT,
+  SIT_FLAG_NO_COLLIDE,
+  SIT_FLAG_NO_DAMAGE,
+  SIT_FLAG_SCRIPTED_ONLY,
+  SIT_FLAG_SIT_TARGET,
   PRIM_SIT_TARGET,
   PRIM_SIZE,
   PRIM_SLICE,
@@ -106,9 +111,8 @@ export interface PrimParams {
   material: number
   tempOnRez: boolean
   castShadows: boolean
-  allowUnsit: boolean
-  scriptedSitOnly: boolean
   sitTarget: { enabled: boolean; offset: Vector; rotation: Rotation }
+  /** The SIT_FLAG_* bits a script can set. PRIM_ALLOW_UNSIT and PRIM_SCRIPTED_SIT_ONLY are two of them. */
   sitFlags: number
   projector: { texture: string; fov: number; focus: number; ambiance: number }
   clickAction: number
@@ -188,6 +192,18 @@ export type PrimShape =
       revolutions: number; radiusOffset: number; skew: number
     }
   | { kind: typeof SHAPE_SCULPT; map: string; type: number }
+
+/** The sit flags a script can set. SIT_FLAG_SIT_TARGET is read-only: it says the prim has a sit target. */
+const SETTABLE_SIT_FLAGS = SIT_FLAG_ALLOW_UNSIT | SIT_FLAG_SCRIPTED_ONLY | SIT_FLAG_NO_COLLIDE | SIT_FLAG_NO_DAMAGE
+
+function setSitFlag(p: PrimParams, flag: number, on: boolean): void {
+  p.sitFlags = on ? p.sitFlags | flag : p.sitFlags & ~flag
+}
+
+/** What llGetLinkSitFlags and PRIM_SIT_FLAGS read: the set flags, plus SIT_FLAG_SIT_TARGET while the prim has a sit target. */
+export function sitFlagsOf(p: PrimParams): number {
+  return p.sitFlags | (p.sitTarget.enabled ? SIT_FLAG_SIT_TARGET : 0)
+}
 
 const zero = (): Vector => ({ x: 0, y: 0, z: 0 })
 const one = (): Vector => ({ x: 1, y: 1, z: 1 })
@@ -338,10 +354,8 @@ export function defaultPrimParams(): PrimParams {
     material: PRIM_MATERIAL_WOOD,
     tempOnRez: false,
     castShadows: false,
-    allowUnsit: true,
-    scriptedSitOnly: false,
     sitTarget: { enabled: false, offset: zero(), rotation: identityRot() },
-    sitFlags: 0,
+    sitFlags: SIT_FLAG_ALLOW_UNSIT,
     projector: { texture: NULL_KEY, fov: 0, focus: 0, ambiance: 0 },
     clickAction: CLICK_ACTION_TOUCH,
     damage: { amount: 0, type: 0 },
@@ -526,13 +540,13 @@ export function writePrimParam(
       p.castShadows = num(rules[cursor]) !== 0
       return 1
     case PRIM_ALLOW_UNSIT:
-      p.allowUnsit = num(rules[cursor]) !== 0
+      setSitFlag(p, SIT_FLAG_ALLOW_UNSIT, num(rules[cursor]) !== 0)
       return 1
     case PRIM_SCRIPTED_SIT_ONLY:
-      p.scriptedSitOnly = num(rules[cursor]) !== 0
+      setSitFlag(p, SIT_FLAG_SCRIPTED_ONLY, num(rules[cursor]) !== 0)
       return 1
     case PRIM_SIT_FLAGS:
-      p.sitFlags = num(rules[cursor]) | 0
+      p.sitFlags = num(rules[cursor]) & SETTABLE_SIT_FLAGS
       return 1
     case PRIM_CLICK_ACTION:
       p.clickAction = num(rules[cursor]) | 0
@@ -920,11 +934,11 @@ export function readPrimParam(
     case PRIM_CAST_SHADOWS:
       return { values: [p.castShadows ? 1 : 0], consumed: 0 }
     case PRIM_ALLOW_UNSIT:
-      return { values: [p.allowUnsit ? 1 : 0], consumed: 0 }
+      return { values: [p.sitFlags & SIT_FLAG_ALLOW_UNSIT ? 1 : 0], consumed: 0 }
     case PRIM_SCRIPTED_SIT_ONLY:
-      return { values: [p.scriptedSitOnly ? 1 : 0], consumed: 0 }
+      return { values: [p.sitFlags & SIT_FLAG_SCRIPTED_ONLY ? 1 : 0], consumed: 0 }
     case PRIM_SIT_FLAGS:
-      return { values: [p.sitFlags], consumed: 0 }
+      return { values: [sitFlagsOf(p)], consumed: 0 }
     case PRIM_CLICK_ACTION:
       return { values: [p.clickAction], consumed: 0 }
     case PRIM_HEALTH:

@@ -338,6 +338,10 @@ describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
     expect(s.host.name).toBe('Object')
   })
 
+  // In-world: llSetPrimitiveParams([PRIM_LINK_TARGET, 99, PRIM_DESC, "lost", PRIM_LINK_TARGET,
+  // LINK_THIS, PRIM_DESC, "kept"]) left "kept" on the calling prim and changed no other prim,
+  // from the root and both children of a three-prim linkset and on a lone prim, seated or not
+  // (Aditi beta grid, SLua Tideland, 2026-11-13). link-zero-calls.test.ts has the other cases.
   it('PRIM_LINK_TARGET to nonexistent link skips its rules but later valid PRIM_LINK_TARGET still applies', async () => {
     const src = `
       default {

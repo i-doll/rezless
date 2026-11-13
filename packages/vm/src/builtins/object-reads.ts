@@ -221,14 +221,16 @@ export const llGetObjectPrimCount: BuiltinImpl = (ctx, args) => {
 
 /**
  * llGetObjectLinkKey(key id, integer link) — the key of link `link` in the
- * linkset holding `id`. Link 0 is the root (or a lone prim), LINK_THIS is
- * the prim `id` itself, and links past the prims are the seated avatars.
+ * linkset holding `id`, which is one of its prims or an avatar seated on it.
+ * Link 0 is the root (or a lone prim), LINK_THIS is `id` itself, and links
+ * past the prims are the seated avatars.
  */
 export const llGetObjectLinkKey: BuiltinImpl = (ctx, args) => {
-  const prim = findObjectPrim(ctx, keyArg(args))
+  const sitter = findObjectAvatar(ctx, keyArg(args))
+  const prim = findObjectPrim(ctx, keyArg(args)) ?? sitter?.sittingOn
   if (!prim) return NULL_KEY
   const link = (args[1] as number | undefined) ?? 0
-  if (link === LINK_THIS) return prim.key
+  if (link === LINK_THIS) return sitter?.key ?? prim.key
   const prims = primsOf(prim)
   if (link === 0 || (link === 1 && prims.length === 1)) return rootOf(prim).key
   return (prims.find((p) => p.linkNumber === link) ?? prim.linkset?.sitterAt(link))?.key ?? NULL_KEY
