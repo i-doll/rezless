@@ -1,6 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
-import { InventoryType } from '../inventory.js'
-import { PERM_COPY, CHANGED_INVENTORY } from '../generated/constants.js'
+import { InventoryType, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
+import { PERM_COPY } from '../generated/constants.js'
 import { sayError } from './debug.js'
 
 // In-world: batch.py, Aditi / SLua Tideland, 2026-11-01. Forced delay is applied by dispatch.
@@ -45,6 +45,6 @@ export const llRemoteLoadScriptPin: BuiltinImpl = (ctx, args) => {
   copy.running = Number(args[3]) !== 0
   copy.queueStart()
   for (const script of target.scripts) {
-    if (script !== copy) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_INVENTORY })
+    if (script !== copy && hearsInventoryChange(script)) queueInventoryChanged(script)
   }
 }

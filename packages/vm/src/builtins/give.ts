@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
-import { InventoryType, freeInventoryName, queueInventoryChanged } from '../inventory.js'
+import { InventoryType, freeInventoryName, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
@@ -52,7 +52,7 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
       prim.placeInventory({ ...item, name: freeInventoryName(prim.inventory, item.name), acquireTimeMs: ctx.state.clock.now })
     }
     for (const script of prim.scripts) {
-      if (!script.running) continue
+      if (!hearsInventoryChange(script)) continue
       if (foreign) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
       else queueInventoryChanged(script)
     }

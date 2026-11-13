@@ -4,7 +4,7 @@ import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } fro
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
-import { InventoryType, freeInventoryName, inventoryItemName, queueInventoryChanged } from './inventory.js'
+import { InventoryType, freeInventoryName, hearsInventoryChange, inventoryItemName, queueInventoryChanged } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
@@ -269,8 +269,7 @@ export class Prim {
     const linkset = this.linkset
     if (!linkset) return
     // A queued event can run a script's handler without starting it.
-    const scripts = this.scripts.filter((script) => script.running
-      && (script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined))
+    const scripts = this.scripts.filter(hearsInventoryChange)
     if (!scripts.length) return
     for (const script of scripts) queueInventoryChanged(script)
     linkset.settle(scripts.filter((script) => script.wakeAt === undefined))
