@@ -86,10 +86,12 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
     }
     let consumed = 0
     let values: ReadonlyArray<LslValue>
+    let valueTypes: ReadonlyArray<LslType> | undefined
     if (isPrim(cur)) {
       const r = cur.getPrimParam(rule, rules, i + 1)
       if (r === null) break
       values = r.values
+      valueTypes = r.types
       consumed = r.consumed
     } else {
       const read = readAvatarLinkParam(cur, rule)
@@ -97,7 +99,7 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
       values = read
     }
     out.push(...values)
-    types.push(...primParamTypes(rule, values))
+    types.push(...(valueTypes ?? primParamTypes(rule, values)))
     i += 1 + consumed
   }
   return typedList(out, types)

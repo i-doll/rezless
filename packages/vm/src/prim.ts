@@ -363,7 +363,7 @@ export class Prim {
     param: number,
     rules: ReadonlyArray<LslValue>,
     cursor: number,
-  ): { values: LslValue[]; consumed: number } | null {
+  ) {
     return readPrimParam(this, param, rules, cursor)
   }
 

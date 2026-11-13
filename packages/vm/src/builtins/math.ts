@@ -50,7 +50,7 @@ export const llPow: BuiltinImpl = (_ctx, args) => {
 }
 export const llSqrt: BuiltinImpl = (_ctx, args) => Math.sqrt((args[0] as number) ?? 0)
 /** Mono gives 0.0 for the sine and tangent of -0.0. SLua keeps the sign. */
-const monoZero = (ctx: CallContext, n: number): number => (ctx.script.language === 'lsl' ? unsignedZero(n) : n)
+const monoZero = (ctx: CallContext, n: number) => (ctx.script.language === 'lsl' ? unsignedZero(n) : n)
 export const llSin: BuiltinImpl = (ctx, args) => monoZero(ctx, Math.sin((args[0] as number) ?? 0))
 export const llCos: BuiltinImpl = (_ctx, args) => Math.cos((args[0] as number) ?? 0)
 export const llTan: BuiltinImpl = (ctx, args) => monoZero(ctx, Math.tan((args[0] as number) ?? 0))
@@ -114,13 +114,13 @@ export const llVecDist: BuiltinImpl = (_ctx, args) => {
 const GIMBAL_THRESHOLD = 0.000436
 
 /** Second Life gives each angle of llRot2Euler in steps of 1e-7 degrees, so a zero is never negative. */
-function stepAngle(radians: number): number {
+function stepAngle(radians: number) {
   const steps = Math.round(Math.abs(radians) * (180 / Math.PI) * 1e7)
   const stepped = (steps / 1e7) * (Math.PI / 180)
   return radians < 0 && steps !== 0 ? -stepped : stepped
 }
 
-const steppedAngles = (x: number, y: number, z: number): Vector => vec(stepAngle(x), stepAngle(y), stepAngle(z))
+const steppedAngles = (x: number, y: number, z: number) => vec(stepAngle(x), stepAngle(y), stepAngle(z))
 
 /**
  * llRot2Euler(rotation r) → vector (x, y, z) Euler angles in radians, the

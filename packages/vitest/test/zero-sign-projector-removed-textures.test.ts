@@ -318,13 +318,15 @@ describe('PRIM_POINT_LIGHT and PRIM_REFLECTION_PROBE', () => {
           llSay(0, p([TRUE, 0.123456, 0.01, 7]));
           llSay(0, p([TRUE, 1.0, 64.0, 4]));
           llSay(0, p([TRUE, 100.0, 1024.0, 8]));
+          llSay(0, p([TRUE, 101.0, 1.0, 0]));
+          llSay(0, p([TRUE, 1e10, 1.0, 0]));
           llSay(0, p([2, 0.5, 1.0, 1]));
           llSay(0, p([FALSE, 0.5, 1.0, 1]));
         }
       }`)
-    // In-world: the light probe. A negative ambiance became 0.0 and 100.0 was kept, the clip
-    // distance was clamped to 0..1024, the flags kept their low three bits, and a probe that
-    // is off read all zeros.
+    // In-world: the light probe and its follow-up. Ambiance was clamped to 0..100 and the clip
+    // distance to 0..1024, the flags kept their low three bits, and a probe that is off read
+    // all zeros.
     expect(said(s)).toEqual([
       '0, 0.000000, 0.000000, 0',
       '1, 2.000000, 1024.000000, 7',
@@ -332,6 +334,8 @@ describe('PRIM_POINT_LIGHT and PRIM_REFLECTION_PROBE', () => {
       '1, 0.123456, 0.010000, 7',
       '1, 1.000000, 64.000000, 4',
       '1, 100.000000, 1024.000000, 0',
+      '1, 100.000000, 1.000000, 0',
+      '1, 100.000000, 1.000000, 0',
       '1, 0.500000, 1.000000, 1',
       '0, 0.000000, 0.000000, 0',
     ])
@@ -573,5 +577,85 @@ describe('llRemoveInventory of a texture or material in use', () => {
     expect(said(scripts.observer!)).toEqual(['observer 1 changed 4096', 'observer 1 changed 4096'])
     expect(said(scripts.child!)).toEqual(['observer 2 changed 4096'])
     expect(said(s, DEBUG_CHANNEL)).toEqual(["Missing inventory item 'no such item'."])
+  })
+})
+
+describe('an inventory item named like a key', () => {
+  const NAME_T = '0f0f0f0f-1111-2222-3333-444444444444'
+  const NAME_M = '0e0e0e0e-1111-2222-3333-444444444444'
+  const KEY_T = '134486d5-248e-d57c-206d-dc423aff9c26'
+  const items = () => [
+    makeInventoryItem({ name: NAME_T, type: InventoryType.TEXTURE, key: KEY_T }),
+    makeInventoryItem({ name: NAME_M, type: InventoryType.MATERIAL, key: KEY_M }),
+  ]
+
+  it('is found by its name before the name is read as a key', async () => {
+    const { scripts } = await LINKED(`
+      string d() {
+        return llList2String(llGetPrimitiveParams([PRIM_TEXTURE, 0]), 0) + " " + llList2String(llGetPrimitiveParams([PRIM_NORMAL, 0]), 0) + " " + llGetTexture(1)
+          + " " + llList2String(llGetPrimitiveParams([PRIM_RENDER_MATERIAL, 2]), 0) + " " + llGetRenderMaterial(3)
+          + " [" + llList2String(llGetPrimitiveParams([PRIM_GLTF_BASE_COLOR, 2]), 0) + "] " + llGetRenderMaterial(4) + " " + llGetTexture(4);
+      }
+      default {
+        state_entry() {
+          string n = llGetInventoryName(INVENTORY_TEXTURE, 0); string m = llGetInventoryName(INVENTORY_MATERIAL, 0);
+          list M = [<1.0, 1.0, 0.0>, ZERO_VECTOR, 0.0];
+          llSetPrimitiveParams([PRIM_TEXTURE, 0, n] + M + [PRIM_NORMAL, 0, n] + M + [PRIM_RENDER_MATERIAL, 2, m, PRIM_GLTF_BASE_COLOR, 2, n] + M + [<1.0, 1.0, 1.0>, 1.0, PRIM_GLTF_ALPHA_MODE_OPAQUE, 0.5, FALSE]);
+          llSetTexture(n, 1); llSetRenderMaterial(m, 3);
+          llSetRenderMaterial(llToUpper(m), 4); llSetTexture(llToUpper(n), 4);
+          llSay(0, d());
+          llRemoveInventory(n); llRemoveInventory(m);
+          llSay(0, d());
+        }
+      }`, items())
+    const s = scripts.probe!
+    s.start()
+    // In-world: a box holding an uploaded texture and an uploaded material, each renamed to
+    // the text of a key that is not its own. Setting by that name used the item: the GLTF
+    // texture read back the texture's own key, and removing the items reset the faces. The
+    // name in upper case is no item's name, so it was stored as a key and stayed.
+    expect(said(s)).toEqual([
+      `${NAME_T} ${NAME_T} ${NAME_T} ${NAME_M} ${NAME_M} [${KEY_T}] ${NAME_M} ${NAME_T}`,
+      `${PLYWOOD} ${NULL_KEY} ${PLYWOOD} ${NULL_KEY} ${NULL_KEY} [] ${NAME_M} ${NAME_T}`,
+    ])
+    expect(said(s, DEBUG_CHANNEL)).toEqual([])
+  })
+
+  it('reads back from a map as a string, and a key that names no item as a key', async () => {
+    const { scripts } = await LINKED(`
+      string e(list l) { return llList2String(l, 0) + ";t" + (string)llGetListEntryType(l, 0); }
+      string ty() { list l = llGetPrimitiveParams([PRIM_TYPE]); return llList2CSV(llList2List(l, 0, 2)) + ";t" + (string)llGetListEntryType(l, 1); }
+      default {
+        state_entry() {
+          string n = llGetInventoryName(INVENTORY_TEXTURE, 0);
+          string k = (string)llGetInventoryKey(n);
+          list M = [<1.0, 1.0, 0.0>, ZERO_VECTOR, 0.0];
+          llSetPrimitiveParams([PRIM_NORMAL, 0, k] + M + [PRIM_SPECULAR, 0, k] + M + [<1.0, 1.0, 1.0>, 51, 0, PRIM_TEXTURE, 0, k] + M);
+          llSay(0, e(llGetPrimitiveParams([PRIM_NORMAL, 0])) + " " + e(llGetPrimitiveParams([PRIM_SPECULAR, 0])) + " " + e(llGetPrimitiveParams([PRIM_TEXTURE, 0])));
+          llSetPrimitiveParams([PRIM_NORMAL, 1, n] + M + [PRIM_SPECULAR, 1, n] + M + [<1.0, 1.0, 1.0>, 51, 0, PRIM_TEXTURE, 1, n] + M);
+          llSay(0, e(llGetPrimitiveParams([PRIM_NORMAL, 1])) + " " + e(llGetPrimitiveParams([PRIM_SPECULAR, 1])) + " " + e(llGetPrimitiveParams([PRIM_TEXTURE, 1])));
+          llSetPrimitiveParams([PRIM_NORMAL, 2, llToUpper(n)] + M + [PRIM_TEXTURE, 2, llToUpper(n)] + M);
+          llSay(0, e(llGetPrimitiveParams([PRIM_NORMAL, 2])) + " " + e(llGetPrimitiveParams([PRIM_TEXTURE, 2])));
+          llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_SCULPT, k, PRIM_SCULPT_TYPE_SPHERE]);
+          llSay(0, ty());
+          llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_SCULPT, n, PRIM_SCULPT_TYPE_SPHERE]);
+          llSay(0, ty());
+          llRemoveInventory(n);
+          llSay(0, ty() + " " + e(llGetPrimitiveParams([PRIM_NORMAL, 0])));
+        }
+      }`, items())
+    const s = scripts.probe!
+    s.start()
+    // In-world: the same texture. Set by its own key or by its name, the maps and the sculpt
+    // read back the name with the entry type of a string. The name in upper case was stored
+    // as a key and read back from PRIM_NORMAL with the entry type of a key.
+    expect(said(s)).toEqual([
+      `${NAME_T};t3 ${NAME_T};t3 ${NAME_T};t3`,
+      `${NAME_T};t3 ${NAME_T};t3 ${NAME_T};t3`,
+      `${NAME_T};t4 ${NAME_T};t3`,
+      `7, ${NAME_T}, 1;t3`,
+      `7, ${NAME_T}, 1;t3`,
+      `7, ${SCULPT_DEFAULT}, 1;t4 ${NULL_KEY};t4`,
+    ])
   })
 })

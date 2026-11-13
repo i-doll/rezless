@@ -251,21 +251,22 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const findItem = (prim: Prim, type: number, name: string) =>
   prim.inventory.find((it) => it.type === type && it.name === name)
 
-/**
- * The key a render material argument names: "" (none), a key, or a material
- * item's name; null if it names nothing. A key is stored in lower case.
- */
-export function renderMaterialKey(prim: Prim, material: string): string | null {
-  if (material === '') return NULL_KEY
-  if (UUID.test(material)) return material.toLowerCase()
-  return findItem(prim, InventoryType.MATERIAL, material)?.key.toLowerCase() ?? null
+const assetKey = (prim: Prim, type: number, name: string): string | null => {
+  if (name === '') return NULL_KEY
+  return findItem(prim, type, name)?.key.toLowerCase() ?? (UUID.test(name) ? name.toLowerCase() : null)
 }
 
-export function textureKey(prim: Prim, texture: string): string | null {
-  if (texture === '') return NULL_KEY
-  if (UUID.test(texture)) return texture.toLowerCase()
-  return findItem(prim, InventoryType.TEXTURE, texture)?.key.toLowerCase() ?? null
-}
+/**
+ * The key a render material argument names: "" (none), a material item's
+ * name, or a key; null if it names nothing. An item's name wins over a key
+ * with the same text. A key is stored in lower case.
+ */
+export const renderMaterialKey = (prim: Prim, material: string) => assetKey(prim, InventoryType.MATERIAL, material)
+
+export const textureKey = (prim: Prim, texture: string) => assetKey(prim, InventoryType.TEXTURE, texture)
+
+/** A map reads back as a string when an inventory texture gives it a name, and as a key otherwise. */
+const mapType = (prim: Prim, key: string): LslType => (textureName(prim, key) === key ? 'key' : 'string')
 
 const itemName = (prim: Prim, type: number, key: string): string =>
   key === NULL_KEY ? key : (prim.inventory.find((it) => it.type === type && it.key.toLowerCase() === key)?.name ?? key)
@@ -421,7 +422,7 @@ const asRot = (v: LslValue | undefined): Rotation => {
   return identityRot()
 }
 const toByteChannel = (c: number): number => Math.floor(Math.min(1, Math.max(0, c)) * 255) / 255
-const roundToByte = (c: number): number => Math.round(Math.min(1, Math.max(0, Math.fround(c))) * 255) / 255
+const roundToByte = (c: number) => Math.round(Math.min(1, Math.max(0, Math.fround(c))) * 255) / 255
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const clampVec = (v: Vector, lo: number, hi: number): Vector =>
   ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
@@ -601,7 +602,6 @@ export function writePrimParam(
       return 3
     }
     case PRIM_POINT_LIGHT: {
-      // A light that is off keeps none of its values. Colour and intensity are stored in 8 bits.
       const color = asVec(rules[cursor + 1])
       p.pointLight = num(rules[cursor]) !== 0
         ? {
@@ -615,11 +615,10 @@ export function writePrimParam(
       return 5
     }
     case PRIM_REFLECTION_PROBE:
-      // A probe that is off keeps none of its values.
       p.reflectionProbe = num(rules[cursor]) !== 0
         ? {
             enabled: true,
-            ambiance: Math.max(0, num(rules[cursor + 1])),
+            ambiance: clamp(num(rules[cursor + 1]), 0, 100),
             clipDistance: clamp(num(rules[cursor + 2]), 0, 1024),
             flags: num(rules[cursor + 3]) & 7,
           }
@@ -930,7 +929,7 @@ export function readPrimParam(
   param: number,
   rules: ReadonlyArray<LslValue>,
   cursor: number,
-): { values: LslValue[]; consumed: number } | null {
+): { values: LslValue[]; consumed: number; types?: LslType[] } | null {
   const p = prim.params
   switch (param) {
     case PRIM_NAME:
@@ -1009,8 +1008,10 @@ export function readPrimParam(
       const s = p.sitTarget
       return { values: [s.enabled ? 1 : 0, s.offset, s.rotation], consumed: 0 }
     }
-    case PRIM_TYPE:
-      return { values: readPrimType(p, prim), consumed: 0 }
+    case PRIM_TYPE: {
+      const types: LslType[] | undefined = p.shape.kind === SHAPE_SCULPT ? ['integer', mapType(prim, p.shape.map), 'integer'] : undefined
+      return { values: readPrimType(p, prim), consumed: 0, ...(types && { types }) }
+    }
     case PRIM_COLOR: {
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
@@ -1071,20 +1072,24 @@ export function readPrimParam(
     case PRIM_NORMAL: {
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
+      const types: LslType[] = []
       for (const f of faces) {
         const n = p.faces[f]!.normal
         out.push(textureName(prim, n.texture), n.textureRepeats, n.textureOffsets, n.textureRotation)
+        types.push(mapType(prim, n.texture), 'vector', 'vector', 'float')
       }
-      return { values: out, consumed: 1 }
+      return { values: out, consumed: 1, types }
     }
     case PRIM_SPECULAR: {
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
+      const types: LslType[] = []
       for (const f of faces) {
         const s = p.faces[f]!.specular
         out.push(textureName(prim, s.texture), s.textureRepeats, s.textureOffsets, s.textureRotation, s.color, s.glossiness, s.environment)
+        types.push(mapType(prim, s.texture), 'vector', 'vector', 'float', 'vector', 'integer', 'integer')
       }
-      return { values: out, consumed: 1 }
+      return { values: out, consumed: 1, types }
     }
     case PRIM_ALPHA_MODE: {
       const faces = facesOf(p, rules[cursor])
@@ -1207,7 +1212,7 @@ const PRIM_PARAM_TYPES: Readonly<Record<number, ReadonlyArray<LslType>>> = {
 
 /** LSL types of PRIM_TYPE's values, which depend on the shape. */
 function primTypeTypes(kind: LslValue | undefined): ReadonlyArray<LslType> {
-  if (kind === SHAPE_SCULPT) return ['integer', 'key', 'integer']
+  if (kind === SHAPE_SCULPT) return ['integer', 'string', 'integer']
   const common: LslType[] = ['integer', 'integer', 'vector', 'float', 'vector']
   if (kind === SHAPE_SPHERE) return [...common, 'vector']
   if (kind === SHAPE_TORUS || kind === SHAPE_TUBE || kind === SHAPE_RING) {
@@ -1222,12 +1227,7 @@ const GLTF_RULES = new Set([PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL, PRIM_GLTF_ME
 /** LSL types of the values `readPrimParam` returns for `param`. */
 export function primParamTypes(param: number, values: ReadonlyArray<LslValue>): Array<LslType | undefined> {
   const pattern = param === PRIM_TYPE ? primTypeTypes(values[0]) : (PRIM_PARAM_TYPES[param] ?? [])
-  return values.map((v, i) => {
-    if (GLTF_RULES.has(param) && v === '') return 'string'
-    const type = pattern[i % pattern.length]
-    // A map reads back as a key, or as a string when it is an inventory item's name.
-    return type === 'key' && !UUID.test(v as string) ? 'string' : type
-  })
+  return values.map((v, i) => (GLTF_RULES.has(param) && v === '' ? 'string' : pattern[i % pattern.length]))
 }
 
 const PER_FACE_RULES: ReadonlySet<number> = new Set([
