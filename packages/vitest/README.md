@@ -280,6 +280,34 @@ that avatar wears in the sender's region. Channel 0 to an avatar reaches no
 script. A prim never hears its own chat, and `llOwnerSay` and
 `llInstantMessage` never trigger a `listen`.
 
+#### Editing a prim's contents
+
+These `Prim` methods act as the object's owner editing its contents. Each one
+sends `changed(CHANGED_INVENTORY)` to the running scripts in that prim and to
+no other prim.
+
+```ts
+prims[0].addInventory(makeInventoryItem({ name: 'Notes', type: InventoryType.NOTECARD }))
+prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, new key
+prims[0].renameInventory('Notes', 'Settings')
+prims[0].removeInventory('Settings')                                 // a removed script stops
+prims[0].removeInventory('a', 'b')                                   // deleted together: one event
+```
+
+A script that has not started yet, or is stopped, gets no event, so items added
+before `start()` set the object up quietly. A script busy in a handler gets the
+event when the handler ends, and edits made meanwhile are merged into one or
+two events. Like `linkset.touch`, an edit runs the handlers it starts to their
+end and delivers any other event that is due.
+
+`addInventory` appends a number to a name the prim already holds (`Notes`,
+`Notes 1`) and returns the stored item. The other three throw for a name the
+prim does not hold, and `replaceInventory` and `renameInventory` refuse
+scripts. `llRemoveInventory` from a script sends no event.
+
+`prim.placeInventory(item)` puts an item in place with no event, for arranging
+an object after its scripts have started.
+
 #### Rezzing inventory objects
 
 Give a prim named object definitions through `objects`, then inspect the new

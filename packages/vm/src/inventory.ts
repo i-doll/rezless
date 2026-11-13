@@ -13,7 +13,22 @@ import {
   INVENTORY_SETTING,
   INVENTORY_MATERIAL,
   PERM_ALL,
+  CHANGED_INVENTORY,
 } from './generated/constants.js'
+import type { Script } from './script.js'
+
+/**
+ * Queue `changed(CHANGED_INVENTORY)` for a script. A script still waiting for
+ * one gets no second event, unless it has resumed since that one was queued
+ * and no other is waiting behind it.
+ */
+export function queueInventoryChanged(script: Script): void {
+  const clock = script.linkset.clock
+  const waiting = clock.pendingEvents().filter((e) => e.target === script && e.event === 'changed'
+    && ((e.payload['changes'] as number) & CHANGED_INVENTORY) !== 0)
+  if (waiting.some((e) => e.at >= script.resumedAt) || waiting.length >= 2) return
+  clock.schedule(script, clock.now, 'changed', { changes: CHANGED_INVENTORY })
+}
 
 /**
  * LSL inventory item types. Numeric values come straight from the
