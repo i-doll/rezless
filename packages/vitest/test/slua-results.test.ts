@@ -487,6 +487,27 @@ describe('SLua: uuids in list results', () => {
     )
   })
 
+  it('still returns a key for a face that holds another asset than the item of that name', async () => {
+    await expectResults(
+      [
+        // In-world: with a texture item named "89556747-24cb-43ed-920b-47caed15465f" (the default texture's key)
+        // that holds another asset, on a new prim: ll.GetTexture(0), llcompat.GetTexture(0) and {PRIM_TEXTURE, 0}
+        // -> uuid 89556747-…, not the item's name
+        ['show(ll.GetTexture(0))', `uuid:${PLYWOOD}`],
+        ['show(llcompat.GetTexture(0))', `uuid:${PLYWOOD}`],
+        ['show(ll.GetPrimitiveParams({PRIM_TEXTURE, 0})[1])', `uuid:${PLYWOOD}`],
+        // In-world: ll.GetInventoryKey(that name) -> the item's own asset key
+        [`show(ll.GetInventoryKey("${PLYWOOD}"))`, `uuid:${ASSET}`],
+        // In-world: after ll.SetTexture(that name, 1): ll.GetTexture(1) and {PRIM_TEXTURE, 1} -> string, the name;
+        // after ll.SetTexture(touuid(that name), 2): the same. The name is looked up before the key.
+        [`t(function() ll.SetTexture("${PLYWOOD}", 1); return {ll.GetTexture(1), ll.GetPrimitiveParams({PRIM_TEXTURE, 1})[1]} end)`, `{string:${PLYWOOD} | string:${PLYWOOD}}`],
+        [`t(function() ll.SetTexture(touuid("${PLYWOOD}"), 2); return {ll.GetTexture(2), ll.GetPrimitiveParams({PRIM_TEXTURE, 2})[1]} end)`, `{string:${PLYWOOD} | string:${PLYWOOD}}`],
+      ],
+      '',
+      (s) => s.host.addInventory(makeInventoryItem({ name: PLYWOOD, type: InventoryType.TEXTURE, key: ASSET })),
+    )
+  })
+
   it('returns keys and names from the other list functions as LSL types them', async () => {
     await expectResults([
       // In-world: ll.GetObjectDetails(ll.GetKey(), {OBJECT_OWNER, OBJECT_CREATOR, OBJECT_ROOT, OBJECT_REZZER_KEY,
@@ -906,11 +927,84 @@ describe('SLua: the functions only llcompat has', () => {
       // In-world: llcompat.SetMemoryLimit() -> Fewer arguments than expected, 0 < 1; ("x") -> (number expected, got string)
       ['t(llcompat.SetMemoryLimit)', '!! Fewer arguments than expected, 0 < 1'],
       ['t(llcompat.SetMemoryLimit, "x")', "!! invalid argument #1 to 'SetMemoryLimit' (number expected, got string)"],
-      // In-world: ll.GetMemoryLimit() -> 131072 at first; llcompat.SetMemoryLimit(1), (1e9) and (-1) -> number 0
-      // and leave the limit alone. (llcompat.SetMemoryLimit(100000) -> 1 in-world, and the limit then read 100000;
-      // rezless keeps LSL's 64 KiB ceiling and answers 0. The README lists that as not modelled.)
-      ['show({llcompat.SetMemoryLimit(1), llcompat.SetMemoryLimit(1e9), llcompat.SetMemoryLimit(-1), ll.GetMemoryLimit()})', '{number:0 | number:0 | number:0 | number:131072}'],
     ])
+  })
+
+  it('lets an SLua script set its memory limit up to 131072', async () => {
+    const lim = (n: string) => [`tostring(llcompat.SetMemoryLimit(${n})) .. "/" .. ll.GetMemoryLimit()`, ''] as const
+    const cases: Array<readonly [string, string]> = [
+      // In-world: ll.GetMemoryLimit() and llcompat.GetMemoryLimit() -> 131072 at first
+      ['ll.GetMemoryLimit() .. "/" .. llcompat.GetMemoryLimit()', '131072/131072'],
+      // In-world, in this order, llcompat.SetMemoryLimit(n) and then ll.GetMemoryLimit(): 131073 -> 0, 131072;
+      // 262144 -> 0, 131072; 131072 -> 1, 131072; 131071 -> 1, 131071; 131072 -> 1, 131072 (back up);
+      // 100000 -> 1, 100000; 120000 -> 1, 120000; 65537 -> 1, 65537; 65536 -> 1, 65536; 65535 -> 1, 65535
+      [lim('131073')[0], '0/131072'],
+      [lim('262144')[0], '0/131072'],
+      [lim('131072')[0], '1/131072'],
+      [lim('131071')[0], '1/131071'],
+      [lim('131072')[0], '1/131072'],
+      [lim('100000')[0], '1/100000'],
+      [lim('120000')[0], '1/120000'],
+      [lim('65537')[0], '1/65537'],
+      [lim('65536')[0], '1/65536'],
+      [lim('65535')[0], '1/65535'],
+      // In-world: ll.GetFreeMemory() is then 65535 less ll.GetUsedMemory()
+      ['tostring(ll.GetFreeMemory() == 65535 - ll.GetUsedMemory())', 'true'],
+      // In-world: 0, 1 and -1 -> 0, limit unchanged; 1e9 -> 0; 70000.9 -> 1, 70000; "70001" -> 1, 70001;
+      // 2^32 + 70002 -> 1, 70002; true -> 0. (A limit at or below what the script uses is refused in-world: with
+      // 9644 bytes in use, 10668 -> 1 and 9645, 9644, 8620 and 4000 -> 0. rezless does not compare with the VM's
+      // count yet; the README lists that.)
+      [lim('0')[0], '0/65535'],
+      [lim('-1')[0], '0/65535'],
+      [lim('1e9')[0], '0/65535'],
+      [lim('70000.9')[0], '1/70000'],
+      [lim('"70001"')[0], '1/70001'],
+      [lim('2 ^ 32 + 70002')[0], '1/70002'],
+      [lim('true')[0], '0/70002'],
+    ]
+    await expectResults(cases)
+  })
+
+  it('keeps the 64 KiB ceiling for an LSL script', async () => {
+    // In-world (LSL, Mono): llSetMemoryLimit(65536) -> 1; llSetMemoryLimit(60000) -> 1; llSetMemoryLimit(70000) -> 0
+    const s = await loadScript({
+      source: 'default { state_entry() { llSay(7777, llList2CSV([llSetMemoryLimit(65536), llSetMemoryLimit(60000), llSetMemoryLimit(70000), llGetMemoryLimit()])); } }',
+    })
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual(['1, 1, 0, 60000'])
+  })
+
+  it('finds nothing with ll.ListFindStrided when the start or the end is before the list', async () => {
+    await expectResults([
+      // In-world: ll.ListFindStrided({1, 2, 3, 4}, {3}, start, -1, 1) for start = -1 -> nil; -2 and -4 -> 3;
+      // -5, -100, -2^31 and 1e20 -> nil; 10 -> nil
+      ['show({ll.ListFindStrided(l, {3}, -1, -1, 1) or "nil", ll.ListFindStrided(l, {3}, -2, -1, 1), ll.ListFindStrided(l, {3}, -4, -1, 1)})', '{string:nil | number:3 | number:3}'],
+      [
+        'show({ll.ListFindStrided(l, {3}, -5, -1, 1) or "nil", ll.ListFindStrided(l, {3}, -100, -1, 1) or "nil", ll.ListFindStrided(l, {3}, -2 ^ 31, -1, 1) or "nil", ll.ListFindStrided(l, {3}, 1e20, -1, 1) or "nil", ll.ListFindStrided(l, {3}, 10, -1, 1) or "nil"})',
+        '{string:nil | string:nil | string:nil | string:nil | string:nil}',
+      ],
+      // In-world: (l, {3}, 1, end, 1) for end = -5 and -100 -> nil; 10 -> 3
+      ['show({ll.ListFindStrided(l, {3}, 1, -5, 1) or "nil", ll.ListFindStrided(l, {3}, 1, -100, 1) or "nil", ll.ListFindStrided(l, {3}, 1, 10, 1)})', '{string:nil | string:nil | number:3}'],
+      // In-world: through llcompat with the same starts -1, -2, -4, -5, -100, -2^31 -> -1, 2, 2, -1, -1, -1; ends
+      // -5, -100 from start 0 -> -1; start 10 -> -1; end 10 -> 2
+      [
+        'll.List2CSV({llcompat.ListFindStrided(l, {3}, -1, -1, 1), llcompat.ListFindStrided(l, {3}, -2, -1, 1), llcompat.ListFindStrided(l, {3}, -4, -1, 1), llcompat.ListFindStrided(l, {3}, -5, -1, 1), llcompat.ListFindStrided(l, {3}, -100, -1, 1), llcompat.ListFindStrided(l, {3}, -2 ^ 31, -1, 1), llcompat.ListFindStrided(l, {3}, 0, -5, 1), llcompat.ListFindStrided(l, {3}, 0, -100, 1), llcompat.ListFindStrided(l, {3}, 10, -1, 1), llcompat.ListFindStrided(l, {3}, 0, 10, 1)})',
+        '-1, 2, 2, -1, -1, -1, -1, -1, -1, 2',
+      ],
+      // In-world: ll.List2ListStrided still takes the whole list from a start before it: ({1, 2, 3, 4}, -100, -1, 1),
+      // (-5, -1, 1) and (1, -100, 1) -> 1, 2, 3, 4
+      ['ll.List2CSV(ll.List2ListStrided(l, -100, -1, 1)) .. " / " .. ll.List2CSV(ll.List2ListStrided(l, -5, -1, 1)) .. " / " .. ll.List2CSV(ll.List2ListStrided(l, 1, -100, 1))', '1, 2, 3, 4 / 1, 2, 3, 4 / 1, 2, 3, 4'],
+    ], 'local l = {1, 2, 3, 4}')
+    // In-world (LSL): llListFindStrided([1, 2, 3, 4], [3], start, -1, 1) for -1, -2, -4, -5, -100, 0x80000000 ->
+    // -1, 2, 2, -1, -1, -1; (…, 0, -5, 1), (…, 0, -100, 1), (…, 10, -1, 1), (…, 0, 10, 1) -> -1, -1, -1, 2
+    const s = await loadScript({
+      source: `default { state_entry() { list l = [1, 2, 3, 4];
+        llSay(7777, llList2CSV([llListFindStrided(l, [3], -1, -1, 1), llListFindStrided(l, [3], -2, -1, 1), llListFindStrided(l, [3], -4, -1, 1),
+          llListFindStrided(l, [3], -5, -1, 1), llListFindStrided(l, [3], -100, -1, 1), llListFindStrided(l, [3], (integer)0x80000000, -1, 1),
+          llListFindStrided(l, [3], 0, -5, 1), llListFindStrided(l, [3], 0, -100, 1), llListFindStrided(l, [3], 10, -1, 1), llListFindStrided(l, [3], 0, 10, 1)])); } }`,
+    })
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual(['-1, 2, 2, -1, -1, -1, -1, -1, -1, 2'])
   })
 
   it('reads and resets the script clock', async () => {
@@ -930,57 +1024,106 @@ describe('SLua: the functions only llcompat has', () => {
     ).toEqual(['number true true true', '0 true true'])
   })
 
-  const TIMERS = `
-    local ticks, lt, once = 0, 0, 0
-    LLEvents:on("timer", function(...) ticks += 1; if ticks == 1 then ll.Say(7777, "args " .. select("#", ...)) end end)
-    local function counts() local s = ticks .. " " .. lt .. " " .. once; ticks, lt, once = 0, 0, 0; return s end
-    local step = 0
-    LLEvents:on("no_sensor", function() step += 1; local f = steps[step]; if f then ll.Say(7777, counts()); f() end end)
-    ll.SensorRepeat("nothing", NULL_KEY, AGENT, 0.1, 0.1, 1.0)`
+  /** Run `arm` with a `timer` handler and an LLTimers callback `cb` logging when they ran; return both logs after `ms`. */
+  const timeline = async (arm: string, ms: number, extra: (s: Script) => object = () => ({})) => {
+    const s = await loadScript({
+      source: `ticks, lt = {}, {}
+        local function stamp() return math.floor(ll.GetTime() * 100 + 0.5) / 100 end
+        local function cb() lt[#lt + 1] = stamp() end
+        LLEvents:on("timer", function(...) ticks[#ticks + 1] = stamp(); args = select("#", ...) end)
+        ${arm}`,
+      language: 'slua',
+    })
+    s.start()
+    s.advanceTime(ms)
+    // The timer can wake a moment before a callback is due and be set again, in-world and here: count a time once.
+    return { ticks: [...new Set(s.global('ticks') as number[])], lt: s.global('lt'), args: s.global('args'), ...extra(s) }
+  }
 
-  it('fires timer handlers from llcompat.SetTimerEvent, on the timer LLTimers uses', async () => {
-    // In-world: a no_sensor event every second drove these steps; each line is the number of `timer` handler
-    // calls, LLTimers:every callbacks and LLTimers:once callbacks in the 3 s after the step.
-    //   llcompat.SetTimerEvent(0.5)                      -> the handler gets no arguments; 6 0 0
-    //   LLTimers:every(0.4, …) added                     -> 11 7 0
-    //   llcompat.SetTimerEvent(0)                        -> 0 0 0: the LLTimers callbacks stop too
-    //   llcompat.SetTimerEvent(1.0), LLTimers still set  -> 8 6 0: both run again
-    //   LLTimers:off(every)                              -> 0 0 0: the SetTimerEvent timer stopped with it
-    // What is pinned is which steps tick and which don't. The counts below are rezless's on its exact clock;
-    // the region's ran one or two ticks higher, where a timer event came just before an LLTimers callback was due.
+  it('fires the timer handlers from llcompat.SetTimerEvent, with no arguments', async () => {
+    // In-world: llcompat.SetTimerEvent(0.5) alone -> the handler ran at 0.49, 1.00, 1.49, 2.00, 2.49, 3.00, 3.49
+    // and 4.00 s, with no arguments
+    expect(await timeline('llcompat.SetTimerEvent(0.5)', 4100)).toEqual({ ticks: [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4], lt: [], args: 0 })
+  })
+
+  it('shares one timer with LLTimers, which sets it to its own next callback', async () => {
+    // In-world: llcompat.SetTimerEvent(0.5), then LLTimers:every(0.4, cb) -> cb ran at 0.40, 0.80, 1.22, 1.60, 2.02,
+    // 2.42, 2.82, 3.22, 3.62, 4.02 s, and the timer handler ran then and at no multiple of 0.5 s of its own.
+    // (In-world the handler also ran about 0.02 s before some callbacks, at 1.20, 2.00, 2.80 and 3.60 s: the
+    // timer woke early and LLTimers set it again. LLTimers:every(0.4, cb) alone did the same.)
+    const every04 = [0.4, 0.8, 1.2, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4]
+    expect(await timeline('llcompat.SetTimerEvent(0.5); LLTimers:every(0.4, cb)', 4100)).toEqual({ ticks: every04, lt: every04, args: 0 })
+    // In-world: LLTimers:every(0.4, cb), then llcompat.SetTimerEvent(1.0) -> the handler ran at 1.00 s, and from
+    // then with cb at 1.42, 1.82, 2.22, 2.62, 3.02, 3.42, 3.82 s (cb's first run was at 1.00 s, not 0.40 s)
+    expect(await timeline('LLTimers:every(0.4, cb); llcompat.SetTimerEvent(1.0)', 3900)).toEqual({
+      ticks: [1, 1.4, 1.8, 2.2, 2.6, 3, 3.4, 3.8],
+      lt: [1, 1.4, 1.8, 2.2, 2.6, 3, 3.4, 3.8],
+      args: 0,
+    })
+    // In-world: LLTimers:every(5, cb), then llcompat.SetTimerEvent(1.0) -> the handler ran at 1.02 s, then only
+    // with cb at 5.02 and 10.02 s: a 1 s timer does not stay one
+    expect(await timeline('LLTimers:every(5, cb); llcompat.SetTimerEvent(1.0)', 11000)).toEqual({ ticks: [1, 5, 10], lt: [5, 10], args: 0 })
+    // In-world: llcompat.SetTimerEvent(1.0), then LLTimers:every(5, cb) -> the handler ran only with cb, at 5.02 and 10.02 s
+    expect(await timeline('llcompat.SetTimerEvent(1.0); LLTimers:every(5, cb)', 11000)).toEqual({ ticks: [5, 10], lt: [5, 10], args: 0 })
+  })
+
+  it('stops LLTimers with llcompat.SetTimerEvent(0), and the timer with the last LLTimers:off', async () => {
+    // In-world, counted over 3 s each: llcompat.SetTimerEvent(0.5) and LLTimers:every(0.4, cb) running, then
+    // llcompat.SetTimerEvent(0) -> no handler call and no cb. llcompat.SetTimerEvent(1.0) after that -> both run
+    // again. LLTimers:off on the callback -> no handler call: the SetTimerEvent timer stopped with it.
     expect(
-      await run(
-        `local steps = {}
-        local every
-        ${TIMERS}
-        steps[1] = function() llcompat.SetTimerEvent(0.5) end
-        steps[4] = function() every = LLTimers:every(0.4, function() lt += 1 end) end
-        steps[7] = function() llcompat.SetTimerEvent(0) end
-        steps[10] = function() llcompat.SetTimerEvent(1.0) end
-        steps[13] = function() LLTimers:off(every) end
-        steps[16] = function() ll.SensorRemove() end`,
-        20000,
+      await timeline(
+        `local every = LLTimers:every(0.4, cb)
+        llcompat.SetTimerEvent(0.5)
+        local step = 0
+        LLEvents:on("no_sensor", function()
+          step += 1
+          if step == 1 then llcompat.SetTimerEvent(0); ticks, lt = {}, {}
+          elseif step == 3 then stopped = #ticks + #lt; llcompat.SetTimerEvent(1.0)
+          elseif step == 5 then again = #ticks > 0 and #lt > 0; LLTimers:off(every); ticks, lt = {}, {}
+          end
+        end)
+        ll.SensorRepeat("nothing", NULL_KEY, AGENT, 0.1, 0.1, 1.03)`,
+        9000,
+        (s) => ({ stopped: s.global('stopped'), again: s.global('again') }),
       ),
-    ).toEqual(['0 0 0', 'args 0', '5 0 0', 'args 0', '10 7 0', '0 0 0', 'args 0', '6 5 0', '0 0 0'])
+    ).toEqual({ ticks: [], lt: [], args: 0, stopped: 0, again: 1 })
+    const s = await loadScript({
+      source: `local n = 0
+        local every = LLTimers:every(0.4, function() n += 1 end)
+        llcompat.SetTimerEvent(0)
+        LLEvents:on("no_sensor", function() ll.Say(7777, tostring(n)); ll.SensorRemove() end)
+        ll.SensorRepeat("nothing", NULL_KEY, AGENT, 0.1, 0.1, 3.03)`,
+      language: 'slua',
+    })
+    s.start()
+    s.advanceTime(4000)
+    expect(s.chat.map((c) => c.text)).toEqual(['0'])
   })
 
   it('keeps the timer across llcompat.ResetTime, and puts off an LLTimers callback the timer was stopped under', async () => {
-    // In-world: llcompat.SetTimerEvent(0.5) then llcompat.ResetTime() -> the timer keeps ticking (6 in 3 s).
-    // llcompat.SetTimerEvent(0), LLTimers:once(0.5, …), llcompat.ResetTime() -> one tick and no callback in 2 s.
-    // LLTimers:once(0.5, …) then llcompat.SetTimerEvent(0) -> no tick and no callback in 2 s.
-    // LLTimers:every(0.5, …) then llcompat.SetTimerEvent(2.0) -> the timer runs again and both put-off callbacks
-    // run (6 ticks, 5 every-callbacks, 2 once-callbacks in 4 s in-world; rezless counts 4 and 4 on its clock).
-    expect(
-      await run(
-        `local steps = {}
-        ${TIMERS}
-        steps[1] = function() llcompat.SetTimerEvent(0.5); llcompat.ResetTime() end
-        steps[4] = function() llcompat.SetTimerEvent(0); LLTimers:once(0.5, function() once += 1 end); llcompat.ResetTime() end
-        steps[6] = function() LLTimers:once(0.5, function() once += 1 end); llcompat.SetTimerEvent(0) end
-        steps[8] = function() LLTimers:every(0.5, function() lt += 1 end); llcompat.SetTimerEvent(2.0) end
-        steps[12] = function() llcompat.SetTimerEvent(0); ll.SensorRemove() end`,
-        16000,
-      ),
-    ).toEqual(['0 0 0', 'args 0', '5 0 0', 'args 0', '1 0 0', '0 0 0', 'args 0', '4 4 2'])
+    // In-world: llcompat.SetTimerEvent(0.5), then llcompat.ResetTime() -> the handler ran 6 times in the next 3 s
+    expect((await timeline('llcompat.SetTimerEvent(0.5); llcompat.ResetTime()', 3100)).ticks).toEqual([0.5, 1, 1.5, 2, 2.5, 3])
+    // In-world: llcompat.SetTimerEvent(0), LLTimers:once(0.5, cb), llcompat.ResetTime() -> one handler call and no
+    // cb in 2 s. Then LLTimers:once(0.5, cb), llcompat.SetTimerEvent(0) -> neither in 2 s. Then
+    // LLTimers:every(0.5, …), llcompat.SetTimerEvent(2.0) -> the timer runs again and both put-off callbacks run.
+    const s = await loadScript({
+      source: `local ticks, once, step = 0, 0, 0
+        LLEvents:on("timer", function() ticks += 1 end)
+        local function counts() local r = ticks .. " " .. once; ticks, once = 0, 0; return r end
+        LLEvents:on("no_sensor", function()
+          step += 1
+          if step == 1 then ll.Sleep(1.5); llcompat.SetTimerEvent(0); LLTimers:once(0.5, function() once += 1 end); llcompat.ResetTime()
+          elseif step == 3 then ll.Say(7777, counts()); LLTimers:once(0.5, function() once += 1 end); llcompat.SetTimerEvent(0)
+          elseif step == 5 then ll.Say(7777, counts()); LLTimers:every(0.5, function() end); llcompat.SetTimerEvent(2.0)
+          elseif step == 9 then ll.Say(7777, tostring(once)); llcompat.SetTimerEvent(0); ll.SensorRemove()
+          end
+        end)
+        ll.SensorRepeat("nothing", NULL_KEY, AGENT, 0.1, 0.1, 1.03)`,
+      language: 'slua',
+    })
+    s.start()
+    s.advanceTime(14000)
+    expect(s.chat.map((c) => c.text)).toEqual(['1 0', '0 0', '2'])
   })
 })

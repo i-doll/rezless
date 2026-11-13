@@ -102,7 +102,7 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
     }
     out.push(...values)
     types.push(...(valueTypes ?? primParamTypes(rule, values)))
-    kinds.push(...primParamLuaKinds(isPrim(cur) ? cur : undefined, rule, values))
+    kinds.push(...primParamLuaKinds(isPrim(cur) ? cur : undefined, rule, rules, i + 1, values))
     i += 1 + consumed
   }
   return markLuaResult(typedList(out, types), kinds)

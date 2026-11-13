@@ -44,8 +44,8 @@ export interface SluaHost {
   setTimer(seconds: number): void
   /** Text from Lua's print(). */
   print(text: string): void
-  /** Whether the script's prim holds a texture item called `name`. */
-  holdsTexture(name: string): boolean
+  /** Whether llGetTexture(face) answered with the name of a texture item the script's prim holds. */
+  faceTextureIsItem(face: number): boolean
 }
 
 /** A script that failed to compile. */
@@ -431,7 +431,7 @@ export class SluaEngine {
       this.sleepMs = (this.sleepMs ?? 0) + result.delayMs
       this.x.rz_request_break(this.s)
     }
-    return this.pushResult(L, spec, compat, result.value)
+    return this.pushResult(L, spec, compat, args, result.value)
   }
 
   /**
@@ -531,7 +531,7 @@ export class SluaEngine {
     return markLuaList(typedList(values, types), kinds)
   }
 
-  private pushResult(L: number, spec: BuiltinSpec, compat: boolean, value: LslValue | undefined): number {
+  private pushResult(L: number, spec: BuiltinSpec, compat: boolean, args: LslValue[], value: LslValue | undefined): number {
     if (spec.returnType === 'void') return 0
     // The host fills in a result for every non-void call.
     const v = value!
@@ -549,7 +549,7 @@ export class SluaEngine {
       return 1
     }
     // The texture a face holds by key comes back as a uuid; an item's name stays a string, key-like or not.
-    if (spec.name === 'llGetTexture' && isKey(v as string) && !this.host.holdsTexture(v as string)) this.push(L, (v as string).toLowerCase(), 'key', compat)
+    if (spec.name === 'llGetTexture' && isKey(v as string) && !this.host.faceTextureIsItem(args[0] as number)) this.push(L, (v as string).toLowerCase(), 'key', compat)
     else this.push(L, v, spec.returnType, compat)
     return 1
   }

@@ -848,17 +848,10 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   `ll.IntegerToBase64(2^32 + 5)` encodes 5. A number that doesn't fit 64
   bits (`1e20`, infinity, NaN) is 0. A 1-based index in `ll` from 2^31 up,
   or below -2^31, is read as the lowest integer, which is before the start
-  of any string: `ll.InsertString("abc", 2^31, "x")` is `"xabc"`. The functions SLua runs itself (`ll.GetSubString`,
-  `ll.List2String`, …) do their own conversion and are not changed.
-* **Only in `llcompat`**: `llcompat.SetTimerEvent`, `llcompat.ResetTime`,
-  `llcompat.GetAndResetTime` and `llcompat.SetMemoryLimit` exist, and `ll`
-  has none of them, as in Second Life. `llcompat.SetTimerEvent` runs the
-  `timer` handlers on the same timer `LLTimers` uses, so each changes the
-  other: `llcompat.SetTimerEvent(0)` stops `LLTimers` callbacks, and
-  `LLTimers:off` on the last callback stops the timer.
-* **Item lists**: `ll.GiveInventoryList` and `ll.GiveAgentInventory` take
-  only strings as item names, as their LSL forms do. A number or a `uuid`
-  in the list names nothing, even when an item is called that.
+  of any string or list: `ll.InsertString("abc", 2^31, "x")` is `"xabc"`,
+  and `ll.ListFindStrided` with such a start finds nothing. The functions
+  SLua runs itself (`ll.GetSubString`, `ll.List2String`, …) do their own
+  conversion and are not changed.
 * **Error positions**: every script's chunk is called `lua_script`, as in
   Second Life, whatever file the test loaded. A message caught by `pcall`
   reads `lua_script:12: …`, and `debug.info` and `debug.traceback` say the
@@ -920,8 +913,10 @@ Not modelled yet:
 
 * SLua script state isn't serialized, so a copy (rezzed from inventory,
   remote-loaded) starts afresh.
-* `llcompat.SetMemoryLimit` keeps LSL's 64 KiB ceiling. In Second Life an
-  SLua script could set 100000.
+* `llcompat.SetMemoryLimit` accepts a limit below what the script uses,
+  which Second Life refuses, and a lowered limit changes what
+  `ll.GetMemoryLimit` and `ll.GetFreeMemory` report but not when the VM
+  runs out.
 * `coroutine.running()` returns the thread the script runs on. In Second
   Life it is `nil` at the top level and in a handler.
 * `print()` goes to `s.printed`, not chat.

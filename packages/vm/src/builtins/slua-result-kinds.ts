@@ -4,10 +4,11 @@
  * by entry, so the tables here are what was measured in-world (Aditi, SLua
  * Tideland, 2026-11-13); the tests in slua-results.test.ts cite each probe.
  */
-import type { LslValue } from '../values/types.js'
+import { NULL_KEY, type LslValue } from '../values/types.js'
 import type { LuaResultKind } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
 import { InventoryType } from '../inventory.js'
+import { faceIndices } from '../prim-params.js'
 import {
   OBJECT_LOCKED,
   OBJECT_PHANTOM,
@@ -81,23 +82,63 @@ const PRIM_PARAM_KINDS: Readonly<Record<number, Kinds>> = {
 
 const SCULPT_KINDS = at(3, 1, 'uuid')
 
-/** The rules that read an asset back by the name of the item the prim holds it as. A glTF rule reads the key. */
-const NAMED_BY_ITEM: ReadonlySet<number> = new Set([PRIM_TEXTURE, PRIM_NORMAL, PRIM_SPECULAR, PRIM_RENDER_MATERIAL, PRIM_TYPE])
+/** Whether `prim` holds the asset `key` as an item of `type`, which is when a read gives the item's name. */
+const heldAsItem = (prim: Prim, type: number, key: string): boolean =>
+  key !== NULL_KEY && prim.inventory.some((it) => it.type === type && it.key.toLowerCase() === key)
 
 /**
- * What the values `prim` returned for PRIM_* rule `param` are in SLua. An
- * item's name is a string even when it reads like a key, and so is the ""
- * of an unset glTF override.
+ * The asset behind each run of values PRIM_* rule `param` read: one per
+ * face. Undefined for the rules that never give an item's name (a glTF
+ * rule reads the key).
  */
-export function primParamLuaKinds(prim: Prim | undefined, param: number, values: ReadonlyArray<LslValue>): LuaResultKind[] {
+function assetsRead(prim: Prim, param: number, faceArg: LslValue | undefined): string[] | undefined {
+  const faces = faceIndices(prim.params, typeof faceArg === 'number' ? faceArg | 0 : 0).map((f) => prim.params.faces[f]!)
+  switch (param) {
+    case PRIM_TEXTURE:
+      return faces.map((f) => f.texture)
+    case PRIM_NORMAL:
+      return faces.map((f) => f.normal.texture)
+    case PRIM_SPECULAR:
+      return faces.map((f) => f.specular.texture)
+    case PRIM_RENDER_MATERIAL:
+      return faces.map((f) => f.renderMaterial)
+    default:
+      return undefined
+  }
+}
+
+/**
+ * What the values `prim` returned for PRIM_* rule `param` (whose arguments
+ * start at `rules[cursor]`) are in SLua. An item's name is a string even
+ * when it reads like a key, and so is the "" of an unset glTF override.
+ */
+export function primParamLuaKinds(
+  prim: Prim | undefined,
+  param: number,
+  rules: ReadonlyArray<LslValue>,
+  cursor: number,
+  values: ReadonlyArray<LslValue>,
+): LuaResultKind[] {
   const pattern = param === PRIM_TYPE ? (values[0] === PRIM_TYPE_SCULPT ? SCULPT_KINDS : []) : (PRIM_PARAM_KINDS[param] ?? [])
   const itemType = param === PRIM_RENDER_MATERIAL ? InventoryType.MATERIAL : InventoryType.TEXTURE
-  const named = (v: LslValue) => NAMED_BY_ITEM.has(param) && !!prim?.inventory.some((it) => it.type === itemType && it.name === v)
+  const assets = prim && assetsRead(prim, param, rules[cursor])
   return values.map((v, i) => {
     const kind = pattern[i % pattern.length]
     if (kind === 'boolean') return v === '' ? undefined : kind
-    return kind === 'uuid' && named(v) ? 'string' : kind
+    if (kind !== 'uuid') return kind
+    // A sculpt's map is kept as the script gave it, so a name is still a name.
+    const named =
+      param === PRIM_TYPE
+        ? !!prim?.inventory.some((it) => it.type === itemType && it.name === v)
+        : prim !== undefined && assets !== undefined && heldAsItem(prim, itemType, assets[Math.floor(i / pattern.length)] ?? NULL_KEY)
+    return named ? 'string' : kind
   })
+}
+
+/** Whether ll.GetTexture(face) on `prim` answers with the name of an item the prim holds, not with a key. */
+export function faceTextureIsItem(prim: Prim, face: number): boolean {
+  const held = prim.params.faces[Math.max(0, face | 0)]
+  return held !== undefined && heldAsItem(prim, InventoryType.TEXTURE, held.texture)
 }
 
 const OBJECT_DETAIL_BOOLEANS: ReadonlySet<number> = new Set([
