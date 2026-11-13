@@ -1,4 +1,4 @@
-import type { BuiltinImpl } from '../runtime.js'
+import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName } from '../prim-params.js'
@@ -225,8 +225,8 @@ export const llRotateTexture: BuiltinImpl = (ctx, args) => {
 }
 
 /** Colouring a seated avatar's link changes nothing, but the root's scripts still get CHANGED_COLOR. */
-function raiseSitterColorChanged(linkset: Linkset, link: number): void {
-  if (linkset.sitterAt(link)) raisePrimChanged(linkset.prims[0]!, CHANGED_COLOR)
+function raiseSitterColorChanged(ctx: CallContext, link: number): void {
+  if (ctx.linkset.linksFrom(ctx.prim, link).sitter) raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_COLOR)
 }
 
 /* ------------------------------------------------------------------ */
@@ -242,7 +242,7 @@ export const llSetLinkColor: BuiltinImpl = (ctx, args) => {
     for (const f of faceIndices(p.params, face)) p.params.faces[f]!.color = { x: color.x, y: color.y, z: color.z }
     raisePrimChanged(p, CHANGED_COLOR)
   }
-  raiseSitterColorChanged(ctx.linkset, link)
+  raiseSitterColorChanged(ctx, link)
   return undefined
 }
 export const llSetLinkAlpha: BuiltinImpl = (ctx, args) => {
@@ -253,7 +253,7 @@ export const llSetLinkAlpha: BuiltinImpl = (ctx, args) => {
     for (const f of faceIndices(p.params, face)) p.params.faces[f]!.alpha = alpha
     raisePrimChanged(p, CHANGED_COLOR)
   }
-  raiseSitterColorChanged(ctx.linkset, link)
+  raiseSitterColorChanged(ctx, link)
   return undefined
 }
 export const llSetLinkTexture: BuiltinImpl = (ctx, args) => {
@@ -424,9 +424,8 @@ export const llLinkSitTarget: BuiltinImpl = (ctx, args) => {
   const offset = vecOf(args[1])
   const rot = rotOf(args[2])
   const enabled = !(offset.x === 0 && offset.y === 0 && offset.z === 0)
-  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
-    p.setPrimParam(PRIM_SIT_TARGET, [enabled ? 1 : 0, offset, rot], 0)
-  }
+  // Takes one link: every negative number but LINK_THIS is the first other link.
+  ctx.linkset.onePrim(ctx.prim, link)?.setPrimParam(PRIM_SIT_TARGET, [enabled ? 1 : 0, offset, rot], 0)
   return undefined
 }
 export const llAvatarOnSitTarget: BuiltinImpl = () => NULL_KEY
@@ -442,7 +441,7 @@ export const llSetLinkSitFlags: BuiltinImpl = (ctx, args) => {
 }
 export const llGetLinkSitFlags: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
-  const ts = targets(ctx.linkset, ctx.prim.linkNumber, link)
-  return ts[0]?.params.sitFlags ?? 0
+  // Takes one link, like llLinkSitTarget.
+  return ctx.linkset.onePrim(ctx.prim, link)?.params.sitFlags ?? 0
 }
 

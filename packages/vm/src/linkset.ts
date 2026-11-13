@@ -30,6 +30,11 @@ import {
 // Re-export so `import { LINK_* } from '@rezless/vm'` keeps working.
 export { LINK_ROOT, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_THIS }
 
+/** A link of an object: one of its prims, or an avatar seated on it. */
+export type Link = Prim | WorldAvatar
+
+export const isPrim = (link: Link | undefined): link is Prim => link instanceof Prim
+
 export interface LinksetOptions {
   /** Owner key applied to all scripts in this linkset. */
   readonly owner?: string
@@ -446,31 +451,56 @@ export class Linkset {
     return this.prims.find((p) => p.scripts.includes(script))
   }
 
+  /** The first link that is not `from`: link 2 seen from the root, the root seen from any other link. */
+  firstOtherLink(from: Link): Link | undefined {
+    return from === this.prims[0] ? this.linkAt(2) : this.prims[0]
+  }
+
+  /**
+   * The link `link` names, seen from `from`, in a call that takes one link.
+   * LINK_THIS is `from` and every other negative number is the first other
+   * link. Link 0 is the root seen from another link, and a lone prim nobody
+   * sits on.
+   */
+  oneLink(from: Link, link: number): Link | undefined {
+    if (link === LINK_THIS) return from
+    if (link < 0) return this.firstOtherLink(from)
+    if (link > 0) return this.linkAt(link)
+    const root = this.prims[0]
+    return from !== root || root?.linkNumber === 0 ? root : undefined
+  }
+
+  /** The prim `link` names in a call that takes one link; undefined for an avatar link or no link. */
+  onePrim(from: Link, link: number): Prim | undefined {
+    const one = this.oneLink(from, link)
+    return isPrim(one) ? one : undefined
+  }
+
+  /**
+   * The links `link` names, seen from the prim `from`, in a call that takes
+   * LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN as groups. The groups hold
+   * prims only. A number below LINK_THIS is the first other link, and that or
+   * a positive number can name a seated avatar.
+   */
+  linksFrom(from: Prim, link: number): { prims: Prim[]; sitter: WorldAvatar | undefined } {
+    const group = link === LINK_THIS ? [from]
+      : link === LINK_SET ? [...this.prims]
+      : link === LINK_ALL_OTHERS ? this.prims.filter((p) => p !== from)
+      : link === LINK_ALL_CHILDREN ? this.prims.slice(1)
+      : undefined
+    if (group) return { prims: group, sitter: undefined }
+    // Here link 0 names only a lone prim nobody sits on. Callers that read it as the root from a child do that themselves.
+    const one = link === 0 ? this.prims.find((p) => p.linkNumber === 0) : link < 0 ? this.firstOtherLink(from) : this.linkAt(link)
+    return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
+  }
+
   /** Resolve LINK_* / specific link number to the set of target prims. */
   resolveTargets(senderLink: number, target: number): Prim[] {
-    if (target === LINK_THIS) {
-      const me = this.prims.find((p) => p.linkNumber === senderLink) ?? this.prims[0]
-      return me ? [me] : []
-    }
-    if (target === LINK_SET) return [...this.prims]
-    if (target === LINK_ALL_OTHERS) {
-      return this.prims.filter((p) => p.linkNumber !== senderLink)
-    }
-    if (target === LINK_ALL_CHILDREN) {
-      // children = everything except root (LINK_ROOT in a real linkset; a
-      // lone prim has linkNumber 0 → no children).
-      if (this.prims.length <= 1) return []
-      return this.prims.filter((p) => p.linkNumber !== LINK_ROOT)
-    }
-    if (target >= LINK_ROOT) {
-      const p = this.prims.find((pp) => pp.linkNumber === target)
-      return p ? [p] : []
-    }
-    if (target === 0 && this.prims[0]?.linkNumber === 0) {
-      // Lone unlinked prim accepts target 0 as "self".
-      return [this.prims[0]!]
-    }
-    return []
+    const sender = this.prims.find((p) => p.linkNumber === senderLink)
+    // A sender that is not a prim of this object leaves nothing out of LINK_ALL_OTHERS.
+    if (!sender && target === LINK_ALL_OTHERS) return [...this.prims]
+    const from = sender ?? this.prims[0]
+    return from ? this.linksFrom(from, target).prims : []
   }
 
   /**

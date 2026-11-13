@@ -5,23 +5,15 @@ import type { LslValue } from '../values/types.js'
 import { listElementType, ruleElementType, typedList } from '../values/list-types.js'
 import { numberOfSides } from '../prim-params.js'
 import {
-  CHANGED_MEDIA, LINK_THIS, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
+  CHANGED_MEDIA, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
   STATUS_BOUNDS_ERROR, STATUS_NOT_FOUND, STATUS_NOT_SUPPORTED, STATUS_WHITELIST_FAILED,
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { raisePrimChanged } from '../prim-changed.js'
+import { isPrim } from '../linkset.js'
 
 const defaults = (): (number | string)[] => [0, 0, '', '', 0, 0, 0, 0, 0, 0, 0, 0, '', 7, 7]
 const strings = new Set([2, 3, 12])
-
-// Media calls select one prim. Negative selectors other than LINK_THIS select
-// the first other prim, including LINK_SET and LINK_ALL_CHILDREN (Aditi probes).
-function target(ctx: CallContext, link: number): Prim | undefined {
-  if (link === LINK_THIS) return ctx.prim
-  if (link < 0) return ctx.linkset.prims.find(p => p !== ctx.prim)
-  if (link === 0 && ctx.prim.linkNumber > 1) return ctx.linkset.prims[0]
-  return ctx.linkset.prims.find(p => p.linkNumber === link)
-}
 
 /** What media calls act on: a prim, or the avatar seated at an avatar link. */
 interface MediaHolder {
@@ -34,11 +26,12 @@ interface MediaHolder {
 // the avatar stands and from the next object it sits on.
 const avatarMedia = new WeakMap<WorldAvatar, MediaHolder['media']>()
 
+// Media calls take one link. In-world, every negative number but LINK_THIS is the
+// first other link, LINK_SET and LINK_ALL_CHILDREN included (Aditi probes). On a
+// seated lone prim that link is the sitter.
 function holder(ctx: CallContext, link: number): MediaHolder | undefined {
-  const prim = target(ctx, link)
-  if (prim) return primHolder(prim)
-  // A negative link is the first other link, which on a seated lone prim is the sitter.
-  const sitter = link > 0 ? ctx.linkset.sitterAt(link) : link < 0 && link !== LINK_THIS ? ctx.linkset.sitters()[0] : undefined
+  const sitter = ctx.linkset.oneLink(ctx.prim, link)
+  if (isPrim(sitter)) return primHolder(sitter)
   if (!sitter) return undefined
   if (!avatarMedia.has(sitter)) avatarMedia.set(sitter, new Map())
   // An avatar link has 45 media faces; its changed event goes to the root.
