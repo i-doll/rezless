@@ -268,7 +268,9 @@ export class Prim {
   #ownerEditedInventory(): void {
     const linkset = this.linkset
     if (!linkset) return
-    const scripts = this.scripts.filter((script) => script.running && script.hasStarted)
+    // A queued event can run a script's handler without starting it.
+    const scripts = this.scripts.filter((script) => script.running
+      && (script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined))
     if (!scripts.length) return
     for (const script of scripts) queueInventoryChanged(script)
     linkset.settle(scripts.filter((script) => script.wakeAt === undefined))
