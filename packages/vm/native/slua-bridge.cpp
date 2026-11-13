@@ -313,18 +313,22 @@ RZ_EXPORT RzScript* rz_new()
     lua_pop(L, 1);
     luaSL_set_constant_globals(L);
 
-    lua_pushcfunction(L, rz_print, "print");
+    // Second Life's print is called lsl_print (debug.info(print, "n")).
+    lua_pushcfunction(L, rz_print, "lsl_print");
     lua_setglobal(L, "print");
     return s;
 }
 
 // Register `ll.<name>` and `llcompat.<name>` as calls to host function `fn`.
-// SLua's own implementations (list and math functions) stay unless `replace`.
-RZ_EXPORT void rz_add_ll(RzScript* s, const char* name, int fn, int replace)
+// SLua's own implementations (list and math functions) stay unless `mode`
+// is 1. With `mode` 2 the name goes into `llcompat` only, as the functions
+// SLua took out of `ll` do.
+RZ_EXPORT void rz_add_ll(RzScript* s, const char* name, int fn, int mode)
 {
     lua_State* L = s->GL;
     const char* tables[] = {LUA_LLLIBNAME, LUA_LLCOMPATLIBNAME};
-    for (int compat = 0; compat < 2; compat++)
+    bool replace = mode == 1;
+    for (int compat = mode == 2 ? 1 : 0; compat < 2; compat++)
     {
         lua_getglobal(L, tables[compat]);
         lua_rawgetfield(L, -1, name);

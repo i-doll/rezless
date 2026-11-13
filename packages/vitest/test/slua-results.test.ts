@@ -861,3 +861,111 @@ describe('a list of items to give', () => {
     expect(await give('lsl', '[1, "1"]')).toEqual({ offered: [['1']], errors: [] })
   })
 })
+
+describe('SLua: the functions only llcompat has', () => {
+  const run = async (source: string, ms = 0) => {
+    const s = await loadScript({ source, language: 'slua' })
+    s.start()
+    if (ms) s.advanceTime(ms)
+    return s.chat.filter((c) => c.channel === 7777).map((c) => c.text)
+  }
+
+  it('has SetTimerEvent, ResetTime, GetAndResetTime and SetMemoryLimit in llcompat and not in ll', async () => {
+    // In-world: the names in llcompat that ll lacks -> GetAndResetTime, ResetTime, SetMemoryLimit, SetTimerEvent;
+    // ll has none that llcompat lacks; typeof(ll.SetTimerEvent) -> nil
+    expect(
+      await run(`
+        local only, missing = {}, {}
+        for k in pairs(llcompat) do if ll[k] == nil then only[#only + 1] = k end end
+        for k in pairs(ll) do if llcompat[k] == nil then missing[#missing + 1] = k end end
+        table.sort(only)
+        ll.Say(7777, table.concat(only, ",") .. " / " .. #missing .. " / " .. typeof(ll.SetTimerEvent))`),
+    ).toEqual(['GetAndResetTime,ResetTime,SetMemoryLimit,SetTimerEvent / 0 / nil'])
+  })
+
+  it('checks their arguments like any other function', async () => {
+    await expectResults([
+      // In-world: llcompat.SetTimerEvent() -> Fewer arguments than expected, 0 < 1; ("x") -> invalid argument #1 to
+      // 'SetTimerEvent' (number expected, got string); (true) -> (number expected, got boolean); (nil) -> got nil
+      ['t(llcompat.SetTimerEvent)', '!! Fewer arguments than expected, 0 < 1'],
+      ['t(llcompat.SetTimerEvent, "x")', "!! invalid argument #1 to 'SetTimerEvent' (number expected, got string)"],
+      ['t(llcompat.SetTimerEvent, true)', "!! invalid argument #1 to 'SetTimerEvent' (number expected, got boolean)"],
+      ['t(llcompat.SetTimerEvent, nil)', "!! invalid argument #1 to 'SetTimerEvent' (number expected, got nil)"],
+      // In-world: llcompat.SetTimerEvent(0) and llcompat.ResetTime(1) -> nothing returned, no error
+      ['t(llcompat.SetTimerEvent, 0)', '(nothing)'],
+      ['t(llcompat.ResetTime, 1)', '(nothing)'],
+      // In-world: llcompat.SetMemoryLimit() -> Fewer arguments than expected, 0 < 1; ("x") -> (number expected, got string)
+      ['t(llcompat.SetMemoryLimit)', '!! Fewer arguments than expected, 0 < 1'],
+      ['t(llcompat.SetMemoryLimit, "x")', "!! invalid argument #1 to 'SetMemoryLimit' (number expected, got string)"],
+      // In-world: llcompat.SetMemoryLimit(1), (1e9) and (-1) -> number 0, and ll.GetMemoryLimit() stays 131072.
+      // (llcompat.SetMemoryLimit(100000) -> 1 in-world; rezless keeps LSL's 64 KiB ceiling and answers 0.)
+      ['show({llcompat.SetMemoryLimit(1), llcompat.SetMemoryLimit(1e9), llcompat.SetMemoryLimit(-1), ll.GetMemoryLimit()})', '{number:0 | number:0 | number:0 | number:131072}'],
+    ])
+  })
+
+  it('reads and resets the script clock', async () => {
+    // In-world: after 1.5 s, llcompat.GetAndResetTime() -> a number above 1, and ll.GetTime() and os.clock() are
+    // below 1 afterwards; after another 1.5 s llcompat.ResetTime() returns nothing and both are below 1 again
+    expect(
+      await run(
+        `LLTimers:once(1.5, function()
+          local r = llcompat.GetAndResetTime()
+          ll.Say(7777, typeof(r) .. " " .. tostring(r > 1) .. " " .. tostring(ll.GetTime() < 1) .. " " .. tostring(os.clock() < 1))
+          LLTimers:once(1.5, function()
+            ll.Say(7777, select("#", llcompat.ResetTime()) .. " " .. tostring(ll.GetTime() < 1) .. " " .. tostring(os.clock() < 1))
+          end)
+        end)`,
+        4000,
+      ),
+    ).toEqual(['number true true true', '0 true true'])
+  })
+
+  const TIMERS = `
+    local ticks, lt, once = 0, 0, 0
+    LLEvents:on("timer", function(...) ticks += 1; if ticks == 1 then ll.Say(7777, "args " .. select("#", ...)) end end)
+    local function counts() local s = ticks .. " " .. lt .. " " .. once; ticks, lt, once = 0, 0, 0; return s end
+    local step = 0
+    LLEvents:on("no_sensor", function() step += 1; local f = steps[step]; if f then ll.Say(7777, counts()); f() end end)
+    ll.SensorRepeat("nothing", NULL_KEY, AGENT, 0.1, 0.1, 1.0)`
+
+  it('fires timer handlers from llcompat.SetTimerEvent, on the timer LLTimers uses', async () => {
+    // In-world: a no_sensor event every second drove these steps; each line is the number of `timer` handler
+    // calls, LLTimers:every callbacks and LLTimers:once callbacks since the step before.
+    //   llcompat.SetTimerEvent(0.5)                      -> the handler gets no arguments; about 6 ticks in 3 s
+    //   LLTimers:every(0.4, …) added                     -> ticks at both rates (11 in 3 s), 7 callbacks
+    //   llcompat.SetTimerEvent(0)                        -> no ticks and no LLTimers callbacks either
+    //   llcompat.SetTimerEvent(1.0), LLTimers still set  -> both run again (8 ticks, 6 callbacks in 3 s)
+    //   LLTimers:off(every)                              -> no ticks: the SetTimerEvent timer stopped with it
+    expect(
+      await run(
+        `local steps = {}
+        local every
+        ${TIMERS}
+        steps[1] = function() llcompat.SetTimerEvent(0.5) end
+        steps[4] = function() every = LLTimers:every(0.4, function() lt += 1 end) end
+        steps[7] = function() llcompat.SetTimerEvent(0) end
+        steps[10] = function() llcompat.SetTimerEvent(1.0) end
+        steps[13] = function() LLTimers:off(every) end
+        steps[16] = function() ll.SensorRemove() end`,
+        20000,
+      ),
+    ).toEqual(['0 0 0', 'args 0', '5 0 0', 'args 0', '10 7 0', '0 0 0', 'args 0', '6 5 0', '0 0 0'])
+  })
+
+  it('keeps the timer across llcompat.ResetTime, but an LLTimers callback set before it does not run', async () => {
+    // In-world: llcompat.SetTimerEvent(0.5) then llcompat.ResetTime() -> the timer keeps ticking (6 in 3 s).
+    // llcompat.SetTimerEvent(0), LLTimers:once(0.5, …), llcompat.ResetTime() -> one tick and no callback in 2 s.
+    // LLTimers:once(0.5, …) then llcompat.SetTimerEvent(0) -> no tick and no callback in 2 s.
+    expect(
+      await run(
+        `local steps = {}
+        ${TIMERS}
+        steps[1] = function() llcompat.SetTimerEvent(0.5); llcompat.ResetTime() end
+        steps[4] = function() llcompat.SetTimerEvent(0); LLTimers:once(0.5, function() once += 1 end); llcompat.ResetTime() end
+        steps[6] = function() LLTimers:once(0.5, function() once += 1 end); llcompat.SetTimerEvent(0) end
+        steps[8] = function() ll.SensorRemove() end`,
+        12000,
+      ),
+    ).toEqual(['0 0 0', 'args 0', '5 0 0', 'args 0', '1 0 0', '0 0 0'])
+  })
+})

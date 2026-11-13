@@ -121,7 +121,7 @@ interface Exports {
   memory: WasmMemory
   _initialize(): void
   rz_new(): number
-  rz_add_ll(s: number, name: number, fn: number, replace: number): void
+  rz_add_ll(s: number, name: number, fn: number, mode: number): void
   rz_load(s: number, name: number, source: number, len: number, coverage: number): number
   rz_event_thread(s: number, event: number): number
   rz_main_thread(s: number): number
@@ -174,10 +174,14 @@ function wasmModule(): object {
   return module
 }
 
-/** Every LSL function rezless can answer, by index; SLua's removed ones left out. */
-const LL_FUNCTIONS: ReadonlyArray<BuiltinSpec> = Object.values(BUILTIN_SPECS as Record<string, BuiltinSpec>).filter(
-  (s) => !s.slua?.removed,
-)
+/** Every LSL function rezless can answer, by index. */
+const LL_FUNCTIONS: ReadonlyArray<BuiltinSpec> = Object.values(BUILTIN_SPECS as Record<string, BuiltinSpec>)
+
+/** How rz_add_ll registers a function: in `ll` and `llcompat`, or in `llcompat` alone. */
+const enum Register {
+  Both = 0,
+  CompatOnly = 2,
+}
 
 const utf8 = new TextEncoder()
 const fromUtf8 = new TextDecoder()
@@ -254,7 +258,10 @@ export class SluaEngine {
     this.x = x
     x._initialize()
     this.s = x.rz_new()
-    LL_FUNCTIONS.forEach((spec, fn) => x.rz_add_ll(this.s, this.cString(spec.name.slice(2)), fn, 0))
+    // The functions SLua took out of `ll` are still in `llcompat`.
+    LL_FUNCTIONS.forEach((spec, fn) =>
+      x.rz_add_ll(this.s, this.cString(spec.name.slice(2)), fn, spec.slua?.removed ? Register.CompatOnly : Register.Both),
+    )
     if (memoryLimit > 0) x.rz_set_memory_limit(this.s, memoryLimit)
     // Source and name share one buffer: source, NUL, name, NUL.
     const bytes = utf8.encode(source)
