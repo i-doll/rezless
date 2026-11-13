@@ -224,6 +224,7 @@ export class Linkset {
     // attach event still runs from the shared clock's explicit event queue.
     for (const script of this.allScripts()) {
       script.clockView.pauseForInventory()
+      script.detached()
       pauseSensors(script)
       pauseTargets(script)
       this.clock.purgeTarget(script)

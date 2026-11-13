@@ -10,6 +10,7 @@ import {
   type PrimOptions,
   type InventoryItem,
   type Vector,
+  type AutoGrantPermissions,
   makeInventoryItem,
   InventoryType,
 } from '@rezless/vm'
@@ -49,6 +50,12 @@ export interface LinksetInput extends LinksetOptions {
   readonly prims: ReadonlyArray<PrimInput>
   /** Region position of the root prim. */
   readonly position?: Vector
+  /**
+   * Which permission requests are granted without a dialog, for every script
+   * here and in the objects in the prims' contents that doesn't set its own.
+   * Defaults to the world's setting.
+   */
+  readonly autoGrantPermissions?: AutoGrantPermissions
 }
 
 export interface LoadedLinkset {
@@ -69,7 +76,7 @@ async function readScriptSource(src: ScriptSource): Promise<{ source: string; fi
  * Parse a script and build it on `prim`, stored under its inventory name and
  * not yet started. `numbered` appends a number to a name the prim already holds.
  */
-async function buildScript(prim: Prim, input: ScriptInput, numbered = false): Promise<Script> {
+async function buildScript(prim: Prim, input: ScriptInput, numbered = false, linksetAutoGrant?: ScriptInput['autoGrantPermissions']): Promise<Script> {
   const { source, filename } = await readScriptSource(input.source)
   const slua = input.language === 'slua' || (input.language === undefined && /\.luau?$/i.test(filename))
   const ast = slua ? null : parse(source, filename)
@@ -84,7 +91,9 @@ async function buildScript(prim: Prim, input: ScriptInput, numbered = false): Pr
   // identity.
   const { source: _src, name: invName, language: _language, ...rest } = input
   const coverage = rest.coverage ?? isCoverageEnabled()
-  const opts: ScriptOptions = { ...rest, filename, host: prim, source, coverage }
+  const autoGrantPermissions = rest.autoGrantPermissions ?? linksetAutoGrant
+  const opts: ScriptOptions = { ...rest, filename, host: prim, source, coverage,
+    ...(autoGrantPermissions !== undefined ? { autoGrantPermissions } : {}) }
   const given = invName ?? rest.scriptName
   const inventoryName = numbered
     ? prim.freeInventoryName(given ?? filename.split('/').pop()!.replace(/\.(lsl|luau?)$/i, ''))
@@ -149,13 +158,15 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
       prim.placeInventory(item)
     }
     for (const [name, definition] of Object.entries(primInput.objects ?? {})) {
-      const object = (await loadLinkset(definition)).linkset
+      const autoGrantPermissions = definition.autoGrantPermissions ?? input.autoGrantPermissions
+      const object = (await loadLinkset({ ...definition,
+        ...(autoGrantPermissions !== undefined ? { autoGrantPermissions } : {}) })).linkset
       if (!object.prims.length) throw new Error(`loadLinkset: inventory object '${name}' has no prims`)
       prim.placeInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
         key: object.prims[0]!.key, object }))
     }
     for (const sInput of primInput.scripts ?? []) {
-      const s = await buildScript(prim, sInput)
+      const s = await buildScript(prim, sInput, false, input.autoGrantPermissions)
       const finalName = s.scriptName
       if (finalName in scripts) {
         throw new Error(

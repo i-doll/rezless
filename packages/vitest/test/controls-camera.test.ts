@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
+  loadLinkset,
   loadScript,
+  World,
   CAMERA_ACTIVE,
   CAMERA_DISTANCE,
   CONTROL_BACK,
@@ -33,8 +35,17 @@ const script = (body: string) => `
   }
 `
 
+// The avatar sits on the object, as in the measurements: Second Life refuses camera control to an
+// avatar who is neither sitting on the object nor wearing it. The automatic grant is off so each
+// test picks the bits it holds.
 async function load(body: string, grant: number | null = ALL) {
-  const s = await loadScript({ source: script(body), owner: AGENT })
+  const world = new World({ autoGrantPermissions: 'none' })
+  world.addRegion('home', { x: 0, y: 0 })
+  const avatar = world.addAvatar({ region: 'home', key: AGENT, username: 'agent' })
+  const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: AGENT,
+    prims: [{ scripts: [{ name: 'probe', source: { source: script(body) } }] }] })
+  const s = scripts.probe!
+  world.sitAvatar(avatar, linkset.prims[0]!)
   s.start()
   if (grant !== null) s.grantPermissions(grant)
   return s
