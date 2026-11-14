@@ -279,7 +279,7 @@ describe('owner drops a script in', () => {
       prims: [{ scripts: [src('default { changed(integer c) { integer zero; integer q = 1 / zero; } }', 'a')] }],
     })
     scripts['a']!.start()
-    await expect(addScript(prims[0]!, src(logger, 'n'))).rejects.toThrow('divide by zero')
+    await expect(addScript(prims[0]!, src(logger, 'n'))).rejects.toThrow('Math Error')
     const added = prims[0]!.findScript('n')!
     expect(added.running).toBe(true)
     expect(added.hasStarted).toBe(false)
