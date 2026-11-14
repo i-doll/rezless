@@ -50,9 +50,12 @@ struct RzScript : lua_SLRuntimeState
 {
     lua_State* GL = nullptr;     // main state
     lua_State* thread = nullptr; // sandboxed thread that owns the script's globals
-    // The one thread the top level and every handler run on, kept in slot 1 of
+    // The thread the top level and every handler run on, kept in slot 1 of
     // `thread`'s stack so its memory counts towards the script's (as SLua's host).
+    // An event fired while a handler runs gets a thread of its own in the next
+    // slot until it ends: `handlers` slots are in use and `handler` is the last.
     lua_State* handler = nullptr;
+    int handlers = 1;
     int threadRef = LUA_NOREF;
     int handleEventRef = LUA_NOREF;
     int lleventsRef = LUA_NOREF;
@@ -110,6 +113,23 @@ static int rz_gcinfo(lua_State* L)
 {
     RzScript* s = rz(L);
     lua_pushnumber(L, (double)used_memory(s) / 1024);
+    return 1;
+}
+
+// coroutine.running() as Second Life answers it: nil on the thread the top
+// level and the handlers run on, the coroutine inside one.
+static int rz_corunning(lua_State* L)
+{
+    RzScript* s = rz(L);
+    for (int slot = 1; slot <= s->handlers; slot++)
+    {
+        if (lua_tothread(s->thread, slot) == L)
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+    lua_pushthread(L);
     return 1;
 }
 
@@ -308,6 +328,10 @@ RZ_EXPORT RzScript* rz_new()
     lua_setglobal(L, "setfenv");
     lua_pushcfunction(L, rz_gcinfo, "gcinfo");
     lua_setglobal(L, "gcinfo");
+    lua_getglobal(L, LUA_COLIBNAME);
+    lua_pushcfunction(L, rz_corunning, "running");
+    lua_setfield(L, -2, "running");
+    lua_pop(L, 1);
     luaopen_sl(L, 0);
     luaopen_ll(L, 0);
     lua_pop(L, 1);
@@ -817,16 +841,24 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
 // arguments, then rz_resume(thread, 2 + nargs).
 RZ_EXPORT lua_State* rz_event_thread(RzScript* s, const char* event)
 {
-    // A handler that failed, or was abandoned mid-run, leaves the thread unusable:
-    // carry on with a fresh one.
-    if (lua_costatus(s->thread, s->handler) != LUA_COFIN)
+    int status = lua_costatus(s->thread, s->handler);
+    if (status == LUA_COFIN)
+        // The stack a handler grew is given back when it ends: Second Life
+        // counts none of it against the next event.
+        lua_resetthread(s->handler);
+    else
     {
         lua_newthread(s->thread);
-        lua_replace(s->thread, 1);
-        s->handler = lua_tothread(s->thread, 1);
+        if (status == LUA_CONOR)
+            // Fired from inside a handler that is still running: that one keeps
+            // its slot, and this one runs above it.
+            lua_insert(s->thread, ++s->handlers);
+        else
+            // A handler that failed leaves its thread unusable.
+            lua_replace(s->thread, s->handlers);
+        s->handler = lua_tothread(s->thread, s->handlers);
     }
     lua_State* T = s->handler;
-    lua_settop(T, 0);
     lua_getref(T, s->handleEventRef);
     lua_getref(T, s->lleventsRef);
     lua_pushstring(T, event);
@@ -849,10 +881,11 @@ RZ_EXPORT lua_State* rz_main_thread(RzScript* s)
 // error status with the message (and traceback) in rz_string.
 RZ_EXPORT int rz_resume(RzScript* s, lua_State* T, int nargs)
 {
+    bool nested = s->inExecution;
     s->inExecution = true;
     s->exactSize = 0;
     int status = lua_resume(T, nullptr, nargs);
-    s->inExecution = false;
+    s->inExecution = nested;
     // A break asked for in a run that ended first is moot.
     if (status != LUA_BREAK && status != LUA_YIELD)
         s->breakPending = false;
@@ -867,6 +900,12 @@ RZ_EXPORT int rz_resume(RzScript* s, lua_State* T, int nargs)
     }
     else if (status == LUA_OK)
         lua_settop(T, 0);
+    // An event fired from inside a handler has ended: back to that handler.
+    if (T == s->handler && s->handlers > 1 && status != LUA_YIELD && status != LUA_BREAK)
+    {
+        lua_remove(s->thread, s->handlers--);
+        s->handler = lua_tothread(s->thread, s->handlers);
+    }
     return status;
 }
 

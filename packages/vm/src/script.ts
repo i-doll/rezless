@@ -320,7 +320,8 @@ export class Script {
       filename,
       source,
       coverage,
-      memory: new Memory(codeBytes(ast), options.memoryLimit ?? false),
+      // An SLua script's memory is its VM's to count and enforce.
+      memory: new Memory(codeBytes(ast), sluaSource === undefined && (options.memoryLimit ?? false)),
     }
     if (coverage) coverage.hitState('default')
 
@@ -1451,6 +1452,14 @@ export class Script {
         return () => engine.usedMemory()
       case 'llGetFreeMemory':
         return () => Math.max(0, this.state.memory.limit - engine.usedMemory())
+      case 'llSetMemoryLimit':
+        return () => {
+          const limit = args[0] as number
+          if (limit < engine.usedMemory() || limit > SLUA_MEMORY_LIMIT) return 0
+          this.state.memory.limit = limit
+          engine.setMemoryLimit(limit)
+          return 1
+        }
       case 'llScriptProfiler':
         return () => {
           engine.profileMemory(args[0] === PROFILE_SCRIPT_MEMORY)

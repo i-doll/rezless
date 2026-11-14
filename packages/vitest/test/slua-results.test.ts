@@ -967,9 +967,7 @@ describe('SLua: the functions only llcompat has', () => {
       // In-world: ll.GetFreeMemory() is then 65535 less ll.GetUsedMemory()
       ['tostring(ll.GetFreeMemory() == 65535 - ll.GetUsedMemory())', 'true'],
       // In-world: 0, 1 and -1 -> 0, limit unchanged; 1e9 -> 0; 70000.9 -> 1, 70000; "70001" -> 1, 70001;
-      // 2^32 + 70002 -> 1, 70002; true -> 0. (A limit at or below what the script uses is refused in-world: with
-      // 9644 bytes in use, 10668 -> 1 and 9645, 9644, 8620 and 4000 -> 0. rezless does not compare with the VM's
-      // count yet; the README lists that.)
+      // 2^32 + 70002 -> 1, 70002; true -> 0. (A limit below what the script uses is refused: slua-limits.test.ts.)
       [lim('0')[0], '0/65535'],
       [lim('-1')[0], '0/65535'],
       [lim('1e9')[0], '0/65535'],

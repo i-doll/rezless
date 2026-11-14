@@ -271,14 +271,6 @@ describe('SLua values and errors', () => {
     expect(s.chat[0]!.text).toBe(`true ${s.memoryLimit}`)
   })
 
-  it('treats a bare yield as preemption, and a yield with values as an error', async () => {
-    const bare = await slua(`ll.OwnerSay("a"); coroutine.yield(); ll.OwnerSay("b")`)
-    bare.start()
-    expect(bare.chat.map((c) => c.text)).toEqual(['a', 'b'])
-    const valued = await slua(`coroutine.yield(1)`)
-    expect(() => valued.start()).toThrow(/unexpected yield/)
-  })
-
   it('stops on ll.Die as an LSL script does', async () => {
     // rezless lets the call after llDie finish, then halts: the same for both languages.
     const lsl = await loadScript({ source: 'default { state_entry() { llDie(); llOwnerSay("after"); llOwnerSay("never"); } }' })
@@ -917,21 +909,6 @@ describe('SLua as its host runs it', () => {
     end)`, { memoryLimit: true })
     limited.start()
     expect(() => limited.fire('touch_start', { num_detected: 1 })).toThrow(/not enough memory/)
-  })
-
-  it('runs the top level and every handler on one thread scripts may not act on', async () => {
-    // Not as Second Life: there coroutine.running() is nil at the top level and in a handler,
-    // so a script can't name that thread (Aditi, SLua Tideland, 2026-11-13). Not modelled yet.
-    const s = await slua(`
-      main = coroutine.running()
-      LLEvents:on("touch_start", function()
-        print(coroutine.running() == main, coroutine.status(main), (pcall(coroutine.close, main)))
-      end)
-    `)
-    s.start()
-    s.fire('touch_start', { num_detected: 1 })
-    s.fire('touch_start', { num_detected: 1 })
-    expect(s.printed).toEqual(['true\trunning\tfalse', 'true\trunning\tfalse'])
   })
 
   it('carries on with a fresh handler thread after a handler fails', async () => {

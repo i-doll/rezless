@@ -206,7 +206,7 @@ export class SluaEngine {
     name: string,
     source: string,
     coverage: boolean,
-    private readonly memoryLimit = 0,
+    private memoryLimit = 0,
   ) {
     let x!: Exports
     const view = () => new DataView(x.memory.buffer)
@@ -284,10 +284,10 @@ export class SluaEngine {
   /** Run the script's main chunk, as a script starts. */
   *start(): Generator<Suspension, void, unknown> {
     this.started = true
-    // A script whose code alone takes all its memory can't run at all. (SLua's
+    // A script whose code alone is past its limit can't run at all. (SLua's
     // host only checks as the script allocates; rezless refuses it up front, as
     // it does an LSL script whose code is past its limit.)
-    if (this.memoryLimit > 0 && this.usedMemory() >= this.memoryLimit) throw new SluaRuntimeError('not enough memory')
+    if (this.memoryLimit > 0 && this.usedMemory() > this.memoryLimit) throw new SluaRuntimeError('not enough memory')
     yield* this.drive(this.x.rz_main_thread(this.s), 0)
   }
 
@@ -333,6 +333,14 @@ export class SluaEngine {
   usedMemory(): number {
     return this.x.rz_used_memory(this.s)
   }
+
+  /** Move the limit of a script whose memory is enforced. */
+  setMemoryLimit(limit: number): void {
+    if (this.memoryLimit === 0) return
+    this.memoryLimit = limit
+    this.x.rz_set_memory_limit(this.s, limit)
+  }
+
   /** Start (from what the script uses now) or stop tracking its peak memory. */
   profileMemory(on: boolean): void {
     this.x.rz_profile(this.s, on ? 1 : 0)
@@ -391,9 +399,9 @@ export class SluaEngine {
           continue
         }
         if (status === Status.Yield) {
-          // A bare coroutine.yield() on the handler thread is preemption: carry
-          // on. Values are reserved for the engine (Executor/src/Script.cpp).
-          if (this.x.rz_gettop(L) > 0) throw new SluaRuntimeError('unexpected yield')
+          // A coroutine.yield() on the script's own thread carries on at once.
+          // What it yielded goes nowhere, and it returns nothing.
+          this.x.rz_pop(L, this.x.rz_gettop(L))
           status = this.x.rz_resume(this.s, L, 0)
           continue
         }
