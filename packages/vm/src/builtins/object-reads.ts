@@ -503,7 +503,8 @@ export const llGetObjectPermMask: BuiltinImpl = (ctx, args) => {
 
 export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
   const id = keyArg(args)
-  const prim = findObjectPrim(ctx, id)
+  // A detached object still reads its own prims while its attach event runs.
+  const prim = findObjectPrim(ctx, id) ?? ctx.linkset.prims.find((p) => p.key.toLowerCase() === id.toLowerCase())
   const avatar = prim ? undefined : findObjectAvatar(ctx, id)
   if (!prim && !avatar) return []
   const flags = (args[1] as LslValue[] | undefined) ?? []

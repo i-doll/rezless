@@ -495,7 +495,9 @@ Display name defaults to `name`, then `username`.
 and normal attachments return 0. Rezzed objects return 0 for both attachment flags.
 `llGetObjectPrimCount` reads 0 for any prim of a worn object, from its own
 scripts and from other objects. `llGetNumberOfPrims` and `OBJECT_PRIM_COUNT`
-still count its prims.
+still count its prims. In `attach(NULL_KEY)` a detached object still reads 0
+from `llGetObjectPrimCount`, its prims from `OBJECT_PRIM_COUNT` and 0 from
+`OBJECT_ATTACHED_POINT`. For other objects its key is gone by then.
 
 `OBJECT_SERVER_COST` is half a point for each prim and a quarter for each
 script the region counted when it last worked the cost out, and never more
