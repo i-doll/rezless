@@ -15,7 +15,15 @@ import {
   LIST_STAT_SUM,
   LIST_STAT_SUM_SQUARES,
 } from '../generated/constants.js'
-import { concatLists, listElementType, sliceList, typedList, uniformList } from '../values/list-types.js'
+import {
+  concatLists,
+  listElementType,
+  luaKind,
+  luaNumbersAsFloats,
+  sliceList,
+  typedList,
+  uniformList,
+} from '../values/list-types.js'
 
 /** llGetListLength(list l) — number of elements. */
 export const llGetListLength: BuiltinImpl = (_ctx, args) => {
@@ -209,6 +217,14 @@ export const llListFindList: BuiltinImpl = (_ctx, args) => {
 
 function matchesAt(src: ReadonlyArray<LslValue>, test: ReadonlyArray<LslValue>, at: number): boolean {
   for (let j = 0; j < test.length; j++) {
+    // SLua keeps a boolean apart from the number it is sent as, and compares
+    // its numbers, whole or not, as 32-bit floats.
+    const kind = luaKind(src, at + j)
+    if (kind !== luaKind(test, j)) return false
+    if (kind === 'number') {
+      if (Math.fround(src[at + j] as number) !== Math.fround(test[j] as number)) return false
+      continue
+    }
     const ta = listElementType(src, at + j)
     const tb = listElementType(test, j)
     if (ta && tb && ta !== tb) return false
@@ -307,7 +323,9 @@ function delimiters(list: ReadonlyArray<LslValue>): string[] {
  * their first element, using the same selection sort as Second Life, so
  * elements of different types are never reordered against each other.
  * Vectors compare by magnitude and rotations never compare. A list whose
- * length isn't a multiple of stride comes back unsorted.
+ * length isn't a multiple of stride comes back unsorted. In a list from an
+ * SLua script, Lua numbers are 32-bit floats whether whole or not, and
+ * booleans are a type of their own.
  */
 export const llListSort: BuiltinImpl = (_ctx, args) =>
   sortStrided(args[0], args[1], 0, args[2])
@@ -326,7 +344,7 @@ function sortStrided(
   index: number,
   ascending: LslValue | undefined,
 ): ReadonlyArray<LslValue> {
-  const src = (list as ReadonlyArray<LslValue> | undefined) ?? []
+  const src = luaNumbersAsFloats((list as ReadonlyArray<LslValue> | undefined) ?? [])
   const stride = Math.max(1, (strideArg as number | undefined) ?? 1)
   const descending = ((ascending as number | undefined) ?? 0) !== 1
   if (index < 0) index += stride
@@ -335,24 +353,31 @@ function sortStrided(
   if (len % stride !== 0) return src
   const values = [...src]
   const types = values.map((_, i) => listElementType(src, i))
+  const sortTypes = types.map((t, i): LslType | 'boolean' | undefined => (luaKind(src, i) === 'boolean' ? 'boolean' : t))
   const swap = (i: number, j: number) => {
     for (let k = 0; k < stride; k++) {
       ;[values[i + k], values[j + k]] = [values[j + k]!, values[i + k]!]
       ;[types[i + k], types[j + k]] = [types[j + k], types[i + k]]
+      ;[sortTypes[i + k], sortTypes[j + k]] = [sortTypes[j + k], sortTypes[i + k]]
     }
   }
   for (let i = 0; i < len - stride; i += stride) {
     for (let j = i + stride; j < len; j += stride) {
       const a = i + index
       const b = j + index
-      if (sortsAfter(values[a]!, types[a], values[b]!, types[b]) !== descending) swap(i, j)
+      if (sortsAfter(values[a]!, sortTypes[a], values[b]!, sortTypes[b]) !== descending) swap(i, j)
     }
   }
   return typedList(values, types)
 }
 
 /** Whether `a` sorts after `b`. A NaN sorts after everything. */
-function sortsAfter(a: LslValue, ta: LslType | undefined, b: LslValue, tb: LslType | undefined): boolean {
+function sortsAfter(
+  a: LslValue,
+  ta: LslType | 'boolean' | undefined,
+  b: LslValue,
+  tb: LslType | 'boolean' | undefined,
+): boolean {
   if (ta && tb && ta !== tb) return false
   if (typeof a === 'number' && typeof b === 'number') return !(a <= b)
   if (typeof a === 'string' && typeof b === 'string') return compareCodePoints(a, b) > 0
@@ -398,7 +423,7 @@ function pick(src: ReadonlyArray<LslValue>, indexes: number[]): ReadonlyArray<Ls
  * and start after end selects the whole list.
  */
 export const llList2ListStrided: BuiltinImpl = (_ctx, args) => {
-  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const src = luaNumbersAsFloats((args[0] as ReadonlyArray<LslValue> | undefined) ?? [])
   const start = (args[1] as number | undefined) ?? 0
   const end = (args[2] as number | undefined) ?? 0
   const stride = Math.abs((args[3] as number | undefined) ?? 1) || 1
@@ -437,7 +462,7 @@ export const llList2ListSlice: BuiltinImpl = (_ctx, args) => {
  * back unchanged.
  */
 export const llListRandomize: BuiltinImpl = (ctx, args) => {
-  const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const src = luaNumbersAsFloats((args[0] as ReadonlyArray<LslValue> | undefined) ?? [])
   const stride = Math.max(1, (args[1] as number | undefined) ?? 1)
   if (src.length % stride !== 0) return src
   const blocks = Array.from({ length: src.length / stride }, (_, b) => b)
@@ -451,7 +476,10 @@ export const llListRandomize: BuiltinImpl = (ctx, args) => {
 export const llListStatistics: BuiltinImpl = (_ctx, args) => {
   const op = (args[0] as number | undefined) ?? 0
   const src = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  const nums = src.filter((v): v is number => typeof v === 'number')
+  // A Lua number is read as a 32-bit float here, a whole one too.
+  const nums = src
+    .map((v, i) => (luaKind(src, i) === 'number' ? Math.fround(v as number) : v))
+    .filter((v): v is number => typeof v === 'number')
   if (nums.length === 0) return 0
   const sum = nums.reduce((a, b) => a + b, 0)
   const mean = sum / nums.length

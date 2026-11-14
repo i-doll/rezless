@@ -740,7 +740,10 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **`ll` and `llcompat`**: `ll` uses SLua's native conventions. Indexes are
   1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
-  Missing or wrong-typed arguments raise SLua's errors. String parameters
+  Too few arguments raise `Fewer arguments than expected, 1 < 2`, before
+  any argument's type is looked at, and extra arguments are ignored. That
+  held for every function measured. Wrong-typed arguments raise SLua's errors.
+  String parameters
   take strings and `uuid`s (read as their text), but not numbers:
   `ll.OwnerSay(5)` raises `string expected, got number`. Second Life did
   this for every function measured, whether SLua's type definitions write
@@ -752,12 +755,26 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   or a number is not read as a string where that was measured:
   `ll.Dialog` reports such a button list as LSL does, and
   `ll.ParseString2List` ignores one among its separators and spacers.
-  Numeric strings are accepted as numbers.
-  Lua numbers in lists are LSL floats, as in SLua, but selectors and rules
-  (`ll.GetObjectDetails`, `ll.SetPrimMediaParams`, `ll.ParticleSystem`, …)
-  read a whole number as the integer they want. Booleans are accepted only where LSL means a boolean.
-  A list argument holding anything LSL lists can't hold raises
-  `non-LSL value in list`.
+  Numeric strings are accepted as numbers. An integer parameter takes a
+  boolean as 1 or 0, except a 1-based index in `ll`; float, string, key,
+  vector and rotation parameters refuse one, again for every function
+  measured.
+  In a list, a whole Lua number that fits an LSL integer is sent as an
+  integer and any other number as a float, so `ll.List2CSV({1, 1.5})` is
+  `1, 1.500000` and a whole number works as a JSON specifier. `ll.ListSort`,
+  `ll.ListSortStrided`, `ll.ListFindList`, `ll.ListFindListNext`,
+  `ll.ListFindStrided`, `ll.ListStatistics`, `ll.ListRandomize` and
+  `ll.List2ListStrided` still read every Lua number as a 32-bit float, so `ll.ListSort` orders whole and fractional numbers
+  together, where LSL sorts each type on its own. A boolean in a list is
+  sent as 1 or 0, but `ll.ListFindList` only matches it with another
+  boolean and `ll.ListSort` orders booleans among themselves.
+  A list argument that isn't a table raises `expected a table`, and one
+  holding anything LSL lists can't hold raises `Don't know how to decode
+  this`, or `Can't have undefined in an argument` for a `nil` in the
+  middle.
+  `ll.GetTexture` returns a `uuid` when the face holds a texture by key.
+  The other functions measured that return a name or a key are as LSL
+  types them.
 * **What runs where**: list and math helpers that SLua implements itself
   (`ll.List2String`, `ll.DumpList2String`, `ll.Abs`, …) run in the VM.
   Everything else reaches rezless and can be mocked with
