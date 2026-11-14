@@ -113,6 +113,17 @@ static int rz_gcinfo(lua_State* L)
     return 1;
 }
 
+// coroutine.running() as Second Life answers it: nil on the thread the top
+// level and the handlers run on, the coroutine inside one.
+static int rz_corunning(lua_State* L)
+{
+    if (L == rz(L)->handler)
+        lua_pushnil(L);
+    else
+        lua_pushthread(L);
+    return 1;
+}
+
 // The libraries SLua's host gives scripts (Executor/src/Executor.cpp kSafeLuaLibs).
 static const luaL_Reg kSafeLuaLibs[] = {
     {"", luaopen_base},
@@ -308,6 +319,10 @@ RZ_EXPORT RzScript* rz_new()
     lua_setglobal(L, "setfenv");
     lua_pushcfunction(L, rz_gcinfo, "gcinfo");
     lua_setglobal(L, "gcinfo");
+    lua_getglobal(L, LUA_COLIBNAME);
+    lua_pushcfunction(L, rz_corunning, "running");
+    lua_setfield(L, -2, "running");
+    lua_pop(L, 1);
     luaopen_sl(L, 0);
     luaopen_ll(L, 0);
     lua_pop(L, 1);
@@ -825,8 +840,11 @@ RZ_EXPORT lua_State* rz_event_thread(RzScript* s, const char* event)
         lua_replace(s->thread, 1);
         s->handler = lua_tothread(s->thread, 1);
     }
+    else
+        // The stack a handler grew is given back when it ends: Second Life
+        // counts none of it against the next event.
+        lua_resetthread(s->handler);
     lua_State* T = s->handler;
-    lua_settop(T, 0);
     lua_getref(T, s->handleEventRef);
     lua_getref(T, s->lleventsRef);
     lua_pushstring(T, event);

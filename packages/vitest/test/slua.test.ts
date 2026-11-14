@@ -919,21 +919,6 @@ describe('SLua as its host runs it', () => {
     expect(() => limited.fire('touch_start', { num_detected: 1 })).toThrow(/not enough memory/)
   })
 
-  it('runs the top level and every handler on one thread scripts may not act on', async () => {
-    // Not as Second Life: there coroutine.running() is nil at the top level and in a handler,
-    // so a script can't name that thread (Aditi, SLua Tideland, 2026-11-13). Not modelled yet.
-    const s = await slua(`
-      main = coroutine.running()
-      LLEvents:on("touch_start", function()
-        print(coroutine.running() == main, coroutine.status(main), (pcall(coroutine.close, main)))
-      end)
-    `)
-    s.start()
-    s.fire('touch_start', { num_detected: 1 })
-    s.fire('touch_start', { num_detected: 1 })
-    expect(s.printed).toEqual(['true\trunning\tfalse', 'true\trunning\tfalse'])
-  })
-
   it('carries on with a fresh handler thread after a handler fails', async () => {
     const s = await slua(`LLEvents:on("touch_start", function(e) print("touch") error("boom") end)`)
     s.start()

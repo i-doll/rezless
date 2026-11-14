@@ -2169,12 +2169,14 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   as LSL scripts do in rezless.
 * **Environment**: scripts get the libraries SLua's host gives them. There
   is no `getfenv`, `setfenv` or `ares`. `gcinfo()` reports the script's own
-  memory. The top level and every handler run on one thread, which scripts
-  can't close or resume.
+  memory. `coroutine.running()` is `nil` at the top level, in a handler and
+  in a timer callback, and the coroutine inside one.
 * **Memory**: SLua scripts get 128 KiB, counting what running handlers
   hold. With `memoryLimit: true` the VM enforces it, and a script that goes
-  past it fails with `not enough memory`. A script whose code alone takes
-  all 128 KiB fails that way as it starts, before any of it runs.
+  past it fails with `not enough memory`, which `pcall` can catch. A
+  runaway recursion ends this way, not in a stack overflow. The stack a
+  handler grew is given back when the handler ends. A script whose code
+  alone takes all 128 KiB fails as it starts, before any of it runs.
   `ll.GetUsedMemory`, `ll.GetFreeMemory`, and `ll.ScriptProfiler` with
   `ll.GetSPMaxMemory` all read the VM's own count.
 * **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
@@ -2202,8 +2204,6 @@ Not modelled yet:
   which Second Life refuses, and a lowered limit changes what
   `ll.GetMemoryLimit` and `ll.GetFreeMemory` report but not when the VM
   runs out.
-* `coroutine.running()` returns the thread the script runs on. In Second
-  Life it is `nil` at the top level and in a handler.
 * `print()` goes to `s.printed`, not chat.
 * A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
