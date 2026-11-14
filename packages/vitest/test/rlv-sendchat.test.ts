@@ -102,7 +102,7 @@ it('discovers chat enforcement forms and rejects unsupported sendchat options', 
   }` })
   for (const profile of ['rlv', 'rlva'] as const) {
     const f = pair[profile]; f.script.start()
-    expect(f.script.global('reply')).toBe(profile === 'rlva' ? 'sendchannel;sendchannel_except;sendchannel_except_sec;sendchannel_sec' : '')
+    expect(f.script.global('reply')).toBe(profile === 'rlva' ? 'sendchannel;sendchannel_sec;sendchannel_except;sendchannel_except_sec' : '')
     expect(f.sendChat(0, 'normal').status).toBe('sent')
     expect(f.avatar.viewer.commandLog[0]?.status).toBe('unsupported')
     expect(getRlvCommandCoverage(profile).find(form => form.behaviour === 'sendchat')).toMatchObject({ support: 'enforced', option: 'none' })

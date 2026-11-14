@@ -1206,7 +1206,8 @@ Receive restrictions apply speaker exceptions and targeted denials per profile,
 without changing simulator listens or the sender's action record. `getstatus` and `getstatusall` reply with stored
 rules using profile-specific separators, substring filters and UUID ordering.
 RLVa `getcommand` discovers implemented manifest forms with substring, type and
-separator options. Frozen form metadata distinguishes state-only restrictions
+separator options, in RLVa's dictionary order. Environment and debug settings and
+overlay and sphere modifiers stay out of discovery, as in RLVa. Frozen form metadata distinguishes state-only restrictions
 from enforced replies; unsupported forms stay out of discovery. Command logs
 expose unsupported outcomes without adding wire acknowledgements.
 `getattach` reads current attachment point occupancy, including HUDs, using

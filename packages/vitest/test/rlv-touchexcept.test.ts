@@ -112,5 +112,5 @@ it('keeps unsupported forms inspectable and advertises the implemented forms', a
       { behaviour: 'touchthis', type: 'add', support: 'enforced', option: 'any' },
     ]))
   }
-  expect(getRlvCommands('rlva', 'touch;add')).toBe('fartouch;setoverlay_touch;touchall;touchattach;touchattachother;touchattachself;touchfar;touchhud;touchme;touchthis;touchworld')
+  expect(getRlvCommands('rlva', 'touch;add')).toBe('fartouch;touchall;touchattach;touchattachother;touchattachself;touchfar;touchhud;touchme;touchthis;touchworld;setoverlay_touch')
 })

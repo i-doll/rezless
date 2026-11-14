@@ -1296,7 +1296,9 @@ The manifest includes `getsitid`, force `sit`/`sitground`/`unsit`, and add/remov
 
 `@getcommand[:<substring>[;<type>[;<separator>]]]=<channel>` is available in the
 Firestorm RLVa 2.4.2 fixture. It lists implemented manifest forms, including
-state-only restrictions, rather than the full viewer dictionary. The default
+state-only restrictions, rather than the full viewer dictionary, in the
+dictionary's order. Environment and debug settings and the overlay and sphere
+modifiers are not dictionary entries, so they stay out of discovery. The default
 and `any` type include add, force and reply forms; `add`, `force` and `reply`
 select one type. Names match substrings. The separator defaults to `;`; an
 explicit empty separator concatenates names. Extra fields are ignored and wire

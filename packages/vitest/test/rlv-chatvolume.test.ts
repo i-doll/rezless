@@ -110,7 +110,7 @@ it('keeps locks issuer-scoped, supports aliases and clear, and leaves option for
     expect(f.avatar.viewer.restrictions.snapshot()).toHaveLength(profile === 'rlv' ? 3 : 0)
     for (const behaviour of families) expect(getRlvCommandCoverage(profile)).toContainEqual({ behaviour, type: 'add', support: 'enforced', option: 'none' })
   }
-  expect(getRlvCommands('rlva', 'chat;add')?.split(';').filter(name => families.includes(name as typeof families[number]))).toEqual(['chatnormal','chatshout','chatwhisper'])
+  expect(getRlvCommands('rlva', 'chat;add')?.split(';').filter(name => families.includes(name as typeof families[number]))).toEqual(['chatwhisper','chatnormal','chatshout'])
 })
 
 it('defaults to say and supports disabled viewers without applying restrictions', () => {

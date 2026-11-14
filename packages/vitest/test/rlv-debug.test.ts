@@ -81,8 +81,9 @@ it('rejects read-only writes, validates options and channels, and discovers conc
     issue(script, '@setdebug:bad=n')
     expect(avatar.viewer.restrictions.snapshot().filter(r => r.support === 'enforced')).toEqual([])
     if (profile === 'rlva') {
-      expect(getRlvCommands('rlva', 'debug;force')).toBe('setdebug_avatarsex;setdebug_renderresolutiondivisor')
-      expect(getRlvCommands('rlva', 'debug;reply')).toContain('getdebug_aspectratio')
+      // In-world: "@getcommand:debug" -> setdebug. Debug settings are parsed outside RLVa's
+      // behaviour dictionary (Aditi, SLua Tideland, 2026-11-14).
+      expect(getRlvCommands('rlva', 'debug')).toBe('setdebug')
     }
   }
 })
