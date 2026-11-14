@@ -856,7 +856,7 @@ const f32 = Math.fround
 /** Second Life's range limit. A NaN passes through it. */
 const limit = (v: number, min: number, max: number) => (v < min ? min : v > max ? max : v)
 
-/** A float cast to a 32-bit integer; NaN and anything out of range give the lowest one. */
+/** A float cast to a 32-bit integer, so never -0; NaN and anything out of range give the lowest one. */
 const toInt32 = (v: number) => (v > -2147483649 && v < 2147483648 ? Math.trunc(v) + 0 : -2147483648)
 
 /** Profile cuts and hollow are kept in steps of 0.00001, cut off toward zero. */
@@ -890,7 +890,7 @@ function hollowOf(kind: number, hole: number, v: LslValue | undefined) {
   return toHundredThousandths(limit(f32(num(v)), 0, f32(narrow ? 0.7 : 0.95)))
 }
 
-/** The largest radius offset a hole size and taper leave room for. */
+/** A radius offset, held to the largest that the hole size and taper leave room for. */
 function radiusOffsetOf(v: number, holeY: number, taperY: number) {
   const offset = f32(v)
   const taper = (offset > 0 && taperY < 0) || (offset < 0 && taperY > 0) ? 0 : Math.abs(taperY)
@@ -1387,7 +1387,7 @@ function tapers(taper: number) {
   return Math.abs(end > 1 ? f32(1 - f32(2 - end)) : f32(end - 1)) > PATH_TOLERANCE
 }
 
-/** Whether a looped path has ends: a cut, a twist that differs end to end, taper, radius offset or skew. */
+/** Whether a circular path has ends: a cut, a twist that differs end to end, taper, radius offset or skew. */
 function pathHasEnds(shape: Extract<PrimShape, { dimple: Vector } | { skew: number }>) {
   if (f32(shape.cut.y - shape.cut.x) < 1 || shape.twist.x !== shape.twist.y) return true
   if (!('skew' in shape)) return false
@@ -1409,7 +1409,7 @@ function faceRoles(shape: PrimShape): FaceRole[] {
   const sphere = shape.kind === SHAPE_SPHERE
   const looped = shape.kind === SHAPE_TORUS || shape.kind === SHAPE_TUBE || shape.kind === SHAPE_RING
   const profile = sphere ? shape.dimple : looped ? shape.advancedCut : shape.cut
-  // A profile that ends before it begins has no faces at all.
+  // A profile less than 0.01 wide has no faces at all.
   if (profile.x > f32(profile.y - f32(0.01))) return []
   const hollow = shape.hollow !== 0
   const ends = !('dimple' in shape || 'skew' in shape) || pathHasEnds(shape)

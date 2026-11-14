@@ -282,6 +282,17 @@ const SCALED: Array<[string, string]> = [
   ['<1000000000.0, 2000000000.0, 3000000000.0, 9000000000.0>', '<0.07047138,0.4579444,0.62707055>'],
 ]
 
+const NEAR_POLES: Array<[string, string]> = [
+  ['<0.27532956, 0.6509814, 0.27539113, 0.6515954>', '<0,1.5699506,0.79999995>'],
+  ['<-0.07047274, -0.7032899, 0.07071305, 0.7038583>', '<0,-1.5698829,0.20000014>'],
+  ['<0.27529866, 0.6506743, 0.27542186, 0.6519022>', '<0,1.56907,0.7999996>'],
+  ['<-0.070352584, -0.7030056, 0.07083317, 0.7041423>', '<0,-1.5691049,0.2000005>'],
+  ['<0.27517462, 0.6494443, 0.27554423, 0.6531282>', '<0.3000056,1.5655601,0.49999446>'],
+  ['<-0.06987177, -0.70186675, 0.07131355, 0.70527685>', '<0.3000054,-1.5655829,0.5000054>'],
+  ['<0.27473387, 0.6451239, 0.27596593, 0.6574034>', '<0.30000103,1.5533473,0.49999908>'],
+  ['<-0.06818728, -0.69786394, 0.07299316, 0.70923084>', '<0.3000015,-1.5533403,0.5000015>'],
+]
+
 const NOT_FINITE: Array<[string, string]> = [
   ['<nan, 0, 0, 1>', '<0,0,0>'],
   ['<0, 0, 0, nan>', '<0,0,0>'],
@@ -372,8 +383,8 @@ describe('llRot2Euler', () => {
     // 1/1024, 3, 1.0000005, 1.000001, 1.000002, 0.999999, 0.999998, 1.00001, 1e-10 and 1e10,
     // and <0.1, 0.2, 0.3, 0.9> times 1, 3, 1e-10 and 1e10. A power of two changes nothing. Times
     // 1.0000005 and 1.000001 the rotation is used as it is and all three angles move. Any other
-    // factor is normalised away, which can move the small y by a few floats. A length of 1e-7
-    // or less reads as no rotation.
+    // factor is normalised away, which can move the small y by a few floats. Times 1e-10 it
+    // reads as no rotation.
     expect(await eulers(SCALED.map(([q]) => q))).toEqual(SCALED.map(([, e]) => e))
   })
 
@@ -387,6 +398,10 @@ describe('llRot2Euler', () => {
     // In-world: rotations at and near y = +-PI/2, half turns, lengths from 1e-30 to 3e38, and
     // eight general rotations. <0.3, -0.3, 0.3, -0.3> reads z = -PI/2.
     expect(await eulers(LITERAL.map(([q]) => q))).toEqual(LITERAL.map(([, e]) => e))
+    // In-world: llEuler2Rot(<0.3, y, 0.5>) for y 0.05, 0.1, 0.3 and 1 degrees short of 90 and
+    // of -90 degrees, given here as the rotations it returned. At 0.05 and 0.1 degrees x is 0
+    // and z holds both turns. At 0.3 degrees and 1 degree x and z are apart again.
+    expect(await eulers(NEAR_POLES.map(([q]) => q))).toEqual(NEAR_POLES.map(([, e]) => e))
   })
 
   it('reads a rotation with a NaN or an infinity as no rotation', async () => {
@@ -1143,8 +1158,10 @@ describe('faces of a shape', () => {
     // In-world: each shape set on a box and counted. A profile cut makes cut faces only when it
     // leaves under 99% of the profile, and a sphere's dimple whenever it leaves under 100%. A box
     // or prism has a side for each edge its cut reaches. A torus, tube or ring gets a top and a
-    // bottom from a path cut, a twist that differs end to end, or a taper, radius offset or skew
-    // past 0.001, and a sphere from a path cut or such a twist.
+    // bottom from a path cut, a twist that differs end to end, or a taper, a skew or a change in
+    // path radius of more than about 0.001. A radius offset changes the radius by the offset
+    // times half of one minus hole size y, so with a hole size of 0.25 the step is near 0.0027.
+    // A sphere gets them from a path cut or such a twist.
     expect(said(s).map(Number)).toEqual(FACE_COUNTS.map(([, n]) => n))
   })
 
