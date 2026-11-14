@@ -6,7 +6,7 @@ import type { WorldAvatar } from '../world.js'
 import { readAvatarLinkParam, writeAvatarLinkParam } from '../avatar-link.js'
 import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET } from '../generated/constants.js'
 import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
-import { typedList } from '../values/list-types.js'
+import { ruleElementType, typedList } from '../values/list-types.js'
 import { sayError } from './debug.js'
 import { setPrimParamWithChanged } from '../prim-changed.js'
 
@@ -76,7 +76,10 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
     const rule = rules[i] as number
     if (typeof rule !== 'number') break
     if (rule === PRIM_LINK_TARGET) {
-      cur = linkset.oneLink(start!, (rules[i + 1] as number) | 0)
+      const link = rules[i + 1]
+      const type = ruleElementType(rules, i + 1)
+      if (type ? type !== 'integer' : !Number.isInteger(link)) break
+      cur = linkset.oneLink(start!, (link as number) | 0)
       i += 2
       continue
     }

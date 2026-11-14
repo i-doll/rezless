@@ -25,9 +25,12 @@ const LARGEST_INT_DOUBLE = 2 ** 53 - 1
 const toIntOrMin = (n: number): number =>
   n >= -2147483648 && n <= 2147483647 ? n | 0 : -2147483648
 
-/** llRound(float val) — floor(val + 0.5), so halves round up. */
+/**
+ * llRound(float val) — floor(val + 0.5), so halves round up. The sum is in
+ * single precision: 0.49999997 rounds to 1 and 16777215.0 to 16777216.
+ */
 export const llRound: BuiltinImpl = (_ctx, args) =>
-  toIntOrMin(Math.floor(((args[0] as number | undefined) ?? 0) + 0.5))
+  toIntOrMin(Math.floor(Math.fround(Math.fround((args[0] as number | undefined) ?? 0) + 0.5)))
 
 export const llCeil: BuiltinImpl = (_ctx, args) =>
   toIntOrMin(Math.ceil((args[0] as number | undefined) ?? 0))
@@ -81,42 +84,71 @@ export const llFrand: BuiltinImpl = (ctx, args) => {
 
 // ---- Vector / rotation math ----
 
-export const llVecMag: BuiltinImpl = (_ctx, args) => {
+const f32 = Math.fround
+
+const toF32Vector = (v: Vector) => vec(f32(v.x), f32(v.y), f32(v.z))
+
+const FLOAT32_MIN_NORMAL = 2 ** -126
+
+/** A single-precision square as SLua computes it: below the smallest normal float it is zero. */
+const square = (n: number) => {
+  const r = f32(n * n)
+  return r < FLOAT32_MIN_NORMAL ? 0 : r
+}
+
+/**
+ * The length of a vector. Mono sums the squares in double precision. SLua
+ * works in single precision throughout, so a length over about 1.8e19 is
+ * infinite and one under about 1.1e-19 is zero.
+ */
+function magnitude(ctx: CallContext, x: number, y: number, z: number) {
+  if (ctx.script.language === 'lsl') return Math.sqrt(x * x + y * y + z * z)
+  return f32(Math.sqrt(f32(f32(square(x) + square(y)) + square(z))))
+}
+
+export const llVecMag: BuiltinImpl = (ctx, args) => {
   const v = args[0]
   if (!v || typeof v !== 'object' || !isVector(v as Vector)) return 0
-  const u = v as Vector
-  return Math.sqrt(u.x * u.x + u.y * u.y + u.z * u.z)
+  const u = toF32Vector(v as Vector)
+  return magnitude(ctx, u.x, u.y, u.z)
 }
 
 /** Second Life normalises a vector no longer than this to ZERO_VECTOR. */
 const NORMALISE_THRESHOLD = Math.fround(1e-7)
 
-export const llVecNorm: BuiltinImpl = (_ctx, args) => {
+/** llVecNorm(vector v) — each component times the single-precision reciprocal of the length. */
+export const llVecNorm: BuiltinImpl = (ctx, args) => {
   const v = args[0]
   if (!v || typeof v !== 'object' || !isVector(v as Vector)) return { x: 0, y: 0, z: 0 }
-  const u = v as Vector
-  const m = Math.sqrt(u.x * u.x + u.y * u.y + u.z * u.z)
+  const u = toF32Vector(v as Vector)
+  const m = f32(magnitude(ctx, u.x, u.y, u.z))
   if (!(m > NORMALISE_THRESHOLD)) return { x: 0, y: 0, z: 0 }
-  return { x: u.x / m, y: u.y / m, z: u.z / m }
+  const k = f32(1 / m)
+  return { x: f32(u.x * k), y: f32(u.y * k), z: f32(u.z * k) }
 }
 
-export const llVecDist: BuiltinImpl = (_ctx, args) => {
+export const llVecDist: BuiltinImpl = (ctx, args) => {
   const a = args[0] as Vector | undefined
   const b = args[1] as Vector | undefined
   if (!a || !b) return 0
-  const dx = a.x - b.x
-  const dy = a.y - b.y
-  const dz = a.z - b.z
-  return Math.sqrt(dx * dx + dy * dy + dz * dz)
+  const p = toF32Vector(a)
+  const q = toF32Vector(b)
+  if (ctx.script.language === 'lsl') return magnitude(ctx, p.x - q.x, p.y - q.y, p.z - q.z)
+  return magnitude(ctx, f32(p.x - q.x), f32(p.y - q.y), f32(p.z - q.z))
 }
 
 /** Below this cos(y), llRot2Euler treats the rotation as gimbal-locked. */
 const GIMBAL_THRESHOLD = 0.000436
 
-/** Second Life gives each angle of llRot2Euler in steps of 1e-7 degrees, so a zero is never negative. */
+/**
+ * Second Life gives each angle of llRot2Euler in steps of 1e-7 degrees, so a
+ * zero is never negative. The stepped angle is a single-precision number of
+ * degrees before it is turned back into radians, which pins turns of under
+ * 0.1 degrees about one axis. Larger turns can still be a few floats off.
+ */
 function stepAngle(radians: number) {
   const steps = Math.round(Math.abs(radians) * (180 / Math.PI) * 1e7)
-  const stepped = (steps / 1e7) * (Math.PI / 180)
+  const stepped = f32(f32(steps / 1e7) * (Math.PI / 180))
   return radians < 0 && steps !== 0 ? -stepped : stepped
 }
 
@@ -199,24 +231,31 @@ export const llRot2Left: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as R
 /** llRot2Up(rotation q) — the z axis rotated by q, normalised. */
 export const llRot2Up: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rotation, { x: 0, y: 0, z: 1 })
 
-/** q, or -q when its s is negative, so the angle comes out in [0, PI]. */
-function positiveS(q: Rotation): Rotation {
-  return q.s < 0 ? { x: 0 - q.x, y: 0 - q.y, z: 0 - q.z, s: 0 - q.s } : q
+/** Second Life reads a rotation whose half-angle sine is below this as no rotation. */
+const HALF_ANGLE_SINE_MIN = 0.0005
+
+/**
+ * The angle in [0, PI] and the axis of a normalised rotation, as Second Life
+ * works them out in single precision: the angle is 2 * acos(s) and the axis
+ * is x, y, z over sqrt(1 - s * s), which is not exactly a unit vector. A turn
+ * of under about 0.001 radians gives a zero angle and a zero axis.
+ */
+function angleAxis(q: Rotation) {
+  const cos = Math.min(1, Math.max(-1, q.s))
+  const sin = f32(Math.sqrt(f32(1 - f32(cos * cos))))
+  if (sin < HALF_ANGLE_SINE_MIN) return { angle: 0, axis: vec(0, 0, 0) }
+  const k = f32(1 / sin)
+  const angle = f32(2 * f32(Math.acos(cos)))
+  const axis = vec(f32(q.x * k), f32(q.y * k), f32(q.z * k))
+  if (angle <= f32(Math.PI)) return { angle, axis }
+  return { angle: f32(f32(2 * Math.PI) - angle), axis: vec(-axis.x, -axis.y, -axis.z) }
 }
 
-/** llRot2Axis(rotation q) — the unit rotation axis, or ZERO_VECTOR for no rotation. */
-export const llRot2Axis: BuiltinImpl = (_ctx, args) => {
-  const q = positiveS((args[0] as Rotation | undefined) ?? { x: 0, y: 0, z: 0, s: 1 })
-  const m = Math.hypot(q.x, q.y, q.z)
-  if (m === 0) return vec(0, 0, 0)
-  return vec(q.x / m, q.y / m, q.z / m)
-}
+/** llRot2Axis(rotation q) — the rotation axis, or ZERO_VECTOR for no rotation. */
+export const llRot2Axis: BuiltinImpl = (_ctx, args) => angleAxis(unitRotation(args[0])).axis
 
 /** llRot2Angle(rotation q) — the rotation angle in [0, PI]. */
-export const llRot2Angle: BuiltinImpl = (_ctx, args) => {
-  const q = positiveS((args[0] as Rotation | undefined) ?? { x: 0, y: 0, z: 0, s: 1 })
-  return Math.fround(2 * Math.atan2(Math.hypot(q.x, q.y, q.z), q.s))
-}
+export const llRot2Angle: BuiltinImpl = (_ctx, args) => angleAxis(unitRotation(args[0])).angle
 
 /** llAxisAngle2Rot(vector axis, float angle) — the axis is normalised; a zero axis gives ZERO_ROTATION. */
 export const llAxisAngle2Rot: BuiltinImpl = (_ctx, args) => {
@@ -254,7 +293,7 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   return rot(u.x / m, u.y / m, u.z / m, 0)
 }
 
-const f32 = Math.fround
+const toF32 = (q: Rotation) => rot(f32(q.x), f32(q.y), f32(q.z), f32(q.s))
 
 /**
  * Second Life's quaternion normalise, in single precision: it leaves a
@@ -269,17 +308,25 @@ function normalizeRotation(q: Rotation): Rotation {
   return rot(f32(q.x * k), f32(q.y * k), f32(q.z * k), f32(q.s * k))
 }
 
+const unitRotation = (q: LslValue | undefined) => normalizeRotation(toF32((q as Rotation | undefined) ?? rot(0, 0, 0, 1)))
+
+/** The dot product of two rotations, normalised, summed from the s term in single precision. */
+function rotationDot(p: LslValue | undefined, q: LslValue | undefined) {
+  const a = unitRotation(p)
+  const b = unitRotation(q)
+  return f32(f32(f32(f32(a.s * b.s) + f32(a.x * b.x)) + f32(a.y * b.y)) + f32(a.z * b.z))
+}
+
 /**
- * llAngleBetween(rotation a, rotation b) — the angle in [0, PI] of the turn
- * from a to b: 2 * acos of the dot product, folded back below PI, all in
- * single precision. Angles under about 0.002 lose most of their digits.
+ * llAngleBetween(rotation a, rotation b) — the angle of the turn from a to b,
+ * read from the dot product as llRot2Angle reads it from s. Angles under
+ * about 0.002 lose most of their digits.
  */
-export const llAngleBetween: BuiltinImpl = (_ctx, args) => {
-  const toF32 = (q: Rotation) => rot(f32(q.x), f32(q.y), f32(q.z), f32(q.s))
-  const a = normalizeRotation(toF32((args[0] as Rotation | undefined) ?? rot(0, 0, 0, 1)))
-  const b = normalizeRotation(toF32((args[1] as Rotation | undefined) ?? rot(0, 0, 0, 1)))
-  const dot = f32(f32(f32(f32(a.x * b.x) + f32(a.y * b.y)) + f32(a.z * b.z)) + f32(a.s * b.s))
-  const angle = f32(2 * f32(Math.acos(Math.min(1, Math.max(-1, dot)))))
+export const llAngleBetween: BuiltinImpl = (_ctx, args) => angleAxis(rot(0, 0, 0, rotationDot(args[0], args[1]))).angle
+
+/** The angle a rotation target is compared by: as llAngleBetween, but small angles are not read as zero. */
+export function rotTargetAngle(a: Rotation, b: Rotation) {
+  const angle = f32(2 * f32(Math.acos(Math.min(1, Math.max(-1, rotationDot(a, b))))))
   return angle > f32(Math.PI) ? f32(f32(2 * Math.PI) - angle) : angle
 }
 

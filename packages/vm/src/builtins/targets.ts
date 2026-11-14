@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Script } from '../script.js'
 import type { Rotation, Vector } from '../values/types.js'
 import { ZERO_ROTATION } from '../values/types.js'
-import { llAngleBetween } from './math.js'
+import { rotTargetAngle } from './math.js'
 
 /** Aditi's stationary single-target handlers ran about once every 44 ms. */
 const INTERVAL = 1000 / 22.5
@@ -62,7 +62,7 @@ function check(ctx: CallContext, entries: Targets): void {
   if (entries.rotations.length) {
     let reached = false
     for (const target of entries.rotations) {
-      if (Number(llAngleBetween(ctx, [target.value, rotation])) < target.range) {
+      if (rotTargetAngle(target.value, rotation) < target.range) {
         reached = true
         emit(ctx, 'at_rot_target', { handle: target.handle, targetrot: { ...target.value }, ourrot: { ...rotation } })
       }
