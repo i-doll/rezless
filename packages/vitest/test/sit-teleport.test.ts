@@ -158,7 +158,8 @@ it('treats a nonexistent landmark as an error rather than a region name', async 
   expect(errors(script)).not.toEqual([])
 })
 it('does not use permission granted by a different avatar', async () => {
-  // Permission-key mismatch needs a second avatar in-world.
+  // In-world (Aditi, two avatars, 2026-11-14): holding a second avatar's 4096, llTeleportAgent on the
+  // owner said "Script trying to teleport agent without current permission!" and moved nobody.
   const { script, avatar, world } = await fixture(`default{state_entry(){llRequestPermissions("${OTHER}",PERMISSION_TELEPORT);}run_time_permissions(integer p){llTeleportAgent(llGetOwner(),"",<30,40,50>,ZERO_VECTOR);}}`)
   world.addAvatar({ region: 'home', key: OTHER, username: 'other.resident' })
   script.start(); script.grantPermissions()
@@ -251,15 +252,18 @@ it('allows an accepted experience to teleport another avatar without a runtime p
   expect(script.teleportRequests).toEqual([expect.objectContaining({ agent: OTHER, accepted: true })])
 })
 it('does not treat ordinary foreign-avatar permission as an experience grant', async () => {
-  // Requires a second avatar for in-world measurement.
+  // In-world (Aditi, two avatars, 2026-11-14): a second avatar granted 4096 through a dialog, and
+  // llTeleportAgent on them said "Teleport LSL functions can only teleport the owner of the
+  // object." and moved nobody.
   const { script, world } = await fixture(`default{state_entry(){llRequestPermissions("${OTHER}",PERMISSION_TELEPORT);}run_time_permissions(integer p){llTeleportAgent("${OTHER}","",<30,40,50>,ZERO_VECTOR);}}`)
   const other = world.addAvatar({ region: 'home', key: OTHER, username: 'other' })
   script.start(); script.grantPermissions()
   expect(other.position).toEqual({ x: 0, y: 0, z: 0 })
-  expect(errors(script)).toEqual(['Script trying to teleport agent without current permission!'])
+  expect(errors(script)).toEqual(['Teleport LSL functions can only teleport the owner of the object.'])
 })
 it('ignores teleport attempts for a permission agent outside the source region', async () => {
-  // A second avatar is needed to hold permission while leaving the region in-world.
+  // In-world (Aditi, two avatars, 2026-11-14): the owner granted 4100 and teleported to the next
+  // region; llTeleportAgent on the owner then did nothing and said nothing.
   const { script, avatar } = await fixture(`default{state_entry(){llRequestPermissions(llGetOwner(),PERMISSION_TELEPORT);}run_time_permissions(integer p){llTeleportAgent(llGetOwner(),"",<30,40,50>,ZERO_VECTOR);}}`)
   script.start(); avatar.region = 'away'; script.grantPermissions()
   expect(avatar.position).toEqual({ x: 10, y: 20, z: 30 })

@@ -421,9 +421,9 @@ describe('the scripted camera after a reset', () => {
 })
 
 describe('which scripts can release a scripted camera', () => {
-  // Not measured: it needs a second avatar. The camera belongs to the avatar it was set for, so
-  // another sitter standing up leaves it alone, even when a script in the same prim held
-  // controls for that sitter.
+  // In-world (Aditi, two avatars, 2026-11-14): two scripts in one prim each locked the camera of
+  // one of the prim's two sitters; each llClearCameraParams released only the camera of the
+  // avatar the script held its key for (two-avatar-permissions.test.ts).
   it('keeps each avatar\'s rules apart in one prim', async () => {
     const BOB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     const world = new World()
@@ -465,7 +465,10 @@ describe('which scripts can release a scripted camera', () => {
     expect(worn.size).toBe(0)
   })
 
-  it('is not released when another sitter stands', async () => {
+  // In-world (Aditi, two avatars, 2026-11-14): with the owner's camera locked by a script in the
+  // seat's root, a second avatar stood up from the seat's child prim -> the owner's camera came
+  // back to the owner, though the script still held 3072 (two-avatar-permissions.test.ts).
+  it('is released when another sitter stands', async () => {
     const BOB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     const world = new World()
     world.addRegion('home', { x: 0, y: 0 })
@@ -482,7 +485,7 @@ describe('which scripts can release a scripted camera', () => {
     expect((seat.scripts.two!.global('log') as unknown[]).slice(-2)).toEqual([4, BOB])
     world.standAvatar(bob)
     seat.linkset.advanceTime(0)
-    expect(seat.scripts.one!.cameraParams.size).toBeGreaterThan(0)
+    expect(seat.scripts.one!.cameraParams.size).toBe(0)
   })
 
   // In-world: with the worn probe's camera locked, a second script in the same prim asked for

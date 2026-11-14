@@ -168,9 +168,8 @@ describe('camera control asked of an avatar who is neither sitting on the object
     expect(f.errors()).toEqual([NOT_FOUND, 'Temporary attachments cannot request runtime permissions to teleport'])
   })
 
-  // Not measured: an avatar other than the owner. The probes had one avatar, so whether a second
-  // avatar standing nearby gets the same refusal is taken from the sentence itself, which names
-  // sitting and wearing and not ownership.
+  // In-world (Aditi, two avatars, 2026-11-14): an object one avatar owned asked the other, standing
+  // nearby, for 2048 -> the same refusal.
   it('refuses for a second avatar who stands nearby', async () => {
     const f = await fixture()
     f.world.addAvatar({ region: 'home', key: BOB, username: 'bob' })
@@ -378,18 +377,20 @@ describe('requests still waiting when the sitter stands', () => {
     expect(f.script.global('events')).toEqual([DEBIT, ANIMATION])
   })
 
-  // Not measured: requests to a second avatar. The probes had one avatar. The model ends the wait
-  // only for a script whose permission key is the avatar who stood, which is all the grid showed.
+  // In-world (Aditi, two avatars, 2026-11-14): a seat script asked a second avatar for 8, and the
+  // owner sat on the seat and stood up. The second avatar's Yes was then honoured. A stand by the
+  // avatar the script held its permissions for ended the wait instead
+  // (two-avatar-permissions.test.ts).
   it('leaves a script that holds permissions for another avatar waiting', async () => {
     const f = await fixture()
     f.world.addAvatar({ region: 'home', key: BOB, username: 'bob' })
     f.ask(ANIMATION, BOB)
     f.script.grantPermissions()
-    f.ask(ATTACH, BOB)
+    f.ask(REMAP, BOB)
     expect(f.world.sitAvatar(f.avatar, f.linkset.prims[0]!)).toBe(true)
     f.world.standAvatar(f.avatar)
     f.script.grantPermissions()
-    expect(f.script.global('events')).toEqual([ANIMATION, ATTACH])
+    expect(f.script.global('events')).toEqual([ANIMATION, REMAP])
   })
 })
 
@@ -612,9 +613,8 @@ describe('permissions on a rezzed copy', () => {
     expect(copy.global('events')).toEqual([])
   })
 
-  // Not measured: a copy that changes owner. The probes had one avatar, so what a script holds
-  // after its object is rezzed by someone else is unknown. Such a copy starts with nothing, as
-  // every copy did before.
+  // In-world (Aditi, two avatars, 2026-11-14): a probe holding permissions was given to a second
+  // avatar, who rezzed it -> 0 and NULL_KEY in on_rez, with the new owner as llGetOwner().
   it('starts with nothing when the copy belongs to another owner', async () => {
     const f = await granted()
     const bob = f.world.addAvatar({ region: 'home', key: BOB, username: 'bob' })

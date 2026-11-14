@@ -359,6 +359,8 @@ it('temporarily attaches to the permission avatar and transfers ownership', asyn
   world.addAvatar({region:'home',key:other,username:'second.avatar'})
   script.start();script.grantPermissions()
   expect(script.global('owner')).toBe(other)
+  // In-world (Aditi, two avatars, 2026-11-14): llGetPermissions() read 0 on the line after
+  // llAttachToAvatarTemp handed the object to the wearer (two-avatar-permissions.test.ts).
   expect(script.global('permissions')).toBe(0)
   expect(script.global('changes')).toBe(128)
   expect(linkset.attachment?.avatar).toBe(other)

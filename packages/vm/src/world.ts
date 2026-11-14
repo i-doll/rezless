@@ -485,8 +485,9 @@ export class World {
         const previous = seat?.linkset
         if (previous && previous !== value?.linkset) {
           // In-world: a seat script that locked the camera and then reset held nothing, and the
-          // stand still put the camera back on the avatar.
-          for (const prim of previous.prims) prim.scriptedCameras.delete(avatar.key.toLowerCase())
+          // stand still put the camera back on the avatar. One sitter standing up also put the
+          // other sitter's camera back, though its script kept camera control.
+          for (const prim of previous.prims) prim.scriptedCameras.clear()
           for (const script of previous.allScripts()) script.sitterLeft(avatar.key)
         }
         seat = value

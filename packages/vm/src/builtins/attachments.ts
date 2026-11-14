@@ -42,7 +42,9 @@ function attach(ctx: CallContext, point: number, temporary: boolean): void {
     for (const item of prim.inventory) Object.assign(item, forNextOwner(item))
   }
   ctx.linkset.owner = agent
-  for (const script of ctx.linkset.allScripts()) script.clearPermissions()
+  // In-world: every script read 0 and NULL_KEY on the next line, then got attach and
+  // changed(CHANGED_OWNER) in that order.
+  for (const script of ctx.linkset.allScripts()) script.ownerChanged()
   ctx.linkset.attachToAvatar(agent, point, temporary)
   for (const script of ctx.linkset.allScripts()) {
     ctx.linkset.clock.schedule(script, ctx.state.clock.now, 'changed', { changes: CHANGED_OWNER })
