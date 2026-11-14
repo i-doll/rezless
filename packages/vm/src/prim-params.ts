@@ -1423,6 +1423,9 @@ function faceRoles(shape: PrimShape): FaceRole[] {
   if (hollow) roles.push('inner')
   if (ends) roles.push('bottom')
   if (cutFaces) roles.push('cutStart', 'cutEnd')
+  // Measured only as a count on a cut, hollow box with a NaN top size x: 3 faces, not 7. Keeping
+  // the outer sides and the inner face, on every box, is a choice: it can't be probed safely.
+  if (shape.kind === SHAPE_BOX && Number.isNaN(shape.topSize.x)) return roles.filter((r) => typeof r === 'number' || r === 'inner')
   // The count is a byte. Only a NaN cut, which is kept as -21474.83648, gets that far.
   return roles.slice(0, (roles.length - Math.min(sideCount, 255) + sideCount) & 0xff)
 }

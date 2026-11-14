@@ -76,10 +76,13 @@ export const llLog10: BuiltinImpl = (_ctx, args) => {
   return x > 0 ? Math.log10(x) : 0
 }
 
-/** llFrand(float mag) — seeded uniform [0, mag). Negative mag → [mag, 0). A zero result is +0. */
+/**
+ * llFrand(float mag) — seeded uniform [0, mag). Negative mag → [mag, 0). A zero result is +0,
+ * and a result below the smallest normal float is a zero with its sign, in Mono and SLua.
+ */
 export const llFrand: BuiltinImpl = (ctx, args) => {
   const mag = (args[0] as number | undefined) ?? 0
-  return unsignedZero(ctx.state.random.next() * mag)
+  return flushTiny(unsignedZero(ctx.state.random.next() * mag))
 }
 
 // ---- Vector / rotation math ----
@@ -89,6 +92,9 @@ const f32 = Math.fround
 const toF32Vector = (v: Vector) => vec(f32(v.x), f32(v.y), f32(v.z))
 
 const FLOAT32_MIN_NORMAL = 2 ** -126
+
+/** A single-precision result below the smallest normal float, as a zero with its sign. */
+const flushTiny = (n: number) => (n !== 0 && Math.abs(f32(n)) < FLOAT32_MIN_NORMAL ? n * 0 : n)
 
 /** A single-precision square as SLua computes it: below the smallest normal float it is zero. */
 const square = (n: number) => {
@@ -233,8 +239,13 @@ export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
   return sign < 0 ? rot(0 - q.x, 0 - q.y, 0 - q.z, 0 - q.s) : rot(q.x + 0, q.y + 0, q.z + 0, q.s + 0)
 }
 
-/** Second Life clears half-angle sines and cosines below this, so a turn by PI has exact zeros. */
-const HALF_ANGLE_ZERO = 0.00001
+/**
+ * Second Life clears half-angle sines and cosines below this. A turn about one axis of 1.414e-5
+ * radians or less gives no rotation, and one of 1.415e-5 does; a turn within 1.398e-5 of PI is
+ * exactly a half turn, and one 1.422e-5 short of it isn't. Three small turns together can still
+ * give a rotation (<1e-5, 1e-5, 1e-5> does), which this doesn't do.
+ */
+const HALF_ANGLE_ZERO = 0.00001 * Math.SQRT1_2
 
 function halfAngleTerm(fn: (a: number) => number, angle: number): number {
   const v = fn(angle * 0.5)
@@ -292,30 +303,55 @@ export const llAxisAngle2Rot: BuiltinImpl = (_ctx, args) => {
   return rot(axis.x * k, axis.y * k, axis.z * k, Math.cos(angle / 2))
 }
 
+/** llRotBetween treats a vector shorter than this as no direction. */
+const ROT_BETWEEN_MIN_LENGTH = f32(1e-5)
+
+/** Unit vectors whose dot product is past this are treated as exactly parallel or opposite. */
+const PARALLEL_DOT = f32(0.99999)
+
 /**
  * llRotBetween(vector a, vector b) — the shortest rotation taking a's
- * direction to b's. Opposite vectors turn half a circle about the x axis
- * with its component along a removed, or about z when a lies along x.
- * Zero vectors and equal directions give ZERO_ROTATION.
+ * direction to b's, in single precision. Both vectors are made unit length.
+ * The turn is the arccosine of their dot product about their cross product,
+ * and the result is normalised. A vector shorter than 1e-5 gives
+ * ZERO_ROTATION, as does an infinite or NaN component. Directions within about
+ * 0.26 degrees of each other count as equal (ZERO_ROTATION), and within 0.26
+ * degrees of opposite as opposite. Opposite vectors turn half a circle about
+ * the x axis with its component along a removed, or about z when less than
+ * 1e-5 of that axis is left.
  */
 export const llRotBetween: BuiltinImpl = (_ctx, args) => {
-  const a = (args[0] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
-  const b = (args[1] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
-  const ab = a.x * b.x + a.y * b.y + a.z * b.z
-  const c = { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }
-  const cc = c.x * c.x + c.y * c.y + c.z * c.z
-  if (cc > 0) {
-    const s = Math.sqrt(ab * ab + cc) + ab
-    const m = Math.sqrt(cc + s * s)
-    return rot(c.x / m, c.y / m, c.z / m, s / m)
+  const row = (v: LslValue | undefined): Row => {
+    const u = toF32Vector((v as Vector | undefined) ?? vec(0, 0, 0))
+    return [u.x, u.y, u.z]
   }
-  if (ab >= 0) return rot(0, 0, 0, 1)
-  const aa = a.x * a.x + a.y * a.y + a.z * a.z
-  const ref = a.y === 0 && a.z === 0 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 }
-  const k = (ref.x * a.x + ref.y * a.y + ref.z * a.z) / aa
-  const u = { x: ref.x - k * a.x, y: ref.y - k * a.y, z: ref.z - k * a.z }
-  const m = Math.hypot(u.x, u.y, u.z)
-  return rot(u.x / m, u.y / m, u.z / m, 0)
+  const a = row(args[0])
+  const b = row(args[1])
+  const lengthA = f32(Math.sqrt(dot3(a, a)))
+  const lengthB = f32(Math.sqrt(dot3(b, b)))
+  if (!(lengthA >= ROT_BETWEEN_MIN_LENGTH && lengthB >= ROT_BETWEEN_MIN_LENGTH)) return rot(0, 0, 0, 1)
+  const ka = f32(1 / lengthA)
+  const kb = f32(1 / lengthB)
+  const ua: Row = [f32(a[0] * ka), f32(a[1] * ka), f32(a[2] * ka)]
+  const ub: Row = [f32(b[0] * kb), f32(b[1] * kb), f32(b[2] * kb)]
+  const cos = dot3(ua, ub)
+  if (cos > PARALLEL_DOT) return rot(0, 0, 0, 1)
+  if (cos < -PARALLEL_DOT) {
+    // Summed before rounding: the measured opposite pairs need it.
+    const k = f32(a[0] / f32(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]))
+    const side: Row = [f32(1 - f32(k * a[0])), f32(0 - f32(k * a[1])), f32(0 - f32(k * a[2]))]
+    if (!(f32(Math.sqrt(dot3(side, side))) >= ROT_BETWEEN_MIN_LENGTH)) return rot(0, 0, 1, 0)
+    const axis = unitRow(side)
+    return rot(axis[0], axis[1], axis[2], 0)
+  }
+  const axis = unitRow([
+    f32(f32(ua[1] * ub[2]) - f32(ua[2] * ub[1])),
+    f32(f32(ua[2] * ub[0]) - f32(ua[0] * ub[2])),
+    f32(f32(ua[0] * ub[1]) - f32(ua[1] * ub[0])),
+  ])
+  const half = f32(f32(Math.acos(cos)) * 0.5)
+  const sin = f32(Math.sin(half))
+  return normalizeRotation(rot(f32(axis[0] * sin), f32(axis[1] * sin), f32(axis[2] * sin), f32(Math.cos(half))))
 }
 
 const toF32 = (q: Rotation) => rot(f32(q.x), f32(q.y), f32(q.z), f32(q.s))
