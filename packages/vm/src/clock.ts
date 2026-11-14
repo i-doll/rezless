@@ -32,8 +32,11 @@ export interface QueuedEvent {
 const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['timer', 0], ['sensor', 1], ['no_sensor', 1],
   ['at_target', 2], ['not_at_target', 2], ['at_rot_target', 2], ['not_at_rot_target', 2],
-  ['touch_start', 3], ['touch', 4], ['touch_end', 5], ['changed', 6], ['__unseated', 6],
+  ['touch_start', 3], ['touch', 4], ['touch_end', 5], ['changed', 6], ['__unseated', 6], ['__ownerChanged', 6],
 ])
+
+/** `changed` and the events a rez raises that run as `changed`. */
+const CHANGED_EVENTS: ReadonlySet<string> = new Set(['changed', '__unseated', '__ownerChanged'])
 
 const toucher = (payload: Record<string, unknown>) => (payload['detected'] as ReadonlyArray<{ key?: string }> | undefined)?.[0]?.key
 
@@ -50,14 +53,14 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   const merged: QueuedEvent[] = []
   let changed: number | undefined
   for (const e of held) {
-    if (e.event === 'changed' || e.event === '__unseated') {
+    if (CHANGED_EVENTS.has(e.event)) {
       if (changed === undefined) changed = merged.push(e) - 1
       else {
-        // The stand's event of a seat taken from under its sitter keeps its name: it runs after attach.
+        // The event a rez raises keeps its name: it runs after attach.
         const first = merged[changed]!
         merged[changed] = {
           ...first,
-          event: e.event === '__unseated' ? e.event : first.event,
+          event: e.event === 'changed' ? first.event : e.event,
           payload: { changes: (first.payload['changes'] as number) | (e.payload['changes'] as number) },
         }
       }
@@ -314,7 +317,7 @@ export class LinksetClock {
    * changed events, and changes held in the first sleep ran ahead of chat from the second.
    */
   releaseAtWake(script: Script, since: number): void {
-    const kind = (e: QueuedEvent) => e.event === '__unseated' ? 'changed' : e.event
+    const kind = (e: QueuedEvent) => CHANGED_EVENTS.has(e.event) ? 'changed' : e.event
     const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
     const waiting = new Set(waited.filter((e) => HELD_ORDER.has(e.event) && !this.heldBack(e, since)).map(kind))
     const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)))

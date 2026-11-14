@@ -12,6 +12,7 @@ import type { Linkset, Script } from '../src/index.js'
 // script in the same prim, and that second script changed the prim's colour and scale. The
 // stimuli were sent 1.5 s apart, so the order they came in is not in doubt.
 const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const OTHER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 async function fixture() {
   const world = new World()
@@ -582,6 +583,30 @@ describe('events held back in an object that is taken while its handler sleeps',
 
   // In-world: clicked on face 3 during the sleep, taken and rezzed -> on_rez, then touch_start,
   // touch and touch_end all reading face -1 and the owner's key.
+  // In-world: asleep 60 s in its listen handler, clicked and recoloured by a second script in
+  // the prim, then taken, given to a second avatar and rezzed by them -> after the sleep:
+  // on_rez, touch_start, one changed(130), CHANGED_OWNER and CHANGED_COLOR together.
+  it('merge the change of owner into a change held back with it', async () => {
+    const f = await fixture()
+    const other = f.world.addAvatar({ region: 'home', key: OTHER, username: 'other' })
+    const made = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [
+      { name: 'main', source: { source: probe } },
+      { name: 'helper', source: { source: recolour } },
+    ] }] })
+    made.scripts.main!.start()
+    made.scripts.helper!.start()
+    queue(f, made.scripts.main!, 'listen', heard('sleep'))
+    made.linkset.advanceTime(2_000)
+    touch(f, made.scripts.main!, 0)
+    queue(f, made.scripts.helper!, 'link_message', linked(''))
+    made.linkset.advanceTime(1_500)
+    seedRlvInventory(other, { sharedRootId: null, entries: [{ id: 'given', kind: 'item', parentId: null, name: 'probe', object: take(made.linkset), assetType: 'object' }] })
+    const object = f.world.attemptAvatarRez(other, 'given', { x: 1, y: 2, z: 3 }).object!
+    object.advanceTime(10_000)
+    const main = object.prims[0]!.scripts.find(s => s.scriptName === 'main')!
+    expect((main.global('log') as string[]).slice(2)).toEqual(['rez 0', 'touch_start -1', 'touch -1', 'touch_end -1', 'changed 130'])
+  })
+
   it('lose the face of a click that waited', async () => {
     const made = await asleep()
     touch(made.f, made.script, 3)
