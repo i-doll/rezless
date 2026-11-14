@@ -1,7 +1,7 @@
 rezless
-Copyright 2026 The rezless contributors
+Copyright 2026 Five
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+This product is licensed under the MIT License (see LICENSE).
 
 ================================================================================
 
@@ -104,8 +104,8 @@ From secondlife/slua, tag v0.710.12 (commit
     Copyright (c) 2010-2012  Mark Pulford <mark@kyne.com.au>
 
   Base64 routines from the Apache Portable Runtime (VM/src/apr), modified by
-  Linden Lab. Apache License, Version 2.0 (see LICENSE). The attribution
-  notices from the Apache Portable Runtime's NOTICE file that apply to them:
+  Linden Lab. Apache License, Version 2.0. The attribution notices from the
+  Apache Portable Runtime's NOTICE file that apply to them:
 
     Apache Portable Runtime
     Copyright 2026 The Apache Software Foundation.

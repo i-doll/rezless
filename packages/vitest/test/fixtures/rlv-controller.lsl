@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 // Narrow integration fixture, independently written for rezless.
 // Description: wearer avatar UUID,relay object UUID. Touch sends the configured command batch.
 // Defaults also permit an in-world smoke test without changing script source.

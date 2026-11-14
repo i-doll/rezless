@@ -24,7 +24,7 @@ full framework documentation, including the `loadScript` /
 
 ## License
 
-Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+MIT — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
 This package includes third-party code under other licences. The case-mapping
 tables behind `llToLower` and `llToUpper` come from Mono 2.6.4 and are under

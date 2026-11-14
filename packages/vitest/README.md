@@ -792,7 +792,7 @@ for (const profile of ['rlv', 'rlva'] as const) {
 }
 ```
 
-The relay integration test runs the same Apache-2.0 LSL relay and controller
+The relay integration test runs the same MIT-licensed LSL relay and controller
 fixtures under both profiles and disabled mode. The relay description contains
 one authorized controller object UUID; an empty value denies all senders. The
 controller description contains the wearer UUID and relay UUID, separated by a
@@ -2366,7 +2366,7 @@ CLI, or `{ includeFixtures: true }` to the reporter, to keep them.
 
 ## License
 
-The rezless project is licensed under the **Apache License, Version 2.0** —
+The rezless project is licensed under the **MIT License** —
 see [`LICENSE`](LICENSE).
 
 LSL function/event/constant signatures come from Linden Lab's official
