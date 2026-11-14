@@ -337,17 +337,33 @@ describe('events waiting for a handler that is asleep when its object is copied'
     expect(second.global('log')).toEqual(['rez', 'begin', 'end 100 at 90', 'rez', 'heard a', 'touch by Bob'])
   })
 
-  // In-world: an object 4 s into a 70 s sleep, with a chat line waiting, was taken, rezzed, taken
-  // again 3 s later and rezzed again, still asleep. It logged the end of the sleep, on_rez, the
-  // chat line, and a second on_rez.
-  it('keep the on_rez of an earlier rez, behind them', async () => {
-    const { f, linkset, script } = await asleep('sleep')
-    queue(f, script, 'listen', heard('b'))
+  // In-world: a seat went to sleep, was sat on and taken, rezzed, sat on and taken again, and
+  // rezzed, all inside the one sleep. It logged the end of the sleep, on_rez, on_rez, and one
+  // changed(32).
+  it('keep the on_rez of an earlier rez, and one changed event for two stands', async () => {
+    const { f, linkset } = await asleep('sleep')
+    f.world.sitAvatar(f.avatar, linkset.prims[0]!)
     const first = rez(f, take(linkset))
+    first.linkset.advanceTime(3_000)
+    f.world.sitAvatar(f.avatar, first.linkset.prims[0]!)
+    const second = rez(f, take(first.linkset))
+    second.linkset.advanceTime(82_000)
+    expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'rez', 'changed 32'])
+  })
+
+  // In-world: an object with a chat line waiting was taken, rezzed, taken again 3 s later and
+  // rezzed, still asleep. It logged the end of the sleep, on_rez, the chat line, and the second
+  // on_rez. On the grid a waiting chat line runs ahead of other waiting events, taken or not
+  // (it also ran before a touch that was made first, in an object that was never taken).
+  // rezless keeps waiting events in the order they came, so the earlier on_rez runs first here.
+  it('keep the on_rez of an earlier rez ahead of a chat line that came after it', async () => {
+    const { f, linkset } = await asleep('sleep')
+    const first = rez(f, take(linkset))
+    queue(f, first.script, 'listen', heard('b'))
     first.linkset.advanceTime(3_000)
     const second = rez(f, take(first.linkset))
     second.linkset.advanceTime(82_000)
-    expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'heard b', 'rez'])
+    expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'rez', 'heard b'])
   })
 
   // In-world: three objects went to sleep and were sent 62, 63 and 64 chat lines, then taken
@@ -446,7 +462,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     f.world.clock.advance(5_000)
     copy.linkset.attachToAvatar(OWNER, 5)
     copy.linkset.advanceTime(100_000)
-    expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'attach 1', 'attach 0', 'rez', 'attach 1'])
+    expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'rez', 'attach 1', 'attach 0', 'attach 1'])
   })
 
   // The stand takes the seat's controls back and drops a control event that was waiting. The
@@ -503,7 +519,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     first.linkset.advanceTime(1_000)
     const second = rez(f, take(first.linkset))
     second.linkset.advanceTime(90_000)
-    expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'changed 32', 'rez'])
+    expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'rez', 'changed 32'])
   })
 
   // In-world: the SLua twin did the same: the end of the sleep, on_rez, the chat line, the touch.

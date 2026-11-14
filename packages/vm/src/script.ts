@@ -1148,6 +1148,7 @@ export class Script {
       if (e.event === 'control' && !(copy.state.permissions.granted & PERMISSION_TAKE_CONTROLS)) continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
       // changed(CHANGED_LINK) in the copy, the one `unseated` brings.
+      if (merge && e.event === '__unseated') continue
       const data = eventData(e.payload)
       if (merge && e.event === 'changed') {
         data['changes'] = (data['changes'] as number) & ~CHANGED_LINK
@@ -1197,12 +1198,10 @@ export class Script {
     if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer()
     // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
     // time it is rezzed, and after attach when it is worn.
-    if (unseated && room > 1) this.clockView.schedule(this.now, '__unseated', { changes: CHANGED_LINK })
-    // In-world: an on_rez still waiting from an earlier rez ran after the other waiting events.
-    const earlier = (e: QueuedEvent) => e.event === 'on_rez'
-    for (const e of [...waiting.filter(e => !earlier(e)), ...waiting.filter(earlier)]) {
-      if (e.event !== 'state_entry') clock.schedule(this, Math.max(e.at, this.now), e.event, e.payload)
-    }
+    for (const e of waiting) if (e.event !== 'state_entry') clock.schedule(this, Math.max(e.at, this.now), e.event, e.payload)
+    // In-world: a seat taken from under its sitter twice inside one sleep ran both on_rez events
+    // and then one changed(CHANGED_LINK).
+    if (unseated) this.clockView.schedule(this.now, '__unseated', { changes: CHANGED_LINK })
     this.rezQueued = true
   }
 
