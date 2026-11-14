@@ -576,7 +576,8 @@ refused the same way.
 
 One avatar holds a sit target. A sit request on an object whose sit targets
 are all taken seats the avatar on the prim it asked for, where it sits on a
-prim without a sit target, unless the object has a scripted-only prim. It never
+prim without a sit target and only within that reach, unless the object has a
+scripted-only prim. It never
 takes the sit target over when the avatar holding it stands. `world.sitAvatar`
 on a prim whose sit target is taken seats the avatar on that prim at the
 prim's centre, or at the placement it is given. A sit request that would seat

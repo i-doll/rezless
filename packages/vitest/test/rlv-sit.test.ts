@@ -271,7 +271,9 @@ it('selects free configured targets and seats beside a taken one when every targ
     issue(script, '@unsit=force')
     world.sitAvatar(second, seat.prims[1]!)
     // In-world: with every sit target taken, a sit request on a prim seated the avatar on
-    // that prim where it sits without a sit target (Aditi, SLua Tideland, 2026-11-14).
+    // that prim where it sits without a sit target. "@sit:<box>=force" on a lone box whose
+    // sit target another avatar held seated it at <-0.59, 0.375, 1.13>, the same spot
+    // (Aditi, SLua Tideland, 2026-11-14).
     issue(script, '@sit:' + seat.prims[0]!.key + '=force')
     expect(avatar.sittingOn?.key).toBe(seat.prims[0]!.key)
     expect(avatar.sitPlacement?.position).toEqual({ x: 0, y: 0, z: 0 })

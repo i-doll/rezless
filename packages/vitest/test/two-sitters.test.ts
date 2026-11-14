@@ -187,3 +187,36 @@ it('lets an avatar that sat beside a sit target hold the next free one it sits o
   second.sittingOn = p2!
   expect(world.avatarOnSitTarget(p2!)).toBe(second)
 })
+
+it('refuses a far sit request on a taken sit target without an alert', async () => {
+  // In-world: with the second avatar on the box's sit target, the first asked from 12 m
+  // away. It stayed standing, no script got an event and the viewer showed nothing.
+  const { first, second, linkset, log, sit } = await scene()
+  linkset.prims[0]!.params.sitTarget = TARGET
+  expect(sit(second)).toBe(true)
+  first.position = { x: 108, y: 48, z: 20 }
+  expect(sit(first)).toBe(false)
+  expect(first.sittingOn).toBeNull()
+  expect(first.viewer.alerts).toEqual([])
+  expect(log().slice(0, 2)).toEqual([1, 2])
+})
+
+it('keeps an avatar beside the sit target when it asks again after the holder stands', async () => {
+  // In-world: the first avatar sat beside the second on the sit target. The second stood,
+  // and the first asked to sit on the box again: it stayed where it was, no script got an
+  // event and llAvatarOnLinkSitTarget(1) read NULL_KEY. Then the second sat again and took
+  // the free sit target as link 3.
+  const { first, second, linkset, log, sit, stand } = await scene()
+  linkset.prims[0]!.params.sitTarget = TARGET
+  expect(sit(second)).toBe(true)
+  expect(sit(first)).toBe(true)
+  const placed = first.sitPlacement
+  stand(second)
+  expect(log()).toEqual(report(2, FIRST, NULL_KEY, NULL_KEY, FIRST, 'First Resident'))
+  linkset.prims[0]!.scripts[0]!.setGlobal('log', [])
+  expect(sit(first)).toBe(true)
+  expect(log()).toEqual([])
+  expect(first.sitPlacement).toEqual(placed)
+  expect(sit(second)).toBe(true)
+  expect(log()).toEqual(report(3, FIRST, SECOND, SECOND, FIRST, 'First Resident'))
+})
