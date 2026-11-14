@@ -1294,9 +1294,9 @@ its sit locks again before that ground sit; RLVa does not. In RLVa a standtp ret
 replaces it, and RLVa then ground-sits the avatar at its next stand from an object. `unsit=force` stands the avatar. Successful object sit/stand
 operations produce normal `CHANGED_LINK` events; ground sitting adds no object link.
 A forced ground sit of a seated avatar is a stand followed by a ground sit. In Second Life
-the seat's `changed` handler still reads the avatar as standing; here the avatar is on the
-ground at once, so the handler reads `AGENT_SITTING`. `@sitground=force` is not modelled;
-use the null-UUID sit request.
+the seat's `changed` handler still reads the avatar as standing. The ground sit is not yet
+deferred past that event here, so the handler reads `AGENT_SITTING`; a test marked as failing
+holds the measured value. `@sitground=force` is not modelled; use the null-UUID sit request.
 
 Object force sit obeys all no-option `sit` locks and, while already sitting, all
 `unsit` locks. RLVa force unsit and ground sit exempt only the issuing prim;

@@ -349,15 +349,16 @@ describe('sit requests to and from the ground', () => {
     expect(f.rezzed.sitting()).toBe(AGENT_SITTING)
   })
 
-  // In-world: in the changed(32) of those ground sits the seat read llGetAgentInfo 262: the avatar
-  // had stood up and was not on the ground yet. It read 22 when asked a moment later. rezless has
-  // no such moment: the avatar is on the ground as soon as the command is handled, so the seat's
-  // handler reads AGENT_SITTING. This pins what rezless does, not what the grid did.
-  it('has the avatar on the ground already when the seat hears of the stand', async () => {
+  // In-world: in the changed(32) of those ground sits the seat read llGetAgentInfo 262, with
+  // neither AGENT_SITTING nor AGENT_ON_OBJECT: the avatar had stood up and was not on the ground
+  // yet. It read 22 when asked a moment later.
+  // Fails for now: rezless does not defer the ground sit past the stand's event yet.
+  it.fails('has the avatar standing when the seat hears of the stand', async () => {
     const f = await fixture()
     f.sit()
     f.worn.rlv(SIT_GROUND)
-    expect(f.seat.script.global('seen')).toEqual([SEATING, AGENT_SITTING])
+    expect(f.seat.script.global('seen')).toEqual([SEATING, 0])
+    expect(f.seat.sitting()).toBe(AGENT_SITTING)
   })
 
   // In-world: avatar on the seat, which held nothing and had a dialog for 2 open. The worn probe
