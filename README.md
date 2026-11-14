@@ -585,7 +585,10 @@ has a scripted-only prim. An avatar seated beside a sit target never takes it
 over when the avatar holding it stands. `world.sitAvatar` seats an avatar on a
 prim other avatars sit on; when the prim's sit target is taken, at the prim's
 centre or at the placement it is given. A sit request that would seat the
-avatar where another sitter already is gets refused with `CantSitNoRoom`.
+avatar where another sitter already is gets refused with `CantSitNoRoom`, and
+an avatar sitting on another object stands up from it. Second Life often
+seats the avatar at another spot nearby instead of refusing it; rezless does
+not model that.
 
 A prim without a sit target is out of reach more than 8 m away, unless
 `world.setSitResponse` gives it a response. Second Life's rule for that reach
