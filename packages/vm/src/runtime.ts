@@ -127,8 +127,6 @@ export interface ScriptState {
   camera: import('./builtins/camera.js').Camera
   /** Semantic input snapshot for the currently executing game_control event. */
   gameControlSnapshot: import('./builtins/game-control.js').GameControlSnapshot | null
-  /** Camera rules set with llSetCameraParams, by rule. */
-  readonly cameraParams: Map<number, LslValue>
   /** Avatar animations in this region, shared across scripts and preserved on reset. */
   readonly animations: Map<string, import('./builtins/animation.js').AvatarAnimations>
   /** Inventory offers and completed deliveries, oldest first. */

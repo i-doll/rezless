@@ -287,13 +287,15 @@ describe('llSetCameraParams / llClearCameraParams', () => {
     expect(s.cameraParams).toEqual(new Map())
   })
 
-  it('llClearCameraParams without the permission keeps the rules', async () => {
+  // In-world: a worn probe that held 3072 locked the camera, asked for 1024 alone and called
+  // llClearCameraParams, and the camera went back to the avatar (Aditi, SLua Tideland, 2026-11-14).
+  it('llClearCameraParams with only PERMISSION_TRACK_CAMERA still forgets the rules', async () => {
     const s = await load(
       `if (llGetListLength(got) == 0) { got = [1]; llSetCameraParams([${CAMERA_ACTIVE}, TRUE]); llRequestPermissions(llGetOwner(), ${PERMISSION_TRACK_CAMERA}); } else llClearCameraParams();`,
     )
     s.linkset.touch(0)
     s.grantPermissions()
     s.linkset.touch(0)
-    expect(s.cameraParams).toEqual(new Map([[CAMERA_ACTIVE, 1]]))
+    expect(s.cameraParams).toEqual(new Map())
   })
 })

@@ -352,6 +352,8 @@ it('clears seating when the object dies and refuses the dead seat', async () => 
   const { script, avatar, prims, world } = await fixture(`default{state_entry(){llSitTarget(<0,0,1>,ZERO_ROTATION);}touch_start(integer n){llDie();}}`)
   script.start(); world.sitAvatar(avatar, prims[0]!)
   script.fire('touch_start', { num_detected: 1 })
+  expect(avatar.info).toBe(262)
+  script.linkset.advanceTime(100)
   expect(avatar.info).toBe(6)
   expect(avatar.sittingOn).toBe(null)
   expect(world.sitAvatar(avatar, prims[0]!)).toBe(false)

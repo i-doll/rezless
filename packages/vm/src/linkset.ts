@@ -237,6 +237,8 @@ export class Linkset {
     if (!this.attachment) return
     retainRlvAttachment(this)
     for (const avatar of this.world?.avatars ?? []) avatar.viewer.session.detached(this)
+    // In-world: a detach put the camera back on the avatar, though the script had reset since it locked it.
+    for (const prim of this.prims) prim.scriptedCameras.clear()
     this.deleteAfterDetach = this.attachment.temporary
     this.attachment = null
     const index = this.peers.indexOf(this)
@@ -284,7 +286,7 @@ export class Linkset {
     for (const source of this.prims) {
       const prim = copy.addPrim(new Prim({ name: source.name }))
       for (const [name, value] of Object.entries(source)) {
-        if (['key', 'linkset', 'linkNumber', 'createdAt', 'scripts', 'inventory', 'keyframedMotion'].includes(name)) continue
+        if (['key', 'linkset', 'linkNumber', 'createdAt', 'scripts', 'inventory', 'keyframedMotion', 'scriptedCameras'].includes(name)) continue
         Object.assign(prim, { [name]: structuredClone(value) })
       }
       // In-world: scripted derez retains motion; copy only its data, never live callbacks.
