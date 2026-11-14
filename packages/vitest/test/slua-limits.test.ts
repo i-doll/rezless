@@ -93,6 +93,36 @@ describe('coroutine.running() in SLua', () => {
     expect(texts(s)).toEqual([...each('once'), ...each('every'), ...each('touch'), ...each('touch')])
   })
 
+  it('stays nil in a handler that an event was fired into, and keeps that handler intact', async () => {
+    // Second Life queues events, so this has no measurement: only a mock that fires into the script it serves
+    // runs one handler inside another.
+    const s = await slua(`
+      LLEvents:on("touch_start", function()
+        local keep = {}
+        for i = 1, 200 do keep[i] = "k" .. i end
+        ll.OwnerSay("before " .. typeof(coroutine.running()))
+        ll.GetObjectDesc()
+        local sum = 0
+        for i = 1, 200 do sum += #keep[i] end
+        ll.OwnerSay("after " .. typeof(coroutine.running()) .. " " .. sum)
+      end)
+      LLEvents:on("link_message", function()
+        for r = 1, 50 do local g = {} for i = 1, 2000 do g[i] = {i, "x" .. i} end end
+        ll.OwnerSay("inside " .. typeof(coroutine.running()))
+      end)
+    `)
+    s.start()
+    let fired = false
+    s.mock('llGetObjectDesc', () => {
+      if (!fired) s.fire('link_message', { sender_num: 0, num: 1, str: 'x', id: '' })
+      fired = true
+      return 'd'
+    })
+    touch(s)
+    touch(s)
+    expect(texts(s)).toEqual(['before nil', 'inside nil', 'after nil 692', 'before nil', 'after nil 692'])
+  })
+
   it('carries on from a yield on the script thread, which returns nothing', async () => {
     // In-world, at the top level: pcall(coroutine.yield) -> true and nothing else; select("#", coroutine.yield())
     // -> 0; select("#", coroutine.yield(1, 2)) -> 0 and select("#", pcall(coroutine.yield, 1, 2)) -> 1, and the
