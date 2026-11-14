@@ -227,9 +227,8 @@ describe('owner saves a notecard', () => {
     expect(prims[0]!.inventory.find((item) => item.name === 'nc')!.key).not.toBe(first)
   })
 
-  it('refuses a script and a missing name', async () => {
+  it('refuses a missing name', async () => {
     const { prims } = await load()
-    expect(() => prims[0]!.replaceInventory('a', {})).toThrow('is a script')
     expect(() => prims[0]!.replaceInventory('missing', {})).toThrow("replaceInventory: no item named 'missing'")
   })
 })
@@ -252,10 +251,9 @@ describe('owner renames an item', () => {
     expect(scripts['c']!.global('seen')).toEqual([])
   })
 
-  it('refuses a taken name, a script and a missing name', async () => {
+  it('refuses a taken name and a missing name', async () => {
     const { prims, scripts } = await load()
     expect(() => prims[0]!.renameInventory('v1', 'v2')).toThrow("renameInventory: an item named 'v2' already exists")
-    expect(() => prims[0]!.renameInventory('a', 'z')).toThrow('is a script')
     expect(() => prims[0]!.renameInventory('missing', 'z')).toThrow("renameInventory: no item named 'missing'")
     expect(() => prims[0]!.renameInventory('v1', 'v1')).toThrow("'v1' already has that name")
     expect(() => prims[0]!.renameInventory('v1', '')).toThrow('the new name has no ASCII characters')

@@ -30,8 +30,9 @@ export const llSetObjectName: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-/** llGetScriptName() — the script's filename (e.g. "greeter.lsl"). */
-export const llGetScriptName: BuiltinImpl = (ctx) => ctx.state.identity.scriptName
+/** llGetScriptName() — the name of the script's inventory item, which the owner can change. */
+export const llGetScriptName: BuiltinImpl = (ctx) =>
+  ctx.prim.inventory.find((item) => item.script === ctx.script)?.name ?? ctx.state.identity.scriptName
 
 /** llGenerateKey() — a fresh random UUID from the script's seeded random source. */
 export const llGenerateKey: BuiltinImpl = (ctx) => {

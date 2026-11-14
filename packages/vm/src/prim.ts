@@ -138,6 +138,8 @@ export class Prim {
     current: null, queueing: false, radius: 0, triggers: [], preloads: [],
   }
 
+  /** The script an owner edit is adding or recompiling, while the other scripts handle the event. */
+  #arriving: Script | undefined
   /** Set when this prim joins a linkset. */
   #linkset: Linkset | undefined
   #cancelTargetMotion: (() => void) | undefined
@@ -184,6 +186,30 @@ export class Prim {
   }
 
   /**
+   * Start a script built on this prim (`host: prim`) as the owner dropping it
+   * in. The scripts already there get `changed(CHANGED_INVENTORY)` first, and
+   * until they have handled it they cannot reach the new script. It then runs
+   * `state_entry` unless `running` is false, with no event for its own arrival.
+   */
+  dropScript(script: Script, opts: { running?: boolean } = {}): void {
+    const item = this.inventory.find((it) => it.script === script)
+    if (!item) throw new Error('dropScript: the script was not built on this prim')
+    if (script.hasStarted) throw new Error(`dropScript: '${item.name}' has already started`)
+    if (script.linkset.dead) throw new Error('dropScript: the object no longer exists')
+    if (this.inventory.some((it) => it !== item && it.name === item.name)) throw new Error(`dropScript: an item named '${item.name}' already exists`)
+    script.running = opts.running ?? true
+    this.#ownerEditedScript(script, () => {
+      if (script.running) script.start()
+      else script.queueStart()
+    })
+  }
+
+  /** The name an arriving item called `name` gets: a taken name has a number appended. */
+  freeInventoryName(name: string): string {
+    return freeInventoryName(this.inventory, inventoryItemName(name))
+  }
+
+  /**
    * Add a non-script inventory item (notecard, texture, etc.) as the owner
    * does by dropping it on the prim. A name the prim already holds gets a
    * number appended. The prim's scripts get `changed(CHANGED_INVENTORY)`.
@@ -227,26 +253,32 @@ export class Prim {
    * Save new content over an item, as the owner does when editing a notecard
    * in the object's contents. The item keeps its name and gets a new key
    * unless `changes.key` supplies one. The prim's scripts get
-   * `changed(CHANGED_INVENTORY)`.
+   * `changed(CHANGED_INVENTORY)`. Saving a script recompiles it: the others
+   * hear first, then it resets with no event of its own. A stopped script
+   * stays stopped.
    */
   replaceInventory(name: string, changes: Partial<Omit<InventoryItem, 'name' | 'type' | 'script'>>): void {
     const index = this.#inventoryIndex('replaceInventory', name)
     const old = this.inventory[index]!
-    if (old.script) throw new Error(`replaceInventory: '${name}' is a script; recompiling a script is not supported`)
     this.inventory[index] = {
       ...old, ...changes, name: old.name, type: old.type,
       key: changes.key ?? deterministicKey(`inventory-save/${++itemsSaved}`),
     }
-    this.#ownerEditedInventory()
+    const script = old.script
+    if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
+    this.#ownerEditedScript(script, () => {
+      script.reset()
+      if (!script.running) script.queueStart()
+    })
   }
 
   /**
    * Rename an item as the owner does in the object's contents. The prim's
-   * scripts get `changed(CHANGED_INVENTORY)`.
+   * scripts get `changed(CHANGED_INVENTORY)`. A renamed script keeps running
+   * and gets the event too.
    */
   renameInventory(from: string, to: string): void {
     const item = this.inventory[this.#inventoryIndex('renameInventory', from)]!
-    if (item.script) throw new Error(`renameInventory: '${from}' is a script; renaming a script is not supported`)
     const name = inventoryItemName(to)
     if (!name) throw new Error('renameInventory: the new name has no ASCII characters')
     if (name === item.name) throw new Error(`renameInventory: '${from}' already has that name`)
@@ -262,23 +294,62 @@ export class Prim {
   }
 
   /**
-   * A stopped script, or one that has not started yet, never hears of the
-   * edit. A script busy in a handler gets the event when it finishes.
+   * Tell the prim's scripts of an edit that added or recompiled `script`, then
+   * `start` it. Until their handlers end or sleep, the script reads as not
+   * running, `findScript` does not find it and a link message to it is lost.
+   * A script they deleted, or whose object they deleted, is not started.
    */
-  #ownerEditedInventory(): void {
-    const linkset = this.linkset
-    if (!linkset) return
-    // A queued event can run a script's handler without starting it.
-    const scripts = this.scripts.filter(hearsInventoryChange)
-    if (!scripts.length) return
-    for (const script of scripts) queueInventoryChanged(script)
-    linkset.settle(scripts.filter((script) => script.wakeAt === undefined))
+  #ownerEditedScript(script: Script, start: () => void): void {
+    const linkset = script.linkset
+    const running = script.running
+    script.running = false
+    this.#arriving = script
+    let idle: Script[] | undefined
+    try {
+      const hearing = this.#queueOwnerEdit()
+      if (hearing.length) {
+        idle = hearing.filter((other) => other.wakeAt === undefined)
+        linkset.drainQueue()
+      }
+    } finally {
+      this.#arriving = undefined
+      script.running = running
+    }
+    if (!script.dead) start()
+    if (idle) linkset.settle(idle)
   }
 
-  /** Find a script by inventory name. */
+  /** A queued event can run a script's handler without starting it. */
+  #live(script: Script): boolean {
+    return script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined
+  }
+
+  #ownerEditedInventory(): void {
+    const hearing = this.#queueOwnerEdit()
+    if (hearing.length) this.linkset!.settle(hearing.filter((script) => script.wakeAt === undefined))
+  }
+
+  /**
+   * Queue `changed(CHANGED_INVENTORY)` for an owner edit and return the
+   * scripts that get it. A stopped script, or one that has not
+   * started yet, never hears of the edit. A script busy in a handler gets the
+   * event when it finishes. When no script in a child prim handles `changed`,
+   * the root's scripts get the event.
+   */
+  #queueOwnerEdit(): Script[] {
+    const linkset = this.linkset
+    if (!linkset) return []
+    const hearing = (prim: Prim) => prim.scripts.filter(hearsInventoryChange)
+    let scripts = hearing(this)
+    if (!scripts.some((script) => script.handles('changed'))) scripts = hearing(linkset.prims[0]!)
+    for (const script of scripts) queueInventoryChanged(script)
+    return scripts
+  }
+
+  /** Find a script by inventory name. A script the owner is adding or recompiling is not found until the others have heard of it. */
   findScript(name: string): Script | undefined {
     for (const it of this.inventory) {
-      if (it.type === InventoryType.SCRIPT && it.name === name) return it.script
+      if (it.type === InventoryType.SCRIPT && it.name === name) return it.script === this.#arriving ? undefined : it.script
     }
     return undefined
   }

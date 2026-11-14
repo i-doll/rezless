@@ -283,9 +283,10 @@ script. A prim never hears its own chat, and `llOwnerSay` and
 
 #### Editing a prim's contents
 
-These `Prim` methods act as the object's owner editing its contents. Each one
-sends `changed(CHANGED_INVENTORY)` to the running scripts in that prim and to
-no other prim.
+These calls act as the object's owner editing its contents. Each one sends
+`changed(CHANGED_INVENTORY)` to the running scripts in that prim. When no
+script in a child prim handles `changed` in its current state, the root's
+scripts get the event instead. No other prim hears of it.
 
 ```ts
 prims[0].addInventory(makeInventoryItem({ name: 'Notes', type: InventoryType.NOTECARD }))
@@ -293,7 +294,30 @@ prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: s
 prims[0].renameInventory('Notes', 'Settings')
 prims[0].removeInventory('Settings')                                 // a removed script stops
 prims[0].removeInventory('a', 'b')                                   // deleted together: one event
+
+const door = await addScript(prims[1], { source: 'door.lsl', name: 'door' })  // dropped in: runs state_entry
+await addScript(prims[1], { source: 'spare.lsl' }, { running: false })        // dropped in, not running
+prims[1].replaceInventory('door', {})                                         // recompiled: resets, new key
+prims[1].renameInventory('door', 'gate')                                      // keeps running
 ```
+
+`addScript` takes a script as `loadLinkset` does and returns it, stopped when
+`running` is false; the script is not added to the `scripts` map `loadLinkset`
+returned. It is not `prim.addScript`, which places a script with no event.
+`prim.dropScript(script)` does the same for a script already built on the prim.
+
+The other scripts hear of a new or recompiled script before it runs, and it
+gets no event of its own. Until their `changed` handlers end or sleep, the
+script is not there for them: a link message to it is lost, and
+`llSetScriptState` on it says it could not find the script. A script added as
+not running, or recompiled while stopped, runs `state_entry` once
+`llSetScriptState` starts it. Recompiling keeps the script's code; to change
+the code, remove the script and add another. A script that nothing has run yet
+is not reset by a recompile.
+
+A renamed script gets the event like the others; `llGetScriptName` returns the
+new name, while `script.scriptName` keeps the name the script was loaded with.
+Renaming inside a prim could not be probed, so those details are assumptions.
 
 A script that has not started yet, or is stopped, gets no event, so items added
 before `start()` set the object up quietly. A script busy in a handler gets the
@@ -301,10 +325,10 @@ event when the handler ends, and edits made meanwhile are merged into one or
 two events. Like `linkset.touch`, an edit runs the handlers it starts to their
 end and delivers any other event that is due.
 
-`addInventory` appends a number to a name the prim already holds (`Notes`,
-`Notes 1`) and returns the stored item. The other three throw for a name the
-prim does not hold, and `replaceInventory` and `renameInventory` refuse
-scripts. `llRemoveInventory` from a script sends no event.
+`addInventory` and `addScript` append a number to a name the prim already
+holds (`Notes`, `Notes 1`); `addInventory` returns the stored item. The other
+three throw for a name the prim does not hold. `llRemoveInventory` from a
+script sends no event.
 
 `prim.placeInventory(item)` puts an item in place with no event, for arranging
 an object after its scripts have started.
