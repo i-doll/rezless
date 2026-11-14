@@ -441,7 +441,7 @@ default { link_message(integer s, integer n, string m, key id) {
   else if (c == "temp") llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_TEMP_ON_REZ, v]);
   else if (c == "rotlook") llRotLookAt(llEuler2Rot(<0.0, 0.0, (float)v> * DEG_TO_RAD), 1.0, 1.0);
   else if (c == "rotlookself") llRotLookAt(llGetRot(), 1.0, 1.0);
-  else if (c == "look") llLookAt(llGetPos() + <(float)v, (float)w, 0.0>, 1.0, 1.0);
+  else if (c == "look") llLookAt(llGetPos() + <(float)v, (float)w, (float)llList2String(a, 3)>, 1.0, 1.0);
   llSleep(1.0);
   cost = llList2Float(llGetObjectDetails(llGetKey(), [OBJECT_SERVER_COST]), 0);
 } }`
@@ -515,6 +515,37 @@ describe('OBJECT_SERVER_COST and calls from a child prim', () => {
     await s.drop(); costs.push(s.run(1, 'rotlook 30'))
     await s.drop(); costs.push(s.run(1, 'rotlookself'))
     expect(costs).toEqual([2.25, 2.5, 2.75, 3, 3.25, 3.5])
+  })
+
+  // In-world, on the object built again, not turned, an empty script before
+  // each command: llLookAt from the root at a point 3 m along Y read 2.5 and
+  // turned the root to <-90, 0, 90>; at a point 3 m along X it read 2.75 and
+  // turned the root to <0, 90, 0>, each what the empty script left it at.
+  // STATUS_PHYSICS TRUE from the root then read 3.25 (counted). On the
+  // physical object llLookAt from the root at a point 1 m along X and 10 m up
+  // read 3.25, and 3.25 again three seconds later as the object turned;
+  // llLookAt from link 2 read 3.5 and llRotLookAt to 90 degrees from the root
+  // read 3.75, as it turned to 82 degrees: none of them counted again.
+  it('does not count again for llLookAt from the root or a look-at that turns the physical object', async () => {
+    const s = await fourPrims()
+    const turns: Array<{ x: number; y: number; z: number; s: number }> = []
+    const costs = [s.run(1, 'read')]
+    await s.drop(); costs.push(s.run(1, 'look 0 3 0')); turns.push({ ...s.prims[0]!.params.rotation })
+    await s.drop(); costs.push(s.run(1, 'look 3 0 0')); turns.push({ ...s.prims[0]!.params.rotation })
+    await s.drop(); costs.push(s.run(1, 'read'), s.run(1, 'status 1 1'))
+    await s.drop(); costs.push(s.run(1, 'look 1 0 10'))
+    s.object.linkset.advanceTime(3000); costs.push(s.run(1, 'read'))
+    await s.drop(); costs.push(s.run(2, 'look 0 1 10'))
+    await s.drop(); costs.push(s.run(1, 'rotlook 90'))
+    s.object.linkset.advanceTime(3000); costs.push(s.run(1, 'read'))
+    expect(costs).toEqual([2.25, 2.5, 2.75, 3, 3.25, 3.25, 3.25, 3.5, 3.75, 3.75])
+    const euler = await loadScript({ source: `rotation a; rotation b; default { state_entry() {
+      a = llEuler2Rot(<-90.0, 0.0, 90.0> * DEG_TO_RAD); b = llEuler2Rot(<0.0, 90.0, 0.0> * DEG_TO_RAD); } }` })
+    euler.start()
+    turns.forEach((turn, i) => {
+      const q = euler.global(i ? 'b' : 'a') as typeof turn
+      expect(Math.abs(turn.x * q.x + turn.y * q.y + turn.z * q.z + turn.s * q.s)).toBeCloseTo(1)
+    })
   })
 })
 
