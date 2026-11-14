@@ -182,10 +182,40 @@ it('lets an avatar that sat beside a sit target hold the next free one it sits o
   p2!.params.sitTarget = TARGET
   expect(world.sitAvatar(first, p1!)).toBe(true)
   expect(world.sitAvatar(second, p1!)).toBe(true)
-  expect(world.avatarOnSitTarget(p1!)).toBe(first)
-  world.standAvatar(second)
-  second.sittingOn = p2!
+  expect(world.sitAvatar(second, p2!)).toBe(true)
   expect(world.avatarOnSitTarget(p2!)).toBe(second)
+  expect(world.avatarOnSitTarget(p1!)).toBe(first)
+})
+
+it('gives a sit target set under seated avatars to the next avatar to sit', async () => {
+  // In-world: both avatars sat on the box without a sit target, then the script set one.
+  // llAvatarOnSitTarget read NULL_KEY, also once only one of them still sat there. The
+  // other avatar then sat again and took the sit target as link 3.
+  const { first, second, linkset, log, sit, stand } = await scene()
+  const box = linkset.prims[0]!
+  expect(sit(second)).toBe(true)
+  expect(linkset.world!.sitAvatar(first, box, { position: { x: -0.59, y: -0.375, z: 1.13 } })).toBe(true)
+  box.params.sitTarget = TARGET
+  expect(log()).toEqual(report(3, SECOND, FIRST, NULL_KEY, SECOND, 'Second Resident'))
+  stand(first)
+  expect(log()).toEqual(report(2, SECOND, NULL_KEY, NULL_KEY, SECOND, 'Second Resident'))
+  expect(sit(first)).toBe(true)
+  expect(log()).toEqual(report(3, SECOND, FIRST, FIRST, SECOND, 'Second Resident'))
+  expect(first.sitPlacement?.position).toEqual(TARGET.offset)
+})
+
+it('keeps reading the holder after its sit target is removed or set again', async () => {
+  // In-world: with an avatar on the box's sit target, llLinkSitTarget(LINK_THIS, <0, 0, 0.7>, ...)
+  // and llSitTarget(ZERO_VECTOR, ZERO_ROTATION) each left llAvatarOnSitTarget reading it, while
+  // PRIM_SIT_TARGET read 1 and then 0.
+  const { world, first, linkset } = await scene()
+  const box = linkset.prims[0]!
+  box.params.sitTarget = TARGET
+  expect(world.sitAvatar(first, box)).toBe(true)
+  box.params.sitTarget = { ...TARGET, offset: { x: 0, y: 0, z: 0.7 } }
+  expect(world.avatarOnSitTarget(box)).toBe(first)
+  box.params.sitTarget = { enabled: false, offset: { x: 0, y: 0, z: 0 }, rotation: TARGET.rotation }
+  expect(world.avatarOnSitTarget(box)).toBe(first)
 })
 
 it('refuses a far sit request on a taken sit target without an alert', async () => {

@@ -574,12 +574,15 @@ export class World {
     return sitSpot(prim, avatar)
   }
 
-  private readonly besideSitTarget = new WeakMap<WorldAvatar, Prim>()
+  private readonly sitTargetHolders = new WeakMap<WorldAvatar, Prim>()
 
-  /** The avatar on `prim`'s sit target. An avatar that sat while another held it sits beside it and never takes it over. */
+  /**
+   * The avatar on `prim`'s sit target: the one that took it when it sat, while
+   * it sits there, even after the sit target is changed or removed. An avatar
+   * that sat while the prim had no free sit target never takes it over.
+   */
   avatarOnSitTarget(prim: Prim): WorldAvatar | undefined {
-    if (!prim.params.sitTarget.enabled) return undefined
-    return this.avatars.find(a => a.sittingOn === prim && this.besideSitTarget.get(a) !== prim)
+    return this.avatars.find(a => a.sittingOn === prim && this.sitTargetHolders.get(a) === prim)
   }
 
   /**
@@ -593,11 +596,9 @@ export class World {
     cancelPendingSit(avatar)
     cancelPendingGroundSit(avatar)
     if (avatar.sittingOn === prim) return true
-    this.besideSitTarget.delete(avatar)
-    if (this.avatarOnSitTarget(prim)) {
-      this.besideSitTarget.set(avatar, prim)
-      placement ??= { position: ZERO_VECTOR, rotation: ZERO_ROTATION }
-    }
+    this.sitTargetHolders.delete(avatar)
+    if (this.avatarOnSitTarget(prim)) placement ??= { position: ZERO_VECTOR, rotation: ZERO_ROTATION }
+    else if (prim.params.sitTarget.enabled) this.sitTargetHolders.set(avatar, prim)
     const previous = avatar.sittingOn?.linkset
     if (placement) this.sitPlacements.set(avatar, placement)
     avatar.sittingOn = prim
@@ -614,7 +615,7 @@ export class World {
     const sitting = !!(avatar.info & AGENT_SITTING)
     const previous = avatar.sittingOn?.linkset
     avatar.sittingOn = null
-    this.besideSitTarget.delete(avatar)
+    this.sitTargetHolders.delete(avatar)
     avatar.info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
     if (avatar.standingRotation) avatar.rotation = avatar.standingRotation
     avatar.standingRotation = null

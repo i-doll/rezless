@@ -560,7 +560,9 @@ child of the object's root: it moves with the root and stays put when its seat
 prim moves or the sit target is edited, which only affects future sits. Deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
 `changed(CHANGED_LINK)` throughout the object. The sit-target readers return
-its sitter only while the target is enabled. `llSitOnLink` requires an allowed
+the avatar that took the sit target when it sat, for as long as it sits there,
+even after the sit target is changed or removed. An avatar that sat before the
+sit target was set never takes it. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
 
@@ -576,13 +578,13 @@ from it, and one sitting on the ground stays there. `@sit:<key>=force` is
 refused the same way.
 
 One avatar holds a sit target. A sit request on an object whose sit targets
-are all taken seats the avatar on the prim it asked for, where it sits on a
-prim without a sit target and only within that reach, unless the object has a
-scripted-only prim. It never
-takes the sit target over when the avatar holding it stands. `world.sitAvatar`
-on a prim whose sit target is taken seats the avatar on that prim at the
-prim's centre, or at the placement it is given. A sit request that would seat
-the avatar where another sitter already is gets refused with `CantSitNoRoom`.
+are all taken seats the avatar on the prim it asked for, where and within the
+reach it would sit on a prim without a sit target (below), unless the object
+has a scripted-only prim. An avatar seated beside a sit target never takes it
+over when the avatar holding it stands. `world.sitAvatar` seats an avatar on a
+prim other avatars sit on; when the prim's sit target is taken, at the prim's
+centre or at the placement it is given. A sit request that would seat the
+avatar where another sitter already is gets refused with `CantSitNoRoom`.
 
 A prim without a sit target is out of reach more than 8 m away, unless
 `world.setSitResponse` gives it a response. Second Life's rule for that reach
