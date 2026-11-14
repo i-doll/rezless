@@ -379,7 +379,6 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   }
   cancelPendingSit(avatar)
   cancelPendingGroundSit(avatar)
-  avatar.info &= ~AGENT_FLYING
   const previous = avatar.sittingOn
   if (saveOrigin) rememberStandtpSit(world, avatar)
   const sit = (): 'applied' | 'unchanged' | 'refused' => {
@@ -391,6 +390,7 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
     return !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
   }
   if (!response.autopilot || previous?.linkset === seat.linkset) return sit()
+  avatar.info &= ~AGENT_FLYING
   const { durationMs, success } = response.autopilot
   avatar.viewer.session.bind(seat.linkset!, avatar)
   const lifetime = avatar.viewer.session.lifetime
