@@ -417,14 +417,13 @@ export class SluaEngine {
   private readArgs(L: number, spec: BuiltinSpec, compat: boolean, nargs: number): LslValue[] | string {
     const indexParams = new Set(spec.slua?.indexParams ?? [])
     const boolParams = new Set(spec.slua?.boolParams ?? [])
-    const uuidParams = new Set(spec.slua?.uuidParams ?? [])
     const name = spec.name.slice(2)
     const args: LslValue[] = []
     for (const [i, p] of spec.params.entries()) {
       const slot = i + 1
       const expected = EXPECTED[p.type]!
       if (slot > nargs) return `missing argument #${slot} to '${name}' (${expected} expected)`
-      const value = this.readArg(L, slot, p.type, { boolean: boolParams.has(i), uuid: uuidParams.has(i) })
+      const value = this.readArg(L, slot, p.type, boolParams.has(i))
       if (value === undefined) {
         this.x.rz_typename(this.s, L, slot)
         const got = this.scratch()
@@ -443,31 +442,26 @@ export class SluaEngine {
   }
 
   /**
-   * Argument `slot` as LSL parameter type `type` takes it, as luaL_check*
-   * would accept it (numbers from numeric strings, strings from numbers as
-   * Lua formats them), undefined if it is the wrong type, or an error for a
-   * list holding something LSL can't.
+   * Argument `slot` as LSL parameter type `type` takes it (numbers from
+   * numeric strings, strings from uuids), undefined if it is the wrong type,
+   * or an error for a list holding something LSL can't.
    */
   private readArg(
     L: number,
     slot: number,
     type: LslType,
-    takes: { boolean: boolean; uuid: boolean },
+    takesBoolean: boolean,
   ): LslValue | { error: string } | undefined {
     const x = this.x
     const t = x.rz_type(L, slot)
     const numeric = t === T.Number || t === T.Integer || (t === T.String && x.rz_isnumber(L, slot) !== 0)
     switch (type) {
       case 'integer':
-        if (takes.boolean && t === T.Boolean) return x.rz_toboolean(L, slot)
+        if (takesBoolean && t === T.Boolean) return x.rz_toboolean(L, slot)
         return numeric ? toInt32(Math.trunc(x.rz_tonumber(L, slot))) : undefined
       case 'float':
         return numeric ? x.rz_tonumber(L, slot) : undefined
       case 'string':
-        // luaL_checkstring: strings, and numbers as Lua formats them.
-        if (t !== T.String && t !== T.Number && !(takes.uuid && t === T.Uuid)) return undefined
-        x.rz_tostring(this.s, L, slot)
-        return this.scratch()
       case 'key':
         if (t !== T.String && t !== T.Uuid) return undefined
         x.rz_tostring(this.s, L, slot)

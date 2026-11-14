@@ -22,8 +22,6 @@ export interface SluaSpec {
   readonly boolParams?: ReadonlyArray<number>
   /** Key parameters SLua passes as plain strings. */
   readonly stringParams?: ReadonlyArray<number>
-  /** String parameters that also take a uuid. */
-  readonly uuidParams?: ReadonlyArray<number>
 }
 
 export interface BuiltinSpec {
@@ -351,7 +349,7 @@ export const BUILTIN_SPECS = {
   "llManageEstateAccess": { name: "llManageEstateAccess", returnType: "integer", delay: 0, status: "normal", params: [{ name: "action", type: "integer" }, { name: "avatar", type: "key" }], slua: { returnBool: true } },
   "llMapBeacon": { name: "llMapBeacon", returnType: "void", delay: 1, status: "normal", params: [{ name: "region_name", type: "string" }, { name: "pos", type: "vector" }, { name: "options", type: "list" }] },
   "llMapDestination": { name: "llMapDestination", returnType: "void", delay: 1, status: "normal", params: [{ name: "simname", type: "string" }, { name: "pos", type: "vector" }, { name: "look_at", type: "vector" }] },
-  "llMessageLinked": { name: "llMessageLinked", returnType: "void", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }], slua: { uuidParams: [2] } },
+  "llMessageLinked": { name: "llMessageLinked", returnType: "void", delay: 0, status: "normal", params: [{ name: "link", type: "integer" }, { name: "num", type: "integer" }, { name: "str", type: "string" }, { name: "id", type: "key" }] },
   "llMinEventDelay": { name: "llMinEventDelay", returnType: "void", delay: 0, status: "normal", params: [{ name: "delay", type: "float" }] },
   "llModPow": { name: "llModPow", returnType: "integer", delay: 0, status: "normal", params: [{ name: "base", type: "integer" }, { name: "exponent", type: "integer" }, { name: "modulus", type: "integer" }] },
   "llModifyLand": { name: "llModifyLand", returnType: "void", delay: 0, status: "normal", params: [{ name: "action", type: "integer" }, { name: "brush", type: "integer" }] },
