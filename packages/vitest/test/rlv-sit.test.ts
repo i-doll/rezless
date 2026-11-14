@@ -217,7 +217,7 @@ it('handles empty sit, ground/object transitions, repeated actions and removed s
     expect(script.global('changes')).toBe(1)
     issue(script, '@sit=force')
     expect(script.global('changes')).toBe(profile === 'rlva' ? 2 : 1)
-    script.linkset.advanceTime(250)
+    script.linkset.advanceTime(300)
     issue(script, '@getsitid:ignored=225101')
     expect(script.global('replies')).toEqual([profile === 'rlva' ? avatar.key : script.host.key])
     script.linkset.dead = true

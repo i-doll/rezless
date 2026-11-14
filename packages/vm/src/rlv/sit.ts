@@ -67,8 +67,9 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
 }
 
 // In-world: in six ground sits from a seat, the seat's changed handler read the avatar standing
-// up to 0.2 s after the event and on the ground from 0.27-0.33 s (Aditi, SLua Tideland, 2026-11-14).
-const GROUND_SIT_DELAY_MS = 250
+// up to 0.2 s after the event and on the ground from 0.265-0.333 s, varying between runs (Aditi,
+// SLua Tideland, 2026-11-14). 300 ms lies inside that range.
+const GROUND_SIT_DELAY_MS = 300
 
 function kokuaGroundSitLocked(avatar: WorldAvatar): boolean {
   return avatar.viewer.restrictions.snapshot().some(rule => !rule.option &&

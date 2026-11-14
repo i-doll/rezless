@@ -1239,7 +1239,8 @@ Empty and null-UUID sit requests ground sitting in RLVa and have no effect in
 Kokua. `sitground=force` ground-sits in both profiles and ignores its option.
 Ground sitting sets `AGENT_SITTING`, clears `AGENT_ON_OBJECT`, and removes an
 existing object seat. From a seat, the avatar stands at once, so the seat's
-`CHANGED_LINK` handler reads it standing, and sits on the ground 250 ms later;
+`CHANGED_LINK` handler reads it standing, and sits on the ground 300 ms later (the grid's delay varied between 0.265 and
+0.333 s in six runs);
 advance virtual time to finish it. The command log records `pending`, then the outcome. A later sit request drops it. Kokua checks
 its sit locks again before that ground sit; RLVa does not. In RLVa a standtp return
 replaces it, and RLVa then ground-sits the avatar at its next stand from an object. `unsit=force` stands the avatar. Successful object sit/stand
