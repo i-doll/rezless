@@ -672,6 +672,7 @@ export class Script {
     this.state.permissions.granted = 0
     this.state.permissions.agent = NULL_KEY
     for (const r of this.state.permissions.requests) r.answered = true
+    for (const r of this.state.experienceRequests) r.answered = true
     this.state.controls.taken = null
   }
 

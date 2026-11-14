@@ -111,6 +111,21 @@ export interface InventoryItem {
   environment?: import('./world.js').EnvironmentAsset
 }
 
+/** The masks an item or prim has once it reaches its next owner. */
+export function nextOwnerMask(mask: PermMask): PermMask {
+  return { ...mask, base: mask.base & mask.next, owner: mask.owner & mask.next }
+}
+
+/** An item as its next owner receives it: its masks, and a saved object's prims, cut to the next-owner masks. */
+export function forNextOwner(item: InventoryItem): InventoryItem {
+  const copy = { ...item, permMask: nextOwnerMask(item.permMask) }
+  if (item.object) {
+    copy.object = item.object.copy()
+    for (const prim of copy.object.prims) prim.permMask = nextOwnerMask(prim.permMask)
+  }
+  return copy
+}
+
 /** Second Life drops non-ASCII characters from an item's name when it enters a prim's inventory. */
 export function inventoryItemName(name: string): string {
   return name.replace(/[^\x00-\x7f]/g, '')

@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
-import { InventoryType, freeInventoryName, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
+import { InventoryType, forNextOwner, freeInventoryName, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
@@ -29,10 +29,8 @@ function findPrim(ctx: CallContext, key: string): Prim | undefined {
 }
 
 function snapshot(item: InventoryItem, foreign: boolean): InventoryItem {
-  const { script: _script, ...copy } = item
-  return { ...copy, permMask: { ...item.permMask,
-    ...(foreign ? { base: item.permMask.base & item.permMask.next, owner: item.permMask.owner & item.permMask.next } : {}),
-  }, ...(item.notecardLines ? { notecardLines: [...item.notecardLines] } : {}) }
+  const { script: _script, ...copy } = foreign ? forNextOwner(item) : item
+  return { ...copy, permMask: { ...copy.permMask }, ...(item.notecardLines ? { notecardLines: [...item.notecardLines] } : {}) }
 }
 
 /** Whether the giver's owner may put items into `prim` without that prim's inventory drop. */

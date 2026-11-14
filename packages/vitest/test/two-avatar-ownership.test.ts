@@ -354,3 +354,125 @@ describe('an object item that was restricted for its owner', () => {
     expect(names(rezzer.prims[0]!.inventory)).toEqual(['r'])
   })
 })
+
+describe('inside an object that is no-modify for its owner', () => {
+  async function noMod() {
+    const world = await scene()
+    const loaded = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [
+      { name: 'Root', inventory: [note('gift')], scripts: [
+        { name: 'payload', source: { source: 'default { state_entry() {} }' } },
+        { name: 'root', source: { source: `default { state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+          touch_start(integer n) { key child = llGetLinkKey(2); llGiveInventory(child, "gift"); llRemoteLoadScriptPin(child, "payload", 45, TRUE, 0); llBreakLink(2); llBreakAllLinks(); } }` } }] },
+      { name: 'Child', scripts: [{ name: 'child', source: { source: 'default { state_entry() { llSetRemoteScriptAccessPin(45); } }' } }] },
+    ] })
+    for (const prim of loaded.prims) prim.permMask = masks(NO_MODIFY, NO_MODIFY)
+    loaded.scripts.child!.start()
+    const root = loaded.scripts.root!
+    root.start(); root.grantPermissions()
+    loaded.linkset.touch(1)
+    loaded.linkset.advanceTime(4000)
+    return { ...loaded, root }
+  }
+
+  it('blocks gifts and remote loads to its own child', async () => {
+    // In-world: a two-prim object that was no-modify for the owner. Its root gave a notecard to its own
+    // child -> 'Blocked by permissions'; it loaded a script into the child with the child's PIN -> the
+    // illegal-load error. Nothing arrived.
+    const { root, prims } = await noMod()
+    expect(root.chat.filter(c => c.channel === DEBUG).map(c => c.text)).toEqual([
+      "Unable to give inventory: 'Blocked by permissions'.",
+      "Task 'Root' trying to illegally load script onto task 'Child'!",
+    ])
+    expect(names(prims[1]!.inventory)).toEqual(['child'])
+  })
+
+  it('cannot break its links', async () => {
+    // In-world: the same object's root, holding the owner's PERMISSION_CHANGE_LINKS, called llBreakLink(2)
+    // -> still two prims, no error. A three-prim no-modify object: llBreakAllLinks and llBreakLink(3) ->
+    // still three prims, no error.
+    const { linkset } = await noMod()
+    expect(linkset.prims).toHaveLength(2)
+  })
+})
+
+describe('an object that is no-transfer for its owner', () => {
+  async function wear(avatar: string) {
+    const world = await scene()
+    const loaded = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 't', source: { source: `
+      default { state_entry() { llRequestPermissions("${avatar}", PERMISSION_ATTACH); }
+      run_time_permissions(integer p) { llAttachToAvatarTemp(ATTACH_RHAND); } }` } }] }] })
+    loaded.prims[0]!.permMask = masks(NO_TRANSFER, PERM_MOVE | PERM_COPY | PERM_MODIFY)
+    const t = loaded.scripts.t!
+    t.start(); t.grantPermissions()
+    return { ...loaded, t }
+  }
+
+  it('refuses a temporary attach to another avatar', async () => {
+    // In-world: an object that read 573440 as base, owner and next, with the other avatar's grant ->
+    // "No permission to transfer", still the owner's, llGetPermissions 32.
+    const { t, linkset } = await wear(OTHER)
+    expect(t.chat.map(c => c.text)).toEqual(['No permission to transfer'])
+    expect(linkset.owner).toBe(OWNER)
+    expect(linkset.attachment).toBeNull()
+  })
+
+  it('still attaches temporarily to its owner', async () => {
+    // In-world: the same object with the owner's grant -> attached, no error.
+    const { t, linkset } = await wear(OWNER)
+    expect(t.chat).toEqual([])
+    expect(linkset.attachment).toMatchObject({ avatar: OWNER, temporary: true })
+  })
+})
+
+describe('a no-copy script that moves itself', () => {
+  it('stops in the loading prim once a remote load has moved it', async () => {
+    // In-world: a script that was no-copy for its owner called llRemoteLoadScriptPin with its own name into
+    // the owner's prim -> it ran state_entry in the target, the loading prim was left empty, and the line
+    // the caller said after the call never came.
+    const world = await scene()
+    const target = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ name: 'Target' }] })
+    target.prims[0]!.remoteScriptAccessPin = 46
+    const loader = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'self', source: { source: `integer after; integer entries;
+      default { state_entry() { ++entries; if (llGetStartParameter() == 9) return; llRemoteLoadScriptPin("${target.prims[0]!.key}", llGetScriptName(), 46, TRUE, 9); after = 1; llSay(0, "after"); } }` } }] }] })
+    loader.prims[0]!.inventory[0]!.permMask = masks(NO_COPY, NO_COPY)
+    const self = loader.scripts.self!
+    self.start()
+    loader.linkset.advanceTime(4000)
+    expect(names(loader.prims[0]!.inventory)).toEqual([])
+    expect(self.chat).toEqual([])
+    expect(target.prims[0]!.findScript('self')!.global('entries')).toBe(1)
+  })
+
+  it('stops the same way after giving itself to another avatar', async () => {
+    // As measured for the remote load above; a no-copy gift moves the item the same way.
+    const world = await scene()
+    const giver = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'self', source: { source: `
+      default { state_entry() { llGiveInventory("${OTHER}", llGetScriptName()); llSay(0, "after"); } }` } }] }] })
+    giver.prims[0]!.inventory[0]!.permMask = masks(NO_COPY, NO_COPY)
+    const self = giver.scripts.self!
+    self.start()
+    expect(names(giver.prims[0]!.inventory)).toEqual([])
+    expect(self.chat).toEqual([])
+    expect(self.inventoryOffers[0]!.items.map(i => i.name)).toEqual(['self'])
+  })
+})
+
+describe('an object item given to another owner', () => {
+  it('rezzes for the new owner with the object\'s next-owner masks', async () => {
+    // In-world: an object the other avatar gave to the owner, whose next owner could copy and transfer but
+    // not modify, read 565248 as base, owner and next when the owner's prim rezzed it. A script's gift to
+    // another owner cuts the object's masks the same way.
+    const world = await scene()
+    const payload = await loadLinkset({ owner: OWNER, prims: [{ name: 'payload' }] })
+    payload.prims[0]!.permMask = masks(PERM_ALL, PERM_MOVE | PERM_COPY | PERM_TRANSFER)
+    const item = makeInventoryItem({ name: 'payload', type: InventoryType.OBJECT })
+    Object.assign(item, { object: payload.linkset })
+    const r = await receiver(world, OTHER)
+    r.scripts.r1!.start(); r.linkset.touch(0)
+    const g = await giver(world, [item], `llGiveInventory("${r.prims[0]!.key}", "payload");`)
+    g.give()
+    const received = r.prims[0]!.inventory.find(i => i.name === 'payload')!
+    expect(received.object!.prims[0]!.permMask).toMatchObject({ base: 565248, owner: 565248, next: 565248 })
+    expect(payload.prims[0]!.permMask.owner).toBe(PERM_ALL)
+  })
+})

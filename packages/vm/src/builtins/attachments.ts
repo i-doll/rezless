@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Linkset } from '../linkset.js'
 import { ZERO_VECTOR, type LslValue, type Vector } from '../values/types.js'
-import type { PermMask } from '../inventory.js'
+import { forNextOwner, nextOwnerMask } from '../inventory.js'
 import { conjugate, rotateVector } from '../values/ops.js'
 import { ruleElementType, uniformList } from '../values/list-types.js'
 import { PERMISSION_ATTACH, PERMISSION_TRACK_CAMERA, CHANGED_OWNER, PERM_TRANSFER } from '../generated/constants.js'
@@ -33,14 +33,13 @@ function attach(ctx: CallContext, point: number, temporary: boolean): void {
     sayError(ctx, 'Script trying to attach to someone other than owner!')
     return
   }
-  if (ctx.linkset.prims.some(p => p.inventory.some(i => !(i.permMask.owner & PERM_TRANSFER)))) {
+  if (ctx.linkset.prims.some(p => !(p.permMask.owner & PERM_TRANSFER) || p.inventory.some(i => !(i.permMask.owner & PERM_TRANSFER)))) {
     sayError(ctx, 'No permission to transfer')
     return
   }
-  const toNextOwner = (mask: PermMask): PermMask => ({ ...mask, base: mask.base & mask.next, owner: mask.owner & mask.next })
   for (const prim of ctx.linkset.prims) {
-    prim.permMask = toNextOwner(prim.permMask)
-    for (const item of prim.inventory) item.permMask = toNextOwner(item.permMask)
+    prim.permMask = nextOwnerMask(prim.permMask)
+    for (const item of prim.inventory) Object.assign(item, forNextOwner(item))
   }
   ctx.linkset.owner = agent
   for (const script of ctx.linkset.allScripts()) script.clearPermissions()
