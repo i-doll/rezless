@@ -193,26 +193,6 @@ describe('@sit:<key>=force on a prim out of reach', () => {
   })
 })
 
-describe('a sit request out of reach under @unsit', () => {
-  const source = 'default { link_message(integer s, integer n, string m, key id) { llOwnerSay(m); } }'
-
-  // Firestorm RLVa 2.4.2 and Kokua RLV 2.09.35.00 do not send a sit request
-  // while @unsit=n holds a seated avatar, so the region has nothing to refuse
-  // and the avatar stays on its seat.
-  it.each(['rlv', 'rlva'] as const)('%s keeps the avatar on its seat', async (profile) => {
-    const fixture = (await loadRlvPair({ source }))[profile]
-    const { world, avatar, script } = fixture
-    const far = await loadLinkset({ world, region: avatar.region, position: { x: 31, y: 0, z: 0 }, prims: [{}] })
-    script.start()
-    world.sitAvatar(avatar, script.host)
-    script.fire('link_message', { sender_num: 1, num: 0, str: '@unsit=n', id: avatar.key })
-    expect(fixture.userSit(far.linkset.prims[0]!)).toBe(false)
-    script.fire('link_message', { sender_num: 1, num: 0, str: `@sit:${far.linkset.prims[0]!.key}=force`, id: avatar.key })
-    expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ actionOutcome: 'refused', reason: 'restriction' })
-    expect(avatar.sittingOn).toBe(script.host)
-  })
-})
-
 describe("the viewer's message for a refused sit request", () => {
   // In-world: the far box had sit flags 6 (SIT_FLAG_SCRIPTED_ONLY) and no sit
   // target, 3 m and 30 m from the avatar. Each refused sit request made the

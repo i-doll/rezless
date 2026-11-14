@@ -568,9 +568,12 @@ from it, and one sitting on the ground stays there. `@sit:<key>=force` is
 refused the same way.
 
 A prim without a sit target is out of reach more than 8 m away, unless
-`world.setSitResponse` gives it a response. A sit request on it is refused too,
-and again an avatar sitting on another object stands up from it. A sit target
-seats the avatar at any distance in the region.
+`world.setSitResponse` gives it a response. Second Life's rule for that reach
+is not known, and 8 m from the prim's centre is an approximation: it gets 70
+of 113 requests measured with prims of several sizes, shapes, turns and
+heights right. A sit request on a prim out of reach is refused too, and again
+an avatar sitting on another object stands up from it. A sit target seats the
+avatar at any distance in the region.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
 `name`, `message` and the clock time `at`. A sit request refused for
