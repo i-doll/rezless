@@ -97,14 +97,9 @@ function mayTeleport(ctx: CallContext, key: string): boolean {
 function move(ctx: CallContext, key: string, destination: AvatarDestination, lookAt?: Vector): void {
   const agent = avatar(ctx, key)
   if (!agent) return
-  const world = ctx.linkset.world!
-  world.standAvatar(agent)
-  if (lookAt) {
-    const local = destination.region === ctx.linkset.region
-    agent.rotation = yawRotation(lookAt.x - (local ? destination.position.x : 0), lookAt.y - (local ? destination.position.y : 0))
-  }
-  agent.region = destination.region
-  agent.position = { ...destination.position }
+  const local = destination.region === ctx.linkset.region
+  ctx.linkset.world!.relocateAvatar(agent, destination.region, destination.position)
+  if (lookAt) agent.rotation = yawRotation(lookAt.x - (local ? destination.position.x : 0), lookAt.y - (local ? destination.position.y : 0))
 }
 
 export const llTeleportAgent: BuiltinImpl = (ctx, args) => {

@@ -136,6 +136,11 @@ export class Prim {
   touchText = ''
   /** llSetSitText; '' is the viewer's default. */
   sitText = ''
+  /**
+   * Camera rules this prim's scripts set with llSetCameraParams, by the avatar (lower case) they
+   * were set for. Any script in the prim shares them. A copy of the object starts without them.
+   */
+  readonly scriptedCameras = new Map<string, Map<number, LslValue>>()
   /** Local camera settings for the next avatar to sit; preserved in inventory. */
   cameraEyeOffset: Vector = { ...ZERO_VECTOR }
   cameraAtOffset: Vector = { ...ZERO_VECTOR }

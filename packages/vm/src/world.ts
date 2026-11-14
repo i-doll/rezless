@@ -17,6 +17,7 @@ import { deterministicKey } from './keys.js'
 import { sitSpot } from './sit-spot.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
+import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
 import type { Linkset } from './linkset.js'
 import type { Prim } from './prim.js'
 import { AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
@@ -477,7 +478,12 @@ export class World {
         snapshotSeat()
         if (value && value.linkset !== seat?.linkset) sittingOrder = ++world.nextSittingOrder
         const previous = seat?.linkset
-        if (previous && previous !== value?.linkset) for (const script of previous.allScripts()) script.sitterLeft(avatar.key)
+        if (previous && previous !== value?.linkset) {
+          // In-world: a seat script that locked the camera and then reset held nothing, and the
+          // stand still put the camera back on the avatar.
+          for (const prim of previous.prims) prim.scriptedCameras.delete(avatar.key.toLowerCase())
+          for (const script of previous.allScripts()) script.sitterLeft(avatar.key)
+        }
         seat = value
         // A sitter is a link, so the object it leaves and the one it joins renumber.
         if (previous && previous !== seat?.linkset) {
@@ -613,19 +619,28 @@ export class World {
     this.sitPlacements.delete(avatar)
     avatar.standingRotation = null
     avatar.info = (avatar.info & ~(AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING | AGENT_ON_OBJECT
+    this.animate(avatar, 'Sitting')
     if (previous && previous !== linkset) this.sitChanged(previous)
     this.sitChanged(linkset)
     return true
   }
 
-  /** Stand a fixture avatar. Only an object sitter produces CHANGED_LINK. */
+  /**
+   * Stand a fixture avatar. Only an object sitter produces CHANGED_LINK. A sitter reads
+   * AGENT_IN_AIR and "Striding" for a moment, then "Standing".
+   */
   standAvatar(avatar: WorldAvatar): void {
+    this.unseat(avatar, 'Striding')
+  }
+
+  private unseat(avatar: WorldAvatar, motion: AnimationState | null): void {
     const sitting = !!(avatar.info & AGENT_SITTING)
     const previous = avatar.sittingOn?.linkset
     avatar.sittingOn = null
     avatar.info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
     if (avatar.standingRotation) avatar.rotation = avatar.standingRotation
     avatar.standingRotation = null
+    if (sitting && motion) this.landAvatar(avatar, motion)
     if (previous) this.sitChanged(previous)
     if (sitting) returnStandtpAvatar(this, avatar)
     if (previous) groundSitAfterStand(this, avatar)
@@ -635,6 +650,41 @@ export class World {
   sitAvatarOnGround(avatar: WorldAvatar): void {
     this.standAvatar(avatar)
     avatar.info = (avatar.info & ~(AGENT_ON_OBJECT | AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING
+    this.animate(avatar, 'Sitting on Ground')
+  }
+
+  private readonly landings = new WeakMap<WorldAvatar, object>()
+
+  /** The avatar is in the air with `motion` until it lands and stands. */
+  private landAvatar(avatar: WorldAvatar, motion: AnimationState): void {
+    avatar.info |= AGENT_IN_AIR
+    this.animate(avatar, motion)
+    const landing = {}
+    this.landings.set(avatar, landing)
+    const world = this
+    // In-world: a stand read AGENT_IN_AIR "Striding" for one 0.05 s sample; a viewer teleport
+    // read AGENT_IN_AIR "Falling Down" for 0.6 s.
+    const ms = motion === 'Falling Down' ? 600 : 50
+    this.clock.scheduleTask({ get dead() { return !world.avatars.includes(avatar) } }, this.clock.now + ms, () => {
+      if (this.landings.get(avatar) !== landing || avatar.info & AGENT_SITTING) return
+      avatar.info &= ~AGENT_IN_AIR
+      if (regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state === motion) this.animate(avatar, 'Standing')
+    })
+  }
+
+  /** @internal A teleport: stand the avatar, move it with its animations, and let it fall. */
+  relocateAvatar(avatar: WorldAvatar, region: string, position: Vector): void {
+    this.unseat(avatar, null)
+    moveRegionAnimations(this.clock, avatar.region, region, avatar.key)
+    avatar.region = region
+    avatar.position = { ...position }
+    // In-world: a teleport read AGENT_IN_AIR "Falling Down" for a while whether the avatar stood,
+    // sat on the ground or sat on an object, and so did llTeleportAgent from a seat.
+    this.landAvatar(avatar, 'Falling Down')
+  }
+
+  private animate(avatar: WorldAvatar, state: AnimationState): void {
+    setAnimationState(regionAnimations(this.clock, avatar.region), avatar.key, state)
   }
 
   private sitChanged(linkset: Linkset): void {
@@ -749,10 +799,8 @@ export class World {
       lookAt = landing.lookAt ?? lookAt
     }
     cancelSeatRequests(avatar)
-    this.standAvatar(avatar)
     const changes = CHANGED_TELEPORT | (avatar.region === region.name ? 0 : CHANGED_REGION)
-    avatar.region = region.name
-    avatar.position = position
+    this.relocateAvatar(avatar, region.name, position)
     if (lookAt && (lookAt.x || lookAt.y)) {
       const half = Math.atan2(lookAt.y, lookAt.x) / 2
       avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }

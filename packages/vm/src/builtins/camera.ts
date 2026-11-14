@@ -3,8 +3,8 @@ import { getRlvFov, getRlvCameraControlPose, getRlvCameraPosition, seatedCameraP
 import { rotateVector } from '../values/ops.js'
 import { llAxes2Rot } from './math.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
-import { vec, ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
-import { PERMISSION_CONTROL_CAMERA, PERMISSION_TRACK_CAMERA } from '../generated/constants.js'
+import { NULL_KEY, vec, ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
+import { LINK_ROOT, LINK_THIS, PERMISSION_CONTROL_CAMERA, PERMISSION_TRACK_CAMERA } from '../generated/constants.js'
 
 /** The permission agent's camera, as llGetCamera* report it. */
 export interface Camera {
@@ -83,16 +83,26 @@ export const llGetCameraAspect: BuiltinImpl = (ctx) => (tracking(ctx) ? ctx.stat
 export const llSetCameraParams: BuiltinImpl = (ctx, args) => {
   if (!controlling(ctx)) return undefined
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
+  const agent = ctx.state.permissions.agent.toLowerCase()
+  let camera = ctx.prim.scriptedCameras.get(agent)
+  if (!camera) ctx.prim.scriptedCameras.set(agent, camera = new Map())
   for (let i = 0; i + 1 < rules.length; i += 2) {
     const rule = rules[i]
-    if (typeof rule === 'number') ctx.state.cameraParams.set(rule, rules[i + 1]!)
+    if (typeof rule === 'number') camera.set(rule, rules[i + 1]!)
   }
   return undefined
 }
 
-/** llClearCameraParams() — forgets every camera rule; needs PERMISSION_CONTROL_CAMERA. */
+/**
+ * llClearCameraParams() — forgets the camera rules set from this prim for the script's permission
+ * avatar. It needs a permission key, not PERMISSION_CONTROL_CAMERA.
+ */
 export const llClearCameraParams: BuiltinImpl = (ctx) => {
-  if (controlling(ctx)) ctx.state.cameraParams.clear()
+  // In-world: after a reset it did nothing until the script asked for 1024, or for nothing, and
+  // then it put the camera back on the avatar. Another script in the same prim could do it; one
+  // in a child prim or another object could not.
+  // Not measured: two avatars' rules in one prim need a second avatar. Each avatar keeps its own.
+  ctx.prim.scriptedCameras.delete(ctx.state.permissions.agent.toLowerCase())
   return undefined
 }
 

@@ -311,7 +311,6 @@ export class Script {
       experienceRequests: [],
       controls: { taken: null, level: 0 },
       camera: defaultCamera(),
-      cameraParams: new Map(),
       get animations() {
         return animationAvatars(prim.linkset!)
       },
@@ -641,7 +640,7 @@ export class Script {
     if (!(held.granted & (PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA))) return
     held.granted &= ~(PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA)
     this.state.controls.taken = null
-    this.state.cameraParams.clear()
+    this.host.scriptedCameras.delete(held.agent.toLowerCase())
     this.linkset.clock.purgeEvent(this, 'control')
     for (let i = this.parkedEvents.length - 1; i >= 0; i--) {
       if (this.parkedEvents[i]!.event === 'control') this.parkedEvents.splice(i, 1)
@@ -806,7 +805,11 @@ export class Script {
 
   /** Camera rules set with llSetCameraParams, by rule. */
   get cameraParams(): ReadonlyMap<number, LslValue> {
-    return this.state.cameraParams
+    const cameras = this.host.scriptedCameras
+    const agent = this.state.permissions.agent.toLowerCase()
+    if (agent !== NULL_KEY) return cameras.get(agent) ?? new Map()
+    // A script with no permission key, after a reset, sees every avatar's rules set from its prim.
+    return new Map([...cameras.values()].flatMap(rules => [...rules]))
   }
 
   /** Register an avatar in this region and set its default locomotion animation. */

@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Linkset } from '../linkset.js'
-import { INVENTORY_ANIMATION, PERMISSION_TRIGGER_ANIMATION, PERMISSION_OVERRIDE_ANIMATIONS } from '../generated/constants.js'
+import { AGENT_FLYING, AGENT_ON_OBJECT, AGENT_SITTING, INVENTORY_ANIMATION, PERMISSION_TRIGGER_ANIMATION, PERMISSION_OVERRIDE_ANIMATIONS } from '../generated/constants.js'
 import { uniformList } from '../values/list-types.js'
 import { sayError } from './debug.js'
 
@@ -187,12 +187,24 @@ export interface AvatarAnimations {
 const avatarsByClock = new WeakMap<object, Map<string, Map<string, AvatarAnimations>>>()
 
 export function animationAvatars(linkset: Linkset): Map<string, AvatarAnimations> {
-  let regions = avatarsByClock.get(linkset.clock)
+  return regionAnimations(linkset.clock, linkset.region ?? '')
+}
+
+/** An avatar's animations go with it to another region. */
+export function moveRegionAnimations(clock: object, from: string, to: string, agent: string): void {
+  const key = agent.toLowerCase()
+  const avatar = regionAnimations(clock, from).get(key)
+  if (!avatar) return
+  regionAnimations(clock, from).delete(key)
+  regionAnimations(clock, to).set(key, avatar)
+}
+
+export function regionAnimations(clock: object, region: string): Map<string, AvatarAnimations> {
+  let regions = avatarsByClock.get(clock)
   if (!regions) {
     regions = new Map()
-    avatarsByClock.set(linkset.clock, regions)
+    avatarsByClock.set(clock, regions)
   }
-  const region = linkset.region ?? ''
   let avatars = regions.get(region)
   if (!avatars) {
     avatars = new Map()
@@ -274,8 +286,17 @@ export const llStopAnimation: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-export const llGetAnimation: BuiltinImpl = (ctx, args) =>
-  ctx.state.animations.get((args[0] as string).toLowerCase())?.state ?? ''
+export const llGetAnimation: BuiltinImpl = (ctx, args) => {
+  const key = (args[0] as string).toLowerCase()
+  const avatar = ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === key)
+  if (avatar && avatar.region !== ctx.linkset.region) return ''
+  const state = ctx.state.animations.get(key)?.state
+  if (state) return state
+  if (!avatar) return ''
+  // In-world: a standing avatar read "Standing" and a hovering one "Hovering".
+  if (avatar.info & AGENT_SITTING) return avatar.info & AGENT_ON_OBJECT ? 'Sitting' : 'Sitting on Ground'
+  return avatar.info & AGENT_FLYING ? 'Hovering' : 'Standing'
+}
 
 export const llGetAnimationList: BuiltinImpl = (ctx, args) =>
   uniformList(playingAnimations(ctx.state.animations, args[0] as string), 'key')
