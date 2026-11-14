@@ -32,6 +32,8 @@ import {
   PRIM_HOLE_SQUARE,
   PRIM_HOLE_TRIANGLE,
   PRIM_LINK_TARGET,
+  PRIM_MATERIAL_LIGHT,
+  PRIM_MATERIAL_STONE,
   PRIM_MATERIAL,
   PRIM_MATERIAL_WOOD,
   PRIM_NAME,
@@ -558,9 +560,11 @@ export function writePrimParam(
     case PRIM_SLICE:
       p.slice = asVec(rules[cursor])
       return 1
-    case PRIM_MATERIAL:
-      p.material = num(rules[cursor]) | 0
+    case PRIM_MATERIAL: {
+      const material = num(rules[cursor]) | 0
+      if (material >= PRIM_MATERIAL_STONE && material <= PRIM_MATERIAL_LIGHT) p.material = material
       return 1
+    }
     case PRIM_PHYSICS:
       prim.setStatus(STATUS_PHYSICS, num(rules[cursor]) !== 0)
       return 1
@@ -1319,6 +1323,9 @@ const RULE_CONSTANTS: Readonly<Record<string, number>> = {
 }
 const RULE_NAMES = new Map(Object.entries(RULE_CONSTANTS).map(([name, value]) => [value, name]))
 
+/** Rules whose string value must be a string; PRIM_TEXTURE and PRIM_RENDER_MATERIAL take a key as well. */
+const STRING_ONLY_RULES: ReadonlySet<number> = new Set([PRIM_NAME, PRIM_DESC, PRIM_TEXT, PRIM_PROJECTOR])
+
 function givenType(rules: ReadonlyArray<LslValue>, index: number): LslType {
   const known = listElementType(rules, index)
   if (known) return known
@@ -1330,32 +1337,39 @@ function givenType(rules: ReadonlyArray<LslValue>, index: number): LslType {
   return 'list'
 }
 
-function typeAccepts(expected: LslType, given: LslType): boolean {
+function typeAccepts(param: number, expected: LslType, given: LslType): boolean {
   if (expected === given) return true
-  const numeric = (t: LslType) => t === 'integer' || t === 'float'
-  const text = (t: LslType) => t === 'string' || t === 'key'
-  return (numeric(expected) && numeric(given)) || (text(expected) && text(given))
+  if (expected === 'float') return given === 'integer'
+  if (expected === 'key') return given === 'string'
+  return expected === 'string' && given === 'key' && !STRING_ONLY_RULES.has(param)
 }
 
 /** `%g`-style number text, as the simulator prints it in error messages. */
 const formatG = (v: number): string => String(Number(v.toPrecision(6)))
 
 /**
- * Check one PRIM_* rule of a set call before it is applied. Returns null if
- * the rule can run, otherwise the error text that follows "rule #N" in the
- * simulator's message (e.g. " (PRIM_SIZE): arg #1 vector expected but string given").
+ * Check the PRIM_* rule at `rules[index]` of a set call before it is applied.
+ * Returns null if the rule can run. Otherwise the call ends there, and the
+ * result is the error text that follows "rule #N" in the simulator's message
+ * (e.g. " (PRIM_SIZE): arg #1 vector expected but string given"), or "" when
+ * the call ends without one.
  */
-export function checkPrimRule(param: number, rules: ReadonlyArray<LslValue>, cursor: number): string | null {
+export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number): string | null {
+  if (givenType(rules, index) !== 'integer') return ': unknown rule'
+  const param = rules[index] as number
+  const cursor = index + 1
+  if (param === PRIM_LINK_TARGET) return cursor < rules.length && givenType(rules, cursor) === 'integer' ? null : ''
   const name = RULE_NAMES.get(param)
   if (name === undefined) return ': unknown rule'
-  if (writePrimParamSlots(param, rules, cursor) === null) return param === PRIM_TYPE ? null : ': unknown rule'
+  const slots = writePrimParamSlots(param, rules, cursor)
+  if (slots === null) return param === PRIM_TYPE ? null : ': unknown rule'
+  if (cursor + slots > rules.length) return ''
   const pattern = param === PRIM_TYPE ? primTypeTypes(rules[cursor]) : PRIM_PARAM_TYPES[param]!
   const expected = PER_FACE_RULES.has(param) ? ['integer' as const, ...pattern] : pattern
   for (let i = 0; i < expected.length; i++) {
-    if (cursor + i >= rules.length) break
     if (i > 0 && GLTF_RULES.has(param) && rules[cursor + i] === '') continue
     const given = givenType(rules, cursor + i)
-    if (!typeAccepts(expected[i]!, given)) {
+    if (!typeAccepts(param, expected[i]!, given)) {
       return ` (${name}): arg #${i + 1} ${expected[i]} expected but ${given} given`
     }
   }
@@ -1364,6 +1378,18 @@ export function checkPrimRule(param: number, rules: ReadonlyArray<LslValue>, cur
     if (glow < 0 || glow > 1) return ` (${name}): bounds error; ${formatG(glow)} is not in (0, 1)`
   }
   return null
+}
+
+/**
+ * Whether the rule at `rules[index]` of a get call can be read: the rule is
+ * an integer, and a face or link it takes is there and an integer. A rule
+ * that can't be read ends the result.
+ */
+export function primGetRuleRuns(rules: ReadonlyArray<LslValue>, index: number): boolean {
+  if (givenType(rules, index) !== 'integer') return false
+  const param = rules[index] as number
+  if (param !== PRIM_LINK_TARGET && !PER_FACE_RULES.has(param)) return true
+  return index + 1 < rules.length && givenType(rules, index + 1) === 'integer'
 }
 
 /**

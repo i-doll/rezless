@@ -819,6 +819,7 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('p')).toEqual({ x: 128, y: 128, z: 30 })
   })
 
+  // Main grid, 2026-10-29. The Aditi beta grid differs; see prim-param-rule-errors.test.ts.
   it('PRIM_GLOW out of bounds says an error and aborts the call', async () => {
     const s = await run(`llSetPrimitiveParams([PRIM_GLOW, ALL_SIDES, 5.0, PRIM_NAME, "after"]);`)
     expect(debugErrors(s)).toEqual([
