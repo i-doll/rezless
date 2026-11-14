@@ -65,16 +65,38 @@ function addOne(digits: string): string {
   return (BigInt(digits) + 1n).toString().padStart(digits.length, '0')
 }
 
+const bits = new DataView(new ArrayBuffer(8))
+
 /**
- * Format a float like C `%f`: the exact digits of the 32-bit value, as
- * llList2CSV and llList2Json print it, e.g. 1e30 →
- * "1000000015047466219876688855040.000000".
+ * Format a float like C `%f`, as llList2CSV and llList2Json print it: the
+ * exact value, rounded half to even at `decimals` places, e.g. 1e30 →
+ * "1000000015047466219876688855040.000000" and 0.0078125 → "0.007812".
+ * A -0.0 keeps its sign. In-world a NaN prints as "nan" or "-nan" by its
+ * sign bit, which the VM's floats do not carry, so every NaN prints as "nan".
  */
 export function formatFloatExact(n: number, decimals = 6): string {
   if (Number.isNaN(n)) return 'nan'
   if (!Number.isFinite(n)) return n > 0 ? 'inf' : '-inf'
-  if (Math.abs(n) < 1e21) return n.toFixed(decimals)
-  return `${BigInt(n)}.${'0'.repeat(decimals)}`
+  bits.setFloat64(0, Math.abs(n))
+  const raw = bits.getBigUint64(0)
+  const exponent = Number(raw >> 52n)
+  const fraction = raw & ((1n << 52n) - 1n)
+  // |n| = mantissa × 2^power
+  const mantissa = exponent === 0 ? fraction : fraction | (1n << 52n)
+  const power = Math.max(exponent, 1) - 1075
+  const scaled = mantissa * 10n ** BigInt(decimals)
+  let whole: bigint
+  if (power >= 0) whole = scaled << BigInt(power)
+  else {
+    const divisor = 1n << BigInt(-power)
+    whole = scaled / divisor
+    const twice = (scaled % divisor) * 2n
+    if (twice > divisor || (twice === divisor && (whole & 1n) === 1n)) whole++
+  }
+  const digits = whole.toString().padStart(decimals + 1, '0')
+  const sign = n < 0 || Object.is(n, -0) ? '-' : ''
+  const int = digits.slice(0, digits.length - decimals)
+  return decimals > 0 ? `${sign}${int}.${digits.slice(-decimals)}` : `${sign}${int}`
 }
 
 type FloatFormat = (n: number, decimals: number) => string
