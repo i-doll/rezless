@@ -218,14 +218,14 @@ describe('SLua memory errors', () => {
     const top = await slua(`${REC} LLEvents:on("touch_start", function() ll.OwnerSay("alive") end) rec(1)`, { memoryLimit: true })
     expect(() => top.start()).toThrow('not enough memory')
     touch(top)
-    expect(texts(top, DEBUG_CHANNEL)).toEqual(['Script run-time error', 'not enough memory'])
+    expect(texts(top, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
     expect(texts(top)).toEqual([])
 
     const handler = await slua(`${REC} LLEvents:on("touch_start", function() ll.OwnerSay("alive") rec(1) end)`, { memoryLimit: true })
     handler.start()
     expect(() => touch(handler)).toThrow('not enough memory')
     touch(handler)
-    expect(texts(handler, DEBUG_CHANNEL)).toEqual(['Script run-time error', 'not enough memory'])
+    expect(texts(handler, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
     expect(texts(handler)).toEqual(['alive'])
   })
 
@@ -467,12 +467,12 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
     const exact = await reset('0')
     expect(() => exact.start()).toThrow('not enough memory')
     expect(texts(exact)).toEqual([])
-    expect(texts(exact, DEBUG_CHANNEL)).toEqual(['Script run-time error', 'not enough memory'])
+    expect(texts(exact, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
 
     const close = await reset('64')
     expect(() => close.start()).toThrow('not enough memory')
     expect(texts(close)).toEqual(['restarted'])
-    expect(texts(close, DEBUG_CHANNEL)).toEqual(['Script run-time error', 'not enough memory'])
+    expect(texts(close, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
 
     const frugal = await slua(
       `if ll.GetAlpha(0) < 0.5 then
