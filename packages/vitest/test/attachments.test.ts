@@ -455,6 +455,9 @@ it.each([false,true])('suspends the final detach handler in inventory (temporary
   expect(script.global('finished')).toBe(temporary ? 0 : 1)
 })
 
+// In-world: a worn object 3 s into a 40 s llSleep was detached, left in inventory for 9.5 s and
+// worn again. The sleep ended 49.1 s after it began: it does not run down in inventory (Aditi,
+// SLua Tideland, 2026-11-14).
 it('suspends a caller after detach without hanging settle, then resumes on rewear', async () => {
   const { script,linkset }=await fixture(`integer after;integer detached;
    default {state_entry(){llRequestPermissions(llGetOwner(),32);}
@@ -467,6 +470,8 @@ it('suspends a caller after detach without hanging settle, then resumes on rewea
   linkset.attachToAvatar(OWNER,6)
   linkset.advanceTime(500)
   expect(script.global('after')).toBe(7)
+  expect(script.global('detached')).toBe(0)
+  linkset.advanceTime(500)
   expect(script.global('detached')).toBe(1)
 })
 
@@ -551,6 +556,8 @@ it('keeps a timer caller suspended when detachment occurs within a long time adv
    timer(){llSetTimerEvent(0);llDetachFromAvatar();llSleep(0.5);after=llGetAttached()+1;}}`)
   script.start();script.grantPermissions();linkset.advanceTime(1000)
   expect(script.global('after')).toBe(0)
-  linkset.attachToAvatar(OWNER,6);linkset.advanceTime(0)
+  linkset.attachToAvatar(OWNER,6);linkset.advanceTime(499)
+  expect(script.global('after')).toBe(0)
+  linkset.advanceTime(1)
   expect(script.global('after')).toBe(7)
 })

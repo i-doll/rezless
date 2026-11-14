@@ -27,6 +27,7 @@ import type {
 import type { BuiltinImpl, Run, ScriptState, Suspension } from './runtime.js'
 import type { FunctionSignature, Script } from './script.js'
 import { callBuiltin, specFor } from './dispatch.js'
+import type { Journal } from './dispatch.js'
 import type { EvalResult, LslType, LslValue, Vector, Rotation } from './values/types.js'
 import { defaultEvalFor, isVector, isRotation, rot, toFloat32, toFloat32Value, vec } from './values/types.js'
 import { coerce } from './values/coerce.js'
@@ -71,6 +72,8 @@ export interface InterpreterContext {
   /** Owning script — passed through to builtins via dispatch. */
   readonly script: Script
   readonly prim: import('./prim.js').Prim
+  /** The builtin results of this handler run. */
+  readonly journal: Journal
 }
 
 class ReturnSignal {
@@ -785,7 +788,7 @@ function* evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Exe
       ? toFloat32(r.value as number)
       : r.value,
   )
-  const result = yield* callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs)
+  const result = yield* callBuiltin({ state: ctx.state, mocks: ctx.mocks, script: ctx.script }, call.callee, rawArgs, ctx.journal)
   const returnType = (spec?.returnType ?? declared?.returns ?? 'void') as LslType
   if (returnType === 'void') return { type: 'void', value: 0 }
   // Builtins and mocks compute in doubles and return float32, except

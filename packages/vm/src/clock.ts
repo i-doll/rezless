@@ -353,6 +353,11 @@ export class ScriptClockView {
     return this.inventorySince !== undefined
   }
 
+  /** The time the script's own clock stands at: `now`, or when it went into inventory. */
+  get stoppedAt(): number {
+    return this.inventorySince ?? this.now
+  }
+
   pauseForInventory(): void {
     this.inventorySince = this.now
   }
@@ -361,6 +366,7 @@ export class ScriptClockView {
   resumeFromInventory(): void {
     if (this.inventorySince === undefined) return
     const pausedMs = this.now - this.inventorySince
+    this.self().postponeWake(this.inventorySince)
     this.inventorySince = undefined
     this.timeReferenceMs += pausedMs
     if (this.timerIntervalMs > 0) {

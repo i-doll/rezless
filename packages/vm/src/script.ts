@@ -53,7 +53,8 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, ScriptClockView } from './clock.js'
+import { DELAYED_EVENTS, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
+import type { QueuedEvent } from './clock.js'
 import { Linkset } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
@@ -76,6 +77,7 @@ import { grantExperience } from './builtins/experience.js'
 import { SluaEngine } from './slua/engine.js'
 import { SluaCoverage } from './slua/coverage.js'
 import { invokeBuiltin } from './dispatch.js'
+import type { Journal } from './dispatch.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { parse } from '@rezless/parser'
@@ -200,6 +202,8 @@ export class Script {
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
+  /** Whether the rez events of this trip out of inventory are queued. A detach starts the next trip. */
+  rezQueued = false
   /** Set on a copy of an object that was taken from under a sitter, until it is rezzed. */
   private unseated = false
   /** Set on a copy of an SLua script that was asleep, until the copy's VM carries that code on. */
@@ -621,6 +625,7 @@ export class Script {
   /** The object went into inventory: a dialog raised before that does nothing afterwards. */
   detached(): void {
     this.unseated = false
+    this.rezQueued = false
     for (const request of this.state.permissions.requests) request.answered = true
   }
 
@@ -1062,10 +1067,13 @@ export class Script {
    * Copy inventory code; fresh copies omit saved runtime state for remote loading.
    * `unseated` marks a copy of an object taken from under a sitter.
    */
-  copyTo(host: Prim, opts: { fresh?: boolean; unseated?: boolean } = {}): Script {
+  copyTo(host: Prim, opts: { fresh?: boolean; unseated?: boolean; waiting?: readonly QueuedEvent[] } = {}): Script {
     const copy = this.sluaSource === undefined ? new Script(this.ast, { ...this.options, host, coverage: false }) : this.freshSluaCopy(host)
     Object.assign(copy.mocks, this.mocks)
     copy.state.permissions.autoGrant = this.state.permissions.autoGrant
+    // In-world: an LSL handler that was asleep when the object was taken finished its sleep
+    // after the rez, with its locals and llDetected* data, and ran to its end before on_rez.
+    if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
     copy.running = this.running && !this.dead
@@ -1084,8 +1092,7 @@ export class Script {
             copy.sluaAsleep = false
             return copy.sluaRun(carryOn())
           }, slua.payload),
-          startedAt: copy.now - (this.now - this.task.startedAt),
-          wakeAt: copy.now + Math.max(0, this.task.wakeAt - this.now),
+          ...this.sleepIn(copy, this.task),
           slua,
         }
       }
@@ -1123,13 +1130,30 @@ export class Script {
     // A script that is down keeps how long its tick has been overdue.
     const left = this.clockView.timerNextFireMs - this.now
     copy.clockView.timerNextFireMs = copy.now + (this.running ? Math.max(0, left) : left)
-    copy.clockView.timeReferenceMs = copy.now - (this.now - this.clockView.timeReferenceMs)
+    copy.clockView.timeReferenceMs = copy.now - (this.clockView.stoppedAt - this.clockView.timeReferenceMs)
     copy.clockView.minEventDelayMs = this.clockView.minEventDelayMs
     copySensors(this, copy)
     copyTargets(this, copy)
     for (const kind of ['move', 'look'] as const) {
       const request = host.linkset!.prims[0]!.targetMotion[kind]
       if (request?.owner.prim === this.host.key && request.owner.script === this.scriptName) request.owner.prim = host.key
+    }
+    // In-world: a chat line and a touch that were waiting for a sleeping handler came out of
+    // inventory with the script and ran in the rezzed copy, after on_rez.
+    const waiting = (opts.waiting ?? []).filter(e => e.target === this && e.at <= this.now && e.event !== '__reset')
+    // A full queue has no room for the event `unseated` brings, so it keeps its own.
+    const merge = !!opts.unseated && waiting.length < MAX_PENDING_EVENTS
+    for (const e of waiting) {
+      // A copy that came back without its controls has no use for a waiting control event.
+      if (e.event === 'control' && !(copy.state.permissions.granted & PERMISSION_TAKE_CONTROLS)) continue
+      // In-world: a seat sat on during the sleep and taken from under its sitter got one
+      // changed(CHANGED_LINK) in the copy, the one `unseated` brings.
+      const data = eventData(e.payload)
+      if (merge && e.event === 'changed') {
+        data['changes'] = (data['changes'] as number) & ~CHANGED_LINK
+        if (!data['changes']) continue
+      }
+      copy.clockView.schedule(copy.now, e.event, data)
     }
     return copy
   }
@@ -1155,16 +1179,31 @@ export class Script {
       if (!this.clockView.inInventory) this.clockView.schedule(this.now, 'state_entry')
     }
     if (!this.running) return
+    // In-world: the events a script brought out of inventory ran after on_rez. A script that
+    // came out with 64 events waiting ran them all and got no on_rez; one with 63 got it.
+    // A script that is not asleep has no such events: what it has queued stays ahead.
+    const clock = this.linkset.clock
+    const waiting = this.task ? clock.pendingEvents().filter(e => e.target === this) : []
+    if (this.task) clock.purgeTarget(this)
+    const room = MAX_PENDING_EVENTS - waiting.length
+    // A start that had not run yet still comes first.
+    for (const e of waiting) if (e.event === 'state_entry') clock.schedule(this, this.now, e.event, e.payload)
     if (!this.started) {
       this.started = true
       this.clockView.schedule(this.now, 'state_entry')
     }
-    this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
+    if (room > 0) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
     if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer()
     // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
     // time it is rezzed, and after attach when it is worn.
-    if (unseated) this.clockView.schedule(this.now, '__unseated', { changes: CHANGED_LINK })
+    if (unseated && room > 1) this.clockView.schedule(this.now, '__unseated', { changes: CHANGED_LINK })
+    // In-world: an on_rez still waiting from an earlier rez ran after the other waiting events.
+    const earlier = (e: QueuedEvent) => e.event === 'on_rez'
+    for (const e of [...waiting.filter(e => !earlier(e)), ...waiting.filter(earlier)]) {
+      if (e.event !== 'state_entry') clock.schedule(this, Math.max(e.at, this.now), e.event, e.payload)
+    }
+    this.rezQueued = true
   }
 
   private boot(): void {
@@ -1304,6 +1343,22 @@ export class Script {
     return this.task?.wakeAt
   }
 
+  /**
+   * In-world: a sleep did not run down while the worn object was in inventory. `since` is when
+   * it went there; a handler that started later has only been asleep since its own start.
+   */
+  postponeWake(since: number): void {
+    if (!this.task) return
+    const ms = this.now - Math.max(since, this.task.startedAt)
+    this.task = { ...this.task, startedAt: this.task.startedAt + ms, wakeAt: this.task.wakeAt + ms }
+  }
+
+  /** When `task` started and wakes on `copy`'s clock. A sleep does not run down in inventory. */
+  private sleepIn(copy: Script, task: Task): Pick<Task, 'startedAt' | 'wakeAt'> {
+    const now = Math.max(this.clockView.stoppedAt, task.startedAt)
+    return { startedAt: copy.now - (now - task.startedAt), wakeAt: copy.now + Math.max(0, task.wakeAt - now) }
+  }
+
   /** Internal: invoked by `Linkset.drainQueue` when a sleeping handler's wake time comes. */
   wake(): void {
     const task = this.task
@@ -1313,7 +1368,33 @@ export class Script {
   }
 
   private begin(handler: EventHandler, args: ReadonlyArray<EvalResult>, payload: Record<string, unknown>): void {
-    this.step({ run: this.runHandler(handler.name, () => this.runHandlerChain(handler, args), payload), startedAt: this.now, wakeAt: 0 })
+    const lsl: LslRun = {
+      handler, args, payload,
+      state: this.state.currentState,
+      globals: this.ast.globals.map(g => this.globals.get(g.name)),
+      journal: { names: [], results: [], replayed: 0 },
+    }
+    this.step({ run: this.runHandler(handler.name, () => this.runHandlerChain(handler, args, lsl.journal), payload), startedAt: this.now, wakeAt: 0, lsl })
+  }
+
+  /**
+   * Give `copy` the handler this script is asleep in, asleep at the same place. The copy runs
+   * the handler again from the state it started in, taking each builtin's result from the
+   * journal instead of calling it, so nothing is said or done twice.
+   */
+  private carrySleepingHandler(copy: Script, task: Task & { lsl: LslRun }): void {
+    const { handler, args, state, globals } = task.lsl
+    // The copy gets the event's data, not the host's bookkeeping for the original's delivery.
+    const payload = eventData(task.lsl.payload)
+    this.ast.globals.forEach((g, i) => copy.globals.set(g.name, globals[i]!))
+    copy.state.currentState = state
+    const lsl: LslRun = { ...task.lsl, payload, journal: { names: [...task.lsl.journal.names], results: [...task.lsl.journal.results], replayed: 0 } }
+    const run = copy.runHandler(handler.name, () => copy.runHandlerChain(handler, args, lsl.journal), payload)
+    // Only a global changed from outside while the handler slept can end the second run early.
+    if (run.next().done || lsl.journal.replayed < lsl.journal.results.length) {
+      throw new Error('cannot copy the sleeping handler: a second run does not reach its sleep')
+    }
+    copy.task = { run, lsl, ...this.sleepIn(copy, task) }
   }
 
   private step(task: Task): void {
@@ -1385,6 +1466,7 @@ export class Script {
   private *runHandlerChain(
     handler: EventHandler,
     args: ReadonlyArray<EvalResult>,
+    journal: Journal,
   ): Generator<Suspension, boolean, unknown> {
     const ctx = {
       state: this.state,
@@ -1395,6 +1477,7 @@ export class Script {
       invalidPrograms: this.invalidPrograms,
       script: this,
       prim: this.host,
+      journal,
     }
     let pending: { handler: EventHandler; args: ReadonlyArray<EvalResult> } | null = {
       handler,
@@ -1625,7 +1708,7 @@ export class Script {
 function eventData(payload: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(payload)) {
-    if (!key.startsWith('__')) data[key] = Array.isArray(value) ? value.map(entry => ({ ...entry })) : value
+    if (!key.startsWith('__')) data[key] = key === 'detected' && Array.isArray(value) ? value.map(entry => ({ ...entry })) : value
   }
   return data
 }
@@ -1636,6 +1719,18 @@ interface Task {
   readonly wakeAt: number
   /** For SLua code: the event it runs for and that event's payload, so a copy can carry it on. */
   readonly slua?: { readonly event: string; readonly payload: Record<string, unknown> }
+  /** For an LSL handler: what a copy needs to run it again up to where it sleeps. */
+  readonly lsl?: LslRun
+}
+
+interface LslRun {
+  readonly handler: EventHandler
+  readonly args: ReadonlyArray<EvalResult>
+  readonly payload: Record<string, unknown>
+  /** The state and the globals the handler started in. */
+  readonly state: string
+  readonly globals: ReadonlyArray<EvalResult>
+  readonly journal: Journal
 }
 
 function bindPayload(

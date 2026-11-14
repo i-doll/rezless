@@ -71,6 +71,7 @@ describe('suspension', () => {
       script: s,
       prim: s.host,
       linkset: s.linkset,
+      journal: { names: [], results: [], replayed: 0 },
     }
     const memory = state.memory
     const before = { locals: memory.locals, stack: memory['stack'] }
