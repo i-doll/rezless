@@ -132,7 +132,10 @@ describe('AGENT_WALKING after a stand from an object', () => {
       const f = await fixture()
       f.sit()
       if (how === 'unsit') f.seat.send('unsit')
-      else f.worn.send('rlv', 0, '@unsit=force')
+      else {
+        f.worn.send('rlv', 0, '@unsit=force')
+        f.advance(225)
+      }
       expect(steps(watch(f.watcher, f.advance, 800)))
         .toEqual([[AGENT_IN_AIR, 'Striding'], [0, 'Standing'], [AGENT_WALKING, 'Walking'], [0, 'Standing']])
     }
@@ -193,6 +196,7 @@ describe('AGENT_WALKING after a stand from an object', () => {
   it('does not walk after a stand from the ground', async () => {
     const f = await fixture()
     f.worn.send('rlv', 0, SIT_GROUND)
+    f.advance(225)
     f.stand()
     expect(steps(watch(f.watcher, f.advance, 800))).toEqual([[AGENT_IN_AIR, 'Striding'], [0, 'Standing']])
   })
@@ -283,6 +287,7 @@ describe('sitting down while flying', () => {
     const f = await fixture()
     f.fly()
     f.worn.send('rlv', 0, `@sit:${f.seat.prim.key}=force`)
+    f.advance(225)
     expect(f.seat.changes()).toEqual([[AGENT_SITTING | AGENT_ON_OBJECT | AGENT_FLYING, 'Sitting']])
     f.advance(400)
     expect((f.watcher.read()[0] as number) & MOTION).toBe(AGENT_SITTING | AGENT_ON_OBJECT)
