@@ -292,8 +292,8 @@ export const llGiveMoney: BuiltinImpl = (ctx, args) => {
 function transferOutcome(ctx: CallContext, destination: string): string | undefined {
   if (sameKey(destination, ctx.linkset.owner) ||
     ctx.linkset.world?.avatars.some(a => sameKey(a.key, destination))) return ''
-  const object = findObjectPrim(ctx, destination) ??
-    ctx.linkset.world?.objects.find(o => sameKey(o.key, destination))
+  const object = ctx.linkset.peers.some(l => !l.dead && l.prims.some(p => sameKey(p.key, destination))) ||
+    ctx.linkset.world?.objects.some(o => sameKey(o.key, destination))
   return object ? 'LINDENDOLLAR_ENTITYDOESNOTEXIST' : undefined
 }
 

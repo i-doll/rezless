@@ -209,6 +209,14 @@ describe('parcel effect requests', () => {
       s.grantPermissions(); s.advanceTime(0)
       expect(s.global('out')).toEqual([1, 0, 'LINDENDOLLAR_ENTITYDOESNOTEXIST'])
     })
+    it('reports a loaded object in another region as no such entity', async () => {
+      const { world } = fixture()
+      world.addRegion('Away', { x: 256, y: 0 })
+      const away = await loadLinkset({ world, region: 'Away', owner: OTHER, prims: [{}] })
+      const { s } = await pay(world, `tx=llTransferLindenDollars("${away.prims[0]!.key}",1);`)
+      s.grantPermissions(); s.advanceTime(0)
+      expect(s.global('out')).toEqual([1, 0, 'LINDENDOLLAR_ENTITYDOESNOTEXIST'])
+    })
     it.each([
       ['NULL_KEY,0', 'INVALID_DESTINATION'],
       ['"bad",-1', 'INVALID_DESTINATION'],
