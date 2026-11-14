@@ -353,17 +353,17 @@ describe('events waiting for a handler that is asleep when its object is copied'
 
   // In-world: an object with a chat line waiting was taken, rezzed, taken again 3 s later and
   // rezzed, still asleep. It logged the end of the sleep, on_rez, the chat line, and the second
-  // on_rez. On the grid a waiting chat line runs ahead of other waiting events, taken or not
-  // (it also ran before a touch that was made first, in an object that was never taken).
-  // rezless keeps waiting events in the order they came, so the earlier on_rez runs first here.
-  it('keep the on_rez of an earlier rez ahead of a chat line that came after it', async () => {
+  // on_rez. The first on_rez to come in runs ahead of the waiting events and a later one keeps
+  // its place among them (see waiting-event-order.test.ts, where the two carry different
+  // start parameters).
+  it('keep the on_rez of a later rez behind a chat line that came before it', async () => {
     const { f, linkset } = await asleep('sleep')
     const first = rez(f, take(linkset))
     queue(f, first.script, 'listen', heard('b'))
     first.linkset.advanceTime(3_000)
     const second = rez(f, take(first.linkset))
     second.linkset.advanceTime(82_000)
-    expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'rez', 'heard b'])
+    expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'heard b', 'rez'])
   })
 
   // In-world: three objects went to sleep and were sent 62, 63 and 64 chat lines, then taken
@@ -451,7 +451,8 @@ describe('events waiting for a handler that is asleep when its object is copied'
     expect(made.script.global('log')).toEqual(['attach 0', 'rez', 'attach 1'])
   })
 
-  // An on_rez still waiting from the first rez does not stand in for the on_rez of a later wear.
+  // An on_rez still waiting from the first rez does not stand in for the on_rez of a later wear,
+  // which keeps its place behind the attach events that came in before it.
   it('get a new on_rez for every trip out of inventory', async () => {
     const { f, linkset } = await asleep('sleep')
     const copy = rez(f, take(linkset))
@@ -462,7 +463,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     f.world.clock.advance(5_000)
     copy.linkset.attachToAvatar(OWNER, 5)
     copy.linkset.advanceTime(100_000)
-    expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'rez', 'attach 1', 'attach 0', 'attach 1'])
+    expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'attach 1', 'attach 0', 'rez', 'attach 1'])
   })
 
   // The stand takes the seat's controls back and drops a control event that was waiting. The
@@ -486,7 +487,8 @@ describe('events waiting for a handler that is asleep when its object is copied'
   })
 
   // The cap counts the seat's own changed event: with the queue full there is no room for
-  // on_rez or for the stand's event, and the copy runs the 64 it came out with.
+  // on_rez or for the stand's event, and the copy runs the 64 it came out with. A changed event
+  // that came up during the sleep runs behind the chat lines (see waiting-event-order.test.ts).
   it('keep a full queue whole when the seat was sat on during the sleep', async () => {
     const { f, linkset, script } = await asleep('sleep')
     f.world.sitAvatar(f.avatar, linkset.prims[0]!)
@@ -494,7 +496,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     const copy = rez(f, linkset.copy())
     copy.linkset.advanceTime(90_000)
     const lines = Array.from({ length: 63 }, (_, i) => `heard ${i}`)
-    expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'changed 32', ...lines])
+    expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', ...lines, 'changed 32'])
   })
 
   // In-world: a seat went to sleep, its owner sat on it, and a copy was taken, which stood the

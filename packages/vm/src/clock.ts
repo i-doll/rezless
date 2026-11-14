@@ -21,6 +21,64 @@ export interface QueuedEvent {
   readonly target: Script
   readonly event: string
   readonly payload: Record<string, unknown>
+  /** Set on an event that was queued again: whether it was held back for a sleeping handler. */
+  readonly held?: boolean
+}
+
+/**
+ * Events Second Life holds back while a handler sleeps. When the handler ends they go behind
+ * the events that waited for it, in this order, whatever order they came up in.
+ */
+const HELD_ORDER: ReadonlyMap<string, number> = new Map([
+  ['timer', 0], ['sensor', 1], ['no_sensor', 1],
+  ['at_target', 2], ['not_at_target', 2], ['at_rot_target', 2], ['not_at_rot_target', 2],
+  ['touch_start', 3], ['touch', 4], ['touch_end', 5], ['changed', 6], ['__unseated', 6],
+])
+
+const toucher = (payload: Record<string, unknown>) => (payload['detected'] as ReadonlyArray<{ key?: string }> | undefined)?.[0]?.key
+
+/**
+ * In-world: three clicks by one avatar on faces 0, 2 and 4 while a handler slept gave one
+ * touch_start that read face 0, and one touch and one touch_end that read face 4. A click
+ * made while only the touch_end of the click before it was held back changed that touch_end
+ * and added nothing. A colour change, an item dropped into the prim, and a sit and a stand
+ * gave one changed(35). `held` is in the order the events came up; an event that merges
+ * into an earlier one takes its place, and the others keep theirs.
+ */
+function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
+  const clicks = new Map<string, { touch_start?: number; touch?: number; touch_end?: number }>()
+  const merged: QueuedEvent[] = []
+  let changed: number | undefined
+  for (const e of held) {
+    if (e.event === 'changed' || e.event === '__unseated') {
+      if (changed === undefined) changed = merged.push(e) - 1
+      else {
+        // The stand's event of a seat taken from under its sitter keeps its name: it runs after attach.
+        const first = merged[changed]!
+        merged[changed] = {
+          ...first,
+          event: e.event === '__unseated' ? e.event : first.event,
+          payload: { changes: (first.payload['changes'] as number) | (e.payload['changes'] as number) },
+        }
+      }
+      continue
+    }
+    const by = toucher(e.payload)
+    if (by === undefined || (e.event !== 'touch_start' && e.event !== 'touch' && e.event !== 'touch_end')) {
+      merged.push(e)
+      continue
+    }
+    const click = clicks.get(by) ?? {}
+    clicks.set(by, click)
+    const same = click[e.event]
+    if (same !== undefined) {
+      if (e.event !== 'touch_start') merged[same] = e
+    } else if (e.event === 'touch_end' || click.touch_end === undefined && (e.event === 'touch' || click.touch === undefined)) {
+      click[e.event] = merged.length
+      merged.push(e)
+    }
+  }
+  return merged
 }
 
 /** Events llMinEventDelay spaces out; other events are not delayed. */
@@ -75,21 +133,44 @@ export class LinksetClock {
    * A stopped or crashed script never gets an event raised while it is down;
    * the events it already held wait for it. A script holds at most
    * MAX_PENDING_EVENTS queued events, counting those waiting while it is
-   * stopped; further events are dropped.
+   * stopped; further events are dropped. Pass `held` to queue again an event
+   * that was waiting, with what `heldBack` said of it.
    */
-  schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}): void {
+  schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean): void {
+    if (event !== '__reset' && !target.running) return
+    // Due now, in the middle of a sleep: held back even at the instant the handler began.
+    const wakeAt = target.wakeAt
+    if (held === undefined && at <= this.now && wakeAt !== undefined && wakeAt > this.now) held = true
+    held &&= HELD_ORDER.has(event)
+    const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }) }
+    if (held && at <= this.now) {
+      // A click or a change that merges into one already held back takes no room of its own.
+      const before = this.queue.filter((e) => e.target === target && e.held && e.at <= this.now)
+      const after = mergeHeld([...before, queued])
+      if (after.length === before.length) {
+        before.forEach((e, i) => { if (after[i] !== e) this.queue[this.queue.indexOf(e)] = after[i]! })
+        return
+      }
+    }
     if (event !== '__reset') {
-      if (!target.running) return
       let pending = target.parkedEvents.length
       for (const e of this.queue) if (e.target === target) pending++
       if (pending >= MAX_PENDING_EVENTS) return
     }
-    this.queue.push({ at, target, event, payload })
+    this.queue.push(queued)
   }
 
-  /** Put back an event taken out of the queue; a stopped script keeps the events it already held. */
-  restore(event: QueuedEvent): void {
-    this.queue.push(event)
+  /** Remove the queued events that `match`, leaving the others as they are. */
+  purgeWhere(match: (e: QueuedEvent) => boolean): void {
+    for (let i = this.queue.length - 1; i >= 0; i--) if (match(this.queue[i]!)) this.queue.splice(i, 1)
+  }
+
+  /**
+   * Whether a waiting event is held back for its target's handler, which began at `since`:
+   * an event of a held kind that fell due after the handler began.
+   */
+  heldBack(e: QueuedEvent, since: number | undefined): boolean {
+    return HELD_ORDER.has(e.event) && (e.held ?? (since !== undefined && e.at > since))
   }
 
   /** Whether `target` has a queued `event` that has not been delivered yet. */
@@ -215,12 +296,28 @@ export class LinksetClock {
    * Move `script`'s events that are due by now behind every other queued
    * event, in their order. Called when a handler that took time finishes,
    * so the events that waited for it follow other scripts' events at that
-   * instant.
+   * instant. The events held back since it began, at `since`, follow the
+   * others, with a timer tick that fell due ahead of them.
    */
-  requeue(script: Script): void {
+  requeue(script: Script, since: number): void {
     const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
     this.purgeTarget(script, this.now)
-    this.queue.push(...waited)
+    const release = ({ at, target, event, payload }: QueuedEvent): QueuedEvent => ({ at, target, event, payload })
+    const held = mergeHeld(waited.filter((e) => this.heldBack(e, since)).sort((a, b) => a.at - b.at)).map(release)
+    const v = script.clockView
+    // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first
+    // click, timer, the second click. The ticks that fell due during one sleep give one event,
+    // released with the other held events. With nothing else held the tick is left to
+    // takeNextDue, which gives one tick after several sleeps, as measured on the main grid.
+    let pending = script.parkedEvents.length + waited.length
+    for (const e of this.queue) if (e.target === script) pending++
+    if (held.length && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
+        !held.some((e) => e.event === 'timer')) {
+      held.push({ at: this.now, target: script, event: 'timer', payload: {} })
+      v.timerNextFireMs = this.now + v.timerIntervalMs
+    }
+    held.sort((a, b) => HELD_ORDER.get(a.event)! - HELD_ORDER.get(b.event)!)
+    this.queue.push(...waited.filter((e) => !this.heldBack(e, since)).map(release), ...held)
   }
 
   /**
@@ -281,8 +378,8 @@ export class ScriptClockView {
   }
 
   /** Schedule a one-shot event on this script. */
-  schedule(at: number, event: string, payload: Record<string, unknown> = {}): void {
-    this.linksetClock.schedule(this.self(), at, event, payload)
+  schedule(at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean): void {
+    this.linksetClock.schedule(this.self(), at, event, payload, held)
   }
 
   /** Schedule a one-shot event on a specific script. */
