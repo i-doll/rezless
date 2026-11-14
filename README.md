@@ -549,6 +549,18 @@ in that object gets an event. An avatar sitting on another object stands up
 from it, and one sitting on the ground stays there. `@sit:<key>=force` is
 refused the same way.
 
+A prim without a sit target is out of reach more than 8 m away, unless
+`world.setSitResponse` gives it a response. A sit request on it is refused too,
+and again an avatar sitting on another object stands up from it. A sit target
+seats the avatar at any distance in the region.
+
+`avatar.viewer.alerts` lists what the region had the viewer show, each with
+`name`, `message` and the clock time `at`. A sit request refused for
+`SIT_FLAG_SCRIPTED_ONLY` adds `CantSitNoSuitableSurface`, "There is no suitable
+surface to sit on, try another spot.", unless the avatar sits on that object
+or the message last showed 10 s ago or less. A request refused for a prim out
+of reach adds nothing.
+
 A seated avatar is a link of the object, numbered after the prims. Several
 sitters are numbered in seating order, and later sitters move down a link when
 an earlier one stands. The order is from the Second Life wiki and the
@@ -1174,7 +1186,7 @@ Force `sit` and `unsit` update World seating and expose action outcomes in the
 viewer command log. `getsitid` reports the object root, null standing, or the avatar
 UUID for RLVa ground sitting. Profile-specific force lock checks are supported;
 explicit simulator sit responses supply surface poses at any same-region distance
-and timed autopilot outcomes. Refused responses leave seating unchanged.
+and timed autopilot outcomes. A refused response stands the avatar up from another object it sits on and changes nothing else.
 User sit/stand attempts have no issuer exemption. `sittp[:distance]` combines
 numeric limits by minimum, defaults to 1.5 m, and rejects the exact boundary.
 Distances use the clicked point in global coordinates, including the optional

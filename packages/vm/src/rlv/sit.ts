@@ -174,10 +174,28 @@ function resolveSitRequest(world: World, avatar: WorldAvatar, requested: Prim): 
   const seat = configured.find(prim => !scriptedOnly(prim) && free(prim))
   if (seat) return seat
   if (linkset.prims.some(scriptedOnly)) {
-    if (avatar.sittingOn && avatar.sittingOn.linkset !== linkset) world.standAvatar(avatar)
+    standFromAnotherObject(world, avatar, linkset)
+    if (avatar.sittingOn?.linkset !== linkset) alertNoSuitableSurface(world, avatar)
     return undefined
   }
   return configured.length ? undefined : requested
+}
+
+/** The region stands the avatar up from another object before it refuses a sit request. */
+function standFromAnotherObject(world: World, avatar: WorldAvatar, requested: Linkset): void {
+  if (avatar.sittingOn && avatar.sittingOn.linkset !== requested) world.standAvatar(avatar)
+}
+
+// The viewer showed the alert again 10.25 s after it last showed it, and not after 10 s.
+const ALERT_PAUSE_MS = 10000
+
+/** What the viewer shows when the region refuses a sit request for SIT_FLAG_SCRIPTED_ONLY. */
+function alertNoSuitableSurface(world: World, avatar: WorldAvatar): void {
+  const { alerts } = avatar.viewer
+  const now = world.clock.now
+  const last = alerts.filter(alert => alert.name === 'CantSitNoSuitableSurface').at(-1)
+  if (last && now - last.at <= ALERT_PAUSE_MS) return
+  alerts.push({ name: 'CantSitNoSuitableSurface', message: 'There is no suitable surface to sit on, try another spot.', at: now })
 }
 
 const pendingSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
@@ -192,7 +210,10 @@ export function cancelPendingSit(avatar: WorldAvatar): void {
 function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   complete?: (outcome: 'applied' | 'unchanged' | 'refused') => void): Action['actionOutcome'] {
   const response = world.getSitResponse(avatar, seat)
-  if (!response) return 'refused'
+  if (!response) {
+    standFromAnotherObject(world, avatar, seat.linkset!)
+    return 'refused'
+  }
   cancelPendingSit(avatar)
   avatar.info &= ~AGENT_FLYING
   const previous = avatar.sittingOn
