@@ -323,8 +323,8 @@ describe('a script that is not running', () => {
 
 describe('a script that only a queued event has run', () => {
   it('hears an owner edit made after that event', async () => {
-    // llGiveInventory queues its event for a receiving script the test never
-    // started, and the handler then runs without start().
+    // An event queued for a script the test never started runs its handler
+    // without start().
     const { linkset, prims, scripts } = await loadLinkset({
       prims: [{ scripts: [{ source: { source: logger, filename: 'a.lsl' }, name: 'a' }] }],
     })

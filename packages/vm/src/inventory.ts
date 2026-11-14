@@ -32,6 +32,15 @@ export function queueInventoryChanged(script: Script): void {
   clock.schedule(script, clock.now, 'changed', { changes: CHANGED_INVENTORY })
 }
 
+/**
+ * Whether an owner edit or a remote script load made now queues `changed`
+ * for a script. It does not for a stopped script, nor for one that has not
+ * run yet. A queued event can run a script's handler without starting it.
+ */
+export function hearsInventoryChange(script: Script): boolean {
+  return script.running && (script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined)
+}
+
 /** The name an arriving item gets: a taken name is cut to fit a number within 63 characters. */
 export function freeInventoryName(inventory: ReadonlyArray<InventoryItem>, name: string): string {
   let free = name
