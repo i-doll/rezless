@@ -8,7 +8,7 @@ import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } f
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
-import { cancelPendingGroundSit, cancelPendingSit, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
+import { cancelPendingGroundSit, cancelPendingSit, groundSitAfterStand, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
@@ -600,6 +600,7 @@ export class World {
     avatar.standingRotation = null
     if (previous) this.sitChanged(previous)
     if (sitting) returnStandtpAvatar(this, avatar)
+    if (previous) groundSitAfterStand(this, avatar)
   }
 
   /** Ground sitting has AGENT_SITTING but no object parent or new link. */

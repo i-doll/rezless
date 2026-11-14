@@ -75,39 +75,63 @@ function kokuaGroundSitLocked(avatar: WorldAvatar): boolean {
     (rule.behaviour === 'sit' || rule.behaviour === 'interact' && rule.support === 'enforced'))
 }
 
+type GroundSitRecord = (outcome: Action['actionOutcome'], reason?: Action['reason']) => true
+
+function sitOnGround(world: World, avatar: WorldAvatar, record?: GroundSitRecord): void {
+  if (avatar.viewer.profile === 'rlv') {
+    // Kokua stops flying before its sitDown checks the locks.
+    avatar.info &= ~AGENT_FLYING
+    if (kokuaGroundSitLocked(avatar)) { record?.('refused', 'restriction'); return }
+    if (hasStandtp(avatar)) rememberStandtpOrigin(world, avatar)
+  }
+  world.sitAvatarOnGround(avatar)
+  record?.('applied')
+}
+
+const pendingGroundSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
+// RLVa keeps its pending ground sit when a standtp return takes the stand.
+const keptGroundSits = new WeakSet<Readonly<{ dead: boolean }>>()
+
+function scheduleGroundSit(world: World, avatar: WorldAvatar, record?: GroundSitRecord): void {
+  cancelPendingGroundSit(avatar)
+  const lifetime = avatar.viewer.session.lifetime
+  const cancel = world.clock.scheduleTask(lifetime, world.clock.now + GROUND_SIT_DELAY_MS, () => {
+    pendingGroundSits.delete(lifetime)
+    if (world.avatars.includes(avatar) && !(avatar.info & AGENT_SITTING)) sitOnGround(world, avatar, record)
+  })
+  pendingGroundSits.set(lifetime, cancel)
+}
+
 /**
  * A standing avatar sits on the ground at once. A seated one stands first, and
  * the viewer asks for the ground sit once it sees the stand, so the seat's
  * changed event finds the avatar standing.
  */
-function forceGroundSit(world: World, avatar: WorldAvatar,
-  record: (outcome: Action['actionOutcome'], reason?: Action['reason']) => true): true {
-  const { profile } = avatar.viewer
-  const sitOnGround = () => {
-    if (profile === 'rlv') {
-      // Kokua stops flying before its sitDown checks the locks.
-      avatar.info &= ~AGENT_FLYING
-      if (kokuaGroundSitLocked(avatar)) return record('refused', 'restriction')
-      if (hasStandtp(avatar)) rememberStandtpOrigin(world, avatar)
-    }
-    world.sitAvatarOnGround(avatar)
-    return record('applied')
-  }
+function forceGroundSit(world: World, avatar: WorldAvatar, record: GroundSitRecord): true {
+  const lifetime = avatar.viewer.session.lifetime
   cancelPendingGroundSit(avatar)
-  if (!avatar.sittingOn) return sitOnGround()
+  keptGroundSits.delete(lifetime)
+  if (!avatar.sittingOn) {
+    sitOnGround(world, avatar, record)
+    return true
+  }
   world.standAvatar(avatar)
   // RLVa's stand handler runs the standtp return instead of the ground sit.
-  if (profile === 'rlva' && standtpState(avatar).pending) return record('applied')
-  const lifetime = avatar.viewer.session.lifetime
-  const cancel = world.clock.scheduleTask(lifetime, world.clock.now + GROUND_SIT_DELAY_MS, () => {
-    pendingGroundSits.delete(lifetime)
-    if (world.avatars.includes(avatar) && !(avatar.info & AGENT_SITTING)) sitOnGround()
-  })
-  pendingGroundSits.set(lifetime, cancel)
+  if (avatar.viewer.profile === 'rlva' && standtpState(avatar).pending) {
+    keptGroundSits.add(lifetime)
+    return record('applied')
+  }
+  scheduleGroundSit(world, avatar, record)
   return record('pending')
 }
 
-const pendingGroundSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
+/** RLVa runs a kept ground sit at the next stand from an object that no standtp return takes. */
+export function groundSitAfterStand(world: World, avatar: WorldAvatar): void {
+  const lifetime = avatar.viewer.session.lifetime
+  if (avatar.viewer.profile !== 'rlva' || !keptGroundSits.has(lifetime) || standtpState(avatar).pending) return
+  keptGroundSits.delete(lifetime)
+  scheduleGroundSit(world, avatar)
+}
 
 /** A later sit or ground sit replaces a ground sit still waiting for its stand. */
 export function cancelPendingGroundSit(avatar: WorldAvatar): void {

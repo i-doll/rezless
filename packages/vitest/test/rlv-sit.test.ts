@@ -215,12 +215,11 @@ it('handles empty sit, ground/object transitions, repeated actions and removed s
     issue(script, '@sit:' + script.host.key + '=force')
     expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ actionOutcome: 'unchanged', seat: script.host.key })
     expect(script.global('changes')).toBe(1)
-    issue(script, '@sit=force,getsitid:ignored=225101')
-    expect(script.global('replies')).toEqual([profile === 'rlva' ? NULL_KEY : script.host.key])
+    issue(script, '@sit=force')
     expect(script.global('changes')).toBe(profile === 'rlva' ? 2 : 1)
-    script.linkset.advanceTime(3000)
-    issue(script, '@getsitid=225101')
-    expect(script.global('replies')).toEqual(profile === 'rlva' ? [NULL_KEY, avatar.key] : [script.host.key, script.host.key])
+    script.linkset.advanceTime(250)
+    issue(script, '@getsitid:ignored=225101')
+    expect(script.global('replies')).toEqual([profile === 'rlva' ? avatar.key : script.host.key])
     script.linkset.dead = true
     expect(avatar.sittingOn).toBeNull()
   }

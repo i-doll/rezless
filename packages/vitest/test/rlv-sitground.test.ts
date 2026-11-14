@@ -220,8 +220,12 @@ describe('locks on @sitground=force', () => {
     expect(f.sitting()).toBe(AGENT_SITTING)
   })
 
-  // Firestorm RlvHandler::onSitOrStand runs the standtp return in place of a pending ground sit.
-  it('rlva returns a standtp avatar instead of sitting it on the ground', async () => {
+  // In-world: "@standtp=n", the seat force-sat the avatar, then "@sitground=force" -> changed read
+  // 262, the avatar fell back to where it stood before the sit and read 6, no ground sit. Then
+  // "@standtp=y", force sit on the seat, viewer stand -> the avatar sat on the ground (22) next to
+  // the seat. Firestorm's RlvHandler::onSitOrStand runs the standtp return in place of the
+  // pending ground sit and keeps the ground sit for the next stand.
+  it('rlva returns a standtp avatar instead of sitting it on the ground, and sits it at the next stand', async () => {
     const f = (await pair()).rlva
     f.avatar.position = { x: 10, y: 20, z: 30 }
     issue(f.script, '@standtp=n')
@@ -232,6 +236,31 @@ describe('locks on @sitground=force', () => {
     f.wait(GROUND_SIT_DELAY_MS)
     expect(f.sitting()).toBe(0)
     expect(f.avatar.position).toMatchObject({ x: 10, y: 20, z: 30 })
+    issue(f.script, '@standtp=y')
+    f.seat()
+    expect(f.world.userStandAvatar(f.avatar)).toBe(true)
+    f.wait(GROUND_SIT_DELAY_MS - 1)
+    expect(f.script.global('seen')).toEqual([48, 0, 48, 0])
+    expect(f.sitting()).toBe(0)
+    f.wait(1)
+    expect(f.sitting()).toBe(AGENT_SITTING)
+    issue(f.script, '@unsit=force,sit:' + f.script.host.key + '=force,unsit=force')
+    f.wait(GROUND_SIT_DELAY_MS)
+    expect(f.sitting()).toBe(0)
+  })
+
+  it('rlva forgets a kept ground sit at a ground sit from standing', async () => {
+    const f = (await pair()).rlva
+    f.avatar.position = { x: 10, y: 20, z: 30 }
+    issue(f.script, '@standtp=n')
+    f.seat()
+    issue(f.script, '@sitground=force')
+    f.wait(GROUND_SIT_DELAY_MS)
+    issue(f.script, '@standtp=y,sitground=force,unsit=force')
+    f.seat()
+    issue(f.script, '@unsit=force')
+    f.wait(GROUND_SIT_DELAY_MS)
+    expect(f.sitting()).toBe(0)
   })
 })
 
