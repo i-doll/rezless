@@ -1454,6 +1454,7 @@ export class Script {
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until }
+      this.linkset.clock.releaseAtWake(this, task.startedAt)
       return
     }
     this.finish(task)

@@ -328,6 +328,92 @@ describe('events that come up while a handler sleeps', () => {
   })
 })
 
+// In-world: a listen handler slept 8 s three times in a row. During the sleeps a second script
+// in the prim recoloured it, another object gave it a notecard with llGiveInventory, the
+// avatar clicked it on a chosen face and sent it chat lines, 1.2 s apart within a sleep.
+const sleeper = `list log;
+  default {
+    state_entry() { llListen(5, "", "", ""); }
+    listen(integer c, string name, key id, string m) {
+      if (llGetSubString(m, 0, 4) == "sleep") { integer i; for (i = 0; i < (integer)llGetSubString(m, 6, -1); i++) llSleep(8.0); }
+      else log += "heard " + m;
+    }
+    changed(integer c) { log += "changed " + (string)c; }
+    touch_start(integer n) { log += "touch_start " + (string)llDetectedTouchFace(0); }
+    touch(integer n) { log += "touch " + (string)llDetectedTouchFace(0); }
+    touch_end(integer n) { log += "touch_end " + (string)llDetectedTouchFace(0); }
+  }`
+const recolour = `integer n; default { link_message(integer from, integer num, string s, key id) {
+  n++; llSetColor(<n % 2, (n / 2) % 2, 0.5>, ALL_SIDES); } }`
+
+/** What the sleeper logs when each of its sleeps gets the stimuli in its entry. */
+async function sleepThrough(stimuli: ReadonlyArray<ReadonlyArray<string>>) {
+  const f = await fixture()
+  const made = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [
+    { name: 'main', source: { source: sleeper } },
+    { name: 'helper', source: { source: recolour } },
+  ] }] })
+  const main = made.scripts.main!
+  main.start()
+  made.scripts.helper!.start()
+  queue(f, main, 'listen', heard(`sleep ${stimuli.length}`))
+  made.linkset.advanceTime(2_000)
+  for (const sleep of stimuli) {
+    for (const stimulus of sleep) {
+      if (stimulus === 'colour') queue(f, made.scripts.helper!, 'link_message', linked(''))
+      else if (stimulus === 'give') made.linkset.prims[0]!.addInventory(makeInventoryItem({ name: 'nc', type: InventoryType.NOTECARD }))
+      else if (stimulus.startsWith('click')) touch(f, main, Number(stimulus.slice(6)))
+      else queue(f, main, 'listen', heard(stimulus))
+      made.linkset.advanceTime(1_200)
+    }
+    made.linkset.advanceTime(8_000 - 1_200 * sleep.length)
+  }
+  made.linkset.advanceTime(5_000)
+  return main.global('log')
+}
+
+describe('a handler that sleeps several times', () => {
+  // In-world: recoloured in each of three sleeps -> changed(2) twice when the handler ended.
+  // Recoloured, given a notecard, recoloured -> changed(2), changed(3). Given a notecard in the
+  // first of two sleeps and recoloured in the second -> changed(1), changed(2). Nothing in the
+  // first sleep and a recolour in each of the other two -> changed(2) twice.
+  it.each([
+    ['a recolour in each of three sleeps', [['colour'], ['colour'], ['colour']], ['changed 2', 'changed 2']],
+    ['a recolour, a gift and a recolour', [['colour'], ['give'], ['colour']], ['changed 2', 'changed 3']],
+    ['a gift, then a recolour in the next sleep', [['give'], ['colour']], ['changed 1', 'changed 2']],
+    ['nothing in the first sleep and a recolour in each other', [[], ['colour'], ['colour']], ['changed 2', 'changed 2']],
+  ])('give the first sleep that holds a change its own changed event: %s', async (_, stimuli, log) => {
+    expect(await sleepThrough(stimuli)).toEqual(log)
+  })
+
+  // In-world: a recolour and a chat line in each of the first two sleeps and a chat line in the
+  // third -> the first chat line, changed(2), the second and third chat lines, changed(2). A
+  // chat line, a recolour and a chat line, one in each sleep, ran in that order. The held
+  // events of a sleep join the queue when the handler wakes from it, unless one of the same
+  // kind already waits; then they wait for the end of the handler.
+  it.each([
+    ['recolours and chat lines', [['colour', 'x'], ['colour', 'y'], ['z']], ['heard x', 'changed 2', 'heard y', 'heard z', 'changed 2']],
+    ['a chat line around a recolour', [['c'], ['colour'], ['d']], ['heard c', 'changed 2', 'heard d']],
+  ])('release what a sleep held back when the handler wakes from it: %s', async (_, stimuli, log) => {
+    expect(await sleepThrough(stimuli)).toEqual(log)
+  })
+
+  // In-world: recoloured in the first sleep, clicked on face 0 and sent a chat line in the
+  // second, sent a chat line in the third -> changed(2), the first chat line, the touch events,
+  // the second chat line. A waiting changed event keeps only other changes back.
+  it('keep back only what is of a kind that already waits', async () => {
+    expect(await sleepThrough([['colour'], ['click 0', 'a'], ['b']]))
+      .toEqual(['changed 2', 'heard a', 'touch_start 0', 'touch 0', 'touch_end 0', 'heard b'])
+  })
+
+  // In-world: clicked on faces 0, 2 and 4, one in each sleep -> touch_start, touch and
+  // touch_end on face 0, then touch_start on face 2 and touch and touch_end on face 4.
+  it('merge the clicks of the later sleeps into one', async () => {
+    expect(await sleepThrough([['click 0'], ['click 2'], ['click 4']]))
+      .toEqual(['touch_start 0', 'touch 0', 'touch_end 0', 'touch_start 2', 'touch 4', 'touch_end 4'])
+  })
+})
+
 describe('clicks by one avatar while a handler sleeps', () => {
   // In-world: three clicks, on faces 0, 2 and 4 -> one touch_start that read face 0, one touch
   // and one touch_end that read face 4. Each event had one detected avatar. With link messages

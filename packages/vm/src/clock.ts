@@ -26,8 +26,8 @@ export interface QueuedEvent {
 }
 
 /**
- * Events Second Life holds back while a handler sleeps. When the handler ends they go behind
- * the events that waited for it, in this order, whatever order they came up in.
+ * Events Second Life holds back while a handler sleeps. When the handler wakes or ends they go
+ * behind the events that waited for it, in this order, whatever order they came up in.
  */
 const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['timer', 0], ['sensor', 1], ['no_sensor', 1],
@@ -302,22 +302,45 @@ export class LinksetClock {
   requeue(script: Script, since: number): void {
     const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
     this.purgeTarget(script, this.now)
-    const release = ({ at, target, event, payload }: QueuedEvent): QueuedEvent => ({ at, target, event, payload })
-    const held = mergeHeld(waited.filter((e) => this.heldBack(e, since)).sort((a, b) => a.at - b.at)).map(release)
+    const plain = ({ at, target, event, payload }: QueuedEvent): QueuedEvent => ({ at, target, event, payload })
+    this.queue.push(...waited.filter((e) => !this.heldBack(e, since)).map(plain))
+    this.release(script, waited.filter((e) => this.heldBack(e, since)), false)
+  }
+
+  /**
+   * When a handler wakes in its middle, the events held back so far join the queue, except
+   * those of a kind that an earlier wake released and that still waits: those stay held back
+   * until the handler ends. In-world, a colour change in each of three sleeps gave two
+   * changed events, and changes held in the first sleep ran ahead of chat from the second.
+   */
+  releaseAtWake(script: Script, since: number): void {
+    const kind = (e: QueuedEvent) => e.event === '__unseated' ? 'changed' : e.event
+    const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
+    const waiting = new Set(waited.filter((e) => HELD_ORDER.has(e.event) && !this.heldBack(e, since)).map(kind))
+    const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)))
+    if (!held.length) return
+    this.purgeWhere((e) => held.includes(e))
+    this.release(script, held, waiting.has('timer'))
+  }
+
+  /** Queue held-back events behind the others, merged and in the held order. */
+  private release(script: Script, events: QueuedEvent[], timerWaits: boolean): void {
+    const held = mergeHeld(events.sort((a, b) => a.at - b.at))
+      .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, payload, held: false }))
     const v = script.clockView
     // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first
     // click, timer, the second click. The ticks that fell due during one sleep give one event,
     // released with the other held events. With nothing else held the tick is left to
     // takeNextDue, which gives one tick after several sleeps, as measured on the main grid.
-    let pending = script.parkedEvents.length + waited.length
+    let pending = script.parkedEvents.length + events.length
     for (const e of this.queue) if (e.target === script) pending++
     if (held.length && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
-        !held.some((e) => e.event === 'timer')) {
-      held.push({ at: this.now, target: script, event: 'timer', payload: {} })
+        !timerWaits && !held.some((e) => e.event === 'timer')) {
+      held.push({ at: this.now, target: script, event: 'timer', payload: {}, held: false })
       v.timerNextFireMs = this.now + v.timerIntervalMs
     }
     held.sort((a, b) => HELD_ORDER.get(a.event)! - HELD_ORDER.get(b.event)!)
-    this.queue.push(...waited.filter((e) => !this.heldBack(e, since)).map(release), ...held)
+    this.queue.push(...held)
   }
 
   /**
