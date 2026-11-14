@@ -117,7 +117,11 @@ export class Prim {
   collisionFilter: CollisionFilter = { name: '', key: NULL_KEY, accept: true }
   /** null selects the simulator's default material impact sound. */
   collisionSound: CollisionSound | null = null
-  volumeDetect = false
+  /** The object's llVolumeDetect setting when this prim is its root. */
+  private objectVolumeDetect = false
+  /** llVolumeDetect belongs to the object: every prim reads and sets its root's. */
+  get volumeDetect(): boolean { return (this.linkset?.prims[0] ?? this).objectVolumeDetect }
+  set volumeDetect(value: boolean) { (this.linkset?.prims[0] ?? this).objectVolumeDetect = value }
   allowInventoryDrop = false
   /** Zero denies remote script loading. */
   remoteScriptAccessPin = 0
@@ -443,7 +447,7 @@ export class Prim {
     // In-world, STATUS_CAST_SHADOWS read FALSE after TRUE was set from the root or a child.
     if (value) this.statusFlags |= flag & ~STATUS_CAST_SHADOWS
     else this.statusFlags &= ~flag
-    if ((this.linkset?.prims[0] ?? this).volumeDetect) this.statusFlags |= STATUS_PHANTOM
+    if (this.volumeDetect) this.statusFlags |= STATUS_PHANTOM
     if ((this.statusFlags & STATUS_PHYSICS) !== physical) this.linkset?.recountScripts()
   }
 }

@@ -16,11 +16,9 @@ export const llCollisionFilter: BuiltinImpl = (ctx, args) => {
 
 export const llVolumeDetect: BuiltinImpl = (ctx, args) => {
   const enabled = Number(args[0]) !== 0
-  for (const prim of ctx.linkset.prims) {
-    if (prim.volumeDetect === enabled) continue
-    prim.volumeDetect = enabled
-    prim.setStatus(STATUS_PHANTOM, enabled)
-  }
+  if (ctx.prim.volumeDetect === enabled) return
+  ctx.prim.volumeDetect = enabled
+  ctx.prim.setStatus(STATUS_PHANTOM, enabled)
 }
 
 export const llCollisionSound: BuiltinImpl = (ctx, args) => {
@@ -39,7 +37,9 @@ export const llSetRemoteScriptAccessPin: BuiltinImpl = (ctx, args) => {
 /** Filter at test injection, before queueing. Completed events keep their detected data. */
 export function withCollisionFilter(script: Script, event: string, payload: Record<string, unknown>, deliver: (payload: Record<string, unknown>) => void): void {
   if (event !== 'collision_start' && event !== 'collision' && event !== 'collision_end') return deliver(payload)
-  if (script.host.volumeDetect && event === 'collision') return
+  // In-world, an object that detects volume raised collision_start and
+  // collision_end in its root's scripts only, even for a child it was entered through.
+  if (script.host.volumeDetect && (event === 'collision' || script.host !== script.linkset.prims[0])) return
   const filter = script.host.collisionFilter
   if (!Array.isArray(payload['detected'])) return deliver(payload)
   const detected = (payload['detected'] as DetectedEntry[]).filter(entry => {
