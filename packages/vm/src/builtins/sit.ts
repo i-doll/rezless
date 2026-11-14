@@ -85,13 +85,18 @@ function mayTeleport(ctx: CallContext, key: string): boolean {
   }
   const xp = ctx.state.experience
   const experience = xp?.allowedHere && [...xp.agents].some(agent => sameKey(agent, key))
-  const permission = (ctx.state.permissions.granted & PERMISSION_TELEPORT) &&
-    sameKey(ctx.state.permissions.agent, key) && sameKey(ctx.linkset.owner, key)
+  const permission = (ctx.state.permissions.granted & PERMISSION_TELEPORT) && sameKey(ctx.state.permissions.agent, key)
   if (!experience && !permission) {
     sayError(ctx, 'Script trying to teleport agent without current permission!')
     return false
   }
-  return isAgentInRegion(ctx, key)
+  // In-world: an avatar out of the region was passed over silently, before the owner check.
+  if (!isAgentInRegion(ctx, key)) return false
+  if (!experience && !sameKey(ctx.linkset.owner, key)) {
+    sayError(ctx, 'Teleport LSL functions can only teleport the owner of the object.')
+    return false
+  }
+  return true
 }
 
 function move(ctx: CallContext, key: string, destination: AvatarDestination, lookAt?: Vector): void {

@@ -531,14 +531,15 @@ describe('what an SLua script keeps through inventory', () => {
     expect(completed).toBe(1)
   })
 
-  // Not measured: a copy that changes owner. The probes had one avatar. As for LSL, such a copy
-  // holds no permissions; the script's own state comes along.
+  // In-world (Aditi, two avatars, 2026-11-14): an SLua script that had counted to 2 and held 16
+  // from its owner was given to a second avatar, who rezzed it -> on_rez read 0, NULL_KEY and a
+  // count of 2, then changed(CHANGED_OWNER) fired.
   it('holds nothing on a copy that belongs to another owner, but keeps its variables', async () => {
     const f = await busy()
     const bob = f.world.addAvatar({ region: 'home', key: BOB, username: 'bob' })
     seedRlvInventory(bob, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'probe', object: f.linkset.copy(), assetType: 'object' }] })
     const copy = twins(f.world.attemptAvatarRez(bob, 'item', { x: 1, y: 2, z: 3 }).object!)
-    expect(copy.slua.log().at(-1)).toBe(`rez 0 ${NULL_KEY} n=2 count=2 hits=2`)
+    expect(copy.slua.log().slice(-2)).toEqual([`rez 0 ${NULL_KEY} n=2 count=2 hits=2`, `changed 128 0 ${NULL_KEY}`])
   })
 
   // A start that is queued has not run the script yet, so its copy has nothing to carry over.

@@ -1,6 +1,6 @@
 import { clearTargetMotion } from './builtins/motion.js'
 import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
-import { CHANGED_LINK, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
+import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
@@ -206,6 +206,8 @@ export class Script {
   rezQueued = false
   /** Set on a copy of an object that was taken from under a sitter, until it is rezzed. */
   private unseated = false
+  /** A copy rezzed for a new owner: its first rez says changed(CHANGED_OWNER). */
+  private ownerChangedAtRez = false
   /** Set on a copy of an SLua script that was asleep, until the copy's VM carries that code on. */
   private sluaAsleep = false
   /** What an SLua script passed to print(), in order. */
@@ -621,6 +623,21 @@ export class Script {
     if (!this.state.permissions.granted) this.state.permissions.agent = NULL_KEY
   }
 
+  /**
+   * The object changed owner while in the world: the script holds nothing, and a dialog raised
+   * before does nothing when answered, even after the script asks again.
+   */
+  ownerChanged(): void {
+    const held = this.state.permissions
+    held.granted = 0
+    held.agent = NULL_KEY
+    held.waiting = false
+    for (const request of held.requests) request.answered = true
+    for (const request of this.state.experienceRequests) request.answered = true
+    this.state.controls.taken = null
+    this.purgeControlEvents()
+  }
+
   /** The object went into inventory: a dialog raised before that does nothing afterwards. */
   detached(): void {
     this.unseated = false
@@ -641,11 +658,15 @@ export class Script {
     held.granted &= ~(PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA)
     this.state.controls.taken = null
     this.host.scriptedCameras.delete(held.agent.toLowerCase())
+    this.purgeControlEvents()
+    if (!held.granted) held.agent = NULL_KEY
+  }
+
+  private purgeControlEvents(): void {
     this.linkset.clock.purgeEvent(this, 'control')
     for (let i = this.parkedEvents.length - 1; i >= 0; i--) {
       if (this.parkedEvents[i]!.event === 'control') this.parkedEvents.splice(i, 1)
     }
-    if (!held.granted) held.agent = NULL_KEY
   }
 
   /**
@@ -679,15 +700,6 @@ export class Script {
     const started = this.handles('run_time_permissions') ? [this] : []
     this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
     this.linkset.settle(started)
-  }
-
-  /** Drop every granted permission, as a change of owner does. */
-  clearPermissions(): void {
-    this.state.permissions.granted = 0
-    this.state.permissions.agent = NULL_KEY
-    for (const r of this.state.permissions.requests) r.answered = true
-    for (const r of this.state.experienceRequests) r.answered = true
-    this.state.controls.taken = null
   }
 
   /** Answer a permission dialog with No: the most recent one, or `request`. See `grantPermissions`. */
@@ -1116,9 +1128,14 @@ export class Script {
     copy.unseated = !!opts.unseated || (this.unseated && !this.linkset.world)
     copy.crashed = this.crashed
     Object.assign(copy.state.random, this.state.random)
-    // A copy made for the same owner keeps what the script held. What one made for another owner
-    // holds needs a second avatar to measure, so that one starts with nothing.
-    if (host.linkset!.owner.toLowerCase() === this.linkset.owner.toLowerCase()) {
+    // In-world: a copy rezzed by its new owner held nothing, even a permission the new owner had
+    // granted, and said changed(CHANGED_OWNER) after on_rez. A copy for the same owner keeps it.
+    // A fixture object with no owner counts as the rezzer's own.
+    const from = this.linkset.owner.toLowerCase()
+    const foreign = from !== NULL_KEY && host.linkset!.owner.toLowerCase() !== from
+    // A saved object keeps the mark for every rez, as `unseated` does.
+    copy.ownerChangedAtRez = foreign || (this.ownerChangedAtRez && !this.linkset.world)
+    if (!foreign) {
       copy.state.permissions.granted = this.state.permissions.granted
       copy.state.permissions.agent = this.state.permissions.agent
       const agent = this.state.permissions.agent.toLowerCase()
@@ -1168,6 +1185,8 @@ export class Script {
     if (this.clockView.inInventory) this.dropSeatPermissions()
     const unseated = this.unseated
     this.unseated = false
+    const ownerChanged = this.ownerChangedAtRez
+    this.ownerChangedAtRez = false
     // A crashed LSL script runs again when its object comes out of inventory.
     // Rezzed or attached from an inventory item, it runs state_entry of the
     // state it was in, with its globals, then on_rez. A crashed SLua script
@@ -1204,7 +1223,12 @@ export class Script {
     for (const e of waiting) if (e.event !== 'state_entry') clock.schedule(this, Math.max(e.at, this.now), e.event, e.payload)
     // In-world: a seat taken from under its sitter twice inside one sleep ran both on_rez events
     // and then one changed(CHANGED_LINK).
-    if (unseated) this.clockView.schedule(this.now, '__unseated', { changes: CHANGED_LINK })
+    // In-world: a given item rezzed by its new owner said changed(CHANGED_OWNER) after on_rez, and
+    // one worn by them after attach. A seat taken from under its sitter and given away said one
+    // changed(CHANGED_OWNER | CHANGED_LINK).
+    const changes = (ownerChanged ? CHANGED_OWNER : 0) | (unseated ? CHANGED_LINK : 0)
+    if (unseated) this.clockView.schedule(this.now, '__unseated', { changes })
+    else if (ownerChanged) this.clockView.schedule(this.now, '__ownerChanged', { changes })
     this.rezQueued = true
   }
 
@@ -1306,7 +1330,7 @@ export class Script {
       if (!this.running) this.queueStart()
       return
     }
-    if (event === '__unseated') {
+    if (event === '__unseated' || event === '__ownerChanged') {
       // Queued behind on_rez. A wear queues attach next, and the changed event comes after that.
       if (this.linkset.clock.hasPending(this, 'attach')) {
         this.clockView.schedule(this.now, 'changed', payload)

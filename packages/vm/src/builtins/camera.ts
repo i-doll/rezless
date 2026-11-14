@@ -101,7 +101,8 @@ export const llClearCameraParams: BuiltinImpl = (ctx) => {
   // In-world: after a reset it did nothing until the script asked for 1024, or for nothing, and
   // then it put the camera back on the avatar. Another script in the same prim could do it; one
   // in a child prim or another object could not.
-  // Not measured: two avatars' rules in one prim need a second avatar. Each avatar keeps its own.
+  // In-world: with two avatars' cameras set from one prim, a script holding one avatar's key
+  // released only that avatar's camera.
   ctx.prim.scriptedCameras.delete(ctx.state.permissions.agent.toLowerCase())
   return undefined
 }

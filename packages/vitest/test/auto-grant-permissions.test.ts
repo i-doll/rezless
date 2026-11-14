@@ -248,9 +248,8 @@ describe('permissions granted without a dialog', () => {
     expect(f.script.global('events')).toEqual([16, 4, 1024])
   })
 
-  // The wiki's table grants these to whoever sits on the object. Every in-world probe here was
-  // owned by the avatar that sat on it, because a sitter that is not the owner needs a second
-  // avatar; the standing-owner control above shows ownership alone grants nothing.
+  // In-world (Aditi, two avatars, 2026-11-14): a second avatar sat on the owner's seat, which asked
+  // them for 16, 4, 1024, 2048, 1048576 and 3092 -> each granted at once with them as the key.
   it('grants to a sitter who does not own the object', async () => {
     const f = await fixture('seated', [ANIMATION], { agent: BOB })
     f.ask()
@@ -419,8 +418,8 @@ describe('controls and camera control taken back', () => {
     expect(f.held()).toEqual([bits, OWNER])
   })
 
-  // The stand probes had one avatar. That a script keeps what a different avatar granted when
-  // someone else stands needs a second avatar in-world; this follows from the grant being per agent.
+  // In-world (Aditi, two avatars, 2026-11-14): a seat script held 3092 for one sitter and another
+  // sitter stood up -> still 3092 for the first (two-avatar-permissions.test.ts).
   it('leaves permissions held for another avatar alone', async () => {
     const f = await fixture('standing', [CONTROLS], { agent: BOB })
     f.ask()

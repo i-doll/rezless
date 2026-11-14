@@ -1,10 +1,10 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { acceptsRlvPermissions } from '../rlv/permissions.js'
 import {
-  PERMISSION_ATTACH, PERMISSION_CHANGE_LINKS, PERMISSION_CONTROL_CAMERA, PERMISSION_DEBIT, PERMISSION_GAME_CONTROL,
-  PERMISSION_OVERRIDE_ANIMATIONS, PERMISSION_PRIVILEGED_LAND_ACCESS, PERMISSION_RETURN_OBJECTS,
-  PERMISSION_SILENT_ESTATE_MANAGEMENT, PERMISSION_TAKE_CONTROLS, PERMISSION_TELEPORT, PERMISSION_TRACK_CAMERA,
-  PERMISSION_TRIGGER_ANIMATION,
+  PERMISSION_ATTACH, PERMISSION_CHANGE_JOINTS, PERMISSION_CHANGE_LINKS, PERMISSION_CHANGE_PERMISSIONS, PERMISSION_CONTROL_CAMERA,
+  PERMISSION_DEBIT, PERMISSION_GAME_CONTROL, PERMISSION_OVERRIDE_ANIMATIONS, PERMISSION_PRIVILEGED_LAND_ACCESS,
+  PERMISSION_RELEASE_OWNERSHIP, PERMISSION_RETURN_OBJECTS, PERMISSION_SILENT_ESTATE_MANAGEMENT, PERMISSION_TAKE_CONTROLS,
+  PERMISSION_TELEPORT, PERMISSION_TRACK_CAMERA, PERMISSION_TRIGGER_ANIMATION,
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isKey } from './viewer.js'
@@ -22,9 +22,6 @@ export interface PermissionRequestEntry {
   answered: boolean
 }
 
-const OWNER_ONLY = PERMISSION_DEBIT | PERMISSION_CHANGE_LINKS | PERMISSION_RETURN_OBJECTS |
-  PERMISSION_SILENT_ESTATE_MANAGEMENT | PERMISSION_PRIVILEGED_LAND_ACCESS
-
 /**
  * Which requests the simulator grants without a dialog: `'sl'` follows Second
  * Life, `'none'` grants nothing, and a function decides per request. A viewer
@@ -35,6 +32,10 @@ export type AutoGrantPermissions = 'sl' | 'none' | ((request: { agent: string, p
 const SITTER_PERMISSIONS = PERMISSION_TAKE_CONTROLS | PERMISSION_TRIGGER_ANIMATION | PERMISSION_TRACK_CAMERA |
   PERMISSION_CONTROL_CAMERA | PERMISSION_GAME_CONTROL
 const WEARER_PERMISSIONS = SITTER_PERMISSIONS | PERMISSION_ATTACH | PERMISSION_OVERRIDE_ANIMATIONS
+
+/** The bits only the object's owner can grant. Asking anyone else for one of them is refused. */
+const OWNER_ONLY_PERMISSIONS = PERMISSION_DEBIT | PERMISSION_RELEASE_OWNERSHIP | PERMISSION_CHANGE_LINKS | PERMISSION_CHANGE_JOINTS |
+  PERMISSION_CHANGE_PERMISSIONS | PERMISSION_SILENT_ESTATE_MANAGEMENT | PERMISSION_RETURN_OBJECTS | PERMISSION_PRIVILEGED_LAND_ACCESS
 
 /** The bits a request can carry: 1 to 12 and 14 to 20. Second Life drops the rest before it decides anything. */
 const REQUESTABLE_PERMISSIONS = 0x1fdffe
@@ -67,12 +68,12 @@ function isAvatar(ctx: CallContext, agent: string): boolean {
  * would. Other requests wait for Script.grantPermissions or
  * Script.denyPermissions. Requesting no permissions fires nothing unless the
  * agent is sitting on the object or wearing it. A request to a key that is
- * not an avatar fails with an error. A request that includes camera control
- * is refused whole, with an error and no dialog, unless the agent is sitting
- * on the object or wearing it.
- * Asking anyone but the owner for a permission only the owner can grant is
- * refused without a request, except in a group-deeded object, which was not
- * measured.
+ * not an avatar fails with an error. So does a request to someone other than
+ * the owner for a bit only the owner can grant, except in a group-deeded
+ * object (not measured), and a request from an
+ * attachment to someone other than its wearer for attach permission. A request
+ * that includes camera control is refused whole, with an error and no dialog,
+ * unless the agent is sitting on the object or wearing it.
  */
 export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const agent = (args[0] as string | undefined) ?? ''
@@ -91,14 +92,18 @@ export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
     sayError(ctx, 'Unable to find specified agent to request permissions.')
     return undefined
   }
-  if (ctx.linkset.attachment?.temporary && (permissions & PERMISSION_TELEPORT)) {
-    sayError(ctx, 'Temporary attachments cannot request runtime permissions to teleport')
-    return undefined
-  }
   const owner = ctx.linkset.owner.toLowerCase()
   const deeded = ctx.linkset.world?.sensorProperties.get(ctx.linkset)?.group?.toLowerCase() === owner
-  if ((permissions & OWNER_ONLY) && !deeded && agent.toLowerCase() !== owner) {
+  if (!automatic && (permissions & OWNER_ONLY_PERMISSIONS) && !deeded && agent.toLowerCase() !== owner) {
     sayError(ctx, 'Script asking non-owner for run time permissions only owner can grant')
+    return undefined
+  }
+  if (!automatic && (permissions & PERMISSION_ATTACH) && covered === null && ctx.linkset.attachment) {
+    sayError(ctx, 'Attachment cannot request permissions to attach')
+    return undefined
+  }
+  if (ctx.linkset.attachment?.temporary && (permissions & PERMISSION_TELEPORT)) {
+    sayError(ctx, 'Temporary attachments cannot request runtime permissions to teleport')
     return undefined
   }
   if (permissions === 0 && !automatic) return undefined
