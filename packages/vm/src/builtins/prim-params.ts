@@ -7,7 +7,7 @@ import { readAvatarLinkParam, writeAvatarLinkParam } from '../avatar-link.js'
 import {
   LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET, PRIM_TYPE, PRIM_TYPE_PRISM,
 } from '../generated/constants.js'
-import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
+import { checkPrimRule, primGetRuleRuns, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
 import { primParamLuaKinds } from './slua-result-kinds.js'
 import { sayError } from './debug.js'
@@ -34,14 +34,20 @@ function sluaShapeRules(rules: ReadonlyArray<LslValue>, cursor: number) {
  * llSetLinkPrimitiveParams behavior, available inside
  * llSetPrimitiveParams too).
  *
- * An unknown rule or a bad argument says the simulator's error on
- * DEBUG_CHANNEL and stops the walk; rules before it stay applied.
+ * A rule that can't run (see checkPrimRule) stops the walk, saying the
+ * simulator's error on DEBUG_CHANNEL where it has one; rules before it stay
+ * applied.
  */
 function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyArray<LslValue>, sitter?: WorldAvatar): void {
   const { linkset, prim: caller } = ctx
   let cur = target
   let i = 0
   for (let ruleNumber = 1; i < rules.length; ruleNumber++) {
+    const error = checkPrimRule(rules, i)
+    if (error !== null) {
+      if (error !== '') sayError(ctx, `${fn} error running rule #${ruleNumber}${error}.`)
+      return
+    }
     const rule = rules[i] as number
     if (rule === PRIM_LINK_TARGET) {
       const links = linkset.linksFrom(caller, (rules[i + 1] as number) | 0)
@@ -49,11 +55,6 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
       sitter = links.sitter
       i += 2
       continue
-    }
-    const error = typeof rule === 'number' ? checkPrimRule(rule, rules, i + 1) : ': unknown rule'
-    if (error !== null) {
-      sayError(ctx, `${fn} error running rule #${ruleNumber}${error}.`)
-      return
     }
     const given = rule === PRIM_TYPE && ctx.script.language !== 'lsl' ? sluaShapeRules(rules, i + 1) : rules
     let consumed: number | null = null
@@ -92,8 +93,8 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
   let cur = start
   let i = 0
   while (cur && i < rules.length) {
+    if (!primGetRuleRuns(rules, i)) break
     const rule = rules[i] as number
-    if (typeof rule !== 'number') break
     if (rule === PRIM_LINK_TARGET) {
       const link = rules[i + 1]
       const type = ruleElementType(rules, i + 1)
