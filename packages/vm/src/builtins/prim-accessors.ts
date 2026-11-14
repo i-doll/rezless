@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName } from '../prim-params.js'
+import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName, sitFlagsOf } from '../prim-params.js'
 import { sayError } from './debug.js'
 import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
 import { uniformList } from '../values/list-types.js'
@@ -442,6 +442,7 @@ export const llSetLinkSitFlags: BuiltinImpl = (ctx, args) => {
 export const llGetLinkSitFlags: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
   // Takes one link, like llLinkSitTarget.
-  return ctx.linkset.onePrim(ctx.prim, link)?.params.sitFlags ?? 0
+  const prim = ctx.linkset.onePrim(ctx.prim, link)
+  return prim ? sitFlagsOf(prim.params) : 0
 }
 

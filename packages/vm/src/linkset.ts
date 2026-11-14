@@ -461,7 +461,8 @@ export class Linkset {
    * The link `link` names, seen from `from`, in a call that takes one link.
    * LINK_THIS is `from` and every other negative number is the first other
    * link. Link 0 is the root seen from another link, and a lone prim nobody
-   * sits on.
+   * sits on; seen from the root of a linkset, or of a lone prim someone sits
+   * on, it names nothing.
    */
   oneLink(from: Link, link: number): Link | undefined {
     if (link === LINK_THIS) return from
@@ -480,8 +481,9 @@ export class Linkset {
   /**
    * The links `link` names, seen from the prim `from`, in a call that takes
    * LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN as groups. The groups hold
-   * prims only. A number below LINK_THIS is the first other link, and that or
-   * a positive number can name a seated avatar.
+   * prims only. Any other number names one link, as in `oneLink`: a number
+   * below LINK_THIS is the first other link, and that or a positive number can
+   * name a seated avatar.
    */
   linksFrom(from: Prim, link: number): { prims: Prim[]; sitter: WorldAvatar | undefined } {
     const group = link === LINK_THIS ? [from]
@@ -490,8 +492,7 @@ export class Linkset {
       : link === LINK_ALL_CHILDREN ? this.prims.slice(1)
       : undefined
     if (group) return { prims: group, sitter: undefined }
-    // Here link 0 names only a lone prim nobody sits on. Callers that read it as the root from a child do that themselves.
-    const one = link === 0 ? this.prims.find((p) => p.linkNumber === 0) : link < 0 ? this.firstOtherLink(from) : this.linkAt(link)
+    const one = this.oneLink(from, link)
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
   }
 
@@ -570,6 +571,15 @@ export class Linkset {
       return distanceSquared(origin, linkset.globalPosition(p)) <= range * range
     }
     this.broadcast(reaches, { channel, name: from.name, key: from.key, message })
+  }
+
+  /** Queue a say by `avatar` on the listens of every prim within 20 m of it. */
+  routeAvatarSay(avatar: WorldAvatar, channel: number, message: string): void {
+    const corner = this.world!.corner(avatar.region)
+    const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
+    const range = CHAT_RANGE.say!
+    this.broadcast((linkset, p) => distanceSquared(origin, linkset.globalPosition(p)) <= range * range,
+      { channel, name: avatar.name, key: avatar.key, message })
   }
 
   /**

@@ -10,7 +10,7 @@ import {
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { raisePrimChanged } from '../prim-changed.js'
-import { isPrim } from '../linkset.js'
+import { isPrim, type Link } from '../linkset.js'
 
 const defaults = (): (number | string)[] => [0, 0, '', '', 0, 0, 0, 0, 0, 0, 0, 0, '', 7, 7]
 const strings = new Set([2, 3, 12])
@@ -20,6 +20,8 @@ interface MediaHolder {
   readonly media: Map<number, PrimMediaParams>
   readonly sides: number
   readonly key: string
+  /** The link that says this holder's errors: the prim or avatar itself, not the calling prim. */
+  readonly speaker: Link
   changed(): void
 }
 
@@ -35,20 +37,20 @@ function holder(ctx: CallContext, link: number): MediaHolder | undefined {
   if (isPrim(sitter)) return primHolder(sitter)
   if (!sitter) return undefined
   if (!avatarMedia.has(sitter)) avatarMedia.set(sitter, new Map())
-  // An avatar link has 45 media faces; its changed event goes to the root.
-  return { media: avatarMedia.get(sitter)!, sides: 45, key: sitter.key, changed: () => raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_MEDIA) }
+  // An avatar link has 45 media faces; its changed event goes to the root, and the avatar says its errors.
+  return { media: avatarMedia.get(sitter)!, sides: 45, key: sitter.key, speaker: sitter, changed: () => raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_MEDIA) }
 }
 
 const primHolder = (prim: Prim): MediaHolder =>
-  ({ media: prim.media, sides: numberOfSides(prim.params.shape), key: prim.key, changed: () => raisePrimChanged(prim, CHANGED_MEDIA) })
+  ({ media: prim.media, sides: numberOfSides(prim.params.shape), key: prim.key, speaker: prim, changed: () => raisePrimChanged(prim, CHANGED_MEDIA) })
 
 function faceStatus(ctx: CallContext, holder: MediaHolder, face: number): number {
   if (face < 0) {
-    sayError(ctx, 'PRIM_MEDIA error: ALL_SIDES not supported')
+    sayError(ctx, 'PRIM_MEDIA error: ALL_SIDES not supported', holder.speaker)
     return STATUS_NOT_SUPPORTED
   }
   if (face < holder.sides) return STATUS_OK
-  sayError(ctx, `PRIM_MEDIA error: face ${face} on object ${holder.key} not found`)
+  sayError(ctx, `PRIM_MEDIA error: face ${face} on object ${holder.key} not found`, holder.speaker)
   return STATUS_NOT_FOUND
 }
 
@@ -57,11 +59,11 @@ function integer(list: ReadonlyArray<LslValue>, index: number): boolean {
   return type === 'integer' || (type === undefined && typeof list[index] === 'number' && Number.isInteger(list[index]))
 }
 
-function failure(ctx: CallContext, status: number, pair: number, param: number): number {
+function failure(ctx: CallContext, holder: MediaHolder, status: number, pair: number, param: number): number {
   const reason = status === STATUS_MALFORMED_PARAMS ? 'Malformed parameters'
     : status === STATUS_TYPE_MISMATCH ? 'Type mismatch'
     : status === STATUS_BOUNDS_ERROR ? 'Bounds error' : 'URL did not pass whitelist'
-  sayError(ctx, `llSetPrimMediaParams error: ${reason} near parameter #${pair}, param=${param}.  No values have been set.`)
+  sayError(ctx, `llSetPrimMediaParams error: ${reason} near parameter #${pair}, param=${param}.  No values have been set.`, holder.speaker)
   return status
 }
 
@@ -108,23 +110,23 @@ function set(ctx: CallContext, prim: MediaHolder | undefined, face: number, rule
   for (let i = 0; i < rules.length; i += 2) {
     const param = integer(rules, i) ? rules[i] as number : -1
     if (param < 0 || param > 14 || i + 1 === rules.length) {
-      return failure(ctx, STATUS_MALFORMED_PARAMS, i / 2, param < 0 && !integer(rules, i) ? 0 : param)
+      return failure(ctx, prim, STATUS_MALFORMED_PARAMS, i / 2, param < 0 && !integer(rules, i) ? 0 : param)
     }
     const value = rules[i + 1]!
     if (strings.has(param)) {
       if (typeof value !== 'string' || listElementType(rules, i + 1) === 'key') {
-        return failure(ctx, STATUS_TYPE_MISMATCH, i / 2, param)
+        return failure(ctx, prim, STATUS_TYPE_MISMATCH, i / 2, param)
       }
       if (param === 12) {
         const entries = value.split(',').filter(s => s !== '').map(s => s.trim())
         if (entries.length > 64 || entries.reduce((n, s) => n + Buffer.byteLength(s) + 1, 0) > 1024) {
-          return failure(ctx, STATUS_BOUNDS_ERROR, i / 2, param)
+          return failure(ctx, prim, STATUS_BOUNDS_ERROR, i / 2, param)
         }
         next[param] = entries.join(',')
       } else {
         const url = normalizeUrl(value)
         if (url !== undefined) {
-          if (Buffer.byteLength(url) > 1024) return failure(ctx, STATUS_BOUNDS_ERROR, i / 2, param)
+          if (Buffer.byteLength(url) > 1024) return failure(ctx, prim, STATUS_BOUNDS_ERROR, i / 2, param)
           next[param] = url
           if (param === 2) currentPair = i / 2
         }
@@ -132,22 +134,22 @@ function set(ctx: CallContext, prim: MediaHolder | undefined, face: number, rule
     } else {
       const dimensions = param === 9 || param === 10
       if (dimensions ? typeof value !== 'number' : !integer(rules, i + 1)) {
-        return failure(ctx, STATUS_TYPE_MISMATCH, i / 2, param)
+        return failure(ctx, prim, STATUS_TYPE_MISMATCH, i / 2, param)
       }
       const n = value as number
       if (dimensions) {
         const size = (n | 0) & 0xffff
-        if (size > 2048) return failure(ctx, STATUS_BOUNDS_ERROR, i / 2, param)
+        if (size > 2048) return failure(ctx, prim, STATUS_BOUNDS_ERROR, i / 2, param)
         next[param] = size
       } else if (param === 1) {
-        if (n !== 0 && n !== 1) return failure(ctx, STATUS_BOUNDS_ERROR, i / 2, param)
+        if (n !== 0 && n !== 1) return failure(ctx, prim, STATUS_BOUNDS_ERROR, i / 2, param)
         next[param] = n
       } else if (param === 13 || param === 14) next[param] = n & 7
       else next[param] = n === 0 ? 0 : 1
     }
   }
   if (currentPair >= 0 && next[11] && !allowed(next[2] as string, next[12] as string)) {
-    return failure(ctx, STATUS_WHITELIST_FAILED, currentPair, 2)
+    return failure(ctx, prim, STATUS_WHITELIST_FAILED, currentPair, 2)
   }
   prim.media.set(face, next)
   prim.changed()
@@ -163,7 +165,7 @@ function get(ctx: CallContext, prim: MediaHolder | undefined, face: number, rule
     if (!integer(rules, i)) continue
     const param = rules[i] as number
     if (param < 0 || param > 14) {
-      sayError(ctx, `llGetPrimMediaParams error: Unknown parameter '${param}'`)
+      sayError(ctx, `llGetPrimMediaParams error: Unknown parameter '${param}'`, prim.speaker)
       break
     }
     values.push(media[param]!)

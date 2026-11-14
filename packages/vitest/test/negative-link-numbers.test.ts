@@ -328,7 +328,7 @@ describe('negative link numbers in calls that take one link', () => {
   // 2 2 2 34 2 2 2 from child 3.
   const SIT_FLAGS = reads(
     'for (j = 1; j <= NP; ++j) llSetLinkSitFlags(pl(j), llList2Integer([2, 18, 34], j - 1));',
-    '(string)(llGetLinkSitFlags(L) & ~SIT_FLAG_SIT_TARGET)')
+    '(string)llGetLinkSitFlags(L)')
   it.each([
     [1, '18 18 18 2 18 18 18'],
     [2, '2 2 2 18 2 2 2'],
@@ -338,13 +338,12 @@ describe('negative link numbers in calls that take one link', () => {
   })
 
   // In-world: a lone box read 0 0 0 2 0 0 0, and 0 0 0 3 0 0 0 with an avatar on its
-  // sit target: the first other link is then the avatar. On the avatar link of one
-  // seated avatar llGetLinkSitFlags read 0 and PRIM_SIT_FLAGS read 2. The 3 is 2 plus
-  // SIT_FLAG_SIT_TARGET, which the grid reports while a prim has a sit target. That
-  // bit is a separate change, so the reads here mask it out.
+  // sit target: the first other link is then the avatar. llGetLinkSitFlags reads 0
+  // on an avatar link, where PRIM_SIT_FLAGS on the same link reads 2.
+  // The 3 is 2 plus SIT_FLAG_SIT_TARGET.
   it('llGetLinkSitFlags reads 0 below LINK_THIS on a lone prim', async () => {
     expect((await scene(1, SIT_FLAGS)).run()).toBe('0 0 0 2 0 0 0')
-    expect((await scene(1, SIT_FLAGS, 'root')).run()).toBe('0 0 0 2 0 0 0')
+    expect((await scene(1, SIT_FLAGS, 'root')).run()).toBe('0 0 0 3 0 0 0')
     const both = await scene(1, 'out = [(string)llGetLinkSitFlags(2) + "/" + llDumpList2String(llGetLinkPrimitiveParams(2, [PRIM_SIT_FLAGS]), "")];', 'root')
     expect(both.run()).toBe('0/2')
   })
@@ -379,19 +378,20 @@ describe('negative link numbers in calls that take one link', () => {
   // NULL_KEY and 0 and set no sit target; children 2 and 3 read the avatar and the
   // root's flags and set the root's sit target. A lone box read its own flags and set
   // its own sit target through link 0 until an avatar sat on it, then 0 and nothing.
+  // Every prim has a sit target here, so the root's flags read 3: 2 plus SIT_FLAG_SIT_TARGET.
   const ZERO = `
     integer j;
     for (j = 1; j <= NP; ++j) { llSetLinkSitFlags(pl(j), llList2Integer([2, 18, 34], j - 1)); llLinkSitTarget(pl(j), <0.0, 0.0, 0.5>, ZERO_ROTATION); }
-    string r = who(llAvatarOnLinkSitTarget(0)) + " " + (string)(llGetLinkSitFlags(0) & ~SIT_FLAG_SIT_TARGET) + " ";
+    string r = who(llAvatarOnLinkSitTarget(0)) + " " + (string)llGetLinkSitFlags(0) + " ";
     llLinkSitTarget(0, <0.0, 0.0, 0.6>, ZERO_ROTATION);
     for (j = 1; j <= NP; ++j) { if (llList2Vector(llGetLinkPrimitiveParams(pl(j), [PRIM_SIT_TARGET]), 1) == <0.0, 0.0, 0.6>) r += "x"; else r += "-"; }
     out = [r];`
   it('reads link 0 as the root from a child and as nothing from the root', async () => {
     expect((await scene(3, ZERO, 'root')).run(1)).toBe('- 0 ---')
-    expect((await scene(3, ZERO, 'root')).run(2)).toBe('av 2 x--')
-    expect((await scene(3, ZERO, 'root')).run(3)).toBe('av 2 x--')
-    expect((await scene(3, ZERO)).run(3)).toBe('- 2 x--')
-    expect((await scene(1, ZERO)).run()).toBe('- 2 x')
+    expect((await scene(3, ZERO, 'root')).run(2)).toBe('av 3 x--')
+    expect((await scene(3, ZERO, 'root')).run(3)).toBe('av 3 x--')
+    expect((await scene(3, ZERO)).run(3)).toBe('- 3 x--')
+    expect((await scene(1, ZERO)).run()).toBe('- 3 x')
     expect((await scene(1, ZERO, 'root')).run()).toBe('- 0 -')
   })
 
@@ -455,8 +455,7 @@ describe('negative link numbers in calls that take one link', () => {
   // ALL_SIDES, ...) and llClearLinkMedia(2, ALL_SIDES) on the avatar link each said
   // "PRIM_MEDIA error: ALL_SIDES not supported" on DEBUG_CHANNEL; set and clear
   // returned 1004, the read returned [], and no face took media. The box link did the
-  // same. In-world the avatar's name is on the message for the avatar link; here the
-  // script says it.
+  // same. The avatar says the avatar link's errors; avatar-link-media.test.ts has that.
   it('refuses ALL_SIDES on an avatar link as on a prim', async () => {
     const s = await scene(1, `
       out = [(string)llSetLinkMedia(2, ALL_SIDES, [PRIM_MEDIA_HOME_URL, "https://example.invalid/a"])
@@ -493,8 +492,7 @@ describe('negative link numbers in calls that take one link', () => {
   // an avatar-link face that held no media (face 4 through link 2, face 0 through -5
   // and through 2, and a face cleared three seconds earlier) returned 0 and raised no
   // event. Setting a face and clearing a face that held media each raised
-  // changed(CHANGED_MEDIA). A set and a clear of one face inside one event left one
-  // more CHANGED_MEDIA for the next clear of that face; that is not modelled.
+  // changed(CHANGED_MEDIA). avatar-link-media.test.ts has a set and a clear inside one event.
   it('raises no event for clearing an avatar-link face that holds no media', async () => {
     const s = await scene(1, `
       if (step == 0) changes = [];
