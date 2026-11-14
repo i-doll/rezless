@@ -96,12 +96,12 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
     if (prims.length === 0 && input.position) prim.params.position = input.position
     prims.push(prim)
     for (const item of primInput.inventory ?? []) {
-      prim.addInventory(item)
+      prim.placeInventory(item)
     }
     for (const [name, definition] of Object.entries(primInput.objects ?? {})) {
       const object = (await loadLinkset(definition)).linkset
       if (!object.prims.length) throw new Error(`loadLinkset: inventory object '${name}' has no prims`)
-      prim.addInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
+      prim.placeInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
         key: object.prims[0]!.key, object }))
     }
     for (const sInput of primInput.scripts ?? []) {

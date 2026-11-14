@@ -117,6 +117,8 @@ export interface WorldAvatar extends WorldEntity {
   readonly sittingOrder: number
   /** Prim-local offsets captured on sitting; later prim edits affect the next sit. */
   readonly sittingCamera: { readonly eye: Vector; readonly at: Vector } | null
+  /** Where a seated avatar is, relative to the root of the object it sits on. Null unless it sits on an object. */
+  sitPlacement: { position: Vector; rotation: Rotation } | null
   /** A rotation requested while seated, applied when the avatar stands. */
   standingRotation: Rotation | null
   home: AvatarDestination | null
@@ -466,14 +468,34 @@ export class World {
         const changingSeat = value !== seat && !!(info & AGENT_SITTING)
         snapshotSeat()
         if (value && value.linkset !== seat?.linkset) sittingOrder = ++world.nextSittingOrder
-        if (seat?.linkset && seat.linkset !== value?.linkset) for (const script of seat.linkset.allScripts()) script.sitterLeft(avatar.key)
+        const previous = seat?.linkset
+        if (previous && previous !== value?.linkset) for (const script of previous.allScripts()) script.sitterLeft(avatar.key)
         seat = value
+        // A sitter is a link, so the object it leaves and the one it joins renumber.
+        if (previous && previous !== seat?.linkset) previous.recomputeLinkNumbers()
+        seat?.linkset?.recomputeLinkNumbers()
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
         if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
         const target = seat?.params.sitTarget
-        seatOffset = { ...(world.sitPlacements.get(avatar)?.position ?? (target?.enabled ? target.offset : ZERO_VECTOR)) }
-        seatOrientation = { ...(world.sitPlacements.get(avatar)?.rotation ?? (target?.enabled ? target.rotation : ZERO_ROTATION)) }
+        const offset = world.sitPlacements.get(avatar)?.position ?? (target?.enabled ? target.offset : ZERO_VECTOR)
+        const orientation = world.sitPlacements.get(avatar)?.rotation ?? (target?.enabled ? target.rotation : ZERO_ROTATION)
+        // A sitter is a child of the root: it keeps its place when its seat prim moves.
+        const child = seat && seat !== seat.linkset?.prims[0] ? seat.params : undefined
+        const turned = child ? rotateVector(offset, child.rotation) : offset
+        seatOffset = child
+          ? { x: child.position.x + turned.x, y: child.position.y + turned.y, z: child.position.z + turned.z }
+          : { ...offset }
+        seatOrientation = child ? mulRotation(orientation, child.rotation) : { ...orientation }
         if (value && changingSeat && avatar.viewer.profile === 'rlv') returnStandtpAvatar(world, avatar)
+      },
+      get sitPlacement() {
+        clearRemovedSeat()
+        return seat ? { position: { ...seatOffset }, rotation: { ...seatOrientation } } : null
+      },
+      set sitPlacement(value) {
+        if (!value || !avatar.sittingOn) return
+        seatOffset = { ...value.position }
+        seatOrientation = { ...value.rotation }
       },
       standingRotation: null,
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
@@ -484,14 +506,15 @@ export class World {
   }
 
   private seatPosition(prim: Prim, local: Vector): Vector {
-    const origin = prim.regionPosition()
-    const offset = rotateVector(local, prim.regionRotation())
+    const root = prim.linkset?.prims[0] ?? prim
+    const origin = root.regionPosition()
+    const offset = rotateVector(local, root.regionRotation())
     // Target coordinates only; avatar skeleton and collision offsets are not simulated.
     return { x: origin.x + offset.x, y: origin.y + offset.y, z: origin.z + offset.z }
   }
 
   private seatRotation(prim: Prim, local: Rotation): Rotation {
-    return mulRotation(local, prim.regionRotation())
+    return mulRotation(local, (prim.linkset?.prims[0] ?? prim).regionRotation())
   }
 
   /** Attempt a user active-group change, respecting viewer locks and membership. */

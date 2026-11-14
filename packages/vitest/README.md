@@ -281,6 +281,34 @@ that avatar wears in the sender's region. Channel 0 to an avatar reaches no
 script. A prim never hears its own chat, and `llOwnerSay` and
 `llInstantMessage` never trigger a `listen`.
 
+#### Editing a prim's contents
+
+These `Prim` methods act as the object's owner editing its contents. Each one
+sends `changed(CHANGED_INVENTORY)` to the running scripts in that prim and to
+no other prim.
+
+```ts
+prims[0].addInventory(makeInventoryItem({ name: 'Notes', type: InventoryType.NOTECARD }))
+prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, new key
+prims[0].renameInventory('Notes', 'Settings')
+prims[0].removeInventory('Settings')                                 // a removed script stops
+prims[0].removeInventory('a', 'b')                                   // deleted together: one event
+```
+
+A script that has not started yet, or is stopped, gets no event, so items added
+before `start()` set the object up quietly. A script busy in a handler gets the
+event when the handler ends, and edits made meanwhile are merged into one or
+two events. Like `linkset.touch`, an edit runs the handlers it starts to their
+end and delivers any other event that is due.
+
+`addInventory` appends a number to a name the prim already holds (`Notes`,
+`Notes 1`) and returns the stored item. The other three throw for a name the
+prim does not hold, and `replaceInventory` and `renameInventory` refuse
+scripts. `llRemoveInventory` from a script sends no event.
+
+`prim.placeInventory(item)` puts an item in place with no event, for arranging
+an object after its scripts have started.
+
 #### Rezzing inventory objects
 
 Give a prim named object definitions through `objects`, then inspect the new
@@ -469,14 +497,29 @@ were measured on Aditi in SLua Tideland on 2026-11-01.
 ### Sitting and teleporting
 
 Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to simulate
-viewer seating. `avatar.sittingOn` identifies the occupied prim. Seated poses
-follow the current prim transform with the offset captured at seating; editing
-the target affects future sits. Deleting the object clears occupancy. Seating updates
+viewer seating. `avatar.sittingOn` identifies the occupied prim. A sitter is a
+child of the object's root: it moves with the root and stays put when its seat
+prim moves or the sit target is edited, which only affects future sits. Deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
 `changed(CHANGED_LINK)` throughout the object. The sit-target readers return
 its sitter only while the target is enabled. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
+
+A seated avatar is a link of the object, numbered after the prims. Several
+sitters are numbered in seating order, and later sitters move down a link when
+an earlier one stands. The order is from the Second Life wiki and the
+renumbering is inferred from it; neither was measured, since that needs a
+second avatar. `llGetNumberOfPrims` counts it, `llGetObjectPrimCount` does not, and a
+lone prim is link 1 instead of 0 while someone sits on it. `llGetLinkKey`,
+`llGetLinkName`, `llGetObjectLinkKey` and `llGetLinkPrimitiveParams` read the
+avatar at its link number. `llSetLinkPrimitiveParams(Fast)` moves the sitter
+with `PRIM_POS_LOCAL`, `PRIM_ROT_LOCAL`, `PRIM_POSITION` and `PRIM_ROTATION`,
+all relative to the root; any other rule on an avatar link does nothing and
+ends the rule list. `LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` reach
+the prims only. Unlinking a prim stands everyone seated on the object; linking
+keeps them seated where they are. Media set through an avatar link with
+`llSetLinkMedia` stays with the avatar.
 
 `llSetAgentRot` requires animation permission and changes yaw. A rotation
 requested while sitting applies when standing. `llTeleportAgent` and
@@ -1948,9 +1991,18 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
   Missing or wrong-typed arguments raise SLua's errors. String parameters
-  take strings and numbers (formatted the way Lua formats them), but not
-  `uuid`s or `integer`s, except where the definitions allow a `uuid` (as
-  `ll.MessageLinked`'s text does). Numeric strings are accepted as numbers.
+  take strings and `uuid`s (read as their text), but not numbers:
+  `ll.OwnerSay(5)` raises `string expected, got number`. Second Life did
+  this for every function measured, whether SLua's type definitions write
+  the parameter `string | uuid` or `string`. `integer`s are refused as
+  well; that one isn't measured, because the region measured has no
+  `integer` type. Three functions that are SLua's own code differ, as
+  measured: `ll.ToUpper` and `ll.ToLower` take a number but not a `uuid`,
+  and `ll.DumpList2String`'s separator takes neither. In a list, a `uuid`
+  or a number is not read as a string where that was measured:
+  `ll.Dialog` reports such a button list as LSL does, and
+  `ll.ParseString2List` ignores one among its separators and spacers.
+  Numeric strings are accepted as numbers.
   Lua numbers in lists are LSL floats, as in SLua, but selectors and rules
   (`ll.GetObjectDetails`, `ll.SetPrimMediaParams`, `ll.ParticleSystem`, …)
   read a whole number as the integer they want. Booleans are accepted only where LSL means a boolean.
@@ -2055,11 +2107,27 @@ s.start()
 expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
 ```
 
+Without the reporter installed, the env var collects and the CLI renders.
+Add the setup file that saves each test file's coverage for the CLI:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    setupFiles: ['@rezless/vitest/coverage-setup'],
+  },
+})
+```
+
 ```sh
-# Without the reporter installed — env var collects, CLI renders.
 LSL_COVERAGE=1 pnpm test
 pnpm exec rezless-coverage
 ```
+
+The setup file writes nothing in a run without `LSL_COVERAGE=1`, so it can
+stay in the config. `LslCoverageReporter` adds it by itself.
 
 By default, reports for synthetic filenames (`<inline>`, names without a
 path separator, paths that don't exist on disk) are omitted — they're

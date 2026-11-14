@@ -170,6 +170,7 @@ export class Script {
   private readonly invalidPrograms: ReadonlySet<Node>
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
+  get hasStarted() { return this.started }
   private readonly stubs: 'allow' | 'warn' | 'throw'
   private readonly warnedStubs = new Set<string>()
   /** Per-script clock facade (timer state + time reference). */

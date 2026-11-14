@@ -4,7 +4,7 @@ import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } fro
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem } from './inventory.js'
-import { InventoryType, inventoryItemName } from './inventory.js'
+import { InventoryType, freeInventoryName, inventoryItemName, queueInventoryChanged } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
@@ -14,6 +14,7 @@ import { PERM_ALL, STATUS_PHANTOM } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
 
 let primsMade = 0
+let itemsSaved = 0
 
 export interface AttachedSound {
   sound: string
@@ -183,13 +184,96 @@ export class Prim {
   }
 
   /**
-   * Add a non-script inventory item (notecard, texture, etc.). The caller
-   * is responsible for setting `acquireTimeMs`; if you want it to default
-   * to the current linkset clock, build the item with `makeInventoryItem`
-   * and pass `acquireTimeMs: this.linkset?.clock.now ?? 0`.
+   * Add a non-script inventory item (notecard, texture, etc.) as the owner
+   * does by dropping it on the prim. A name the prim already holds gets a
+   * number appended. The prim's scripts get `changed(CHANGED_INVENTORY)`.
+   * The caller is responsible for setting `acquireTimeMs`; if you want it to
+   * default to the current linkset clock, build the item with
+   * `makeInventoryItem` and pass `acquireTimeMs: this.linkset?.clock.now ?? 0`.
    */
-  addInventory(item: InventoryItem): void {
-    this.inventory.push({ ...item, name: inventoryItemName(item.name) })
+  addInventory(item: InventoryItem): InventoryItem {
+    const base = inventoryItemName(item.name)
+    if (!base) throw new Error('addInventory: the item name has no ASCII characters')
+    const added = this.placeInventory({ ...item, name: freeInventoryName(this.inventory, base) })
+    this.#ownerEditedInventory()
+    return added
+  }
+
+  /** Put an item in the inventory as it is, without telling the prim's scripts. The VM uses this to build and copy objects. */
+  placeInventory(item: InventoryItem): InventoryItem {
+    const placed = { ...item, name: inventoryItemName(item.name) }
+    this.inventory.push(placed)
+    return placed
+  }
+
+  /**
+   * Delete items as the owner does in the object's contents. Deleted scripts
+   * stop. The prim's remaining scripts get one `changed(CHANGED_INVENTORY)`
+   * for the call, however many items it names.
+   */
+  removeInventory(...names: string[]): void {
+    const indexes = [...new Set(names)].map((name) => this.#inventoryIndex('removeInventory', name))
+    for (const item of indexes.map((index) => this.inventory[index]!)) {
+      this.inventory.splice(this.inventory.indexOf(item), 1)
+      if (!item.script) continue
+      const running = this.scripts.indexOf(item.script)
+      if (running >= 0) this.scripts.splice(running, 1)
+      item.script.markDead()
+    }
+    if (names.length) this.#ownerEditedInventory()
+  }
+
+  /**
+   * Save new content over an item, as the owner does when editing a notecard
+   * in the object's contents. The item keeps its name and gets a new key
+   * unless `changes.key` supplies one. The prim's scripts get
+   * `changed(CHANGED_INVENTORY)`.
+   */
+  replaceInventory(name: string, changes: Partial<Omit<InventoryItem, 'name' | 'type' | 'script'>>): void {
+    const index = this.#inventoryIndex('replaceInventory', name)
+    const old = this.inventory[index]!
+    if (old.script) throw new Error(`replaceInventory: '${name}' is a script; recompiling a script is not supported`)
+    this.inventory[index] = {
+      ...old, ...changes, name: old.name, type: old.type,
+      key: changes.key ?? deterministicKey(`inventory-save/${++itemsSaved}`),
+    }
+    this.#ownerEditedInventory()
+  }
+
+  /**
+   * Rename an item as the owner does in the object's contents. The prim's
+   * scripts get `changed(CHANGED_INVENTORY)`.
+   */
+  renameInventory(from: string, to: string): void {
+    const item = this.inventory[this.#inventoryIndex('renameInventory', from)]!
+    if (item.script) throw new Error(`renameInventory: '${from}' is a script; renaming a script is not supported`)
+    const name = inventoryItemName(to)
+    if (!name) throw new Error('renameInventory: the new name has no ASCII characters')
+    if (name === item.name) throw new Error(`renameInventory: '${from}' already has that name`)
+    if (this.inventory.some((it) => it.name === name)) throw new Error(`renameInventory: an item named '${name}' already exists`)
+    item.name = name
+    this.#ownerEditedInventory()
+  }
+
+  #inventoryIndex(method: string, name: string): number {
+    const index = this.inventory.findIndex((it) => it.name === name)
+    if (index < 0) throw new Error(`${method}: no item named '${name}'`)
+    return index
+  }
+
+  /**
+   * A stopped script, or one that has not started yet, never hears of the
+   * edit. A script busy in a handler gets the event when it finishes.
+   */
+  #ownerEditedInventory(): void {
+    const linkset = this.linkset
+    if (!linkset) return
+    // A queued event can run a script's handler without starting it.
+    const scripts = this.scripts.filter((script) => script.running
+      && (script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined))
+    if (!scripts.length) return
+    for (const script of scripts) queueInventoryChanged(script)
+    linkset.settle(scripts.filter((script) => script.wakeAt === undefined))
   }
 
   /** Find a script by inventory name. */

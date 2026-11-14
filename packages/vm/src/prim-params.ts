@@ -376,7 +376,7 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
 const clampVec = (v: Vector, lo: number, hi: number): Vector =>
   ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
 
-function normalizeRot(r: Rotation): Rotation {
+export function normalizeRot(r: Rotation): Rotation {
   const mag = Math.hypot(r.x, r.y, r.z, r.s)
   if (mag === 0) return identityRot()
   return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
