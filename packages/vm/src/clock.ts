@@ -309,7 +309,8 @@ export class ScriptClockView {
    */
   catchUpTimer(): void {
     if (this.timerIntervalMs <= 0 || this.timerNextFireMs > this.now) return
-    this.timerLateDueMs = this.timerNextFireMs
+    // A tick already owed from an earlier start keeps its place.
+    this.timerLateDueMs ??= this.timerNextFireMs
     this.timerNextFireMs = this.now
   }
 

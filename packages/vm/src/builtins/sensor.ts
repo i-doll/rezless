@@ -23,6 +23,8 @@ interface SensorTask {
   remainingMs: number
   /** A scan fell due while the script was stopped; it runs when the script starts. */
   missed: boolean
+  /** The scheduled scan is one owed from while the script was down. */
+  late: boolean
   cancel: (() => void) | undefined
 }
 const sensors = new WeakMap<Script, SensorTask>()
@@ -31,11 +33,14 @@ const sensors = new WeakMap<Script, SensorTask>()
 function schedule(script: Script, task: SensorTask, delay: number, late = false): void {
   if (!script.linkset.peers.includes(script.linkset)) {
     task.remainingMs = delay
+    task.missed ||= late
     return
   }
   task.dueAt = script.clockView.now + delay
+  task.late = late
   task.cancel = script.linkset.clock.scheduleTask(script, task.dueAt, () => {
     task.cancel = undefined
+    task.late = false
     if (script.running) run(script, task)
     else task.missed = true
   }, late)
@@ -49,7 +54,7 @@ function run(script: Script, task: SensorTask): void {
 
 function register(script: Script, q: Scan, rate: number): void {
   stopSensors(script)
-  const task: SensorTask = { q, rate, dueAt: 0, remainingMs: 0, missed: false, cancel: undefined }
+  const task: SensorTask = { q, rate, dueAt: 0, remainingMs: 0, missed: false, late: false, cancel: undefined }
   sensors.set(script, task)
   schedule(script, task, rate * 1000)
 }
@@ -84,11 +89,12 @@ export function runMissedSensor(script: Script): void {
 export function copySensors(from: Script, to: Script): void {
   const task = sensors.get(from)
   if (!task) return
-  const copy: SensorTask = { ...task, q: { ...task.q }, cancel: undefined, missed: false }
+  const copy: SensorTask = { ...task, q: { ...task.q }, cancel: undefined, missed: false, late: false }
   sensors.set(to, copy)
   const left = task.cancel ? Math.max(0, task.dueAt - from.clockView.now) : task.remainingMs
   // A scan that fell due while the script was down is due at once.
-  schedule(to, copy, task.missed ? 0 : left, task.missed)
+  const owed = task.missed || task.late
+  schedule(to, copy, owed ? 0 : left, owed)
 }
 
 /** Reset and state changes discard scans; completed events belong to the event queue. */

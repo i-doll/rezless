@@ -55,6 +55,7 @@ const control = `list states;
       if (n != 900) return;
       if (m == "stop") llSetScriptState("t", FALSE);
       else if (m == "start") llSetScriptState("t", TRUE);
+      else if (m == "start+stop") { llSetScriptState("t", TRUE); llSetScriptState("t", FALSE); }
       else if (m == "send+stop") { llMessageLinked(LINK_THIS, 1, "queued before stop", ""); llSetScriptState("t", FALSE); }
       else if (m == "send+reset+send") {
         llMessageLinked(LINK_THIS, 1, "before reset", "");
@@ -349,6 +350,53 @@ describe('a script stopped with llSetScriptState', () => {
     expect(changes(linkset, () => (t.global('log') as string[]).length, 6500)).toEqual([13_000, 16_000])
   })
 
+  it('never gets a collision that happened while it was stopped', async () => {
+    // In-world: a physical ball dropped on the script's prim gave three
+    // collision_start and collision_end pairs as it bounced. Dropped again
+    // while the script was stopped, it gave none, also after the start 12 s
+    // later. A third drop after the start gave three pairs again. A control
+    // event for a stopped script is not measured: it needs control input
+    // from an avatar, which the viewer tools used here cannot send. rezless
+    // drops it like every other kind.
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [
+      { name: 't', source: { source: 'integer hits; default { collision_start(integer n) { ++hits; } collision_end(integer n) { ++hits; } }' } },
+      { name: 'ctl', source: { source: control } },
+    ] }] })
+    const t = scripts['t']!
+    const ctl = scripts['ctl']!
+    t.start()
+    ctl.start()
+    const tell = (m: string) => ctl.fire('link_message', { sender_num: 1, num: 900, str: m, id: NULL_KEY })
+    const bounce = () => {
+      for (const event of ['collision_start', 'collision_end']) {
+        t.fire(event, { num_detected: 1, detected: [{ key: '22222222-2222-2222-2222-222222222222', name: 'ball' }] })
+      }
+    }
+    bounce()
+    expect(t.global('hits')).toBe(2)
+    tell('stop')
+    bounce()
+    linkset.advanceTime(12_000)
+    tell('start')
+    linkset.advanceTime(1000)
+    expect(t.global('hits')).toBe(2)
+    bounce()
+    expect(t.global('hits')).toBe(4)
+  })
+
+  it('keeps the missed tick\'s place when it is started, stopped and started again before the tick fires', async () => {
+    const { t, tell, linkset } = await rig({ source: timed })
+    tell('msg:1:4.0')
+    linkset.advanceTime(1000)
+    tell('stop')
+    linkset.advanceTime(4000)
+    tell('start+stop')
+    linkset.advanceTime(1000)
+    tell('start')
+    expect(t.global('log')).toEqual(['set 4.0', 'timer'])
+    expect(changes(linkset, () => (t.global('log') as string[]).length, 6500)).toEqual([8000, 12_000])
+  })
+
   it('catches up the same way when a test starts it with script.running', async () => {
     const { t, linkset } = await rig()
     linkset.deliverLinkMessage(1, 1, 500, '4.0', NULL_KEY)
@@ -617,6 +665,24 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
     const k = rez()
     linkset.advanceTime(0)
     expect(k.global('log')).toEqual(['entry', 'timer', 'entry', 'on_rez', 'timer', 'scan'])
+    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
+  })
+
+  it('keeps that order when the object goes through llDerezObject and llRezObject', async () => {
+    const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'k', source: { source: crasher } }] }] })
+    const { linkset, rez, take } = await rezzer(payload.linkset)
+    const first = rez()
+    linkset.advanceTime(0)
+    first.fire('link_message', { sender_num: 1, num: 0, str: 'arm', id: NULL_KEY })
+    linkset.advanceTime(6900)
+    expect(() => first.fire('link_message', { sender_num: 1, num: 0, str: 'crash', id: NULL_KEY })).toThrow('Math Error')
+    linkset.advanceTime(11_000)
+    take()
+    linkset.advanceTime(15_000)
+    const start = linkset.clock.now
+    const k = rez()
+    linkset.advanceTime(0)
+    expect((k.global('log') as string[]).slice(-4)).toEqual(['entry', 'on_rez', 'timer', 'scan'])
     expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
   })
 
