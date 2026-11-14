@@ -387,7 +387,7 @@ for (const method of ['viewer', 'simulator', 'fixture'] as const) {
    }`
    const old = await loadLinkset({ world, owner: avatar.key, region: avatar.region, prims: [{ scripts: [{ name: 'saved', source: { source: state } }] }] })
    old.linkset.attachToAvatar(avatar.key, 1)
-   old.scripts.saved!.start(); old.scripts.saved!.grantPermissions()
+   old.scripts.saved!.start()
    old.scripts.saved!.fire('touch_start', { num_detected: 1 })
    old.scripts.saved!.fire('touch_start', { num_detected: 1 })
    const definition = await loadLinkset({ prims: [{ scripts: [{ name: 'saved', source: { source: state } }] }] })

@@ -1,33 +1,55 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
-import type { Prim } from '../prim.js'
+import type { Prim, PrimMediaParams } from '../prim.js'
+import type { WorldAvatar } from '../world.js'
 import type { LslValue } from '../values/types.js'
 import { listElementType, ruleElementType, typedList } from '../values/list-types.js'
 import { numberOfSides } from '../prim-params.js'
 import {
-  CHANGED_MEDIA, LINK_THIS, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
+  CHANGED_MEDIA, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
   STATUS_BOUNDS_ERROR, STATUS_NOT_FOUND, STATUS_NOT_SUPPORTED, STATUS_WHITELIST_FAILED,
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { raisePrimChanged } from '../prim-changed.js'
+import { isPrim } from '../linkset.js'
 
 const defaults = (): (number | string)[] => [0, 0, '', '', 0, 0, 0, 0, 0, 0, 0, 0, '', 7, 7]
 const strings = new Set([2, 3, 12])
 
-// Media calls select one prim. Negative selectors other than LINK_THIS select
-// the first other prim, including LINK_SET and LINK_ALL_CHILDREN (Aditi probes).
-function target(ctx: CallContext, link: number): Prim | undefined {
-  if (link === LINK_THIS) return ctx.prim
-  if (link < 0) return ctx.linkset.prims.find(p => p !== ctx.prim)
-  if (link === 0 && ctx.prim.linkNumber > 1) return ctx.linkset.prims[0]
-  return ctx.linkset.prims.find(p => p.linkNumber === link)
+/** What media calls act on: a prim, or the avatar seated at an avatar link. */
+interface MediaHolder {
+  readonly media: Map<number, PrimMediaParams>
+  readonly sides: number
+  readonly key: string
+  changed(): void
 }
 
-function faceStatus(ctx: CallContext, prim: Prim, face: number): number {
+// Media set through an avatar link stays with the avatar: it reads back after
+// the avatar stands and from the next object it sits on.
+const avatarMedia = new WeakMap<WorldAvatar, MediaHolder['media']>()
+
+// Media calls take one link. In-world, every negative number but LINK_THIS is the
+// first other link, LINK_SET and LINK_ALL_CHILDREN included (Aditi probes). On a
+// seated lone prim that link is the sitter.
+function holder(ctx: CallContext, link: number): MediaHolder | undefined {
+  const sitter = ctx.linkset.oneLink(ctx.prim, link)
+  if (isPrim(sitter)) return primHolder(sitter)
+  if (!sitter) return undefined
+  if (!avatarMedia.has(sitter)) avatarMedia.set(sitter, new Map())
+  // An avatar link has 45 media faces; its changed event goes to the root.
+  return { media: avatarMedia.get(sitter)!, sides: 45, key: sitter.key, changed: () => raisePrimChanged(ctx.linkset.prims[0]!, CHANGED_MEDIA) }
+}
+
+const primHolder = (prim: Prim): MediaHolder =>
+  ({ media: prim.media, sides: numberOfSides(prim.params.shape), key: prim.key, changed: () => raisePrimChanged(prim, CHANGED_MEDIA) })
+
+function faceStatus(ctx: CallContext, holder: MediaHolder, face: number): number {
   if (face < 0) {
     sayError(ctx, 'PRIM_MEDIA error: ALL_SIDES not supported')
     return STATUS_NOT_SUPPORTED
   }
-  return face < numberOfSides(prim.params.shape) ? STATUS_OK : STATUS_NOT_FOUND
+  if (face < holder.sides) return STATUS_OK
+  sayError(ctx, `PRIM_MEDIA error: face ${face} on object ${holder.key} not found`)
+  return STATUS_NOT_FOUND
 }
 
 function integer(list: ReadonlyArray<LslValue>, index: number): boolean {
@@ -77,7 +99,7 @@ function allowed(url: string, whitelist: string): boolean {
   })
 }
 
-function set(ctx: CallContext, prim: Prim | undefined, face: number, rules: ReadonlyArray<LslValue>): number {
+function set(ctx: CallContext, prim: MediaHolder | undefined, face: number, rules: ReadonlyArray<LslValue>): number {
   if (!prim) return STATUS_OK
   const status = faceStatus(ctx, prim, face)
   if (status !== STATUS_OK) return status
@@ -128,13 +150,14 @@ function set(ctx: CallContext, prim: Prim | undefined, face: number, rules: Read
     return failure(ctx, STATUS_WHITELIST_FAILED, currentPair, 2)
   }
   prim.media.set(face, next)
-  raisePrimChanged(prim, CHANGED_MEDIA)
+  prim.changed()
   return STATUS_OK
 }
 
-function get(ctx: CallContext, prim: Prim | undefined, face: number, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
-  const media = prim?.media.get(face)
-  if (!media || !prim || face >= numberOfSides(prim.params.shape)) return []
+function get(ctx: CallContext, prim: MediaHolder | undefined, face: number, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
+  if (!prim || faceStatus(ctx, prim, face) !== STATUS_OK) return []
+  const media = prim.media.get(face)
+  if (!media) return []
   const values: LslValue[] = []
   for (let i = 0; i < rules.length; i++) {
     if (!integer(rules, i)) continue
@@ -148,16 +171,16 @@ function get(ctx: CallContext, prim: Prim | undefined, face: number, rules: Read
   return typedList(values, values.map(v => typeof v === 'string' ? 'string' : 'integer'))
 }
 
-function clear(ctx: CallContext, prim: Prim | undefined, face: number): number {
+function clear(ctx: CallContext, prim: MediaHolder | undefined, face: number): number {
   if (!prim) return STATUS_OK
   const status = faceStatus(ctx, prim, face)
-  if (status === STATUS_OK && prim.media.delete(face)) raisePrimChanged(prim, CHANGED_MEDIA)
+  if (status === STATUS_OK && prim.media.delete(face)) prim.changed()
   return status
 }
 
-export const llSetPrimMediaParams: BuiltinImpl = (ctx, args) => set(ctx, ctx.prim, args[0] as number, args[1] as ReadonlyArray<LslValue>)
-export const llGetPrimMediaParams: BuiltinImpl = (ctx, args) => get(ctx, ctx.prim, args[0] as number, args[1] as ReadonlyArray<LslValue>)
-export const llClearPrimMedia: BuiltinImpl = (ctx, args) => clear(ctx, ctx.prim, args[0] as number)
-export const llSetLinkMedia: BuiltinImpl = (ctx, args) => set(ctx, target(ctx, args[0] as number), args[1] as number, args[2] as ReadonlyArray<LslValue>)
-export const llGetLinkMedia: BuiltinImpl = (ctx, args) => get(ctx, target(ctx, args[0] as number), args[1] as number, args[2] as ReadonlyArray<LslValue>)
-export const llClearLinkMedia: BuiltinImpl = (ctx, args) => clear(ctx, target(ctx, args[0] as number), args[1] as number)
+export const llSetPrimMediaParams: BuiltinImpl = (ctx, args) => set(ctx, primHolder(ctx.prim), args[0] as number, args[1] as ReadonlyArray<LslValue>)
+export const llGetPrimMediaParams: BuiltinImpl = (ctx, args) => get(ctx, primHolder(ctx.prim), args[0] as number, args[1] as ReadonlyArray<LslValue>)
+export const llClearPrimMedia: BuiltinImpl = (ctx, args) => clear(ctx, primHolder(ctx.prim), args[0] as number)
+export const llSetLinkMedia: BuiltinImpl = (ctx, args) => set(ctx, holder(ctx, args[0] as number), args[1] as number, args[2] as ReadonlyArray<LslValue>)
+export const llGetLinkMedia: BuiltinImpl = (ctx, args) => get(ctx, holder(ctx, args[0] as number), args[1] as number, args[2] as ReadonlyArray<LslValue>)
+export const llClearLinkMedia: BuiltinImpl = (ctx, args) => clear(ctx, holder(ctx, args[0] as number), args[1] as number)

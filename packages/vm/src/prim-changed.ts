@@ -36,12 +36,20 @@ function snapshot(prim: Prim, rule: number): string | undefined {
   }
 }
 
+/** A sculpt type PRIM_TYPE accepts: stitching 0 to 4 or 6, with the invert and mirror flags. */
+function isSculptType(type: LslValue | undefined): boolean {
+  if (typeof type !== 'number') return false
+  const stitching = type & 7
+  return (type & 0x38) === 0 && stitching !== 5 && stitching !== 7
+}
+
 /** Apply a validated rule and report the kinds of changes that rule can cause. */
 export function setPrimParamWithChanged(
   prim: Prim, rule: number, rules: ReadonlyArray<LslValue>, cursor: number, caller = prim,
 ): number | null {
-  // PRIM_TYPE cannot convert a prim to mesh. Mesh shapes remain available as fixtures.
-  if (rule === PRIM_TYPE && rules[cursor] === PRIM_TYPE_SCULPT && ((rules[cursor + 2] as number) & 7) === 5) return 3
+  // PRIM_TYPE cannot convert a prim to mesh, and ignores a sculpt type it does not know or a
+  // rule without one. Mesh shapes remain available as fixtures.
+  if (rule === PRIM_TYPE && rules[cursor] === PRIM_TYPE_SCULPT && !isSculptType(rules[cursor + 2])) return 3
   const before = snapshot(prim, rule)
   const consumed = prim.setPrimParam(rule, rules, cursor, caller)
   if (consumed === null) return consumed

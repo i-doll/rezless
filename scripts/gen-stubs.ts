@@ -50,7 +50,9 @@ interface RawEvent {
 /**
  * How SLua's `ll` table changes a function or event from LSL, as a TS object
  * literal, or '' when it doesn't: removed entirely, or an integer argument or
- * result that is a 0-based index (1-based in SLua) or a boolean.
+ * result that is a 0-based index (1-based in SLua) or a boolean. Boolean
+ * arguments are listed for events only: a function takes a boolean for any
+ * integer argument that isn't a 1-based index.
  */
 function sluaLiteral(
   args: RawArguments | undefined,
@@ -59,16 +61,11 @@ function sluaLiteral(
   const indexParams: number[] = []
   const boolParams: number[] = []
   const stringParams: number[] = []
-  const uuidParams: number[] = []
   ;(args ?? []).flatMap((a) => Object.values(a)).forEach((p, i) => {
     if (p['index-semantics']) indexParams.push(i)
-    if (p['bool-semantics']) boolParams.push(i)
+    if (flags.event && p['bool-semantics']) boolParams.push(i)
     // A key parameter SLua passes as a plain string (link_message's id).
     if (p.type === 'key' && p['slua-type'] === 'string') stringParams.push(i)
-    // A string parameter that takes a uuid too (llMessageLinked's str).
-    // Events only pass values to scripts, so these read-side flags are for functions.
-    if (flags.event) return
-    if (p.type === 'string' && p['slua-type'] === 'string | uuid') uuidParams.push(i)
   })
   const parts: string[] = []
   if (flags.removed) parts.push('removed: true')
@@ -77,7 +74,6 @@ function sluaLiteral(
   if (indexParams.length) parts.push(`indexParams: [${indexParams.join(', ')}]`)
   if (boolParams.length) parts.push(`boolParams: [${boolParams.join(', ')}]`)
   if (stringParams.length) parts.push(`stringParams: [${stringParams.join(', ')}]`)
-  if (uuidParams.length) parts.push(`uuidParams: [${uuidParams.join(', ')}]`)
   return parts.length ? `, slua: { ${parts.join(', ')} }` : ''
 }
 
@@ -324,20 +320,17 @@ export interface ParamSpec {
 }
 
 /**
- * How SLua's \`ll\` table differs from LSL for a function or event: removed,
- * or integer arguments / results (by position) that are 0-based indexes
- * (1-based in SLua) or booleans.
+ * How SLua's \`ll\` table differs from LSL for a function: removed, integer
+ * arguments (by position) that are 0-based indexes (1-based in SLua), or an
+ * integer result that is such an index or a boolean.
  */
 export interface SluaSpec {
   readonly removed?: boolean
   readonly returnIndex?: boolean
   readonly returnBool?: boolean
   readonly indexParams?: ReadonlyArray<number>
-  readonly boolParams?: ReadonlyArray<number>
   /** Key parameters SLua passes as plain strings. */
   readonly stringParams?: ReadonlyArray<number>
-  /** String parameters that also take a uuid. */
-  readonly uuidParams?: ReadonlyArray<number>
 }
 
 export interface BuiltinSpec {

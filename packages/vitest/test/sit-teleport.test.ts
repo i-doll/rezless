@@ -132,10 +132,14 @@ it('rejects sitting when every sit target is occupied', async () => {
   script.start()
   expect(script.global('result')).toBe(-3)
 })
+// The permission below is granted in the event that seated the avatar, because the fixture seats
+// it at once. llSitOnLink needs an experience, which was not available for probing, so whether
+// Second Life already counts the avatar as seated on the next line was not measured; the grant to
+// an avatar who is seated was (auto-grant-permissions.test.ts).
 it('ignores rotation while seated on a sit target', async () => {
   const { script, avatar } = await fixture(`default{state_entry(){llSitTarget(<0,0,1>,ZERO_ROTATION);llSitOnLink(llGetOwner(),1);llRequestPermissions(llGetOwner(),PERMISSION_TRIGGER_ANIMATION);}
     run_time_permissions(integer p){llSetAgentRot(llEuler2Rot(<0,0,PI_BY_TWO>),0);}}`, xp())
-  script.start(); script.grantPermissions()
+  script.start()
   expect(avatar.rotation).toEqual({ x: 0, y: 0, z: 0, s: 1 })
   expect(errors(script)).toEqual([])
 })
@@ -175,13 +179,14 @@ it('keeps teleport home subject to land ownership, with its five second delay', 
 })
 
 it('applies a seated rotation request when standing without losing permissions', async () => {
+  // The same-event grant after llSitOnLink is not measurable here; see the note above.
   // In-world: rotation.lsl -> seated target stays at identity; after llUnSit the
   // requested negative yaw appears, permissions remain 4112. Aditi, SLua Tideland, 2026-11-01.
   const { script, avatar } = await fixture(`integer permissions;
     default{state_entry(){llSitTarget(<0,0,1>,ZERO_ROTATION);llSitOnLink(llGetOwner(),1);llRequestPermissions(llGetOwner(),PERMISSION_TRIGGER_ANIMATION);}
     run_time_permissions(integer p){llSetAgentRot(llEuler2Rot(<0,0,-1>),99);}
     touch_start(integer n){llUnSit(llGetOwner());permissions=llGetPermissions();}}`, xp())
-  script.start(); script.grantPermissions()
+  script.start()
   expect(avatar.rotation).toEqual({ x: 0, y: 0, z: 0, s: 1 })
   script.fire('touch_start', { num_detected: 1 })
   expect(avatar.rotation.z).toBeCloseTo(-0.47942554)

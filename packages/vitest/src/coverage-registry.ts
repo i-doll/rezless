@@ -7,20 +7,19 @@ import type { Script, CoverageReport } from '@rezless/vm'
  * test run. The Vitest reporter walks it at end-of-run to assemble the
  * aggregate report.
  *
- * Workers run in a separate context from the reporter, so we have two
- * independent paths that drain snapshots to disk:
+ * Workers run in a separate context from the reporter, so snapshots reach
+ * it as dump files on disk. Two paths drain them:
  *
- *   1. **Primary**: `coverage-setup.ts` registers a Vitest `afterAll` hook
- *      in every worker. Fires after each test file completes — works
- *      reliably under both `pool: 'threads'` (where this is the only
- *      pre-`onTestRunEnd` opportunity to flush, since worker threads
- *      share `process` with main and `process.on('exit')` only fires when
- *      main exits) and `pool: 'forks'` (where the worker process exits
- *      between files, but afterAll still runs first).
+ *   1. `coverage-setup.ts` registers a Vitest `afterAll` hook in every
+ *      worker, which fires after each test file. This is the only path that
+ *      works inside a Vitest run: Vitest stops its workers by terminating
+ *      the thread or signalling the fork, so `process.on('exit')` never
+ *      fires in them. The reporter adds the setup file itself; a project
+ *      that uses `LSL_COVERAGE=1` with the CLI and no reporter has to list
+ *      it in `setupFiles`.
  *
- *   2. **Fallback**: `process.on('exit')` below. Catches any reports that
- *      slip past afterAll — e.g. if the setup file failed to load or the
- *      reporter wasn't installed at all (LSL_COVERAGE=1 + CLI render flow).
+ *   2. `process.on('exit')` below, for a process that exits by itself, such
+ *      as a plain Node script that calls `loadScript`.
  *
  * `drainSnapshots()` clears the registry, so whichever path runs first
  * wins; the other becomes a no-op.
@@ -42,8 +41,6 @@ function installExitHook(): void {
     try {
       const dir = dumpDir()
       fs.mkdirSync(dir, { recursive: true })
-      // Filename includes pid + a counter to avoid collisions when multiple
-      // workers in the same pid (thread pool) flush via different timings.
       const file = path.join(dir, `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`)
       fs.writeFileSync(file, JSON.stringify(reports))
     } catch {

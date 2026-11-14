@@ -109,8 +109,9 @@ it('does not detach an object from a child-prim script', async () => {
   ] })
   scripts.root!.start()
   scripts.root!.grantPermissions()
+  // In-world: a request probe in the child prim of a worn two-prim object was granted 32 at once
+  // (Aditi, SLua Tideland, 2026-11-13), so the child needs no answer here.
   scripts.child!.start()
-  scripts.child!.grantPermissions()
   expect(scripts.child!.global('point')).toBe(6)
   expect(scripts.child!.chat.filter(c => c.channel === 2147483647)).toEqual([])
 })
@@ -185,7 +186,9 @@ it.each([false,true])('detaches with an avatar permission key and no ATTACH bit 
   script.start()
   if (!prior) {linkset.attachToAvatar(OWNER,6);linkset.advanceTime(0)}
   script.grantPermissions()
-  if(prior)script.grantPermissions()
+  // In-world: a probe granted 32 called llAttachToAvatar and asked for 1040 in the same event ->
+  // llGetAttached() was already 5 and llGetPermissions() 1040 on the next line, with no dialog
+  // (Aditi, SLua Tideland, 2026-11-13).
   expect(script.global('point')).toBe(6)
   expect(script.global('detached')).toBe(1)
   expect(linkset.attachment).toBeNull()

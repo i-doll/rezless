@@ -1,7 +1,9 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslType, LslValue } from '../values/types.js'
-import type { Linkset } from '../linkset.js'
+import { isPrim, type Link, type Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
+import type { WorldAvatar } from '../world.js'
+import { readAvatarLinkParam, writeAvatarLinkParam } from '../avatar-link.js'
 import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET } from '../generated/constants.js'
 import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { typedList } from '../values/list-types.js'
@@ -18,15 +20,16 @@ import { setPrimParamWithChanged } from '../prim-changed.js'
  * An unknown rule or a bad argument says the simulator's error on
  * DEBUG_CHANNEL and stops the walk; rules before it stay applied.
  */
-function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyArray<LslValue>): void {
+function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyArray<LslValue>, sitter?: WorldAvatar): void {
   const { linkset, prim: caller } = ctx
   let cur = target
   let i = 0
   for (let ruleNumber = 1; i < rules.length; ruleNumber++) {
     const rule = rules[i] as number
     if (rule === PRIM_LINK_TARGET) {
-      const link = (rules[i + 1] as number) | 0
-      cur = linkset.resolveTargets(caller.linkNumber, link)
+      const links = linkset.linksFrom(caller, (rules[i + 1] as number) | 0)
+      cur = links.prims
+      sitter = links.sitter
       i += 2
       continue
     }
@@ -36,6 +39,10 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
       return
     }
     let consumed: number | null = null
+    if (sitter) {
+      consumed = writeAvatarLinkParam(sitter, rule, rules[i + 1])
+      if (consumed === null) return
+    }
     for (const p of cur) {
       const c = setPrimParamWithChanged(p, rule, rules, i + 1, caller)
       if (c === null) return
@@ -54,28 +61,22 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
   }
 }
 
-function resolveGetTargets(linkset: Linkset, caller: Prim, link: number): Prim[] {
-  // Link 0 aliases the root when read from a child, but is empty from a linked root.
-  const target = link === 0 && caller.linkNumber > 1 ? 1 : link
-  return linkset.resolveTargets(caller.linkNumber, target)
-}
-
-function walkGet(
-  linkset: Linkset,
-  caller: Prim,
-  startTarget: Prim[],
-  rules: ReadonlyArray<LslValue>,
-): ReadonlyArray<LslValue> {
+/**
+ * Read a PRIM_* rules list from the link `start`. A read is on one link at a
+ * time. PRIM_LINK_TARGET counts from `start`, not from the calling prim: there
+ * LINK_THIS is `start` and every other negative number is the first link that
+ * is not `start`. A read on no link returns nothing more.
+ */
+function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
   const out: LslValue[] = []
   const types: Array<LslType | undefined> = []
-  let cur = startTarget
+  let cur = start
   let i = 0
-  while (i < rules.length) {
+  while (cur && i < rules.length) {
     const rule = rules[i] as number
     if (typeof rule !== 'number') break
     if (rule === PRIM_LINK_TARGET) {
-      const link = (rules[i + 1] as number) | 0
-      cur = resolveGetTargets(linkset, caller, link)
+      cur = linkset.oneLink(start!, (rules[i + 1] as number) | 0)
       i += 2
       continue
     }
@@ -83,31 +84,20 @@ function walkGet(
       i++
       continue
     }
-    // For multi-prim get targets, LSL concatenates per-prim results.
-    // If the target set is empty we still need to know how many slots
-    // the rule consumes; probe against the caller without keeping the
-    // values, then continue.
-    let consumed: number
-    if (cur.length === 0) {
-      const probe = caller.getPrimParam(rule, rules, i + 1)
-      if (probe === null) break
-      consumed = probe.consumed
+    let consumed = 0
+    let values: ReadonlyArray<LslValue>
+    if (isPrim(cur)) {
+      const r = cur.getPrimParam(rule, rules, i + 1)
+      if (r === null) break
+      values = r.values
+      consumed = r.consumed
     } else {
-      let unknown = false
-      let c = 0
-      for (const p of cur) {
-        const r = p.getPrimParam(rule, rules, i + 1)
-        if (r === null) {
-          unknown = true
-          break
-        }
-        out.push(...r.values)
-        types.push(...primParamTypes(rule, r.values))
-        c = r.consumed
-      }
-      if (unknown) break
-      consumed = c
+      const read = readAvatarLinkParam(cur, rule)
+      if (read === null) break
+      values = read
     }
+    out.push(...values)
+    types.push(...primParamTypes(rule, values))
     i += 1 + consumed
   }
   return typedList(out, types)
@@ -124,8 +114,8 @@ export const llSetPrimitiveParams: BuiltinImpl = (ctx, args) => {
 export const llSetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  const target = ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
-  walkSet(ctx, 'llSetLinkPrimitiveParams', target, rules)
+  const { prims, sitter } = ctx.linkset.linksFrom(ctx.prim, link)
+  walkSet(ctx, 'llSetLinkPrimitiveParams', prims, rules, sitter)
   return undefined
 }
 
@@ -133,22 +123,21 @@ export const llSetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
 export const llSetLinkPrimitiveParamsFast: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  const target = ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
-  walkSet(ctx, 'llSetLinkPrimitiveParamsFast', target, rules)
+  const { prims, sitter } = ctx.linkset.linksFrom(ctx.prim, link)
+  walkSet(ctx, 'llSetLinkPrimitiveParamsFast', prims, rules, sitter)
   return undefined
 }
 
 /** llGetPrimitiveParams(list params) — caller's prim. */
 export const llGetPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
-  return walkGet(ctx.linkset, ctx.prim, [ctx.prim], rules)
+  return walkGet(ctx.linkset, ctx.prim, rules)
 }
 
-/** llGetLinkPrimitiveParams(integer link, list params). Multi-prim links return []. */
+/** llGetLinkPrimitiveParams(integer link, list params). The group flags return []. */
 export const llGetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return []
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  const target = resolveGetTargets(ctx.linkset, ctx.prim, link)
-  return walkGet(ctx.linkset, ctx.prim, target, rules)
+  return walkGet(ctx.linkset, ctx.linkset.oneLink(ctx.prim, link), rules)
 }

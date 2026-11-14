@@ -60,8 +60,9 @@ describe('SLua scripts', () => {
   it('rejects a 0 index in the native ll table', async () => {
     const s = await slua(`ll.OwnerSay(ll.GetSubString("abc", 0, 1))`)
     expect(() => s.start()).toThrow(/passed 0 when a 1-based index was expected/)
-    expect(s).toHaveSaid(0x7fffffff, 'Script run-time error')
-    expect(s.chat.at(-1)!.text).toMatch(/passed 0 when a 1-based index was expected/)
+    // In-world: ll.GetSubString("abc", 0, 1) in an SLua script -> "<prim> [script:<name>] Script
+    // run-time error" and "runtime error" (Aditi, SLua Tideland, 2026-11-13).
+    expect(s.chat.map((c) => c.text)).toEqual(['Object [script:test] Script run-time error', 'runtime error'])
   })
 
   it('gives keys as uuids and lists as tables', async () => {
@@ -93,10 +94,13 @@ describe('SLua scripts', () => {
   })
 
   it('crashes on a run-time error, as SL reports it', async () => {
+    // In-world: indexing nil in an SLua script -> the prim said "<prim>
+    // [script:<name>] Script run-time error" and "runtime error" on
+    // DEBUG_CHANNEL (Aditi, SLua Tideland, 2026-11-13). The Lua message stays
+    // on the error rezless throws.
     const s = await slua(`local t = nil; ll.OwnerSay(t.x)`)
     expect(() => s.start()).toThrow(/attempt to index nil/)
-    expect(s).toHaveSaid(0x7fffffff, 'Script run-time error')
-    expect(s.chat.at(-1)!.text).toMatch(/attempt to index nil/)
+    expect(s.chat.map((c) => c.text)).toEqual(['Object [script:test] Script run-time error', 'runtime error'])
   })
 
   it('reports a compile error when loading', async () => {
@@ -223,15 +227,19 @@ describe('SLua values and errors', () => {
   })
 
   it('refuses a list holding something LSL lists cannot, as SLua does', async () => {
-    for (const element of ['{3}', 'print', 'nil, 1']) {
+    // The wording is measured in slua-arguments.test.ts.
+    for (const element of ['{3}', 'print']) {
       const s = await slua(`ll.OwnerSay(ll.List2CSV({1, ${element}}))`)
-      expect(() => s.start()).toThrow(/non-LSL value in list/)
+      expect(() => s.start()).toThrow(/invalid argument #-1 to 'List2CSV' \(Don't know how to decode this\)/)
     }
+    const hole = await slua(`ll.OwnerSay(ll.List2CSV({1, nil, 1}))`)
+    expect(() => hole.start()).toThrow(/invalid argument #-1 to 'List2CSV' \(Can't have undefined in an argument\)/)
   })
 
   it('raises SLua errors for missing and wrong-typed arguments', async () => {
+    // In-world: ll.SetPos() -> Fewer arguments than expected, 0 < 1 (Aditi, SLua Tideland, 2026-11-13)
     const missing = await slua(`ll.SetPos()`)
-    expect(() => missing.start()).toThrow(/missing argument #1 to 'SetPos' \(vector expected\)/)
+    expect(() => missing.start()).toThrow(/Fewer arguments than expected, 0 < 1/)
     const wrong = await slua(`ll.SetPos("here")`)
     expect(() => wrong.start()).toThrow(/invalid argument #1 to 'SetPos' \(vector expected, got string\)/)
     const nil = await slua(`ll.SetRot(nil)`)
@@ -333,10 +341,12 @@ describe('SLua starting', () => {
     expect(s).toHaveSaid(0, 'up')
   })
 
-  it('takes integer values and numbers where LSL wants integers and strings', async () => {
-    const s = await slua(`ll.Say(integer.create(0), "a"); ll.OwnerSay(5)`)
+  it('takes integer values where LSL wants integers', async () => {
+    // Can't be measured in-world: the region's SLua has no integer type (see
+    // the string-parameter tests below).
+    const s = await slua(`ll.Say(integer.create(0), "a")`)
     s.start()
-    expect(s.chat.map((c) => c.text)).toEqual(['a', '5'])
+    expect(s.chat.map((c) => c.text)).toEqual(['a'])
   })
 })
 
@@ -406,26 +416,304 @@ describe('SLua as SLua runs it', () => {
     removed.start()
   })
 
-  it('formats numbers passed as strings the way Lua does', async () => {
-    const s = await slua(`ll.OwnerSay(1.5); ll.OwnerSay(3); ll.OwnerSay(0.1); ll.OwnerSay(1/0)`)
+  // The argument checks below were measured in-world with one script that called
+  // each function under pcall and said the result (Aditi, SLua Tideland, 2026-11-13).
+  const KEY = '5748decc-f629-461c-9a36-a35a221fe21f'
+  const DEBUG = 2147483647
+
+  it('takes a uuid for a string parameter, as its text', async () => {
+    // In-world: each of these calls with u = touuid(KEY) ran without error,
+    // llcompat.PlaySound included, whether the definitions type the parameter
+    // `string | uuid` (the sound functions, StopAnimation, SetTexture) or
+    // `string` (the rest). After
+    // SetTexture(u, 0) on a plywood face, GetTexture(0) read back u's text.
+    const s = await slua(`
+      local u = touuid("${KEY}")
+      ll.PlaySound(u, 1)
+      ll.StopAnimation(u)
+      ll.LinkPlaySound(LINK_THIS, u, 1, 0)
+      ll.TriggerSound(u, 1)
+      ll.LoopSound(u, 1)
+      ll.SetTexture(u, 0)
+      ll.StartAnimation(u)
+      ll.Say(7778, u)
+      ll.SetText(u, vector(1, 1, 1), 1)
+      llcompat.PlaySound(u, 1)
+      ll.OwnerSay(tostring(ll.GetTexture(0)))
+    `)
     s.start()
-    expect(s.chat.map((c) => c.text)).toEqual(['1.5', '3', '0.1', 'inf'])
-    // luaL_checkstring takes numbers, but not integers or uuids.
-    for (const [value, type] of [['integer.create(7)', 'integer'], ['ll.GetOwner()', 'uuid']]) {
-      const wrong = await slua(`ll.OwnerSay(${value})`)
-      expect(() => wrong.start()).toThrow(`invalid argument #1 to 'OwnerSay' (string expected, got ${type})`)
+    const args = (name: string) => s.calls.filter((c) => c.name === name).map((c) => c.args)
+    expect(args('llPlaySound')).toEqual([[KEY, 1], [KEY, 1]])
+    expect(args('llStopAnimation')).toEqual([[KEY]])
+    expect(args('llLinkPlaySound')).toEqual([[-4, KEY, 1, 0]])
+    expect(args('llTriggerSound')).toEqual([[KEY, 1]])
+    expect(args('llLoopSound')).toEqual([[KEY, 1]])
+    expect(args('llSetTexture')).toEqual([[KEY, 0]])
+    expect(s.chat.map((c) => c.text)).toContain(KEY)
+    expect(args('llStartAnimation')).toEqual([[KEY]])
+    expect(args('llSay')).toEqual([[7778, KEY]])
+    expect(args('llSetText')[0]![0]).toBe(KEY)
+  })
+
+  it('reads a uuid passed as a string the way LSL reads that text', async () => {
+    const s = await slua(`
+      local u = touuid("${KEY}")
+      ll.OwnerSay(tostring(ll.StringLength(u)))
+      ll.OwnerSay(tostring(llcompat.StringLength(u)))
+      ll.OwnerSay(ll.GetSubString(u, 1, 4))
+      ll.OwnerSay(ll.InsertString("ab", 1, u))
+      ll.OwnerSay(ll.ReplaceSubString(u, "-", "+", 0))
+      ll.OwnerSay(tostring(ll.SubStringIndex("x${KEY}x", u)))
+      ll.OwnerSay(ll.MD5String(u, 0))
+      ll.OwnerSay(ll.List2CSV(ll.ParseString2List(u, {"-"}, {})))
+    `)
+    s.start()
+    // In-world: StringLength(u) -> 36 (ll and llcompat), GetSubString(u, 1, 4) -> "5748",
+    // InsertString("ab", 1, u) -> u's text then "ab", ReplaceSubString(u, "-", "+", 0) -> the
+    // text with "+", SubStringIndex("x" .. text .. "x", u) -> 2, MD5String(u, 0) ->
+    // c12a494dc9187526ef87f474d890e612, ParseString2List(u, {"-"}, {}) -> 5748decc, f629,
+    // 461c, 9a36, a35a221fe21f.
+    expect(s.chat.map((c) => c.text)).toEqual([
+      '36',
+      '36',
+      '5748',
+      `${KEY}ab`,
+      '5748decc+f629+461c+9a36+a35a221fe21f',
+      '2',
+      'c12a494dc9187526ef87f474d890e612',
+      '5748decc, f629, 461c, 9a36, a35a221fe21f',
+    ])
+  })
+
+  it('takes a uuid in the other functions measured', async () => {
+    // In-world: each call ran without a Lua error. What OwnerSay delivered can't
+    // be heard by a listener; Say, Whisper and RegionSayTo delivered u's text
+    // (next test).
+    const s = await slua(`
+      local u = touuid("${KEY}")
+      ll.OwnerSay(u)
+      ll.Whisper(7778, u)
+      ll.RegionSay(7778, u)
+      ll.SetTouchText(u)
+      ll.SetSitText(u)
+      ll.StopSound()
+      ll.ListenRemove(ll.Listen(7778, u, NULL_KEY, u))
+      ll.StringTrim(u, STRING_TRIM)
+      ll.DeleteSubString(u, 1, 2)
+      ll.EscapeURL(u)
+      ll.StringToBase64(u)
+      ll.SHA1String(u)
+      ll.ComputeHash(u, "md5")
+      ll.Ord(u, 1)
+      ll.CSV2List(u)
+      ll.JsonValueType(u, {})
+      ll.GetInventoryType(u)
+      ll.GetInventoryKey(u)
+      ll.Name2Key(u)
+      ll.GetEnv(u)
+      ll.LinksetDataRead(u)
+      ll.GetNotecardLine(u, 1)
+      ll.OwnerSay("done")
+    `)
+    s.start()
+    expect(s.chat.filter((c) => c.channel === 0).map((c) => c.text)).toEqual([KEY, 'done'])
+  })
+
+  it('takes a uuid for a later string parameter too', async () => {
+    const s = await slua(`
+      local u = touuid("${KEY}")
+      ll.Say(7778, u)
+      ll.Whisper(7778, u)
+      ll.RegionSayTo(ll.GetOwner(), 7778, u)
+      ll.Dialog(ll.GetOwner(), u, {"ok"}, -7779)
+    `)
+    s.start()
+    // In-world: a listener heard u's text from Say, Whisper and RegionSayTo.
+    // Dialog ran without a Lua error or a DEBUG_CHANNEL message.
+    expect(s.chat.filter((c) => c.channel === 7778).map((c) => c.text)).toEqual([KEY, KEY, KEY])
+    expect(s.calls.find((c) => c.name === 'llDialog')!.args[1]).toBe(KEY)
+    expect(s.chat.filter((c) => c.channel === DEBUG)).toEqual([])
+    // In-world: invalid argument #3 to 'RegionSayTo' (string expected, got number).
+    const number = await slua(`ll.RegionSayTo(ll.GetOwner(), 7778, 5)`)
+    expect(() => number.start()).toThrow("invalid argument #3 to 'RegionSayTo' (string expected, got number)")
+  })
+
+  it('does not read a uuid or a number as a string inside a list', async () => {
+    // In-world: each call returned without a Lua error, and the object said
+    // "llDialog: button list must contain only strings" on DEBUG_CHANNEL.
+    for (const call of [
+      `ll.Dialog(ll.GetOwner(), "m", {touuid("${KEY}")}, -7779)`,
+      `ll.Dialog(ll.GetOwner(), "m", {1, 2}, -7779)`,
+      `ll.Dialog(ll.GetOwner(), "m", {1.5}, -7779)`,
+      `llcompat.Dialog(ll.GetOwner(), "m", {touuid("${KEY}")}, -7779)`,
+    ]) {
+      const s = await slua(`${call}; ll.OwnerSay("after")`)
+      s.start()
+      expect(s.chat.map((c) => [c.channel, c.text]), call).toEqual([
+        [DEBUG, 'llDialog: button list must contain only strings'],
+        [0, 'after'],
+      ])
     }
   })
 
-  it('takes numeric strings for numbers, and booleans only where LSL means a boolean', async () => {
+  it('ignores a uuid or a number among separators and spacers', async () => {
+    const s = await slua(`
+      local K = "${KEY}"
+      local u = touuid(K)
+      local function parse(...) local r = ll.ParseString2List(...); ll.OwnerSay(#r .. ":" .. ll.List2CSV(r)) end
+      parse("a" .. K .. "b", {u}, {})
+      parse("a" .. K .. "b", {K}, {})
+      parse("a5b", {5}, {})
+      parse("a5b", {"5"}, {})
+      parse("a" .. K .. "b", {}, {u})
+      parse("a5b", {}, {5})
+      parse("a1.5b", {1.5}, {})
+    `)
+    s.start()
+    // In-world: only the string separators split; the rest gave the source back whole.
+    expect(s.chat.map((c) => c.text)).toEqual([
+      `1:a${KEY}b`,
+      '2:a, b',
+      '1:a5b',
+      '2:a, b',
+      `1:a${KEY}b`,
+      '1:a5b',
+      '1:a1.5b',
+    ])
+  })
+
+  it('reads the null uuid as its 36 characters, and has no uuid for text that is not one', async () => {
+    const s = await slua(`
+      ll.OwnerSay(tostring(ll.StringLength(touuid(""))))
+      ll.OwnerSay(tostring(ll.StringLength(uuid(""))))
+      ll.OwnerSay(tostring(ll.StringLength(NULL_KEY)))
+      ll.OwnerSay(tostring(touuid("garbage")))
+      ll.OwnerSay(tostring(uuid("5748DECC-F629-461C-9A36-A35A221FE21F")))
+    `)
+    s.start()
+    // In-world: 36, 36, 36, nil, and the upper-case text in lower case.
+    expect(s.chat.map((c) => c.text)).toEqual(['36', '36', '36', 'nil', KEY])
+    // In-world: these raised exactly these messages.
+    const cases: Array<[string, string]> = [
+      ['ll.StringLength(touuid("garbage"))', "invalid argument #1 to 'StringLength' (string expected, got nil)"],
+      ['ll.StringLength(uuid("garbage"))', "invalid argument #1 to 'uuid' (Unable to convert to UUID)"],
+    ]
+    for (const [source, error] of cases) {
+      const s = await slua(source)
+      expect(() => s.start(), source).toThrow(error)
+    }
+  })
+
+  it('delivers a uuid sent as link_message text as a string', async () => {
+    const s = await slua(`
+      LLEvents:on("link_message", function(sender, num, str, id)
+        ll.OwnerSay(typeof(str) .. ":" .. str .. " " .. typeof(id) .. ":" .. id)
+      end)
+      ll.MessageLinked(LINK_THIS, 7, touuid("${KEY}"), touuid("${KEY}"))
+      ll.MessageLinked(LINK_THIS, 8, "s", "not a key")
+    `)
+    s.start()
+    s.advanceTime(100)
+    // In-world: the handler got string:<text> string:<text>, then string:s string:not a key.
+    expect(s.chat.map((c) => c.text)).toEqual([`string:${KEY} string:${KEY}`, 'string:s string:not a key'])
+  })
+
+  it('refuses a number, nil, boolean, table or vector for a string parameter', async () => {
+    // In-world: each call raised exactly this message.
+    const cases: Array<[string, string]> = [
+      ['ll.OwnerSay(1.5)', "invalid argument #1 to 'OwnerSay' (string expected, got number)"],
+      ['ll.OwnerSay(3)', "invalid argument #1 to 'OwnerSay' (string expected, got number)"],
+      ['ll.Say(7778, 5)', "invalid argument #2 to 'Say' (string expected, got number)"],
+      ['ll.StringLength(5)', "invalid argument #1 to 'StringLength' (string expected, got number)"],
+      ['llcompat.StringLength(5)', "invalid argument #1 to 'StringLength' (string expected, got number)"],
+      ['ll.GetSubString(12345, 1, 2)', "invalid argument #1 to 'GetSubString' (string expected, got number)"],
+      ['ll.PlaySound(5, 1)', "invalid argument #1 to 'PlaySound' (string expected, got number)"],
+      ['ll.MessageLinked(LINK_THIS, 7, 5, "")', "invalid argument #3 to 'MessageLinked' (string expected, got number)"],
+      ['ll.PlaySound(nil, 1)', "invalid argument #1 to 'PlaySound' (string expected, got nil)"],
+      ['ll.PlaySound(true, 1)', "invalid argument #1 to 'PlaySound' (string expected, got boolean)"],
+      ['ll.PlaySound({}, 1)', "invalid argument #1 to 'PlaySound' (string expected, got table)"],
+      ['ll.PlaySound(vector(1, 2, 3), 1)', "invalid argument #1 to 'PlaySound' (string expected, got vector)"],
+      ['ll.StringLength(nil)', "invalid argument #1 to 'StringLength' (string expected, got nil)"],
+      ['ll.StringLength(false)', "invalid argument #1 to 'StringLength' (string expected, got boolean)"],
+    ]
+    for (const [source, error] of cases) {
+      const s = await slua(source)
+      expect(() => s.start(), source).toThrow(error)
+    }
+    // Can't be measured: the region's SLua has no integer type. integer.create(7)
+    // raised "attempt to index nil with 'create'", and llcompat results are numbers.
+    const integer = await slua(`ll.OwnerSay(integer.create(7))`)
+    expect(() => integer.start()).toThrow("invalid argument #1 to 'OwnerSay' (string expected, got integer)")
+  })
+
+  it('leaves the functions SLua runs in its own VM to check their own string arguments', async () => {
+    // In-world: ToUpper(5) -> "5", ToUpper(1.5) -> "1.5", llcompat.ToUpper(5) -> "5",
+    // ToUpper(0.1) -> "0.1", ToUpper(1/0) -> "INF", ToLower(5) -> "5", ToLower(1.5) -> "1.5".
+    const s = await slua(`
+      for _, v in {ll.ToUpper(5), ll.ToUpper(1.5), llcompat.ToUpper(5), ll.ToUpper(0.1), ll.ToUpper(1/0), ll.ToLower(5), ll.ToLower(1.5)} do
+        ll.OwnerSay(v)
+      end
+    `)
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual(['5', '1.5', '5', '0.1', 'INF', '5', '1.5'])
+    // In-world: each call raised exactly this message.
+    const cases: Array<[string, string]> = [
+      [`ll.ToUpper(touuid("${KEY}"))`, "invalid argument #1 to 'ToUpper' (string expected, got uuid)"],
+      [`llcompat.ToUpper(touuid("${KEY}"))`, "invalid argument #1 to 'ToUpper' (string expected, got uuid)"],
+      [`ll.ToLower(touuid("${KEY}"))`, "invalid argument #1 to 'ToLower' (string expected, got uuid)"],
+      ['ll.ToUpper(nil)', "invalid argument #1 to 'ToUpper' (string expected, got nil)"],
+      ['ll.ToUpper(true)', "invalid argument #1 to 'ToUpper' (string expected, got boolean)"],
+      [
+        `ll.DumpList2String({1, 2}, touuid("${KEY}"))`,
+        "invalid argument #2 to 'DumpList2String' (string expected, got uuid)",
+      ],
+      ['ll.DumpList2String({1, 2}, 5)', "invalid argument #2 to 'DumpList2String' (string expected, got number)"],
+    ]
+    for (const [source, error] of cases) {
+      const s = await slua(source)
+      expect(() => s.start(), source).toThrow(error)
+    }
+  })
+
+  it('takes a string or a uuid for a uuid parameter, and nothing else', async () => {
+    const s = await slua(`
+      ll.OwnerSay("[" .. ll.Key2Name("garbage") .. "]")
+      ll.OwnerSay("[" .. ll.Key2Name(touuid("${KEY}")) .. "]")
+      ll.OwnerSay(tostring(ll.GetOwnerKey("5748decc")))
+    `)
+    s.start()
+    // In-world: Key2Name("garbage") -> "", Key2Name(u) -> "", GetOwnerKey("5748decc") -> the null uuid.
+    expect(s.chat.map((c) => c.text)).toEqual(['[]', '[]', NULL])
+    // In-world: each call raised exactly this message.
+    const cases: Array<[string, string]> = [
+      ['ll.Key2Name(5)', "invalid argument #1 to 'Key2Name' (uuid expected, got number)"],
+      ['llcompat.Key2Name(5)', "invalid argument #1 to 'Key2Name' (uuid expected, got number)"],
+      ['ll.Key2Name(nil)', "invalid argument #1 to 'Key2Name' (uuid expected, got nil)"],
+      ['ll.Key2Name(false)', "invalid argument #1 to 'Key2Name' (uuid expected, got boolean)"],
+      ['ll.Key2Name({})', "invalid argument #1 to 'Key2Name' (uuid expected, got table)"],
+      ['ll.Key2Name(vector(1, 2, 3))', "invalid argument #1 to 'Key2Name' (uuid expected, got vector)"],
+      ['ll.MessageLinked(LINK_THIS, 7, "", 5)', "invalid argument #4 to 'MessageLinked' (uuid expected, got number)"],
+    ]
+    for (const [source, error] of cases) {
+      const s = await slua(source)
+      expect(() => s.start(), source).toThrow(error)
+    }
+  })
+
+  it('takes numeric strings for numbers, and booleans for integers', async () => {
     const s = await slua(`ll.Say("-5", "x"); ll.SetAlpha(" 0.5 ", ALL_SIDES)`)
     s.start()
     expect(s.calls.map((c) => c.args)).toEqual([[-5, 'x'], [0.5, -1]])
     const flag = await slua(`ll.AllowInventoryDrop(true)`)
     flag.start()
     expect(flag.calls.find((c) => c.name === 'llAllowInventoryDrop')!.args).toEqual([1])
-    const notFlag = await slua(`ll.Say(true, "x")`)
-    expect(() => notFlag.start()).toThrow(/invalid argument #1 to 'Say' \(number expected, got boolean\)/)
+    // In-world: ll.Say(true, "x") -> heard on channel 1; ll.SetAlpha(true, 0) -> (number expected, got boolean)
+    // (Aditi, SLua Tideland, 2026-11-13)
+    const channel = await slua(`ll.Say(true, "x")`)
+    channel.start()
+    expect(channel).toHaveSaid(1, 'x')
+    const notFloat = await slua(`ll.SetAlpha(true, 0)`)
+    expect(() => notFloat.start()).toThrow(/invalid argument #1 to 'SetAlpha' \(number expected, got boolean\)/)
     const notNumber = await slua(`ll.SetAlpha("half", ALL_SIDES)`)
     expect(() => notNumber.start()).toThrow(/invalid argument #1 to 'SetAlpha' \(number expected, got string\)/)
   })
@@ -506,8 +794,8 @@ describe('SLua edges', () => {
       ['ll.Say(coroutine.create(print), "x")', /'Say' \(number expected, got thread\)/],
       ['ll.SetAlpha({}, 0)', /'SetAlpha' \(number expected, got table\)/],
       ['ll.OwnerSay({})', /'OwnerSay' \(string expected, got table\)/],
-      ['ll.Key2Name(5)', /invalid argument #1 to 'Key2Name' \(.* expected, got number\)/],
-      ['ll.List2CSV("x")', /'List2CSV' \(table expected, got string\)/],
+      ['ll.Key2Name(5)', /invalid argument #1 to 'Key2Name' \(uuid expected, got number\)/],
+      ['ll.List2CSV("x")', /invalid argument #1 to 'List2CSV' \(expected a table\)/],
     ]
     for (const [source, error] of cases) {
       const s = await slua(source)
@@ -574,9 +862,11 @@ describe('SLua review follow-ups', () => {
   })
 
   it('passes list floats to LSL as 32-bit floats', async () => {
-    const s = await slua(`ll.OwnerSay(ll.List2CSV({16777217.0, integer.create(16777217)}))`)
+    // In-world: ll.List2CSV({1e15}) -> "999999986991104.000000", the 32-bit float nearest it
+    // (Aditi, SLua Tideland, 2026-11-13)
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({1e15, integer.create(16777217)}))`)
     s.start()
-    expect(s).toHaveSaid(0, '16777216.000000, 16777217')
+    expect(s).toHaveSaid(0, '999999986991104.000000, 16777217')
   })
 
   it('runs the top level to the end when state_entry is the first event', async () => {
@@ -695,14 +985,15 @@ describe('SLua third review', () => {
 })
 
 describe('SLua parameter types from the definitions', () => {
-  it('lets selector lists take whole numbers, and keeps data lists as floats', async () => {
+  it('lets selector lists take whole numbers, and statistics read numbers as floats', async () => {
     const s = await slua(`
       ll.OwnerSay(tostring(#ll.GetObjectDetails(ll.GetKey(), {OBJECT_NAME, OBJECT_DESC})))
       ll.OwnerSay(tostring(ll.ListStatistics(LIST_STAT_MEAN, {1, 2.5})))
       ll.OwnerSay(tostring(ll.ListStatistics(LIST_STAT_SUM, {2147483648})))
     `)
     s.start()
-    // Statistics take the numbers as floats, so whole ones past int32 survive.
+    // In-world: ll.ListStatistics(LIST_STAT_SUM, {2147483647, 1}) -> 2147483648, past int32
+    // (Aditi, SLua Tideland, 2026-11-13)
     expect(s.chat.map((c) => c.text)).toEqual(['2', '1.75', '2147483648'])
   })
 
@@ -720,7 +1011,7 @@ describe('SLua code size', () => {
     const limited = await slua(source, { memoryLimit: true })
     expect(() => limited.start()).toThrow(/not enough memory/)
     expect(limited.printed).toEqual([])
-    expect(limited.chat.map((c) => c.text)).toEqual(['Script run-time error', 'not enough memory'])
+    expect(limited.chat.map((c) => c.text)).toEqual(['Object [script:test] Script run-time error', 'not enough memory'])
     const unlimited = await slua(source)
     unlimited.start()
     expect(unlimited.printed[0]!.length).toBe(140000)
@@ -728,7 +1019,7 @@ describe('SLua code size', () => {
 })
 
 describe('SLua numbers in rule lists', () => {
-  it('reads whole numbers as integers where a rule wants one', async () => {
+  it('sends whole numbers as the integers a rule wants', async () => {
     const s = await slua(`
       ll.OwnerSay(tostring(ll.SetPrimMediaParams(0, {PRIM_MEDIA_CURRENT_URL, "https://example.com"})))
       ll.OwnerSay(ll.List2CSV(ll.GetPrimMediaParams(0, {PRIM_MEDIA_CURRENT_URL})))
@@ -739,10 +1030,11 @@ describe('SLua numbers in rule lists', () => {
     expect(s.host.particles).not.toBeNull()
   })
 
-  it('still formats them as floats', async () => {
-    const s = await slua(`ll.OwnerSay(ll.List2CSV({1, 2}))`)
+  it('formats them as integers', async () => {
+    // In-world: ll.List2CSV({1}) -> "1"; ll.List2CSV({1.5}) -> "1.500000" (Aditi, SLua Tideland, 2026-11-13)
+    const s = await slua(`ll.OwnerSay(ll.List2CSV({1, 2, 2.5}))`)
     s.start()
-    expect(s).toHaveSaid(0, '1.000000, 2.000000')
+    expect(s).toHaveSaid(0, '1, 2, 2.500000')
   })
 })
 

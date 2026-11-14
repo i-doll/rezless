@@ -3,14 +3,14 @@
  * `afterAll` hook so each test file drains its accumulated coverage
  * snapshots to disk before the worker finishes the file.
  *
- * Relying on `process.on('exit')` alone is not reliable under Vitest's
- * thread pool: the main process can finish reporting before the worker's
- * exit hooks fire (and thread workers may stay warm across files). This
- * setup file pulls coverage at known points in the test lifecycle, which
- * the reporter can read deterministically at end-of-run.
+ * `process.on('exit')` can't do this job: Vitest stops its workers by
+ * terminating the thread or signalling the fork, so exit hooks never fire
+ * in them. This setup file pulls coverage at a known point in the test
+ * lifecycle, which the reporter and the CLI read after the run.
  *
  * The reporter wires this file in via `vitest.config.setupFiles` when it
- * activates; users don't have to import it themselves.
+ * activates. A project that runs `LSL_COVERAGE=1` without the reporter
+ * lists `@rezless/vitest/coverage-setup` in `setupFiles` itself.
  *
  * Vitest re-runs setup files before every test file, including with
  * `isolate: false`, so this `afterAll` registers once per file and each
@@ -21,10 +21,13 @@ import { afterAll } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { drainSnapshots } from './coverage-registry.js'
+import { isCoverageEnabled } from './coverage-config.js'
 
 afterAll(() => {
   const reports = drainSnapshots()
-  if (reports.length === 0) return
+  // A script loaded with `coverage: true` registers in any run. Only a
+  // coverage run keeps its report, so ordinary test runs leave no dumps.
+  if (reports.length === 0 || !isCoverageEnabled()) return
   try {
     const dir = process.env['LSL_COVERAGE_DIR'] ?? path.join(process.cwd(), '.rezless-coverage')
     fs.mkdirSync(dir, { recursive: true })

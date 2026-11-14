@@ -31,7 +31,7 @@ import type { LinkedMessageEntry } from './builtins/linked.js'
 import type { DataserverRequestEntry } from './builtins/dataserver.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
 import type { DetectedEntry } from './builtins/detected.js'
-import type { PermissionRequestEntry } from './builtins/permissions.js'
+import type { AutoGrantPermissions, PermissionRequestEntry } from './builtins/permissions.js'
 import type { DialogEntry } from './builtins/dialog.js'
 import type { TakenControls } from './builtins/controls.js'
 import { agentPresence, type ViewerRequest } from './builtins/viewer.js'
@@ -61,6 +61,7 @@ import { CONSTANT_TABLE } from './generated/constants_table.js'
 import {
   DEBUG_CHANNEL,
   HTTP_BODY_TRUNCATED,
+  PERMISSION_CONTROL_CAMERA,
   PERMISSION_TAKE_CONTROLS,
   XP_ERROR_NOT_PERMITTED,
 } from './generated/constants.js'
@@ -169,6 +170,7 @@ export class Script {
   private readonly invalidPrograms: ReadonlySet<Node>
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
+  get hasStarted() { return this.started }
   private readonly stubs: 'allow' | 'warn' | 'throw'
   private readonly warnedStubs = new Set<string>()
   /** Per-script clock facade (timer state + time reference). */
@@ -176,7 +178,9 @@ export class Script {
   readonly host: Prim
   readonly scriptName: string
   /** When false, drainQueue parks events instead of delivering them. */
-  running = true
+  private isRunning = true
+  /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
+  crashed = false
   /** Events parked while `running === false`; replayed when re-enabled. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
@@ -286,7 +290,7 @@ export class Script {
       },
       appearance: this.host.appearance,
       gameControlSnapshot: null,
-      permissions: { granted: 0, agent: NULL_KEY, requests: [] },
+      permissions: { granted: 0, agent: NULL_KEY, requests: [], autoGrant: null },
       experience: options.experience ?? null,
       experienceRequests: [],
       controls: { taken: null, level: 0 },
@@ -567,14 +571,61 @@ export class Script {
   }
 
   /**
-   * Answer the most recent unanswered permission request, granting the
-   * requested bits that are also in `permissions` (all of them by default).
-   * Fires `run_time_permissions` on this script.
+   * Which permission requests are granted without a dialog. `'sl'` (the
+   * default) grants what Second Life grants to an avatar sitting on the object
+   * or wearing it, `'none'` grants nothing, and a function decides per request.
+   * A script that was never given a setting follows its world's
+   * `autoGrantPermissions`. Copies of the script keep the setting. A viewer under `@acceptpermission`
+   * still answers what the setting leaves.
    */
-  grantPermissions(permissions?: number): void {
-    const req = [...this.state.permissions.requests].reverse().find((r) => !r.answered)
-    if (!req) throw new Error('no pending permission request')
-    req.answered = true
+  get autoGrantPermissions(): AutoGrantPermissions {
+    return this.state.permissions.autoGrant ?? this.linkset.world?.autoGrantPermissions ?? 'sl'
+  }
+
+  set autoGrantPermissions(mode: AutoGrantPermissions) {
+    this.state.permissions.autoGrant = mode
+  }
+
+  /** An avatar stopped sitting on this script's object. */
+  sitterLeft(avatar: string): void {
+    if (this.state.permissions.agent.toLowerCase() === avatar.toLowerCase()) this.dropSeatPermissions()
+  }
+
+  /**
+   * Second Life takes controls and camera control back, with no event, when
+   * the avatar stops sitting on the object and by the time a detached
+   * attachment is rezzed again. The permission key goes with the last bit,
+   * and the avatar's camera goes back to its own rules.
+   */
+  private dropSeatPermissions(): void {
+    const held = this.state.permissions
+    if (!(held.granted & (PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA))) return
+    held.granted &= ~(PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA)
+    this.state.controls.taken = null
+    this.state.cameraParams.clear()
+    this.linkset.clock.purgeEvent(this, 'control')
+    for (let i = this.parkedEvents.length - 1; i >= 0; i--) {
+      if (this.parkedEvents[i]!.event === 'control') this.parkedEvents.splice(i, 1)
+    }
+    if (!held.granted) held.agent = NULL_KEY
+  }
+
+  /**
+   * Answer a waiting permission request, the most recent one unless `request`
+   * names another entry of `permissionRequests`. Grants the requested bits
+   * that are also in `permissions` (all of them by default) and fires
+   * `run_time_permissions` on this script. Every other waiting request is
+   * dropped: Second Life acts on the first answer only.
+   */
+  grantPermissions(permissions?: number, request?: PermissionRequestEntry): void {
+    const requests = this.state.permissions.requests
+    const req = request ?? [...requests].reverse().find((r) => !r.answered)
+    if (!req || req.answered || !requests.includes(req)) {
+      throw new Error(requests.length
+        ? 'no pending permission request: every request was already answered, granted automatically or dropped by a reset'
+        : 'no pending permission request')
+    }
+    for (const waiting of requests) waiting.answered = true
     const granted = req.permissions & (permissions ?? req.permissions)
     this.state.permissions.granted = granted
     this.state.permissions.agent = req.agent
@@ -584,9 +635,9 @@ export class Script {
     this.linkset.settle(started)
   }
 
-  /** Answer the most recent unanswered permission request with No. */
-  denyPermissions(): void {
-    this.grantPermissions(0)
+  /** Answer a waiting permission request with No: the most recent one, or `request`. */
+  denyPermissions(request?: PermissionRequestEntry): void {
+    this.grantPermissions(0, request)
   }
 
   /** The experience the script was compiled with, or null. */
@@ -958,9 +1009,10 @@ export class Script {
 
   /** Copy inventory code; fresh copies omit saved runtime state for remote loading. */
   copyTo(host: Prim, opts: { fresh?: boolean } = {}): Script {
-    if (this.sluaSource !== undefined) return this.copySluaTo(host)
+    if (this.sluaSource !== undefined) return this.copySluaTo(host, opts.fresh)
     const copy = new Script(this.ast, { ...this.options, host, coverage: false })
     Object.assign(copy.mocks, this.mocks)
+    copy.state.permissions.autoGrant = this.state.permissions.autoGrant
     copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
     for (const g of this.ast.globals) {
@@ -974,6 +1026,7 @@ export class Script {
     copy.state.currentState = this.state.currentState
     copy.started = this.started
     copy.running = this.running && !this.dead
+    copy.crashed = this.crashed
     Object.assign(copy.state.random, this.state.random)
     copy.state.listens.push(...structuredClone(this.state.listens))
     copy.state.listenHandleCounter = this.state.listenHandleCounter
@@ -990,6 +1043,17 @@ export class Script {
 
   /** Queue rez lifecycle events after restoring the inventory script's saved data. */
   queueRez(): void {
+    // A detached attachment comes back from inventory without the controls and camera control it held.
+    this.dropSeatPermissions()
+    // A crashed LSL script runs again when its object is rezzed: state_entry
+    // of the state it was in, with its globals, then on_rez. A crashed SLua
+    // script stays crashed.
+    if (this.crashed && !this.slua) {
+      this.running = true
+      this.started = true
+      this.parkedEvents.length = 0
+      this.clockView.schedule(this.now, 'state_entry')
+    }
     if (!this.running) return
     if (!this.started) {
       this.started = true
@@ -1018,6 +1082,17 @@ export class Script {
   reset(): void {
     this.restart()
     this.linkset.settle([this])
+  }
+
+  /**
+   * llResetOtherScript on a crashed script: it reads as running at once and
+   * starts over with state_entry as its next event. Nothing it held or had
+   * waiting survives.
+   */
+  recover(): void {
+    this.restart()
+    this.running = true
+    this.queueStart()
   }
 
   private restart(): void {
@@ -1333,28 +1408,40 @@ export class Script {
   }
 
   /** A copy of this SLua script in `host`. The copy starts afresh: SLua state isn't carried over. */
-  private copySluaTo(host: Prim): Script {
+  private copySluaTo(host: Prim, fresh = false): Script {
     const coverage = this.state.coverage instanceof SluaCoverage ? this.state.coverage : null
     // An instrumented VM when the original is covered, counting into the original's collector.
     const copy = Script.fromSlua(this.sluaSource!, { ...this.options, host, coverage: coverage !== null })
     Object.assign(copy.mocks, this.mocks)
+    copy.state.permissions.autoGrant = this.state.permissions.autoGrant
     if (coverage) {
       copy.state.coverage = coverage
       coverage.attach(copy.slua!)
     }
     copy.running = this.running && !this.dead
+    copy.crashed = this.crashed && !fresh
     return copy
+  }
+
+  get running(): boolean {
+    return this.isRunning
+  }
+
+  set running(value: boolean) {
+    this.isRunning = value
+    if (value) this.crashed = false
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
   private crash(error: RuntimeError): void {
     if (error.reported) return
     error.reported = true
-    for (const text of ['Script run-time error', error.message]) {
+    for (const text of [`${this.host.name} [script:${this.scriptName}] Script run-time error`, error.said]) {
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
     this.running = false
+    this.crashed = true
   }
 
   /**

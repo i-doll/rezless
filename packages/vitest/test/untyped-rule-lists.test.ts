@@ -4,7 +4,7 @@ import { loadLinkset, World } from '../src/index.js'
 const OWNER = '11111111-1111-1111-1111-111111111111'
 
 // Lists from mocks carry no LSL element types. Rule and selector parsers read
-// a whole number there as an integer, as they did before SLua lists existed.
+// a whole number there as an integer.
 describe('untyped rule lists', () => {
   it('reads whole numbers in mocked lists as integers', async () => {
     const world = new World({ startUnixTime: 1234.25 })

@@ -1,12 +1,12 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
-import { InventoryType } from '../inventory.js'
+import { InventoryType, freeInventoryName, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
 import { formatListElement } from '../values/format.js'
 import { listElementType, ruleElementType } from '../values/list-types.js'
-import { PERM_COPY, PERM_TRANSFER, CHANGED_INVENTORY, CHANGED_ALLOWED_DROP, TRANSFER_DEST, TRANSFER_FLAGS } from '../generated/constants.js'
+import { PERM_COPY, PERM_TRANSFER, CHANGED_ALLOWED_DROP, TRANSFER_DEST, TRANSFER_FLAGS } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isAgentInRegion, isKey } from './viewer.js'
 import { llRemoveInventory } from './inventory.js'
@@ -49,13 +49,13 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
   const copies = items.map(i => snapshot(i, foreign))
   if (prim) {
     for (const item of copies) {
-      let name = item.name
-      let suffix = 0
-      while (prim.inventory.some(i => i.name === name)) name = `${item.name} ${++suffix}`
-      prim.addInventory({ ...item, name, acquireTimeMs: ctx.state.clock.now })
+      prim.placeInventory({ ...item, name: freeInventoryName(prim.inventory, item.name), acquireTimeMs: ctx.state.clock.now })
     }
-    const changed = foreign ? CHANGED_ALLOWED_DROP : CHANGED_INVENTORY
-    for (const script of prim.scripts) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: changed })
+    for (const script of prim.scripts) {
+      if (!hearsInventoryChange(script)) continue
+      if (foreign) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
+      else queueInventoryChanged(script)
+    }
   }
   ctx.state.inventoryOffers.push({ kind, target, folder: prim ? null : folder, rootPath: [...rootPath], items: copies })
   if (!prim && ctx.linkset.world) captureRlvInventoryOffer(ctx.linkset.world, ctx.state.inventoryOffers[ctx.state.inventoryOffers.length - 1]!)

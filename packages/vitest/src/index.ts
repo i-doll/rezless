@@ -3,7 +3,7 @@ import './matchers.js'
 export * from '@rezless/vm'
 export { loadScript } from './loadScript.js'
 export type { LoadScriptInput, InlineScriptInput } from './loadScript.js'
-export { loadLinkset } from './loadLinkset.js'
+export { loadLinkset, addScript } from './loadLinkset.js'
 export type {
   LinksetInput,
   PrimInput,

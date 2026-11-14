@@ -66,6 +66,56 @@ async function readScriptSource(src: ScriptSource): Promise<{ source: string; fi
 }
 
 /**
+ * Parse a script and build it on `prim`, stored under its inventory name and
+ * not yet started. `numbered` appends a number to a name the prim already holds.
+ */
+async function buildScript(prim: Prim, input: ScriptInput, numbered = false): Promise<Script> {
+  const { source, filename } = await readScriptSource(input.source)
+  const slua = input.language === 'slua' || (input.language === undefined && /\.luau?$/i.test(filename))
+  const ast = slua ? null : parse(source, filename)
+  if (ast) {
+    const errors = ast.diagnostics.filter((d) => d.severity === 'error')
+    if (errors.length === 0) errors.push(...typecheck(ast.script, filename, input.functions))
+    if (errors.length > 0) throw new LslParseError(errors)
+  }
+  // Build options without the loadLinkset-only fields. The inventory
+  // `name` is also surfaced as `scriptName` so llGetScriptName /
+  // llSetScriptState / llResetOtherScript all agree on the script's
+  // identity.
+  const { source: _src, name: invName, language: _language, ...rest } = input
+  const coverage = rest.coverage ?? isCoverageEnabled()
+  const opts: ScriptOptions = { ...rest, filename, host: prim, source, coverage }
+  const given = invName ?? rest.scriptName
+  const inventoryName = numbered
+    ? prim.freeInventoryName(given ?? filename.split('/').pop()!.replace(/\.(lsl|luau?)$/i, ''))
+    : given
+  if (numbered && !inventoryName) throw new Error('addScript: the script name has no ASCII characters')
+  if (inventoryName !== undefined) {
+    ;(opts as { -readonly [K in keyof ScriptOptions]: ScriptOptions[K] }).scriptName =
+      inventoryName
+  }
+  const s = ast ? new Script(ast.script, opts) : Script.fromSlua(source, opts)
+  if (coverage) registerScript(s)
+  const item = prim.inventory.find((it) => it.script === s)
+  if (item) item.name = s.scriptName
+  return s
+}
+
+/**
+ * Add a script to a prim as its owner does by dropping it in. The scripts
+ * already in the prim get `changed(CHANGED_INVENTORY)`, then the new script
+ * runs `state_entry` unless `running` is false. A name the prim already holds
+ * gets a number appended. A script that one of their `changed` handlers
+ * deletes is returned dead.
+ */
+export async function addScript(prim: Prim, input: ScriptInput, opts: { running?: boolean } = {}): Promise<Script> {
+  if (prim.linkset?.dead) throw new Error('addScript: the object no longer exists')
+  const script = await buildScript(prim, input, true)
+  prim.dropScript(script, opts)
+  return script
+}
+
+/**
  * Build a multi-prim, multi-script Linkset for tests. Each prim hosts one or
  * more scripts; the returned `scripts` map keys by inventory name.
  *
@@ -96,40 +146,17 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
     if (prims.length === 0 && input.position) prim.params.position = input.position
     prims.push(prim)
     for (const item of primInput.inventory ?? []) {
-      prim.addInventory(item)
+      prim.placeInventory(item)
     }
     for (const [name, definition] of Object.entries(primInput.objects ?? {})) {
       const object = (await loadLinkset(definition)).linkset
       if (!object.prims.length) throw new Error(`loadLinkset: inventory object '${name}' has no prims`)
-      prim.addInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
+      prim.placeInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
         key: object.prims[0]!.key, object }))
     }
     for (const sInput of primInput.scripts ?? []) {
-      const { source, filename } = await readScriptSource(sInput.source)
-      const slua = sInput.language === 'slua' || (sInput.language === undefined && /\.luau?$/i.test(filename))
-      const ast = slua ? null : parse(source, filename)
-      if (ast) {
-        const errors = ast.diagnostics.filter((d) => d.severity === 'error')
-        if (errors.length === 0) errors.push(...typecheck(ast.script, filename, sInput.functions))
-        if (errors.length > 0) throw new LslParseError(errors)
-      }
-      // Build options without the loadLinkset-only fields. The inventory
-      // `name` is also surfaced as `scriptName` so llGetScriptName /
-      // llSetScriptState / llResetOtherScript all agree on the script's
-      // identity.
-      const { source: _src, name: invName, language: _language, ...rest } = sInput
-      const coverage = rest.coverage ?? isCoverageEnabled()
-      const opts: ScriptOptions = { ...rest, filename, host: prim, source, coverage }
-      const inventoryName = invName ?? rest.scriptName
-      if (inventoryName !== undefined) {
-        ;(opts as { -readonly [K in keyof ScriptOptions]: ScriptOptions[K] }).scriptName =
-          inventoryName
-      }
-      const s = ast ? new Script(ast.script, opts) : Script.fromSlua(source, opts)
-      if (coverage) registerScript(s)
+      const s = await buildScript(prim, sInput)
       const finalName = s.scriptName
-      const item = prim.inventory.find((it) => it.script === s)
-      if (item) item.name = finalName
       if (finalName in scripts) {
         throw new Error(
           `loadLinkset: duplicate script name '${finalName}' across prims; ` +

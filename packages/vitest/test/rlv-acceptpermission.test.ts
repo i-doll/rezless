@@ -31,7 +31,7 @@ describe('acceptpermission automatic permission replies', () => {
     ['worn standing animation', ANIMATION, false, true, true, { rlv: false, rlva: false }],
     ['debit', DEBIT, true, false, true, { rlv: false, rlva: false }],
     ['controls mixed with debit', CONTROLS | DEBIT, true, false, true, { rlv: false, rlva: false }],
-    ['controls mixed with unknown bits', CONTROLS | 0x40000000, true, false, true, { rlv: false, rlva: false }],
+    ['controls mixed with a bit neither viewer covers', CONTROLS | 0x20000, true, false, true, { rlv: false, rlva: false }],
   ] as const) {
     it(name, async () => {
       const pair = await loadRlvPair({ source: source(bits) })
@@ -50,7 +50,11 @@ describe('acceptpermission automatic permission replies', () => {
           const seat = await loadLinkset({ world: f.world, region: f.avatar.region, prims: [{}] })
           expect(f.world.sitAvatar(f.avatar, seat.linkset.prims[0]!)).toBe(true)
         }
-        if (worn) script.linkset.attachToAvatar(f.avatar.key, 1)
+        if (worn) {
+          script.linkset.attachToAvatar(f.avatar.key, 1)
+          // Leave the simulator's grants to a wearer out, so only the viewer's replies show.
+          script.autoGrantPermissions = 'none'
+        }
         script.start()
         expect(script.permissionRequests).toEqual([{ agent: f.avatar.key, permissions: bits, answered: expected[profile] }])
         expect(script.global('events')).toBe(expected[profile] ? 1 : 0)
@@ -62,6 +66,18 @@ describe('acceptpermission automatic permission replies', () => {
       }
     })
   }
+
+  // The simulator grants a wearer attach and animation before either viewer is asked
+  // (measured in auto-grant-permissions.test.ts), so the profiles no longer differ.
+  it('answers a worn request the simulator grants, whatever the viewer covers', async () => {
+    const pair = await loadRlvPair({ source: source(ATTACH | ANIMATION) })
+    for (const { script, avatar } of Object.values(pair)) {
+      script.linkset.attachToAvatar(avatar.key, 1)
+      script.start()
+      expect(script.permissionRequests).toEqual([{ agent: avatar.key, permissions: ATTACH | ANIMATION, answered: true }])
+      expect(script.global('granted')).toBe(ATTACH | ANIMATION)
+    }
+  })
 
   for (const commands of ['', '@acceptpermission=y', '@acceptpermission=n,acceptpermission=y', '@acceptpermission=add,acceptpermission=rem',
     '@acceptpermission=n,clear', '@acceptpermission:nobody=n', '@acceptpermission_sec=n']) {
@@ -122,10 +138,14 @@ describe('acceptpermission automatic permission replies', () => {
     for (const { script } of Object.values(pair)) {
       script.start()
       script.linkset.touch(0)
-      expect(script.permissionRequests.map(r => r.answered)).toEqual([false, true])
+      // In-world: a rezzed probe asked its standing owner for 4 and the dialog stayed open. It then
+      // sent @acceptpermission=add and asked for 4 again -> the viewer answered,
+      // run_time_permissions(4) fired once, and Yes on the old dialog afterwards fired nothing
+      // (Aditi, SLua Tideland, 2026-11-13, Firestorm RLVa). Kokua was not probed.
+      expect(script.permissionRequests.map(r => r.answered)).toEqual([true, true])
       expect(script.global('events')).toBe(1)
-      script.denyPermissions()
-      expect(script.global('events')).toBe(2)
+      expect(() => script.denyPermissions()).toThrow('no pending permission request')
+      expect(script.global('events')).toBe(1)
     }
   })
 

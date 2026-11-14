@@ -13,7 +13,8 @@
 import { readFileSync } from 'node:fs'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { isRotation, toFloat32Value, toInt32 } from '../values/types.js'
-import { listElementTypes, markLuaNumbers, typedList } from '../values/list-types.js'
+import { listElementTypes, markLuaList, typedList } from '../values/list-types.js'
+import type { LuaKind } from '../values/list-types.js'
 import { BUILTIN_SPECS } from '../generated/functions.js'
 import type { BuiltinSpec } from '../generated/functions.js'
 import { EVENT_SPECS } from '../generated/events.js'
@@ -22,6 +23,7 @@ import type { EvalResult } from '../values/types.js'
 import type { Suspension } from '../runtime.js'
 import { own } from '../own.js'
 import { RuntimeError } from '../memory.js'
+import { isKey } from '../builtins/viewer.js'
 
 /** What the engine needs from the script hosting it. */
 export interface SluaHost {
@@ -56,6 +58,13 @@ export class SluaRuntimeError extends RuntimeError {
   constructor(message: string) {
     super(message)
     this.name = 'SluaRuntimeError'
+  }
+
+  // Second Life says one of three texts, not the Lua message. The VM words an
+  // error value that isn't a string as "error object is a <type> value".
+  override get said(): string {
+    if (this.message === 'not enough memory') return this.message
+    return this.message.startsWith('error object is a ') ? 'Unknown runtime error' : 'runtime error'
   }
 }
 
@@ -412,62 +421,58 @@ export class SluaEngine {
 
   /**
    * The call's arguments as the LSL function takes them, or the error SLua
-   * raises for a missing or wrong-typed one (as luaL_typeerror words it).
+   * raises: the count is checked first (extra arguments are ignored), then
+   * each argument's type from the left, then for a 0 index.
    */
   private readArgs(L: number, spec: BuiltinSpec, compat: boolean, nargs: number): LslValue[] | string {
     const indexParams = new Set(spec.slua?.indexParams ?? [])
-    const boolParams = new Set(spec.slua?.boolParams ?? [])
-    const uuidParams = new Set(spec.slua?.uuidParams ?? [])
     const name = spec.name.slice(2)
+    const wanted = spec.params.length
+    if (nargs < wanted) return `Fewer arguments than expected, ${nargs} < ${wanted}`
     const args: LslValue[] = []
     for (const [i, p] of spec.params.entries()) {
       const slot = i + 1
-      const expected = EXPECTED[p.type]!
-      if (slot > nargs) return `missing argument #${slot} to '${name}' (${expected} expected)`
-      const value = this.readArg(L, slot, p.type, { boolean: boolParams.has(i), uuid: uuidParams.has(i) })
+      // An integer parameter takes a boolean, except a 1-based index.
+      const value = this.readArg(L, slot, p.type, compat || !indexParams.has(i))
       if (value === undefined) {
+        if (p.type === 'list') return `invalid argument #${slot} to '${name}' (expected a table)`
         this.x.rz_typename(this.s, L, slot)
         const got = this.scratch()
-        return `invalid argument #${slot} to '${name}' (${expected} expected, got ${got})`
+        return `invalid argument #${slot} to '${name}' (${EXPECTED[p.type]!} expected, got ${got})`
       }
-      if (typeof value === 'object' && 'error' in value) return value.error
-      let v = value
-      if (indexParams.has(i) && !compat) {
-        const n = v as number
-        if (n === 0) return 'passed 0 when a 1-based index was expected'
-        if (n >= 1) v = n - 1
-      }
-      args.push(v)
+      if (typeof value === 'object' && 'error' in value) return `invalid argument #-1 to '${name}' (${value.error})`
+      args.push(value)
+    }
+    if (compat) return args
+    for (const i of indexParams) {
+      const n = args[i] as number
+      if (n === 0) return 'passed 0 when a 1-based index was expected'
+      if (n >= 1) args[i] = n - 1
     }
     return args
   }
 
   /**
-   * Argument `slot` as LSL parameter type `type` takes it, as luaL_check*
-   * would accept it (numbers from numeric strings, strings from numbers as
-   * Lua formats them), undefined if it is the wrong type, or an error for a
-   * list holding something LSL can't.
+   * Argument `slot` as LSL parameter type `type` takes it (numbers from
+   * numeric strings, strings from uuids), undefined if it is the wrong type,
+   * or an error for a list holding something LSL can't.
    */
   private readArg(
     L: number,
     slot: number,
     type: LslType,
-    takes: { boolean: boolean; uuid: boolean },
+    takesBoolean: boolean,
   ): LslValue | { error: string } | undefined {
     const x = this.x
     const t = x.rz_type(L, slot)
     const numeric = t === T.Number || t === T.Integer || (t === T.String && x.rz_isnumber(L, slot) !== 0)
     switch (type) {
       case 'integer':
-        if (takes.boolean && t === T.Boolean) return x.rz_toboolean(L, slot)
+        if (takesBoolean && t === T.Boolean) return x.rz_toboolean(L, slot)
         return numeric ? toInt32(Math.trunc(x.rz_tonumber(L, slot))) : undefined
       case 'float':
         return numeric ? x.rz_tonumber(L, slot) : undefined
       case 'string':
-        // luaL_checkstring: strings, and numbers as Lua formats them.
-        if (t !== T.String && t !== T.Number && !(takes.uuid && t === T.Uuid)) return undefined
-        x.rz_tostring(this.s, L, slot)
-        return this.scratch()
       case 'key':
         if (t !== T.String && t !== T.Uuid) return undefined
         x.rz_tostring(this.s, L, slot)
@@ -481,22 +486,33 @@ export class SluaEngine {
     }
   }
 
-  /** A table as an LSL list, as SLua's own list functions read one. */
+  /** A table as an LSL list, as measured for the functions rezless answers. */
   private readList(L: number, slot: number): LslValue | { error: string } {
     const x = this.x
     const n = x.rz_objlen(L, slot)
     const values: LslValue[] = []
     const types: LslType[] = []
+    const kinds: LuaKind[] = []
     for (let k = 1; k <= n; k++) {
       x.rz_rawgeti(L, slot, k)
+      const t = x.rz_type(L, -1)
+      const hole = t === T.Nil
       const el = this.readElement(L, -1)
       x.rz_pop(L, 1)
-      if (!el) return { error: 'non-LSL value in list' }
+      if (hole) return { error: "Can't have undefined in an argument" }
+      if (!el) return { error: "Don't know how to decode this" }
+      kinds.push(t === T.Number ? 'number' : t === T.Boolean ? 'boolean' : undefined)
+      if (el.type === 'float' && isInt32(el.value as number)) {
+        // A whole number that fits an LSL integer is sent as one.
+        values.push((el.value as number) | 0)
+        types.push('integer')
+        continue
+      }
       // LSL floats are 32-bit.
       values.push(toFloat32Value(el.value, el.type))
       types.push(el.type)
     }
-    return markLuaNumbers(typedList(values, types))
+    return markLuaList(typedList(values, types), kinds)
   }
 
   private pushResult(L: number, spec: BuiltinSpec, compat: boolean, value: LslValue | undefined): number {
@@ -517,7 +533,9 @@ export class SluaEngine {
       this.x.rz_pushboolean(L, (v as number) !== 0 ? 1 : 0)
       return 1
     }
-    this.push(L, v, spec.returnType, compat)
+    // The texture a face holds by key comes back as a uuid.
+    if (spec.name === 'llGetTexture' && isKey(v as string)) this.push(L, (v as string).toLowerCase(), 'key', compat)
+    else this.push(L, v, spec.returnType, compat)
     return 1
   }
 
@@ -654,7 +672,11 @@ const EXPECTED: Partial<Record<LslType, string>> = {
   key: 'uuid',
   vector: 'vector',
   rotation: 'quaternion',
-  list: 'table',
+}
+
+/** Whether a Lua number is whole and fits an LSL integer. */
+function isInt32(n: number): boolean {
+  return Number.isInteger(n) && n >= -0x80000000 && n <= 0x7fffffff
 }
 
 /** The type of an untyped list element (from a mock). Lists don't nest, so the rest are vectors. */

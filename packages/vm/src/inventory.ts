@@ -13,7 +13,40 @@ import {
   INVENTORY_SETTING,
   INVENTORY_MATERIAL,
   PERM_ALL,
+  CHANGED_INVENTORY,
 } from './generated/constants.js'
+import type { Script } from './script.js'
+
+/**
+ * Queue `changed(CHANGED_INVENTORY)` for a script. A script asleep in a
+ * handler that already waits for one gets no second event, unless it has woken
+ * since that one was queued and no other is waiting behind it.
+ */
+export function queueInventoryChanged(script: Script): void {
+  const clock = script.linkset.clock
+  if (script.wakeAt !== undefined) {
+    const waiting = clock.pendingEvents().filter((e) => e.target === script && e.event === 'changed'
+      && ((e.payload['changes'] as number) & CHANGED_INVENTORY) !== 0)
+    if (waiting.some((e) => e.at >= script.resumedAt) || waiting.length >= 2) return
+  }
+  clock.schedule(script, clock.now, 'changed', { changes: CHANGED_INVENTORY })
+}
+
+/**
+ * Whether an owner edit or a remote script load made now queues `changed`
+ * for a script. It does not for a stopped script, nor for one that has not
+ * run yet. A queued event can run a script's handler without starting it.
+ */
+export function hearsInventoryChange(script: Script): boolean {
+  return script.running && (script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined)
+}
+
+/** The name an arriving item gets: a taken name is cut to fit a number within 63 characters. */
+export function freeInventoryName(inventory: ReadonlyArray<InventoryItem>, name: string): string {
+  let free = name
+  for (let n = 1; inventory.some((item) => item.name === free); n++) free = `${name.slice(0, 63 - ` ${n}`.length)} ${n}`
+  return free
+}
 
 /**
  * LSL inventory item types. Numeric values come straight from the

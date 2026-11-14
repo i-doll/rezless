@@ -106,11 +106,15 @@ describe('Phase 2 — LSL quirks', () => {
     expect(s.global('qs')).toBe(1)
   })
 
-  it('division by zero (integer) throws Math Error', async () => {
+  it('division by zero (integer) crashes the script with a Math Error', async () => {
+    // In-world: 1 / zero in a Mono script -> "Script run-time error" and
+    // "Math Error" on DEBUG_CHANNEL, llGetScriptState 0 (Aditi, SLua Tideland,
+    // 2026-11-13). The cases are in run-time-errors.test.ts.
     const s = await loadScript({
       source: `default { state_entry() { integer x = 1 / 0; } }`,
     })
-    expect(() => s.start()).toThrow(/Math Error: divide by zero/)
+    expect(() => s.start()).toThrow('Math Error')
+    expect(s.running).toBe(false)
   })
 
   // SLua rejects a list element at compile time (Tailslide: "Lists may not contain other lists").

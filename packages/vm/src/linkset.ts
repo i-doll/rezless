@@ -30,6 +30,11 @@ import {
 // Re-export so `import { LINK_* } from '@rezless/vm'` keeps working.
 export { LINK_ROOT, LINK_SET, LINK_ALL_OTHERS, LINK_ALL_CHILDREN, LINK_THIS }
 
+/** A link of an object: one of its prims, or an avatar seated on it. */
+export type Link = Prim | WorldAvatar
+
+export const isPrim = (link: Link | undefined): link is Prim => link instanceof Prim
+
 export interface LinksetOptions {
   /** Owner key applied to all scripts in this linkset. */
   readonly owner?: string
@@ -255,7 +260,7 @@ export class Linkset {
         if (item.script) {
           const script = item.script.copyTo(prim)
           Object.assign(prim.inventory.at(-1)!, { ...item, permMask: { ...item.permMask }, script })
-        } else prim.addInventory({ ...item, permMask: { ...item.permMask } })
+        } else prim.placeInventory({ ...item, permMask: { ...item.permMask } })
       }
     }
     for (const [key, value] of this.linksetData) copy.linksetData.set(key, { ...value })
@@ -285,9 +290,27 @@ export class Linkset {
     else this.expiresAt = undefined
   }
 
-  private recomputeLinkNumbers(): void {
-    if (this.prims.length === 1) {
-      // LSL: a lone unlinked prim reports linkNumber 0.
+  /** Avatars seated on this object, in seating order. They are the links after the prims. */
+  sitters(): WorldAvatar[] {
+    return (this.world?.avatars ?? [])
+      .filter((a) => a.sittingOn !== null && this.prims.includes(a.sittingOn))
+      .sort((a, b) => a.sittingOrder - b.sittingOrder)
+  }
+
+  /** The prim or seated avatar at link number `link`. */
+  linkAt(link: number): Prim | WorldAvatar | undefined {
+    return this.prims.find((p) => p.linkNumber === link) ?? this.sitterAt(link)
+  }
+
+  /** The seated avatar at link number `link`. */
+  sitterAt(link: number): WorldAvatar | undefined {
+    return link > this.prims.length ? this.sitters()[link - this.prims.length - 1] : undefined
+  }
+
+  /** Renumber the prims. Runs when prims are linked or unlinked and when an avatar sits or stands. */
+  recomputeLinkNumbers(): void {
+    if (this.prims.length === 1 && this.sitters().length === 0) {
+      // A lone prim is link 0 until an avatar sits on it.
       this.prims[0]!.linkNumber = 0
       return
     }
@@ -319,9 +342,11 @@ export class Linkset {
    * llBreakLink: take `prim` out into a linkset of its own. The root prim
    * keeps the linkset data; when `prim` is the root, the rest stay linked
    * under the next prim with no data. Every prim of both parts gets
-   * changed(CHANGED_LINK). A lone prim is left alone.
+   * changed(CHANGED_LINK), and avatars seated on the object stand. A lone
+   * prim only loses its sitters.
    */
   breakOff(prim: Prim): void {
+    this.standSitters()
     if (this.prims.length < 2) return
     const rest = this.prims.filter((p) => p !== prim)
     const all = [...this.prims]
@@ -337,11 +362,17 @@ export class Linkset {
 
   /** llBreakAllLinks: break every prim apart; each gets changed(CHANGED_LINK). */
   breakAll(): void {
+    this.standSitters()
     if (this.prims.length < 2) return
     const all = [...this.prims]
     for (const p of all.slice(1)) this.splitOff([p])
     this.place([all[0]!])
     this.raiseLinkChanged(all)
+  }
+
+  /** Unlinking a prim stands everyone seated on the object. */
+  private standSitters(): void {
+    for (const avatar of this.sitters()) this.world!.standAvatar(avatar)
   }
 
   /** Move `prims` into a new linkset in this one's world and region, with no linkset data. */
@@ -362,6 +393,10 @@ export class Linkset {
    */
   private place(prims: Prim[]): void {
     const placed = prims.map((p) => ({ p, pos: p.regionPosition(), rot: p.regionRotation() }))
+    // A sitter stays where it is in the region when its object gets another root.
+    const seated = (this.world?.avatars ?? [])
+      .filter((a) => a.sittingOn !== null && prims.includes(a.sittingOn))
+      .map((a) => ({ a, pos: a.position, rot: a.rotation }))
     this.prims.splice(0, this.prims.length, ...prims)
     const root = placed[0]!
     const inverse = conjugate(root.rot)
@@ -375,6 +410,10 @@ export class Linkset {
         p.params.position = rotateVector(offset, inverse)
         p.params.rotation = mulRotation(rot, inverse)
       }
+    }
+    for (const { a, pos, rot } of seated) {
+      const offset = { x: pos.x - root.pos.x, y: pos.y - root.pos.y, z: pos.z - root.pos.z }
+      a.sitPlacement = { position: rotateVector(offset, inverse), rotation: mulRotation(rot, inverse) }
     }
     this.recomputeLinkNumbers()
   }
@@ -412,31 +451,56 @@ export class Linkset {
     return this.prims.find((p) => p.scripts.includes(script))
   }
 
+  /** The first link that is not `from`: link 2 seen from the root, the root seen from any other link. */
+  firstOtherLink(from: Link): Link | undefined {
+    return from === this.prims[0] ? this.linkAt(2) : this.prims[0]
+  }
+
+  /**
+   * The link `link` names, seen from `from`, in a call that takes one link.
+   * LINK_THIS is `from` and every other negative number is the first other
+   * link. Link 0 is the root seen from another link, and a lone prim nobody
+   * sits on.
+   */
+  oneLink(from: Link, link: number): Link | undefined {
+    if (link === LINK_THIS) return from
+    if (link < 0) return this.firstOtherLink(from)
+    if (link > 0) return this.linkAt(link)
+    const root = this.prims[0]
+    return from !== root || root?.linkNumber === 0 ? root : undefined
+  }
+
+  /** The prim `link` names in a call that takes one link; undefined for an avatar link or no link. */
+  onePrim(from: Link, link: number): Prim | undefined {
+    const one = this.oneLink(from, link)
+    return isPrim(one) ? one : undefined
+  }
+
+  /**
+   * The links `link` names, seen from the prim `from`, in a call that takes
+   * LINK_SET, LINK_ALL_OTHERS and LINK_ALL_CHILDREN as groups. The groups hold
+   * prims only. A number below LINK_THIS is the first other link, and that or
+   * a positive number can name a seated avatar.
+   */
+  linksFrom(from: Prim, link: number): { prims: Prim[]; sitter: WorldAvatar | undefined } {
+    const group = link === LINK_THIS ? [from]
+      : link === LINK_SET ? [...this.prims]
+      : link === LINK_ALL_OTHERS ? this.prims.filter((p) => p !== from)
+      : link === LINK_ALL_CHILDREN ? this.prims.slice(1)
+      : undefined
+    if (group) return { prims: group, sitter: undefined }
+    // Here link 0 names only a lone prim nobody sits on. Callers that read it as the root from a child do that themselves.
+    const one = link === 0 ? this.prims.find((p) => p.linkNumber === 0) : link < 0 ? this.firstOtherLink(from) : this.linkAt(link)
+    return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
+  }
+
   /** Resolve LINK_* / specific link number to the set of target prims. */
   resolveTargets(senderLink: number, target: number): Prim[] {
-    if (target === LINK_THIS) {
-      const me = this.prims.find((p) => p.linkNumber === senderLink) ?? this.prims[0]
-      return me ? [me] : []
-    }
-    if (target === LINK_SET) return [...this.prims]
-    if (target === LINK_ALL_OTHERS) {
-      return this.prims.filter((p) => p.linkNumber !== senderLink)
-    }
-    if (target === LINK_ALL_CHILDREN) {
-      // children = everything except root (LINK_ROOT in a real linkset; a
-      // lone prim has linkNumber 0 → no children).
-      if (this.prims.length <= 1) return []
-      return this.prims.filter((p) => p.linkNumber !== LINK_ROOT)
-    }
-    if (target >= LINK_ROOT) {
-      const p = this.prims.find((pp) => pp.linkNumber === target)
-      return p ? [p] : []
-    }
-    if (target === 0 && this.prims.length === 1) {
-      // Lone unlinked prim accepts target 0 as "self".
-      return [this.prims[0]!]
-    }
-    return []
+    const sender = this.prims.find((p) => p.linkNumber === senderLink)
+    // A sender that is not a prim of this object leaves nothing out of LINK_ALL_OTHERS.
+    if (!sender && target === LINK_ALL_OTHERS) return [...this.prims]
+    const from = sender ?? this.prims[0]
+    return from ? this.linksFrom(from, target).prims : []
   }
 
   /**

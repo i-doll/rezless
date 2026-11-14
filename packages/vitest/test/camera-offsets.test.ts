@@ -188,6 +188,7 @@ it('keeps seated camera reads gated by TRACK_CAMERA', async () => {
   const f = await seatedFixture('llSetLinkCamera(LINK_THIS, <-4,1,2>, <2,1,2>);')
   f.linkset.touch(1)
   f.world.sitAvatar(f.avatar, f.prims[0]!)
+  f.script.autoGrantPermissions = 'none'
   f.script.reset()
   f.script.fire('touch_end', { num_detected: 1 })
   expect(f.script.global('pos')).toEqual({ x: 0, y: 0, z: 0 })
@@ -294,7 +295,7 @@ it('projects a point ahead of the seated camera at HUD centre using the same pos
   ` } }] }] })
   hud.linkset.attachToAvatar(OWNER, 35)
   const script = hud.scripts.hud!
-  script.start(); script.grantPermissions()
+  script.start()
   f.world.sitAvatar(f.avatar, f.prims[0]!)
   hud.linkset.touch(0)
   const projected = script.global('projected') as { x: number; y: number; z: number }

@@ -154,8 +154,8 @@ s.grantUrls() / s.denyUrls()                    // grant (default) or deny later
 s.deliverEmail({ from, subject, message })      // queue mail on the prim for llGetNextEmail; false when the queue is full
 s.respondToDataserver(key, value)               // fire `dataserver` for a captured llRequest*
 s.respondToLastDataserver(value)                // same, for the most recent
-s.grantPermissions(perms?)                      // answer the latest llRequestPermissions; fires `run_time_permissions`
-s.denyPermissions()                             // answer it with No
+s.grantPermissions(perms?, request?)            // answer the latest llRequestPermissions, or the given entry of s.permissionRequests; fires `run_time_permissions`
+s.denyPermissions(request?)                     // answer it with No
 s.grantExperiencePermissions()                  // accept the latest llRequestExperiencePermissions; fires `experience_permissions`
 s.denyExperiencePermissions(reason?)            // decline it; fires `experience_permissions_denied` (XP_ERROR_NOT_PERMITTED by default)
 s.answerDialog(text, { name? })                 // answer the latest llDialog / llTextBox as its avatar; fires `listen`
@@ -171,7 +171,8 @@ s.reset()                                       // re-init globals + return to d
 s.currentState                                  // current LSL state name
 s.now                                           // virtual time in ms
 s.timerInterval                                 // configured llSetTimerEvent interval (sec, 0 = unset)
-s.running                                       // false while paused via llSetScriptState
+s.running                                       // false while paused via llSetScriptState, or after a run-time error
+s.crashed                                       // true after a run-time error, until the script runs again
 s.global(name)                                  // read a script global
 s.setGlobal(name, value)                        // seed a script global
 s.chat                                          // [{ channel, text, type, to? }, ...]
@@ -184,6 +185,7 @@ s.targetedEmails                                // [{ target, subject, message, 
 s.inbox                                         // mail queued on the prim, oldest first
 s.dataserverRequests                            // [{ key, source, args, fulfilled }]
 s.permissionRequests                            // [{ agent, permissions, answered }]
+s.autoGrantPermissions = 'none'                 // 'sl' (default), 'none', or (request) => boolean: which requests the simulator grants itself
 s.experience                                    // the Experience the script was given, or null
 s.experienceRequests                            // [{ agent, answered }] from llRequestExperiencePermissions
 s.teleportRequests                              // teleport attempts, including denials, with time and destination
@@ -279,6 +281,58 @@ targeting an avatar on a nonzero channel, matching listens in every attachment
 that avatar wears in the sender's region. Channel 0 to an avatar reaches no
 script. A prim never hears its own chat, and `llOwnerSay` and
 `llInstantMessage` never trigger a `listen`.
+
+#### Editing a prim's contents
+
+These calls act as the object's owner editing its contents. Each one sends
+`changed(CHANGED_INVENTORY)` to the running scripts in that prim. When no
+script in a child prim handles `changed` in its current state, the root's
+scripts get the event instead. No other prim hears of it.
+
+```ts
+prims[0].addInventory(makeInventoryItem({ name: 'Notes', type: InventoryType.NOTECARD }))
+prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, new key
+prims[0].renameInventory('Notes', 'Settings')
+prims[0].removeInventory('Settings')                                 // a removed script stops
+prims[0].removeInventory('a', 'b')                                   // deleted together: one event
+
+const door = await addScript(prims[1], { source: 'door.lsl', name: 'door' })  // dropped in: runs state_entry
+await addScript(prims[1], { source: 'spare.lsl' }, { running: false })        // dropped in, not running
+prims[1].replaceInventory('door', {})                                         // recompiled: resets, new key
+prims[1].renameInventory('door', 'gate')                                      // keeps running
+```
+
+`addScript` takes a script as `loadLinkset` does and returns it, stopped when
+`running` is false; the script is not added to the `scripts` map `loadLinkset`
+returned. It is not `prim.addScript`, which places a script with no event.
+`prim.dropScript(script)` does the same for a script already built on the prim.
+
+The other scripts hear of a new or recompiled script before it runs, and it
+gets no event of its own. Until their `changed` handlers end or sleep, the
+script is not there for them: a link message to it is lost, and
+`llSetScriptState` on it says it could not find the script. A script added as
+not running, or recompiled while stopped, runs `state_entry` once
+`llSetScriptState` starts it. Recompiling keeps the script's code; to change
+the code, remove the script and add another. A script that nothing has run yet
+is not reset by a recompile.
+
+A renamed script gets the event like the others; `llGetScriptName` returns the
+new name, while `script.scriptName` keeps the name the script was loaded with.
+Renaming inside a prim could not be probed, so those details are assumptions.
+
+A script that has not started yet, or is stopped, gets no event, so items added
+before `start()` set the object up quietly. A script busy in a handler gets the
+event when the handler ends, and edits made meanwhile are merged into one or
+two events. Like `linkset.touch`, an edit runs the handlers it starts to their
+end and delivers any other event that is due.
+
+`addInventory` and `addScript` append a number to a name the prim already
+holds (`Notes`, `Notes 1`); `addInventory` returns the stored item. The other
+three throw for a name the prim does not hold. `llRemoveInventory` from a
+script sends no event.
+
+`prim.placeInventory(item)` puts an item in place with no event, for arranging
+an object after its scripts have started.
 
 #### Rezzing inventory objects
 
@@ -468,14 +522,47 @@ were measured on Aditi in SLua Tideland on 2026-11-01.
 ### Sitting and teleporting
 
 Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to simulate
-viewer seating. `avatar.sittingOn` identifies the occupied prim. Seated poses
-follow the current prim transform with the offset captured at seating; editing
-the target affects future sits. Deleting the object clears occupancy. Seating updates
+viewer seating. `avatar.sittingOn` identifies the occupied prim. A sitter is a
+child of the object's root: it moves with the root and stays put when its seat
+prim moves or the sit target is edited, which only affects future sits. Deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
 `changed(CHANGED_LINK)` throughout the object. The sit-target readers return
 its sitter only while the target is enabled. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
+
+A seated avatar is a link of the object, numbered after the prims. Several
+sitters are numbered in seating order, and later sitters move down a link when
+an earlier one stands. The order is from the Second Life wiki and the
+renumbering is inferred from it; neither was measured, since that needs a
+second avatar. `llGetNumberOfPrims` counts it, `llGetObjectPrimCount` does not, and a
+lone prim is link 1 instead of 0 while someone sits on it. `llGetLinkKey`,
+`llGetLinkName`, `llGetObjectLinkKey` and `llGetLinkPrimitiveParams` read the
+avatar at its link number. `llSetLinkPrimitiveParams(Fast)` moves the sitter
+with `PRIM_POS_LOCAL`, `PRIM_ROT_LOCAL`, `PRIM_POSITION` and `PRIM_ROTATION`,
+all relative to the root; any other rule on an avatar link does nothing and
+ends the rule list. `LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` reach
+the prims only. Unlinking a prim stands everyone seated on the object; linking
+keeps them seated where they are. Media set through an avatar link with
+`llSetLinkMedia` stays with the avatar.
+
+In most link-taking calls a link number below `LINK_THIS`, such as -5 or -100,
+names the first link that is not the caller: link 2 from the root, the root
+from a child, and the sitter from a lone prim someone sits on. Calls that take
+`LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` as groups of prims read
+it that way. That was measured in Second Life for `llMessageLinked` and the
+calls that set prim parameters, colour, alpha, texture, material and sit flags.
+The link sound calls and `llSetLinkTextureAnim` follow the same rule without a
+measurement, because no script can read their effect back. Calls that take one
+link (`llGetLinkKey`, `llGetLinkName`, `llGetLinkSitFlags`,
+`llAvatarOnLinkSitTarget`, `llLinkSitTarget`, `llSetLinkCamera`, the link media
+calls) read the three group flags as the first other link as well.
+`llGetLinkPrimitiveParams` returns an empty list for the three flags, and a
+`PRIM_LINK_TARGET` inside it takes one link, counted from the link the read
+started on and not from the calling prim. `llGetLinkNumberOfSides`,
+`llIsLinkGLTFMaterial` and `llGetObjectLinkKey` answer `LINK_THIS` and no other
+negative number. `llBreakLink` reads `LINK_THIS` as the root and every other
+negative number as link 2, whichever prim calls it.
 
 `llSetAgentRot` requires animation permission and changes yaw. A rotation
 requested while sitting applies when standing. `llTeleportAgent` and
@@ -607,8 +694,10 @@ controls, animation while sitting, and attach permission from owned objects,
 including worn objects. Firestorm covers controls and attach permission from
 owned objects that are not already attachments. Requests with any other bits
 stay pending for `grantPermissions` or `denyPermissions`. Activation applies to
-all requesting objects; UUID options do not create exceptions. Simulator implicit
-permissions and alternate auto-attach settings are outside this contract.
+all requesting objects; UUID options do not create exceptions. The simulator's
+own grants to a sitter or a wearer come first and apply with or without the
+rule; set `s.autoGrantPermissions = 'none'` to see the viewer's replies alone.
+Alternate auto-attach settings are outside this contract.
 
 Viewer emulation is opt-in per avatar through
 `world.addAvatar({ username, region, viewer: { profile: 'rlv' } })`.
@@ -1875,7 +1964,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **detected**: `llDetectedKey`/`Name`/`Owner`/`Group`/`Pos`/`Rot`/`Vel`/`Type`/`LinkNumber`/`Grab`/`TouchPos`/`TouchFace`/`TouchST`/`TouchUV`/`TouchNormal`/`TouchBinormal`/`Rezzer`/`Damage`
 * **math**: `llAbs`, `llFabs`, `llRound` (banker's), `llCeil`, `llFloor`, `llPow`, `llSqrt`, `llSin`/`Cos`/`Tan`/`Asin`/`Acos`/`Atan2`, `llLog`/`Log10`, seeded `llFrand`, `llVecMag`/`Norm`/`Dist`, `llRot2Euler`/`Euler2Rot`, `llRot2Fwd`/`Left`/`Up`, `llRot2Axis`/`Angle`, `llAxisAngle2Rot`, `llRotBetween`, `llAngleBetween`, `llAxes2Rot`, `llLinear2sRGB`/`llsRGB2Linear`
 * **string**: `llStringLength`, `llSubStringIndex`, `llGetSubString`, `llDeleteSubString`, `llInsertString`, `llStringTrim`, `llToLower`/`Upper`, `llReplaceSubString`, `llEscapeURL`/`UnescapeURL`
-* **list**: `llGetListLength`, `llList2Integer`/`Float`/`String`/`Key`/`Vector`/`Rot`, `llList2List`, `llList2ListStrided`, `llList2ListSlice`, `llListRandomize` (seeded), `llDeleteSubList`, `llListInsertList`, `llListReplaceList`, `llListFindList`, `llListSort`, `llListSortStrided`, `llDumpList2String`, `llList2CSV`, `llCSV2List`, `llParseString2List`, `llParseStringKeepNulls`
+* **list**: `llGetListLength`, `llList2Integer`/`Float`/`String`/`Key`/`Vector`/`Rot`, `llList2List`, `llList2ListStrided`, `llList2ListSlice`, `llListRandomize` (seeded), `llDeleteSubList`, `llListInsertList`, `llListReplaceList`, `llListFindList`, `llListSort`, `llListSortStrided`, `llDumpList2String`, `llList2CSV`, `llCSV2List`, `llParseString2List`, `llParseStringKeepNulls`. `llList2CSV` and `llList2Json` print a NaN as `nan`; Second Life prints `nan` or `-nan` by the NaN's sign bit, which the VM's floats do not carry.
 * **json**: `llJson2List`, `llJsonGetValue`, `llJsonSetValue`, `llJsonValueType`, `llList2Json` — full LSL JSON semantics including the FDDx-range type-tag sentinels (`JSON_OBJECT`/`ARRAY`/`NUMBER`/`STRING`/`NULL`/`TRUE`/`FALSE`/`INVALID`/`DELETE`), `JSON_APPEND`, the empty-value short-circuit (`{"k":,}` → `JSON_NULL`) on `Get`/`Type`, duplicate-key collapse on `Set`, force-fit auto-creation of nested objects/arrays through deep specifier paths, and the kept-as-is rule for nested JSON-shaped strings in `llList2Json`.
 * **identity**: `llGetOwner`, region-wide `llGetOwnerKey`, `llGetCreator`, `llGetKey`, `llGetObjectName`, `llSetObjectName`, `llGetScriptName`, seeded `llGenerateKey`
 * **hash**: `llMD5String`, `llSHA1String`, `llSHA256String`, `llHMAC`
@@ -1884,9 +1973,9 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llSetTouchText`, `llSetSitText`, `llSetPayPrice` (stored on the prim for tests to read), `llDie` (kills every script in the linkset), `llResetScript`
 * **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; `llRemoveInventory` (a script that removes itself halts at once)
 * **giving inventory**: `llGiveInventory`, `llGiveInventoryList`, `llGiveAgentInventory`; inspect `s.inventoryOffers`. World prim recipients receive items and `changed`; `llAllowInventoryDrop` lets the root enable foreign-owner drops, excluding scripts. List variants omit missing/no-copy items. Avatar offers are recorded without simulating acceptance or throttles. Foreign permissions and no-copy moves follow the wiki and need a second avatar for in-world validation. Attachment inventory restrictions and automatic child/recent avatar presence are not modeled.
-* **remote script loading**: `llRemoteLoadScriptPin` copies an executable inventory script into a same-owner prim with a matching nonzero PIN, including negative PINs. It replaces the same inventory name, discards saved state, starts running or stopped with the supplied start parameter, and sleeps three seconds. Existing receiver scripts get `CHANGED_INVENTORY`; the fresh copy starts with `state_entry`, without `on_rez`. Reset clears its start parameter. Missing/wrong-type names, mismatched PINs and self-loads report the measured errors. Unknown targets are silent. Cross-owner modification grants are unsupported and denied. No-copy sources are refused with a generic error; exact no-copy errors and foreign-owner permission behavior need a second owner for in-world measurement. Passive script assets without an executable `Script` instance cannot be loaded.
+* **remote script loading**: `llRemoteLoadScriptPin` copies an executable inventory script into a same-owner prim with a matching nonzero PIN, including negative PINs. It replaces the same inventory name, discards saved state, starts running or stopped with the supplied start parameter, and sleeps three seconds. Running scripts in the receiving prim get `CHANGED_INVENTORY` under the rule for editing a prim's contents: a script that has not started yet, or is stopped, gets no event, and a script asleep in a handler gets it when the handler ends, where a load with a gift, or with an owner drop, during one sleep gives one event. Scripts in the linkset's other prims get nothing. The fresh copy gets no `changed`; it starts with `state_entry`, without `on_rez`. Reset clears its start parameter. Missing/wrong-type names, mismatched PINs and self-loads report the measured errors. Unknown targets are silent. Cross-owner modification grants are unsupported and denied. No-copy sources are refused with a generic error; exact no-copy errors and foreign-owner permission behavior need a second owner for in-world measurement. Passive script assets without an executable `Script` instance cannot be loaded.
 * **viewer requests**: `llLoadURL`, `llMapDestination`, `llMapBeacon`; inspect `s.viewerRequests`. `llMapDestination` in a rezzed object reaches only the avatar who clicked it, once per click. Outside a click it reaches nobody, so fire clicks with `linkset.touch`. In an attachment it reaches only the owner, and nobody when someone else clicked. Region presence reads World avatar fixtures, with the owner or current detected avatar as defaults; override it with `s.setAgentInRegion`. `llOpenFloater` records arguments and returns `-1`: the fixture cannot represent a Linden-owned privileged experience. Requests record viewer instructions; they do not open UI.
-* **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`. Asking anyone but the owner for debit, link, return, silent estate or privileged land permission makes no request and says the measured debug error.
+* **permissions**: `llRequestPermissions`, `llGetPermissions`, `llGetPermissionsKey` — answer requests with `s.grantPermissions` / `s.denyPermissions`. A request to an avatar sitting on the object or wearing it is granted at once, as in Second Life, when it asks only for controls, animation, camera tracking, camera control or game control; a wearer is also granted attach and animation overrides. One other bit leaves the whole request waiting. A request that was granted this way has nothing left to answer, so `s.grantPermissions()` after it throws. Set `s.autoGrantPermissions = 'none'` before the request to switch these grants off, or give it a function that decides per request; `new World({ autoGrantPermissions })` sets it for every script that has no setting of its own. Copies of the script keep the setting, and a viewer under `@acceptpermission` still replies. Bits outside 1 to 12 and 14 to 20 are dropped from a request. A sitter or wearer who is asked for nothing gets `run_time_permissions(0)` whatever the setting, and anyone else gets no event. The first grant or answer, Yes or No, drops every other request still waiting; pass an entry of `s.permissionRequests` to answer an older one first. A script loses controls and camera control, with no event, when its sitter stands, moves to another seat or is unseated, and when its attachment is rezzed again after a detach; the other bits stay, and `s.cameraParams` is emptied because the camera goes back to the avatar. Asking anyone but the owner for debit, link, return, silent estate or privileged land permission makes no request and says the measured debug error.
 * **experiences**: `llGetExperienceDetails`, `llGetExperienceErrorMessage`, `llAgentInExperience`, `llRequestExperiencePermissions` (an agent who already accepted is granted at once; answer others with `s.grantExperiencePermissions` / `s.denyExperiencePermissions`), and the key-value store: `llCreateKeyValue`, `llReadKeyValue`, `llUpdateKeyValue`, `llDeleteKeyValue`, `llKeyCountKeyValue`, `llKeysKeyValue`, `llDataSizeKeyValue`, which answer through `dataserver` on every script in the prim with `1,<result>` or `0,<XP_ERROR_*>`. Without an experience they answer `0,5`. Seed or inspect the store with `experience.seed([['k', 'v']])` and `experience.store`; pass `allowedHere: false` for land that doesn't allow the experience.
 * **game control**: `llGetGameControlMode`, `llGetGameControlModeAxes`, `llGetGameControlModeButtons`. Set an avatar's viewer-derived values with `s.setGameControl(agent, { mode, axes, buttons })`, then use `s.sendGameControl(agent, { buttons, axes })` to supply separate raw event input. Delivery requires `PERMISSION_GAME_CONTROL` from that agent. Each event retains its own semantic snapshot across sleeps and later fixture updates. Outside the event, queries return `-1`, `[]` and `0`. Axes are floats with the supplied mode-dependent length, including cursor pixel coordinates. Fixtures share state within a World and can be cleared with `s.setGameControl(agent, null)`. Controller mapping and automatic viewer mode changes are not simulated.
 * **controls**: `llTakeControls`, `llReleaseControls` (also drops `PERMISSION_TAKE_CONTROLS`) — send input with `s.sendControl(level)` to fire `control`
@@ -1896,7 +1985,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 
 * **avatar animations**: `llStartAnimation`, `llStopAnimation`, `llGetAnimation`, `llGetAnimationList`, `llGetAnimationOverride`, `llSetAnimationOverride`, `llResetAnimationOverride`. Start/stop require `PERMISSION_TRIGGER_ANIMATION`; set/reset overrides require `PERMISSION_OVERRIDE_ANIMATIONS`; reading overrides accepts either. Inventory animation names take priority over built-ins. Raw UUIDs work for stop only.
 * **script memory**: `llGetUsedMemory`, `llGetFreeMemory`, `llGetMemoryLimit`, `llSetMemoryLimit`, `llScriptProfiler`, `llGetSPMaxMemory` — rough numbers, not Second Life's. rezless guesses at code, globals, locals and the call stack, and the guess can be far off: in one comparison, real scripts used 1.7 to 2.8 times more memory in-world than rezless reported. The `memoryLimit` crash uses the same guess. Don't rely on either to tell you whether a script fits in its memory limit; check that in-world.
-* **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events
+* **script control**: `llGetStartParameter` (0 after a reset), `llGetStartString`, `llResetOtherScript`, `llSetScriptState`, `llGetScriptState` — pausing parks events for replay on resume, and the timer cadence realigns on resume so paused scripts don't get a flood of catch-up timer events. A run-time error crashes the script, for example `Math Error` (a division or modulo by zero, or a float division that gives NaN), `Too Many Listens` or `Stack-Heap Collision`: the prim says `<prim name> [script:<script name>] Script run-time error` and then the error on `DEBUG_CHANNEL`, the call that ran the handler throws, and `llGetScriptState` reads 0. `llSetScriptState` can't start a crashed script. `llResetOtherScript` restarts it, and a crashed LSL script in an object rezzed from inventory runs `state_entry` of the state it was in
 * **linkset data**: `llLinksetDataWrite`/`Read`/`Delete`/`WriteProtected`/`ReadProtected`/`DeleteProtected`/`DeleteFound`, `llLinksetDataReset`, `llLinksetDataAvailable`, `llLinksetDataCountKeys`/`CountFound`, `llLinksetDataListKeys`/`FindKeys` — fires the `linkset_data` event on every script in the linkset with `LINKSETDATA_UPDATE` / `DELETE` / `RESET` / `MULTIDELETE`. The store survives `llResetScript`. Inspect via `s.linksetData` (a `ReadonlyMap<string, { value, password }>`); pre-populate via `s.seedLinksetData([['k', { value: 'v' }]])`.
 * **primitive params**: `llSetPrimitiveParams`, `llSetLinkPrimitiveParams`, `llSetLinkPrimitiveParamsFast`, `llGetPrimitiveParams`, `llGetLinkPrimitiveParams` — full `PRIM_*` rule surface (position / rotation / size / colour / alpha / texture / glow / fullbright / material / physics / flexible / point light / projector / sculpt / GLTF PBR / sit target / click action / text / name / desc / omega / damage / temp-on-rez / cast shadows / …). Honors `PRIM_LINK_TARGET` mid-rule redirects, `ALL_SIDES` expansion, multi-prim get concatenation, unknown-rule termination on get, and the 0.2 s delay on the slow link variant.
 * **primitive rotations**: `PRIM_ROTATION` and `llGetRot` read a child's region rotation; `PRIM_ROT_LOCAL` and `llGetLocalRot` read its rotation relative to the root. Setting a child's `PRIM_ROTATION` stores the requested rotation multiplied by the root rotation in LSL order, unless it already equals the child's local rotation. Root setters use the requested rotation directly. On an attachment root with a wearer fixture, `PRIM_ROTATION` and `llGetRot` return the avatar rotation, while local reads return the attachment rotation. Attachment children compose their local rotation with the avatar rotation for global reads, independent of the attachment root's rotation.
@@ -1946,21 +2035,50 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **`ll` and `llcompat`**: `ll` uses SLua's native conventions. Indexes are
   1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
-  Missing or wrong-typed arguments raise SLua's errors. String parameters
-  take strings and numbers (formatted the way Lua formats them), but not
-  `uuid`s or `integer`s, except where the definitions allow a `uuid` (as
-  `ll.MessageLinked`'s text does). Numeric strings are accepted as numbers.
-  Lua numbers in lists are LSL floats, as in SLua, but selectors and rules
-  (`ll.GetObjectDetails`, `ll.SetPrimMediaParams`, `ll.ParticleSystem`, …)
-  read a whole number as the integer they want. Booleans are accepted only where LSL means a boolean.
-  A list argument holding anything LSL lists can't hold raises
-  `non-LSL value in list`.
+  Too few arguments raise `Fewer arguments than expected, 1 < 2`, before
+  any argument's type is looked at, and extra arguments are ignored. That
+  held for every function measured. Wrong-typed arguments raise SLua's errors.
+  String parameters
+  take strings and `uuid`s (read as their text), but not numbers:
+  `ll.OwnerSay(5)` raises `string expected, got number`. Second Life did
+  this for every function measured, whether SLua's type definitions write
+  the parameter `string | uuid` or `string`. `integer`s are refused as
+  well; that one isn't measured, because the region measured has no
+  `integer` type. Three functions that are SLua's own code differ, as
+  measured: `ll.ToUpper` and `ll.ToLower` take a number but not a `uuid`,
+  and `ll.DumpList2String`'s separator takes neither. In a list, a `uuid`
+  or a number is not read as a string where that was measured:
+  `ll.Dialog` reports such a button list as LSL does, and
+  `ll.ParseString2List` ignores one among its separators and spacers.
+  Numeric strings are accepted as numbers. An integer parameter takes a
+  boolean as 1 or 0, except a 1-based index in `ll`; float, string, key,
+  vector and rotation parameters refuse one, again for every function
+  measured.
+  In a list, a whole Lua number that fits an LSL integer is sent as an
+  integer and any other number as a float, so `ll.List2CSV({1, 1.5})` is
+  `1, 1.500000` and a whole number works as a JSON specifier. `ll.ListSort`,
+  `ll.ListSortStrided`, `ll.ListFindList`, `ll.ListFindListNext`,
+  `ll.ListFindStrided`, `ll.ListStatistics`, `ll.ListRandomize` and
+  `ll.List2ListStrided` still read every Lua number as a 32-bit float, so `ll.ListSort` orders whole and fractional numbers
+  together, where LSL sorts each type on its own. A boolean in a list is
+  sent as 1 or 0, but `ll.ListFindList` only matches it with another
+  boolean and `ll.ListSort` orders booleans among themselves.
+  A list argument that isn't a table raises `expected a table`, and one
+  holding anything LSL lists can't hold raises `Don't know how to decode
+  this`, or `Can't have undefined in an argument` for a `nil` in the
+  middle.
+  `ll.GetTexture` returns a `uuid` when the face holds a texture by key.
+  The other functions measured that return a name or a key are as LSL
+  types them.
 * **What runs where**: list and math helpers that SLua implements itself
   (`ll.List2String`, `ll.DumpList2String`, `ll.Abs`, …) run in the VM.
   Everything else reaches rezless and can be mocked with
   `s.mock('llName', …)`.
-* **Crashes and resets**: a run-time error crashes the script as in LSL: it
-  reports on `DEBUG_CHANNEL` and throws from the call that ran it.
+* **Crashes and resets**: a run-time error crashes the script as in LSL. The
+  prim says the same first line on `DEBUG_CHANNEL`, then `runtime error`
+  (`Unknown runtime error` when the error value is not a string or a number,
+  `not enough memory` when memory runs out, `Too Many Listens` for the 66th
+  listen, which `pcall` can't catch). The call that ran it throws the Lua message.
   `ll.ResetScript` starts a fresh VM and runs the script again. `pcall`
   can't catch `ll.ResetScript` or an error thrown by a mock. `ll.Die`
   returns, and the script stops at its next `ll` call (which still runs),
@@ -2054,11 +2172,27 @@ s.start()
 expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
 ```
 
+Without the reporter installed, the env var collects and the CLI renders.
+Add the setup file that saves each test file's coverage for the CLI:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    setupFiles: ['@rezless/vitest/coverage-setup'],
+  },
+})
+```
+
 ```sh
-# Without the reporter installed — env var collects, CLI renders.
 LSL_COVERAGE=1 pnpm test
 pnpm exec rezless-coverage
 ```
+
+The setup file writes nothing in a run without `LSL_COVERAGE=1`, so it can
+stay in the config. `LslCoverageReporter` adds it by itself.
 
 By default, reports for synthetic filenames (`<inline>`, names without a
 path separator, paths that don't exist on disk) are omitted — they're

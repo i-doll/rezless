@@ -16,6 +16,11 @@ const LIST_HEADER = 36
 /** A fatal run-time error: the script reports it and halts. */
 export class RuntimeError extends Error {
   reported = false
+
+  /** What the prim says on DEBUG_CHANNEL after "Script run-time error". */
+  get said(): string {
+    return this.message
+  }
 }
 
 /** A fatal Stack-Heap Collision: the script ran out of memory. */
