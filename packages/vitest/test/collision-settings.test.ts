@@ -140,7 +140,8 @@ it('shares collision and PIN settings between scripts on a prim, keeping other p
   expect(scripts.observer!.host.collisionSound).toEqual({sound:'',volume:.5})
   expect(scripts.observer!.host.remoteScriptAccessPin).toBe(-42)
   expect(linkset.prims[0]!.allowInventoryDrop).toBe(true)
-  expect(linkset.prims[1]!.allowInventoryDrop).toBe(false)
+  // In-world: a child's own llAllowInventoryDrop(TRUE) opened that child to gifts (two-avatar-ownership.test.ts).
+  expect(linkset.prims[1]!.allowInventoryDrop).toBe(true)
   expect(linkset.prims[1]!.remoteScriptAccessPin).toBe(27)
   expect(linkset.prims[1]!.collisionFilter.name).toBe('child')
   expect(linkset.prims[1]!.collisionSound).toBeNull()

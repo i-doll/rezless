@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { InventoryType, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
-import { PERM_COPY } from '../generated/constants.js'
+import { PERM_COPY, PERM_MODIFY } from '../generated/constants.js'
+import { llRemoveInventory } from './inventory.js'
 import { sayError } from './debug.js'
 
 // In-world: batch.py, Aditi / SLua Tideland, 2026-11-01. Forced delay is applied by dispatch.
@@ -16,17 +17,13 @@ export const llRemoteLoadScriptPin: BuiltinImpl = (ctx, args) => {
   const target = ctx.linkset.peers.flatMap(l => l.dead ? [] : l.prims)
     .find(p => p.key.toLowerCase() === key && p.linkset!.region === ctx.linkset.region)
   if (!target) return
-  if (Number(args[2]) === 0 || target.remoteScriptAccessPin !== Number(args[2])) {
+  const object = target.linkset!
+  const ownerCanModify = object.owner.toLowerCase() === ctx.linkset.owner.toLowerCase() && (object.prims[0]!.permMask.owner & PERM_MODIFY) !== 0
+  if (Number(args[2]) === 0 || target.remoteScriptAccessPin !== Number(args[2]) || !ownerCanModify) {
     sayError(ctx, `Task '${ctx.prim.name}' trying to illegally load script onto task '${target.name}'!`)
     return
   }
-  // Foreign modification grants have no fixture in this VM. Deny rather than granting access.
-  if (target.linkset!.owner.toLowerCase() !== ctx.linkset.owner.toLowerCase()) return
   if (target === ctx.prim) {
-    sayError(ctx, 'Unable to add item!')
-    return
-  }
-  if (!(item.permMask.owner & PERM_COPY)) {
     sayError(ctx, 'Unable to add item!')
     return
   }
@@ -44,6 +41,7 @@ export const llRemoteLoadScriptPin: BuiltinImpl = (ctx, args) => {
   copy.startParameter = Number(args[4])
   copy.running = Number(args[3]) !== 0
   copy.queueStart()
+  if (!(item.permMask.owner & PERM_COPY)) llRemoveInventory(ctx, [name])
   for (const script of target.scripts) {
     if (script !== copy && hearsInventoryChange(script)) queueInventoryChanged(script)
   }

@@ -347,8 +347,9 @@ it.each([[0,0],[0,1024],[6,1024],[31,0]])('returns zero without a HUD and camera
   expect(script.chat).toEqual([])
 })
 
-// The wiki documents temporary ownership transfer. In-world verification needs
-// a second avatar; i Doll alone cannot grant a foreign avatar's permission.
+// In-world, two avatars (Aditi, SLua Tideland, 2026-11-14): after llAttachToAvatarTemp with the other
+// avatar's grant, llGetOwner in the same handler was the other avatar and llGetPermissions 0; then
+// attach and changed(128). More in two-avatar-ownership.test.ts.
 it('temporarily attaches to the permission avatar and transfers ownership', async () => {
   const other='22222222-2222-2222-2222-222222222222'
   const { script, world,linkset } = await fixture(`key owner; integer permissions;integer changes;
@@ -358,32 +359,37 @@ it('temporarily attaches to the permission avatar and transfers ownership', asyn
   world.addAvatar({region:'home',key:other,username:'second.avatar'})
   script.start();script.grantPermissions()
   expect(script.global('owner')).toBe(other)
-  expect(script.global('permissions')).toBe(32)
+  expect(script.global('permissions')).toBe(0)
   expect(script.global('changes')).toBe(128)
   expect(linkset.attachment?.avatar).toBe(other)
 })
 
+// In-world: llAttachToAvatar with the other avatar's grant -> "Script trying to attach to someone
+// other than owner!" on DEBUG_CHANNEL, the object stayed put and llGetPermissions stayed 32
+// (two avatars, Aditi, SLua Tideland, 2026-11-14).
 it('keeps a normal attachment owned by its original owner when permission comes from another avatar', async () => {
   const other='22222222-2222-2222-2222-222222222222'
-  const { script,world,linkset }=await fixture(`default {state_entry(){llRequestPermissions("${other}",32);}
-   run_time_permissions(integer p){llAttachToAvatar(6);}}`)
+  const { script,world,linkset }=await fixture(`integer perms; default {state_entry(){llRequestPermissions("${other}",32);}
+   run_time_permissions(integer p){llAttachToAvatar(6);perms=llGetPermissions();}}`)
   world.addAvatar({region:'home',key:other,username:'second.avatar'})
   script.start();script.grantPermissions()
   expect(linkset.attachment).toBeNull()
   expect(linkset.owner).toBe(OWNER)
+  expect(script.chat.map(c=>c.text)).toEqual(['Script trying to attach to someone other than owner!'])
+  expect(script.global('perms')).toBe(32)
 })
 
-// Wiki caveat: even a same-owner temporary attach requires transfer permission.
-// A no-transfer asset cannot be made with this avatar alone: setting next-owner
-// permissions does not restrict the current owner. Needs a second avatar to
-// transfer the restricted asset back, or a supplied no-transfer asset.
-it('refuses a temporary attachment containing no-transfer inventory', async () => {
+// The wiki says even a same-owner temporary attach needs transfer permission.
+// In-world: the owner's own grant, a notecard that was no-transfer for the owner
+// inside -> attached to the owner with no error (two avatars, Aditi, 2026-11-14).
+// Attaching to another avatar is refused, in two-avatar-ownership.test.ts.
+it('temporarily attaches to the owner even with no-transfer inventory', async () => {
   const { script,prims,linkset } = await fixture(attaching('llAttachToAvatarTemp(6);'))
   const item=prims[0]!.inventory[0]!
   item.permMask={...item.permMask,owner:item.permMask.owner & ~8192}
   script.start();script.grantPermissions()
-  expect(linkset.attachment).toBeNull()
-  expect(script.chat.map(c=>c.text)).toEqual(['No permission to transfer'])
+  expect(linkset.attachment).toMatchObject({ avatar: OWNER, temporary: true })
+  expect(script.chat).toEqual([])
 })
 
 // Other-region avatar fixtures represent a child agent for this query. The

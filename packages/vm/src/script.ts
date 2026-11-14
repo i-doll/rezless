@@ -667,6 +667,15 @@ export class Script {
     this.linkset.settle(started)
   }
 
+  /** Drop every granted permission, as a change of owner does. */
+  clearPermissions(): void {
+    this.state.permissions.granted = 0
+    this.state.permissions.agent = NULL_KEY
+    for (const r of this.state.permissions.requests) r.answered = true
+    for (const r of this.state.experienceRequests) r.answered = true
+    this.state.controls.taken = null
+  }
+
   /** Answer a waiting permission request with No: the most recent one, or `request`. */
   denyPermissions(request?: PermissionRequestEntry): void {
     this.grantPermissions(0, request)

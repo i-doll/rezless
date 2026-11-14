@@ -61,10 +61,13 @@ export function invokeBuiltin(
     },
   }
   const dying = dctx.state.lifecycle.dying
-  if (dctx.state.lifecycle.removed && name !== 'llOwnerSay') throw new HaltSignal()
+  const removed = dctx.state.lifecycle.removed
+  if (removed && name !== 'llOwnerSay') throw new HaltSignal()
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
   if (dying) throw new HaltSignal()
+  // A call that moved the calling script away (a no-copy gift or load) leaves it nothing to sleep in.
+  if (!removed && dctx.state.lifecycle.removed) return { result, delayMs: null }
   const delayMs = spec ? spec.delay * 1000 : 0
   return { result, delayMs: sleptMs === null && delayMs === 0 ? null : (sleptMs ?? 0) + delayMs }
 }

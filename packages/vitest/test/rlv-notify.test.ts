@@ -284,9 +284,10 @@ for (const replacement of ['absent', 'disabled'] as const) {
   })
 }
 
-// A foreign-owner transfer requires a second avatar for an in-world probe.
-// This fixture pins notification provenance when llAttachToAvatarTemp changes
-// the emitter's owner before its original viewer collects the restriction.
+// In-world, two avatars (Firestorm RLVa, Aditi, SLua Tideland, 2026-11-14): @sit=n
+// sent before llAttachToAvatarTemp moved the object to the other avatar stayed on
+// the first viewer while the object existed. About 19 s after the object was gone
+// that viewer dropped it and its @notify listener heard "/clear". Only RLVa was measured.
 for (const targetProfile of ['disabled', 'opposite'] as const) {
   it(`keeps collection notifications with the original viewer after transfer to ${targetProfile}`, async () => {
     const pair = await loadRlvPair({ source: listenerSource })
@@ -310,3 +311,22 @@ for (const targetProfile of ['disabled', 'opposite'] as const) {
     }
   })
 }
+
+// In-world, two avatars (Firestorm RLVa, Aditi, SLua Tideland, 2026-11-14): @sit=n
+// sent before llAttachToAvatarTemp moved the object to the other avatar was still
+// on the first viewer 40 s later; @tploc=n sent after the transfer went to the new owner.
+it('keeps earlier commands with the old owner and sends later ones to the new owner after a temporary transfer', async () => {
+  const f = (await loadRlvPair({ source: listenerSource })).rlva
+  f.script.start()
+  const target = f.world.addAvatar({ username: 'recipient', region: f.avatar.region, viewer: { profile: 'rlva' } })
+  const restricted = await emitter(f, `default {
+    state_entry() { llOwnerSay("@sit=n"); llRequestPermissions("${target.key}", PERMISSION_ATTACH); }
+    run_time_permissions(integer p) { llAttachToAvatarTemp(ATTACH_RHAND); }
+    changed(integer c) { if (c & CHANGED_OWNER) llOwnerSay("@tploc=n"); }
+  }`)
+  restricted.grantPermissions()
+  f.world.clock.advance(40000)
+  restricted.advanceTime(0)
+  expect(f.avatar.viewer.restrictions.snapshot().map(rule => rule.rule)).toEqual(['sit'])
+  expect(target.viewer.restrictions.snapshot().map(rule => rule.rule)).toEqual(['tploc'])
+})

@@ -1,12 +1,12 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
-import { InventoryType, freeInventoryName, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
+import { InventoryType, forNextOwner, freeInventoryName, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
 import { formatListElement } from '../values/format.js'
 import { listElementType, ruleElementType } from '../values/list-types.js'
-import { PERM_COPY, PERM_TRANSFER, CHANGED_ALLOWED_DROP, TRANSFER_DEST, TRANSFER_FLAGS } from '../generated/constants.js'
+import { PERM_COPY, PERM_MODIFY, PERM_TRANSFER, CHANGED_ALLOWED_DROP, TRANSFER_DEST, TRANSFER_FLAGS } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isAgentInRegion, isKey } from './viewer.js'
 import { llRemoveInventory } from './inventory.js'
@@ -29,22 +29,22 @@ function findPrim(ctx: CallContext, key: string): Prim | undefined {
 }
 
 function snapshot(item: InventoryItem, foreign: boolean): InventoryItem {
-  const { script: _script, ...copy } = item
-  return { ...copy, permMask: { ...item.permMask,
-    ...(foreign ? { base: item.permMask.base & item.permMask.next, owner: item.permMask.owner & item.permMask.next } : {}),
-  }, ...(item.notecardLines ? { notecardLines: [...item.notecardLines] } : {}) }
+  const { script: _script, ...copy } = foreign ? forNextOwner(item) : item
+  return { ...copy, permMask: { ...copy.permMask }, ...(item.notecardLines ? { notecardLines: [...item.notecardLines] } : {}) }
+}
+
+/** Whether the giver's owner may put items into `prim` without that prim's inventory drop. */
+function ownerCanModify(ctx: CallContext, prim: Prim): boolean {
+  const linkset = prim.linkset!
+  return linkset.owner.toLowerCase() === ctx.linkset.owner.toLowerCase() && (linkset.prims[0]!.permMask.owner & PERM_MODIFY) !== 0
 }
 
 function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string, items: InventoryItem[], prim: Prim | undefined, folder: string | null, rootPath: string[] = []): void {
   const foreign = (prim?.linkset?.owner ?? target).toLowerCase() !== ctx.linkset.owner.toLowerCase()
-  if (prim && foreign && !prim.linkset!.prims[0]!.allowInventoryDrop) {
+  const dropped = !!prim && !ownerCanModify(ctx, prim)
+  if (prim && dropped && !prim.allowInventoryDrop) {
     sayError(ctx, "Unable to give inventory: 'Blocked by permissions'.")
     return
-  }
-  if (prim && foreign && items.some(i => i.type === InventoryType.SCRIPT)) {
-    sayError(ctx, "Unable to give inventory: 'Blocked by permissions'.")
-    items = items.filter(i => i.type !== InventoryType.SCRIPT)
-    if (!items.length) return
   }
   const copies = items.map(i => snapshot(i, foreign))
   if (prim) {
@@ -53,7 +53,7 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
     }
     for (const script of prim.scripts) {
       if (!hearsInventoryChange(script)) continue
-      if (foreign) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
+      if (dropped) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
       else queueInventoryChanged(script)
     }
   }
@@ -77,7 +77,7 @@ export const llGiveInventory: BuiltinImpl = (ctx, args) => {
   if (prim && prim.linkset!.region !== ctx.linkset.region) return undefined
   const foreign = (prim?.linkset?.owner ?? target).toLowerCase() !== ctx.linkset.owner.toLowerCase()
   if (foreign && !(item.permMask.owner & PERM_TRANSFER)) {
-    sayError(ctx, "Unable to give inventory: 'Permissions do not allow transfer'.")
+    sayError(ctx, prim ? "Unable to give inventory: 'Blocked by permissions'." : "Unable to give inventory: 'No permission to transfer'.")
     return undefined
   }
   deliver(ctx, 'inventory', target, [item], prim, null)
