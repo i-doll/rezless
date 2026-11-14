@@ -329,7 +329,7 @@ export const llSetLinkRenderMaterial: BuiltinImpl = (ctx, args) => {
     sayError(ctx, `Could not find render material '${material}'.`)
     return undefined
   }
-  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) setPrimParamWithChanged(p, PRIM_RENDER_MATERIAL, [face, key], 0)
+  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) setPrimParamWithChanged(p, PRIM_RENDER_MATERIAL, [face, material], 0, ctx.prim)
   return undefined
 }
 export const llIsLinkGLTFMaterial: BuiltinImpl = (ctx, args) => {

@@ -81,6 +81,7 @@ import {
 import type { LslType, LslValue, Rotation, Vector } from './values/types.js'
 import { NULL_KEY, isRotation, isVector } from './values/types.js'
 import { listElementType } from './values/list-types.js'
+import type { InventoryItem } from './inventory.js'
 import { InventoryType } from './inventory.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { Prim } from './prim.js'
@@ -250,26 +251,58 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const findItem = (prim: Prim, type: number, name: string) =>
   prim.inventory.find((it) => it.type === type && it.name === name)
 
-/**
- * The key a render material argument names: "" (none), a key, or a material
- * item's name; null if it names nothing. A key is stored in lower case.
- */
-export function renderMaterialKey(prim: Prim, material: string): string | null {
-  if (material === '') return NULL_KEY
-  if (UUID.test(material)) return material.toLowerCase()
-  return findItem(prim, InventoryType.MATERIAL, material)?.key.toLowerCase() ?? null
+const assetKey = (prim: Prim, type: number, name: string): string | null => {
+  if (name === '') return NULL_KEY
+  return findItem(prim, type, name)?.key.toLowerCase() ?? (UUID.test(name) ? name.toLowerCase() : null)
 }
 
-export function textureKey(prim: Prim, texture: string): string | null {
-  if (texture === '') return NULL_KEY
-  if (UUID.test(texture)) return texture.toLowerCase()
-  return findItem(prim, InventoryType.TEXTURE, texture)?.key.toLowerCase() ?? null
-}
+/**
+ * The key a render material argument names: "" (none), a material item's
+ * name, or a key; null if it names nothing. An item's name wins over a key
+ * with the same text. A key is stored in lower case.
+ */
+export const renderMaterialKey = (prim: Prim, material: string) => assetKey(prim, InventoryType.MATERIAL, material)
+
+export const textureKey = (prim: Prim, texture: string) => assetKey(prim, InventoryType.TEXTURE, texture)
+
+/** A map reads back as a string when an inventory texture gives it a name, and as a key otherwise. */
+const mapType = (prim: Prim, key: string): LslType => (textureName(prim, key) === key ? 'key' : 'string')
 
 const itemName = (prim: Prim, type: number, key: string): string =>
   key === NULL_KEY ? key : (prim.inventory.find((it) => it.type === type && it.key.toLowerCase() === key)?.name ?? key)
 
 export const textureName = (prim: Prim, key: string): string => itemName(prim, InventoryType.TEXTURE, key)
+
+const SCULPT_MAP_DEFAULT = 'be293869-d0d9-0a69-5989-ad27f1946fd4'
+
+/**
+ * Stop using the asset of an inventory item that is leaving `prim`. Faces
+ * showing a removed texture go back to plywood and keep their repeats,
+ * offsets and rotation; normal and specular maps go back to the defaults; a
+ * sculpt takes the default sculpt map. Faces with a removed material lose it
+ * and their GLTF overrides. Returns whether a material was cleared.
+ */
+export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean {
+  const key = item.key.toLowerCase()
+  if (key === NULL_KEY) return false
+  const p = prim.params
+  if (item.type === InventoryType.MATERIAL) {
+    const faces = p.faces.filter((face) => face.renderMaterial === key)
+    for (const face of faces) {
+      face.renderMaterial = NULL_KEY
+      clearGltfOverrides(face.gltf)
+    }
+    return faces.length > 0
+  }
+  if (item.type !== InventoryType.TEXTURE) return false
+  for (const face of p.faces) {
+    if (face.texture === key) face.texture = TEXTURE_DEFAULT
+    if (face.normal.texture === key) face.normal = defaultFace().normal
+    if (face.specular.texture === key) face.specular = defaultFace().specular
+  }
+  if (p.shape.kind === SHAPE_SCULPT && p.shape.map === key) p.shape = { ...p.shape, map: SCULPT_MAP_DEFAULT }
+  return false
+}
 
 export const materialName = (prim: Prim, key: string): string => itemName(prim, InventoryType.MATERIAL, key)
 
@@ -389,6 +422,7 @@ const asRot = (v: LslValue | undefined): Rotation => {
   return identityRot()
 }
 const toByteChannel = (c: number): number => Math.floor(Math.min(1, Math.max(0, c)) * 255) / 255
+const roundToByte = (c: number) => Math.round(Math.min(1, Math.max(0, Math.fround(c))) * 255) / 255
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const clampVec = (v: Vector, lo: number, hi: number): Vector =>
   ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
@@ -567,22 +601,28 @@ export function writePrimParam(
       }
       return 3
     }
-    case PRIM_POINT_LIGHT:
-      p.pointLight = {
-        enabled: num(rules[cursor]) !== 0,
-        color: asVec(rules[cursor + 1]),
-        intensity: num(rules[cursor + 2]),
-        radius: num(rules[cursor + 3]),
-        falloff: num(rules[cursor + 4]),
-      }
+    case PRIM_POINT_LIGHT: {
+      const color = asVec(rules[cursor + 1])
+      p.pointLight = num(rules[cursor]) !== 0
+        ? {
+            enabled: true,
+            color: { x: roundToByte(color.x), y: roundToByte(color.y), z: roundToByte(color.z) },
+            intensity: roundToByte(num(rules[cursor + 2])),
+            radius: clamp(num(rules[cursor + 3]), 0, 20),
+            falloff: clamp(num(rules[cursor + 4]), 0, 2),
+          }
+        : { enabled: false, color: zero(), intensity: 0, radius: 0, falloff: 0 }
       return 5
+    }
     case PRIM_REFLECTION_PROBE:
-      p.reflectionProbe = {
-        enabled: num(rules[cursor]) !== 0,
-        ambiance: num(rules[cursor + 1]),
-        clipDistance: num(rules[cursor + 2]),
-        flags: num(rules[cursor + 3]) | 0,
-      }
+      p.reflectionProbe = num(rules[cursor]) !== 0
+        ? {
+            enabled: true,
+            ambiance: clamp(num(rules[cursor + 1]), 0, 100),
+            clipDistance: clamp(num(rules[cursor + 2]), 0, 1024),
+            flags: num(rules[cursor + 3]) & 7,
+          }
+        : { enabled: false, ambiance: 0, clipDistance: 0, flags: 0 }
       return 4
     case PRIM_PROJECTOR:
       p.projector = {
@@ -889,7 +929,7 @@ export function readPrimParam(
   param: number,
   rules: ReadonlyArray<LslValue>,
   cursor: number,
-): { values: LslValue[]; consumed: number } | null {
+): { values: LslValue[]; consumed: number; types?: LslType[] } | null {
   const p = prim.params
   switch (param) {
     case PRIM_NAME:
@@ -954,10 +994,9 @@ export function readPrimParam(
       const r = p.reflectionProbe
       return { values: [r.enabled ? 1 : 0, r.ambiance, r.clipDistance, r.flags], consumed: 0 }
     }
-    case PRIM_PROJECTOR: {
-      const j = p.projector
-      return { values: [j.texture, j.fov, j.focus, j.ambiance], consumed: 0 }
-    }
+    // A projector can't be read: the rule gives nothing and ends the read.
+    case PRIM_PROJECTOR:
+      return null
     case PRIM_FLEXIBLE: {
       const f = p.flexible
       return {
@@ -969,8 +1008,10 @@ export function readPrimParam(
       const s = p.sitTarget
       return { values: [s.enabled ? 1 : 0, s.offset, s.rotation], consumed: 0 }
     }
-    case PRIM_TYPE:
-      return { values: readPrimType(p, prim), consumed: 0 }
+    case PRIM_TYPE: {
+      const types: LslType[] | undefined = p.shape.kind === SHAPE_SCULPT ? ['integer', mapType(prim, p.shape.map), 'integer'] : undefined
+      return { values: readPrimType(p, prim), consumed: 0, ...(types && { types }) }
+    }
     case PRIM_COLOR: {
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
@@ -1031,20 +1072,24 @@ export function readPrimParam(
     case PRIM_NORMAL: {
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
+      const types: LslType[] = []
       for (const f of faces) {
         const n = p.faces[f]!.normal
         out.push(textureName(prim, n.texture), n.textureRepeats, n.textureOffsets, n.textureRotation)
+        types.push(mapType(prim, n.texture), 'vector', 'vector', 'float')
       }
-      return { values: out, consumed: 1 }
+      return { values: out, consumed: 1, types }
     }
     case PRIM_SPECULAR: {
       const faces = facesOf(p, rules[cursor])
       const out: LslValue[] = []
+      const types: LslType[] = []
       for (const f of faces) {
         const s = p.faces[f]!.specular
         out.push(textureName(prim, s.texture), s.textureRepeats, s.textureOffsets, s.textureRotation, s.color, s.glossiness, s.environment)
+        types.push(mapType(prim, s.texture), 'vector', 'vector', 'float', 'vector', 'integer', 'integer')
       }
-      return { values: out, consumed: 1 }
+      return { values: out, consumed: 1, types }
     }
     case PRIM_ALPHA_MODE: {
       const faces = facesOf(p, rules[cursor])

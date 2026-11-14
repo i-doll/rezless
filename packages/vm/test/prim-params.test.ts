@@ -122,7 +122,6 @@ describe('prim-params helpers', () => {
       ['SIT_FLAGS', PRIM_SIT_FLAGS, [3], [2]],
       ['SIT_FLAGS, every bit', PRIM_SIT_FLAGS, [-1], [54]],
       ['REFLECTION_PROBE', PRIM_REFLECTION_PROBE, [1, 0.5, 8, 4], [1, 0.5, 8, 4]],
-      ['PROJECTOR', PRIM_PROJECTOR, ['tex-key', 1.2, 0.7, 0.3], ['tex-key', 1.2, 0.7, 0.3]],
       ['TEXT', PRIM_TEXT, ['hi', v(1, 0, 0), 0.5], ['hi', v(1, 0, 0), 0.5]],
     ]
     for (const [name, rule, write, expectRead] of cases) {
@@ -132,6 +131,13 @@ describe('prim-params helpers', () => {
         expect(readPrimParam(p, rule, [], 0)?.values).toEqual(expectRead)
       })
     }
+  })
+
+  it('PRIM_PROJECTOR is stored but cannot be read', () => {
+    const p = freshPrim()
+    expect(writePrimParam(p, PRIM_PROJECTOR, ['tex-key', 1.2, 0.7, 0.3], 0)).toBe(4)
+    expect(p.params.projector).toEqual({ texture: 'tex-key', fov: 1.2, focus: 0.7, ambiance: 0.3 })
+    expect(readPrimParam(p, PRIM_PROJECTOR, [], 0)).toBeNull()
   })
 
   describe('round-trip — physics/phantom via STATUS bitfield', () => {

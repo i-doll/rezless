@@ -4,7 +4,10 @@ import { sayError } from './debug.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
+import { releaseInventoryAsset } from '../prim-params.js'
+import { raisePrimChanged } from '../prim-changed.js'
 import {
+  CHANGED_RENDER_MATERIAL,
   INVENTORY_ALL,
   INVENTORY_NONE,
   EOF,
@@ -196,7 +199,9 @@ export const llGetNumberOfNotecardLines: BuiltinImpl = (ctx, args) => {
 
 /**
  * llRemoveInventory(string name) — deletes the item, stopping it if it is
- * a script. A script that removes itself halts at once.
+ * a script. A script that removes itself halts at once. The prim stops
+ * using a removed texture or material; only a cleared material raises a
+ * changed event, and there is no CHANGED_INVENTORY.
  */
 export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
@@ -206,6 +211,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
     return undefined
   }
   const [item] = ctx.prim.inventory.splice(index, 1)
+  if (releaseInventoryAsset(ctx.prim, item!)) raisePrimChanged(ctx.prim, CHANGED_RENDER_MATERIAL)
   const script = item!.script
   if (script) {
     ctx.prim.scripts.splice(ctx.prim.scripts.indexOf(script), 1)
