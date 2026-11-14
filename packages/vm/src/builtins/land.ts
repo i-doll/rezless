@@ -279,23 +279,38 @@ export const llParcelMediaQuery: BuiltinImpl = (ctx, args) => {
 
 export const llGiveMoney: BuiltinImpl = (ctx, args) => {
   const debit = permission(ctx, PERMISSION_DEBIT)
-  effect(ctx, 'llGiveMoney', args, debit && validKey(args[0]) && (args[1] as number) > 0, 0)
+  const amount = args[1] as number
+  effect(ctx, 'llGiveMoney', args, debit && validKey(args[0]) && amount > 0, 0)
   if (!debit) sayError(ctx, 'Script trying to debit L$ from owner but PERMISSION_DEBIT permission not set!')
+  else if (!validKey(args[0])) sayError(ctx, 'NULL_KEY destination for llGiveMoney().')
+  else if (amount <= 0) sayError(ctx, 'Invalid amount for llGiveMoney().')
   return 0
 }
+
+// Any agent can be paid, wherever it is; the VM knows the owner and the
+// World's avatars. A key it knows as an object is not an agent.
+function transferOutcome(ctx: CallContext, destination: string): string | undefined {
+  if (sameKey(destination, ctx.linkset.owner) ||
+    ctx.linkset.world?.avatars.some(a => sameKey(a.key, destination))) return ''
+  const object = findObjectPrim(ctx, destination) ??
+    ctx.linkset.world?.objects.find(o => sameKey(o.key, destination))
+  return object ? 'LINDENDOLLAR_ENTITYDOESNOTEXIST' : undefined
+}
+
 export const llTransferLindenDollars: BuiltinImpl = (ctx, args) => {
   const key = nextDataserverKey(ctx)
   const debit = permission(ctx, PERMISSION_DEBIT)
-  const accepted = debit && validKey(args[0]) && (args[1] as number) > 0
+  const destination = args[0] as string
+  const amount = args[1] as number
+  const accepted = debit && validKey(destination) && amount > 0
   effect(ctx, 'llTransferLindenDollars', args, accepted, key)
-  const error = !debit ? 'MISSING_PERMISSION_DEBIT'
-    : !validKey(args[0]) ? 'INVALID_DESTINATION'
-    : (args[1] as number) <= 0 ? 'INVALID_AMOUNT' : undefined
-  if (error) ctx.state.clock.schedule(ctx.state.clock.now, 'transaction_result', {
-    id: key, success: 0, data: error,
+  const outcome = !debit ? 'MISSING_PERMISSION_DEBIT'
+    : !validKey(destination) ? 'INVALID_DESTINATION'
+    : amount <= 0 ? 'INVALID_AMOUNT' : transferOutcome(ctx, destination)
+  // A key the VM does not know stays pending; tests deliver its transaction_result.
+  if (outcome !== undefined) ctx.state.clock.schedule(ctx.state.clock.now, 'transaction_result', {
+    id: key, success: outcome === '' ? 1 : 0, data: outcome === '' ? `${destination.toLowerCase()},${amount}` : outcome,
   })
-  // Authorized requests stay pending. Tests can deliver transaction_result;
-  // the VM cannot know an account balance or the outcome of a real payment.
   return key
 }
 

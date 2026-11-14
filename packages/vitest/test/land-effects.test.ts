@@ -102,7 +102,7 @@ describe('parcel effect requests', () => {
   // Docs: https://wiki.secondlife.com/wiki/LlGiveMoney and /LlTransferLindenDollars.
   // In-world: amounts 1,0,-1 without debit: give -> 0 plus exact debug error;
   // transfer -> unique key and transaction_result(key,0,"MISSING_PERMISSION_DEBIT").
-  // No forced delay or transfer debug error. Paid success is forbidden here.
+  // No forced delay or transfer debug error.
   it.each([1,0,-1])('checks debit before amount/target validation for amount %i', async amount => {
     const { world, parcel } = fixture()
     const { s } = await run(world, `out=[llGiveMoney(NULL_KEY,${amount})]; tx=llTransferLindenDollars(NULL_KEY,${amount});`, OWNER,
@@ -127,13 +127,110 @@ describe('parcel effect requests', () => {
     ])
     expect(s.chat).toEqual([])
   })
-  it('requires the owner to grant debit and keeps transaction IDs distinct', async () => {
-    const { world, parcel } = fixture()
-    const { s } = await run(world, `llRequestPermissions("${OTHER}",PERMISSION_DEBIT);`, OWNER,
-      `run_time_permissions(integer p){key a=llTransferLindenDollars("${TARGET}",1);key b=llTransferLindenDollars("${TARGET}",1);out=[a!=b,llGiveMoney("${TARGET}",1)];}`)
+  // In-world (Aditi, SLua Tideland, 2026-11-14): llRequestPermissions(fivebot, ...) from
+  // i doll's object for PERMISSION_DEBIT, PERMISSION_DEBIT | PERMISSION_TRIGGER_ANIMATION,
+  // PERMISSION_CHANGE_LINKS, PERMISSION_RETURN_OBJECTS, PERMISSION_SILENT_ESTATE_MANAGEMENT
+  // and PERMISSION_PRIVILEGED_LAND_ACCESS -> this error on DEBUG_CHANNEL,
+  // no dialog for fivebot, no run_time_permissions, and the debit i doll had granted
+  // kept. PERMISSION_TRIGGER_ANIMATION alone gave fivebot a dialog.
+  it.each(['PERMISSION_DEBIT', 'PERMISSION_DEBIT|PERMISSION_TRIGGER_ANIMATION', 'PERMISSION_CHANGE_LINKS', 'PERMISSION_RETURN_OBJECTS',
+    'PERMISSION_SILENT_ESTATE_MANAGEMENT', 'PERMISSION_PRIVILEGED_LAND_ACCESS'])(
+    'refuses to ask anyone but the owner for %s', async perms => {
+      const { world } = fixture()
+      const { s } = await run(world, 'llRequestPermissions(llGetOwner(),PERMISSION_DEBIT);', OWNER,
+        `run_time_permissions(integer p){out+=[p];} touch_start(integer n){llRequestPermissions("${OTHER}",${perms});out+=[llGetPermissions(),llGetPermissionsKey()];}`)
+      s.grantPermissions()
+      s.linkset.touch(0)
+      expect(s.global('out')).toEqual([2, 2, OWNER])
+      expect(s.permissionRequests).toHaveLength(1)
+      expect(s.chat).toEqual([{ channel: 2147483647, type: 'say', text: 'Script asking non-owner for run time permissions only owner can grant' }])
+    })
+
+  it('keeps transaction IDs distinct', async () => {
+    const { world } = fixture()
+    const { s } = await run(world, 'llRequestPermissions(llGetOwner(),PERMISSION_DEBIT);', OWNER,
+      `run_time_permissions(integer p){key a=llTransferLindenDollars("${TARGET}",1);key b=llTransferLindenDollars("${TARGET}",1);out=[a!=b];}`)
     s.grantPermissions()
-    expect(s.global('out')).toEqual([1,0])
-    expect(parcel.effects.every(e => !e.accepted)).toBe(true)
+    expect(s.global('out')).toEqual([1])
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-14), i doll's object with PERMISSION_DEBIT
+  // granted: llGiveMoney(fivebot, 1) moved L$1 and llTransferLindenDollars(fivebot, 2)
+  // L$2 from i doll (108580 -> 108577) to fivebot (5001 -> 5004), the transfer answering
+  // transaction_result(id, 1, "<fivebot key>,2"). A transfer of 1 to i doll herself ->
+  // success with "<her key>,1" and no change. To the object's own key, an object of
+  // fivebot's, or a key nobody has -> LINDENDOLLAR_ENTITYDOESNOTEXIST; 100000000 ->
+  // LINDENDOLLAR_INSUFFICIENTFUNDS; NULL_KEY or "bad" with any amount ->
+  // INVALID_DESTINATION; 0 or -1 to a valid key -> INVALID_AMOUNT, also to an object.
+  describe('payments with debit granted', () => {
+    async function pay(world: World, call: string) {
+      return run(world, 'llRequestPermissions(llGetOwner(),PERMISSION_DEBIT);', OWNER,
+        `run_time_permissions(integer p){${call}}
+         transaction_result(key id,integer success,string data){out=[id==tx,success,data];}`)
+    }
+    it('completes a transfer to an avatar the World knows, in any region', async () => {
+      const { world } = fixture()
+      world.addRegion('Away', { x: 256, y: 0 })
+      world.addAvatar({ region: 'Away', key: OTHER, username: 'fivebot' })
+      const { s } = await pay(world, `tx=llTransferLindenDollars("${OTHER}",2);`)
+      s.grantPermissions(); s.advanceTime(0)
+      expect(s.global('out')).toEqual([1, 1, `${OTHER},2`])
+    })
+    // In-world: fivebot's and i doll's keys in capitals -> the success data in lower case.
+    it('reports the destination in lower case', async () => {
+      const { world } = fixture()
+      const lettered = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+      world.addAvatar({ region: 'Sandbox', key: lettered, username: 'fivebot' })
+      const { s } = await pay(world, `tx=llTransferLindenDollars("${lettered.toUpperCase()}",1);`)
+      s.grantPermissions(); s.advanceTime(0)
+      expect(s.global('out')).toEqual([1, 1, `${lettered},1`])
+    })
+    it('completes a transfer to the owner', async () => {
+      const { world } = fixture()
+      const { s } = await pay(world, 'tx=llTransferLindenDollars(llGetOwner(),1);')
+      s.grantPermissions(); s.advanceTime(0)
+      expect(s.global('out')).toEqual([1, 1, `${OWNER},1`])
+    })
+    it.each(['llGetKey()', `"${TARGET}"`])('reports an object destination %s as no such entity', async (destination) => {
+      const { world } = fixture()
+      world.addObject({ region: 'Sandbox', key: TARGET, owner: OTHER })
+      const { s } = await pay(world, `tx=llTransferLindenDollars(${destination},1);`)
+      s.grantPermissions(); s.advanceTime(0)
+      expect(s.global('out')).toEqual([1, 0, 'LINDENDOLLAR_ENTITYDOESNOTEXIST'])
+    })
+    it.each([
+      ['NULL_KEY,0', 'INVALID_DESTINATION'],
+      ['"bad",-1', 'INVALID_DESTINATION'],
+      ['llGetKey(),0', 'INVALID_AMOUNT'],
+    ])('checks the destination, then the amount, then the entity: %s', async (args, error) => {
+      const { world } = fixture()
+      const { s } = await pay(world, `tx=llTransferLindenDollars(${args});`)
+      s.grantPermissions(); s.advanceTime(0)
+      expect(s.global('out')).toEqual([1, 0, error])
+    })
+    it.each([
+      [`"${OTHER}",0`, 'Invalid amount for llGiveMoney().'],
+      [`"${OTHER}",-1`, 'Invalid amount for llGiveMoney().'],
+      ['NULL_KEY,1', 'NULL_KEY destination for llGiveMoney().'],
+      ['"bad",1', 'NULL_KEY destination for llGiveMoney().'],
+      ['NULL_KEY,0', 'NULL_KEY destination for llGiveMoney().'],
+      ['"bad",-1', 'NULL_KEY destination for llGiveMoney().'],
+    ])('reports llGiveMoney(%s) on DEBUG_CHANNEL', async (args, error) => {
+      const { world } = fixture()
+      const { s } = await pay(world, `out=[llGiveMoney(${args})];`)
+      s.grantPermissions()
+      expect(s.global('out')).toEqual([0])
+      expect(s.chat).toEqual([{ channel: 2147483647, type: 'say', text: error }])
+    })
+    // In-world: to i doll herself, to the object, to fivebot's object and 100000000
+    // to fivebot -> 0, no error and no L$ moved.
+    it.each(['llGetOwner(),1', 'llGetKey(),1', `"${OTHER}",100000000`])('says nothing for llGiveMoney(%s)', async (args) => {
+      const { world } = fixture()
+      const { s } = await pay(world, `out=[llGiveMoney(${args})];`)
+      s.grantPermissions()
+      expect(s.global('out')).toEqual([0])
+      expect(s.chat).toEqual([])
+    })
   })
 
   it('records accepted returns and ejects without removing the target fixture', async () => {
@@ -220,8 +317,7 @@ describe('parcel effect requests', () => {
     expect(parcel.effects[0]?.args).toHaveLength(1)
   })
 
-  // Docs: https://wiki.secondlife.com/wiki/Transaction_result. Debit-granted
-  // failures cannot be probed here because granting debit is prohibited.
+  // Docs: https://wiki.secondlife.com/wiki/Transaction_result. In-world results above.
   it.each([
     ['"bad",1','INVALID_DESTINATION'],
     ['"'+TARGET+'",0','INVALID_AMOUNT'],

@@ -93,7 +93,8 @@ it.each(['i', 'i Resident', 'i.resident', 'i Doll extra', 'i..doll', '.i.doll', 
 })
 
 it('resolves Resident names in short, dotted and legacy forms', async () => {
-  // A second avatar with a Resident surname is needed to measure this success case.
+  // In-world: fivebot (a Resident) resolved from "fivebot", "FIVEBOT.RESIDENT" and
+  // "fivebot Resident"; more forms in two-avatars.test.ts. Aditi, SLua Tideland, 2026-11-14.
   // https://wiki.secondlife.com/wiki/llName2Key
   const { script, world } = await fixture(`list found; default {state_entry(){found=[llName2Key("alice"),llName2Key("ALICE.RESIDENT"),llName2Key("Alice Resident")];}}`)
   world.addAvatar({ region: 'home', key: OTHER, username: 'alice' })
@@ -121,7 +122,8 @@ it('lists only avatars in the script region with key-typed entries', async () =>
 })
 
 it('filters parcel and parcel-owner scopes by avatar position', async () => {
-  // Multi-avatar filtering needs a second avatar for in-world comparison.
+  // Two avatars were measured on parcels of one owner (two-avatars.test.ts). SLua
+  // Tideland has no parcel of another owner, so this split is from the wiki.
   // https://wiki.secondlife.com/wiki/llGetAgentList
   const { script, world } = await fixture(`list parcel;list owner;default {state_entry(){parcel=llGetAgentList(AGENT_LIST_PARCEL,[]);owner=llGetAgentList(AGENT_LIST_PARCEL_OWNER,[]);}}`)
   world.addParcel({ region: 'home', owner: OWNER, bounds: { min: { x: 0, y: 0 }, max: { x: 128, y: 256 } } })
@@ -136,7 +138,8 @@ it('filters parcel and parcel-owner scopes by avatar position', async () => {
 // https://wiki.secondlife.com/wiki/llSameGroup
 // In-world: groups.lsl -> same/different active group = 1/0, direct group matches even
 // after deactivation, NULL group matches only a groupless prim; own friendship = 0.
-// Aditi, SLua Tideland, 2026-11-01. Positive friendship needs a second avatar.
+// Aditi, SLua Tideland, 2026-11-01. A present friend is unmeasured: the viewer tools
+// cannot offer friendship, so the two probe avatars are not friends.
 it('is not its own friend and matches active groups', async () => {
   const { script, world, linkset } = await fixture(`integer self;integer friend;integer group;integer direct;default {state_entry(){self=llIsFriend(llGetOwner());friend=llIsFriend("${OTHER}");group=llSameGroup(llGetOwner());direct=llSameGroup("${GROUP}");}}`)
   world.sensorProperties.set(linkset, { group: GROUP })
@@ -299,7 +302,8 @@ it('uses group membership for friendship when deeded to a group', async () => {
 })
 
 // https://wiki.secondlife.com/wiki/llIsFriend
-// Offline friendship needs a second avatar for in-world comparison.
+// In-world: llIsFriend(an offline friend of i doll's) -> 1 from her object.
+// Aditi, SLua Tideland, 2026-11-14.
 it('recognizes a known friend who has no presence fixture when the owner is local', async () => {
   const { script } = await fixture(`integer friend;default{state_entry(){friend=llIsFriend("${OTHER}");}}`)
   script.start()

@@ -1,6 +1,9 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { acceptsRlvPermissions } from '../rlv/permissions.js'
-import { PERMISSION_TAKE_CONTROLS, PERMISSION_TELEPORT } from '../generated/constants.js'
+import {
+  PERMISSION_CHANGE_LINKS, PERMISSION_DEBIT, PERMISSION_PRIVILEGED_LAND_ACCESS, PERMISSION_RETURN_OBJECTS,
+  PERMISSION_SILENT_ESTATE_MANAGEMENT, PERMISSION_TAKE_CONTROLS, PERMISSION_TELEPORT,
+} from '../generated/constants.js'
 import { sayError } from './debug.js'
 
 /** A permission request, including whether it has already been answered. */
@@ -10,17 +13,25 @@ export interface PermissionRequestEntry {
   answered: boolean
 }
 
+const OWNER_ONLY = PERMISSION_DEBIT | PERMISSION_CHANGE_LINKS | PERMISSION_RETURN_OBJECTS |
+  PERMISSION_SILENT_ESTATE_MANAGEMENT | PERMISSION_PRIVILEGED_LAND_ACCESS
+
 /**
  * llRequestPermissions(key agent, integer permissions) — records the
  * request and applies the recipient viewer auto-grant rules. Other requests
  * wait for Script.grantPermissions or Script.denyPermissions.
- * Requesting no permissions fires nothing.
+ * Requesting no permissions fires nothing. Asking anyone but the owner for
+ * a permission only the owner can grant is refused without a request.
  */
 export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const agent = (args[0] as string | undefined) ?? ''
   const permissions = (args[1] as number | undefined) ?? 0
   if (ctx.linkset.attachment?.temporary && (permissions & PERMISSION_TELEPORT)) {
     sayError(ctx, 'Temporary attachments cannot request runtime permissions to teleport')
+    return undefined
+  }
+  if ((permissions & OWNER_ONLY) && agent.toLowerCase() !== ctx.linkset.owner.toLowerCase()) {
+    sayError(ctx, 'Script asking non-owner for run time permissions only owner can grant')
     return undefined
   }
   if (permissions !== 0) {
