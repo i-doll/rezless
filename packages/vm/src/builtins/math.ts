@@ -137,45 +137,70 @@ export const llVecDist: BuiltinImpl = (ctx, args) => {
   return magnitude(ctx, f32(p.x - q.x), f32(p.y - q.y), f32(p.z - q.z))
 }
 
-/** Below this cos(y), llRot2Euler treats the rotation as gimbal-locked. */
-const GIMBAL_THRESHOLD = 0.000436
+type Row = [number, number, number]
 
-/**
- * Second Life gives each angle of llRot2Euler in steps of 1e-7 degrees, so a
- * zero is never negative. The stepped angle is a single-precision number of
- * degrees before it is turned back into radians, which pins turns of under
- * 0.1 degrees about one axis. Larger turns can differ.
- */
-function stepAngle(radians: number) {
-  const steps = Math.round(Math.abs(radians) * (180 / Math.PI) * 1e7)
-  const stepped = f32(f32(steps / 1e7) * (Math.PI / 180))
-  return radians < 0 && steps !== 0 ? -stepped : stepped
+const dot3 = (a: Row, b: Row) => f32(f32(f32(a[0] * b[0]) + f32(a[1] * b[1])) + f32(a[2] * b[2]))
+
+/** A single-precision unit vector, or zero for a length of 1e-7 or less (and for NaN). */
+function unitRow(v: Row): Row {
+  const length = f32(Math.sqrt(dot3(v, v)))
+  if (!(length > NORMALISE_THRESHOLD)) return [0, 0, 0]
+  const k = f32(1 / length)
+  return [f32(v[0] * k), f32(v[1] * k), f32(v[2] * k)]
 }
 
-const steppedAngles = (x: number, y: number, z: number) => vec(stepAngle(x), stepAngle(y), stepAngle(z))
+/** With this cosine of y or less, llRot2Euler treats the rotation as gimbal-locked. */
+const GIMBAL_THRESHOLD = 0.005
+
+const RAD_TO_DEG = 180 / Math.PI
+const DEG_TO_RAD = Math.PI / 180
+
+/**
+ * Second Life rounds each angle of llRot2Euler to 1e-7 degrees in single
+ * precision, so a zero is never negative, and gives 180 degrees for -180.
+ */
+function stepAngle(radians: number) {
+  const degrees = f32(Math.abs(f32(radians)) * RAD_TO_DEG)
+  const stepped = f32(Math.floor(f32(f32(degrees * 1e7) + 0.5)) / 1e7)
+  const result = f32(stepped * DEG_TO_RAD)
+  return radians < 0 && stepped !== 0 && stepped !== 180 ? -result : result
+}
 
 /**
  * llRot2Euler(rotation r) → vector (x, y, z) Euler angles in radians, the
- * inverse of llEuler2Rot. At y = ±PI/2 it returns x = 0 and puts the
- * combined turn in z, as Second Life does.
+ * inverse of llEuler2Rot. Second Life turns the rotation into a matrix in
+ * single precision, makes its rows orthogonal and reads the angles from that,
+ * so y comes from an arcsine and is coarse near ±PI/2. Within about 0.29
+ * degrees of there it returns x = 0 and puts the combined turn in z.
  */
 export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
-  const r = args[0] as Rotation
-  const m = Math.hypot(r.x, r.y, r.z, r.s)
-  if (m === 0) return vec(0, 0, 0)
-  const q = { x: r.x / m, y: r.y / m, z: r.z / m, s: r.s / m }
-  const sx = 2 * (q.x * q.s - q.y * q.z)
-  const sy = 2 * (q.y * q.s + q.x * q.z)
-  const ys = q.s * q.s - q.y * q.y
-  const xz = q.x * q.x - q.z * q.z
-  const cx = ys - xz
-  const cy = Math.sqrt(sx * sx + cx * cx)
-  if (cy > GIMBAL_THRESHOLD) {
-    return steppedAngles(Math.atan2(sx, cx), Math.atan2(sy, cy), Math.atan2(2 * (q.z * q.s - q.x * q.y), ys + xz))
+  const { x, y, z, s } = unitRotation(args[0])
+  const xx = f32(x * x)
+  const xy = f32(x * y)
+  const xz = f32(x * z)
+  const xs = f32(x * s)
+  const yy = f32(y * y)
+  const yz = f32(y * z)
+  const ys = f32(y * s)
+  const zz = f32(z * z)
+  const zs = f32(z * s)
+  const row0: Row = [f32(1 - f32(2 * f32(yy + zz))), f32(2 * f32(xy + zs)), f32(2 * f32(xz - ys))]
+  const row1: Row = [f32(2 * f32(xy - zs)), f32(1 - f32(2 * f32(xx + zz))), f32(2 * f32(yz + xs))]
+  const fwd = unitRow(row0)
+  const along = dot3(fwd, row1)
+  const left = unitRow([f32(row1[0] - f32(fwd[0] * along)), f32(row1[1] - f32(fwd[1] * along)), f32(row1[2] - f32(fwd[2] * along))])
+  const up: Row = [
+    f32(f32(fwd[1] * left[2]) - f32(left[1] * fwd[2])),
+    f32(f32(fwd[2] * left[0]) - f32(left[2] * fwd[0])),
+    f32(f32(fwd[0] * left[1]) - f32(left[0] * fwd[1])),
+  ]
+  const angleY = Math.asin(Math.min(1, Math.max(-1, up[0])))
+  const cy = Math.cos(angleY)
+  if (Math.abs(cy) > GIMBAL_THRESHOLD) {
+    return vec(stepAngle(Math.atan2(-up[1] / cy, up[2] / cy)), stepAngle(angleY), stepAngle(Math.atan2(-left[0] / cy, fwd[0] / cy)))
   }
   // Gimbal lock: x and z turn about the same axis, so z carries both.
-  if (sy > 0) return steppedAngles(0, Math.PI / 2, 2 * Math.atan2(q.z + q.x, q.s + q.y))
-  return steppedAngles(0, -Math.PI / 2, 2 * Math.atan2(q.z - q.x, q.s - q.y))
+  return vec(0, stepAngle(angleY), stepAngle(Math.atan2(fwd[1], left[1])))
 }
 
 /**
