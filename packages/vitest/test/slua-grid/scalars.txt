@@ -1,0 +1,587 @@
+C1 Fabs(true) -> !! invalid argument #1 to 'Fabs' (number expected, got boolean)
+C2 Fabs(false) -> !! invalid argument #1 to 'Fabs' (number expected, got boolean)
+C3 Fabs(1) -> number:1
+C4 Fabs(1.5) -> number:1.5
+C5 Fabs(-1.5) -> number:1.5
+C6 Fabs(0.5) -> number:0.5
+C7 Fabs(2.5) -> number:2.5
+C8 Fabs(-0) -> number:-0
+C9 Fabs("2") -> number:2
+C10 Fabs(" 2 ") -> number:2
+C11 Fabs("0x10") -> number:16
+C12 Fabs("abc") -> !! invalid argument #1 to 'Fabs' (number expected, got string)
+C13 Fabs("") -> !! invalid argument #1 to 'Fabs' (number expected, got string)
+C14 Fabs(U) -> !! invalid argument #1 to 'Fabs' (number expected, got uuid)
+C15 Fabs(V) -> !! invalid argument #1 to 'Fabs' (number expected, got vector)
+C16 Fabs(Q) -> !! invalid argument #1 to 'Fabs' (number expected, got quaternion)
+C17 Fabs(nil) -> !! invalid argument #1 to 'Fabs' (number expected, got nil)
+C18 Fabs({}) -> !! invalid argument #1 to 'Fabs' (number expected, got table)
+C19 Fabs(2147483648) -> number:2147483648
+C20 Fabs(-2147483649) -> number:2147483648
+C21 Fabs(10000000000) -> number:10000000000
+C22 Fabs(nan) -> number:nan
+C23 Fabs(inf) -> number:inf
+C24 Abs(true) -> !! invalid argument #1 to 'Abs' (number expected, got boolean)
+C25 Abs(false) -> !! invalid argument #1 to 'Abs' (number expected, got boolean)
+C26 Abs(1) -> number:1
+C27 Abs(1.5) -> number:1
+C28 Abs(-1.5) -> number:1
+C29 Abs(0.5) -> number:0
+C30 Abs(2.5) -> number:2
+C31 Abs(-0) -> number:0
+C32 Abs("2") -> number:2
+C33 Abs(" 2 ") -> number:2
+C34 Abs("0x10") -> number:16
+C35 Abs("abc") -> !! invalid argument #1 to 'Abs' (number expected, got string)
+C36 Abs("") -> !! invalid argument #1 to 'Abs' (number expected, got string)
+C37 Abs(U) -> !! invalid argument #1 to 'Abs' (number expected, got uuid)
+C38 Abs(V) -> !! invalid argument #1 to 'Abs' (number expected, got vector)
+C39 Abs(Q) -> !! invalid argument #1 to 'Abs' (number expected, got quaternion)
+C40 Abs(nil) -> !! invalid argument #1 to 'Abs' (number expected, got nil)
+C41 Abs({}) -> !! invalid argument #1 to 'Abs' (number expected, got table)
+C42 Abs(2147483648) -> number:-2147483648
+C43 Abs(-2147483649) -> number:-2147483648
+C44 Abs(10000000000) -> number:-2147483648
+C45 Abs(nan) -> number:-2147483648
+C46 Abs(inf) -> number:-2147483648
+C47 Floor(true) -> !! invalid argument #1 to 'Floor' (number expected, got boolean)
+C48 Floor(false) -> !! invalid argument #1 to 'Floor' (number expected, got boolean)
+C49 Floor(1) -> number:1
+C50 Floor(1.5) -> number:1
+C51 Floor(-1.5) -> number:-2
+C52 Floor(0.5) -> number:0
+C53 Floor(2.5) -> number:2
+C54 Floor(-0) -> number:0
+C55 Floor("2") -> number:2
+C56 Floor(" 2 ") -> number:2
+C57 Floor("0x10") -> number:16
+C58 Floor("abc") -> !! invalid argument #1 to 'Floor' (number expected, got string)
+C59 Floor("") -> !! invalid argument #1 to 'Floor' (number expected, got string)
+C60 Floor(U) -> !! invalid argument #1 to 'Floor' (number expected, got uuid)
+C61 Floor(V) -> !! invalid argument #1 to 'Floor' (number expected, got vector)
+C62 Floor(Q) -> !! invalid argument #1 to 'Floor' (number expected, got quaternion)
+C63 Floor(nil) -> !! invalid argument #1 to 'Floor' (number expected, got nil)
+C64 Floor({}) -> !! invalid argument #1 to 'Floor' (number expected, got table)
+C65 Floor(2147483648) -> number:-2147483648
+C66 Floor(-2147483649) -> number:-2147483648
+C67 Floor(10000000000) -> number:-2147483648
+C68 Floor(nan) -> number:-2147483648
+C69 Floor(inf) -> number:-2147483648
+C70 Ceil(true) -> !! invalid argument #1 to 'Ceil' (number expected, got boolean)
+C71 Ceil(false) -> !! invalid argument #1 to 'Ceil' (number expected, got boolean)
+C72 Ceil(1) -> number:1
+C73 Ceil(1.5) -> number:2
+C74 Ceil(-1.5) -> number:-1
+C75 Ceil(0.5) -> number:1
+C76 Ceil(2.5) -> number:3
+C77 Ceil(-0) -> number:0
+C78 Ceil("2") -> number:2
+C79 Ceil(" 2 ") -> number:2
+C80 Ceil("0x10") -> number:16
+C81 Ceil("abc") -> !! invalid argument #1 to 'Ceil' (number expected, got string)
+C82 Ceil("") -> !! invalid argument #1 to 'Ceil' (number expected, got string)
+C83 Ceil(U) -> !! invalid argument #1 to 'Ceil' (number expected, got uuid)
+C84 Ceil(V) -> !! invalid argument #1 to 'Ceil' (number expected, got vector)
+C85 Ceil(Q) -> !! invalid argument #1 to 'Ceil' (number expected, got quaternion)
+C86 Ceil(nil) -> !! invalid argument #1 to 'Ceil' (number expected, got nil)
+C87 Ceil({}) -> !! invalid argument #1 to 'Ceil' (number expected, got table)
+C88 Ceil(2147483648) -> number:-2147483648
+C89 Ceil(-2147483649) -> number:-2147483648
+C90 Ceil(10000000000) -> number:-2147483648
+C91 Ceil(nan) -> number:-2147483648
+C92 Ceil(inf) -> number:-2147483648
+C93 Round(true) -> !! invalid argument #1 to 'Round' (number expected, got boolean)
+C94 Round(false) -> !! invalid argument #1 to 'Round' (number expected, got boolean)
+C95 Round(1) -> number:1
+C96 Round(1.5) -> number:2
+C97 Round(-1.5) -> number:-1
+C98 Round(0.5) -> number:1
+C99 Round(2.5) -> number:3
+C100 Round(-0) -> number:0
+C101 Round("2") -> number:2
+C102 Round(" 2 ") -> number:2
+C103 Round("0x10") -> number:16
+C104 Round("abc") -> !! invalid argument #1 to 'Round' (number expected, got string)
+C105 Round("") -> !! invalid argument #1 to 'Round' (number expected, got string)
+C106 Round(U) -> !! invalid argument #1 to 'Round' (number expected, got uuid)
+C107 Round(V) -> !! invalid argument #1 to 'Round' (number expected, got vector)
+C108 Round(Q) -> !! invalid argument #1 to 'Round' (number expected, got quaternion)
+C109 Round(nil) -> !! invalid argument #1 to 'Round' (number expected, got nil)
+C110 Round({}) -> !! invalid argument #1 to 'Round' (number expected, got table)
+C111 Round(2147483648) -> number:-2147483648
+C112 Round(-2147483649) -> number:-2147483648
+C113 Round(10000000000) -> number:-2147483648
+C114 Round(nan) -> number:-2147483648
+C115 Round(inf) -> number:-2147483648
+C116 Sqrt(true) -> !! invalid argument #1 to 'Sqrt' (number expected, got boolean)
+C117 Sqrt(false) -> !! invalid argument #1 to 'Sqrt' (number expected, got boolean)
+C118 Sqrt(1) -> number:1
+C119 Sqrt(1.5) -> number:1.2247449159622192
+C120 Sqrt(-1.5) -> number:nan
+C121 Sqrt(0.5) -> number:0.7071067690849304
+C122 Sqrt(2.5) -> number:1.5811388492584229
+C123 Sqrt(-0) -> number:-0
+C124 Sqrt("2") -> number:1.4142135381698608
+C125 Sqrt(" 2 ") -> number:1.4142135381698608
+C126 Sqrt("0x10") -> number:4
+C127 Sqrt("abc") -> !! invalid argument #1 to 'Sqrt' (number expected, got string)
+C128 Sqrt("") -> !! invalid argument #1 to 'Sqrt' (number expected, got string)
+C129 Sqrt(U) -> !! invalid argument #1 to 'Sqrt' (number expected, got uuid)
+C130 Sqrt(V) -> !! invalid argument #1 to 'Sqrt' (number expected, got vector)
+C131 Sqrt(Q) -> !! invalid argument #1 to 'Sqrt' (number expected, got quaternion)
+C132 Sqrt(nil) -> !! invalid argument #1 to 'Sqrt' (number expected, got nil)
+C133 Sqrt({}) -> !! invalid argument #1 to 'Sqrt' (number expected, got table)
+C134 Sqrt(2147483648) -> number:46340.94921875
+C135 Sqrt(-2147483649) -> number:nan
+C136 Sqrt(10000000000) -> number:100000
+C137 Sqrt(nan) -> number:nan
+C138 Sqrt(inf) -> number:inf
+C139 Sin(true) -> !! invalid argument #1 to 'Sin' (number expected, got boolean)
+C140 Sin(false) -> !! invalid argument #1 to 'Sin' (number expected, got boolean)
+C141 Sin(1) -> number:0.8414709568023682
+C142 Sin(1.5) -> number:0.9974949955940247
+C143 Sin(-1.5) -> number:-0.9974949955940247
+C144 Sin(0.5) -> number:0.4794255495071411
+C145 Sin(2.5) -> number:0.5984721183776855
+C146 Sin(-0) -> number:-0
+C147 Sin("2") -> number:0.9092974066734314
+C148 Sin(" 2 ") -> number:0.9092974066734314
+C149 Sin("0x10") -> number:-0.2879033088684082
+C150 Sin("abc") -> !! invalid argument #1 to 'Sin' (number expected, got string)
+C151 Sin("") -> !! invalid argument #1 to 'Sin' (number expected, got string)
+C152 Sin(U) -> !! invalid argument #1 to 'Sin' (number expected, got uuid)
+C153 Sin(V) -> !! invalid argument #1 to 'Sin' (number expected, got vector)
+C154 Sin(Q) -> !! invalid argument #1 to 'Sin' (number expected, got quaternion)
+C155 Sin(nil) -> !! invalid argument #1 to 'Sin' (number expected, got nil)
+C156 Sin({}) -> !! invalid argument #1 to 'Sin' (number expected, got table)
+C157 Sin(2147483648) -> number:-0.9713101983070374
+C158 Sin(-2147483649) -> number:0.3246856927871704
+C159 Sin(10000000000) -> number:-0.48750603199005127
+C160 Sin(nan) -> number:nan
+C161 Sin(inf) -> number:nan
+C162 Cos(true) -> !! invalid argument #1 to 'Cos' (number expected, got boolean)
+C163 Cos(false) -> !! invalid argument #1 to 'Cos' (number expected, got boolean)
+C164 Cos(1) -> number:0.5403022766113281
+C165 Cos(1.5) -> number:0.07073719799518585
+C166 Cos(-1.5) -> number:0.07073719799518585
+C167 Cos(0.5) -> number:0.8775825500488281
+C168 Cos(2.5) -> number:-0.8011435866355896
+C169 Cos(-0) -> number:1
+C170 Cos("2") -> number:-0.416146844625473
+C171 Cos(" 2 ") -> number:-0.416146844625473
+C172 Cos("0x10") -> number:-0.9576594829559326
+C173 Cos("abc") -> !! invalid argument #1 to 'Cos' (number expected, got string)
+C174 Cos("") -> !! invalid argument #1 to 'Cos' (number expected, got string)
+C175 Cos(U) -> !! invalid argument #1 to 'Cos' (number expected, got uuid)
+C176 Cos(V) -> !! invalid argument #1 to 'Cos' (number expected, got vector)
+C177 Cos(Q) -> !! invalid argument #1 to 'Cos' (number expected, got quaternion)
+C178 Cos(nil) -> !! invalid argument #1 to 'Cos' (number expected, got nil)
+C179 Cos({}) -> !! invalid argument #1 to 'Cos' (number expected, got table)
+C180 Cos(2147483648) -> number:0.2378161996603012
+C181 Cos(-2147483649) -> number:0.9458219408988953
+C182 Cos(10000000000) -> number:0.8731196522712708
+C183 Cos(nan) -> number:nan
+C184 Cos(inf) -> number:nan
+C185 Tan(true) -> !! invalid argument #1 to 'Tan' (number expected, got boolean)
+C186 Tan(false) -> !! invalid argument #1 to 'Tan' (number expected, got boolean)
+C187 Tan(1) -> number:1.5574077367782593
+C188 Tan(1.5) -> number:14.101420402526855
+C189 Tan(-1.5) -> number:-14.101420402526855
+C190 Tan(0.5) -> number:0.5463024973869324
+C191 Tan(2.5) -> number:-0.747022271156311
+C192 Tan(-0) -> number:-0
+C193 Tan("2") -> number:-2.185039758682251
+C194 Tan(" 2 ") -> number:-2.185039758682251
+C195 Tan("0x10") -> number:0.3006322383880615
+C196 Tan("abc") -> !! invalid argument #1 to 'Tan' (number expected, got string)
+C197 Tan("") -> !! invalid argument #1 to 'Tan' (number expected, got string)
+C198 Tan(U) -> !! invalid argument #1 to 'Tan' (number expected, got uuid)
+C199 Tan(V) -> !! invalid argument #1 to 'Tan' (number expected, got vector)
+C200 Tan(Q) -> !! invalid argument #1 to 'Tan' (number expected, got quaternion)
+C201 Tan(nil) -> !! invalid argument #1 to 'Tan' (number expected, got nil)
+C202 Tan({}) -> !! invalid argument #1 to 'Tan' (number expected, got table)
+C203 Tan(2147483648) -> number:-4.08428955078125
+C204 Tan(-2147483649) -> number:0.34328415989875793
+C205 Tan(10000000000) -> number:-0.558349609375
+C206 Tan(nan) -> number:nan
+C207 Tan(inf) -> number:nan
+C208 Asin(true) -> !! invalid argument #1 to 'Asin' (number expected, got boolean)
+C209 Asin(false) -> !! invalid argument #1 to 'Asin' (number expected, got boolean)
+C210 Asin(1) -> number:1.5707963705062866
+C211 Asin(1.5) -> number:nan
+C212 Asin(-1.5) -> number:nan
+C213 Asin(0.5) -> number:0.5235987901687622
+C214 Asin(2.5) -> number:nan
+C215 Asin(-0) -> number:-0
+C216 Asin("2") -> number:nan
+C217 Asin(" 2 ") -> number:nan
+C218 Asin("0x10") -> number:nan
+C219 Asin("abc") -> !! invalid argument #1 to 'Asin' (number expected, got string)
+C220 Asin("") -> !! invalid argument #1 to 'Asin' (number expected, got string)
+C221 Asin(U) -> !! invalid argument #1 to 'Asin' (number expected, got uuid)
+C222 Asin(V) -> !! invalid argument #1 to 'Asin' (number expected, got vector)
+C223 Asin(Q) -> !! invalid argument #1 to 'Asin' (number expected, got quaternion)
+C224 Asin(nil) -> !! invalid argument #1 to 'Asin' (number expected, got nil)
+C225 Asin({}) -> !! invalid argument #1 to 'Asin' (number expected, got table)
+C226 Asin(2147483648) -> number:nan
+C227 Asin(-2147483649) -> number:nan
+C228 Asin(10000000000) -> number:nan
+C229 Asin(nan) -> number:nan
+C230 Asin(inf) -> number:nan
+C231 Acos(true) -> !! invalid argument #1 to 'Acos' (number expected, got boolean)
+C232 Acos(false) -> !! invalid argument #1 to 'Acos' (number expected, got boolean)
+C233 Acos(1) -> number:0
+C234 Acos(1.5) -> number:nan
+C235 Acos(-1.5) -> number:nan
+C236 Acos(0.5) -> number:1.0471975803375244
+C237 Acos(2.5) -> number:nan
+C238 Acos(-0) -> number:1.5707963705062866
+C239 Acos("2") -> number:nan
+C240 Acos(" 2 ") -> number:nan
+C241 Acos("0x10") -> number:nan
+C242 Acos("abc") -> !! invalid argument #1 to 'Acos' (number expected, got string)
+C243 Acos("") -> !! invalid argument #1 to 'Acos' (number expected, got string)
+C244 Acos(U) -> !! invalid argument #1 to 'Acos' (number expected, got uuid)
+C245 Acos(V) -> !! invalid argument #1 to 'Acos' (number expected, got vector)
+C246 Acos(Q) -> !! invalid argument #1 to 'Acos' (number expected, got quaternion)
+C247 Acos(nil) -> !! invalid argument #1 to 'Acos' (number expected, got nil)
+C248 Acos({}) -> !! invalid argument #1 to 'Acos' (number expected, got table)
+C249 Acos(2147483648) -> number:nan
+C250 Acos(-2147483649) -> number:nan
+C251 Acos(10000000000) -> number:nan
+C252 Acos(nan) -> number:nan
+C253 Acos(inf) -> number:nan
+C254 Log(true) -> !! invalid argument #1 to 'Log' (number expected, got boolean)
+C255 Log(false) -> !! invalid argument #1 to 'Log' (number expected, got boolean)
+C256 Log(1) -> number:0
+C257 Log(1.5) -> number:0.40546509623527527
+C258 Log(-1.5) -> number:0
+C259 Log(0.5) -> number:-0.6931471824645996
+C260 Log(2.5) -> number:0.9162907600402832
+C261 Log(-0) -> number:0
+C262 Log("2") -> number:0.6931471824645996
+C263 Log(" 2 ") -> number:0.6931471824645996
+C264 Log("0x10") -> number:2.7725887298583984
+C265 Log("abc") -> !! invalid argument #1 to 'Log' (number expected, got string)
+C266 Log("") -> !! invalid argument #1 to 'Log' (number expected, got string)
+C267 Log(U) -> !! invalid argument #1 to 'Log' (number expected, got uuid)
+C268 Log(V) -> !! invalid argument #1 to 'Log' (number expected, got vector)
+C269 Log(Q) -> !! invalid argument #1 to 'Log' (number expected, got quaternion)
+C270 Log(nil) -> !! invalid argument #1 to 'Log' (number expected, got nil)
+C271 Log({}) -> !! invalid argument #1 to 'Log' (number expected, got table)
+C272 Log(2147483648) -> number:21.48756217956543
+C273 Log(-2147483649) -> number:0
+C274 Log(10000000000) -> number:23.025850296020508
+C275 Log(nan) -> number:0
+C276 Log(inf) -> number:inf
+C277 Log10(true) -> !! invalid argument #1 to 'Log10' (number expected, got boolean)
+C278 Log10(false) -> !! invalid argument #1 to 'Log10' (number expected, got boolean)
+C279 Log10(1) -> number:0
+C280 Log10(1.5) -> number:0.1760912537574768
+C281 Log10(-1.5) -> number:0
+C282 Log10(0.5) -> number:-0.3010300099849701
+C283 Log10(2.5) -> number:0.3979400098323822
+C284 Log10(-0) -> number:0
+C285 Log10("2") -> number:0.3010300099849701
+C286 Log10(" 2 ") -> number:0.3010300099849701
+C287 Log10("0x10") -> number:1.2041200399398804
+C288 Log10("abc") -> !! invalid argument #1 to 'Log10' (number expected, got string)
+C289 Log10("") -> !! invalid argument #1 to 'Log10' (number expected, got string)
+C290 Log10(U) -> !! invalid argument #1 to 'Log10' (number expected, got uuid)
+C291 Log10(V) -> !! invalid argument #1 to 'Log10' (number expected, got vector)
+C292 Log10(Q) -> !! invalid argument #1 to 'Log10' (number expected, got quaternion)
+C293 Log10(nil) -> !! invalid argument #1 to 'Log10' (number expected, got nil)
+C294 Log10({}) -> !! invalid argument #1 to 'Log10' (number expected, got table)
+C295 Log10(2147483648) -> number:9.331930160522461
+C296 Log10(-2147483649) -> number:0
+C297 Log10(10000000000) -> number:10
+C298 Log10(nan) -> number:0
+C299 Log10(inf) -> number:inf
+C300 ToUpper(true) -> !! invalid argument #1 to 'ToUpper' (string expected, got boolean)
+C301 ToUpper(false) -> !! invalid argument #1 to 'ToUpper' (string expected, got boolean)
+C302 ToUpper(1) -> string:1
+C303 ToUpper(1.5) -> string:1.5
+C304 ToUpper(-1.5) -> string:-1.5
+C305 ToUpper(0.5) -> string:0.5
+C306 ToUpper(2.5) -> string:2.5
+C307 ToUpper(-0) -> string:-0
+C308 ToUpper("2") -> string:2
+C309 ToUpper(" 2 ") -> string: 2 
+C310 ToUpper("0x10") -> string:0X10
+C311 ToUpper("abc") -> string:ABC
+C312 ToUpper("") -> string:
+C313 ToUpper(U) -> !! invalid argument #1 to 'ToUpper' (string expected, got uuid)
+C314 ToUpper(V) -> !! invalid argument #1 to 'ToUpper' (string expected, got vector)
+C315 ToUpper(Q) -> !! invalid argument #1 to 'ToUpper' (string expected, got quaternion)
+C316 ToUpper(nil) -> !! invalid argument #1 to 'ToUpper' (string expected, got nil)
+C317 ToUpper({}) -> !! invalid argument #1 to 'ToUpper' (string expected, got table)
+C318 ToUpper(2147483648) -> string:2147483648
+C319 ToUpper(-2147483649) -> string:-2147483649
+C320 ToUpper(10000000000) -> string:10000000000
+C321 ToUpper(nan) -> string:NAN
+C322 ToUpper(inf) -> string:INF
+C323 ToLower(true) -> !! invalid argument #1 to 'ToLower' (string expected, got boolean)
+C324 ToLower(false) -> !! invalid argument #1 to 'ToLower' (string expected, got boolean)
+C325 ToLower(1) -> string:1
+C326 ToLower(1.5) -> string:1.5
+C327 ToLower(-1.5) -> string:-1.5
+C328 ToLower(0.5) -> string:0.5
+C329 ToLower(2.5) -> string:2.5
+C330 ToLower(-0) -> string:-0
+C331 ToLower("2") -> string:2
+C332 ToLower(" 2 ") -> string: 2 
+C333 ToLower("0x10") -> string:0x10
+C334 ToLower("abc") -> string:abc
+C335 ToLower("") -> string:
+C336 ToLower(U) -> !! invalid argument #1 to 'ToLower' (string expected, got uuid)
+C337 ToLower(V) -> !! invalid argument #1 to 'ToLower' (string expected, got vector)
+C338 ToLower(Q) -> !! invalid argument #1 to 'ToLower' (string expected, got quaternion)
+C339 ToLower(nil) -> !! invalid argument #1 to 'ToLower' (string expected, got nil)
+C340 ToLower({}) -> !! invalid argument #1 to 'ToLower' (string expected, got table)
+C341 ToLower(2147483648) -> string:2147483648
+C342 ToLower(-2147483649) -> string:-2147483649
+C343 ToLower(10000000000) -> string:10000000000
+C344 ToLower(nan) -> string:nan
+C345 ToLower(inf) -> string:inf
+C346 StringLength(true) -> !! invalid argument #1 to 'StringLength' (string expected, got boolean)
+C347 StringLength(false) -> !! invalid argument #1 to 'StringLength' (string expected, got boolean)
+C348 StringLength(1) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C349 StringLength(1.5) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C350 StringLength(-1.5) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C351 StringLength(0.5) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C352 StringLength(2.5) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C353 StringLength(-0) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C354 StringLength("2") -> number:1
+C355 StringLength(" 2 ") -> number:3
+C356 StringLength("0x10") -> number:4
+C357 StringLength("abc") -> number:3
+C358 StringLength("") -> number:0
+C359 StringLength(U) -> number:36
+C360 StringLength(V) -> !! invalid argument #1 to 'StringLength' (string expected, got vector)
+C361 StringLength(Q) -> !! invalid argument #1 to 'StringLength' (string expected, got quaternion)
+C362 StringLength(nil) -> !! invalid argument #1 to 'StringLength' (string expected, got nil)
+C363 StringLength({}) -> !! invalid argument #1 to 'StringLength' (string expected, got table)
+C364 StringLength(2147483648) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C365 StringLength(-2147483649) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C366 StringLength(10000000000) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C367 StringLength(nan) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C368 StringLength(inf) -> !! invalid argument #1 to 'StringLength' (string expected, got number)
+C369 GetListLength(true) -> !! invalid argument #1 to 'GetListLength' (table expected, got boolean)
+C370 GetListLength(false) -> !! invalid argument #1 to 'GetListLength' (table expected, got boolean)
+C371 GetListLength(1) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C372 GetListLength(1.5) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C373 GetListLength(-1.5) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C374 GetListLength(0.5) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C375 GetListLength(2.5) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C376 GetListLength(-0) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C377 GetListLength("2") -> !! invalid argument #1 to 'GetListLength' (table expected, got string)
+C378 GetListLength(" 2 ") -> !! invalid argument #1 to 'GetListLength' (table expected, got string)
+C379 GetListLength("0x10") -> !! invalid argument #1 to 'GetListLength' (table expected, got string)
+C380 GetListLength("abc") -> !! invalid argument #1 to 'GetListLength' (table expected, got string)
+C381 GetListLength("") -> !! invalid argument #1 to 'GetListLength' (table expected, got string)
+C382 GetListLength(U) -> !! invalid argument #1 to 'GetListLength' (table expected, got uuid)
+C383 GetListLength(V) -> !! invalid argument #1 to 'GetListLength' (table expected, got vector)
+C384 GetListLength(Q) -> !! invalid argument #1 to 'GetListLength' (table expected, got quaternion)
+C385 GetListLength(nil) -> !! invalid argument #1 to 'GetListLength' (table expected, got nil)
+C386 GetListLength({}) -> number:0
+C387 GetListLength(2147483648) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C388 GetListLength(-2147483649) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C389 GetListLength(10000000000) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C390 GetListLength(nan) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C391 GetListLength(inf) -> !! invalid argument #1 to 'GetListLength' (table expected, got number)
+C392 Sleep(true) -> !! invalid argument #1 to 'Sleep' (number expected, got boolean)
+C393 Sleep(false) -> !! invalid argument #1 to 'Sleep' (number expected, got boolean)
+C394 Sleep(1) -> (nothing)
+C395 Sleep(-1.5) -> (nothing)
+C396 Sleep(0.5) -> (nothing)
+C397 Sleep(-0) -> (nothing)
+C398 Sleep("abc") -> !! invalid argument #1 to 'Sleep' (number expected, got string)
+C399 Sleep("") -> !! invalid argument #1 to 'Sleep' (number expected, got string)
+C400 Sleep(U) -> !! invalid argument #1 to 'Sleep' (number expected, got uuid)
+C401 Sleep(V) -> !! invalid argument #1 to 'Sleep' (number expected, got vector)
+C402 Sleep(Q) -> !! invalid argument #1 to 'Sleep' (number expected, got quaternion)
+C403 Sleep(nil) -> !! invalid argument #1 to 'Sleep' (number expected, got nil)
+C404 Sleep({}) -> !! invalid argument #1 to 'Sleep' (number expected, got table)
+C405 Sleep(-2147483649) -> (nothing)
+C406 Pow(2,3) -> number:8
+C407 Pow(2,true) -> !! invalid argument #2 to 'Pow' (number expected, got boolean)
+C408 Pow(true,2) -> !! invalid argument #1 to 'Pow' (number expected, got boolean)
+C409 Pow("2","3") -> number:8
+C410 Pow(2,nil) -> !! invalid argument #2 to 'Pow' (number expected, got nil)
+C411 Pow(nil,2) -> !! invalid argument #1 to 'Pow' (number expected, got nil)
+C412 Pow(2,0.5) -> number:1.4142135381698608
+C413 Pow(-8,0.3333333333333333) -> number:nan
+C414 Pow(0,0) -> number:1
+C415 Pow(0,-1) -> number:inf
+C416 Pow(2,U) -> !! invalid argument #2 to 'Pow' (number expected, got uuid)
+C417 Pow(V,2) -> !! invalid argument #1 to 'Pow' (number expected, got vector)
+C418 Pow(10000000000,2) -> number:100000002004087730000
+C419 Pow(2,31) -> number:2147483648
+C420 Pow(2,32) -> number:4294967296
+C421 Pow(-1,0.5) -> number:nan
+C422 Atan2(2,3) -> number:0.588002622127533
+C423 Atan2(2,true) -> !! invalid argument #2 to 'Atan2' (number expected, got boolean)
+C424 Atan2(true,2) -> !! invalid argument #1 to 'Atan2' (number expected, got boolean)
+C425 Atan2("2","3") -> number:0.588002622127533
+C426 Atan2(2,nil) -> !! invalid argument #2 to 'Atan2' (number expected, got nil)
+C427 Atan2(nil,2) -> !! invalid argument #1 to 'Atan2' (number expected, got nil)
+C428 Atan2(2,0.5) -> number:1.3258177042007446
+C429 Atan2(-8,0.3333333333333333) -> number:-1.5291537046432495
+C430 Atan2(0,0) -> number:0
+C431 Atan2(0,-1) -> number:3.1415927410125732
+C432 Atan2(2,U) -> !! invalid argument #2 to 'Atan2' (number expected, got uuid)
+C433 Atan2(V,2) -> !! invalid argument #1 to 'Atan2' (number expected, got vector)
+C434 Atan2(10000000000,2) -> number:1.5707963705062866
+C435 Atan2(2,31) -> number:0.06442683935165405
+C436 Atan2(2,32) -> number:0.06241881102323532
+C437 Atan2(-1,0.5) -> number:-1.1071487665176392
+C438 Abs(2147483647.5) -> number:2147483647
+C439 Fabs(2147483647.5) -> number:2147483648
+C440 Floor(2147483647.5) -> number:-2147483648
+C441 Ceil(2147483647.5) -> number:-2147483648
+C442 Round(2147483647.5) -> number:-2147483648
+C443 Sqrt(2147483647.5) -> number:46340.94921875
+C444 ToUpper(2147483647.5) -> string:2147483647.5
+C445 Abs(2147483648) -> number:-2147483648
+C446 Fabs(2147483648) -> number:2147483648
+C447 Floor(2147483648) -> number:-2147483648
+C448 Ceil(2147483648) -> number:-2147483648
+C449 Round(2147483648) -> number:-2147483648
+C450 Sqrt(2147483648) -> number:46340.94921875
+C451 ToUpper(2147483648) -> string:2147483648
+C452 Abs(-2147483648) -> number:-2147483648
+C453 Fabs(-2147483648) -> number:2147483648
+C454 Floor(-2147483648) -> number:-2147483648
+C455 Ceil(-2147483648) -> number:-2147483648
+C456 Round(-2147483648) -> number:-2147483648
+C457 Sqrt(-2147483648) -> number:nan
+C458 ToUpper(-2147483648) -> string:-2147483648
+C459 Abs(-2147483649) -> number:-2147483648
+C460 Fabs(-2147483649) -> number:2147483648
+C461 Floor(-2147483649) -> number:-2147483648
+C462 Ceil(-2147483649) -> number:-2147483648
+C463 Round(-2147483649) -> number:-2147483648
+C464 Sqrt(-2147483649) -> number:nan
+C465 ToUpper(-2147483649) -> string:-2147483649
+C466 Abs(4294967296) -> number:-2147483648
+C467 Fabs(4294967296) -> number:4294967296
+C468 Floor(4294967296) -> number:-2147483648
+C469 Ceil(4294967296) -> number:-2147483648
+C470 Round(4294967296) -> number:-2147483648
+C471 Sqrt(4294967296) -> number:65536
+C472 ToUpper(4294967296) -> string:4294967296
+C473 Abs(4294967297.9) -> number:-2147483648
+C474 Fabs(4294967297.9) -> number:4294967296
+C475 Floor(4294967297.9) -> number:-2147483648
+C476 Ceil(4294967297.9) -> number:-2147483648
+C477 Round(4294967297.9) -> number:-2147483648
+C478 Sqrt(4294967297.9) -> number:65536
+C479 ToUpper(4294967297.9) -> string:4294967297.9
+C480 Abs(1000000000000000) -> number:-2147483648
+C481 Fabs(1000000000000000) -> number:999999986991104
+C482 Floor(1000000000000000) -> number:-2147483648
+C483 Ceil(1000000000000000) -> number:-2147483648
+C484 Round(1000000000000000) -> number:-2147483648
+C485 Sqrt(1000000000000000) -> number:31622776
+C486 ToUpper(1000000000000000) -> string:1000000000000000
+C487 Abs(-1000000000000000) -> number:-2147483648
+C488 Fabs(-1000000000000000) -> number:999999986991104
+C489 Floor(-1000000000000000) -> number:-2147483648
+C490 Ceil(-1000000000000000) -> number:-2147483648
+C491 Round(-1000000000000000) -> number:-2147483648
+C492 Sqrt(-1000000000000000) -> number:nan
+C493 ToUpper(-1000000000000000) -> string:-1000000000000000
+C494 Abs(1e+300) -> number:-2147483648
+C495 Fabs(1e+300) -> number:inf
+C496 Floor(1e+300) -> number:-2147483648
+C497 Ceil(1e+300) -> number:-2147483648
+C498 Round(1e+300) -> number:-2147483648
+C499 Sqrt(1e+300) -> number:inf
+C500 ToUpper(1e+300) -> string:1E+300
+C501 Abs(-inf) -> number:-2147483648
+C502 Fabs(-inf) -> number:inf
+C503 Floor(-inf) -> number:-2147483648
+C504 Ceil(-inf) -> number:-2147483648
+C505 Round(-inf) -> number:-2147483648
+C506 Sqrt(-inf) -> number:nan
+C507 ToUpper(-inf) -> string:-INF
+C508 Abs(0.49999999) -> number:0
+C509 Fabs(0.49999999) -> number:0.5
+C510 Floor(0.49999999) -> number:0
+C511 Ceil(0.49999999) -> number:1
+C512 Round(0.49999999) -> number:1
+C513 Sqrt(0.49999999) -> number:0.7071067690849304
+C514 ToUpper(0.49999999) -> string:0.49999999
+C515 Abs(-0.5) -> number:0
+C516 Fabs(-0.5) -> number:0.5
+C517 Floor(-0.5) -> number:-1
+C518 Ceil(-0.5) -> number:0
+C519 Round(-0.5) -> number:0
+C520 Sqrt(-0.5) -> number:nan
+C521 ToUpper(-0.5) -> string:-0.5
+C522 Abs(-2.5) -> number:2
+C523 Fabs(-2.5) -> number:2.5
+C524 Floor(-2.5) -> number:-3
+C525 Ceil(-2.5) -> number:-2
+C526 Round(-2.5) -> number:-2
+C527 Sqrt(-2.5) -> number:nan
+C528 ToUpper(-2.5) -> string:-2.5
+C529 Abs(3.5) -> number:3
+C530 Fabs(3.5) -> number:3.5
+C531 Floor(3.5) -> number:3
+C532 Ceil(3.5) -> number:4
+C533 Round(3.5) -> number:4
+C534 Sqrt(3.5) -> number:1.8708287477493286
+C535 ToUpper(3.5) -> string:3.5
+C536 Abs(16777217) -> number:16777217
+C537 Fabs(16777217) -> number:16777216
+C538 Floor(16777217) -> number:16777216
+C539 Ceil(16777217) -> number:16777216
+C540 Round(16777217) -> number:16777216
+C541 Sqrt(16777217) -> number:4096
+C542 ToUpper(16777217) -> string:16777217
+C543 Abs(0.1) -> number:0
+C544 Fabs(0.1) -> number:0.10000000149011612
+C545 Floor(0.1) -> number:0
+C546 Ceil(0.1) -> number:1
+C547 Round(0.1) -> number:0
+C548 Sqrt(0.1) -> number:0.3162277638912201
+C549 ToUpper(0.1) -> string:0.1
+C550 GetSubString(abcdef,1,3) -> string:abc ;; compat string:bcd
+C551 GetSubString(abcdef,1,-1) -> string:abcdef ;; compat string:bcdef
+C552 GetSubString(abcdef,0,2) -> !! passed 0 when a 1-based index was expected ;; compat string:abc
+C553 GetSubString(abcdef,-3,-1) -> string:def ;; compat string:def
+C554 GetSubString(abcdef,4,2) -> string:abdef ;; compat string:abcef
+C555 GetSubString(abcdef,2,2) -> string:b ;; compat string:c
+C556 GetSubString(abcdef,7,9) -> string: ;; compat string:
+C557 GetSubString(abcdef,-9,2) -> string:ab ;; compat string:abc
+C558 GetSubString(abcdef,1.5,3.9) -> string:abc ;; compat string:bcd
+C559 GetSubString(abcdef,true,3) -> !! invalid argument #2 to 'GetSubString' (number expected, got boolean) ;; compat string:bcd
+C560 GetSubString(abcdef,"2","3") -> string:bc ;; compat string:cd
+C561 GetSubString(abcdef,nil,2) -> !! invalid argument #2 to 'GetSubString' (number expected, got nil) ;; compat !! invalid argument #2 to 'GetSubString' (number expected, got nil)
+C562 GetSubString(abcdef,2,nil) -> !! invalid argument #3 to 'GetSubString' (number expected, got nil) ;; compat !! invalid argument #3 to 'GetSubString' (number expected, got nil)
+C563 GetSubString(abcdef,1,2147483648) -> string:abcdef ;; compat string:bcdef
+C564 GetSubString(abcdef,-1,1) -> string:af ;; compat string:abf
+C565 GetSubString(abcdef,3,1) -> string:acdef ;; compat string:abdef
+C566 GetSubString(5,1,2) -> !! invalid argument #1 to 'GetSubString' (string expected, got number) ;; compat !! invalid argument #1 to 'GetSubString' (string expected, got number)
+C567 OwnerSay(5) -> !! invalid argument #1 to 'OwnerSay' (string expected, got number) ;; compat !! invalid argument #1 to 'OwnerSay' (string expected, got number)
+C568 GetSubString(1.5,1,2) -> !! invalid argument #1 to 'GetSubString' (string expected, got number) ;; compat !! invalid argument #1 to 'GetSubString' (string expected, got number)
+C569 OwnerSay(1.5) -> !! invalid argument #1 to 'OwnerSay' (string expected, got number) ;; compat !! invalid argument #1 to 'OwnerSay' (string expected, got number)
+C570 GetSubString(true,1,2) -> !! invalid argument #1 to 'GetSubString' (string expected, got boolean) ;; compat !! invalid argument #1 to 'GetSubString' (string expected, got boolean)
+C571 OwnerSay(true) -> !! invalid argument #1 to 'OwnerSay' (string expected, got boolean) ;; compat !! invalid argument #1 to 'OwnerSay' (string expected, got boolean)
+C572 GetSubString(U,1,2) -> string:57 ;; compat string:57
+C573 OwnerSay(U) -> (nothing) ;; compat (nothing)
+C574 GetSubString(V,1,2) -> !! invalid argument #1 to 'GetSubString' (string expected, got vector) ;; compat !! invalid argument #1 to 'GetSubString' (string expected, got vector)
+C575 OwnerSay(V) -> !! invalid argument #1 to 'OwnerSay' (string expected, got vector) ;; compat !! invalid argument #1 to 'OwnerSay' (string expected, got vector)
+C576 GetSubString(nil,1,2) -> !! invalid argument #1 to 'GetSubString' (string expected, got nil) ;; compat !! invalid argument #1 to 'GetSubString' (string expected, got nil)
+C577 OwnerSay(nil) -> !! invalid argument #1 to 'OwnerSay' (string expected, got nil) ;; compat !! invalid argument #1 to 'OwnerSay' (string expected, got nil)
+C578 GetSubString({},1,2) -> !! invalid argument #1 to 'GetSubString' (string expected, got table) ;; compat !! invalid argument #1 to 'GetSubString' (string expected, got table)
+C579 OwnerSay({}) -> !! invalid argument #1 to 'OwnerSay' (string expected, got table) ;; compat !! invalid argument #1 to 'OwnerSay' (string expected, got table)
+C580 GetSubString('héllo',2,3) -> string:él len number:5
+C581 ToUpper('héllo ß ǆ') -> string:HÉLLO ß Ǆ / string:héllo İ ǆ
+C582 GenerateKey -> uuid compat uuid
+C583 GetTime -> number compat number
+C584 DetectedTouchFace -> number:0 ;; !! passed 0 when a 1-based index was expected ;; !! invalid argument #1 to 'DetectedTouchFace' (number expected, got boolean) ;; compat number:0
+C585 GetUsedMemory(1) -> number GetFreeMemory number
+C586 ToUpper('a','b') -> string:A Abs() -> !! missing argument #1 to 'Abs' (number expected) ToUpper() -> !! missing argument #1 to 'ToUpper' (string expected)
+C587 DONE

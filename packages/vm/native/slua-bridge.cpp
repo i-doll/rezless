@@ -81,20 +81,6 @@ static RzScript* rz(lua_State* L)
     return static_cast<RzScript*>(lua_getthreaddata(L));
 }
 
-// As SLua's host: scripts may not act on the instance thread, the handler
-// thread (looking is allowed) or a thread stopped at a break.
-static int thread_use_callback(lua_State* L, lua_State* co, int inspect)
-{
-    if (lua_getmemcat(co) < LUA_FIRST_USER_MEMCAT || lua_status(co) == LUA_BREAK)
-        return 1;
-    RzScript* s = rz(L);
-    if (co == s->thread)
-        return 1;
-    if (!inspect && co == s->handler)
-        return 1;
-    return 0;
-}
-
 static void userthread_callback(lua_State* LP, lua_State* L)
 {
     if (LP)
@@ -214,7 +200,7 @@ static void interrupt_callback(lua_State* L, int gc)
 // allocation that would take the script's own memory past its limit.
 static int used_memory(RzScript* s)
 {
-    return (int)(lua_userthreadgc(s->thread, &s->freeObjects) + s->bytecodeSize);
+    return (int)(lua_userthreadsize(s->thread, &s->freeObjects) + s->bytecodeSize);
 }
 
 static int before_allocate(lua_State* L, size_t osize, size_t nsize)
@@ -281,13 +267,12 @@ RZ_EXPORT void rz_set_memory_limit(RzScript* s, int limit)
 
 RZ_EXPORT RzScript* rz_new()
 {
-    // Process-wide set-up SLua's CLI does before running SL scripts:
-    // the builtins table (constants, events) and SLua's required flags.
+    // Process-wide set-up before running SL scripts: the builtins table
+    // (constants, events). Luau's flags stay at their defaults.
     static bool initialized = false;
     if (!initialized)
     {
         luauSL_init_global_builtins(nullptr);
-        Luau::setRequiredSLuaFlags();
         initialized = true;
     }
 
@@ -305,7 +290,6 @@ RZ_EXPORT RzScript* rz_new()
     s->GL = L;
     lua_setthreaddata(L, s);
     lua_callbacks(L)->userthread = userthread_callback;
-    lua_callbacks(L)->beforethreaduse = thread_use_callback;
     lua_callbacks(L)->interrupt = interrupt_callback;
     lua_callbacks(L)->beforeallocate = before_allocate;
 
@@ -350,8 +334,10 @@ RZ_EXPORT void rz_add_ll(RzScript* s, const char* name, int fn, int replace)
         {
             lua_pushboolean(L, compat);
             lua_pushnumber(L, fn);
-            // Named like SLua's own ll functions, for error messages.
-            lua_pushcclosure(L, ll_forward, name, 2);
+            // Named like SLua's own ll functions, for error messages. The VM
+            // keeps the pointer, so the name has to outlive the closure.
+            static std::unordered_set<std::string> names;
+            lua_pushcclosure(L, ll_forward, names.insert(name).first->c_str(), 2);
             lua_setfield(L, -2, name);
         }
         lua_pop(L, 1);
@@ -435,7 +421,7 @@ struct Instrumenter : AstVisitor
         for (AstExpr* a : args)
             argv.data[i++] = a;
         auto* func = allocator.alloc<AstExprGlobal>(loc, names.getOrAdd(fn));
-        return allocator.alloc<AstExprCall>(loc, func, argv, false, false, AstArray<AstTypeOrPack>{}, loc);
+        return allocator.alloc<AstExprCall>(loc, func, argv, false, AstArray<AstTypeOrPack>{}, loc);
     }
 
     AstExpr* number(double v, const Location& loc)
@@ -454,7 +440,7 @@ struct Instrumenter : AstVisitor
     static bool constant(AstExpr* e)
     {
         return e->is<AstExprConstantBool>() || e->is<AstExprConstantNil>() || e->is<AstExprConstantNumber>() ||
-               e->is<AstExprConstantInteger>() || e->is<AstExprConstantString>();
+               e->is<AstExprConstantString>();
     }
 
     AstExpr* branch(AstExpr* cond, const char* kind, const Location& loc, bool hasElse)

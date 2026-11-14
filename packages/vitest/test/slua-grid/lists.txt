@@ -1,0 +1,347 @@
+D1 DumpList2String({true},',') -> !! lua_script:63: non-LSL value in list
+D2 DumpList2String({false},',') -> !! lua_script:63: non-LSL value in list
+D3 DumpList2String({1},',') -> string:1.000000
+D4 DumpList2String({1.5},',') -> string:1.500000
+D5 DumpList2String({-0},',') -> string:0.000000
+D6 DumpList2String({-1.9},',') -> string:-1.900000
+D7 DumpList2String({16777217},',') -> string:16777220.000000
+D8 DumpList2String({2147483648},',') -> string:2147484000.000000
+D9 DumpList2String({10000000000},',') -> string:10000000000.000000
+D10 DumpList2String({0.1},',') -> string:0.100000
+D11 DumpList2String({inf},',') -> string:Infinity
+D12 DumpList2String({nan},',') -> string:NaN
+D13 DumpList2String({"s"},',') -> string:s
+D14 DumpList2String({"1.5"},',') -> string:1.5
+D15 DumpList2String({"0x10"},',') -> string:0x10
+D16 DumpList2String({" 7x"},',') -> string: 7x
+D17 DumpList2String({""},',') -> string:
+D18 DumpList2String({U},',') -> string:5748decc-f629-461c-9a36-a35a221fe21f
+D19 DumpList2String({"5748decc-f629-461c-9a36-a35a221fe21f"},',') -> string:5748decc-f629-461c-9a36-a35a221fe21f
+D20 DumpList2String({"<1,2,3>"},',') -> string:<1,2,3>
+D21 DumpList2String({"<0,0,0,1>"},',') -> string:<0,0,0,1>
+D22 DumpList2String({V},',') -> string:<1.000000, 2.000000, 3.000000>
+D23 DumpList2String({Q},',') -> string:<0.000000, 0.000000, 0.000000, 1.000000>
+D24 DumpList2String({{}},',') -> string:
+D25 DumpList2String({print},',') -> !! lua_script:63: non-LSL value in list
+D26 DumpList2String({buffer: 0x000000001682bfd0},',') -> !! lua_script:63: non-LSL value in list
+D27 DumpList2String({},i) -> string:
+D28 List2String({true},i) -> string:
+D29 List2String({false},i) -> string:
+D30 List2String({1},i) -> string:1.000000
+D31 List2String({1.5},i) -> string:1.500000
+D32 List2String({-0},i) -> string:-0.000000
+D33 List2String({-1.9},i) -> string:-1.900000
+D34 List2String({16777217},i) -> string:16777220.000000
+D35 List2String({2147483648},i) -> string:2147484000.000000
+D36 List2String({10000000000},i) -> string:10000000000.000000
+D37 List2String({0.1},i) -> string:0.100000
+D38 List2String({inf},i) -> string:Infinity
+D39 List2String({nan},i) -> string:NaN
+D40 List2String({"s"},i) -> string:s
+D41 List2String({"1.5"},i) -> string:1.5
+D42 List2String({"0x10"},i) -> string:0x10
+D43 List2String({" 7x"},i) -> string: 7x
+D44 List2String({""},i) -> string:
+D45 List2String({U},i) -> string:5748decc-f629-461c-9a36-a35a221fe21f
+D46 List2String({"5748decc-f629-461c-9a36-a35a221fe21f"},i) -> string:5748decc-f629-461c-9a36-a35a221fe21f
+D47 List2String({"<1,2,3>"},i) -> string:<1,2,3>
+D48 List2String({"<0,0,0,1>"},i) -> string:<0,0,0,1>
+D49 List2String({V},i) -> string:<1.000000, 2.000000, 3.000000>
+D50 List2String({Q},i) -> string:<0.000000, 0.000000, 0.000000, 1.000000>
+D51 List2String({{}},i) -> string:
+D52 List2String({print},i) -> string:
+D53 List2String({buffer: 0x000000001682bfd0},i) -> string:
+D54 List2String({},i) -> string:
+D55 List2Integer({true},i) -> number:1
+D56 List2Integer({false},i) -> number:0
+D57 List2Integer({1},i) -> number:1
+D58 List2Integer({1.5},i) -> number:1
+D59 List2Integer({-0},i) -> number:0
+D60 List2Integer({-1.9},i) -> number:-1
+D61 List2Integer({16777217},i) -> number:16777217
+D62 List2Integer({2147483648},i) -> number:-2147483648
+D63 List2Integer({10000000000},i) -> number:-2147483648
+D64 List2Integer({0.1},i) -> number:0
+D65 List2Integer({inf},i) -> number:-2147483648
+D66 List2Integer({nan},i) -> number:-2147483648
+D67 List2Integer({"s"},i) -> number:0
+D68 List2Integer({"1.5"},i) -> number:1
+D69 List2Integer({"0x10"},i) -> number:16
+D70 List2Integer({" 7x"},i) -> number:7
+D71 List2Integer({""},i) -> number:0
+D72 List2Integer({U},i) -> number:0
+D73 List2Integer({"5748decc-f629-461c-9a36-a35a221fe21f"},i) -> number:5748
+D74 List2Integer({"<1,2,3>"},i) -> number:0
+D75 List2Integer({"<0,0,0,1>"},i) -> number:0
+D76 List2Integer({V},i) -> number:0
+D77 List2Integer({Q},i) -> number:0
+D78 List2Integer({{}},i) -> number:0
+D79 List2Integer({print},i) -> number:0
+D80 List2Integer({buffer: 0x000000001682bfd0},i) -> number:0
+D81 List2Integer({},i) -> number:0
+D82 List2Float({true},i) -> number:0
+D83 List2Float({false},i) -> number:0
+D84 List2Float({1},i) -> number:1
+D85 List2Float({1.5},i) -> number:1.5
+D86 List2Float({-0},i) -> number:-0
+D87 List2Float({-1.9},i) -> number:-1.9
+D88 List2Float({16777217},i) -> number:16777217
+D89 List2Float({2147483648},i) -> number:2147483648
+D90 List2Float({10000000000},i) -> number:10000000000
+D91 List2Float({0.1},i) -> number:0.1
+D92 List2Float({inf},i) -> number:inf
+D93 List2Float({nan},i) -> number:nan
+D94 List2Float({"s"},i) -> number:0
+D95 List2Float({"1.5"},i) -> number:1.5
+D96 List2Float({"0x10"},i) -> number:16
+D97 List2Float({" 7x"},i) -> number:7
+D98 List2Float({""},i) -> number:0
+D99 List2Float({U},i) -> number:0
+D100 List2Float({"5748decc-f629-461c-9a36-a35a221fe21f"},i) -> number:5748
+D101 List2Float({"<1,2,3>"},i) -> number:0
+D102 List2Float({"<0,0,0,1>"},i) -> number:0
+D103 List2Float({V},i) -> number:0
+D104 List2Float({Q},i) -> number:0
+D105 List2Float({{}},i) -> number:0
+D106 List2Float({print},i) -> number:0
+D107 List2Float({buffer: 0x000000001682bfd0},i) -> number:0
+D108 List2Float({},i) -> number:0
+D109 List2Key({true},i) -> uuid:00000000-0000-0000-0000-000000000000
+D110 List2Key({false},i) -> uuid:00000000-0000-0000-0000-000000000000
+D111 List2Key({1},i) -> uuid:00000000-0000-0000-0000-000000000000
+D112 List2Key({1.5},i) -> uuid:00000000-0000-0000-0000-000000000000
+D113 List2Key({-0},i) -> uuid:00000000-0000-0000-0000-000000000000
+D114 List2Key({-1.9},i) -> uuid:00000000-0000-0000-0000-000000000000
+D115 List2Key({16777217},i) -> uuid:00000000-0000-0000-0000-000000000000
+D116 List2Key({2147483648},i) -> uuid:00000000-0000-0000-0000-000000000000
+D117 List2Key({10000000000},i) -> uuid:00000000-0000-0000-0000-000000000000
+D118 List2Key({0.1},i) -> uuid:00000000-0000-0000-0000-000000000000
+D119 List2Key({inf},i) -> uuid:00000000-0000-0000-0000-000000000000
+D120 List2Key({nan},i) -> uuid:00000000-0000-0000-0000-000000000000
+D121 List2Key({"s"},i) -> uuid:00000000-0000-0000-0000-000000000000
+D122 List2Key({"1.5"},i) -> uuid:00000000-0000-0000-0000-000000000000
+D123 List2Key({"0x10"},i) -> uuid:00000000-0000-0000-0000-000000000000
+D124 List2Key({" 7x"},i) -> uuid:00000000-0000-0000-0000-000000000000
+D125 List2Key({""},i) -> uuid:00000000-0000-0000-0000-000000000000
+D126 List2Key({U},i) -> uuid:5748decc-f629-461c-9a36-a35a221fe21f
+D127 List2Key({"5748decc-f629-461c-9a36-a35a221fe21f"},i) -> uuid:5748decc-f629-461c-9a36-a35a221fe21f
+D128 List2Key({"<1,2,3>"},i) -> uuid:00000000-0000-0000-0000-000000000000
+D129 List2Key({"<0,0,0,1>"},i) -> uuid:00000000-0000-0000-0000-000000000000
+D130 List2Key({V},i) -> uuid:00000000-0000-0000-0000-000000000000
+D131 List2Key({Q},i) -> uuid:00000000-0000-0000-0000-000000000000
+D132 List2Key({{}},i) -> uuid:00000000-0000-0000-0000-000000000000
+D133 List2Key({print},i) -> uuid:00000000-0000-0000-0000-000000000000
+D134 List2Key({buffer: 0x000000001682bfd0},i) -> uuid:00000000-0000-0000-0000-000000000000
+D135 List2Key({},i) -> uuid:00000000-0000-0000-0000-000000000000
+D136 List2Vector({true},i) -> vector:<0, 0, 0>
+D137 List2Vector({false},i) -> vector:<0, 0, 0>
+D138 List2Vector({1},i) -> vector:<0, 0, 0>
+D139 List2Vector({1.5},i) -> vector:<0, 0, 0>
+D140 List2Vector({-0},i) -> vector:<0, 0, 0>
+D141 List2Vector({-1.9},i) -> vector:<0, 0, 0>
+D142 List2Vector({16777217},i) -> vector:<0, 0, 0>
+D143 List2Vector({2147483648},i) -> vector:<0, 0, 0>
+D144 List2Vector({10000000000},i) -> vector:<0, 0, 0>
+D145 List2Vector({0.1},i) -> vector:<0, 0, 0>
+D146 List2Vector({inf},i) -> vector:<0, 0, 0>
+D147 List2Vector({nan},i) -> vector:<0, 0, 0>
+D148 List2Vector({"s"},i) -> vector:<0, 0, 0>
+D149 List2Vector({"1.5"},i) -> vector:<0, 0, 0>
+D150 List2Vector({"0x10"},i) -> vector:<0, 0, 0>
+D151 List2Vector({" 7x"},i) -> vector:<0, 0, 0>
+D152 List2Vector({""},i) -> vector:<0, 0, 0>
+D153 List2Vector({U},i) -> vector:<0, 0, 0>
+D154 List2Vector({"5748decc-f629-461c-9a36-a35a221fe21f"},i) -> vector:<0, 0, 0>
+D155 List2Vector({"<1,2,3>"},i) -> vector:<0, 0, 0>
+D156 List2Vector({"<0,0,0,1>"},i) -> vector:<0, 0, 0>
+D157 List2Vector({V},i) -> vector:<1, 2, 3>
+D158 List2Vector({Q},i) -> vector:<0, 0, 0>
+D159 List2Vector({{}},i) -> vector:<0, 0, 0>
+D160 List2Vector({print},i) -> vector:<0, 0, 0>
+D161 List2Vector({buffer: 0x000000001682bfd0},i) -> vector:<0, 0, 0>
+D162 List2Vector({},i) -> vector:<0, 0, 0>
+D163 List2Rot({true},i) -> quaternion:<0, 0, 0, 1>
+D164 List2Rot({false},i) -> quaternion:<0, 0, 0, 1>
+D165 List2Rot({1},i) -> quaternion:<0, 0, 0, 1>
+D166 List2Rot({1.5},i) -> quaternion:<0, 0, 0, 1>
+D167 List2Rot({-0},i) -> quaternion:<0, 0, 0, 1>
+D168 List2Rot({-1.9},i) -> quaternion:<0, 0, 0, 1>
+D169 List2Rot({16777217},i) -> quaternion:<0, 0, 0, 1>
+D170 List2Rot({2147483648},i) -> quaternion:<0, 0, 0, 1>
+D171 List2Rot({10000000000},i) -> quaternion:<0, 0, 0, 1>
+D172 List2Rot({0.1},i) -> quaternion:<0, 0, 0, 1>
+D173 List2Rot({inf},i) -> quaternion:<0, 0, 0, 1>
+D174 List2Rot({nan},i) -> quaternion:<0, 0, 0, 1>
+D175 List2Rot({"s"},i) -> quaternion:<0, 0, 0, 1>
+D176 List2Rot({"1.5"},i) -> quaternion:<0, 0, 0, 1>
+D177 List2Rot({"0x10"},i) -> quaternion:<0, 0, 0, 1>
+D178 List2Rot({" 7x"},i) -> quaternion:<0, 0, 0, 1>
+D179 List2Rot({""},i) -> quaternion:<0, 0, 0, 1>
+D180 List2Rot({U},i) -> quaternion:<0, 0, 0, 1>
+D181 List2Rot({"5748decc-f629-461c-9a36-a35a221fe21f"},i) -> quaternion:<0, 0, 0, 1>
+D182 List2Rot({"<1,2,3>"},i) -> quaternion:<0, 0, 0, 1>
+D183 List2Rot({"<0,0,0,1>"},i) -> quaternion:<0, 0, 0, 1>
+D184 List2Rot({V},i) -> quaternion:<0, 0, 0, 1>
+D185 List2Rot({Q},i) -> quaternion:<0, 0, 0, 1>
+D186 List2Rot({{}},i) -> quaternion:<0, 0, 0, 1>
+D187 List2Rot({print},i) -> quaternion:<0, 0, 0, 1>
+D188 List2Rot({buffer: 0x000000001682bfd0},i) -> quaternion:<0, 0, 0, 1>
+D189 List2Rot({},i) -> quaternion:<0, 0, 0, 1>
+D190 GetListEntryType({true},i) -> integer:8
+D191 GetListEntryType({false},i) -> integer:8
+D192 GetListEntryType({1},i) -> integer:2
+D193 GetListEntryType({1.5},i) -> integer:2
+D194 GetListEntryType({-0},i) -> integer:2
+D195 GetListEntryType({-1.9},i) -> integer:2
+D196 GetListEntryType({16777217},i) -> integer:2
+D197 GetListEntryType({2147483648},i) -> integer:2
+D198 GetListEntryType({10000000000},i) -> integer:2
+D199 GetListEntryType({0.1},i) -> integer:2
+D200 GetListEntryType({inf},i) -> integer:2
+D201 GetListEntryType({nan},i) -> integer:2
+D202 GetListEntryType({"s"},i) -> integer:3
+D203 GetListEntryType({"1.5"},i) -> integer:3
+D204 GetListEntryType({"0x10"},i) -> integer:3
+D205 GetListEntryType({" 7x"},i) -> integer:3
+D206 GetListEntryType({""},i) -> integer:3
+D207 GetListEntryType({U},i) -> integer:4
+D208 GetListEntryType({"5748decc-f629-461c-9a36-a35a221fe21f"},i) -> integer:3
+D209 GetListEntryType({"<1,2,3>"},i) -> integer:3
+D210 GetListEntryType({"<0,0,0,1>"},i) -> integer:3
+D211 GetListEntryType({V},i) -> integer:5
+D212 GetListEntryType({Q},i) -> integer:6
+D213 GetListEntryType({{}},i) -> integer:7
+D214 GetListEntryType({print},i) -> integer:8
+D215 GetListEntryType({buffer: 0x000000001682bfd0},i) -> integer:8
+D216 GetListEntryType({},i) -> integer:0
+D217 DumpList2String({1,1.5,'a',U,V,Q},'|') -> string:1.000000|1.500000|a|5748decc-f629-461c-9a36-a35a221fe21f|<1.000000, 2.000000, 3.000000>|<0.000000, 0.000000, 0.000000, 1.000000>
+D218 DumpList2String({'a','b'},'') -> string:ab
+D219 DumpList2String({1,true},',') -> !! lua_script:72: non-LSL value in list
+D220 DumpList2String({1,nil,2},',') -> !! lua_script:73: non-LSL value in list
+D221 DumpList2String({a=1},',') -> string:
+D222 DumpList2String({0.1,-0.0,1e-7,123456.789,1e20,3e38},',') -> string:0.100000,0.000000,0.000000,123456.800000,100000000000000000000.000000,300000000000000000000000000000000000000.000000
+D223 List2String({0.1,...},each) -> string:0.100000 -0.000000 0.000000 123456.800000 100000000000000000000.000000 2147484000.000000 16777220.000000 -16777220.000000 1000000.000000 1234567.000000 12345680.000000
+D224 DumpList2String({1,2},nil) -> !! lua_script:78: invalid argument #2 to 'DumpList2String' (string expected, got nil)
+D225 DumpList2String({1,2},5) -> !! lua_script:78: invalid argument #2 to 'DumpList2String' (string expected, got number)
+D226 DumpList2String({1,2},U) -> !! lua_script:78: invalid argument #2 to 'DumpList2String' (string expected, got uuid)
+D227 DumpList2String({1,2},true) -> !! lua_script:78: invalid argument #2 to 'DumpList2String' (string expected, got boolean)
+D228 DumpList2String({1,2},V) -> !! lua_script:78: invalid argument #2 to 'DumpList2String' (string expected, got vector)
+D229 DumpList2String({1,2},{}) -> !! lua_script:78: invalid argument #2 to 'DumpList2String' (string expected, got table)
+D230 List2String({a,b,c},0) -> !! passed 0 when a 1-based index was expected ;; compat string:a
+D231 GetListEntryType({a,1,V},0) -> !! passed 0 when a 1-based index was expected ;; compat integer:3
+D232 List2String({a,b,c},1) -> string:a ;; compat string:b
+D233 GetListEntryType({a,1,V},1) -> integer:3 ;; compat integer:2
+D234 List2String({a,b,c},2) -> string:b ;; compat string:c
+D235 GetListEntryType({a,1,V},2) -> integer:2 ;; compat integer:5
+D236 List2String({a,b,c},3) -> string:c ;; compat string:
+D237 GetListEntryType({a,1,V},3) -> integer:5 ;; compat integer:0
+D238 List2String({a,b,c},4) -> string: ;; compat string:
+D239 GetListEntryType({a,1,V},4) -> integer:0 ;; compat integer:0
+D240 List2String({a,b,c},-1) -> string:c ;; compat string:c
+D241 GetListEntryType({a,1,V},-1) -> integer:5 ;; compat integer:5
+D242 List2String({a,b,c},-3) -> string:a ;; compat string:a
+D243 GetListEntryType({a,1,V},-3) -> integer:3 ;; compat integer:3
+D244 List2String({a,b,c},-4) -> string: ;; compat string:
+D245 GetListEntryType({a,1,V},-4) -> integer:0 ;; compat integer:0
+D246 List2String({a,b,c},1.5) -> string:a ;; compat string:b
+D247 GetListEntryType({a,1,V},1.5) -> integer:3 ;; compat integer:2
+D248 List2String({a,b,c},2.9) -> string:b ;; compat string:c
+D249 GetListEntryType({a,1,V},2.9) -> integer:2 ;; compat integer:5
+D250 List2String({a,b,c},true) -> !! invalid argument #2 to 'List2String' (number expected, got boolean) ;; compat !! invalid argument #2 to 'List2String' (number expected, got boolean)
+D251 GetListEntryType({a,1,V},true) -> !! invalid argument #2 to 'GetListEntryType' (number expected, got boolean) ;; compat !! invalid argument #2 to 'GetListEntryType' (number expected, got boolean)
+D252 List2String({a,b,c},false) -> !! invalid argument #2 to 'List2String' (number expected, got boolean) ;; compat !! invalid argument #2 to 'List2String' (number expected, got boolean)
+D253 GetListEntryType({a,1,V},false) -> !! invalid argument #2 to 'GetListEntryType' (number expected, got boolean) ;; compat !! invalid argument #2 to 'GetListEntryType' (number expected, got boolean)
+D254 List2String({a,b,c},"2") -> string:b ;; compat string:c
+D255 GetListEntryType({a,1,V},"2") -> integer:2 ;; compat integer:5
+D256 List2String({a,b,c},nil) -> !! invalid argument #2 to 'List2String' (number expected, got nil) ;; compat !! invalid argument #2 to 'List2String' (number expected, got nil)
+D257 GetListEntryType({a,1,V},nil) -> !! invalid argument #2 to 'GetListEntryType' (number expected, got nil) ;; compat !! invalid argument #2 to 'GetListEntryType' (number expected, got nil)
+D258 List2String({a,b,c},U) -> !! invalid argument #2 to 'List2String' (number expected, got uuid) ;; compat !! invalid argument #2 to 'List2String' (number expected, got uuid)
+D259 GetListEntryType({a,1,V},U) -> !! invalid argument #2 to 'GetListEntryType' (number expected, got uuid) ;; compat !! invalid argument #2 to 'GetListEntryType' (number expected, got uuid)
+D260 List2String({a,b,c},2147483648) -> string: ;; compat string:
+D261 GetListEntryType({a,1,V},2147483648) -> integer:0 ;; compat integer:0
+D262 List2String({a,b,c},-2147483648) -> string: ;; compat string:
+D263 GetListEntryType({a,1,V},-2147483648) -> integer:0 ;; compat integer:0
+D264 List2List({a,b,c,d},1,2) -> {string:a | string:b} ;; compat {string:b | string:c}
+D265 DeleteSubList({a,b,c,d},1,2) -> {string:c | string:d} ;; compat {string:a | string:d}
+D266 ListReplaceList({a,b,c,d},{X,Y},1,2) -> {string:X | string:Y | string:c | string:d} ;; compat {string:a | string:X | string:Y | string:d}
+D267 List2List({a,b,c,d},2,-1) -> {string:b | string:c | string:d} ;; compat {string:c | string:d}
+D268 DeleteSubList({a,b,c,d},2,-1) -> {string:a} ;; compat {string:a | string:b}
+D269 ListReplaceList({a,b,c,d},{X,Y},2,-1) -> {string:a | string:X | string:Y} ;; compat {string:a | string:b | string:X | string:Y}
+D270 List2List({a,b,c,d},0,1) -> !! passed 0 when a 1-based index was expected ;; compat {string:a | string:b}
+D271 DeleteSubList({a,b,c,d},0,1) -> !! passed 0 when a 1-based index was expected ;; compat {string:c | string:d}
+D272 ListReplaceList({a,b,c,d},{X,Y},0,1) -> !! passed 0 when a 1-based index was expected ;; compat {string:X | string:Y | string:c | string:d}
+D273 List2List({a,b,c,d},-2,-1) -> {string:c | string:d} ;; compat {string:c | string:d}
+D274 DeleteSubList({a,b,c,d},-2,-1) -> {string:a | string:b} ;; compat {string:a | string:b}
+D275 ListReplaceList({a,b,c,d},{X,Y},-2,-1) -> {string:a | string:b | string:X | string:Y} ;; compat {string:a | string:b | string:X | string:Y}
+D276 List2List({a,b,c,d},3,1) -> {string:a | string:c | string:d} ;; compat {string:a | string:b | string:d}
+D277 DeleteSubList({a,b,c,d},3,1) -> {string:b} ;; compat {string:c}
+D278 ListReplaceList({a,b,c,d},{X,Y},3,1) -> {string:b | string:X | string:Y} ;; compat {string:c | string:X | string:Y}
+D279 List2List({a,b,c,d},4,2) -> {string:a | string:b | string:d} ;; compat {string:a | string:b | string:c}
+D280 DeleteSubList({a,b,c,d},4,2) -> {string:c} ;; compat {string:d}
+D281 ListReplaceList({a,b,c,d},{X,Y},4,2) -> {string:c | string:X | string:Y} ;; compat {string:d | string:X | string:Y}
+D282 List2List({a,b,c,d},1,9) -> {string:a | string:b | string:c | string:d} ;; compat {string:b | string:c | string:d}
+D283 DeleteSubList({a,b,c,d},1,9) -> {} ;; compat {string:a}
+D284 ListReplaceList({a,b,c,d},{X,Y},1,9) -> {string:X | string:Y} ;; compat {string:a | string:X | string:Y}
+D285 List2List({a,b,c,d},7,9) -> {} ;; compat {}
+D286 DeleteSubList({a,b,c,d},7,9) -> {string:a | string:b | string:c | string:d} ;; compat {string:a | string:b | string:c | string:d}
+D287 ListReplaceList({a,b,c,d},{X,Y},7,9) -> {string:a | string:b | string:c | string:d | string:X | string:Y} ;; compat {string:a | string:b | string:c | string:d | string:X | string:Y}
+D288 List2List({a,b,c,d},-9,2) -> {string:a | string:b} ;; compat {string:a | string:b | string:c}
+D289 DeleteSubList({a,b,c,d},-9,2) -> {string:c | string:d} ;; compat {string:d}
+D290 ListReplaceList({a,b,c,d},{X,Y},-9,2) -> {string:c | string:d} ;; compat {string:d}
+D291 List2List({a,b,c,d},true,2) -> !! invalid argument #2 to 'List2List' (number expected, got boolean) ;; compat !! invalid argument #2 to 'List2List' (number expected, got boolean)
+D292 DeleteSubList({a,b,c,d},true,2) -> !! invalid argument #2 to 'DeleteSubList' (number expected, got boolean) ;; compat !! invalid argument #2 to 'DeleteSubList' (number expected, got boolean)
+D293 ListReplaceList({a,b,c,d},{X,Y},true,2) -> !! invalid argument #2 to 'DeleteSubList' (number expected, got boolean) ;; compat !! invalid argument #2 to 'DeleteSubList' (number expected, got boolean)
+D294 List2List({a,b,c,d},1,true) -> !! invalid argument #3 to 'List2List' (number expected, got boolean) ;; compat !! invalid argument #3 to 'List2List' (number expected, got boolean)
+D295 DeleteSubList({a,b,c,d},1,true) -> !! invalid argument #3 to 'DeleteSubList' (number expected, got boolean) ;; compat !! invalid argument #3 to 'DeleteSubList' (number expected, got boolean)
+D296 ListReplaceList({a,b,c,d},{X,Y},1,true) -> !! invalid argument #3 to 'DeleteSubList' (number expected, got boolean) ;; compat !! invalid argument #3 to 'DeleteSubList' (number expected, got boolean)
+D297 List2List({a,b,c,d},1.5,2.9) -> {string:a | string:b} ;; compat {string:b | string:c}
+D298 DeleteSubList({a,b,c,d},1.5,2.9) -> {string:c | string:d} ;; compat {string:a | string:d}
+D299 ListReplaceList({a,b,c,d},{X,Y},1.5,2.9) -> {string:X | string:Y | string:c | string:d} ;; compat {string:a | string:X | string:Y | string:d}
+D300 List2List({a,b,c,d},"1","2") -> {string:a | string:b} ;; compat {string:b | string:c}
+D301 DeleteSubList({a,b,c,d},"1","2") -> {string:c | string:d} ;; compat {string:a | string:d}
+D302 ListReplaceList({a,b,c,d},{X,Y},"1","2") -> {string:X | string:Y | string:c | string:d} ;; compat {string:a | string:X | string:Y | string:d}
+D303 List2List({a,b,c,d},nil,2) -> !! invalid argument #2 to 'List2List' (number expected, got nil) ;; compat !! invalid argument #2 to 'List2List' (number expected, got nil)
+D304 DeleteSubList({a,b,c,d},nil,2) -> !! invalid argument #2 to 'DeleteSubList' (number expected, got nil) ;; compat !! invalid argument #2 to 'DeleteSubList' (number expected, got nil)
+D305 ListReplaceList({a,b,c,d},{X,Y},nil,2) -> !! invalid argument #2 to 'DeleteSubList' (number expected, got nil) ;; compat !! invalid argument #2 to 'DeleteSubList' (number expected, got nil)
+D306 List2List({a,b,c,d},2,nil) -> !! invalid argument #3 to 'List2List' (number expected, got nil) ;; compat !! invalid argument #3 to 'List2List' (number expected, got nil)
+D307 DeleteSubList({a,b,c,d},2,nil) -> !! invalid argument #3 to 'DeleteSubList' (number expected, got nil) ;; compat !! invalid argument #3 to 'DeleteSubList' (number expected, got nil)
+D308 ListReplaceList({a,b,c,d},{X,Y},2,nil) -> !! invalid argument #3 to 'DeleteSubList' (number expected, got nil) ;; compat !! invalid argument #3 to 'DeleteSubList' (number expected, got nil)
+D309 List2List({a,b,c,d},-1,1) -> {string:a | string:d} ;; compat {string:a | string:b | string:d}
+D310 DeleteSubList({a,b,c,d},-1,1) -> {string:b | string:c} ;; compat {string:c}
+D311 ListReplaceList({a,b,c,d},{X,Y},-1,1) -> {string:b | string:c | string:X | string:Y} ;; compat {string:c | string:X | string:Y}
+D312 List2List({a,b,c,d},4,4) -> {string:d} ;; compat {}
+D313 DeleteSubList({a,b,c,d},4,4) -> {string:a | string:b | string:c} ;; compat {string:a | string:b | string:c | string:d}
+D314 ListReplaceList({a,b,c,d},{X,Y},4,4) -> {string:a | string:b | string:c | string:X | string:Y} ;; compat {string:a | string:b | string:c | string:d | string:X | string:Y}
+D315 List2List({a,b,c,d},5,5) -> {} ;; compat {}
+D316 DeleteSubList({a,b,c,d},5,5) -> {string:a | string:b | string:c | string:d} ;; compat {string:a | string:b | string:c | string:d}
+D317 ListReplaceList({a,b,c,d},{X,Y},5,5) -> {string:a | string:b | string:c | string:d | string:X | string:Y} ;; compat {string:a | string:b | string:c | string:d | string:X | string:Y}
+D318 ListInsertList({a,b,c,d},{X},0) -> !! passed 0 when a 1-based index was expected ;; compat {string:X | string:a | string:b | string:c | string:d}
+D319 ListInsertList({a,b,c,d},{X},1) -> {string:X | string:a | string:b | string:c | string:d} ;; compat {string:a | string:X | string:b | string:c | string:d}
+D320 ListInsertList({a,b,c,d},{X},2) -> {string:a | string:X | string:b | string:c | string:d} ;; compat {string:a | string:b | string:X | string:c | string:d}
+D321 ListInsertList({a,b,c,d},{X},4) -> {string:a | string:b | string:c | string:X | string:d} ;; compat {string:a | string:b | string:c | string:d | string:X}
+D322 ListInsertList({a,b,c,d},{X},5) -> {string:a | string:b | string:c | string:d | string:X} ;; compat {string:a | string:b | string:c | string:d | string:X}
+D323 ListInsertList({a,b,c,d},{X},9) -> {string:a | string:b | string:c | string:d | string:X} ;; compat {string:a | string:b | string:c | string:d | string:X}
+D324 ListInsertList({a,b,c,d},{X},-1) -> {string:a | string:b | string:c | string:X | string:d} ;; compat {string:a | string:b | string:c | string:X | string:d}
+D325 ListInsertList({a,b,c,d},{X},-4) -> {string:X | string:a | string:b | string:c | string:d} ;; compat {string:X | string:a | string:b | string:c | string:d}
+D326 ListInsertList({a,b,c,d},{X},-9) -> {string:X | string:a | string:b | string:c | string:d} ;; compat {string:X | string:a | string:b | string:c | string:d}
+D327 ListInsertList({a,b,c,d},{X},true) -> !! invalid argument #3 to 'ListInsertList' (number expected, got boolean) ;; compat !! invalid argument #3 to 'ListInsertList' (number expected, got boolean)
+D328 ListInsertList({a,b,c,d},{X},1.5) -> {string:X | string:a | string:b | string:c | string:d} ;; compat {string:a | string:X | string:b | string:c | string:d}
+D329 ListInsertList({a,b,c,d},{X},"2") -> {string:a | string:X | string:b | string:c | string:d} ;; compat {string:a | string:b | string:X | string:c | string:d}
+D330 ListInsertList({a,b,c,d},{X},nil) -> !! invalid argument #3 to 'ListInsertList' (number expected, got nil) ;; compat !! invalid argument #3 to 'ListInsertList' (number expected, got nil)
+D331 List2List({1,true,U,V,1.5},all) -> {number:1 | boolean:true | uuid:5748decc-f629-461c-9a36-a35a221fe21f | vector:<1, 2, 3> | number:1.5}
+D332 List2List({1,{},2},all) -> {number:1 | table:table: 0x000000001645ed58 | number:2} ;; compat {number:1 | table:table: 0x000000001645ec68 | number:2}
+D333 ListInsertList({true},{print},i) -> {function:function: 0x0000000016744d50 | boolean:true}
+D334 ListReplaceList({1,2},5,i,i) -> !! lua_script:108: invalid argument #2 to 'ListReplaceList' (table expected, got number)
+D335 ListInsertList({1},'x',i) -> !! lua_script:109: invalid argument #2 to 'ListInsertList' (table expected, got string)
+D336 GetListLength({1,nil,3}) -> number:3
+D337 GetListLength({a=1,2}) -> number:1
+D338 GetListLength(setmetatable({}, {__len})) -> number:0
+D339 List2Integer strings -> string:12 12 26 0 1 -2147483648 2147483647 -1 1 -1 5 0 0 0 0 12
+D340 List2Float strings -> string:1.5 1.5 26 1000 inf nan -inf inf 0.5 5 1 0 2 1 16 nan
+D341 List2Integer numbers -> string:1 -1 -2147483648 -2147483648 -2147483648 -2147483648 -2147483648 -2147483648 -2147483648 -2147483648 0
+D342 List2Float numbers -> string:16777217 0.1 1e+300 2147483648 -0 1e-50
+D343 List2Vector/Rot strings -> string:vector:<0, 0, 0> quaternion:<0, 0, 0, 1> vector:<0, 0, 0> quaternion:<0, 0, 0, 1>
+D344 List2Key variants -> string:uuid:00000000-0000-0000-0000-000000000000 uuid:00000000-0000-0000-0000-000000000000 uuid:5748decc-f629-461c-9a36-a35a221fe21f uuid:00000000-0000-0000-0000-000000000000 uuid:00000000-0000-0000-0000-000000000000 uuid:00000000-0000-0000-0000-000000000000
+D345 List2String vec/rot/uuid -> string:<1.000000, 2.000000, 3.000000> <0.000000, 0.000000, 0.000000, 1.000000> 5748decc-f629-461c-9a36-a35a221fe21f <0.100000, -0.000000, 10000000000.000000>
+D346 DumpList2String vec/rot -> string:<1.000000, 2.000000, 3.000000> <0.000000, 0.000000, 0.000000, 1.000000> <0.100000, 0.000000, 10000000000.000000>
+D347 DONE

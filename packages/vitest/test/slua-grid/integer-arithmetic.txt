@@ -1,0 +1,37 @@
+E1 llcompat-only names -> string:GetAndResetTime,ResetTime,SetMemoryLimit,SetTimerEvent
+E2 ll-only names -> string:
+E3 I + 1 / I * 3 / I / 4 / I - 1 / I % 2 / I ^ 2 / I // 4 -> string:{number:3 | number:6 | number:0.5 | number:1 | number:0 | number:4 | number:0 | number:3 | number:3.5}
+E4 I + K, I - K, I * K, I / K, I % K, K // I, -I -> string:{integer:5 | integer:-1 | integer:6 | number:0.6666666666666666 | integer:2 | integer:1 | integer:-2}
+E5 I == I2, I == K, K == compat TYPE_STRING int -> string:{boolean:true | boolean:false | boolean:false | boolean:true | boolean:true | boolean:true}
+E6 I < K -> boolean:true
+E7 I <= I -> boolean:true
+E8 math.max(I,K) -> number:3
+E9 typeof TYPE consts in llcompat? -> string:number nil number number number number number number
+E10 big ints -> string:integer 0 0 0 -2
+E11 int division -> string:{number:inf}
+E12 int mod zero !! lua_script:50: Math error: division or modulus by 0
+E13 K / I (3/2) -> string:{number:1.5 | number:-1.5 | integer:1 | integer:-1}
+E14 lljson.encode/slencode {I} -> string:[2] [2] 2
+E15 string.format('%d %f %s') -> string:2 2.000000 2
+E16 tostring(-I), tonumber(-I) -> string:-2 -2 number
+E17 I as key vs K -> string:2 i
+E18 ll.Say(I..) integer param -> string:b b 2 number number AAAAAg==
+E19 List2CSV / List2Json / DumpList2String ints -> string:2, 3, 1, 1.500000 / [2,1] / 2,1.000000,3
+E20 List2Integer/Float/String({I}) -> string:{number:2 | number:2 | string:2 | uuid:00000000-0000-0000-0000-000000000000 | vector:<0, 0, 0>}
+E21 ListSort({K,I,1.5,1},1,true) -> string:{number:2 | number:3 | number:1 | number:1.5}
+E22 ListFindList({I},{I}) -> number:1
+E23 ListFindList({1,I},{I}) -> number:2
+E24 ListStatistics(MAX,{I,K}) -> number:3
+E25 SetPrimitiveParams glow via integer K? PRIM_FULLBRIGHT I -> string:{boolean:false}
+E26 math.nan/tau/e -> string:nil nil nil nil nil
+E27 buffer.readinteger -> string:nil nil
+E28 bit32 on I -> string:{number:2 | integer:3 | number:4}
+E29 vector(I,1,1) -> vector:<2, 1, 1>
+E30 uuid/tostring concat -> string:x2
+E31 I and 1 / not I -> string:{number:1 | boolean:false | boolean:true}
+E32 for i=I,K -> number:2
+E33 string.rep('a',I) / string.sub('abc',I) -> string:aa bc
+E34 select(I,...) -> string:b
+E35 ipairs idx -> number:20
+E36 rawequal / rawget -> string:{boolean:true | number:1}
+E37 DONE
