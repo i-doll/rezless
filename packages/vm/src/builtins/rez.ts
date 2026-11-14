@@ -220,6 +220,8 @@ export const llDerezObject: BuiltinImpl = (ctx, args) => {
   const provenance = target?.rez
   if (!target || !provenance || !provenance.copyable || target.owner !== ctx.linkset.owner || provenance.rezzerKey !== ctx.linkset.prims[0]!.key) return 0
   if (mode === C.DEREZ_MAKE_TEMP) {
+    // Turning temporary makes the region count the scripts again, as PRIM_TEMP_ON_REZ does.
+    if (!target.prims[0]!.params.tempOnRez) target.recountScripts()
     target.setTemporary(true)
     return 1
   }

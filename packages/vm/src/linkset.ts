@@ -25,6 +25,11 @@ import {
   CHANGED_LINK,
   KFM_CMD_STOP,
   REGION_FLAG_ALLOW_DAMAGE,
+  STATUS_PHANTOM,
+  STATUS_PHYSICS,
+  STATUS_ROTATE_X,
+  STATUS_ROTATE_Y,
+  STATUS_ROTATE_Z,
 } from './generated/constants.js'
 
 // Re-export so `import { LINK_* } from '@rezless/vm'` keeps working.
@@ -410,6 +415,11 @@ export class Linkset {
    * at its region position and rotation.
    */
   private place(prims: Prim[]): void {
+    const first = prims[0]!
+    // In-world: a prim unlinked from an object keeps its physics and phantom
+    // status, and its other STATUS_* flags go back to a new object's.
+    const status = first.linkset?.prims[0] === first ? undefined
+      : first.statusFlags & (STATUS_PHYSICS | STATUS_PHANTOM) | STATUS_ROTATE_X | STATUS_ROTATE_Y | STATUS_ROTATE_Z
     const placed = prims.map((p) => ({ p, pos: p.regionPosition(), rot: p.regionRotation() }))
     // A sitter stays where it is in the region when its object gets another root.
     const seated = (this.world?.avatars ?? [])
@@ -433,6 +443,7 @@ export class Linkset {
       const offset = { x: pos.x - root.pos.x, y: pos.y - root.pos.y, z: pos.z - root.pos.z }
       a.sitPlacement = { position: rotateVector(offset, inverse), rotation: mulRotation(rot, inverse) }
     }
+    if (status !== undefined) first.statusFlags = status
     this.recomputeLinkNumbers()
     this.recountScripts()
   }

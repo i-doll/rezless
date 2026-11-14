@@ -505,15 +505,24 @@ than one point for each prim. Second Life counts the scripts again when the
 object is rezzed or worn from inventory, when prims are linked or unlinked,
 when an avatar sits down on it or stands up, when a script is removed, when a
 child prim moves or turns in the object, and when a prim's size, shape,
-physics shape type, physics or temporary status changes. When a script is
-added it counts the scripts that were there before. So a new box with one
-script reads 0.5 until one of those changes, and 0.75 after. An object built
+physics shape type, physics or temporary status changes, including
+`llDerezObject(id, DEREZ_MAKE_TEMP)`. `llLookAt` and `llRotLookAt` turning a
+child prim do not count again. When a script is added it counts the
+scripts that were there before. So a new box with one script reads 0.5 until
+one of those changes, and 0.75 after. An object built
 with `loadLinkset` is such a box: its last script is not counted. Call
 `linkset.recountScripts()` for the value an object fresh from inventory reads.
 A stopped script counts, and LSL and SLua scripts count the same. A seated
 avatar reads the cost of the object it sits on, and 0 when it stands.
 `PRIM_PHYSICS_SHAPE_TYPE` keeps its value when a script sets an unknown type,
 or `PRIM_PHYSICS_SHAPE_NONE` on a root prim.
+
+`llSetStatus` flags belong to the object. A script in any prim sets and reads
+the same flags, and `PRIM_PHYSICS` and `PRIM_PHANTOM` read the same for every
+link. A new object has `STATUS_ROTATE_X`, `STATUS_ROTATE_Y` and
+`STATUS_ROTATE_Z` set, and `STATUS_CAST_SHADOWS` never reads as set. Linked
+prims take the new root's flags. A prim unlinked from an object keeps its
+physics and phantom flags and gets a new object's other flags.
 
 `llGetObjectDetails` reads avatars in the caller's region. Position, rotation,
 velocity and size use the live avatar fixture; a seated avatar reports its seat's
@@ -566,9 +575,12 @@ from it, and one sitting on the ground stays there. `@sit:<key>=force` is
 refused the same way.
 
 A prim without a sit target is out of reach more than 8 m away, unless
-`world.setSitResponse` gives it a response. A sit request on it is refused too,
-and again an avatar sitting on another object stands up from it. A sit target
-seats the avatar at any distance in the region.
+`world.setSitResponse` gives it a response. Second Life's rule for that reach
+is not known, and 8 m from the prim's centre is an approximation: it gets 70
+of 113 requests measured with prims of several sizes, shapes, turns and
+heights right. A sit request on a prim out of reach is refused too, and again
+an avatar sitting on another object stands up from it. A sit target seats the
+avatar at any distance in the region.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
 `name`, `message` and the clock time `at`. A sit request refused for
