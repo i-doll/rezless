@@ -438,6 +438,32 @@ describe('a timer tick that fell due while a handler slept', () => {
     return made.script.global('log')
   }
 
+  // A stopped script's overdue tick, released with a click held back behind its first handler,
+  // is the tick it was owed: an interval set in that tick's handler starts from there.
+  it('lets the overdue tick of a restarted script go once it has run', async () => {
+    const f = await fixture()
+    const made = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [
+      { name: 'main', source: { source: `list log; integer armed; default {
+        state_entry() { llListen(5, "", "", ""); llSetTimerEvent(1.0); }
+        listen(integer c, string name, key id, string m) { armed = TRUE; llSleep(4.0); }
+        timer() { log += "timer " + (string)llRound(llGetTime()); if (armed) llSetTimerEvent(20.0); }
+        touch_start(integer n) { log += "touch"; } }` } },
+      { name: 'ctl', source: { source: 'default { link_message(integer from, integer n, string s, key id) { llSetScriptState("main", n); } }' } },
+    ] }] })
+    const [main, ctl] = [made.scripts.main!, made.scripts.ctl!]
+    main.start()
+    ctl.start()
+    made.linkset.advanceTime(500)
+    queue(f, ctl, 'link_message', { sender_num: 0, num: 0, str: '', id: '' })
+    queue(f, main, 'listen', heard('sleep'))
+    made.linkset.advanceTime(3_000)
+    queue(f, ctl, 'link_message', { sender_num: 0, num: 1, str: '', id: '' })
+    made.linkset.advanceTime(1_000)
+    queue(f, main, 'touch_start', click(0))
+    made.linkset.advanceTime(15_000)
+    expect(main.global('log')).toEqual(['timer 8', 'touch'])
+  })
+
   // In-world: a 3 s timer set as an 8 s sleep began, a click 1.5 s into the sleep and a chat
   // line 2.5 s later that turned the timer off -> stop, touch. Without the click -> stop.
   it.each([[true, ['stop', 'touch']], [false, ['stop']]])('does not run once the timer is turned off (click: %s)', async (clicked, log) => {

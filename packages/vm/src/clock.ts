@@ -340,7 +340,10 @@ export class LinksetClock {
     if (held.length && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
         !timerWaits && !held.some((e) => e.event === 'timer')) {
       held.push({ at: this.now, target: script, event: 'timer', payload: {}, held: false })
-      v.timerNextFireMs = this.now + v.timerIntervalMs
+      // As in takeNextDue: an overdue tick keeps the old schedule if that is still ahead.
+      const kept = v.timerLateDueMs === undefined ? this.now : v.timerLateDueMs + v.timerIntervalMs
+      v.timerLateDueMs = undefined
+      v.timerNextFireMs = kept > this.now ? kept : this.now + v.timerIntervalMs
     }
     held.sort((a, b) => HELD_ORDER.get(a.event)! - HELD_ORDER.get(b.event)!)
     this.queue.push(...held)
