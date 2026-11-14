@@ -29,6 +29,8 @@ import {
   PRIM_GLTF_NORMAL,
   PRIM_HEALTH,
   PRIM_HOLE_DEFAULT,
+  PRIM_HOLE_SQUARE,
+  PRIM_HOLE_TRIANGLE,
   PRIM_LINK_TARGET,
   PRIM_MATERIAL,
   PRIM_MATERIAL_WOOD,
@@ -849,51 +851,112 @@ function writeGltf<K extends keyof PrimFace['gltf']>(
 /** Names and descriptions can't hold the separator characters; they become `?`. */
 const plainText = (s: string): string => s.replace(/[|\n]/g, '?')
 
+const f32 = Math.fround
+
+/** Second Life's range limit. A NaN passes through it. */
+const limit = (v: number, min: number, max: number) => (v < min ? min : v > max ? max : v)
+
+/** A float cast to a 32-bit integer; NaN and anything out of range give the lowest one. */
+const toInt32 = (v: number) => (v > -2147483649 && v < 2147483648 ? Math.trunc(v) + 0 : -2147483648)
+
+/** Profile cuts and hollow are kept in steps of 0.00001, cut off toward zero. */
+const toHundredThousandths = (v: number) => f32(toInt32(f32(v * 100000)) / 100000)
+
+const MIN_CUT = f32(0.02)
+
+/** A path cut: begin 0 to 0.98, end 0.02 to 1, and begin at least 0.02 below end. */
+function pathCut(v: Vector) {
+  const end = limit(f32(v.y), MIN_CUT, 1)
+  return { x: limit(limit(f32(v.x), 0, f32(1 - MIN_CUT)), 0, f32(end - MIN_CUT)), y: end, z: 0 }
+}
+
+function profileCut(v: Vector) {
+  const cut = pathCut(v)
+  return { x: toHundredThousandths(cut.x), y: toHundredThousandths(cut.y), z: 0 }
+}
+
+const limitPair = (v: Vector, minX: number, maxX: number, minY = minX, maxY = maxX) =>
+  ({ x: limit(f32(v.x), minX, maxX), y: limit(f32(v.y), minY, maxY), z: 0 })
+
+/** Hole shapes are 0, 16, 32 and 48. Other bits are dropped, and a shape above 48 is the default. */
+function holeShape(v: LslValue | undefined) {
+  const hole = (num(v) | 0) & 0xf0
+  return hole > PRIM_HOLE_TRIANGLE ? PRIM_HOLE_DEFAULT : hole
+}
+
+/** Hollow is 0 to 0.95, or 0 to 0.7 for a square hole in a round or triangular profile. */
+function hollowOf(kind: number, hole: number, v: LslValue | undefined) {
+  const narrow = hole === PRIM_HOLE_SQUARE && kind !== SHAPE_BOX && kind !== SHAPE_TUBE
+  return toHundredThousandths(limit(f32(num(v)), 0, f32(narrow ? 0.7 : 0.95)))
+}
+
+/** The largest radius offset a hole size and taper leave room for. */
+function radiusOffsetOf(v: number, holeY: number, taperY: number) {
+  const offset = f32(v)
+  const taper = (offset > 0 && taperY < 0) || (offset < 0 && taperY > 0) ? 0 : Math.abs(taperY)
+  const max = f32(1 - f32(f32(holeY * f32(1 - taper)) / f32(1 - holeY)))
+  if (!(f32(max - Math.abs(offset)) < 0)) return offset
+  return offset < 0 ? -max : max
+}
+
+/** Skew is at most 0.95, and with more than one revolution it has a least size too. */
+function skewOf(v: number, revolutions: number, holeX: number) {
+  const skew = limit(f32(v), f32(-0.95), f32(0.95))
+  const min = Math.abs(f32(revolutions - 1)) < 0.001 ? 0 : f32(1 - f32(1 / f32(f32(revolutions * holeX) + 1)))
+  if (!(f32(Math.abs(skew) - min) < 0)) return skew
+  return skew < 0 ? -min : min
+}
+
 function writePrimType(p: PrimParams, rules: ReadonlyArray<LslValue>, cursor: number, caller: Prim): number | null {
   const kind = (num(rules[cursor]) | 0)
   const old = p.shape
+  const hole = holeShape(rules[cursor + 1])
   switch (kind) {
     case SHAPE_BOX:
     case SHAPE_CYLINDER:
     case SHAPE_PRISM:
       p.shape = {
         kind: kind as 0 | 1 | 2,
-        hole: num(rules[cursor + 1]) | 0,
-        cut: asVec(rules[cursor + 2]),
-        hollow: num(rules[cursor + 3]),
-        twist: asVec(rules[cursor + 4]),
-        topSize: asVec(rules[cursor + 5]),
-        topShear: asVec(rules[cursor + 6]),
+        hole,
+        cut: profileCut(asVec(rules[cursor + 2])),
+        hollow: hollowOf(kind, hole, rules[cursor + 3]),
+        twist: limitPair(asVec(rules[cursor + 4]), -1, 1),
+        topSize: limitPair(asVec(rules[cursor + 5]), 0, 2),
+        topShear: limitPair(asVec(rules[cursor + 6]), -0.5, 0.5),
       }
       break
     case SHAPE_SPHERE:
       p.shape = {
         kind: SHAPE_SPHERE,
-        hole: num(rules[cursor + 1]) | 0,
-        cut: asVec(rules[cursor + 2]),
-        hollow: num(rules[cursor + 3]),
-        twist: asVec(rules[cursor + 4]),
-        dimple: asVec(rules[cursor + 5]),
+        hole,
+        cut: pathCut(asVec(rules[cursor + 2])),
+        hollow: hollowOf(kind, hole, rules[cursor + 3]),
+        twist: limitPair(asVec(rules[cursor + 4]), -1, 1),
+        dimple: profileCut(asVec(rules[cursor + 5])),
       }
       break
     case SHAPE_TORUS:
     case SHAPE_TUBE:
-    case SHAPE_RING:
+    case SHAPE_RING: {
+      const holeSize = limitPair(asVec(rules[cursor + 5]), f32(0.05), 1, f32(0.05), 0.5)
+      const taper = limitPair(asVec(rules[cursor + 8]), -1, 1)
+      const revolutions = limit(f32(num(rules[cursor + 9])), 1, 4)
       p.shape = {
         kind: kind as 4 | 5 | 6,
-        hole: num(rules[cursor + 1]) | 0,
-        cut: asVec(rules[cursor + 2]),
-        hollow: num(rules[cursor + 3]),
-        twist: asVec(rules[cursor + 4]),
-        holeSize: asVec(rules[cursor + 5]),
-        topShear: asVec(rules[cursor + 6]),
-        advancedCut: asVec(rules[cursor + 7]),
-        taper: asVec(rules[cursor + 8]),
-        revolutions: num(rules[cursor + 9]),
-        radiusOffset: num(rules[cursor + 10]),
-        skew: num(rules[cursor + 11]),
+        hole,
+        cut: pathCut(asVec(rules[cursor + 2])),
+        hollow: hollowOf(kind, hole, rules[cursor + 3]),
+        twist: limitPair(asVec(rules[cursor + 4]), -1, 1),
+        holeSize,
+        topShear: limitPair(asVec(rules[cursor + 6]), -0.5, 0.5),
+        advancedCut: profileCut(asVec(rules[cursor + 7])),
+        taper,
+        revolutions,
+        radiusOffset: radiusOffsetOf(num(rules[cursor + 10]), holeSize.y, taper.y),
+        skew: skewOf(num(rules[cursor + 11]), revolutions, holeSize.x),
       }
       break
+    }
     case SHAPE_SCULPT: {
       const map = textureKey(caller, str(rules[cursor + 1]))
       // A map that names no texture leaves a plain torus.
@@ -1316,24 +1379,52 @@ const PROFILE_SIDES: Readonly<Record<number, number>> = {
   [SHAPE_TORUS]: 1, [SHAPE_TUBE]: 4, [SHAPE_RING]: 3,
 }
 
-const isCut = (range: Vector): boolean => range.x > 0 || range.y < 1
+const PATH_TOLERANCE = f32(0.001)
 
+/** Whether a taper narrows one end of a looped path by more than the tolerance. */
+function tapers(taper: number) {
+  const end = f32(1 - taper)
+  return Math.abs(end > 1 ? f32(1 - f32(2 - end)) : f32(end - 1)) > PATH_TOLERANCE
+}
+
+/** Whether a looped path has ends: a cut, a twist that differs end to end, taper, radius offset or skew. */
+function pathHasEnds(shape: Extract<PrimShape, { dimple: Vector } | { skew: number }>) {
+  if (f32(shape.cut.y - shape.cut.x) < 1 || shape.twist.x !== shape.twist.y) return true
+  if (!('skew' in shape)) return false
+  const radius = f32(0.5 * f32(1 - shape.holeSize.y))
+  const moved = f32(radius * (shape.radiusOffset < 0 ? f32(1 + shape.radiusOffset) : f32(1 - shape.radiusOffset)))
+  return Math.abs(shape.skew) > PATH_TOLERANCE || tapers(shape.taper.x) || tapers(shape.taper.y)
+    || Math.abs(f32(moved - radius)) > PATH_TOLERANCE
+}
+
+/**
+ * The faces of a shape, as Second Life builds them. A path with ends gives a
+ * top and a bottom. A square or triangular profile has a side for each edge
+ * its cut touches. Any hollow gives an inner face. A profile cut gives two
+ * cut faces, unless it leaves 99% or more of the profile. A sphere's dimple
+ * is its profile cut, and a hollow sphere always has the two cut faces.
+ */
 function faceRoles(shape: PrimShape): FaceRole[] {
   if (shape.kind === SHAPE_SCULPT) return [0]
+  const sphere = shape.kind === SHAPE_SPHERE
   const looped = shape.kind === SHAPE_TORUS || shape.kind === SHAPE_TUBE || shape.kind === SHAPE_RING
-  const profileCut = looped ? shape.advancedCut : shape.cut
-  const pathEnds = shape.kind === SHAPE_SPHERE
-    ? isCut(shape.dimple) || shape.hollow > 0
-    : !looped || isCut(shape.cut)
+  const profile = sphere ? shape.dimple : looped ? shape.advancedCut : shape.cut
+  // A profile that ends before it begins has no faces at all.
+  if (profile.x > f32(profile.y - f32(0.01))) return []
+  const hollow = shape.hollow !== 0
+  const ends = !('dimple' in shape || 'skew' in shape) || pathHasEnds(shape)
+  const span = f32(profile.y - profile.x)
+  const cutFaces = sphere ? span < 1 || hollow : span < f32(0.99)
   const sides = PROFILE_SIDES[shape.kind]!
-  const roles: FaceRole[] = pathEnds ? ['top'] : []
-  for (let i = 0; i < sides; i++) {
-    if (i / sides < profileCut.y && (i + 1) / sides > profileCut.x) roles.push(i)
-  }
-  if (shape.hollow > 0) roles.push('inner')
-  if (pathEnds) roles.push('bottom')
-  if (isCut(profileCut)) roles.push('cutStart', 'cutEnd')
-  return roles
+  const first = sides === 1 ? 0 : Math.floor(f32(profile.x * sides))
+  const sideCount = sides === 1 ? 1 : Math.floor(f32(f32(profile.y * sides) + f32(0.999))) - first
+  const roles: FaceRole[] = ends ? ['top'] : []
+  for (let i = 0; i < Math.min(sideCount, 255); i++) roles.push(first + i)
+  if (hollow) roles.push('inner')
+  if (ends) roles.push('bottom')
+  if (cutFaces) roles.push('cutStart', 'cutEnd')
+  // The count is a byte. Only a NaN cut, which is kept as -21474.83648, gets that far.
+  return roles.slice(0, (roles.length - Math.min(sideCount, 255) + sideCount) & 0xff)
 }
 
 /**
@@ -1348,7 +1439,8 @@ function remapFaces(p: PrimParams, oldShape: PrimShape): void {
   const old = p.faces
   const oldFace = (role: FaceRole | undefined) => old[oldRoles.indexOf(role as FaceRole)]
   const oldSides = oldRoles.filter((r) => typeof r === 'number')
-  const firstSide = oldFace(oldSides[0]) ?? old[0]!
+  // A shape without faces leaves nothing to copy: its next faces are white with no texture.
+  const firstSide = oldFace(oldSides[0]) ?? old[0] ?? { ...defaultFace(), texture: NULL_KEY }
   const fallback = oldFace('bottom') ?? firstSide
   const source = (role: FaceRole) => {
     const same = oldFace(role)

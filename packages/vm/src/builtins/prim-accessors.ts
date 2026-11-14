@@ -141,6 +141,7 @@ export const llGetColor: BuiltinImpl = (ctx, args) => {
   const face = num(args[0], 0) | 0
   if (face < 0) {
     const faces = ctx.prim.params.faces
+    if (faces.length === 0) return { x: 1, y: 1, z: 1 }
     let x = 0, y = 0, z = 0
     for (const { color: c } of faces) {
       x += c.x; y += c.y; z += c.z
@@ -161,6 +162,7 @@ export const llSetAlpha: BuiltinImpl = (ctx, args) => {
 export const llGetAlpha: BuiltinImpl = (ctx, args) => {
   const face = num(args[0], 0) | 0
   if (face < 0) {
+    if (ctx.prim.params.faces.length === 0) return 1
     let a = 0
     for (const f of ctx.prim.params.faces) a += f.alpha
     return a

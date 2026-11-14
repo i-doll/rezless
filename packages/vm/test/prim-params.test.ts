@@ -258,7 +258,7 @@ describe('prim-params helpers', () => {
         PRIM_TYPE_SPHERE, PRIM_HOLE_DEFAULT, v(0, 1, 0), 0.1, v(0, 0, 0), v(0, 1, 0),
       ], 0)
       expect(readPrimParam(p, PRIM_TYPE, [], 0)?.values).toEqual([
-        PRIM_TYPE_SPHERE, PRIM_HOLE_DEFAULT, v(0, 1, 0), 0.1, v(0, 0, 0), v(0, 1, 0),
+        PRIM_TYPE_SPHERE, PRIM_HOLE_DEFAULT, v(0, 1, 0), Math.fround(0.1), v(0, 0, 0), v(0, 1, 0),
       ])
     })
     it('TORUS/TUBE/RING (kind 4/5/6)', () => {
