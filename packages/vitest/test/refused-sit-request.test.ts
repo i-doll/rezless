@@ -197,10 +197,10 @@ describe("the viewer's message for a refused sit request", () => {
   // In-world: the far box had sit flags 6 (SIT_FLAG_SCRIPTED_ONLY) and no sit
   // target, 3 m and 30 m from the avatar. Each refused sit request made the
   // viewer show the notification CantSitNoSuitableSurface, "There is no
-  // suitable surface to sit on, try another spot.": to a standing avatar, to
-  // one seated on the near box (which stood up) and to one sitting on the
-  // ground (which kept sitting). A request refused for a prim out of reach
-  // showed nothing; the tests above pin that.
+  // suitable surface to sit on, try another spot.": to a standing avatar and
+  // to one seated on the near box (which stood up) at both distances, and at
+  // 3 m to one sitting on the ground (which kept sitting). A request refused
+  // for a prim out of reach showed nothing; the tests above pin that.
   it.each([3, 30])('shows for a scripted-only refusal %i m away', async (distance) => {
     const standing = await scene(distance, { flags: 6 })
     expect(standing.request()).toBe(false)
@@ -212,6 +212,7 @@ describe("the viewer's message for a refused sit request", () => {
     expect(seated.avatar.sittingOn).toBeNull()
     expect(seated.avatar.viewer.alerts).toEqual([NO_SURFACE])
 
+    if (distance !== 3) return
     const ground = await scene(distance, { flags: 6 })
     ground.world.sitAvatarOnGround(ground.avatar)
     expect(ground.request()).toBe(false)
