@@ -265,3 +265,50 @@ it.fails('merges clicks by two avatars during one sleep into one event of each k
   s.advanceTime(20000)
   expect(s.global('log')).toEqual([`ts2 ${OTHER} ${OWNER}`, `t2 ${OWNER} ${OTHER}`, `te2 ${OWNER} ${OTHER}`])
 })
+
+// https://wiki.secondlife.com/wiki/Money
+describe('money events from two avatars', () => {
+  const payee = `list log;
+    default {
+      state_entry() { llListen(5, "", NULL_KEY, ""); llSetTimerEvent(1); }
+      money(key id, integer amount) { log += ["money " + (string)id + " " + (string)amount]; }
+      listen(integer c, string n, key id, string m) { log += [m]; }
+      timer() { llSetTimerEvent(0); log += ["sleep"]; llSleep(12); log += ["woke"]; }
+    }`
+  async function setup() {
+    const w = await world()
+    const loaded = await object(w, OWNER, payee)
+    const avatar = (key: string) => w.avatars.find(a => a.key === key)!
+    const pay = (key: string, amount: number) => w.attemptAvatarPay(avatar(key), loaded.prims[0]!, amount)
+    const say = (m: string) => loaded.script.deliverChat({ channel: 5, name: 'i Doll', key: OWNER, message: m })
+    return { ...loaded, pay, say }
+  }
+
+  // In-world: fivebot paid i doll's object L$1 and i doll paid it L$2 -> money(fivebot, 1),
+  // money(i doll, 2). fivebot's balance went 5005 -> 5004 and i doll's up by 1. The
+  // setup's timer sleep is let run out first.
+  it('tells the object who paid and how much', async () => {
+    const { script, pay } = await setup()
+    script.advanceTime(20000)
+    script.setGlobal('log', [])
+    expect(pay(OTHER, 1).status).toBe('paid')
+    expect(pay(OWNER, 2).status).toBe('paid')
+    expect(script.global('log')).toEqual([`money ${OTHER} 1`, `money ${OWNER} 2`])
+  })
+
+  // In-world: while a listen handler slept 12 s, chat then a payment then chat ran as
+  // chat, money, chat. Payments of L$1 and L$2 by fivebot and L$3 by i doll ran as three
+  // money events in that order. The money event is neither held back nor merged.
+  it('keeps payments made during a sleep in arrival order', async () => {
+    const { script, pay, say } = await setup()
+    script.advanceTime(1500)
+    expect(script.global('log')).toEqual(['sleep'])
+    say('x3')
+    pay(OTHER, 1)
+    say('x4')
+    pay(OTHER, 2)
+    pay(OWNER, 3)
+    script.advanceTime(20000)
+    expect(script.global('log')).toEqual(['sleep', 'woke', 'x3', `money ${OTHER} 1`, 'x4', `money ${OTHER} 2`, `money ${OWNER} 3`])
+  })
+})
