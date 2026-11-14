@@ -12,7 +12,7 @@ import { NULL_KEY, ZERO_VECTOR } from './values/types.js'
 import { deterministicKey } from './keys.js'
 import {
   PERM_ALL, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SIZE,
-  PRIM_TEMP_ON_REZ, PRIM_TYPE, STATUS_PHANTOM, STATUS_PHYSICS,
+  PRIM_TEMP_ON_REZ, PRIM_TYPE, STATUS_CAST_SHADOWS, STATUS_PHANTOM, STATUS_PHYSICS, STATUS_ROTATE_X, STATUS_ROTATE_Y, STATUS_ROTATE_Z,
 } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
 
@@ -91,13 +91,14 @@ export class Prim {
   readonly scripts: Script[] = []
   readonly inventory: InventoryItem[] = []
   readonly params: PrimParams = defaultPrimParams()
+  /** The object's STATUS_* bits when this prim is its root. */
+  private objectStatus = STATUS_ROTATE_X | STATUS_ROTATE_Y | STATUS_ROTATE_Z
   /**
-   * llSetStatus / PRIM_PHYSICS / PRIM_PHANTOM bitfield. Stored on the prim
-   * (not in `params`) so `STATUS_*` flags without a PRIM_* counterpart
-   * (BLOCK_GRAB, DIE_AT_EDGE, ROTATE_*, etc.) live alongside the
-   * PRIM_PHYSICS / PRIM_PHANTOM bits in one place.
+   * llSetStatus / PRIM_PHYSICS / PRIM_PHANTOM bitfield. The flags belong to
+   * the object: every prim reads and sets its root's.
    */
-  statusFlags = 0
+  get statusFlags(): number { return (this.linkset?.prims[0] ?? this).objectStatus }
+  set statusFlags(value: number) { (this.linkset?.prims[0] ?? this).objectStatus = value }
   /** Physics calls are captured per caller; the root holds test-controlled reads. */
   readonly physics: PhysicsState = {
     requests: [], force: null, torque: { x: 0, y: 0, z: 0 }, velocity: null,
@@ -436,12 +437,13 @@ export class Prim {
     return JSON.stringify([size, shape, physicsShapeType, tempOnRez, placed])
   }
 
-  /** llSetStatus seam. STATUS_* is a bit value; sets or clears it. */
+  /** llSetStatus seam. STATUS_* is a bit value; sets or clears it for the whole object. */
   setStatus(flag: number, value: boolean): void {
     const physical = this.statusFlags & STATUS_PHYSICS
-    if (value) this.statusFlags |= flag
+    // In-world, STATUS_CAST_SHADOWS read FALSE after TRUE was set from the root or a child.
+    if (value) this.statusFlags |= flag & ~STATUS_CAST_SHADOWS
     else this.statusFlags &= ~flag
-    if (this.volumeDetect) this.statusFlags |= STATUS_PHANTOM
+    if ((this.linkset?.prims[0] ?? this).volumeDetect) this.statusFlags |= STATUS_PHANTOM
     if ((this.statusFlags & STATUS_PHYSICS) !== physical) this.linkset?.recountScripts()
   }
 }

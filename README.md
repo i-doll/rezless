@@ -515,6 +515,13 @@ avatar reads the cost of the object it sits on, and 0 when it stands.
 `PRIM_PHYSICS_SHAPE_TYPE` keeps its value when a script sets an unknown type,
 or `PRIM_PHYSICS_SHAPE_NONE` on a root prim.
 
+`llSetStatus` flags belong to the object. A script in any prim sets and reads
+the same flags, and `PRIM_PHYSICS` and `PRIM_PHANTOM` read the same for every
+link. A new object has `STATUS_ROTATE_X`, `STATUS_ROTATE_Y` and
+`STATUS_ROTATE_Z` set, and `STATUS_CAST_SHADOWS` never reads as set. Linked
+prims take the new root's flags. A prim unlinked from an object keeps its
+physics and phantom flags and gets a new object's other flags.
+
 `llGetObjectDetails` reads avatars in the caller's region. Position, rotation,
 velocity and size use the live avatar fixture; a seated avatar reports its seat's
 root and link number, and includes the seat in its mass. Supply resource totals
