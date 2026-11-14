@@ -1218,11 +1218,33 @@ describe('faces of a shape', () => {
         }
       }`)
     // In-world: a box with every face painted and textured, then a NaN cut end, then a plain box
-    // again. This was measured on a box only. The same NaN on a cylinder took the region down,
-    // so no curved shape was given one.
+    // again, from a script compiled for Mono. Other prim types were not
+    // measured with a NaN or an infinity from LSL.
     expect(said(s)).toEqual([
       '0, 0, 0, 1.000000, 1.000000, <1.000000, 1.000000, 1.000000>, <1.000000, 1.000000, 1.000000>, 00000000-0000-0000-0000-000000000000',
       '6, <1.000000, 1.000000, 1.000000>, <1.000000, 1.000000, 1.000000>, 00000000-0000-0000-0000-000000000000, <1.000000, 1.000000, 0.000000>, <0.000000, 0.000000, 0.000000>, 0.000000, 00000000-0000-0000-0000-000000000000, <1.000000, 1.000000, 0.000000>, <0.000000, 0.000000, 0.000000>, 0.000000',
+    ])
+  })
+
+  it('reads a NaN cut or hollow as 0 in SLua', async () => {
+    const s = await runSlua(`
+      local nan, inf = 0 / 0, math.huge
+      local function set(kind, cut, hollow)
+        ll.SetLinkPrimitiveParamsFast(-4, {9, kind, 0, vector(0.25, 0.75, 0), 0.5, vector(0.25, -0.25, 0), vector(0.5, 0.75, 0), vector(0.25, -0.125, 0)})
+        ll.SetLinkPrimitiveParamsFast(-4, {9, kind, 0, cut, hollow, vector(0.25, -0.25, 0), vector(0.5, 0.75, 0), vector(0.25, -0.125, 0)})
+        local read = ll.GetPrimitiveParams({9})
+        ll.Say(0, string.format("%.5g,%.5g %.5g %d", read[3].x, read[3].y, read[4], ll.GetNumberOfSides()))
+      end
+      for _, kind in {1, 2} do
+        for _, cut in {vector(nan, 0.8, 0), vector(0.2, nan, 0), vector(nan, nan, 0), vector(inf, 0.8, 0), vector(0.2, -inf, 0)} do set(kind, cut, 0.5) end
+        for _, hollow in {nan, inf, -inf} do set(kind, vector(0.25, 0.75, 0), hollow) end
+      end`)
+    // In-world: Aditi beta grid, region Lua Beta IsNeat (2026-11-14), an SLua script on a
+    // cylinder and then a prism, one value replaced at a time. Each line is the cut, the hollow
+    // and llGetNumberOfSides. A NaN end also moves the begin to 0.
+    expect(said(s)).toEqual([
+      '0,0.8 0.5 6', '0,0.02 0.5 6', '0,0.02 0.5 6', '0.78,0.8 0.5 6', '0,0.02 0.5 6', '0.25,0.75 0 5', '0.25,0.75 0.95 6', '0.25,0.75 0 5',
+      '0,0.8 0.5 8', '0,0.02 0.5 6', '0,0.02 0.5 6', '0.78,0.8 0.5 6', '0,0.02 0.5 6', '0.25,0.75 0 7', '0.25,0.75 0.95 8', '0.25,0.75 0 7',
     ])
   })
 })

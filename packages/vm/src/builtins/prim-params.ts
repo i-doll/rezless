@@ -1,15 +1,31 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
-import type { LslType, LslValue } from '../values/types.js'
+import type { LslType, LslValue, Vector } from '../values/types.js'
 import { isPrim, type Link, type Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import { readAvatarLinkParam, writeAvatarLinkParam } from '../avatar-link.js'
-import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET } from '../generated/constants.js'
+import {
+  LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET, PRIM_TYPE, PRIM_TYPE_PRISM,
+} from '../generated/constants.js'
 import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
 import { primParamLuaKinds } from './slua-result-kinds.js'
 import { sayError } from './debug.js'
 import { setPrimParamWithChanged } from '../prim-changed.js'
+
+const zeroForNan = (v: number) => (Number.isNaN(v) ? 0 : v)
+
+/** In SLua a NaN in the cut or hollow of a box, cylinder or prism counts as 0. */
+function sluaShapeRules(rules: ReadonlyArray<LslValue>, cursor: number) {
+  const kind = rules[cursor]
+  const cut = rules[cursor + 2] as Vector | undefined
+  const hollow = rules[cursor + 3]
+  if (typeof kind !== 'number' || kind < 0 || kind > PRIM_TYPE_PRISM || !cut || typeof hollow !== 'number') return rules
+  const fixed = [...rules]
+  fixed[cursor + 2] = { x: zeroForNan(cut.x), y: zeroForNan(cut.y), z: cut.z }
+  fixed[cursor + 3] = zeroForNan(hollow)
+  return fixed
+}
 
 /**
  * Walk a PRIM_* rules list, applying each rule to every prim in the
@@ -39,13 +55,14 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
       sayError(ctx, `${fn} error running rule #${ruleNumber}${error}.`)
       return
     }
+    const given = rule === PRIM_TYPE && ctx.script.language !== 'lsl' ? sluaShapeRules(rules, i + 1) : rules
     let consumed: number | null = null
     if (sitter) {
       consumed = writeAvatarLinkParam(sitter, rule, rules[i + 1])
       if (consumed === null) return
     }
     for (const p of cur) {
-      const c = setPrimParamWithChanged(p, rule, rules, i + 1, caller)
+      const c = setPrimParamWithChanged(p, rule, given, i + 1, caller)
       if (c === null) return
       consumed = c
     }
