@@ -108,7 +108,27 @@ describe('@sitground=force from a seat', () => {
     f.wait(GROUND_SIT_DELAY_MS)
     expect(f.avatar.sittingOn).toBe(f.script.host)
     expect(f.sitting()).toBe(AGENT_SITTING | AGENT_ON_OBJECT)
-    expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'unchanged' })
+    expect(f.last()).toMatchObject({ action: 'sit', actionOutcome: 'applied' })
+  })
+
+  it.each(['rlv', 'rlva'] as const)('%s drops the ground sit once a later sit replaces it', async profile => {
+    const f = (await pair())[profile]
+    f.seat()
+    issue(f.script, '@sitground=force')
+    f.wait(50)
+    f.seat()
+    issue(f.script, '@unsit=force')
+    f.wait(GROUND_SIT_DELAY_MS)
+    expect(f.sitting()).toBe(0)
+    const far = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
+      position: { x: 60, y: 0, z: 0 }, prims: [{}] })
+    f.world.setSitResponse(far.prims[0]!, { position: { x: 0, y: 0, z: 1 }, autopilot: { durationMs: 1000, success: true } })
+    f.seat()
+    issue(f.script, '@sitground=force')
+    issue(f.script, '@sit:' + far.prims[0]!.key + '=force')
+    expect(f.last()).toMatchObject({ action: 'sit', actionOutcome: 'pending' })
+    f.wait(1000)
+    expect(f.avatar.sittingOn).toBe(far.prims[0])
   })
 })
 
@@ -156,6 +176,13 @@ describe('locks on @sitground=force', () => {
     f.wait(GROUND_SIT_DELAY_MS)
     expect(f.sitting()).toBe(0)
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'refused', reason: 'restriction' })
+  })
+
+  it('rlv refuses the ground sit under an interact lock', async () => {
+    const f = (await pair()).rlv
+    issue(f.script, '@interact=n,sitground=force')
+    expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'refused', reason: 'restriction' })
+    expect(f.sitting()).toBe(0)
   })
 
   it('rlv stops flying even when a lock refuses the ground sit', async () => {

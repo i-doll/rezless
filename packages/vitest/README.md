@@ -1240,7 +1240,7 @@ Kokua. `sitground=force` ground-sits in both profiles and ignores its option.
 Ground sitting sets `AGENT_SITTING`, clears `AGENT_ON_OBJECT`, and removes an
 existing object seat. From a seat, the avatar stands at once, so the seat's
 `CHANGED_LINK` handler reads it standing, and sits on the ground 250 ms later;
-advance virtual time to finish it. The command log records `pending`, then the outcome. Kokua checks
+advance virtual time to finish it. The command log records `pending`, then the outcome. A later sit request drops it. Kokua checks
 its sit locks again before that ground sit; RLVa does not, and a standtp return
 replaces it. `unsit=force` stands the avatar. Successful object sit/stand
 operations produce normal `CHANGED_LINK` events; ground sitting adds no object link.

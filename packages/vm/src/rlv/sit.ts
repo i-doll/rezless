@@ -93,16 +93,26 @@ function forceGroundSit(world: World, avatar: WorldAvatar,
     world.sitAvatarOnGround(avatar)
     return record('applied')
   }
+  cancelPendingGroundSit(avatar)
   if (!avatar.sittingOn) return sitOnGround()
   world.standAvatar(avatar)
   // RLVa's stand handler runs the standtp return instead of the ground sit.
   if (profile === 'rlva' && standtpState(avatar).pending) return record('applied')
-  world.clock.scheduleTask(avatar.viewer.session.lifetime, world.clock.now + GROUND_SIT_DELAY_MS, () => {
-    if (!world.avatars.includes(avatar)) return
-    if (avatar.info & AGENT_SITTING) record('unchanged')
-    else sitOnGround()
+  const lifetime = avatar.viewer.session.lifetime
+  const cancel = world.clock.scheduleTask(lifetime, world.clock.now + GROUND_SIT_DELAY_MS, () => {
+    pendingGroundSits.delete(lifetime)
+    if (world.avatars.includes(avatar) && !(avatar.info & AGENT_SITTING)) sitOnGround()
   })
+  pendingGroundSits.set(lifetime, cancel)
   return record('pending')
+}
+
+const pendingGroundSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
+
+/** A later sit or ground sit replaces a ground sit still waiting for its stand. */
+export function cancelPendingGroundSit(avatar: WorldAvatar): void {
+  pendingGroundSits.get(avatar.viewer.session.lifetime)?.()
+  pendingGroundSits.delete(avatar.viewer.session.lifetime)
 }
 
 /** Both viewers use float prefixes; only RLVa rejects conversion range errors. */
@@ -261,6 +271,7 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
     return 'refused'
   }
   cancelPendingSit(avatar)
+  cancelPendingGroundSit(avatar)
   avatar.info &= ~AGENT_FLYING
   const previous = avatar.sittingOn
   rememberStandtpSit(world, avatar)
