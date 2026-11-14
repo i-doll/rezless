@@ -27,7 +27,9 @@ if [[ -z "${SLUA_SRC:-}" ]]; then
 fi
 
 SRC="$WORK/src"
-rm -rf "$SRC"
+# A fresh copy of the sources rebuilds everything anyway, and an older build
+# directory may be configured for another source directory.
+rm -rf "$SRC" "$WORK/build"
 mkdir -p "$SRC"
 tar -C "$SLUA_SRC" --exclude=.git -cf - . | tar -C "$SRC" -xf -
 STRINGS="$SRC/VM/src/mono_strings.cpp"
