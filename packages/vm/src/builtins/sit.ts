@@ -34,7 +34,8 @@ function sitter(ctx: CallContext, target: Prim | undefined): string {
 }
 
 export const llAvatarOnSitTarget: BuiltinImpl = ctx => sitter(ctx, ctx.prim)
-export const llAvatarOnLinkSitTarget: BuiltinImpl = (ctx, args) => sitter(ctx, prim(ctx, args[0] as number))
+// Takes one link: every negative number but LINK_THIS is the first other link.
+export const llAvatarOnLinkSitTarget: BuiltinImpl = (ctx, args) => sitter(ctx, ctx.linkset.onePrim(ctx.prim, args[0] as number))
 
 export const llSitOnLink: BuiltinImpl = (ctx, args) => {
   const xp = ctx.state.experience

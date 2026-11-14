@@ -835,6 +835,9 @@ describe('removing an avatar link', () => {
     f.script.grantPermissions()
     f.linkset.advanceTime(100)
     expect(f.touch()).toEqual(counts)
+    f.linkset.advanceTime(100)
+    const stood = counts[0] === 1 ? [CHANGED_LINK, 0, 1] : []
+    expect(f.script.global('log')).toEqual([CHANGED_LINK, 1, 2, ...stood])
   })
 
   // In-world: llBreakAllLinks with an avatar seated on a six-link object left

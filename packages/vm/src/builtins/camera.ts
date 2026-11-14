@@ -4,7 +4,7 @@ import { rotateVector } from '../values/ops.js'
 import { llAxes2Rot } from './math.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
 import { vec, ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
-import { LINK_ROOT, LINK_THIS, PERMISSION_CONTROL_CAMERA, PERMISSION_TRACK_CAMERA } from '../generated/constants.js'
+import { PERMISSION_CONTROL_CAMERA, PERMISSION_TRACK_CAMERA } from '../generated/constants.js'
 
 /** The permission agent's camera, as llGetCamera* report it. */
 export interface Camera {
@@ -113,18 +113,9 @@ export const llForceMouselook: BuiltinImpl = (ctx, args) => {
 }
 
 export const llSetLinkCamera: BuiltinImpl = (ctx, args) => {
-  const link = args[0] as number
-  const root = ctx.linkset.prims[0]!
-  const occupiedLoneRoot = ctx.linkset.prims.length === 1 &&
-    ctx.linkset.world?.avatars.some(a => a.sittingOn === root)
-  // In-world: every negative selector except LINK_THIS picks the first other
-  // prim, even LINK_SET / LINK_ALL_CHILDREN and unknown negative values.
-  const target = link === LINK_THIS ? ctx.prim
-    : link < 0 ? ctx.linkset.prims.find(p => p !== ctx.prim)
-    : link === 0 && occupiedLoneRoot ? undefined
-    : link === 0 && ctx.prim !== root ? root
-    : link === LINK_ROOT && occupiedLoneRoot ? root
-    : ctx.linkset.prims.find(p => p.linkNumber === link)
+  // In-world: every negative number but LINK_THIS picks the first other link,
+  // LINK_SET and LINK_ALL_CHILDREN included. A seated avatar keeps no offsets.
+  const target = ctx.linkset.onePrim(ctx.prim, args[0] as number)
   if (target) {
     target.cameraEyeOffset = { ...(args[1] as Vector) }
     target.cameraAtOffset = { ...(args[2] as Vector) }
