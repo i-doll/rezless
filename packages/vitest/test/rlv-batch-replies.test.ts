@@ -181,3 +181,86 @@ describe('a force sit or stand lands about 0.25 s after the command', () => {
     }
   })
 })
+
+describe('force sit requests the region has not answered yet', () => {
+  // In-world: standing, "@sit:<seat>=force,sitground=force" -> on the ground by 0.35 s, next to the
+  // seat (Aditi, SLua Tideland, 2026-11-14).
+  it.each(profiles)('%s sits the avatar on the ground after an object sit in the same message', async profile => {
+    const f = (await pair())[profile]
+    f.say('@sit:' + f.script.host.key + '=force,sitground=force')
+    f.wait(LANDED_MS)
+    expect(f.avatar.info & AGENT_SITTING).toBe(AGENT_SITTING)
+    expect(f.avatar.sittingOn).toBeNull()
+  })
+
+  // In-world: standing at (116, 48), "@sit:<seat>=force,standtp=n" then "@unsit=force" -> the avatar
+  // stood by the seat; "@standtp=n,sit:<seat>=force" then "@unsit=force" -> back at (116, 48).
+  // RlvForceHandler<RLV_BHVR_SIT> saves the origin when it sends the request.
+  it('rlva saves the standtp origin when it sends the sit request', async () => {
+    const f = (await pair()).rlva
+    const origin = { x: 20, y: 30, z: 40 }
+    f.avatar.position = { ...origin }
+    f.say('@sit:' + f.script.host.key + '=force,standtp=n')
+    f.wait(LANDED_MS)
+    expect(f.avatar.sittingOn).toBe(f.script.host)
+    f.say('@unsit=force')
+    f.wait(LANDED_MS)
+    expect(f.avatar.position).not.toEqual(origin)
+    f.say('@clear')
+    f.avatar.position = { ...origin }
+    f.say('@standtp=n,sit:' + f.script.host.key + '=force')
+    f.avatar.position = { x: 21, y: 30, z: 40 }
+    f.wait(LANDED_MS)
+    f.say('@unsit=force')
+    f.wait(LANDED_MS)
+    expect(f.avatar.position).toEqual(origin)
+  })
+
+  it.each(profiles)('%s drops a waiting ground sit when it sends a later sit request', async profile => {
+    const f = (await pair())[profile]
+    const far = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key, position: { x: 60, y: 0, z: 0 }, prims: [{}] })
+    f.world.setSitResponse(far.prims[0]!, { position: { x: 0, y: 0, z: 1 }, autopilot: { durationMs: 1000, success: true } })
+    f.seat()
+    f.say('@sitground=force')
+    f.wait(400)
+    f.say('@sit:' + far.prims[0]!.key + '=force')
+    f.wait(400)
+    expect(f.avatar.info & AGENT_SITTING).toBe(0)
+    f.wait(1000)
+    expect(f.avatar.sittingOn).toBe(far.prims[0])
+  })
+
+  it.each(profiles)('%s keeps the first ground sit for a second one from the same seat', async profile => {
+    const f = (await pair())[profile]
+    f.seat()
+    const count = f.avatar.viewer.commandLog.length
+    f.say('@unsit=force,sitground=force,sitground=force')
+    f.wait(1000)
+    expect(f.avatar.viewer.commandLog.slice(count).map(entry => 'actionOutcome' in entry && entry.actionOutcome))
+      .toEqual(['pending', 'pending', 'pending', 'applied', 'unchanged', 'applied'])
+    expect(f.avatar.info & AGENT_SITTING).toBe(AGENT_SITTING)
+  })
+
+  it.each(profiles)('%s refuses a request a teleport overtakes', async profile => {
+    const f = (await pair())[profile]
+    f.say('@sit:' + f.script.host.key + '=force')
+    f.wait(100)
+    expect(f.world.teleportAvatar(f.avatar, { x: 10, y: 10, z: 10 })).toBe(true)
+    f.wait(LANDED_MS)
+    expect(f.avatar.sittingOn).toBeNull()
+    expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ action: 'sit', actionOutcome: 'refused', reason: 'world-constraint' })
+  })
+
+  it.each(profiles)('%s refuses a seat removed before the request arrives, leaving the avatar flying', async profile => {
+    const f = (await pair())[profile]
+    const other = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key, position: { x: 2, y: 0, z: 0 },
+      prims: [{ scripts: [{ name: 'target', source: { source: 'default { state_entry() { llSitTarget(<0,0,0.6>, ZERO_ROTATION); } }' } }] }] })
+    other.scripts.target!.start()
+    f.avatar.info |= 0x1
+    f.say('@sit:' + other.prims[0]!.key + '=force')
+    other.linkset.remove()
+    f.wait(LANDED_MS)
+    expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject({ action: 'sit', actionOutcome: 'refused', reason: 'world-constraint' })
+    expect(f.avatar.info & 0x1).toBe(0x1)
+  })
+})

@@ -69,10 +69,14 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
   if (seats.dead || seats.attachment || seats.region !== avatar.region) return record('refused', 'world-constraint')
   // RLVa saves the standtp return origin when it sends the request.
   if (viewer.profile === 'rlva') rememberStandtpSit(world, avatar)
+  // The new request replaces a ground sit still waiting for its stand.
+  cancelPendingGroundSit(avatar)
   return reachRegion(world, avatar, record, () => {
+    if (seats.dead || seats.attachment || seats.region !== avatar.region) return record('refused', 'world-constraint')
     const seat = resolveSitRequest(world, avatar, requested)
     if (!seat) return record('refused', 'world-constraint')
-    const outcome = requestViewerSit(world, avatar, seat, outcome => record(outcome, outcome === 'refused' ? 'world-constraint' : undefined))
+    const outcome = requestViewerSit(world, avatar, seat, outcome => record(outcome, outcome === 'refused' ? 'world-constraint' : undefined),
+      viewer.profile !== 'rlva')
     return outcome === 'pending' || record(outcome, outcome === 'refused' ? 'world-constraint' : undefined)
   })
 }
@@ -88,10 +92,27 @@ const FORCE_SEAT_DELAY_MS = 250
  * trip later, so commands in the same message or event still see the old seat.
  */
 function reachRegion(world: World, avatar: WorldAvatar, record: GroundSitRecord, land: () => void): true {
-  world.clock.scheduleTask(avatar.viewer.session.lifetime, world.clock.now + FORCE_SEAT_DELAY_MS, () => {
+  const lifetime = avatar.viewer.session.lifetime
+  let requests = requestsInFlight.get(lifetime)
+  if (!requests) requestsInFlight.set(lifetime, requests = new Set())
+  const cancel = world.clock.scheduleTask(lifetime, world.clock.now + FORCE_SEAT_DELAY_MS, () => {
+    requests.delete(drop)
     if (world.avatars.includes(avatar)) land()
   })
+  const drop = () => { cancel(); record('refused', 'world-constraint') }
+  requests.add(drop)
   return record('pending')
+}
+
+const requestsInFlight = new WeakMap<Readonly<{ dead: boolean }>, Set<() => void>>()
+
+/** A teleport moves the avatar away before the region answers a force sit or stand. */
+export function cancelSeatRequests(avatar: WorldAvatar): void {
+  const requests = requestsInFlight.get(avatar.viewer.session.lifetime)
+  if (!requests) return
+  const drops = [...requests]
+  requests.clear()
+  for (const drop of drops) drop()
 }
 
 // In-world: after a ground sit from a seat, the seat's changed handler read the avatar standing
@@ -142,6 +163,7 @@ function scheduleGroundSit(world: World, avatar: WorldAvatar, record?: GroundSit
  */
 function forceGroundSit(world: World, avatar: WorldAvatar, seated: boolean, record: GroundSitRecord): true {
   const lifetime = avatar.viewer.session.lifetime
+  if (seated && !avatar.sittingOn && pendingGroundSits.has(lifetime)) return record('unchanged')
   cancelPendingGroundSit(avatar)
   keptGroundSits.delete(lifetime)
   if (!seated) {
@@ -323,7 +345,7 @@ export function cancelPendingSit(avatar: WorldAvatar): void {
 
 /** The simulator chooses the pose; the viewer sends AgentSit only after a successful pilot. */
 function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
-  complete?: (outcome: 'applied' | 'unchanged' | 'refused') => void): Action['actionOutcome'] {
+  complete?: (outcome: 'applied' | 'unchanged' | 'refused') => void, saveOrigin = true): Action['actionOutcome'] {
   const response = world.getSitResponse(avatar, seat)
   if (!response) {
     standFromAnotherObject(world, avatar, seat.linkset!)
@@ -333,7 +355,7 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   cancelPendingGroundSit(avatar)
   avatar.info &= ~AGENT_FLYING
   const previous = avatar.sittingOn
-  rememberStandtpSit(world, avatar)
+  if (saveOrigin) rememberStandtpSit(world, avatar)
   const sit = (): 'applied' | 'unchanged' | 'refused' =>
     !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
   if (!response.autopilot || previous?.linkset === seat.linkset) return sit()
