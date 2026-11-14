@@ -467,6 +467,8 @@ export class World {
       set sittingOn(value) {
         cancelPendingSit(avatar)
         const changingSeat = value !== seat && !!(info & AGENT_SITTING)
+        const leaving = value !== seat
+        if (leaving) world.sitTargetHolders.delete(avatar)
         snapshotSeat()
         if (value && value.linkset !== seat?.linkset) sittingOrder = ++world.nextSittingOrder
         const previous = seat?.linkset
@@ -482,8 +484,12 @@ export class World {
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
         if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
         const target = seat?.params.sitTarget
-        const offset = world.sitPlacements.get(avatar)?.position ?? (target?.enabled ? target.offset : ZERO_VECTOR)
-        const orientation = world.sitPlacements.get(avatar)?.rotation ?? (target?.enabled ? target.rotation : ZERO_ROTATION)
+        // An avatar takes a sit target that nobody holds; on a taken one it sits where it would without one.
+        const onTarget = !!seat && !!target?.enabled &&
+          (leaving ? !world.avatarOnSitTarget(seat) : world.sitTargetHolders.get(avatar) === seat)
+        if (leaving && onTarget) world.sitTargetHolders.set(avatar, seat!)
+        const offset = world.sitPlacements.get(avatar)?.position ?? (onTarget ? target.offset : ZERO_VECTOR)
+        const orientation = world.sitPlacements.get(avatar)?.rotation ?? (onTarget ? target.rotation : ZERO_ROTATION)
         // A sitter is a child of the root: it keeps its place when its seat prim moves.
         const child = seat && seat !== seat.linkset?.prims[0] ? seat.params : undefined
         const turned = child ? rotateVector(offset, child.rotation) : offset
@@ -596,9 +602,6 @@ export class World {
     cancelPendingSit(avatar)
     cancelPendingGroundSit(avatar)
     if (avatar.sittingOn === prim) return true
-    this.sitTargetHolders.delete(avatar)
-    if (this.avatarOnSitTarget(prim)) placement ??= { position: ZERO_VECTOR, rotation: ZERO_ROTATION }
-    else if (prim.params.sitTarget.enabled) this.sitTargetHolders.set(avatar, prim)
     const previous = avatar.sittingOn?.linkset
     if (placement) this.sitPlacements.set(avatar, placement)
     avatar.sittingOn = prim
@@ -615,7 +618,6 @@ export class World {
     const sitting = !!(avatar.info & AGENT_SITTING)
     const previous = avatar.sittingOn?.linkset
     avatar.sittingOn = null
-    this.sitTargetHolders.delete(avatar)
     avatar.info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
     if (avatar.standingRotation) avatar.rotation = avatar.standingRotation
     avatar.standingRotation = null

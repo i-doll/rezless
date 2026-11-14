@@ -187,6 +187,21 @@ it('lets an avatar that sat beside a sit target hold the next free one it sits o
   expect(world.avatarOnSitTarget(p1!)).toBe(first)
 })
 
+it('tracks the sit target through the sittingOn setter', async () => {
+  const { world, first, second, linkset } = await scene()
+  const box = linkset.prims[0]!
+  box.params.sitTarget = TARGET
+  first.sittingOn = box
+  second.sittingOn = box
+  expect(world.avatarOnSitTarget(box)).toBe(first)
+  expect(second.sitPlacement?.position).toEqual({ x: 0, y: 0, z: 0 })
+  second.sittingOn = null
+  world.standAvatar(first)
+  second.sittingOn = box
+  expect(world.avatarOnSitTarget(box)).toBe(second)
+  expect(second.sitPlacement?.position).toEqual(TARGET.offset)
+})
+
 it('gives a sit target set under seated avatars to the next avatar to sit', async () => {
   // In-world: both avatars sat on the box without a sit target, then the script set one.
   // llAvatarOnSitTarget read NULL_KEY, also once only one of them still sat there. The
