@@ -498,14 +498,29 @@ were measured on Aditi in SLua Tideland on 2026-11-01.
 Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to seed
 simulator seating independently of viewer restrictions. Explicit user attempts
 use `world.userSitAvatar(avatar, prim, offset?)` and `world.userStandAvatar(avatar)`;
-both return whether the action was accepted. `avatar.sittingOn` identifies the occupied prim. Seated poses
-follow the current prim transform with the offset captured at seating; editing
-the target affects future sits. Deleting the object clears occupancy. Seating updates
+both return whether the action was accepted. `avatar.sittingOn` identifies the occupied prim. A sitter is a
+child of the object's root: it moves with the root and stays put when its seat
+prim moves or the sit target is edited, which only affects future sits. Deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
 `changed(CHANGED_LINK)` throughout the object. The sit-target readers return
 its sitter only while the target is enabled. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
+
+A seated avatar is a link of the object, numbered after the prims. Several
+sitters are numbered in seating order, and later sitters move down a link when
+an earlier one stands. The order is from the Second Life wiki and the
+renumbering is inferred from it; neither was measured, since that needs a
+second avatar. `llGetNumberOfPrims` counts it, `llGetObjectPrimCount` does not, and a
+lone prim is link 1 instead of 0 while someone sits on it. `llGetLinkKey`,
+`llGetLinkName`, `llGetObjectLinkKey` and `llGetLinkPrimitiveParams` read the
+avatar at its link number. `llSetLinkPrimitiveParams(Fast)` moves the sitter
+with `PRIM_POS_LOCAL`, `PRIM_ROT_LOCAL`, `PRIM_POSITION` and `PRIM_ROTATION`,
+all relative to the root; any other rule on an avatar link does nothing and
+ends the rule list. `LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` reach
+the prims only. Unlinking a prim stands everyone seated on the object; linking
+keeps them seated where they are. Media set through an avatar link with
+`llSetLinkMedia` stays with the avatar.
 
 With `standtp=n`, user stand, force unsit, `llUnSit` and seat deletion return the
 avatar to its saved global origin. Viewer object-sit requests save that origin;
