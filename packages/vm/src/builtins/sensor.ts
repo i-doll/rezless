@@ -1,4 +1,4 @@
-import type { BuiltinImpl, CallContext } from '../runtime.js'
+import type { BuiltinImpl } from '../runtime.js'
 import type { Script } from '../script.js'
 import type { DetectedEntry } from './detected.js'
 import type { WorldEntity } from '../world.js'
@@ -14,36 +14,93 @@ interface Scan {
   arc: number
 }
 interface SensorTask {
+  q: Scan
+  /** Seconds between scans; 0 for a one-shot llSensor. */
+  rate: number
+  /** Virtual time of the next scan, while one is scheduled. */
+  dueAt: number
+  /** Time left to the next scan, while the object is in inventory. */
+  remainingMs: number
+  /** A scan fell due while the script was stopped; it runs when the script starts. */
+  missed: boolean
+  /** The scheduled scan is one owed from while the script was down. */
+  late: boolean
   cancel: (() => void) | undefined
-  resume: () => void
 }
 const sensors = new WeakMap<Script, SensorTask>()
+
+/** `late`: a scan owed from while the script was down comes after the events and the timer tick due now. */
+function schedule(script: Script, task: SensorTask, delay: number, late = false): void {
+  if (!script.linkset.peers.includes(script.linkset)) {
+    task.remainingMs = delay
+    task.missed ||= late
+    return
+  }
+  task.dueAt = script.clockView.now + delay
+  task.late = late
+  task.cancel = script.linkset.clock.scheduleTask(script, task.dueAt, () => {
+    task.cancel = undefined
+    task.late = false
+    if (script.running) run(script, task)
+    else task.missed = true
+  }, late)
+}
+
+function run(script: Script, task: SensorTask): void {
+  if (task.rate > 0) schedule(script, task, task.rate * 1000)
+  else sensors.delete(script)
+  scan(script, task.q)
+}
+
+function register(script: Script, q: Scan, rate: number): void {
+  stopSensors(script)
+  const task: SensorTask = { q, rate, dueAt: 0, remainingMs: 0, missed: false, late: false, cancel: undefined }
+  sensors.set(script, task)
+  schedule(script, task, rate * 1000)
+}
 
 /** Inventory stops simulator work without discarding the registered scan. */
 export function pauseSensors(script: Script): void {
   const task = sensors.get(script)
-  task?.cancel?.()
-  if (task) task.cancel = undefined
+  if (!task?.cancel) return
+  task.cancel()
+  task.cancel = undefined
+  task.remainingMs = Math.max(0, task.dueAt - script.clockView.now)
 }
 
 export function resumeSensors(script: Script): void {
   const task = sensors.get(script)
-  if (task && !task.cancel) task.resume()
+  if (!task || task.cancel) return
+  // A scan that fell due while the script was down is due at once.
+  const missed = task.missed
+  task.missed = false
+  schedule(script, task, missed ? 0 : task.remainingMs, missed)
 }
 
-function sensorTask(ctx: CallContext, delay: number, run: () => void): SensorTask {
-  const task: SensorTask = { cancel: undefined, resume: () => {
-    if (!ctx.script.linkset.peers.includes(ctx.script.linkset)) return
-    task.cancel = ctx.script.linkset.clock.scheduleTask(ctx.script, ctx.state.clock.now + delay, run)
-  } }
-  sensors.set(ctx.script, task)
-  task.resume()
-  return task
+/** A scan that fell due while the script was stopped runs at the start, and a repeating one starts its interval again. */
+export function runMissedSensor(script: Script): void {
+  const task = sensors.get(script)
+  if (!task?.missed) return
+  task.missed = false
+  schedule(script, task, 0, true)
+}
+
+/** An object saved to inventory keeps its scan and the time left to the next one. */
+export function copySensors(from: Script, to: Script): void {
+  const task = sensors.get(from)
+  if (!task) return
+  const copy: SensorTask = { ...task, q: { ...task.q }, cancel: undefined, missed: false, late: false }
+  sensors.set(to, copy)
+  const left = task.cancel ? Math.max(0, task.dueAt - from.clockView.now) : task.remainingMs
+  // A scan that fell due while the script was down is due at once.
+  const owed = task.missed || task.late
+  schedule(to, copy, owed ? 0 : left, owed)
 }
 
 /** Reset and state changes discard scans; completed events belong to the event queue. */
 export function stopSensors(script: Script): void {
-  pauseSensors(script)
+  const task = sensors.get(script)
+  task?.cancel?.()
   sensors.delete(script)
 }
 
@@ -56,11 +113,11 @@ function query(args: Parameters<BuiltinImpl>[1]): Scan {
   }
 }
 
-function targets(ctx: CallContext): WorldEntity[] {
-  const world = ctx.script.linkset.world
+function targets(script: Script): WorldEntity[] {
+  const world = script.linkset.world
   const out = [...(world?.objects ?? []), ...(world?.avatars ?? [])]
-  for (const linkset of ctx.script.linkset.peers) {
-    if (linkset === ctx.script.linkset || linkset.dead || !linkset.prims.length) continue
+  for (const linkset of script.linkset.peers) {
+    if (linkset === script.linkset || linkset.dead || !linkset.prims.length) continue
     const root = linkset.prims[0]!
     const scripts = linkset.allScripts().filter((s) => !s.dead)
     const properties = world?.sensorProperties.get(linkset)
@@ -76,16 +133,16 @@ function targets(ctx: CallContext): WorldEntity[] {
   return out
 }
 
-function scan(ctx: CallContext, q: Scan): void {
-  if (!ctx.script.running || ctx.script.dead || q.radius <= 0 || q.type === 0) return
-  const origin = ctx.prim.regionPosition()
-  const forward = rotateVector({ x: 1, y: 0, z: 0 }, ctx.prim.regionRotation())
-  const group = ctx.script.linkset.world?.sensorProperties.get(ctx.script.linkset)?.group ?? NULL_KEY
+function scan(script: Script, q: Scan): void {
+  if (script.dead || q.radius <= 0 || q.type === 0) return
+  const origin = script.host.regionPosition()
+  const forward = rotateVector({ x: 1, y: 0, z: 0 }, script.host.regionRotation())
+  const group = script.linkset.world?.sensorProperties.get(script.linkset)?.group ?? NULL_KEY
   const found: { distance: number; entry: DetectedEntry }[] = []
-  for (const target of targets(ctx)) {
+  for (const target of targets(script)) {
     // DAMAGEABLE matched nothing on the measured Aditi simulator, even with health and handlers.
     if (q.type & 32) continue
-    if (target.region !== (ctx.script.linkset.region ?? '')) continue
+    if (target.region !== (script.linkset.region ?? '')) continue
     if (q.key !== NULL_KEY && target.key.toLowerCase() !== q.key) continue
     const avatar = target.username !== undefined
     if (q.name && q.name !== (avatar && (q.type & 16) !== 0 ? target.username : target.name)) continue
@@ -115,29 +172,19 @@ function scan(ctx: CallContext, q: Scan): void {
   }
   const detected = found.sort((a, b) => a.distance - b.distance).slice(0, 32).map((f) => f.entry)
   // A busy handler holds the latest completed result, rather than a backlog of scans.
-  ctx.script.linkset.clock.purgeEvent(ctx.script, detected.length ? 'sensor' : 'no_sensor')
-  ctx.state.clock.schedule(ctx.state.clock.now, detected.length ? 'sensor' : 'no_sensor', { num_detected: detected.length, detected })
+  script.linkset.clock.purgeEvent(script, detected.length ? 'sensor' : 'no_sensor')
+  script.clockView.schedule(script.clockView.now, detected.length ? 'sensor' : 'no_sensor', { num_detected: detected.length, detected })
 }
 
 export const llSensor: BuiltinImpl = (ctx, args) => {
-  stopSensors(ctx.script)
-  const q = query(args)
-  sensorTask(ctx, 0, () => {
-    sensors.delete(ctx.script)
-    scan(ctx, q)
-  })
+  register(ctx.script, query(args), 0)
 }
 
 export const llSensorRepeat: BuiltinImpl = (ctx, args) => {
   stopSensors(ctx.script)
   const rate = Number(args[5])
   if (rate < 0) return
-  if (rate === 0) return llSensor(ctx, args)
-  const q = query(args)
-  const task = sensorTask(ctx, rate * 1000, () => {
-    scan(ctx, q)
-    task.resume()
-  })
+  register(ctx.script, query(args), rate)
 }
 
 export const llSensorRemove: BuiltinImpl = (ctx) => {

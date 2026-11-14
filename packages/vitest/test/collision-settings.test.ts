@@ -193,11 +193,13 @@ it.each([[0,1,1],[1,0,0]])('decides queued continuous collision eligibility befo
   expect(s.global('hits')).toBe(expected)
 })
 
-it.each([[0,1,0],[1,0,1]])('freezes explicit collision eligibility while parked, accept %s to %s',async(initial,after,expected)=>{
-  const s=await loadScript({source:`integer hits;default{state_entry(){llCollisionFilter("",NULL_KEY,${initial});}collision_start(integer n){hits+=n;}}`})
-  s.start();s.running=false
+it.each([[0,1,0],[1,0,1]])('freezes explicit collision eligibility while queued, accept %s to %s',async(initial,after,expected)=>{
+  const s=await loadScript({source:`integer hits;default{state_entry(){llCollisionFilter("",NULL_KEY,${initial});}
+    timer(){llSleep(1);}
+    collision_start(integer n){hits+=n;}}`})
+  s.start();s.linkset.clock.schedule(s,0,'timer');s.advanceTime(0)
   s.fire('collision_start',{num_detected:1,detected:[{key:KEY,name:'collider'}]})
   s.host.collisionFilter.accept=Boolean(after)
-  s.running=true;s.resumeParked();s.advanceTime(0)
+  s.advanceTime(1000)
   expect(s.global('hits')).toBe(expected)
 })

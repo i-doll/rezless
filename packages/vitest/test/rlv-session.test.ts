@@ -157,20 +157,39 @@ it('session reset drops queued replies without deleting unrelated simulator even
       state_entry() { llListen(722221,"",NULL_KEY,""); }
       listen(integer c,string n,key id,string m) { replies += [m]; }
       touch_start(integer n) { llSay(0,"touch"); }
+      timer() { llSetTimerEvent(0); llSleep(1); }
     }` } }] }] })
   const receiver = extra.scripts.receiver!
   receiver.start()
-  receiver.running = false
+  world.clock.schedule(receiver, world.clock.now, 'timer')
+  receiver.advanceTime(0)
   const sender = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
     prims: [{ scripts: [{ name: 'sender', source: { source: 'default { state_entry() { llOwnerSay("@versionnum=722221"); } }' } }] }] })
   sender.scripts.sender!.start()
   world.clock.schedule(receiver, world.clock.now + 1, 'touch_start', { num_detected: 1 })
   avatar.viewer.session.reset()
-  receiver.running = true
-  receiver.resumeParked()
-  receiver.advanceTime(2)
+  receiver.advanceTime(1000)
   expect(receiver.global('replies')).toEqual([])
   expect(receiver.chat.filter(entry => entry.text === 'touch')).toHaveLength(1)
+})
+
+it('session reset keeps what a stopped script already had queued', async () => {
+  const { world, avatar } = await load('rlva', true)
+  const extra = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
+    prims: [{ scripts: [{ name: 'receiver', source: { source: `list got; default {
+      link_message(integer s, integer n, string m, key k) { got += [m]; }
+    }` } }] }] })
+  const receiver = extra.scripts.receiver!
+  receiver.start()
+  const sender = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
+    prims: [{ scripts: [{ name: 'sender', source: { source: 'default { state_entry() { llOwnerSay("@versionnum=722221"); } }' } }] }] })
+  sender.scripts.sender!.start()
+  world.clock.schedule(receiver, world.clock.now, 'link_message', { sender_num: 1, num: 0, str: 'queued', id: '' })
+  receiver.running = false
+  avatar.viewer.session.reset()
+  receiver.running = true
+  receiver.advanceTime(0)
+  expect(receiver.global('got')).toEqual(['queued'])
 })
 
 for (const profile of ['rlv', 'rlva'] as const) {
@@ -260,18 +279,18 @@ it('reset preserves simulator chat queued by the same avatar', async () => {
   const pair = await loadRlvPair({ source: `list replies; default {
     state_entry() { llListen(722221,"",llGetOwner(),""); }
     listen(integer c,string n,key id,string m) { replies += [m]; }
+    timer() { llSetTimerEvent(0); llSleep(1); }
   }` })
   const { world, avatar, script } = pair.rlva
   script.start()
   const sender = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
     prims: [{ scripts: [{ name: 'sender', source: { source: 'default { state_entry() { llOwnerSay("@versionnum=722221"); } }' } }] }] })
-  script.running = false
+  world.clock.schedule(script, world.clock.now, 'timer')
+  script.advanceTime(0)
   sender.scripts.sender!.start()
-  world.sendAvatarChat(avatar, 722221, 'simulator')
+  world.clock.schedule(script, world.clock.now, 'listen', { channel: 722221, name: avatar.name, id: avatar.key, msg: 'simulator' })
   resetRlvViewerSession(avatar)
-  script.running = true
-  script.resumeParked()
-  script.advanceTime(1)
+  script.advanceTime(1000)
   expect(script.global('replies')).toEqual(['simulator'])
 })
 

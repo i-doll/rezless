@@ -1,9 +1,9 @@
 import { clearTargetMotion } from './builtins/motion.js'
 import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
 import { PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
-import { clearTargets } from './builtins/targets.js'
+import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
-import { stopSensors } from './builtins/sensor.js'
+import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
   leaveDamageEvent,
@@ -187,7 +187,9 @@ export class Script {
   private isRunning = true
   /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
   crashed = false
-  /** Events parked while `running === false`; replayed when re-enabled. */
+  /** What the run-time error said after its first line; a crashed SLua script says it again when rezzed. */
+  private crashText = ''
+  /** Events that were already queued when the script stopped; delivered when it runs again. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
   startParameter: number
@@ -987,14 +989,12 @@ export class Script {
    * its current handler.
    *
    * If the current state has no handler for `eventName`, this is a no-op
-   * — matches LSL behavior of silently dropping unhandled events.
+   * — matches LSL behavior of silently dropping unhandled events. An event
+   * fired at a stopped or crashed script is lost, as in Second Life.
    */
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
-    if (!this.running) {
-      withCollisionFilter(this, eventName, payload, p => this.parkedEvents.push({ at: this.now, event: eventName, payload: p }))
-      return
-    }
+    if (!this.running) return
     if (!this.started) {
       this.started = true
       if (this.slua) {
@@ -1033,7 +1033,9 @@ export class Script {
   queueStart(): void {
     if (this.started || this.dead) return
     this.started = true
-    this.clockView.schedule(this.now, 'state_entry')
+    // A script loaded stopped keeps its first event until it is started.
+    if (this.running) this.clockView.schedule(this.now, 'state_entry')
+    else this.parkedEvents.push({ at: this.now, event: 'state_entry', payload: {} })
   }
 
   /** Copy inventory code; fresh copies omit saved runtime state for remote loading. */
@@ -1071,9 +1073,13 @@ export class Script {
     copy.state.listens.push(...structuredClone(this.state.listens))
     copy.state.listenHandleCounter = this.state.listenHandleCounter
     copy.clockView.timerIntervalMs = this.clockView.timerIntervalMs
-    copy.clockView.timerNextFireMs = copy.now + Math.max(0, this.clockView.timerNextFireMs - this.now)
+    // A script that is down keeps how long its tick has been overdue.
+    const left = this.clockView.timerNextFireMs - this.now
+    copy.clockView.timerNextFireMs = copy.now + (this.running ? Math.max(0, left) : left)
     copy.clockView.timeReferenceMs = copy.now - (this.now - this.clockView.timeReferenceMs)
     copy.clockView.minEventDelayMs = this.clockView.minEventDelayMs
+    copySensors(this, copy)
+    copyTargets(this, copy)
     for (const kind of ['move', 'look'] as const) {
       const request = host.linkset!.prims[0]!.targetMotion[kind]
       if (request?.owner.prim === this.host.key && request.owner.script === this.scriptName) request.owner.prim = host.key
@@ -1085,14 +1091,19 @@ export class Script {
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
     if (this.clockView.inInventory) this.dropSeatPermissions()
-    // A crashed LSL script runs again when its object is rezzed: state_entry
-    // of the state it was in, with its globals, then on_rez. A crashed SLua
-    // script stays crashed.
-    if (this.crashed && !this.slua) {
-      this.running = true
-      this.started = true
+    // A crashed LSL script runs again when its object comes out of inventory.
+    // Rezzed or attached from an inventory item, it runs state_entry of the
+    // state it was in, with its globals, then on_rez. A crashed SLua script
+    // stays crashed and its new prim says the error again.
+    if (this.crashed && this.slua) this.sayCrash()
+    const revived = this.crashed && !this.slua
+    if (revived) {
       this.parkedEvents.length = 0
-      this.clockView.schedule(this.now, 'state_entry')
+      this.isRunning = true
+      this.crashed = false
+      this.started = true
+      // A worn object that was detached and is worn again runs on without state_entry.
+      if (!this.clockView.inInventory) this.clockView.schedule(this.now, 'state_entry')
     }
     if (!this.running) return
     if (!this.started) {
@@ -1100,6 +1111,8 @@ export class Script {
       this.clockView.schedule(this.now, 'state_entry')
     }
     this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
+    // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
+    if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer()
   }
 
   private boot(): void {
@@ -1194,6 +1207,8 @@ export class Script {
     if (this.state.lifecycle.dead) return
     if (event === '__reset') {
       this.restart()
+      // Stopped since the reset was asked for: state_entry waits for the start.
+      if (!this.running) this.queueStart()
       return
     }
     if (this.slua) {
@@ -1461,6 +1476,7 @@ export class Script {
     }
     copy.running = this.running && !this.dead
     copy.crashed = this.crashed && !fresh
+    copy.crashText = this.crashText
     return copy
   }
 
@@ -1469,20 +1485,40 @@ export class Script {
   }
 
   set running(value: boolean) {
+    const starting = value && !this.isRunning
     this.isRunning = value
     if (value) this.crashed = false
+    if (starting) this.catchUp()
+  }
+
+  /**
+   * What a stopped script gets when it starts: the events that were waiting
+   * when it stopped, one timer tick if any fell due, and a sensor scan if one
+   * fell due.
+   */
+  private catchUp(): void {
+    this.resumeParked()
+    // A detached object's timer and sensor wait for it to be worn again.
+    if (this.clockView.inInventory) return
+    this.clockView.catchUpTimer()
+    runMissedSensor(this)
   }
 
   /** Stop the script after a fatal run-time error, reporting it on DEBUG_CHANNEL. */
   private crash(error: RuntimeError): void {
     if (error.reported) return
     error.reported = true
-    for (const text of [`${this.host.name} [script:${this.scriptName}] Script run-time error`, error.said]) {
+    this.crashText = error.said
+    this.sayCrash()
+    this.running = false
+    this.crashed = true
+  }
+
+  private sayCrash(): void {
+    for (const text of [`${this.host.name} [script:${this.scriptName}] Script run-time error`, this.crashText]) {
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
-    this.running = false
-    this.crashed = true
   }
 
   /**
@@ -1503,8 +1539,9 @@ export class Script {
   }
 
   /**
-   * Replay any events parked while this script was disabled. Caller is
-   * responsible for advancing the linkset clock if needed afterwards.
+   * Queue again the events that were waiting when this script stopped.
+   * Setting `running` to true already does this, so a test no longer needs
+   * to call it; it stays for tests written before that.
    */
   resumeParked(): void {
     if (!this.running) return

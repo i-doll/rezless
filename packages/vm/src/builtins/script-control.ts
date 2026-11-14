@@ -37,17 +37,8 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
     return undefined
   }
   if (target.crashed) return undefined
-  const wasRunning = target.running
   target.running = running
   if (target === ctx.script && !running) ctx.sleep(0)
-  if (running && !wasRunning) {
-    // Ticks missed while paused collapse into one fired at once.
-    const v = target.clockView
-    if (v.timerIntervalMs > 0) {
-      v.timerNextFireMs = Math.max(v.timerNextFireMs, ctx.linkset.clock.now)
-    }
-    target.resumeParked()
-  }
   return undefined
 }
 
