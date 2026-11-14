@@ -627,7 +627,8 @@ describe('llRotBetween', () => {
     // In-world: <1, 0, 0> to <0, v, 0>, <v, 0, 0> to <0, 1, 0>, <v, 0, 0> to <0, v, 0> and
     // <100, 0, 0> to <0, v, 0> for v from 1e-30 to 9.999e-6 all gave ZERO_ROTATION, and for
     // v = 1e-5 and more a quarter turn. A script compiled for Mono and an SLua script agreed on
-    // every pair. So did <1e-30, 0, 0> to <-1e-30, 0, 0> and <1e-10, 0, 0> to <-1e-10, 0, 0>.
+    // the pairs both ran. <1e-30, 0, 0> to <-1e-30, 0, 0> and <1e-10, 0, 0> to <-1e-10, 0, 0>
+    // gave ZERO_ROTATION too.
     expect(await rotBetween([
       '<1e-30, 0, 0>', '<0, 1e-30, 0>', '<1e-9, 0, 0>', '<0, 1e-9, 0>', '<1, 0, 0>', '<0, 1e-10, 0>',
       '<100, 0, 0>', '<0, 9.999e-6, 0>', '<1e-10, 0, 0>', '<-1e-10, 0, 0>', '<0, 0, 9.999e-6>', '<0, 1, 0>',
@@ -687,8 +688,8 @@ describe('llRotBetween', () => {
     // for t from 1e-6 to 0.1, and <1, 1e-20, 0>, <1, 1e-8, 0>, <1, 0, 1e-8> and <1e-5, 1e-25, 0>
     // against vectors pointing the other way. Up to t = 9e-6 the first two turned about z;
     // from 1e-5 about the x axis less its part along the vector. The third, which keeps
-    // 1.27e-5 of the x axis at t = 9e-6, turned about that from there. Its results for t of 0.01
-    // and more are a few floats off in rezless; the rest match to the last bit.
+    // 1.27e-5 of the x axis at t = 9e-6, turned about that from there. rezless is a few floats
+    // off for all three at t = 0.1 and for the third at t = 0.01; the rest match to the last bit.
     expect(await rotBetween([
       '<1, 1e-20, 0>', '<-1, 0, 0>', '<1, 1e-8, 0>', '<-1, 0.001, 0>', '<1, 0, 1e-8>', '<-1, 0, 0>',
       '<1, 9e-6, 0>', '<-1, -9e-6, 0>', '<1, 1e-5, 0>', '<-1, -1e-5, 0>', '<1, 9e-6, 9e-6>', '<-1, -9e-6, -9e-6>',
@@ -744,9 +745,10 @@ describe('results below the smallest normal float', () => {
         }
       }`)
     // In-world: llFrand(1e-40) gave 0 three times and llFrand(-1e-40) -0 three times. Of ten
-    // results of llFrand(2e-38), the six that would have been below 1.17549435e-38 were 0 and the
-    // four above came back as they were. llFrand(-2e-38) gave -0 for four of six. An SLua script
-    // gave the same. llPow and llAtan2 keep such results under Mono.
+    // results of llFrand(2e-38), seven were 0 and three at least 1.17549435e-38, none in between.
+    // llFrand(-2e-38) gave -0 four times of six, and the others were at most -1.17549435e-38. An
+    // SLua script gave the same, with five zeros of ten. llPow and llAtan2 keep such results under
+    // Mono.
     expect(said(s)).toEqual(['0, 1, 1, 0.000000, -0.000000'])
   })
 
