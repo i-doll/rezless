@@ -18,7 +18,7 @@ const NULL_KEY = '00000000-0000-0000-0000-000000000000'
 async function probe(body: string, setup = '', child: PrimInput = {}) {
   const world = new World({ startUnixTime: 1_793_430_028 })
   world.addRegion('SLua Tideland', { x: 40960, y: 23296 })
-  const { scripts } = await loadLinkset({
+  const { scripts, prims } = await loadLinkset({
     world,
     region: 'SLua Tideland',
     owner: OWNER,
@@ -64,6 +64,8 @@ async function probe(body: string, setup = '', child: PrimInput = {}) {
       },
     ],
   })
+  // The in-world child already had its place and size when the probes ran.
+  Object.assign(prims[1]!.params, { position: { x: 1.5, y: 0, z: 0 }, size: { x: 1, y: 0.5, z: 0.25 } })
   bee.scripts.bee!.start()
   scripts.kid?.start()
   scripts.probe!.start()
@@ -506,7 +508,8 @@ describe('llGetObjectDetails on a changed linkset', () => {
 
   // In-world, a lone prim: OBJECT_SERVER_COST 0.5 with 0 or 1 scripts, 0.75
   // with 2 and 1.0 with 3; the two-prim linkset 1.0 with 1 script and 1.25
-  // with 2. That is 0.5 a prim and 0.25 for each script after the first.
+  // with 2. That is 0.5 a prim and 0.25 for each script but the one added
+  // last; server-cost.test.ts has what counts that one too.
   it('reads server cost from prims and scripts', async () => {
     const lone = async (n: number) => {
       const scripts = Array.from({ length: n }, (_, i) => ({

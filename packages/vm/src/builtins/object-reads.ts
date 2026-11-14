@@ -341,7 +341,7 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
     case OBJECT_PRIM_COUNT:
       return int(count)
     case OBJECT_SERVER_COST:
-      return float(count / 2 + Math.max(scriptsOf(prim).length - 1, 0) / 4)
+      return float(Math.min(count, count / 2 + (prim.linkset?.countedScripts ?? 0) / 4))
     case OBJECT_PHYSICS_COST:
       return float(count)
     case OBJECT_SCRIPT_TIME:
@@ -456,7 +456,7 @@ function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number): Entr
     case OBJECT_PRIM_EQUIVALENCE: return int(root ? primsOf(root).length : 1)
     case OBJECT_PHYSICS_COST: return float(root ? primsOf(root).length : 1)
     case OBJECT_SERVER_COST:
-      return float(root ? primsOf(root).length / 2 + scriptsOf(root).length / 4 : 0)
+      return root ? detail(root, OBJECT_SERVER_COST)! : float(0)
     case OBJECT_LINK_NUMBER: {
       if (!root) return int(0)
       return int(primsOf(root).length + root.linkset!.sitters().indexOf(avatar) + 1)

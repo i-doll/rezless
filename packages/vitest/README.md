@@ -497,6 +497,22 @@ and normal attachments return 0. Rezzed objects return 0 for both attachment fla
 scripts and from other objects. `llGetNumberOfPrims` and `OBJECT_PRIM_COUNT`
 still count its prims.
 
+`OBJECT_SERVER_COST` is half a point for each prim and a quarter for each
+script the region counted when it last worked the cost out, and never more
+than one point for each prim. Second Life counts the scripts again when the
+object is rezzed or worn from inventory, when prims are linked or unlinked,
+when an avatar sits down on it or stands up, when a script is removed, when a
+child prim moves or turns in the object, and when a prim's size, shape,
+physics shape type, physics or temporary status changes. When a script is
+added it counts the scripts that were there before. So a new box with one
+script reads 0.5 until one of those changes, and 0.75 after. An object built
+with `loadLinkset` is such a box: its last script is not counted. Call
+`linkset.recountScripts()` for the value an object fresh from inventory reads.
+A stopped script counts, and LSL and SLua scripts count the same. A seated
+avatar reads the cost of the object it sits on, and 0 when it stands.
+`PRIM_PHYSICS_SHAPE_TYPE` keeps its value when a script sets an unknown type,
+or `PRIM_PHYSICS_SHAPE_NONE` on a root prim.
+
 `llGetObjectDetails` reads avatars in the caller's region. Position, rotation,
 velocity and size use the live avatar fixture; a seated avatar reports its seat's
 root and link number, and includes the seat in its mass. Supply resource totals

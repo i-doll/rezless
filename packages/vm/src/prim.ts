@@ -10,8 +10,17 @@ import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
 import { NULL_KEY, ZERO_VECTOR } from './values/types.js'
 import { deterministicKey } from './keys.js'
-import { PERM_ALL, STATUS_PHANTOM } from './generated/constants.js'
+import {
+  PERM_ALL, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SIZE,
+  PRIM_TEMP_ON_REZ, PRIM_TYPE, STATUS_PHANTOM, STATUS_PHYSICS,
+} from './generated/constants.js'
 import type { Linkset } from './linkset.js'
+
+/** Rules whose change makes the region work out the object's server cost again. */
+const COST_RULES = new Set([
+  PRIM_SIZE, PRIM_TYPE, PRIM_PHYSICS_SHAPE_TYPE, PRIM_TEMP_ON_REZ,
+  PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL,
+])
 
 let primsMade = 0
 let itemsSaved = 0
@@ -166,6 +175,8 @@ export class Prim {
 
   /** Add a script to this prim's inventory and roster. */
   addScript(script: Script, opts: { name?: string; key?: string } = {}): void {
+    // The region counts scripts for the server cost before the new one lands.
+    this.linkset?.recountScripts()
     this.scripts.push(script)
     this.inventory.push({
       name: inventoryItemName(opts.name ?? script.scriptName),
@@ -378,7 +389,10 @@ export class Prim {
     cursor: number,
     caller: Prim = this,
   ): number | null {
-    return writePrimParam(this, param, rules, cursor, caller)
+    const before = COST_RULES.has(param) ? this.costShape() : undefined
+    const consumed = writePrimParam(this, param, rules, cursor, caller)
+    if (before !== undefined && before !== this.costShape()) this.linkset?.recountScripts()
+    return consumed
   }
 
   /**
@@ -411,10 +425,20 @@ export class Prim {
     return mulRotation(this.params.rotation, root.params.rotation)
   }
 
+  /** The values whose change makes the region work out the object's server cost again. */
+  private costShape(): string {
+    const { size, shape, physicsShapeType, tempOnRez, position, rotation } = this.params
+    // Where a child is in the object counts; where the object is does not.
+    const placed = this.linkset && this !== this.linkset.prims[0] ? [position, rotation] : []
+    return JSON.stringify([size, shape, physicsShapeType, tempOnRez, placed])
+  }
+
   /** llSetStatus seam. STATUS_* is a bit value; sets or clears it. */
   setStatus(flag: number, value: boolean): void {
+    const physical = this.statusFlags & STATUS_PHYSICS
     if (value) this.statusFlags |= flag
     else this.statusFlags &= ~flag
     if (this.volumeDetect) this.statusFlags |= STATUS_PHANTOM
+    if ((this.statusFlags & STATUS_PHYSICS) !== physical) this.linkset?.recountScripts()
   }
 }
