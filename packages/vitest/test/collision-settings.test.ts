@@ -316,3 +316,16 @@ it('keeps volume detection in a prim unlinked from an object that has it', async
   alone.advanceTime(100)
   expect([counter.global('starts'), counter.global('ongoing'), counter.global('ends')]).toEqual([1, 0, 1])
 })
+
+// In-world: two linked boxes with volume detection on from their root read 1,
+// "11" and 1. The viewer linked them as children of a plain box. All three
+// then read 0, "000" and 0, the avatar bumped into the new root, and its
+// script counted collision_start, collision and collision_end.
+it('takes the new root\'s volume detection when an object that has it is linked as children', async () => {
+  const plain = await volumeObject(1)
+  const detecting = await volumeObject(2)
+  detecting.run('1 vd 1')
+  plain.linkset.absorb(detecting.linkset)
+  expect(plain.read()).toEqual(Array(3).fill([0, '000', 0]))
+  expect(plain.linkset.prims.map(prim => prim.volumeDetect)).toEqual([false, false, false])
+})

@@ -17,7 +17,8 @@ import { loadLinkset, World } from '../src/index.js'
 // centre, the way it faced in degrees from +X, and the position and rotation
 // read, to 3 decimals.
 //
-// For boxes and round cylinders with an axis vertical, every request fitted
+// For boxes and round cylinders with an axis vertical, every request but the
+// five noted with the failing ones fitted
 // this: the line from a point 3 m behind the avatar and 1.94 m above its
 // centre to the prim's centre first meets the prim at some point. Seen from
 // above, the line leaves the prim's outline through a side. The avatar sat
@@ -75,12 +76,23 @@ const MATCHED: Row[] = [
   ['3 x 1 x 0.4 m box turned 50 degrees, 0.5 m down, 5 m away at -10 degrees', 'box', [3, 1, 0.4], [0, 0, 0.423, 0.906], [-4.924, 0.868, 0.5], -10, [-0.289, 0.59, 0.83], [0, 0, 0.707, 0.707]],
   ['3 x 3 x 0.5 m box, the avatar turned 90 degrees from it', 'box', [3, 3, 0.5], [0, 0, 0, 1], [-3.962, -0.057, 0], 90, [-1.59, -0.394, 0.88], [0, 0, 1, 0]],
   ['1.2 x 2.5 x 0.25 m box turned -25 degrees, 0.3 m up, 3 m away at 20 degrees', 'box', [1.2, 2.5, 0.25], [0, 0, -0.216, 0.976], [-2.819, -1.026, -0.3], 19.992, [-0.69, -0.323, 0.755], [0, 0, 1, 0]],
+  ['10 x 10 x 0.1 m box the avatar stood on -0.934 m along X and -0.005 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [-0.934, -0.005, 0.971], 0, [-5.09, 0, 0.68], [0, 0, 1, 0]],
+  ['10 x 10 x 0.1 m box the avatar stood on -1.984 m along X and -0.062 m along Y from its centre, facing 180 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [-1.984, -0.062, 0.972], 180, [5.09, -0.001, 0.68], [0, 0, 0, 1]],
+  ['10 x 10 x 0.1 m box the avatar stood on -2.941 m along X and -0.015 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [-2.941, -0.015, 0.972], 0, [-5.09, 0, 0.68], [0, 0, 1, 0]],
+  ['10 x 10 x 0.1 m box the avatar stood on 0.498 m along X and 0.501 m along Y from its centre, facing 90 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [0.498, 0.501, 0.962], 90, [0.009, -5.09, 0.68], [0, 0, -0.707, 0.707]],
+  ['10 x 10 x 0.1 m box the avatar stood on -4.49 m along X and 2 m along Y from its centre, facing -30 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [-4.49, 2, 0.963], -30, [-5.09, 0.06, 0.68], [0, 0, 1, 0]],
+  ['10 x 10 x 0.1 m box the avatar stood on 1.961 m along X and 0.978 m along Y from its centre, facing 90 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [1.961, 0.978, 0.97], 90, [0.034, -5.09, 0.68], [0, 0, -0.707, 0.707]],
+  ['10 x 10 x 0.1 m box the avatar stood on -2.021 m along X and 1.051 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [-2.021, 1.051, 0.971], 0, [-5.09, 0.018, 0.68], [0, 0, 1, 0]],
+  ['10 x 10 x 0.1 m box the avatar stood on 3.487 m along X and 0.063 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [3.487, 0.063, 0.972], 0, [5.09, 0.001, 0.68], [0, 0, 0, 1]],
 ]
 
 // Prims tilted from an axis vertical, spheres, tori, prisms other than
 // unturned, cylinders with an oval top or lying across the line, and a 2 m
 // box turned 45 degrees, where the line ran through a corner and the avatar
-// sat at the other side from the one rezless picks.
+// sat at the other side from the one rezless picks. Last, four requests on a
+// box the avatar stood on, facing +X from its +X half, where the line met the
+// top near the centre: the avatar sat at the +X side, at the place along it
+// the rule gives, where the rule picks the -X or +Y side.
 const MISSED: Row[] = [
   ['2 m box turned 45 degrees', 'box', [2, 2, 2], [0, 0, 0.383, 0.924], [-4, 0, 0], 0.003, [-1.09, 1, 1.63], [0, 0, 1, 0]],
   ['2 m box tilted 30 degrees about Y', 'box', [2, 2, 2], [0, 0.259, 0, 0.966], [-4, 0, 0], 0, [-1.458, 0, 0.719], [-0.259, 0, 0.966, 0]],
@@ -108,6 +120,10 @@ const MISSED: Row[] = [
   ['1 x 2 x 1 m cylinder', 'cylinder', [1, 2, 1], [0, 0, 0, 1], [-3.998, -0.001, 0], 0.017, [-0.56, 0.001, 1.13], [0, 0, 1, 0]],
   ['2 x 1 x 1 m cylinder at 40 degrees', 'cylinder', [2, 1, 1], [0, 0, 0, 1], [-3.065, -2.571, 0], 39.998, [-0.555, -0.505, 1.13], [0, 0, 0.869, -0.494]],
   ['3 x 1 x 1 m cylinder at 25 degrees', 'cylinder', [3, 1, 1], [0, 0, 0, 1], [-3.625, -1.692, 0], 25.017, [-0.88, -0.478, 1.13], [0, 0, -0.827, 0.562]],
+  ['10 x 10 x 0.1 m box the avatar stood on 2.046 m along X and 1.022 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [2.046, 1.022, 0.971], 0, [5.09, 0.018, 0.68], [0, 0, 0, 1]],
+  ['10 x 10 x 0.1 m box the avatar stood on 2.001 m along X and 0.938 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [2.001, 0.938, 0.971], 0, [5.09, 0.016, 0.68], [0, 0, 0, 1]],
+  ['10 x 10 x 0.1 m box the avatar stood on 2.015 m along X and 0.439 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [2.015, 0.439, 0.971], 0, [5.09, 0.008, 0.68], [0, 0, 0, 1]],
+  ['10 x 10 x 0.1 m box the avatar stood on 1.561 m along X and 1.51 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [1.561, 1.51, 0.972], 0, [5.09, 0.026, 0.68], [0, 0, 0, 1]],
 ]
 
 const SEAT = `vector pos; rotation rot;
