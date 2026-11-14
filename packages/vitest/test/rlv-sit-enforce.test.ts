@@ -232,7 +232,7 @@ it('bypasses viewer rules in disabled mode and refuses avatars belonging to anot
   expect(world.userStandAvatar(other)).toBe(false)
 })
 
-it('chooses free configured targets and refuses full or removed seat objects atomically', async () => {
+it('chooses free configured targets, seats beside taken ones and refuses removed seat objects', async () => {
   const { loadLinkset, Prim } = await import('../src/index.js')
   for (const fixture of Object.values(await loadRlvPair({ source }))) {
     const { world, avatar, script } = fixture
@@ -247,7 +247,11 @@ it('chooses free configured targets and refuses full or removed seat objects ato
     expect(fixture.userStand()).toBe(true)
     const second = world.addAvatar({ username: 'second', region: avatar.region })
     world.sitAvatar(second, seats.prims[1]!)
-    expect(fixture.userSit(seats.prims[0]!)).toBe(false)
+    // In-world: with every sit target taken, the avatar sat on the prim it asked for
+    // (Aditi, SLua Tideland, 2026-11-14).
+    expect(fixture.userSit(seats.prims[0]!)).toBe(true)
+    expect(avatar.sittingOn).toBe(seats.prims[0])
+    expect(fixture.userStand()).toBe(true)
     expect(fixture.userSit(new Prim())).toBe(false)
     expect(avatar.sittingOn).toBeNull()
     world.standAvatar(second)

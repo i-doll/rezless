@@ -128,7 +128,8 @@ it.each(['reset', 'teleport', 'roundtrip', 'occupied', 'deleted', 'replacement',
         world.teleportAvatar(avatar, { x: 10, y: 10, z: 10 })
         world.teleportAvatar(avatar, { x: 0, y: 0, z: 0 })
       }
-      if (event === 'occupied') world.sitAvatar(world.addAvatar({ username: 'occupant', region: avatar.region }), prim)
+      // Another sitter only blocks the seat when it sits where this request would seat the avatar.
+      if (event === 'occupied') world.sitAvatar(world.addAvatar({ username: 'occupant', region: avatar.region }), prim, { position: { x: 0, y: 0, z: 1 } })
       if (event === 'deleted') seat.linkset.dead = true
       if (event === 'replacement') send(fixture, '@sit:' + script.host.key + '=force')
       if (event === 'reparent') avatar.sittingOn = script.host

@@ -29,8 +29,7 @@ function prim(ctx: CallContext, link: number): Prim | undefined {
 }
 
 function sitter(ctx: CallContext, target: Prim | undefined): string {
-  if (!target?.params.sitTarget.enabled) return NULL_KEY
-  return ctx.linkset.world?.avatars.find(a => a.region === ctx.linkset.region && a.sittingOn === target)?.key ?? NULL_KEY
+  return (target && ctx.linkset.world?.avatarOnSitTarget(target))?.key ?? NULL_KEY
 }
 
 export const llAvatarOnSitTarget: BuiltinImpl = ctx => sitter(ctx, ctx.prim)
@@ -48,8 +47,7 @@ export const llSitOnLink: BuiltinImpl = (ctx, args) => {
   if (!requested) return -5
   if (ctx.linkset.attachment) return -7
   const targets = [requested, ...ctx.linkset.prims.filter(p => p !== requested)]
-  const seat = targets.find(p => p.params.sitTarget.enabled &&
-    !ctx.linkset.world!.avatars.some(a => a.sittingOn === p))
+  const seat = targets.find(p => p.params.sitTarget.enabled && !ctx.linkset.world!.avatarOnSitTarget(p))
   if (!seat) return -3
   ctx.linkset.world!.sitAvatar(agent, seat)
   return 1

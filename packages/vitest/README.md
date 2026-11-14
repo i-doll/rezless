@@ -560,7 +560,9 @@ child of the object's root: it moves with the root and stays put when its seat
 prim moves or the sit target is edited, which only affects future sits. Deleting the object clears occupancy. Seating updates
 `AGENT_SITTING` and `AGENT_ON_OBJECT`, clears movement bits, and fires
 `changed(CHANGED_LINK)` throughout the object. The sit-target readers return
-its sitter only while the target is enabled. `llSitOnLink` requires an allowed
+the avatar that took the sit target when it sat, for as long as it sits there,
+even after the sit target is changed or removed. An avatar that sat before the
+sit target was set never takes it. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
 
@@ -574,6 +576,15 @@ prim anywhere in the object refuses it: the call returns `false` and no script
 in that object gets an event. An avatar sitting on another object stands up
 from it, and one sitting on the ground stays there. `@sit:<key>=force` is
 refused the same way.
+
+One avatar holds a sit target. A sit request on an object whose sit targets
+are all taken seats the avatar on the prim it asked for, where and within the
+reach it would sit on a prim without a sit target (below), unless the object
+has a scripted-only prim. An avatar seated beside a sit target never takes it
+over when the avatar holding it stands. `world.sitAvatar` seats an avatar on a
+prim other avatars sit on; when the prim's sit target is taken, at the prim's
+centre or at the placement it is given. A sit request that would seat the
+avatar where another sitter already is gets refused with `CantSitNoRoom`.
 
 A prim without a sit target is out of reach more than 8 m away, unless
 `world.setSitResponse` gives it a response. Second Life's rule for that reach
@@ -605,13 +616,13 @@ has none.
 `SIT_FLAG_SCRIPTED_ONLY` adds `CantSitNoSuitableSurface`, "There is no suitable
 surface to sit on, try another spot.", unless the avatar sits on that object
 or the message last showed 10 s ago or less. A request refused for a prim out
-of reach adds nothing.
+of reach adds nothing. A request refused because another sitter is at the
+spot adds `CantSitNoRoom`, "No room to sit here, try another spot.".
 
 A seated avatar is a link of the object, numbered after the prims. Several
 sitters are numbered in seating order, and later sitters move down a link when
-an earlier one stands. The order is from the Second Life wiki and the
-renumbering is inferred from it; neither was measured, since that needs a
-second avatar. `llGetNumberOfPrims` counts it, `llGetObjectPrimCount` does not, and a
+an earlier one stands. The first other link of a lone prim with several
+sitters is the first sitter. `llGetNumberOfPrims` counts it, `llGetObjectPrimCount` does not, and a
 lone prim is link 1 instead of 0 while someone sits on it. `llGetLinkKey`,
 `llGetLinkName`, `llGetObjectLinkKey` and `llGetLinkPrimitiveParams` read the
 avatar at its link number. `llSetLinkPrimitiveParams(Fast)` moves the sitter

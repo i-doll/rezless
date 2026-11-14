@@ -467,6 +467,8 @@ export class World {
       set sittingOn(value) {
         cancelPendingSit(avatar)
         const changingSeat = value !== seat && !!(info & AGENT_SITTING)
+        const leaving = value !== seat
+        if (leaving) world.sitTargetHolders.delete(avatar)
         snapshotSeat()
         if (value && value.linkset !== seat?.linkset) sittingOrder = ++world.nextSittingOrder
         const previous = seat?.linkset
@@ -482,8 +484,12 @@ export class World {
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
         if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
         const target = seat?.params.sitTarget
-        const offset = world.sitPlacements.get(avatar)?.position ?? (target?.enabled ? target.offset : ZERO_VECTOR)
-        const orientation = world.sitPlacements.get(avatar)?.rotation ?? (target?.enabled ? target.rotation : ZERO_ROTATION)
+        // An avatar takes a sit target that nobody holds; on a taken one it sits where it would without one.
+        const onTarget = !!seat && !!target?.enabled &&
+          (leaving ? !world.avatarOnSitTarget(seat) : world.sitTargetHolders.get(avatar) === seat)
+        if (leaving && onTarget) world.sitTargetHolders.set(avatar, seat!)
+        const offset = world.sitPlacements.get(avatar)?.position ?? (onTarget ? target.offset : ZERO_VECTOR)
+        const orientation = world.sitPlacements.get(avatar)?.rotation ?? (onTarget ? target.rotation : ZERO_ROTATION)
         // A sitter is a child of the root: it keeps its place when its seat prim moves.
         const child = seat && seat !== seat.linkset?.prims[0] ? seat.params : undefined
         const turned = child ? rotateVector(offset, child.rotation) : offset
@@ -565,18 +571,34 @@ export class World {
   getSitResponse(avatar: WorldAvatar, prim: Prim): AvatarSitResponse | null {
     if (this.sitResponses.has(prim)) return this.sitResponses.get(prim)!
     const target = prim.params.sitTarget
-    if (target.enabled) return { position: target.offset, rotation: target.rotation }
+    const holder = this.avatarOnSitTarget(prim)
+    // In-world a request on a sit target another avatar holds seats the avatar where it would sit without one.
+    if (target.enabled && (!holder || holder === avatar)) return { position: target.offset, rotation: target.rotation }
     const position = prim.regionPosition(), origin = avatar.position
     // The default plain-prim response covers nearby seats. Other surfaces use explicit responses.
     if (Math.hypot(position.x - origin.x, position.y - origin.y, position.z - origin.z) > 8) return null
     return sitSpot(prim, avatar)
   }
 
-  /** Seed simulator seating on a free prim, independently of viewer restrictions. */
+  private readonly sitTargetHolders = new WeakMap<WorldAvatar, Prim>()
+
+  /**
+   * The avatar on `prim`'s sit target: the one that took it when it sat, while
+   * it sits there, even after the sit target is changed or removed. An avatar
+   * that sat while the prim had no free sit target never takes it over.
+   */
+  avatarOnSitTarget(prim: Prim): WorldAvatar | undefined {
+    return this.avatars.find(a => a.sittingOn === prim && this.sitTargetHolders.get(a) === prim)
+  }
+
+  /**
+   * Seed simulator seating, independently of viewer restrictions. On a prim
+   * whose sit target another avatar holds, the avatar sits beside it, where it
+   * would sit without a sit target unless `placement` says otherwise.
+   */
   sitAvatar(avatar: WorldAvatar, prim: Prim, placement?: AvatarSitResponse): boolean {
     const linkset = prim.linkset
-    if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region ||
-      this.avatars.some(a => a !== avatar && a.sittingOn === prim)) return false
+    if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region) return false
     cancelPendingSit(avatar)
     cancelPendingGroundSit(avatar)
     if (avatar.sittingOn === prim) return true

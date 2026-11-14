@@ -1,6 +1,7 @@
 import { rlvAtof, rlvStof } from './numbers.js'
 import { AGENT_FLYING, AGENT_SITTING, SIT_FLAG_SCRIPTED_ONLY } from '../generated/constants.js'
 import { NULL_KEY, ZERO_VECTOR, type Vector } from '../values/types.js'
+import { rotateVector } from '../values/ops.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
@@ -302,12 +303,13 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
  * the requested prim's first, and passes over those with
  * SIT_FLAG_SCRIPTED_ONLY. With no sit target to take, one scripted-only prim
  * anywhere in the object refuses the request, and the region has by then
- * stood the avatar up from any other object it sat on.
+ * stood the avatar up from any other object it sat on. Otherwise the avatar
+ * sits on the requested prim, beside any avatar on its sit target.
  */
 function resolveSitRequest(world: World, avatar: WorldAvatar, requested: Prim): Prim | undefined {
   const linkset = requested.linkset!
   const scriptedOnly = (prim: Prim) => !!(prim.params.sitFlags & SIT_FLAG_SCRIPTED_ONLY)
-  const free = (prim: Prim) => !world.avatars.some(other => other !== avatar && other.sittingOn === prim)
+  const free = (prim: Prim) => { const holder = world.avatarOnSitTarget(prim); return !holder || holder === avatar }
   const configured = [requested, ...linkset.prims.filter(prim => prim !== requested)].filter(prim => prim.params.sitTarget.enabled)
   const seat = configured.find(prim => !scriptedOnly(prim) && free(prim))
   if (seat) return seat
@@ -316,7 +318,7 @@ function resolveSitRequest(world: World, avatar: WorldAvatar, requested: Prim): 
     if (avatar.sittingOn?.linkset !== linkset) alertNoSuitableSurface(world, avatar)
     return undefined
   }
-  return configured.length ? undefined : requested
+  return requested
 }
 
 /** The region stands the avatar up from another object before it refuses a sit request. */
@@ -329,11 +331,34 @@ const ALERT_PAUSE_MS = 10000
 
 /** What the viewer shows when the region refuses a sit request for SIT_FLAG_SCRIPTED_ONLY. */
 function alertNoSuitableSurface(world: World, avatar: WorldAvatar): void {
+  alertOnce(world, avatar, 'CantSitNoSuitableSurface', 'There is no suitable surface to sit on, try another spot.')
+}
+
+function alertOnce(world: World, avatar: WorldAvatar, name: string, message: string): void {
   const { alerts } = avatar.viewer
   const now = world.clock.now
-  const last = alerts.filter(alert => alert.name === 'CantSitNoSuitableSurface').at(-1)
+  const last = alerts.filter(alert => alert.name === name).at(-1)
   if (last && now - last.at <= ALERT_PAUSE_MS) return
-  alerts.push({ name: 'CantSitNoSuitableSurface', message: 'There is no suitable surface to sit on, try another spot.', at: now })
+  alerts.push({ name, message, at: now })
+}
+
+/**
+ * Whether another sitter is already where a request that takes no sit target
+ * would seat the avatar. In-world a second avatar asking from the first one's
+ * place, which gives the same spot, was refused with CantSitNoRoom; spots
+ * 0.376 m apart both seated.
+ */
+function spotTaken(world: World, avatar: WorldAvatar, seat: Prim, offset: Vector): boolean {
+  const holder = world.avatarOnSitTarget(seat)
+  if (seat.params.sitTarget.enabled && (!holder || holder === avatar)) return false
+  const linkset = seat.linkset!
+  const child = seat === linkset.prims[0] ? undefined : seat.params
+  const turned = child ? rotateVector(offset, child.rotation) : offset
+  const local = child ? { x: child.position.x + turned.x, y: child.position.y + turned.y, z: child.position.z + turned.z } : offset
+  return linkset.sitters().some(other => {
+    const placed = other !== avatar && other.sitPlacement?.position
+    return !!placed && Math.hypot(placed.x - local.x, placed.y - local.y, placed.z - local.z) < 0.001
+  })
 }
 
 const pendingSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
@@ -357,8 +382,14 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   avatar.info &= ~AGENT_FLYING
   const previous = avatar.sittingOn
   if (saveOrigin) rememberStandtpSit(world, avatar)
-  const sit = (): 'applied' | 'unchanged' | 'refused' =>
-    !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
+  const sit = (): 'applied' | 'unchanged' | 'refused' => {
+    // In-world a repeated request on the seat the avatar sits on leaves it where it is.
+    if (previous !== seat && spotTaken(world, avatar, seat, response.position)) {
+      alertOnce(world, avatar, 'CantSitNoRoom', 'No room to sit here, try another spot.')
+      return 'refused'
+    }
+    return !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
+  }
   if (!response.autopilot || previous?.linkset === seat.linkset) return sit()
   const { durationMs, success } = response.autopilot
   avatar.viewer.session.bind(seat.linkset!, avatar)

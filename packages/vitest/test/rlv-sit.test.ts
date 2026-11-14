@@ -84,8 +84,10 @@ it.each(['unknown', 'cross-region', 'attachment', 'occupied', 'removed'] as cons
       owner: avatar.key, prims: [{}] })
     if (kind === 'attachment') seat.linkset.attachToAvatar(avatar.key, 1)
     if (kind === 'occupied') {
+      // In-world: a second avatar asking from where the first had asked gets the same
+      // spot and is refused with CantSitNoRoom (Aditi, SLua Tideland, 2026-11-14).
       const other = world.addAvatar({ username: 'occupant', region: avatar.region })
-      world.sitAvatar(other, seat.prims[0]!)
+      world.sitAvatar(other, seat.prims[0]!, world.getSitResponse(avatar, seat.prims[0]!)!)
     }
     if (kind === 'removed') seat.linkset.dead = true
     world.sitAvatar(avatar, script.host)
@@ -95,6 +97,7 @@ it.each(['unknown', 'cross-region', 'attachment', 'occupied', 'removed'] as cons
     expect(avatar.sittingOn).toBe(script.host)
     expect(script.global('replies')).toEqual([script.host.key])
     expect(avatar.viewer.commandLog.filter(entry => entry.status === 'action').at(-1)).toMatchObject({ actionOutcome: 'refused' })
+    if (kind === 'occupied') expect(avatar.viewer.alerts.map(alert => alert.name)).toEqual(['CantSitNoRoom'])
   }
 })
 
@@ -256,7 +259,7 @@ it('discovers seating force and reply forms without duplicate force entries', as
   expect(pair.rlv.script.global('replies')).toEqual([])
 })
 
-it('selects free configured targets and refuses an entirely occupied fixture', async () => {
+it('selects free configured targets and seats beside a taken one when every target is taken', async () => {
   const pair = await loadRlvPair({ source: controller })
   for (const { script, world, avatar } of Object.values(pair)) {
     const seat = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
@@ -270,9 +273,15 @@ it('selects free configured targets and refuses an entirely occupied fixture', a
     expect(avatar.sittingOn?.key).toBe(seat.prims[1]!.key)
     issue(script, '@unsit=force')
     world.sitAvatar(second, seat.prims[1]!)
+    // In-world: with every sit target taken, a sit request on a prim seated the avatar on
+    // that prim where it sits without a sit target. "@sit:<box>=force" on a lone box whose
+    // sit target another avatar held seated it at <-0.59, 0.375, 1.13>, the same spot
+    // (Aditi, SLua Tideland, 2026-11-14).
+    const spot = world.getSitResponse(avatar, seat.prims[0]!)!.position
+    expect(spot).not.toEqual({ x: 0, y: 0, z: 0.5 })
     issue(script, '@sit:' + seat.prims[0]!.key + '=force')
-    expect(avatar.sittingOn).toBeNull()
-    expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'action', actionOutcome: 'refused', reason: 'world-constraint' })
+    expect(avatar.sittingOn?.key).toBe(seat.prims[0]!.key)
+    expect(avatar.sitPlacement?.position).toEqual(spot)
     expect(first.sittingOn?.key).toBe(seat.prims[0]!.key)
     expect(second.sittingOn?.key).toBe(seat.prims[1]!.key)
   }
