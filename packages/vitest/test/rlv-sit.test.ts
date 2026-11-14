@@ -84,8 +84,10 @@ it.each(['unknown', 'cross-region', 'attachment', 'occupied', 'removed'] as cons
       owner: avatar.key, prims: [{}] })
     if (kind === 'attachment') seat.linkset.attachToAvatar(avatar.key, 1)
     if (kind === 'occupied') {
+      // In-world: a second avatar asking from where the first had asked gets the same
+      // spot and is refused with CantSitNoRoom (Aditi, SLua Tideland, 2026-11-14).
       const other = world.addAvatar({ username: 'occupant', region: avatar.region })
-      world.sitAvatar(other, seat.prims[0]!)
+      world.sitAvatar(other, seat.prims[0]!, world.getSitResponse(avatar, seat.prims[0]!)!)
     }
     if (kind === 'removed') seat.linkset.dead = true
     world.sitAvatar(avatar, script.host)
@@ -95,6 +97,7 @@ it.each(['unknown', 'cross-region', 'attachment', 'occupied', 'removed'] as cons
     expect(avatar.sittingOn).toBe(script.host)
     expect(script.global('replies')).toEqual([script.host.key])
     expect(avatar.viewer.commandLog.filter(entry => entry.status === 'action').at(-1)).toMatchObject({ actionOutcome: 'refused' })
+    if (kind === 'occupied') expect(avatar.viewer.alerts.map(alert => alert.name)).toEqual(['CantSitNoRoom'])
   }
 })
 
@@ -274,9 +277,11 @@ it('selects free configured targets and seats beside a taken one when every targ
     // that prim where it sits without a sit target. "@sit:<box>=force" on a lone box whose
     // sit target another avatar held seated it at <-0.59, 0.375, 1.13>, the same spot
     // (Aditi, SLua Tideland, 2026-11-14).
+    const spot = world.getSitResponse(avatar, seat.prims[0]!)!.position
+    expect(spot).not.toEqual({ x: 0, y: 0, z: 0.5 })
     issue(script, '@sit:' + seat.prims[0]!.key + '=force')
     expect(avatar.sittingOn?.key).toBe(seat.prims[0]!.key)
-    expect(avatar.sitPlacement?.position).toEqual({ x: 0, y: 0, z: 0 })
+    expect(avatar.sitPlacement?.position).toEqual(spot)
     expect(first.sittingOn?.key).toBe(seat.prims[0]!.key)
     expect(second.sittingOn?.key).toBe(seat.prims[1]!.key)
   }
