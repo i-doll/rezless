@@ -505,9 +505,11 @@ than one point for each prim. Second Life counts the scripts again when the
 object is rezzed or worn from inventory, when prims are linked or unlinked,
 when an avatar sits down on it or stands up, when a script is removed, when a
 child prim moves or turns in the object, and when a prim's size, shape,
-physics shape type, physics or temporary status changes. When a script is
-added it counts the scripts that were there before. So a new box with one
-script reads 0.5 until one of those changes, and 0.75 after. An object built
+physics shape type, physics or temporary status changes, including
+`llDerezObject(id, DEREZ_MAKE_TEMP)`. `llLookAt` and `llRotLookAt` turning a
+child prim do not count again. When a script is added it counts the
+scripts that were there before. So a new box with one script reads 0.5 until
+one of those changes, and 0.75 after. An object built
 with `loadLinkset` is such a box: its last script is not counted. Call
 `linkset.recountScripts()` for the value an object fresh from inventory reads.
 A stopped script counts, and LSL and SLua scripts count the same. A seated

@@ -18,6 +18,7 @@ import { loadLinkset, loadScript, World, type LoadedLinkset } from '../src/index
 
 const AVATAR = 'abcdefab-1234-1234-1234-abcdefabcdef'
 const INERT = 'default { state_entry() { } }'
+const NULL = '00000000-0000-0000-0000-000000000000'
 const READER = `float cost; default { link_message(integer s, integer n, string m, key id) {
   cost = llList2Float(llGetObjectDetails(id, [OBJECT_SERVER_COST]), 0);
 } }`
@@ -424,5 +425,140 @@ describe('OBJECT_SERVER_COST of an object from inventory', () => {
       costs.push(s.cost(key(box)))
     }
     expect(costs).toEqual([0.5, 0.5, 0.75])
+  })
+})
+
+// One script in link 1 and one in link 2 of a four-prim object, run by
+// link_message. Each command reads the object's cost one second later.
+const COMMANDS = `float cost;
+default { link_message(integer s, integer n, string m, key id) {
+  list a = llParseString2List(m, [" "], []);
+  string c = llList2String(a, 0);
+  integer v = (integer)llList2String(a, 1);
+  integer w = (integer)llList2String(a, 2);
+  if (c == "status") llSetStatus(v, w);
+  else if (c == "lphys") llSetLinkPrimitiveParamsFast(v, [PRIM_PHYSICS, w]);
+  else if (c == "temp") llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_TEMP_ON_REZ, v]);
+  else if (c == "rotlook") llRotLookAt(llEuler2Rot(<0.0, 0.0, (float)v> * DEG_TO_RAD), 1.0, 1.0);
+  else if (c == "rotlookself") llRotLookAt(llGetRot(), 1.0, 1.0);
+  else if (c == "look") llLookAt(llGetPos() + <(float)v, (float)w, 0.0>, 1.0, 1.0);
+  llSleep(1.0);
+  cost = llList2Float(llGetObjectDetails(llGetKey(), [OBJECT_SERVER_COST]), 0);
+} }`
+
+describe('OBJECT_SERVER_COST and calls from a child prim', () => {
+  // Measured on the Aditi beta grid (SLua Tideland, Firestorm 7.3.0,
+  // 2026-11-14): four linked 0.5 m boxes built by the viewer, the command
+  // script dragged into link 1 and then link 2, and an empty script dragged
+  // into link 3 or 4 before each command whose count is in question.
+  async function fourPrims(rotation?: { x: number; y: number; z: number; s: number }) {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const object = await loadLinkset({
+      world, region: 'home', owner: AVATAR, position: { x: 120, y: 45, z: 20 },
+      prims: [
+        { scripts: [{ name: 'one', source: { source: COMMANDS } }] },
+        { scripts: [{ name: 'two', source: { source: COMMANDS } }] }, {}, {},
+      ],
+    })
+    const prims = object.linkset.prims
+    prims.forEach((prim, i) => { if (i) prim.params.position = { x: 0, y: i * 0.5, z: 0 } })
+    if (rotation) prims[0]!.params.rotation = rotation
+    for (const script of Object.values(object.scripts)) script.start()
+    let added = 0
+    const run = (link: 1 | 2, command: string) => {
+      const script = object.scripts[link === 1 ? 'one' : 'two']!
+      script.fire('link_message', { sender_num: link, num: 0, str: command, id: NULL })
+      object.linkset.advanceTime(1500)
+      return script.global('cost') as number
+    }
+    const drop = async () => {
+      await loadScript({ host: prims[2 + (added % 2)]!, scriptName: `empty${++added}`, source: INERT })
+    }
+    return { object, prims, run, drop }
+  }
+
+  // In-world, from 2.25: PRIM_TEMP_ON_REZ TRUE from the root read 2.5. After
+  // an empty script each: llSetStatus(STATUS_PHYSICS, TRUE) from link 2 read
+  // 2.75 (counted). llRotLookAt(llGetRot(), 1, 1) from link 2 on the physical
+  // object read 2.75 (not counted). STATUS_PHYSICS TRUE from the root, which
+  // the object already had, read 3.0, what the empty script left it at. FALSE
+  // from the root then read 3.25 (counted). After an empty script, FALSE from
+  // link 2 read 3.25 (not counted). After another,
+  // llSetLinkPrimitiveParamsFast(2, [PRIM_PHYSICS, TRUE]) from the root read
+  // 3.75 (counted).
+  it('counts again when the object turns physical or not, from any prim', async () => {
+    const s = await fourPrims()
+    const costs = [s.run(1, 'read'), s.run(1, 'temp 1')]
+    await s.drop(); costs.push(s.run(2, 'status 1 1'))
+    await s.drop(); costs.push(s.run(2, 'rotlookself'))
+    await s.drop(); costs.push(s.run(1, 'status 1 1'), s.run(1, 'status 1 0'))
+    await s.drop(); costs.push(s.run(2, 'status 1 0'))
+    await s.drop(); costs.push(s.run(1, 'lphys 2 1'))
+    expect(costs).toEqual([2.25, 2.5, 2.75, 2.75, 3, 3.25, 3.25, 3.75])
+  })
+
+  // In-world, on the same object built again and not physical, its root
+  // turned 90 degrees about Z, an empty script before each command:
+  // llRotLookAt to 45 degrees from link 2 read 2.5, the same as before it.
+  // llRotLookAt(llGetRot(), 1, 1) from link 2 read 2.75, llLookAt from link 2
+  // at a point 3 m along Y read 3.0, llRotLookAt to 30 degrees from the root
+  // read 3.25 and llRotLookAt(llGetRot(), 1, 1) from the root read 3.5: each
+  // what the empty script left it at, though link 2 turned each time and the
+  // root turned once.
+  it('does not count again for llLookAt or llRotLookAt', async () => {
+    const s = await fourPrims({ x: 0, y: 0, z: Math.SQRT1_2, s: Math.SQRT1_2 })
+    const costs = [s.run(1, 'read')]
+    await s.drop(); costs.push(s.run(2, 'rotlook 45'))
+    await s.drop(); costs.push(s.run(2, 'rotlookself'))
+    await s.drop(); costs.push(s.run(2, 'look 0 3'))
+    await s.drop(); costs.push(s.run(1, 'rotlook 30'))
+    await s.drop(); costs.push(s.run(1, 'rotlookself'))
+    expect(costs).toEqual([2.25, 2.5, 2.75, 3, 3.25, 3.5])
+  })
+})
+
+describe('OBJECT_SERVER_COST and llDerezObject', () => {
+  // https://wiki.secondlife.com/wiki/LlDerezObject: DEREZ_MAKE_TEMP "Flags
+  // the object as temp on rez". In-world (Aditi, SLua Tideland, 2026-11-14):
+  // a box without scripts rezzed by llRezObject read 0.5, and 0.5 with an
+  // empty script dragged in. llDerezObject(id, DEREZ_MAKE_TEMP) returned 1,
+  // and the box then read 0.75 with OBJECT_TEMP_ON_REZ 1.
+  //
+  // In-world, a box rezzed temporary by llRezObjectWithParams with
+  // REZ_FLAG_TEMP read 0.5 with OBJECT_TEMP_ON_REZ 1, and 0.5 with an empty
+  // script dragged in. DEREZ_MAKE_TEMP returned 1 and it still read 0.5.
+  it.each([[false, 0.75], [true, 0.5]])('counts again when DEREZ_MAKE_TEMP makes the object temporary, temporary already %s', async (temporary, after) => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const rezzer = await loadLinkset({
+      world, region: 'home', owner: AVATAR, position: { x: 118, y: 45, z: 20 },
+      prims: [{
+        objects: { child: { prims: [{}] } },
+        scripts: [{ name: 'rezzer', source: { source: `key child; integer result; list read; default {
+          object_rez(key id) { child = id; }
+          link_message(integer s, integer n, string m, key id) {
+            if (m == "rez") llRezObject("child", llGetPos() + <0.0, 0.0, 1.0>, ZERO_VECTOR, ZERO_ROTATION, 0);
+            if (m == "reztemp") llRezObjectWithParams("child", [REZ_FLAGS, REZ_FLAG_TEMP, REZ_POS, llGetPos() + <0.0, 0.0, 1.0>, FALSE, FALSE]);
+            if (m == "temp") result = llDerezObject(child, DEREZ_MAKE_TEMP);
+            read = llGetObjectDetails(child, [OBJECT_SERVER_COST, OBJECT_TEMP_ON_REZ]);
+          } }` } }],
+      }],
+    })
+    const script = rezzer.scripts.rezzer!
+    script.start()
+    const send = (m: string) => {
+      script.fire('link_message', { sender_num: 1, num: 0, str: m, id: NULL })
+      rezzer.linkset.advanceTime(1500)
+      return script.global('read')
+    }
+    const flag = temporary ? 1 : 0
+    send(temporary ? 'reztemp' : 'rez')
+    expect(send('read')).toEqual([0.5, flag])
+    const child = world.linksets.find((l) => l.prims[0]!.key === script.global('child'))!
+    await loadScript({ host: child.prims[0]!, scriptName: 'empty', source: INERT })
+    expect(send('read')).toEqual([0.5, flag])
+    expect(send('temp')).toEqual([after, 1])
+    expect(script.global('result')).toBe(1)
   })
 })
