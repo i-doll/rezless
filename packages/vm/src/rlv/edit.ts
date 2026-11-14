@@ -33,7 +33,20 @@ export interface AvatarRezAction {
   readonly reason?: string
   readonly restrictions: readonly RlvRestriction[]
 }
+export interface AvatarTakeAction {
+  readonly action: 'take'
+  /** The object's root key. */
+  readonly target: string
+  readonly copy: boolean
+  readonly status: 'taken' | 'blocked' | 'unsupported'
+  /** The object as it went into inventory. */
+  readonly object?: Linkset
+  readonly reason?: string
+  readonly restrictions: readonly RlvRestriction[]
+}
 const edits = new WeakMap<WorldAvatar, readonly AvatarEditAction[]>()
+const takes = new WeakMap<WorldAvatar, readonly AvatarTakeAction[]>()
+export const avatarTakeLog = (avatar: WorldAvatar): readonly AvatarTakeAction[] => takes.get(avatar) ?? Object.freeze([])
 const rezzes = new WeakMap<WorldAvatar, readonly AvatarRezAction[]>()
 export const avatarEditLog = (avatar: WorldAvatar): readonly AvatarEditAction[] => edits.get(avatar) ?? Object.freeze([])
 export const avatarRezLog = (avatar: WorldAvatar): readonly AvatarRezAction[] => rezzes.get(avatar) ?? Object.freeze([])
@@ -49,7 +62,12 @@ export function attemptAvatarEdit(world: World, avatar: WorldAvatar, prim: Prim)
   if (!world.avatars.includes(avatar)) return record('unsupported', 'avatar')
   const linkset = prim.linkset
   if (!linkset || linkset.dead || linkset.world !== world || !world.linksets.includes(linkset) || !linkset.prims.includes(prim)) return record('unsupported', 'target')
-  if (avatar.viewer.profile === 'disabled') return record('opened')
+  const denials = editDenials(avatar, linkset)
+  return denials.length ? record('blocked', denials[0]!.behaviour, denials) : record('opened')
+}
+
+function editDenials(avatar: WorldAvatar, linkset: Linkset): RlvRestriction[] {
+  if (avatar.viewer.profile === 'disabled') return []
   const rules = avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
   const root = linkset.prims[0]!.key.toLowerCase()
   const family = rules.filter(rule => rule.behaviour === 'edit' || rule.behaviour === 'edit_sec')
@@ -57,14 +75,52 @@ export function attemptAvatarEdit(world: World, avatar: WorldAvatar, prim: Prim)
   const grants = family.filter(rule => rule.option === root)
   const strict = avatar.viewer.profile === 'rlv' && rules.some(rule => rule.behaviour === 'permissive' && !rule.option)
   const missing = blocks.filter(rule => (strict || rule.behaviour === 'edit_sec') && !grants.some(grant => grant.sourcePrim === rule.sourcePrim))
-  const denials = [
+  return [
     ...(missing.length ? missing : grants.length ? [] : blocks),
     ...rules.filter(rule => rule.behaviour === 'editobj' && rule.option === root),
     ...rules.filter(rule => !rule.option && rule.behaviour === (linkset.attachment ? 'editattach' : 'editworld')),
     ...rules.filter(rule => avatar.viewer.profile === 'rlv' && rule.behaviour === 'interact' && !rule.option &&
       !(linkset.attachment && linkset.attachment.point >= 31 && linkset.attachment.point <= 38)),
   ]
-  return denials.length ? record('blocked', denials[0]!.behaviour, denials) : record('opened')
+}
+
+/**
+ * Take an object the avatar owns into inventory, or a copy of it. A taken object leaves the
+ * world, and either way an avatar sitting on it is stood up.
+ *
+ * The refusals are the viewers' own, read from their menu code. No viewer offers Take for the
+ * object its avatar sits on. Firestorm RLVa refuses a copy of that object under `unsit`, and
+ * a take under `rez`, `edit` or an edit lock on the object. Kokua RLV refuses a take under
+ * `rez` and has no check on a copy.
+ */
+export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim, options: { copy?: boolean } = {}): AvatarTakeAction {
+  const copy = !!options.copy
+  const linkset = prim.linkset
+  const record = (status: AvatarTakeAction['status'], reason?: string, restrictions: readonly RlvRestriction[] = [], object?: Linkset): AvatarTakeAction => {
+    const result: AvatarTakeAction = Object.freeze({ action: 'take', target: linkset?.prims[0]?.key ?? prim.key, copy, status,
+      ...(reason ? { reason } : {}), ...(object ? { object } : {}), restrictions: Object.freeze([...restrictions]) })
+    takes.set(avatar, Object.freeze([...avatarTakeLog(avatar), result]))
+    return result
+  }
+  if (!world.avatars.includes(avatar)) return record('unsupported', 'avatar')
+  if (!linkset || linkset.dead || linkset.world !== world || !world.linksets.includes(linkset) || !linkset.prims.includes(prim)) return record('unsupported', 'target')
+  if (linkset.attachment) return record('unsupported', 'worn')
+  if (linkset.owner.toLowerCase() !== avatar.key.toLowerCase()) return record('unsupported', 'owner')
+  const seated = avatar.sittingOn?.linkset === linkset
+  if (seated && !copy) return record('unsupported', 'seated')
+  const { profile } = avatar.viewer
+  const rules = profile === 'disabled' ? [] : avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
+  const named = (...behaviours: string[]) => rules.filter(rule => !rule.option && behaviours.includes(rule.behaviour))
+  // RLVa looks at the object only while edit, rez or unsit is set, or any object is edit-locked.
+  const checked = named('edit', 'rez', 'unsit').length > 0 || rules.some(rule => rule.behaviour === 'editobj')
+  const denials = copy
+    ? profile === 'rlva' && seated ? named('unsit') : []
+    : profile !== 'rlva' ? named('rez')
+      : checked ? [...new Set([...editDenials(avatar, linkset), ...named('edit', 'rez')])] : []
+  if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
+  const object = linkset.copy()
+  if (!copy) linkset.remove()
+  return record('taken', undefined, [], object)
 }
 
 /** Drop a saved, copyable inventory object into the avatar's current region. */

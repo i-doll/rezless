@@ -1,7 +1,7 @@
 import { attemptAvatarPay, attemptAvatarBuy, setObjectSale, type ObjectSale, type AvatarPayAction, type AvatarBuyAction } from './rlv/pay.js'
 import { userChangeAvatarGroup, type AvatarGroup } from './rlv/group.js'
 import { attemptAvatarMovement, type AvatarMovement, type AvatarMovementAction, type AvatarMovementState } from './rlv/movement.js'
-import { attemptAvatarEdit, attemptAvatarRez, type AvatarEditAction, type AvatarRezAction } from './rlv/edit.js'
+import { attemptAvatarEdit, attemptAvatarRez, attemptAvatarTake, type AvatarEditAction, type AvatarRezAction, type AvatarTakeAction } from './rlv/edit.js'
 import { requestTeleport, respondTeleportRequest, type AvatarTeleportRequest, offerTeleport, respondTeleportOffer, type TeleportOffer, type TeleportOfferDecision } from './rlv/tpoffers.js'
 import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
 import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } from './rlv/touch.js'
@@ -406,6 +406,11 @@ export class World {
   /** Drop a saved inventory object into the current region. */
   attemptAvatarRez(avatar: WorldAvatar, itemId: string, position: Vector): AvatarRezAction {
     return attemptAvatarRez(this, avatar, itemId, position)
+  }
+
+  /** Take an object, or a copy of it, into the avatar's inventory as their viewer allows. */
+  attemptAvatarTake(avatar: WorldAvatar, prim: Prim, options: { copy?: boolean } = {}): AvatarTakeAction {
+    return attemptAvatarTake(this, avatar, prim, options)
   }
 
   addObject(opts: WorldObjectOptions): WorldEntity {

@@ -20,6 +20,17 @@ export interface DispatchContext {
 }
 
 /**
+ * What the builtin calls of one handler run returned, in order. A copy of a script whose handler
+ * is asleep runs the handler again from these, without calling anything, up to the same sleep.
+ */
+export interface Journal {
+  readonly names: string[]
+  readonly results: Array<LslValue | undefined>
+  /** How many of `results` this run has passed. Fewer than all of them while a copy catches up. */
+  replayed: number
+}
+
+/**
  * Resolve and invoke an `ll*` function call.
  *
  * Resolution order: user mock > real built-in > generated stub > error.
@@ -30,8 +41,22 @@ export function* callBuiltin(
   dctx: DispatchContext,
   name: string,
   args: ReadonlyArray<LslValue>,
+  journal: Journal,
 ): Run<LslValue | undefined> {
+  if (journal.replayed < journal.results.length) {
+    // Only a global changed from outside while the handler slept can send the copy another way.
+    if (journal.names[journal.replayed] !== name) {
+      throw new Error(`cannot copy the sleeping handler: it called ${journal.names[journal.replayed]} where a second run calls ${name}`)
+    }
+    const result = journal.results[journal.replayed++]
+    // The handler being copied is asleep in the last call it made.
+    if (journal.replayed === journal.results.length) yield { until: 0 }
+    return result
+  }
   const { result, delayMs } = invokeBuiltin(dctx, name, args)
+  journal.names.push(name)
+  journal.results.push(result)
+  journal.replayed++
   if (delayMs !== null) yield { until: dctx.state.clock.now + delayMs }
   return result
 }

@@ -224,7 +224,7 @@ export class Linkset {
     this.attachment = { avatar, point, temporary, order }
     for (const script of this.allScripts()) {
       // Viewer recovery may already have queued this inventory rez.
-      if (fromInventory && !this.clock.hasPending(script, 'on_rez')) script.queueRez()
+      if (fromInventory && !script.rezQueued) script.queueRez()
       resumeSensors(script)
       resumeTargets(script)
     }
@@ -248,7 +248,9 @@ export class Linkset {
       script.detached()
       pauseSensors(script)
       pauseTargets(script)
-      this.clock.purgeTarget(script)
+      // In-world: a chat line waiting for a handler that was asleep at the detach ran when the
+      // object was worn again, after on_rez and before the two attach events.
+      if (script.wakeAt === undefined) this.clock.purgeTarget(script)
     }
     this.broadcastAttach(NULL_KEY)
     this.finishTemporaryDetach()
@@ -273,6 +275,8 @@ export class Linkset {
   copy(opts: LinksetOptions = {}, from?: Linkset): Linkset {
     // In-world: taking an object, or a copy of it, stood up the avatar sitting on it.
     const sitters = opts.world ? [] : this.world?.avatars.filter(avatar => avatar.sittingOn?.linkset === this) ?? []
+    // Taken before the stand: the copy's scripts get the stand's event from `unseated`.
+    const waiting = this.clock.pendingEvents()
     for (const avatar of sitters) this.world!.standAvatar(avatar)
     const unseated = sitters.length > 0
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
@@ -287,7 +291,7 @@ export class Linkset {
       prim.keyframedMotion = source.keyframedMotion?.copyTo(prim, copy.clock) ?? null
       for (const item of source.inventory) {
         if (item.script) {
-          const script = item.script.copyTo(prim, { unseated })
+          const script = item.script.copyTo(prim, { unseated, waiting })
           Object.assign(prim.inventory.at(-1)!, { ...item, permMask: { ...item.permMask }, script })
         } else prim.placeInventory({ ...item, permMask: { ...item.permMask } })
       }
