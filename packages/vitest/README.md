@@ -2052,11 +2052,27 @@ s.start()
 expect(s.coverage!.functions.find((f) => f.name === 'bump')!.hits).toBeGreaterThan(0)
 ```
 
+Without the reporter installed, the env var collects and the CLI renders.
+Add the setup file that saves each test file's coverage for the CLI:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    setupFiles: ['@rezless/vitest/coverage-setup'],
+  },
+})
+```
+
 ```sh
-# Without the reporter installed — env var collects, CLI renders.
 LSL_COVERAGE=1 pnpm test
 pnpm exec rezless-coverage
 ```
+
+The setup file writes nothing in a run without `LSL_COVERAGE=1`, so it can
+stay in the config. `LslCoverageReporter` adds it by itself.
 
 By default, reports for synthetic filenames (`<inline>`, names without a
 path separator, paths that don't exist on disk) are omitted — they're
