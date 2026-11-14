@@ -252,12 +252,8 @@ export class RlvSession {
     this.collectionRunning = false
     this.availability.clear()
     if (this.clock) {
-      // Requeue the surviving events in their original order, including unrelated listens.
-      const pending = this.clock.pendingEvents()
-      for (const target of new Set(pending.map(event => event.target))) this.clock.purgeTarget(target)
-      for (const event of pending) {
-        if (!this.replyPayloads.has(event.payload)) this.clock.restore(event)
-      }
+      // The surviving events keep their order, including unrelated listens.
+      this.clock.purgeWhere(event => this.replyPayloads.has(event.payload))
     }
     for (const recipient of this.recipients) {
       for (let index = recipient.parkedEvents.length - 1; index >= 0; --index) {

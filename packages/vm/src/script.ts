@@ -1,6 +1,6 @@
 import { clearTargetMotion } from './builtins/motion.js'
 import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
-import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
+import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY, TOUCH_INVALID_FACE } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
@@ -1100,7 +1100,7 @@ export class Script {
       // still read who had touched it.
       if (this.task?.slua && (this.slua.running || this.sluaAsleep)) {
         // The copy gets the event's data, not the host's bookkeeping for the original's delivery.
-        const slua = { event: this.task.slua.event, payload: eventData(this.task.slua.payload) }
+        const slua = { event: this.task.slua.event, payload: eventData(this.task.slua.event, this.task.slua.payload) }
         copy.sluaAsleep = true
         copy.task = {
           run: copy.runHandler(slua.event, () => {
@@ -1147,8 +1147,10 @@ export class Script {
     copy.state.listens.push(...structuredClone(this.state.listens))
     copy.state.listenHandleCounter = this.state.listenHandleCounter
     copy.clockView.timerIntervalMs = this.clockView.timerIntervalMs
-    // A script that is down keeps how long its tick has been overdue.
-    const left = this.clockView.timerNextFireMs - this.now
+    // In-world: a timer set 3 s before a detach fired 7 s after the object was rezzed from
+    // inventory. Time in inventory does not count. A script that is down keeps how long its
+    // tick has been overdue.
+    const left = this.clockView.timerNextFireMs - this.clockView.stoppedAt
     copy.clockView.timerNextFireMs = copy.now + (this.running ? Math.max(0, left) : left)
     copy.clockView.timeReferenceMs = copy.now - (this.clockView.stoppedAt - this.clockView.timeReferenceMs)
     copy.clockView.minEventDelayMs = this.clockView.minEventDelayMs
@@ -1167,14 +1169,15 @@ export class Script {
       // A copy that came back without its controls has no use for a waiting control event.
       if (e.event === 'control' && !(copy.state.permissions.granted & PERMISSION_TAKE_CONTROLS)) continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
-      // changed(CHANGED_LINK) in the copy, the one `unseated` brings.
-      if (merge && e.event === '__unseated') continue
-      const data = eventData(e.payload)
-      if (merge && e.event === 'changed') {
+      // changed(CHANGED_LINK) in the copy, the one `unseated` brings. An earlier stand event
+      // keeps only the other changes that were merged into it.
+      const data = eventData(e.event, e.payload)
+      const stand = merge && (e.event === 'changed' || e.event === '__unseated')
+      if (stand) {
         data['changes'] = (data['changes'] as number) & ~CHANGED_LINK
         if (!data['changes']) continue
       }
-      copy.clockView.schedule(copy.now, e.event, data)
+      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, this.linkset.clock.heldBack(e, this.task?.startedAt))
     }
     return copy
   }
@@ -1182,7 +1185,13 @@ export class Script {
   /** Queue rez lifecycle events after restoring the inventory script's saved data. */
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
-    if (this.clockView.inInventory) this.dropSeatPermissions()
+    const detached = this.clockView.inInventory
+    if (detached) {
+      this.dropSeatPermissions()
+      this.state.detectedStack.forEach((context, i, stack) => {
+        if (isTouch(context.event)) stack[i] = { ...context, entries: throughInventory(context.event, context.entries) }
+      })
+    }
     const unseated = this.unseated
     this.unseated = false
     const ownerChanged = this.ownerChangedAtRez
@@ -1215,12 +1224,23 @@ export class Script {
       this.started = true
       this.clockView.schedule(this.now, 'state_entry')
     }
-    if (room > 0) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
+    // In-world: an object rezzed with start parameter 2, taken back and rezzed with 3 inside one
+    // sleep ran on_rez(2), the events that were waiting, and on_rez(3) where it had come in.
+    const rezzed = waiting.some(e => e.event === 'on_rez')
+    if (room > 0 && !rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
     if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer()
+    for (const e of waiting) {
+      if (e.event === 'state_entry') continue
+      const detected = e.payload['detected']
+      const payload = detached && isTouch(e.event) && Array.isArray(detected)
+        ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload
+      // An event that is not due yet is judged when it is.
+      clock.schedule(this, Math.max(e.at, this.now), e.event, payload, e.at <= this.now ? clock.heldBack(e, this.task?.startedAt) : undefined)
+    }
+    if (room > 0 && rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
     // time it is rezzed, and after attach when it is worn.
-    for (const e of waiting) if (e.event !== 'state_entry') clock.schedule(this, Math.max(e.at, this.now), e.event, e.payload)
     // In-world: a seat taken from under its sitter twice inside one sleep ran both on_rez events
     // and then one changed(CHANGED_LINK).
     // In-world: a given item rezzed by its new owner said changed(CHANGED_OWNER) after on_rez, and
@@ -1411,7 +1431,7 @@ export class Script {
   private carrySleepingHandler(copy: Script, task: Task & { lsl: LslRun }): void {
     const { handler, args, state, globals } = task.lsl
     // The copy gets the event's data, not the host's bookkeeping for the original's delivery.
-    const payload = eventData(task.lsl.payload)
+    const payload = eventData(handler.name, task.lsl.payload)
     this.ast.globals.forEach((g, i) => copy.globals.set(g.name, globals[i]!))
     copy.state.currentState = state
     const lsl: LslRun = { ...task.lsl, payload, journal: { names: [...task.lsl.journal.names], results: [...task.lsl.journal.results], replayed: 0 } }
@@ -1434,6 +1454,7 @@ export class Script {
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until }
+      this.linkset.clock.releaseAtWake(this, task.startedAt)
       return
     }
     this.finish(task)
@@ -1444,7 +1465,7 @@ export class Script {
   private finish(task: Task): void {
     if (this.now === task.startedAt) return
     this.clockView.busyUntilMs = this.now
-    this.linkset.clock.requeue(this)
+    this.linkset.clock.requeue(this, task.startedAt)
   }
 
   private abandon(): void {
@@ -1730,11 +1751,28 @@ export class Script {
   }
 }
 
-/** A copy of an event's payload without the keys the host keeps for itself (`__...`). */
-function eventData(payload: Record<string, unknown>): Record<string, unknown> {
+/**
+ * What a detected list reads once its object has been through inventory.
+ * In-world: a click on face 3 read llDetectedTouchFace -1 after a take and rez, and after a
+ * detach and wear, in the touch handler that slept through it and in the touch events that
+ * waited. The toucher's key stayed. The probe's clicks carried no surface point, so the rest
+ * of the click's surface data goes with the face here unmeasured.
+ */
+function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>): DetectedEntry[] {
+  return detected.map(entry => {
+    if (!isTouch(event)) return { ...entry }
+    const { touchPos, touchST, touchUV, touchNormal, touchBinormal, ...kept } = entry
+    return { ...kept, touchFace: TOUCH_INVALID_FACE }
+  })
+}
+
+const isTouch = (event: string | undefined) => event === 'touch_start' || event === 'touch' || event === 'touch_end'
+
+/** A copy of an event's payload without the keys the host keeps for itself (`__...`), as it reads after inventory. */
+function eventData(event: string, payload: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(payload)) {
-    if (!key.startsWith('__')) data[key] = key === 'detected' && Array.isArray(value) ? value.map(entry => ({ ...entry })) : value
+    if (!key.startsWith('__')) data[key] = key === 'detected' && Array.isArray(value) ? throughInventory(event, value) : value
   }
   return data
 }
