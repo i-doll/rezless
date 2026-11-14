@@ -8,7 +8,7 @@ import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } f
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
-import { cancelPendingSit, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
+import { cancelPendingGroundSit, cancelPendingSit, groundSitAfterStand, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
@@ -577,6 +577,7 @@ export class World {
     if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region ||
       this.avatars.some(a => a !== avatar && a.sittingOn === prim)) return false
     cancelPendingSit(avatar)
+    cancelPendingGroundSit(avatar)
     if (avatar.sittingOn === prim) return true
     const previous = avatar.sittingOn?.linkset
     if (placement) this.sitPlacements.set(avatar, placement)
@@ -599,6 +600,7 @@ export class World {
     avatar.standingRotation = null
     if (previous) this.sitChanged(previous)
     if (sitting) returnStandtpAvatar(this, avatar)
+    if (previous) groundSitAfterStand(this, avatar)
   }
 
   /** Ground sitting has AGENT_SITTING but no object parent or new link. */

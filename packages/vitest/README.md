@@ -1236,13 +1236,20 @@ Pathfinding, automatic collision placement and avatar body offsets remain explic
 inputs rather than a simulated physics or avatar skeleton.
 
 Empty and null-UUID sit requests ground sitting in RLVa and have no effect in
-Kokua. Ground sitting sets `AGENT_SITTING`, clears `AGENT_ON_OBJECT`, and removes an
-existing object seat. `unsit=force` stands the avatar. Successful object sit/stand
+Kokua. `sitground=force` ground-sits in both profiles and ignores its option.
+Ground sitting sets `AGENT_SITTING`, clears `AGENT_ON_OBJECT`, and removes an
+existing object seat. From a seat, the avatar stands at once, so the seat's
+`CHANGED_LINK` handler reads it standing, and sits on the ground 300 ms later (the grid's delay varied between 0.265 and
+0.53 s in seven runs over two sessions);
+advance virtual time to finish it. The command log records `pending`, then the outcome. A later sit request drops it. Kokua checks
+its sit locks again before that ground sit; RLVa does not. In RLVa a standtp return
+replaces it, and RLVa then ground-sits the avatar at its next stand from an object. `unsit=force` stands the avatar. Successful object sit/stand
 operations produce normal `CHANGED_LINK` events; ground sitting adds no object link.
 
 Object force sit obeys all no-option `sit` locks and, while already sitting, all
 `unsit` locks. RLVa force unsit and ground sit exempt only the issuing prim;
-Kokua force unsit exempts no emitter. Force commands retain these checks independently of user attempts.
+Kokua force unsit and ground sit exempt no emitter, and its ground sit also obeys
+an enforced `interact` lock. Force commands retain these checks independently of user attempts.
 
 `standtp=n` returns the avatar after user stand, force unsit, `llUnSit`, or seat
 deletion. Viewer object-sit requests from standing save the global return origin.
@@ -1262,10 +1269,10 @@ ordinary actions, including whether user stand or force unsit is accepted.
 Login persistence and Kokua's optional standtp defeat setting are outside the fixture.
 
 Inspect `avatar.viewer.commandLog` records with `status: 'action'`: `action`,
-`actionOutcome` (`applied`, `unchanged`, or `refused`), requested `target`, resulting
+`actionOutcome` (`applied`, `unchanged`, `refused` or `pending`), requested `target`, resulting
 `seat`, and an optional refusal `reason`. These are synchronous fixture outcomes,
 not confirmations from a network simulator. Unsupported forms retain diagnostics.
-The manifest includes `getsitid`, force `sit`/`unsit`, and add/remove
+The manifest includes `getsitid`, force `sit`/`sitground`/`unsit`, and add/remove
 `sit`/`unsit`/`sittp`/`standtp` forms in command discovery.
 
 ### Command discovery and shared folder queries

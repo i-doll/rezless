@@ -20,32 +20,39 @@ type Action = Extract<RlvCommandRecord, { status: 'action' }>
 /** Force actions use world constraints and do not grant script permissions. */
 export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: WorldAvatar,
   parsed: RlvParsedCommand, command: string): boolean {
-  if (parsed.kind !== 'force' || parsed.behaviour !== 'sit' && parsed.behaviour !== 'unsit') return false
+  const { behaviour } = parsed
+  if (parsed.kind !== 'force' || behaviour !== 'sit' && behaviour !== 'unsit' && behaviour !== 'sitground') return false
   const { viewer } = avatar
-  if (parsed.behaviour === 'unsit' && parsed.option) return false
-  if (parsed.behaviour === 'sit' && parsed.option && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(parsed.option)) return false
+  if (behaviour === 'unsit' && parsed.option) return false
+  if (behaviour === 'sit' && parsed.option && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(parsed.option)) return false
   const world = linkset.world!
   const sitting = !!(avatar.info & AGENT_SITTING)
-  const target = parsed.behaviour === 'sit' ? parsed.option || NULL_KEY : getRlvSitId(avatar)
+  const target = behaviour === 'sit' ? parsed.option || NULL_KEY : behaviour === 'unsit' ? getRlvSitId(avatar) : NULL_KEY
   const locked = (behaviour: string, except?: string) => viewer.restrictions.snapshot()
     .some(rule => rule.behaviour === behaviour && !rule.option && rule.sourcePrim !== except)
   const record = (actionOutcome: Action['actionOutcome'], reason?: Action['reason']): true => {
-    viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'action', action: parsed.behaviour as 'sit' | 'unsit',
+    viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'action', action: behaviour,
       actionOutcome, target, seat: getRlvSitId(avatar), ...(reason ? { reason } : {}) })
     return true
   }
-  if (parsed.behaviour === 'unsit') {
+  if (behaviour === 'unsit') {
     if (!sitting) return record('unchanged')
     if (locked('unsit', viewer.profile === 'rlva' ? prim.key : undefined)) return record('refused', 'restriction')
     world.standAvatar(avatar)
     return record('applied')
   }
   if (target === NULL_KEY) {
-    if (viewer.profile === 'rlv') return record('refused', 'target-unavailable')
-    if (locked('sit', prim.key) || sitting && locked('unsit', prim.key)) return record('refused', 'restriction')
-    if (sitting && !avatar.sittingOn) return record('unchanged')
-    world.sitAvatarOnGround(avatar)
-    return record('applied')
+    if (viewer.profile === 'rlv') {
+      // Kokua's null-key sit seats nothing. Its sitground checks the stand's
+      // unsit lock and the ground sit's locks, with no exception for the issuer.
+      if (behaviour === 'sit') return record('refused', 'target-unavailable')
+      if (sitting && !avatar.sittingOn) return record('unchanged')
+      if (avatar.sittingOn && locked('unsit')) return record('refused', 'restriction')
+    } else {
+      if (locked('sit', prim.key) || sitting && locked('unsit', prim.key)) return record('refused', 'restriction')
+      if (sitting && !avatar.sittingOn) return record('unchanged')
+    }
+    return forceGroundSit(world, avatar, record)
   }
   if (locked('sit') || sitting && (locked('unsit') || viewer.profile === 'rlva' && hasStandtp(avatar))) return record('refused', 'restriction')
   const requested = world.linksets.flatMap(l => l.prims).find(p => p.key.toLowerCase() === target)
@@ -57,6 +64,80 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
   if (!seat) return record('refused', 'world-constraint')
   const outcome = requestViewerSit(world, avatar, seat, outcome => record(outcome, outcome === 'refused' ? 'world-constraint' : undefined))
   return record(outcome, outcome === 'refused' ? 'world-constraint' : undefined)
+}
+
+// In-world: after a ground sit from a seat, the seat's changed handler read the avatar standing
+// until at least 0.2 s after the event; the delay varied between 0.265 and 0.53 s in seven runs
+// over two sessions (Aditi, SLua Tideland, 2026-11-14). 300 ms lies inside that range.
+const GROUND_SIT_DELAY_MS = 300
+
+function kokuaGroundSitLocked(avatar: WorldAvatar): boolean {
+  return avatar.viewer.restrictions.snapshot().some(rule => !rule.option &&
+    (rule.behaviour === 'sit' || rule.behaviour === 'interact' && rule.support === 'enforced'))
+}
+
+type GroundSitRecord = (outcome: Action['actionOutcome'], reason?: Action['reason']) => true
+
+function sitOnGround(world: World, avatar: WorldAvatar, record?: GroundSitRecord): void {
+  if (avatar.viewer.profile === 'rlv') {
+    // Kokua stops flying before its sitDown checks the locks.
+    avatar.info &= ~AGENT_FLYING
+    if (kokuaGroundSitLocked(avatar)) { record?.('refused', 'restriction'); return }
+    if (hasStandtp(avatar)) rememberStandtpOrigin(world, avatar)
+  }
+  world.sitAvatarOnGround(avatar)
+  record?.('applied')
+}
+
+const pendingGroundSits = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
+// RLVa keeps its pending ground sit when a standtp return takes the stand.
+const keptGroundSits = new WeakSet<Readonly<{ dead: boolean }>>()
+
+function scheduleGroundSit(world: World, avatar: WorldAvatar, record?: GroundSitRecord): void {
+  cancelPendingGroundSit(avatar)
+  const lifetime = avatar.viewer.session.lifetime
+  const cancel = world.clock.scheduleTask(lifetime, world.clock.now + GROUND_SIT_DELAY_MS, () => {
+    pendingGroundSits.delete(lifetime)
+    if (world.avatars.includes(avatar) && !(avatar.info & AGENT_SITTING)) sitOnGround(world, avatar, record)
+  })
+  pendingGroundSits.set(lifetime, cancel)
+}
+
+/**
+ * A standing avatar sits on the ground at once. A seated one stands first, and
+ * the viewer asks for the ground sit once it sees the stand, so the seat's
+ * changed event finds the avatar standing.
+ */
+function forceGroundSit(world: World, avatar: WorldAvatar, record: GroundSitRecord): true {
+  const lifetime = avatar.viewer.session.lifetime
+  cancelPendingGroundSit(avatar)
+  keptGroundSits.delete(lifetime)
+  if (!avatar.sittingOn) {
+    sitOnGround(world, avatar, record)
+    return true
+  }
+  world.standAvatar(avatar)
+  // RLVa's stand handler runs the standtp return instead of the ground sit.
+  if (avatar.viewer.profile === 'rlva' && standtpState(avatar).pending) {
+    keptGroundSits.add(lifetime)
+    return record('applied')
+  }
+  scheduleGroundSit(world, avatar, record)
+  return record('pending')
+}
+
+/** RLVa runs a kept ground sit at the next stand from an object that no standtp return takes. */
+export function groundSitAfterStand(world: World, avatar: WorldAvatar): void {
+  const lifetime = avatar.viewer.session.lifetime
+  if (avatar.viewer.profile !== 'rlva' || !keptGroundSits.has(lifetime) || standtpState(avatar).pending) return
+  keptGroundSits.delete(lifetime)
+  scheduleGroundSit(world, avatar)
+}
+
+/** A later sit or ground sit replaces a ground sit still waiting for its stand. */
+export function cancelPendingGroundSit(avatar: WorldAvatar): void {
+  pendingGroundSits.get(avatar.viewer.session.lifetime)?.()
+  pendingGroundSits.delete(avatar.viewer.session.lifetime)
 }
 
 /** Both viewers use float prefixes; only RLVa rejects conversion range errors. */
@@ -215,6 +296,7 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
     return 'refused'
   }
   cancelPendingSit(avatar)
+  cancelPendingGroundSit(avatar)
   avatar.info &= ~AGENT_FLYING
   const previous = avatar.sittingOn
   rememberStandtpSit(world, avatar)
