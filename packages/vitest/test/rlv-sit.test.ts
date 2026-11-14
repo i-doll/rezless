@@ -256,7 +256,7 @@ it('discovers seating force and reply forms without duplicate force entries', as
   expect(pair.rlv.script.global('replies')).toEqual([])
 })
 
-it('selects free configured targets and refuses an entirely occupied fixture', async () => {
+it('selects free configured targets and seats beside a taken one when every target is taken', async () => {
   const pair = await loadRlvPair({ source: controller })
   for (const { script, world, avatar } of Object.values(pair)) {
     const seat = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
@@ -270,9 +270,11 @@ it('selects free configured targets and refuses an entirely occupied fixture', a
     expect(avatar.sittingOn?.key).toBe(seat.prims[1]!.key)
     issue(script, '@unsit=force')
     world.sitAvatar(second, seat.prims[1]!)
+    // In-world: with every sit target taken, a sit request on a prim seated the avatar on
+    // that prim where it sits without a sit target (Aditi, SLua Tideland, 2026-11-14).
     issue(script, '@sit:' + seat.prims[0]!.key + '=force')
-    expect(avatar.sittingOn).toBeNull()
-    expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'action', actionOutcome: 'refused', reason: 'world-constraint' })
+    expect(avatar.sittingOn?.key).toBe(seat.prims[0]!.key)
+    expect(avatar.sitPlacement?.position).toEqual({ x: 0, y: 0, z: 0 })
     expect(first.sittingOn?.key).toBe(seat.prims[0]!.key)
     expect(second.sittingOn?.key).toBe(seat.prims[1]!.key)
   }

@@ -565,21 +565,40 @@ export class World {
   getSitResponse(avatar: WorldAvatar, prim: Prim): AvatarSitResponse | null {
     if (this.sitResponses.has(prim)) return this.sitResponses.get(prim)!
     const target = prim.params.sitTarget
-    if (target.enabled) return { position: target.offset, rotation: target.rotation }
+    const holder = this.avatarOnSitTarget(prim)
+    // In-world a request on a sit target another avatar holds seats the avatar where it would sit without one.
+    if (target.enabled && (!holder || holder === avatar)) return { position: target.offset, rotation: target.rotation }
     const position = prim.regionPosition(), origin = avatar.position
     // The default plain-prim response covers nearby seats. Other surfaces use explicit responses.
     if (Math.hypot(position.x - origin.x, position.y - origin.y, position.z - origin.z) > 8) return null
     return sitSpot(prim, avatar)
   }
 
-  /** Seed simulator seating on a free prim, independently of viewer restrictions. */
+  private readonly besideSitTarget = new WeakSet<WorldAvatar>()
+
+  /** The avatar on `prim`'s sit target. An avatar that sat while another held it sits beside it and never takes it over. */
+  avatarOnSitTarget(prim: Prim): WorldAvatar | undefined {
+    if (!prim.params.sitTarget.enabled) return undefined
+    return this.avatars.find(a => a.sittingOn === prim && !this.besideSitTarget.has(a))
+  }
+
+  /**
+   * Seed simulator seating, independently of viewer restrictions. On a prim
+   * whose sit target another avatar holds, the avatar sits beside it, where it
+   * would sit without a sit target unless `placement` says otherwise.
+   */
   sitAvatar(avatar: WorldAvatar, prim: Prim, placement?: AvatarSitResponse): boolean {
     const linkset = prim.linkset
-    if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region ||
-      this.avatars.some(a => a !== avatar && a.sittingOn === prim)) return false
+    if (!this.avatars.includes(avatar) || linkset?.world !== this || linkset.dead || linkset.attachment || avatar.region !== linkset.region) return false
     cancelPendingSit(avatar)
     cancelPendingGroundSit(avatar)
     if (avatar.sittingOn === prim) return true
+    if (this.avatarOnSitTarget(prim)) {
+      this.besideSitTarget.add(avatar)
+      placement ??= { position: ZERO_VECTOR, rotation: ZERO_ROTATION }
+    } else {
+      this.besideSitTarget.delete(avatar)
+    }
     const previous = avatar.sittingOn?.linkset
     if (placement) this.sitPlacements.set(avatar, placement)
     avatar.sittingOn = prim
