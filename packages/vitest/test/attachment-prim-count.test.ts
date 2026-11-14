@@ -162,8 +162,8 @@ describe('the prim count of an attachment being detached', () => {
     worn.scripts.worn!.start()
     reader.scripts.reader!.start()
     worn.linkset.attachToAvatar(AVATAR, point, temporary)
+    // The wearer is granted PERMISSION_ATTACH without a dialog.
     worn.linkset.touch(worn.linkset.prims[0]!.linkNumber, { avatar: { key: AVATAR, name: 'av' } })
-    worn.scripts.worn!.grantPermissions()
     worn.linkset.advanceTime(1000)
     reader.linkset.touch(0)
     reader.linkset.advanceTime(100)
