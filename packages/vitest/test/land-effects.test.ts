@@ -146,6 +146,17 @@ describe('parcel effect requests', () => {
       expect(s.chat).toEqual([{ channel: 2147483647, type: 'say', text: 'Script asking non-owner for run time permissions only owner can grant' }])
     })
 
+  // Not measured: the probe avatars cannot deed an object to a group. A deeded
+  // object still records the request, as before.
+  it('records an owner-only request from a group-deeded object', async () => {
+    const { world } = fixture()
+    const { s, linkset } = await run(world, '', OTHER, `touch_start(integer n){llRequestPermissions("${OWNER}",PERMISSION_CHANGE_LINKS);}`)
+    world.sensorProperties.set(linkset, { group: OTHER })
+    s.linkset.touch(0)
+    expect(s.permissionRequests).toMatchObject([{ agent: OWNER, permissions: 128 }])
+    expect(s.chat).toEqual([])
+  })
+
   it('keeps transaction IDs distinct', async () => {
     const { world } = fixture()
     const { s } = await run(world, 'llRequestPermissions(llGetOwner(),PERMISSION_DEBIT);', OWNER,

@@ -117,7 +117,7 @@ it.each(['llMapDestination("", <-20,999,9000>, ZERO_VECTOR)', 'llMapBeacon("", <
   expect(s.now).toBe(1000)
 })
 
-it('addresses a touch map request to the toucher, and other events to the owner', async () => {
+it('addresses a touch map request to the toucher, and a sensor beacon to the owner', async () => {
   // In-world: fivebot's click on i doll's object showed the map to fivebot only
   // (Aditi, SLua Tideland, 2026-11-14; more in two-avatars.test.ts). llMapBeacon follows the wiki.
   const owner = '00000000-0000-0000-0000-00000000000a'

@@ -21,7 +21,8 @@ const OWNER_ONLY = PERMISSION_DEBIT | PERMISSION_CHANGE_LINKS | PERMISSION_RETUR
  * request and applies the recipient viewer auto-grant rules. Other requests
  * wait for Script.grantPermissions or Script.denyPermissions.
  * Requesting no permissions fires nothing. Asking anyone but the owner for
- * a permission only the owner can grant is refused without a request.
+ * a permission only the owner can grant is refused without a request, except
+ * in a group-deeded object, which was not measured.
  */
 export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const agent = (args[0] as string | undefined) ?? ''
@@ -30,7 +31,9 @@ export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
     sayError(ctx, 'Temporary attachments cannot request runtime permissions to teleport')
     return undefined
   }
-  if ((permissions & OWNER_ONLY) && agent.toLowerCase() !== ctx.linkset.owner.toLowerCase()) {
+  const owner = ctx.linkset.owner.toLowerCase()
+  const deeded = ctx.linkset.world?.sensorProperties.get(ctx.linkset)?.group?.toLowerCase() === owner
+  if ((permissions & OWNER_ONLY) && !deeded && agent.toLowerCase() !== owner) {
     sayError(ctx, 'Script asking non-owner for run time permissions only owner can grant')
     return undefined
   }

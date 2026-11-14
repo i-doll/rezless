@@ -219,11 +219,13 @@ describe('llMapDestination audiences', () => {
 
   // In-world: in an attachment i doll wore, a listen from either avatar showed the map
   // to i doll. A click by i doll showed it to i doll, both calls of a touch_start that
-  // made two. Clicks by fivebot showed it to nobody.
+  // made two. Clicks by fivebot showed it to nobody. An attach, a timer and a
+  // state_entry after llResetScript in the worn object showed it to i doll.
   it('shows an attachment\'s map to its owner only', async () => {
     const w = await world()
     const { script: s, linkset } = await object(w, owner, `default {
       state_entry() { llListen(5, "", NULL_KEY, ""); }
+      attach(key id) { if (id) ${map(4)}; }
       touch(integer n) { ${map(1)}; ${map(3)}; }
       listen(integer c, string n, key id, string m) { ${map(2)}; }
     }`)
@@ -231,7 +233,7 @@ describe('llMapDestination audiences', () => {
     s.deliverChat({ channel: 5, name: 'fivebot', key: toucher, message: 'map' })
     linkset.touch(0, { avatar: { key: toucher, name: 'fivebot' } })
     linkset.touch(0, { avatar: { key: owner, name: 'i Doll' } })
-    expect(shown(s)).toEqual([[owner, 2], [owner, 1], [owner, 3]])
+    expect(shown(s)).toEqual([[owner, 4], [owner, 2], [owner, 1], [owner, 3]])
   })
 })
 
