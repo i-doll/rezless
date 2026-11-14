@@ -116,6 +116,19 @@ export class Linkset {
   readonly linkedMessages: LinkedMessageEntry[] = []
   /** Virtual times of recent llHTTPRequest calls, for the per-object throttle. */
   readonly httpRequestTimes: number[] = []
+  /** Scripts the object held when the region last worked out its server cost. */
+  countedScripts = 0
+
+  /**
+   * Count the scripts for OBJECT_SERVER_COST again. The region does so when
+   * the object is rezzed or linked, when an avatar sits on it or stands up,
+   * when a script is removed, when a child prim moves or turns in the object
+   * and when a prim's size, shape, physics shape, physics or temporary status
+   * changes. Adding a script counts those already there.
+   */
+  recountScripts(): void {
+    this.countedScripts = this.allScripts().length
+  }
 
   /** Drop every captured cross-script linked-message entry. */
   clearLinkedMessages(): void {
@@ -198,7 +211,10 @@ export class Linkset {
     point = point === 0 ? this.lastAttachmentPoint : point > 55 ? 1 : point
     const order = Math.max(0, ...this.peers.map(l => l.attachment?.order ?? 0)) + 1
     const fromInventory = !this.peers.includes(this)
-    if (fromInventory) this.peers.push(this)
+    if (fromInventory) {
+      this.peers.push(this)
+      this.recountScripts()
+    }
     this.lastAttachmentPoint = point
     this.attachment = { avatar, point, temporary, order }
     for (const script of this.allScripts()) {
@@ -265,6 +281,7 @@ export class Linkset {
       }
     }
     for (const [key, value] of this.linksetData) copy.linksetData.set(key, { ...value })
+    copy.recountScripts()
     return copy
   }
 
@@ -417,6 +434,7 @@ export class Linkset {
       a.sitPlacement = { position: rotateVector(offset, inverse), rotation: mulRotation(rot, inverse) }
     }
     this.recomputeLinkNumbers()
+    this.recountScripts()
   }
 
   /**

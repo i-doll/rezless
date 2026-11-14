@@ -495,7 +495,25 @@ Display name defaults to `name`, then `username`.
 and normal attachments return 0. Rezzed objects return 0 for both attachment flags.
 `llGetObjectPrimCount` reads 0 for any prim of a worn object, from its own
 scripts and from other objects. `llGetNumberOfPrims` and `OBJECT_PRIM_COUNT`
-still count its prims.
+still count its prims. In `attach(NULL_KEY)` a detached object still reads 0
+from `llGetObjectPrimCount`, its prims from `OBJECT_PRIM_COUNT` and 0 from
+`OBJECT_ATTACHED_POINT`. For other objects its key is gone by then.
+
+`OBJECT_SERVER_COST` is half a point for each prim and a quarter for each
+script the region counted when it last worked the cost out, and never more
+than one point for each prim. Second Life counts the scripts again when the
+object is rezzed or worn from inventory, when prims are linked or unlinked,
+when an avatar sits down on it or stands up, when a script is removed, when a
+child prim moves or turns in the object, and when a prim's size, shape,
+physics shape type, physics or temporary status changes. When a script is
+added it counts the scripts that were there before. So a new box with one
+script reads 0.5 until one of those changes, and 0.75 after. An object built
+with `loadLinkset` is such a box: its last script is not counted. Call
+`linkset.recountScripts()` for the value an object fresh from inventory reads.
+A stopped script counts, and LSL and SLua scripts count the same. A seated
+avatar reads the cost of the object it sits on, and 0 when it stands.
+`PRIM_PHYSICS_SHAPE_TYPE` keeps its value when a script sets an unknown type,
+or `PRIM_PHYSICS_SHAPE_NONE` on a root prim.
 
 `llGetObjectDetails` reads avatars in the caller's region. Position, rotation,
 velocity and size use the live avatar fixture; a seated avatar reports its seat's
@@ -546,6 +564,18 @@ prim anywhere in the object refuses it: the call returns `false` and no script
 in that object gets an event. An avatar sitting on another object stands up
 from it, and one sitting on the ground stays there. `@sit:<key>=force` is
 refused the same way.
+
+A prim without a sit target is out of reach more than 8 m away, unless
+`world.setSitResponse` gives it a response. A sit request on it is refused too,
+and again an avatar sitting on another object stands up from it. A sit target
+seats the avatar at any distance in the region.
+
+`avatar.viewer.alerts` lists what the region had the viewer show, each with
+`name`, `message` and the clock time `at`. A sit request refused for
+`SIT_FLAG_SCRIPTED_ONLY` adds `CantSitNoSuitableSurface`, "There is no suitable
+surface to sit on, try another spot.", unless the avatar sits on that object
+or the message last showed 10 s ago or less. A request refused for a prim out
+of reach adds nothing.
 
 A seated avatar is a link of the object, numbered after the prims. Several
 sitters are numbered in seating order, and later sitters move down a link when

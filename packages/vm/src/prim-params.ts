@@ -37,6 +37,8 @@ import {
   PRIM_OMEGA,
   PRIM_PHANTOM,
   PRIM_PHYSICS,
+  PRIM_PHYSICS_SHAPE_CONVEX,
+  PRIM_PHYSICS_SHAPE_NONE,
   PRIM_PHYSICS_SHAPE_PRIM,
   PRIM_PHYSICS_SHAPE_TYPE,
   PRIM_POINT_LIGHT,
@@ -567,9 +569,15 @@ export function writePrimParam(
       p.tempOnRez = num(rules[cursor]) !== 0
       prim.linkset?.setTemporary(p.tempOnRez)
       return 1
-    case PRIM_PHYSICS_SHAPE_TYPE:
-      p.physicsShapeType = num(rules[cursor]) | 0
+    case PRIM_PHYSICS_SHAPE_TYPE: {
+      // In-world: an unknown type, and PRIM_PHYSICS_SHAPE_NONE on a root, leave the shape as it was.
+      const type = num(rules[cursor]) | 0
+      const child = !!prim.linkset && prim !== prim.linkset.prims[0]
+      if (type === PRIM_PHYSICS_SHAPE_PRIM || type === PRIM_PHYSICS_SHAPE_CONVEX || type === PRIM_PHYSICS_SHAPE_NONE && child) {
+        p.physicsShapeType = type
+      }
       return 1
+    }
     case PRIM_CAST_SHADOWS:
       p.castShadows = num(rules[cursor]) !== 0
       return 1

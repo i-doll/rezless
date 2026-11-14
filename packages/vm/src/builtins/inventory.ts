@@ -216,6 +216,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
   if (script) {
     ctx.prim.scripts.splice(ctx.prim.scripts.indexOf(script), 1)
     script.markDead()
+    ctx.linkset.recountScripts()
     if (script === ctx.script) ctx.state.lifecycle.removed = true
   }
   return undefined

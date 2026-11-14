@@ -472,8 +472,12 @@ export class World {
         if (previous && previous !== value?.linkset) for (const script of previous.allScripts()) script.sitterLeft(avatar.key)
         seat = value
         // A sitter is a link, so the object it leaves and the one it joins renumber.
-        if (previous && previous !== seat?.linkset) previous.recomputeLinkNumbers()
+        if (previous && previous !== seat?.linkset) {
+          previous.recomputeLinkNumbers()
+          previous.recountScripts()
+        }
         seat?.linkset?.recomputeLinkNumbers()
+        if (seat && seat.linkset !== previous) seat.linkset?.recountScripts()
         sittingCamera = seat ? { eye: { ...seat.cameraEyeOffset }, at: { ...seat.cameraAtOffset } } : null
         if (seat?.forceMouselook && canRlvEnterMouselook(avatar)) info |= AGENT_MOUSELOOK
         const target = seat?.params.sitTarget

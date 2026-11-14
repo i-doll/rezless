@@ -106,6 +106,7 @@ export const llScaleByFactor: BuiltinImpl = (ctx, args) => {
     p.params.size = { x: s.x * factor, y: s.y * factor, z: s.z * factor }
     raisePrimChanged(p, CHANGED_SCALE)
   }
+  if (factor !== 1) ctx.linkset.recountScripts()
   return 1
 }
 export const llGetMaxScaleFactor: BuiltinImpl = (ctx) => {

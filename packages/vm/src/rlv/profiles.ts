@@ -85,12 +85,22 @@ export type RlvCommandRecord = {
   readonly reason?: 'restriction' | 'target-unavailable' | 'world-constraint'
 } | { readonly status: 'action'; readonly action: 'fly' | 'adjustheight'; readonly actionOutcome: 'applied' | 'unchanged' | 'refused'; readonly reason?: 'restriction' | 'target-unavailable' | 'world-constraint' } | import('./teleport.js').RlvTeleportAction)
 
+/** A message the region had the viewer show, by its notification name. */
+export interface ViewerAlert {
+  readonly name: string
+  readonly message: string
+  /** World clock time in ms. */
+  readonly at: number
+}
+
 /** Per-avatar emulator state shared by commands from all owned prims. */
 export interface ViewerState extends RlvViewerControls {
   readonly profile: ViewerProfile
   readonly reference: RlvReference | null
   readonly diagnostics: RlvDiagnostic[]
   readonly commandLog: RlvCommandRecord[]
+  /** Messages the region had the viewer show, with or without RLV. */
+  readonly alerts: ViewerAlert[]
   readonly blacklist: RlvBlacklist
   readonly environment: RlvEnvironment
   readonly debugSettings: RlvDebugSettings
@@ -102,5 +112,5 @@ export interface ViewerState extends RlvViewerControls {
 export function createViewerState(config?: ViewerConfig): ViewerState {
   const profile = config?.profile ?? 'disabled'
   const session = new RlvSession(profile, config)
-  return Object.assign(new RlvViewerControls(), { debugSettings: new RlvDebugSettings(profile, config), environment: new RlvEnvironment(profile, config?.environment), blacklist: new RlvBlacklist(profile, config), session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) })
+  return Object.assign(new RlvViewerControls(), { debugSettings: new RlvDebugSettings(profile, config), environment: new RlvEnvironment(profile, config?.environment), blacklist: new RlvBlacklist(profile, config), session, profile, reference: profile === 'disabled' ? null : RLV_PROFILES[profile], diagnostics: [], commandLog: [], alerts: [], restrictions: new RlvRestrictions(profile, session), inventory: new RlvInventory(config?.inventory) })
 }

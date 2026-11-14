@@ -74,7 +74,7 @@ export type { VehicleSettings, VehicleRequest, VehicleRequestName } from './buil
 
 export { RLV_PROFILES } from './rlv/profiles.js'
 export { getRlvFov, changeRlvFov } from './rlv/camera.js'
-export type { RlvProfile, ViewerProfile, ViewerConfig, ViewerState, RlvReference, RlvDiagnostic, RlvReply, RlvCommandRecord } from './rlv/profiles.js'
+export type { RlvProfile, ViewerProfile, ViewerConfig, ViewerState, ViewerAlert, RlvReference, RlvDiagnostic, RlvReply, RlvCommandRecord } from './rlv/profiles.js'
 export { RLV_MANIFEST } from './rlv/manifest.js'
 export type { RlvCommandContract, RlvCommandProfile, RlvEvidence, RlvComparison, RlvSupportDepth } from './rlv/manifest.js'
 
