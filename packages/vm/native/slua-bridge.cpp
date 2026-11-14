@@ -748,7 +748,6 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
     Luau::CompileOptions options;
     options.optimizationLevel = 1;
     options.debugLevel = 1;
-    options.typeInfoLevel = 1;
     options.libraryMemberConstantCb = &luauSL_lookup_constant_cb;
 
     Luau::Allocator allocator;
@@ -818,13 +817,22 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
     s->handleEventRef = lua_ref(L, -1);
     lua_pop(L, 1);
 
+    // Second Life makes a new function each time a function expression runs,
+    // where Luau would hand back one it shares. Luau shares a function only
+    // with the environment the chunk was loaded with, so load it with the
+    // shared globals and run it with the script's own.
     std::string chunk = std::string("=") + name;
-    if (luau_load(L, chunk.c_str(), bytecode.data(), bytecode.size(), 0) != 0)
+    lua_pushvalue(GL, LUA_GLOBALSINDEX);
+    lua_xmove(GL, L, 1);
+    if (luau_load(L, chunk.c_str(), bytecode.data(), bytecode.size(), -1) != 0)
     {
         s->scratch = lua_tostring(L, -1);
-        lua_pop(L, 1);
+        lua_pop(L, 2);
         return 1;
     }
+    lua_remove(L, -2);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_setfenv(L, -2);
     // What the script starts with costs it nothing (as SLua's host, which
     // collects these before it creates the handler thread).
     s->freeObjects = lua_collectfreeobjects(L);

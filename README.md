@@ -965,9 +965,8 @@ Not modelled yet:
 
 * SLua script state isn't serialized, so a copy (rezzed from inventory,
   remote-loaded) starts afresh.
-* Making a function costs a script nothing unless the function captures a
-  variable. In Second Life every function made costs 20 bytes, so a script
-  right at its limit fails there and carries on in rezless.
+* `ll.GetUsedMemory()` reads 71 bytes more than in Second Life from the
+  start of a script.
 * `print()` goes to `s.printed`, not chat.
 * A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
