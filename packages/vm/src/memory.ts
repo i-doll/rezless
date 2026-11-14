@@ -97,9 +97,9 @@ export class Memory {
     this.stackHighWater = 0
   }
 
-  /** llSetMemoryLimit: accept a limit above current use, up to 64 KiB. */
-  setLimit(limit: number): boolean {
-    if (limit <= this.used || limit > MAX_MEMORY) return false
+  /** llSetMemoryLimit: accept a limit above current use, up to `max` (64 KiB for an LSL script). */
+  setLimit(limit: number, max = MAX_MEMORY): boolean {
+    if (limit <= this.used || limit > max) return false
     this.limit = limit
     return true
   }

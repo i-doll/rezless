@@ -6,7 +6,8 @@ import type { WorldAvatar } from '../world.js'
 import { readAvatarLinkParam, writeAvatarLinkParam } from '../avatar-link.js'
 import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET } from '../generated/constants.js'
 import { checkPrimRule, primParamTypes, writePrimParamSlots } from '../prim-params.js'
-import { typedList } from '../values/list-types.js'
+import { markLuaResult, typedList, type LuaResultKind } from '../values/list-types.js'
+import { primParamLuaKinds } from './slua-result-kinds.js'
 import { sayError } from './debug.js'
 import { setPrimParamWithChanged } from '../prim-changed.js'
 
@@ -70,6 +71,7 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
 function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
   const out: LslValue[] = []
   const types: Array<LslType | undefined> = []
+  const kinds: LuaResultKind[] = []
   let cur = start
   let i = 0
   while (cur && i < rules.length) {
@@ -100,9 +102,10 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
     }
     out.push(...values)
     types.push(...(valueTypes ?? primParamTypes(rule, values)))
+    kinds.push(...primParamLuaKinds(isPrim(cur) ? cur : undefined, rule, rules, i + 1, values))
     i += 1 + consumed
   }
-  return typedList(out, types)
+  return markLuaResult(typedList(out, types), kinds)
 }
 
 /** llSetPrimitiveParams(list rules) — caller's prim only (until PRIM_LINK_TARGET redirects). */

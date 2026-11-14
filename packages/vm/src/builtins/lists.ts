@@ -559,8 +559,8 @@ export const llListFindListNext: BuiltinImpl = (_ctx, args) => {
 /**
  * llListFindStrided(list src, list test, integer start, integer end, integer stride)
  * — first match of `test` beginning at start, start + stride, ... and no
- * later than end. Negative start or end count from the end; a stride below 1
- * acts as 1.
+ * later than end. Negative start or end count from the end, and one that
+ * still lands before the list finds nothing; a stride below 1 acts as 1.
  */
 export const llListFindStrided: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
@@ -570,7 +570,9 @@ export const llListFindStrided: BuiltinImpl = (_ctx, args) => {
   const stride = Math.max(1, (args[4] as number | undefined) ?? 1)
   if (start < 0) start += src.length
   if (end < 0) end += src.length
-  for (let i = Math.max(start, 0); i <= Math.min(end, src.length - test.length); i += stride) {
+  // A start or end before the list finds nothing; an end past it is the last entry.
+  if (start < 0 || end < 0) return -1
+  for (let i = start; i <= Math.min(end, src.length - test.length); i += stride) {
     if (matchesAt(src, test, i)) return i
   }
   return -1

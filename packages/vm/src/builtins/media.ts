@@ -2,7 +2,8 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim, PrimMediaParams } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { LslValue } from '../values/types.js'
-import { listElementType, ruleElementType, typedList } from '../values/list-types.js'
+import { listElementType, markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
+import { mediaParamLuaKind } from './slua-result-kinds.js'
 import { numberOfSides } from '../prim-params.js'
 import {
   CHANGED_MEDIA, STATUS_OK, STATUS_MALFORMED_PARAMS, STATUS_TYPE_MISMATCH,
@@ -161,6 +162,7 @@ function get(ctx: CallContext, prim: MediaHolder | undefined, face: number, rule
   const media = prim.media.get(face)
   if (!media) return []
   const values: LslValue[] = []
+  const kinds: LuaResultKind[] = []
   for (let i = 0; i < rules.length; i++) {
     if (!integer(rules, i)) continue
     const param = rules[i] as number
@@ -169,8 +171,9 @@ function get(ctx: CallContext, prim: MediaHolder | undefined, face: number, rule
       break
     }
     values.push(media[param]!)
+    kinds.push(mediaParamLuaKind(param))
   }
-  return typedList(values, values.map(v => typeof v === 'string' ? 'string' : 'integer'))
+  return markLuaResult(typedList(values, values.map(v => typeof v === 'string' ? 'string' : 'integer')), kinds)
 }
 
 function clear(ctx: CallContext, prim: MediaHolder | undefined, face: number): number {
