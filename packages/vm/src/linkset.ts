@@ -255,7 +255,7 @@ export class Linkset {
         if (item.script) {
           const script = item.script.copyTo(prim)
           Object.assign(prim.inventory.at(-1)!, { ...item, permMask: { ...item.permMask }, script })
-        } else prim.addInventory({ ...item, permMask: { ...item.permMask } })
+        } else prim.placeInventory({ ...item, permMask: { ...item.permMask } })
       }
     }
     for (const [key, value] of this.linksetData) copy.linksetData.set(key, { ...value })
