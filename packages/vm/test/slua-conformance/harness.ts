@@ -93,9 +93,8 @@ export function runSource(source: string, name = '<inline>'): ConformanceRun {
     error = e instanceof Error ? e.message : String(e)
   }
   const debug = script.chat.filter((c) => c.channel === 0x7fffffff).map((c) => c.text)
-  if (error === null && debug.includes('Script run-time error')) {
-    error = debug[debug.indexOf('Script run-time error') + 1] ?? 'Script run-time error'
-  }
+  const crash = debug.findIndex((text) => text.endsWith('Script run-time error'))
+  if (error === null && crash >= 0) error = debug[crash + 1] ?? 'Script run-time error'
   const ownerSays = script.callsOf('llOwnerSay').map((c) => String(c.args[0]))
   return { script, printed, ownerSays, error }
 }

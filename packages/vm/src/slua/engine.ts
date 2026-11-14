@@ -59,6 +59,13 @@ export class SluaRuntimeError extends RuntimeError {
     super(message)
     this.name = 'SluaRuntimeError'
   }
+
+  // Second Life says one of three texts, not the Lua message. The VM words an
+  // error value that isn't a string as "error object is a <type> value".
+  override get said(): string {
+    if (this.message === 'not enough memory') return this.message
+    return this.message.startsWith('error object is a ') ? 'Unknown runtime error' : 'runtime error'
+  }
 }
 
 /** One coverage plan entry from the instrumenter. */

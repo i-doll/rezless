@@ -38,7 +38,7 @@ function run(source: string): string[] {
     failed = true
   }
   const lines = script.chat.filter((c) => c.type === 'ownerSay').map((c) => c.text)
-  if (failed || script.chat.some((c) => c.channel === 0x7fffffff && c.text === 'Script run-time error')) {
+  if (failed || script.chat.some((c) => c.channel === 0x7fffffff && c.text.endsWith('Script run-time error'))) {
     lines.push('ERROR')
   }
   return lines
