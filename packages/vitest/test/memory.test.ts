@@ -343,7 +343,9 @@ describe('script memory: Stack-Heap Collision', () => {
     expect(after).toBe(before)
   })
 
-  it('a collision while a reset rebuilds the globals stops the script', async () => {
+  it('a reset rebuilds the globals at the default limit', async () => {
+    // In-world (Mono, Aditi, 2026-11-14): llSetMemoryLimit(40000) -> 1, then llResetScript() -> state_entry read
+    // llGetMemoryLimit() 65536. So globals that no longer fit a lowered limit are rebuilt at 65536.
     const s = await loadScript({
       source: `
         string g = "${'x'.repeat(2000)}";
@@ -352,12 +354,9 @@ describe('script memory: Stack-Heap Collision', () => {
       memoryLimit: true,
     })
     s.start()
-    expect(() => s.reset()).toThrow('Stack-Heap Collision')
-    expect(s.running).toBe(false)
-    expect(s.chat.filter((c) => c.channel === 2147483647).map((c) => c.text)).toEqual([
-      'Object [script:<inline>] Script run-time error',
-      'Stack-Heap Collision',
-    ])
+    s.reset()
+    expect(s.running).toBe(true)
+    expect(s.chat.filter((c) => c.channel === 2147483647)).toEqual([])
   })
 
   it('a reset gives back the last event’s stack before rebuilding globals', async () => {

@@ -292,6 +292,8 @@ function regionRotation(prim: Prim): Rotation {
 }
 
 const scriptsOf = (prim: Prim): Script[] => primsOf(prim).flatMap((p) => p.scripts)
+/** What OBJECT_SCRIPT_MEMORY counts for an SLua script, whatever its limit or use. */
+const SLUA_SCRIPT_MEMORY = 4096
 
 function timestamp(prim: Prim): string {
   const start = prim.linkset?.clock.startUnixTime ?? 0
@@ -336,7 +338,7 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
     case OBJECT_TOTAL_SCRIPT_COUNT:
       return int(scriptsOf(prim).length)
     case OBJECT_SCRIPT_MEMORY:
-      return int(scriptsOf(prim).reduce((sum, s) => sum + s.memoryLimit, 0))
+      return int(scriptsOf(prim).reduce((sum, s) => sum + (s.language === 'slua' ? SLUA_SCRIPT_MEMORY : s.memoryLimit), 0))
     case OBJECT_PRIM_EQUIVALENCE:
     case OBJECT_PRIM_COUNT:
       return int(count)

@@ -104,6 +104,11 @@ export class Memory {
     return true
   }
 
+  /** A reset LSL script starts again at the default limit. */
+  resetLimit() {
+    this.limit = MAX_MEMORY
+  }
+
   startProfiling(): void {
     this.profiling = true
     this.peak = this.used

@@ -383,7 +383,7 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
     // In-world, one script each: after llcompat.SetMemoryLimit(ll.GetUsedMemory()) -> 1, pcall(string.rep, "x", 64)
     // -> false, "not enough memory", and so did a pcall of a function calling itself 200 deep;
     // llcompat.SetMemoryLimit(131072) -> 1 afterwards. (Making a function at that limit ended the script in-world
-    // with "not enough memory". rezless charges nothing for a function without upvalues, so it carries on there.)
+    // with "not enough memory"; see memory-functions-reset.test.ts.)
     expect(
       await said(
         `local function down(n) if n == 0 then return 0 end return (down(n - 1)) end

@@ -1152,6 +1152,7 @@ export class Script {
   private restart(): void {
     this.abandon()
     this.state.memory.releaseStack()
+    if (!this.slua) this.state.memory.resetLimit()
     if (this.slua) {
       // An SLua reset discards the VM and runs the script from the top again.
       const old = this.slua
