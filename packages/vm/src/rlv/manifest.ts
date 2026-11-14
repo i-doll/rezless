@@ -1113,7 +1113,7 @@ export const RLV_MANIFEST: {
       profiles: {
         rlv: kokua(['RRInterface::reallyHandleCommand'], 'No getcommand query branch. Numeric reply parameter reaches fallback and returns false, rather than an empty successful query.'),
         rlva: { ...firestorm('rlvhandler.cpp', ['RlvReplyHandler<RLV_BHVR_GETCOMMAND>::onCommand'],
-          'Enumerates implemented command forms in restriction, force and reply order with substring filtering and any/add/force/reply types. State-only restrictions are discoverable with their depth exposed in metadata; unsupported forms are excluded. Omitted separator is semicolon; an explicit empty separator joins names directly. Invalid types deliver one empty reply and an invalid-option outcome. Reply transport truncates once at 1023 UTF-8 bytes.'),
+          'Enumerates implemented command forms in the order of RLVa\'s behaviour dictionary with substring filtering and any/add/force/reply types. Environment and debug settings and overlay and sphere modifiers are outside the dictionary and are not listed. State-only restrictions are discoverable with their depth exposed in metadata; unsupported forms are excluded. Omitted separator is semicolon; an explicit empty separator joins names directly. Invalid types deliver one empty reply and an invalid-option outcome. Reply transport truncates once at 1023 UTF-8 bytes.'),
           support: 'enforced', commandForms: replyForms('getcommand'),
           coveredForms: ['getcommand on valid positive reply channels', 'Substring filter, omitted/any/add/force/reply type, omitted/empty/custom separator, ignored extra fields', 'Implemented form metadata and distinguishable unsupported outcomes without synthetic acknowledgements'] },
       },

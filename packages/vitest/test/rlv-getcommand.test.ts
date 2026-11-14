@@ -174,6 +174,13 @@ describe('@getcommand filter matching', () => {
   // recvchatfrom;recvchatfrom_sec;redirchat;sendchat;touchattach;touchattachother;touchattachself,
   // and "@getcommand:getcam" -> getcam_avdist;getcam_avdistmin;getcam_avdistmax;getcam_fov;
   // getcam_fovmin;getcam_fovmax;getcam_textures: the dictionary's order, not sorted.
+  it('lists every implemented form RLVa keeps in its dictionary', () => {
+    const listed = new Set((['add', 'force', 'reply'] as const).flatMap(type => getRlvCommands('rlva', ';' + type)!.split(';').map(name => type + ':' + name)))
+    const missing = getRlvCommandCoverage('rlva').filter(form => form.support !== 'unsupported' && !listed.has(form.type + ':' + form.behaviour) &&
+      !/^(?:[gs]et(?:env|debug)_|setoverlay_(?:alpha|texture|tint)$|setsphere_)/.test(form.behaviour))
+    expect(missing).toEqual([])
+  })
+
   it('lists matches in the dictionary\'s order', () => {
     expect(getRlvCommands('rlva', 'chat;add')).toBe('chatwhisper;chatnormal;chatshout;recvchat;recvchat_sec;recvchatfrom;recvchatfrom_sec;redirchat;sendchat;touchattach;touchattachother;touchattachself')
     expect(getRlvCommands('rlva', 'getcam_avdist')).toBe('getcam_avdist;getcam_avdistmin;getcam_avdistmax')
