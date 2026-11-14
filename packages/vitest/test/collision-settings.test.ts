@@ -203,3 +203,132 @@ it.each([[0,1,0],[1,0,1]])('freezes explicit collision eligibility while queued,
   s.advanceTime(1000)
   expect(s.global('hits')).toBe(expected)
 })
+
+// The same script in each link of three linked 1 m boxes runs a command from
+// link_message and reads llGetStatus(STATUS_PHANTOM), PRIM_PHANTOM of every
+// link and OBJECT_PHANTOM.
+const VOLUME = `list out;
+string ph() { string p; integer i; for (i = 1; i <= llGetNumberOfPrims(); ++i) p += llList2String(llGetLinkPrimitiveParams(i, [PRIM_PHANTOM]), 0); return p; }
+default { link_message(integer s, integer n, string m, key id) {
+  list a = llParseString2List(m, [" "], []);
+  if ((integer)llList2String(a, 0) != llGetLinkNumber()) return;
+  string c = llList2String(a, 1);
+  integer v = (integer)llList2String(a, 2);
+  if (c == "vd") llVolumeDetect(v);
+  else if (c == "phantom") llSetStatus(STATUS_PHANTOM, v);
+  else if (c == "lphan") llSetLinkPrimitiveParamsFast(v, [PRIM_PHANTOM, (integer)llList2String(a, 3)]);
+  out = [llGetStatus(STATUS_PHANTOM), ph(), llList2Integer(llGetObjectDetails(llGetKey(), [OBJECT_PHANTOM]), 0)];
+} }`
+
+async function volumeObject(links = 3) {
+  const { scripts, linkset } = await loadLinkset({
+    prims: Array.from({ length: links }, (_, i) => ({ scripts: [{ name: `l${i + 1}`, source: { source: VOLUME } }] })),
+  })
+  for (const script of Object.values(scripts)) script.start()
+  const run = (command: string) => {
+    for (const script of linkset.allScripts()) script.fire('link_message', { sender_num: 1, num: 0, str: command, id: '' })
+    linkset.advanceTime(100)
+  }
+  const read = () => linkset.allScripts().map(script => { run(`${script.host.linkNumber} read`); return script.global('out') })
+  return { linkset, run, read }
+}
+
+// In-world (Aditi, SLua Tideland, Firestorm 7.3.0, 2026-11-14), three linked
+// 1 m boxes: llVolumeDetect(TRUE) from link 2 made all three read 1, "111"
+// and 1. llSetStatus(STATUS_PHANTOM, FALSE) from the root, and
+// llSetLinkPrimitiveParamsFast(3, [PRIM_PHANTOM, FALSE]) from link 2, left
+// them so. llVolumeDetect(FALSE) from the root cleared it for all three, and
+// after link 2 turned it on again, llVolumeDetect(FALSE) from link 3 did too.
+it('keeps volume detection for the whole object, whichever prim turns it on or off', async () => {
+  const s = await volumeObject()
+  const on = [1, '111', 1], off = [0, '000', 0]
+  s.run('2 vd 1'); expect(s.read()).toEqual([on, on, on])
+  s.run('1 phantom 0'); expect(s.read()).toEqual([on, on, on])
+  s.run('2 lphan 3 0'); expect(s.read()).toEqual([on, on, on])
+  s.run('1 vd 0'); expect(s.read()).toEqual([off, off, off])
+  s.run('2 vd 1'); s.run('3 vd 0'); expect(s.read()).toEqual([off, off, off])
+})
+
+// In-world: link 2 of three linked boxes turned volume detection on, and the
+// viewer linked a fourth box, whose script had read 0, "" and 0 alone. Every
+// script then read STATUS_PHANTOM 1 and OBJECT_PHANTOM 1. llVolumeDetect(FALSE)
+// from the root then read 0, "0000" and 0 from all four, and TRUE from the
+// root 1, "1111" and 1. Right after the link, PRIM_PHANTOM of link 2 read 0
+// while the other links read 1. rezless does not model that and reads 1.
+it('turns volume detection on for a prim linked to an object that has it', async () => {
+  const s = await volumeObject()
+  s.run('2 vd 1')
+  const added = await loadLinkset({ prims: [{ scripts: [{ name: 'l4', source: { source: VOLUME } }] }] })
+  s.linkset.absorb(added.linkset)
+  expect(s.read().map(([status, , object]) => [status, object])).toEqual([[1, 1], [1, 1], [1, 1], [1, 1]])
+  s.run('1 vd 0'); expect(s.read()).toEqual(Array(4).fill([0, '0000', 0]))
+  s.run('1 vd 1'); expect(s.read()).toEqual(Array(4).fill([1, '1111', 1]))
+})
+
+const COUNTS = `integer starts; integer ongoing; integer ends;
+default {
+  collision_start(integer n) { ++starts; }
+  collision(integer n) { ++ongoing; }
+  collision_end(integer n) { ++ends; }
+}`
+const AVATAR_HIT = { num_detected: 1, detected: [{ key: KEY, name: 'i Doll' }] }
+
+// In-world: three linked 1 m boxes at walking height, each with a script
+// counting collision events, and llVolumeDetect(TRUE) from link 2. The avatar
+// walked through all three and back, first with the root nearest it and then
+// with link 3 nearest. Each time the root's script counted a collision_start
+// as the avatar came in and a collision_end as it left, and no collision; the
+// scripts in links 2 and 3 counted nothing.
+it('raises collisions in the root only while the object detects volume', async () => {
+  const { scripts, linkset } = await loadLinkset({
+    prims: [1, 2, 3].map(n => ({ scripts: [{ name: `l${n}`, source: { source: COUNTS } }, { name: `v${n}`, source: { source: VOLUME } }] })),
+  })
+  for (const script of Object.values(scripts)) script.start()
+  scripts.v2!.fire('link_message', { sender_num: 1, num: 0, str: '2 vd 1', id: '' })
+  const counters = [scripts.l1!, scripts.l2!, scripts.l3!]
+  for (const script of counters) {
+    for (const event of ['collision_start', 'collision', 'collision_end']) script.fire(event, AVATAR_HIT)
+  }
+  linkset.advanceTime(100)
+  expect(counters.map(s => [s.global('starts'), s.global('ongoing'), s.global('ends')]))
+    .toEqual([[1, 0, 1], [0, 0, 0], [0, 0, 0]])
+})
+
+// In-world: link 3 was then unlinked from the object, which still detected
+// volume. Alone it read STATUS_PHANTOM 1, nothing for PRIM_PHANTOM of link 1,
+// and OBJECT_PHANTOM 1. When the avatar walked through it, its script counted
+// one collision_start and one collision_end.
+it('keeps volume detection in a prim unlinked from an object that has it', async () => {
+  const s = await volumeObject()
+  s.run('2 vd 1')
+  const third = s.linkset.prims[2]!
+  s.linkset.breakOff(third)
+  const alone = third.linkset!
+  const script = alone.allScripts()[0]!
+  script.fire('link_message', { sender_num: 0, num: 0, str: '0 read', id: '' })
+  alone.advanceTime(100)
+  expect(script.global('out')).toEqual([1, '', 1])
+  expect(s.read().map(([status]) => status)).toEqual([1, 1])
+  const counter = await loadScript({ host: third, scriptName: 'counter', source: COUNTS })
+  counter.start()
+  for (const event of ['collision_start', 'collision', 'collision_end']) counter.fire(event, AVATAR_HIT)
+  alone.advanceTime(100)
+  expect([counter.global('starts'), counter.global('ongoing'), counter.global('ends')]).toEqual([1, 0, 1])
+})
+
+// In-world: two linked boxes with volume detection on from their root read 1,
+// "11" and 1. The viewer linked them as children of a plain box. All three
+// then read 0, "000" and 0, the avatar bumped into the new root, and its
+// script counted collision_start, collision and collision_end.
+it('takes the new root\'s volume detection when an object that has it is linked as children', async () => {
+  const plain = await volumeObject(1)
+  const detecting = await volumeObject(2)
+  detecting.run('1 vd 1')
+  plain.linkset.absorb(detecting.linkset)
+  expect(plain.read()).toEqual(Array(3).fill([0, '000', 0]))
+  const counter = await loadScript({ host: plain.linkset.prims[0]!, scriptName: 'counter', source: COUNTS })
+  counter.start()
+  for (const event of ['collision_start', 'collision', 'collision_end']) counter.fire(event, AVATAR_HIT)
+  plain.linkset.advanceTime(100)
+  expect([counter.global('starts'), counter.global('ongoing'), counter.global('ends')]).toEqual([1, 1, 1])
+})

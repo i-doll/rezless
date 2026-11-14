@@ -9,16 +9,20 @@ import { loadLinkset, loadRlvPair, World } from '../src/index.js'
 // with one avatar standing on a platform. A prim without a sit target was put
 // at a distance along X, and the viewer sent a plain sit request for it. The
 // distance was halved towards the last seated and the first refused request
-// until they were 5 cm apart. Each row is one of the 113 requests: the prim,
-// its turn about Z in degrees, where its centre was from the avatar's
-// position, and whether the avatar sat on it.
+// until they were 5 cm apart. Each row of the first two lists is one of 113
+// requests: the prim, its turn about Z in degrees, where its centre was from
+// the avatar's position, and whether the avatar sat on it. Tilted prims
+// follow in two lists of their own.
 //
 // Second Life's rule for this reach is not known. The limit from the avatar
 // to the prim's centre ran from about 1.4 m out from under a box 7 m up to
 // 10 m for a 4 m box, and no rule fitted to these requests held for new
 // prims. rezless refuses a prim more than 8 m from its centre, an
 // approximation that gets 70 of the 113 requests right. The other 43 are
-// marked failing.
+// marked failing. Measuring where the avatar sits (sit-spot.test.ts) did not
+// give a rule either: no distance from the avatar, or from the point that
+// sets the spot, to the spot or the prim's centre parts the seated requests
+// from the refused ones.
 
 const AVATAR = 'abcdefab-1234-1234-1234-abcdefabcdef'
 const AT = { x: 116, y: 48, z: 1997.42 }
@@ -146,17 +150,53 @@ const MISSED: Row[] = [
   ['1 m box 7 m up', [1, 1, 1], 0, [1.819, 0.359, 6.994], false],
 ]
 
-async function request([, size, turn, [x, y, z]]: Row) {
+// Measured the same way on the same grid and day with prims tilted about X
+// or Y. Each row gives the prim's rotation as a quaternion. The 8 m rule gets
+// 14 of these 21 requests right.
+type TiltedRow = [string, [number, number, number], [number, number, number, number], [number, number, number], boolean]
+
+const TILTED_MATCHED: TiltedRow[] = [
+  ['2 m box tilted 45 degrees about Y', [2, 2, 2], [0, 0.383, 0, 0.924], [9.8, 0, 0], false],
+  ['2 m box tilted 45 degrees about Y', [2, 2, 2], [0, 0.383, 0, 0.924], [9.201, 0, 0], false],
+  ['2 m box tilted 45 degrees about Y', [2, 2, 2], [0, 0.383, 0, 0.924], [9.125, 0, 0], false],
+  ['2 m box tilted 45 degrees about Y', [2, 2, 2], [0, 0.383, 0, 0.924], [9.088, 0, 0], false],
+  ['2 m box tilted 45 degrees about X', [2, 2, 2], [0.383, 0, 0, 0.924], [9.401, -0.003, 0], false],
+  ['2 m box tilted 45 degrees about X', [2, 2, 2], [0.383, 0, 0, 0.924], [9.1, 0, 0], false],
+  ['2 m box tilted 45 degrees about X', [2, 2, 2], [0.383, 0, 0, 0.924], [9.057, 0, 0], false],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [9.596, 0, 0], false],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [9, 0, 0], false],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [8.398, 0, 0], false],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [7.8, 0, 0], true],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [8.25, 0, 0], false],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [8.171, 0.003, 0], false],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [8.136, 0.003, 0], false],
+]
+
+const TILTED_MISSED: TiltedRow[] = [
+  ['2 m box tilted 45 degrees about Y', [2, 2, 2], [0, 0.383, 0, 0.924], [8.603, 0, 0], true],
+  ['2 m box tilted 45 degrees about Y', [2, 2, 2], [0, 0.383, 0, 0.924], [8.9, 0, 0], true],
+  ['2 m box tilted 45 degrees about Y', [2, 2, 2], [0, 0.383, 0, 0.924], [9.048, 0.003, 0], true],
+  ['2 m box tilted 45 degrees about X', [2, 2, 2], [0.383, 0, 0, 0.924], [8.801, 0, 0], true],
+  ['2 m box tilted 45 degrees about X', [2, 2, 2], [0.383, 0, 0, 0.924], [8.945, 0, 0], true],
+  ['2 m box tilted 45 degrees about X', [2, 2, 2], [0.383, 0, 0, 0.924], [9.025, 0, 0], true],
+  ['0.5 x 0.5 x 3 m box tilted 60 degrees about Y', [0.5, 0.5, 3], [0, 0.5, 0, 0.866], [8.098, 0.004, 0], true],
+]
+
+async function request([label, size, turn, centre, seated]: Row) {
+  const half = (turn * Math.PI) / 360
+  return requestTilted([label, size, [0, 0, Math.sin(half), Math.cos(half)], centre, seated])
+}
+
+async function requestTilted([, size, [rx, ry, rz, rs], [x, y, z]]: TiltedRow) {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'av', username: 'av', position: { ...AT } })
-  const half = (turn * Math.PI) / 360
   const loaded = await loadLinkset({
     world, region: 'home', owner: AVATAR, position: { x: AT.x + x, y: AT.y + y, z: AT.z + z }, prims: [{}],
   })
   const prim = loaded.linkset.prims[0]!
   prim.params.size = { x: size[0], y: size[1], z: size[2] }
-  prim.params.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
+  prim.params.rotation = { x: rx, y: ry, z: rz, s: rs }
   return world.userSitAvatar(avatar, prim)
 }
 
@@ -167,6 +207,14 @@ describe('how far away a prim without a sit target can be sat on', () => {
 
   it.fails.each(MISSED)('%s, %j, turned %i, centre at %j, seated %s', async (...row) => {
     expect(await request(row)).toBe(row[4])
+  })
+
+  it.each(TILTED_MATCHED)('%s, %j, rotation %j, centre at %j, seated %s', async (...row) => {
+    expect(await requestTilted(row)).toBe(row[4])
+  })
+
+  it.fails.each(TILTED_MISSED)('%s, %j, rotation %j, centre at %j, seated %s', async (...row) => {
+    expect(await requestTilted(row)).toBe(row[4])
   })
 })
 
