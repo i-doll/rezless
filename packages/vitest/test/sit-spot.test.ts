@@ -18,19 +18,20 @@ import { loadLinkset, World } from '../src/index.js'
 // read, to 3 decimals.
 //
 // For boxes and round cylinders with an axis vertical, every request but the
-// five noted with the failing ones fitted
-// this: the line from a point 3 m behind the avatar and 1.94 m above its
-// centre to the prim's centre first meets the prim at some point. Seen from
-// above, the line leaves the prim's outline through a side. The avatar sat
-// 0.09 m out from that side, level with where the line met the prim along
-// it, 0.63 m above the prim's top, upright and facing out from that side. The
-// rule was fitted to the earlier requests and then predicted the last five
-// boxes (4 x 4 x 0.3 m to 1.2 x 2.5 x 0.25 m) to the millimetre. Where the
-// viewer reported the avatar sat in the 51 seated requests on boxes and
-// cylinders that sit-reach.test.ts lists fits it to within 2 mm too; those
-// positions are not kept here. A viewer's
-// camera sits about there by default, but moving the viewer's own camera
-// could not be tested, so whether the point is the camera is not known.
+// five noted with the failing ones fitted this: the line from a point 3 m
+// behind the avatar and 1.94 m above its centre to the prim's centre first
+// meets the prim at some point. Seen from above, the line leaves the prim's
+// outline through a side. The avatar sat 0.09 m out from that side, in line
+// with where the line met the prim, 0.63 m above the prim's top, upright and
+// facing out from that side. The rule was fitted to the earlier requests and
+// then predicted the last five boxes (4 x 4 x 0.3 m to 1.2 x 2.5 x 0.25 m)
+// within 1 mm. The rows give rotations to 3 decimals, which moves the spot by
+// up to 3 mm, so the test allows 5 mm. Where the viewer reported the avatar
+// sat in the 51 seated requests on boxes and cylinders that sit-reach.test.ts
+// lists fits the rule to within 2 mm too; those positions are not kept here.
+// A viewer's camera sits about where the point is by default, but moving the
+// viewer's own camera could not be tested, so whether the point is the
+// camera is not known.
 
 type Shape = 'box' | 'cylinder' | 'sphere' | 'prism' | 'torus'
 type Row = [string, Shape, number[], number[], number[], number, number[], number[]]
@@ -158,7 +159,7 @@ async function sit([, shape, [sx, sy, sz], [rx, ry, rz, rs], [ax, ay, az], facin
 function check(row: Row, { pos, rot }: Awaited<ReturnType<typeof sit>>) {
   const [lx, ly, lz] = row[6], [qx, qy, qz, qs] = row[7]
   expect(Math.hypot(pos.x - lx!, pos.y - ly!, pos.z - lz!)).toBeLessThan(0.005)
-  expect(Math.abs(rot.x * qx! + rot.y * qy! + rot.z * qz! + rot.s * qs!)).toBeGreaterThan(0.999)
+  expect(rot.x * qx! + rot.y * qy! + rot.z * qz! + rot.s * qs!).toBeGreaterThan(0.999)
 }
 
 describe('where a plain sit request seats an avatar on a prim without a sit target', () => {

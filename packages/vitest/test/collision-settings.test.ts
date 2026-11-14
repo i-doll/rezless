@@ -254,7 +254,7 @@ it('keeps volume detection for the whole object, whichever prim turns it on or o
 // script then read STATUS_PHANTOM 1 and OBJECT_PHANTOM 1. llVolumeDetect(FALSE)
 // from the root then read 0, "0000" and 0 from all four, and TRUE from the
 // root 1, "1111" and 1. Right after the link, PRIM_PHANTOM of link 2 read 0
-// while the other links read 1; rezless reads 1 for every link.
+// while the other links read 1. rezless does not model that and reads 1.
 it('turns volume detection on for a prim linked to an object that has it', async () => {
   const s = await volumeObject()
   s.run('2 vd 1')
@@ -276,9 +276,9 @@ const AVATAR_HIT = { num_detected: 1, detected: [{ key: KEY, name: 'i Doll' }] }
 // In-world: three linked 1 m boxes at walking height, each with a script
 // counting collision events, and llVolumeDetect(TRUE) from link 2. The avatar
 // walked through all three and back, first with the root nearest it and then
-// with link 3 nearest. Each time the root's script counted one
-// collision_start and one collision_end, and no collision; the scripts in
-// links 2 and 3 counted nothing.
+// with link 3 nearest. Each time the root's script counted a collision_start
+// as the avatar came in and a collision_end as it left, and no collision; the
+// scripts in links 2 and 3 counted nothing.
 it('raises collisions in the root only while the object detects volume', async () => {
   const { scripts, linkset } = await loadLinkset({
     prims: [1, 2, 3].map(n => ({ scripts: [{ name: `l${n}`, source: { source: COUNTS } }, { name: `v${n}`, source: { source: VOLUME } }] })),
@@ -297,8 +297,7 @@ it('raises collisions in the root only while the object detects volume', async (
 // In-world: link 3 was then unlinked from the object, which still detected
 // volume. Alone it read STATUS_PHANTOM 1, nothing for PRIM_PHANTOM of link 1,
 // and OBJECT_PHANTOM 1. When the avatar walked through it, its script counted
-// one collision_start and one collision_end, and the rest of the object
-// still raised them in its root.
+// one collision_start and one collision_end.
 it('keeps volume detection in a prim unlinked from an object that has it', async () => {
   const s = await volumeObject()
   s.run('2 vd 1')
@@ -327,5 +326,9 @@ it('takes the new root\'s volume detection when an object that has it is linked 
   detecting.run('1 vd 1')
   plain.linkset.absorb(detecting.linkset)
   expect(plain.read()).toEqual(Array(3).fill([0, '000', 0]))
-  expect(plain.linkset.prims.map(prim => prim.volumeDetect)).toEqual([false, false, false])
+  const counter = await loadScript({ host: plain.linkset.prims[0]!, scriptName: 'counter', source: COUNTS })
+  counter.start()
+  for (const event of ['collision_start', 'collision', 'collision_end']) counter.fire(event, AVATAR_HIT)
+  plain.linkset.advanceTime(100)
+  expect([counter.global('starts'), counter.global('ongoing'), counter.global('ends')]).toEqual([1, 1, 1])
 })

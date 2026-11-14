@@ -38,7 +38,7 @@ export function sitSpot(prim: Prim, avatar: { position: Vector; rotation: Rotati
     out[a] = ga / length; out[b] = gb / length
     seat[a] = ea + OUT_FROM_SIDE * out[a]!; seat[b] = eb + OUT_FROM_SIDE * out[b]!
   } else {
-    // Where the line first meets the box: the nearest of its three slabs.
+    // Where the line first meets the box: the last of its three slabs it enters.
     const reach = local.map((v, i) => half[i]! / Math.abs(v))
     const meet = Math.min(...reach)
     const [side, along] = reach[a]! <= reach[b]! ? [a, b] : [b, a]
@@ -49,7 +49,12 @@ export function sitSpot(prim: Prim, avatar: { position: Vector; rotation: Rotati
   const turned = rotateVector({ x: seat[0]!, y: seat[1]!, z: seat[2]! }, turn)
   const offset = { ...turned, z: turned.z + half[up]! + ABOVE_TOP }
   const normal = rotateVector({ x: out[0]!, y: out[1]!, z: out[2]! }, turn)
-  const yaw = Math.atan2(normal.y, normal.x) / 2
+  // Second Life gives the turn from the prim's heading in (-180, 180] degrees.
+  const heading0 = Math.atan2(axes[a]!.y, axes[a]!.x)
+  let by = Math.atan2(normal.y, normal.x) - heading0
+  while (by <= -Math.PI + 1e-3) by += 2 * Math.PI
+  while (by > Math.PI + 1e-3) by -= 2 * Math.PI
+  const yaw = (heading0 + by) / 2
   return {
     position: rotateVector(offset, inverse),
     rotation: mulRotation({ x: 0, y: 0, z: Math.sin(yaw), s: Math.cos(yaw) }, inverse),
