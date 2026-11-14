@@ -153,9 +153,9 @@ describe('a force sit or stand lands about 0.25 s after the command', () => {
   // In-world: "@unsit=force" and "@getsitid" in two llOwnerSay calls of one event -> the seat's key,
   // and llGetAgentInfo read 54. With llSleep(0.1), (0.15) or (0.2) between them -> the seat's key;
   // with llSleep(0.25) or (0.3) -> the null key, and llGetAgentInfo read 6.
-  it.each(profiles)('%s still has the avatar seated for the rest of the event and a sleep of 0.2 s', async profile => {
+  it.each(profiles)('%s still has the avatar seated for the rest of the event and a sleep of 0.2 s, not 0.25 s', async profile => {
     const f = (await pair())[profile]
-    for (const [pause, expected] of [['0', f.script.host.key], ['0.2', f.script.host.key], ['0.3', NULL_KEY]] as const) {
+    for (const [pause, expected] of [['0', f.script.host.key], ['0.2', f.script.host.key], ['0.25', NULL_KEY], ['0.3', NULL_KEY]] as const) {
       f.seat()
       f.say('@unsit=force|' + pause + '|@getsitid=467101')
       expect(!!((f.script.global('info') as number) & AGENT_SITTING), pause).toBe(expected !== NULL_KEY)
@@ -168,9 +168,9 @@ describe('a force sit or stand lands about 0.25 s after the command', () => {
   // In-world: standing, "@sit:<seat>=force" and "@getsitid" in one event -> the null key, and
   // llGetAgentInfo read 6. After llSleep(0.1) or (0.2) -> the null key; after (0.25) or (0.3) ->
   // the seat's key, and llGetAgentInfo read 54.
-  it.each(profiles)('%s has the avatar standing for the rest of the event and a sleep of 0.2 s', async profile => {
+  it.each(profiles)('%s has the avatar standing for the rest of the event and a sleep of 0.2 s, not 0.25 s', async profile => {
     const f = (await pair())[profile]
-    for (const [pause, expected] of [['0', NULL_KEY], ['0.2', NULL_KEY], ['0.3', f.script.host.key]] as const) {
+    for (const [pause, expected] of [['0', NULL_KEY], ['0.2', NULL_KEY], ['0.25', f.script.host.key], ['0.3', f.script.host.key]] as const) {
       f.say('@unsit=force')
       f.wait(LANDED_MS)
       f.script.setGlobal('replies', [])

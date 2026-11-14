@@ -12,6 +12,8 @@ const source = `integer changes; default {
 const profiles = ['rlv', 'rlva'] as const
 // In-world: a force sit or stand landed 0.2-0.25 s after the command (Aditi, SLua Tideland, 2026-11-14).
 const LANDED_MS = 250
+// The model's delay inside the measured 0.2-0.25 s window.
+const FORCE_SEAT_MS = 225
 const send = (fixture: Awaited<ReturnType<typeof loadRlvPair>>['rlv'], command: string) => {
   fixture.script.fire('link_message', { sender_num: 1, num: 0, str: command, id: fixture.avatar.key })
   fixture.script.linkset.advanceTime(LANDED_MS)
@@ -72,7 +74,8 @@ it.each(profiles)('%s completes successful autopilot before seating and changed 
   send(fixture, '@sit:' + prim.key + '=force')
   expect(avatar.sittingOn).toBeNull()
   expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ actionOutcome: 'pending' })
-  seat.linkset.advanceTime(1999)
+  // The pilot starts when the request reaches the region, LANDED_MS - FORCE_SEAT_MS before now.
+  seat.linkset.advanceTime(2000 - (LANDED_MS - FORCE_SEAT_MS) - 1)
   expect(avatar.sittingOn).toBeNull()
   expect(seat.scripts.seat!.global('changes')).toBe(0)
   seat.linkset.advanceTime(1)

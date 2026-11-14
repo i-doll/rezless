@@ -84,8 +84,9 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
 // In-world: with the avatar seated, "@unsit=force" then llSleep(0.1), (0.15) or (0.2) and "@getsitid"
 // still read the seat, and from 0.25 s the avatar stood; "@sit:<seat>=force" read the null key after
 // 0.2 s and the seat from 0.25 s. llGetAgentInfo in the issuing script changed between 0.15 and
-// 0.25 s (Aditi, SLua Tideland, 2026-11-14).
-const FORCE_SEAT_DELAY_MS = 250
+// 0.25 s (Aditi, SLua Tideland, 2026-11-14). 225 ms lies inside that window, so a script that
+// sleeps 0.25 s reads the new seat.
+const FORCE_SEAT_DELAY_MS = 225
 
 /**
  * The viewer asks the region to sit or stand the avatar and hears back a round
