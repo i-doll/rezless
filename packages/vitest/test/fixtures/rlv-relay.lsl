@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 // Narrow integration fixture, independently written for rezless.
 // Description: explicitly authorized controller object UUID. Empty denies all.
 // Only detach add/remove and two fixed getstatus channels are accepted.

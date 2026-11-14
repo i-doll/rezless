@@ -16,6 +16,29 @@ describe('licence files in the published packages', () => {
     expect(read(`packages/${dir}/NOTICE`)).toBe(read('NOTICE'))
   })
 
+  it('licenses rezless under the MIT License', () => {
+    expect(read('LICENSE').replace(/\s+/g, ' ').trim()).toBe(
+      'MIT License Copyright (c) 2026 The rezless contributors ' +
+        'Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: ' +
+        'The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. ' +
+        'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.',
+    )
+    expect(read('NOTICE')).toContain('This product is licensed under the MIT License (see LICENSE).')
+  })
+
+  it.each([
+    ['package.json', 'MIT'],
+    ['packages/parser/package.json', 'MIT'],
+    ['packages/vitest/package.json', 'MIT'],
+    ['packages/vm/package.json', 'MIT AND Apache-2.0 AND LGPL-2.0-only'],
+  ])('%s declares the licence %s', (file, license) => {
+    expect(JSON.parse(read(file)).license).toBe(license)
+  })
+
+  it('checks the licence field of every package', () => {
+    expect([...packages].sort()).toEqual(['parser', 'vitest', 'vm'])
+  })
+
   it('ships the third-party licence texts next to slua.wasm', () => {
     const { files } = JSON.parse(read('packages/vm/package.json'))
     expect(files).toContain('wasm')
@@ -85,6 +108,14 @@ describe('third-party notices for slua.wasm', () => {
     expect(texts).toContain('Version 2, June 1991')
     expect(texts).toContain('END OF TERMS AND CONDITIONS')
     expect(texts).toContain('16. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW')
+  })
+
+  it('ship the Apache License text for the APR routines', () => {
+    const apr = texts.slice(texts.indexOf('4. Apache Portable Runtime'), texts.indexOf('5. y2038'))
+    expect(apr).toContain('Apache License\n                           Version 2.0, January 2004')
+    expect(apr).toContain('TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION')
+    expect(apr).toContain('END OF TERMS AND CONDITIONS')
+    expect(apr).toContain('APPENDIX: How to apply the Apache License to your work.')
   })
 
   it('reproduce the APR attribution notices in NOTICE', () => {

@@ -2,7 +2,7 @@
   "name": "@rezless/parser",
   "version": "0.13.0",
   "description": "Recursive-descent parser for the Linden Scripting Language (LSL).",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "author": "i-doll",
   "homepage": "https://github.com/i-doll/rezless#readme",
   "bugs": {

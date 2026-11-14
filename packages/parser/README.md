@@ -28,4 +28,4 @@ full framework documentation.
 
 ## License
 
-Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+MIT — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).

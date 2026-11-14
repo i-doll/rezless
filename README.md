@@ -1418,7 +1418,7 @@ events. Balances, settlement and purchase inventory delivery are outside the fix
 
 ## License
 
-The rezless project is licensed under the **Apache License, Version 2.0** —
+The rezless project is licensed under the **MIT License** —
 see [`LICENSE`](LICENSE).
 
 LSL function/event/constant signatures come from Linden Lab's official
