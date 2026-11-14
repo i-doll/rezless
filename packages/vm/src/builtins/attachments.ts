@@ -1,6 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Linkset } from '../linkset.js'
 import { ZERO_VECTOR, type LslValue, type Vector } from '../values/types.js'
+import type { PermMask } from '../inventory.js'
 import { conjugate, rotateVector } from '../values/ops.js'
 import { ruleElementType, uniformList } from '../values/list-types.js'
 import { PERMISSION_ATTACH, PERMISSION_TRACK_CAMERA, CHANGED_OWNER, PERM_TRANSFER } from '../generated/constants.js'
@@ -24,25 +25,29 @@ function attach(ctx: CallContext, point: number, temporary: boolean): void {
     return
   }
   if (!(granted & PERMISSION_ATTACH) || ctx.linkset.attachment) return
-  if (temporary && ctx.linkset.prims.some(p => p.inventory.some(i => !(i.permMask.owner & PERM_TRANSFER)))) {
+  if (sameKey(agent, ctx.linkset.owner)) {
+    ctx.linkset.attachToAvatar(agent, point, temporary)
+    return
+  }
+  if (!temporary) {
+    sayError(ctx, 'Script trying to attach to someone other than owner!')
+    return
+  }
+  if (ctx.linkset.prims.some(p => p.inventory.some(i => !(i.permMask.owner & PERM_TRANSFER)))) {
     sayError(ctx, 'No permission to transfer')
     return
   }
-  if (!sameKey(agent, ctx.linkset.owner)) {
-    if (!temporary) return
-    for (const prim of ctx.linkset.prims) {
-      for (const item of prim.inventory) {
-        const mask = item.permMask
-        item.permMask = { ...mask, base: mask.base & mask.next, owner: mask.owner & mask.next }
-      }
-    }
-    ctx.linkset.owner = agent
-    ctx.state.permissions.granted = PERMISSION_ATTACH
-    for (const script of ctx.linkset.allScripts()) {
-      ctx.linkset.clock.schedule(script, ctx.state.clock.now, 'changed', { changes: CHANGED_OWNER })
-    }
+  const toNextOwner = (mask: PermMask): PermMask => ({ ...mask, base: mask.base & mask.next, owner: mask.owner & mask.next })
+  for (const prim of ctx.linkset.prims) {
+    prim.permMask = toNextOwner(prim.permMask)
+    for (const item of prim.inventory) item.permMask = toNextOwner(item.permMask)
   }
+  ctx.linkset.owner = agent
+  for (const script of ctx.linkset.allScripts()) script.clearPermissions()
   ctx.linkset.attachToAvatar(agent, point, temporary)
+  for (const script of ctx.linkset.allScripts()) {
+    ctx.linkset.clock.schedule(script, ctx.state.clock.now, 'changed', { changes: CHANGED_OWNER })
+  }
 }
 
 export const llAttachToAvatar: BuiltinImpl = (ctx, args) => {

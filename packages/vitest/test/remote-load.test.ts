@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, loadScript, World, makeInventoryItem, InventoryType, NULL_KEY, PERM_COPY } from '../src/index.js'
+import { loadLinkset, loadScript, World, makeInventoryItem, InventoryType, NULL_KEY } from '../src/index.js'
 
 // In-world: batch.py, Aditi / SLua Tideland, Mono, 2026-11-01.
 // Evidence: /tmp/issue-154-ray/results.jsonl.
@@ -163,9 +163,9 @@ it('replaces a same-named non-script item and notifies existing receiver scripts
   expect(observer.global('changes')).toBe(1)
 })
 
-// These permission fixtures follow the wiki. Cross-owner permissions and obtaining a no-copy
-// script need another owner; the one-avatar headless session cannot measure them.
-it('denies foreign-owner loading without a modification-grant fixture', async () => {
+// In-world, two avatars (Aditi, SLua Tideland, 2026-11-14): a load onto the other avatar's object
+// with its matching PIN -> the illegal-load error. A no-copy script moves, in two-avatar-ownership.test.ts.
+it('denies foreign-owner loading even with a matching PIN', async () => {
   const { target, sender, world } = await remote()
   const foreign = await loadLinkset({ world, region: 'load', owner: '00000000-0000-0000-0000-000000000001', prims: [{}] })
   foreign.prims[0]!.remoteScriptAccessPin = 42
@@ -173,16 +173,7 @@ it('denies foreign-owner loading without a modification-grant fixture', async ()
   loader.start()
   expect(foreign.prims[0]!.inventory).toHaveLength(0)
   expect(target.prims[0]!.inventory).toHaveLength(0)
-})
-
-it('leaves a no-copy source script in place and refuses the copy', async () => {
-  const { sender, target, script, payload } = await remote()
-  const item = sender.prims[0]!.inventory.find(i => i.script === payload)!
-  item.permMask = { ...item.permMask, owner: item.permMask.owner & ~PERM_COPY }
-  script.start()
-  expect(target.prims[0]!.inventory).toHaveLength(0)
-  expect(sender.prims[0]!.findScript('payload')).toBe(payload)
-  expect(script.chat.some(c => c.channel === 2147483647)).toBe(true)
+  expect(loader.chat.filter(c => c.channel === 2147483647).map(c => c.text)).toEqual([`Task '${sender.prims[0]!.name}' trying to illegally load script onto task 'Object'!`])
 })
 
 // In-world: replacement.py -> 3.044656 / 3.044454 s while the loaded handler slept 10 s.
@@ -677,8 +668,8 @@ describe('changed(CHANGED_INVENTORY) from a remote load', () => {
     // nothing.
     // In-world: a load aimed at an unscripted object owned by another resident
     // in the region, with a nonzero PIN and with PIN 0 -> each said the
-    // illegal-load error, naming that object. A matching PIN on a foreign object needs a second avatar to
-    // set it, so that case is not measured.
+    // illegal-load error, naming that object. With the PIN its owner set matching, the same error
+    // (two avatars, 2026-11-14).
     const { loader } = await rig('')
     const world = loader.linkset.world!
     const foreign = await loadLinkset({ world, region: 'load', owner: '00000000-0000-0000-0000-000000000001', prims: [{ name: 'Object', scripts: [script('watcher')] }] })

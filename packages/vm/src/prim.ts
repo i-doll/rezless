@@ -3,7 +3,7 @@ import type { PhysicsState } from './builtins/physics.js'
 import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
-import type { InventoryItem } from './inventory.js'
+import type { InventoryItem, PermMask } from './inventory.js'
 import { InventoryType, freeInventoryName, hearsInventoryChange, inventoryItemName, queueInventoryChanged } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
@@ -11,7 +11,7 @@ import { mulRotation } from './values/ops.js'
 import { NULL_KEY, ZERO_VECTOR } from './values/types.js'
 import { deterministicKey } from './keys.js'
 import {
-  PERM_ALL, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SIZE,
+  PERM_ALL, PERM_MOVE, PERM_TRANSFER, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SIZE,
   PRIM_TEMP_ON_REZ, PRIM_TYPE, STATUS_CAST_SHADOWS, STATUS_PHANTOM, STATUS_PHYSICS, STATUS_ROTATE_X, STATUS_ROTATE_Y, STATUS_ROTATE_Z,
 } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
@@ -122,7 +122,10 @@ export class Prim {
   /** llVolumeDetect belongs to the object: every prim reads and sets its root's. */
   get volumeDetect(): boolean { return (this.linkset?.prims[0] ?? this).objectVolumeDetect }
   set volumeDetect(value: boolean) { (this.linkset?.prims[0] ?? this).objectVolumeDetect = value }
+  /** Set by llAllowInventoryDrop from a script in this prim; each prim has its own. */
   allowInventoryDrop = false
+  /** The prim's own masks; the root's are the object's. */
+  permMask: PermMask = { base: PERM_ALL, owner: PERM_ALL, group: 0, everyone: 0, next: PERM_MOVE | PERM_TRANSFER }
   /** Zero denies remote script loading. */
   remoteScriptAccessPin = 0
   appearance: {

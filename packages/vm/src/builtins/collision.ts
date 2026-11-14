@@ -25,9 +25,9 @@ export const llCollisionSound: BuiltinImpl = (ctx, args) => {
   ctx.prim.collisionSound = { sound: String(args[0]), volume: Number(args[1]) }
 }
 
-/** Foreign inventory drops are opt-in, and only the root can change this flag. */
+/** Opens this prim, root or child, to gifts its owner could not otherwise put there. */
 export const llAllowInventoryDrop: BuiltinImpl = (ctx, args) => {
-  if (ctx.prim === ctx.linkset.prims[0]) ctx.prim.allowInventoryDrop = Number(args[0]) !== 0
+  ctx.prim.allowInventoryDrop = Number(args[0]) !== 0
 }
 
 export const llSetRemoteScriptAccessPin: BuiltinImpl = (ctx, args) => {

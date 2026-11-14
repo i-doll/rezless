@@ -352,7 +352,10 @@ it('delivers the retained batch through LSL listens after the early version flus
   }
 })
 
-// An in-world ownership-transfer probe requires a second avatar.
+// In-world, two avatars (Firestorm RLVa, Aditi, 2026-11-14): a restriction sent before
+// llAttachToAvatarTemp moved the object to the other avatar stayed with the first avatar,
+// and the new owner's viewer had none of it. Commands still waiting for a viewer that has
+// not finished logging in could not be timed against a transfer with the viewer tools.
 it('keeps retained commands with the receiving avatar when a prim changes owners', async () => {
   const { world, avatar, script } = await load('rlva')
   script.start()
@@ -453,7 +456,8 @@ it('reset cancels replies sent through the public reply helper before any owner 
   expect(script.global('replies')).toEqual([])
 })
 
-// An in-world ownership-transfer probe requires a second avatar.
+// Not measured: it needs a transfer while the original viewer is still logging in,
+// which the viewer tools cannot hold back. Measured transfers are cited above.
 for (const profile of ['rlv', 'rlva'] as const) {
   it(`${profile} replays attachment queries against the original receiving avatar`, async () => {
     const pair = await loadRlvPair({ viewer: { ready: false }, source: `list replies; default {

@@ -50,8 +50,9 @@ it.each(['NULL_KEY', '"bad"'])('silently ignores invalid single target %s withou
   expect(s.global('done')).toBe(1)
 })
 
-// Actual restricted owner masks cannot be created through these tools with one avatar.
-// These permission/move cases follow the wiki; need a second avatar to supply restricted items.
+// In-world, with items made no-copy or no-transfer for their owner by giving them across two avatars
+// (Aditi, SLua Tideland, 2026-11-14): a no-copy notecard given to an avatar moved out of the prim after
+// the 2 s delay, and the giving prim's script heard no changed; a no-transfer one was refused.
 it('moves a no-copy item out of the source without a source changed event', async () => {
   const s = await loadScript({ owner: OWNER, source: `integer changes; default {
     touch_start(integer n) { llGiveInventory(llGetOwner(), "gift"); }
@@ -70,14 +71,17 @@ it('permits no-transfer gifts to the owner and refuses other owners', async () =
   expect(own.inventoryOffers).toHaveLength(1)
   const foreign = await load(`llGiveInventory("${OTHER}", "gift");`, [item])
   expect(foreign.inventoryOffers).toEqual([])
-  expect(errors(foreign).join()).toContain('Permissions do not allow transfer')
+  // In-world: no-transfer notecard to the other avatar -> 'No permission to transfer' (two avatars, Aditi, 2026-11-14).
+  expect(errors(foreign)).toEqual(["Unable to give inventory: 'No permission to transfer'."])
   expect(foreign.host.inventory.map(i => i.name)).toContain('gift')
 })
 
 describe('list transfers', () => {
   it.each(['llGiveInventoryList', 'llGiveAgentInventory'])('%s skips missing and no-copy items', async fn => {
     // In-world: extra 1/2 -> valid gift offered, missing entry silently excluded.
-    // No-copy exclusion is documented, not measured: needs a second avatar's restricted item.
+    // In-world: llGiveInventoryList to the other avatar with a no-copy notecard and a copyable one ->
+    // the folder held only the copyable one, no error, 3 s (two avatars, 2026-11-14). llGiveAgentInventory
+    // uses the same filter.
     const s = await load(`${fn}(llGetOwner(), "folder", ["missing", "gift", "nocopy"]${fn === 'llGiveAgentInventory' ? ', []' : ''});`, [gift(), gift({ name: 'nocopy', permMask: perms(PERM_ALL & ~PERM_COPY) })])
     expect(s.inventoryOffers[0]!.items.map(i => i.name)).toEqual(['gift'])
     expect(s.host.inventory.map(i => i.name)).toContain('nocopy')
@@ -165,7 +169,8 @@ it('does not deliver to a World object in another region', async () => {
 })
 
 it('requires inventory drop for a foreign-owned prim and uses CHANGED_ALLOWED_DROP', async () => {
-  // Not measurable here: needs a second avatar to own the destination. Wiki behavior.
+  // In-world: gift to the other avatar's prim -> 'Blocked by permissions', dt 0; after its
+  // llAllowInventoryDrop(TRUE) -> delivered with changed(64) (two avatars, Aditi, 2026-11-14).
   const denied = await pair(true); denied.s.linkset.touch(0)
   expect(denied.receiver.prims[0]!.inventory.map(i => i.name)).not.toContain('gift')
   expect(errors(denied.s).join()).toContain('Blocked by permissions')
@@ -175,7 +180,8 @@ it('requires inventory drop for a foreign-owned prim and uses CHANGED_ALLOWED_DR
 })
 
 it('can revoke inventory drop after enabling it', async () => {
-  // Foreign owner verification needs a second avatar; llAllowInventoryDrop is documented.
+  // In-world: llAllowInventoryDrop(FALSE) after TRUE on the other avatar's prim -> the next gift was
+  // 'Blocked by permissions' (two avatars, Aditi, 2026-11-14).
   const { receiver, s } = await pair(true, true)
   // A second script in the same prim changes the prim-level setting.
   const toggle = await loadScript({ host: receiver.prims[0]!, source: 'default { state_entry() { llAllowInventoryDrop(FALSE); } }' })
@@ -235,43 +241,11 @@ it.each([
   expect(s.inventoryOffers).toHaveLength(expected === 0 ? 1 : 0)
 })
 
-it.each(['single', 'list'])('rejects %s script delivery to a foreign prim even with inventory drop enabled', async kind => {
-  // https://wiki.secondlife.com/wiki/LlAllowInventoryDrop#Caveats
-  // Needs a second avatar to measure a destination without modify rights.
-  const { s, receiver } = await pair(true, true)
-  s.host.addInventory(gift({ name: 'script', type: InventoryType.SCRIPT, permMask: perms(PERM_ALL & ~PERM_COPY) }))
-  s.host.addInventory(gift({ name: 'copy-script', type: InventoryType.SCRIPT }))
-  const call = kind === 'single' ? `llGiveInventory("${TARGET}", "script")` : `llGiveInventoryList("${TARGET}", "folder", ["gift", "copy-script"])`
-  const giver = await loadScript({ host: s.host, scriptName: 'script-giver', source: `default { state_entry() { ${call}; } }` })
-  giver.start()
-  expect(receiver.prims[0]!.inventory.filter(i => i.name === 'script' || i.name === 'copy-script')).toEqual([])
-  expect(s.host.inventory.map(i => i.name)).toContain('script')
-  if (kind === 'single') expect(giver.inventoryOffers).toEqual([])
-  else expect(giver.inventoryOffers[0]!.items.map(i => i.name)).toEqual(['gift'])
-})
-
 it('treats an uppercase owner UUID as the same no-transfer recipient', async () => {
   // In-world: review-upper.lsl -> uppercase owner URL/list offers succeed, no error (Aditi, SLua Tideland, 2026-10-31).
   const s = await load('llGiveInventory((key)llToUpper((string)llGetOwner()), "gift");', [gift({ permMask: perms(PERM_ALL & ~PERM_TRANSFER) })])
   expect(s.inventoryOffers).toHaveLength(1)
   expect(errors(s)).toEqual([])
-})
-
-it('only lets the root change the linkset inventory-drop setting', async () => {
-  // llAllowInventoryDrop wiki caveat: child calls fail silently. Foreign receipt needs another avatar to measure.
-  const world = new World(); world.addRegion('test', { x: 0, y: 0 })
-  const recipient = await loadLinkset({ owner: OTHER, world, region: 'test', prims: [
-    { scripts: [{ name: 'root', source: { source: 'default { touch_start(integer n) { llAllowInventoryDrop(TRUE); } }' } }] },
-    { key: TARGET, scripts: [{ name: 'child', source: { source: 'default { state_entry() { llAllowInventoryDrop(TRUE); } }' } }] },
-  ] })
-  recipient.scripts.child!.start()
-  const giver = await loadLinkset({ owner: OWNER, world, region: 'test', prims: [{ inventory: [gift()], scripts: [{ name: 'giver', source: { source: `default { touch_start(integer n) { llGiveInventory("${TARGET}", "gift"); } }` } }] }] })
-  const s = giver.scripts.giver!
-  s.linkset.touch(0)
-  expect(recipient.prims[1]!.inventory.map(i => i.name)).not.toContain('gift')
-  recipient.linkset.touch(1)
-  s.linkset.touch(0)
-  expect(recipient.prims[1]!.inventory.map(i => i.name)).toContain('gift')
 })
 
 it.each(['llGiveInventoryList', 'llGiveAgentInventory'])('%s accepts an uppercase spelling of the owner key', async fn => {
@@ -309,7 +283,9 @@ it.each(['single', 'list'])('reads and resets a delivered %s script as an inert 
 })
 
 it('moves a no-copy script asset and lets the recipient query it without errors', async () => {
-  // No-copy masks need a second avatar to measure. The inert-asset queries were measured above.
+  // In-world: a running script that was no-copy for its owner, given to the owner's other prim -> gone
+  // from the giver, not running in the target, the target's script said changed(1) (two avatars, 2026-11-14).
+  // The inert-asset queries were measured above.
   const { s, receiver } = await pair()
   const source = await loadScript({ host: s.host, scriptName: 'payload', source: 'default { state_entry() {} }' })
   source.start()

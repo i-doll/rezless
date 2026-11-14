@@ -72,8 +72,6 @@ import {
   OBJECT_VELOCITY,
   OBJECT_VOLUME_DETECT,
   PERM_ALL,
-  PERM_MOVE,
-  PERM_TRANSFER,
   PRIM_PHYSICS_SHAPE_NONE,
   PRIM_TEXT,
   PRIM_TYPE_BOX,
@@ -274,7 +272,10 @@ export const llGetGeometricCenter: BuiltinImpl = (ctx) => {
 type Entry = readonly [LslValue, LslType]
 
 /** The object's own base, owner, group, everyone and next-owner masks. */
-const PERMS = [PERM_ALL, PERM_ALL, 0, 0, PERM_MOVE | PERM_TRANSFER]
+function objectPerms(prim: Prim): number[] {
+  const m = rootOf(prim).permMask
+  return [m.base, m.owner, m.group, m.everyone, m.next]
+}
 
 /** The object's masks ANDed with those of every item in every prim's inventory. */
 function combinedPerms(prim: Prim): number[] {
@@ -282,7 +283,7 @@ function combinedPerms(prim: Prim): number[] {
     .flatMap((p) => p.inventory)
     .reduce(
       (masks, { permMask: m }) => [masks[0]! & m.base, masks[1]! & m.owner, masks[2]! & m.group, masks[3]! & m.everyone, masks[4]! & m.next],
-      PERMS,
+      objectPerms(prim),
     )
 }
 
@@ -405,7 +406,7 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
     case OBJECT_SCALE:
       return [[prim.params.size, 'vector']]
     case OBJECT_PERMS:
-      return PERMS.map((m) => [m, 'integer'])
+      return objectPerms(prim).map((m) => [m, 'integer'])
     case OBJECT_PERMS_COMBINED:
       return combinedPerms(prim).map((m) => [m, 'integer'])
     default:
@@ -499,7 +500,7 @@ function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number): Entr
  */
 export const llGetObjectPermMask: BuiltinImpl = (ctx, args) => {
   const category = (typeof args[0] === 'number' ? args[0] : 0) & 0x1f
-  const masks = category & MASK_COMBINED ? combinedPerms(ctx.prim) : PERMS
+  const masks = category & MASK_COMBINED ? combinedPerms(ctx.prim) : objectPerms(ctx.prim)
   return masks[category & ~MASK_COMBINED] ?? 0
 }
 

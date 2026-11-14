@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim } from '../prim.js'
-import { LINK_THIS, PERMISSION_CHANGE_LINKS } from '../generated/constants.js'
+import { LINK_THIS, PERMISSION_CHANGE_LINKS, PERM_MODIFY } from '../generated/constants.js'
 import { findObjectPrim } from './object-reads.js'
 
 const mayChangeLinks = (ctx: CallContext) => (ctx.state.permissions.granted & PERMISSION_CHANGE_LINKS) !== 0
@@ -10,13 +10,15 @@ const mayChangeLinks = (ctx: CallContext) => (ctx.state.permissions.granted & PE
  * `target` with this one. With `parent` TRUE this object stays root and the
  * target's prims go in from link 2; with FALSE the target's root becomes root
  * and this object's prims go in from link 2. A target in this object only
- * raises changed. A key with no prim, or no PERMISSION_CHANGE_LINKS, does
- * nothing, with no error.
+ * raises changed. A key with no prim, no PERMISSION_CHANGE_LINKS, a target
+ * with another owner, or either object no-modify for its owner does nothing,
+ * with no error.
  */
 export const llCreateLink: BuiltinImpl = (ctx, args) => {
   if (!mayChangeLinks(ctx)) return undefined
   const target = findObjectPrim(ctx, (args[0] as string | undefined) ?? '')?.linkset
-  if (!target) return undefined
+  if (!target || target.owner.toLowerCase() !== ctx.linkset.owner.toLowerCase()) return undefined
+  if (![ctx.linkset, target].every(l => l.prims[0]!.permMask.owner & PERM_MODIFY)) return undefined
   const parent = (args[1] as number | undefined) ?? 0
   if (parent !== 0) ctx.linkset.absorb(target)
   else target.absorb(ctx.linkset)
