@@ -11,6 +11,9 @@ import { loadRlvPair, loadLinkset, World } from '../src/index.js'
 // switching seats but permits force unsit, and foreign locks block force actions.
 // Firestorm RLVa 2.4.2, viewer 7.2.5.81978, API 3.4.3
 // (Aditi, SLua Tideland, 2026-11-01).
+// In-world: a force sit or stand landed 0.2-0.25 s after the command (Aditi, SLua Tideland, 2026-11-14).
+const LANDED_MS = 250
+
 describe('paired viewer seating', () => {
   it('queries standing, seats without script permissions, then stands', async () => {
     const pair = await loadRlvPair({ source: `list replies; integer changes;
@@ -25,16 +28,21 @@ describe('paired viewer seating', () => {
       script.start()
       expect(script.global('replies')).toEqual([NULL_KEY])
       script.fire('touch_start', { num_detected: 1 })
+      expect(avatar.sittingOn).toBeNull()
+      script.linkset.advanceTime(LANDED_MS)
       expect(avatar.sittingOn).toBe(script.host)
-      expect(script.global('replies')).toEqual([NULL_KEY, script.host.key])
+      // In-world: "@sit:<seat>=force,getsitid" from standing replied with the null key, and
+      // "@unsit=force,getsitid" from the seat with the seat's key.
+      expect(script.global('replies')).toEqual([NULL_KEY, NULL_KEY])
       expect(script.global('changes')).toBe(1)
       script.fire('link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
+      script.linkset.advanceTime(LANDED_MS)
       expect(avatar.sittingOn).toBeNull()
-      expect(script.global('replies')).toEqual([NULL_KEY, script.host.key, NULL_KEY])
+      expect(script.global('replies')).toEqual([NULL_KEY, NULL_KEY, script.host.key])
       expect(script.global('changes')).toBe(2)
       expect(world.avatars).toHaveLength(1)
       expect(script.permissionRequests).toEqual([])
-      expect(avatar.viewer.commandLog.filter(e => e.status === 'action').map(e => e.actionOutcome)).toEqual(['applied', 'applied'])
+      expect(avatar.viewer.commandLog.filter(e => e.status === 'action').map(e => e.actionOutcome)).toEqual(['pending', 'applied', 'pending', 'applied'])
     }
   })
 })
@@ -45,8 +53,10 @@ const controller = `list replies; integer changes; default {
   changed(integer c) { if(c & CHANGED_LINK) ++changes; }
   listen(integer c,string n,key id,string m) { replies += [m]; }
 }`
-const issue = (script: import('@rezless/vm').Script, message: string) =>
+const issue = (script: import('@rezless/vm').Script, message: string) => {
   script.fire('link_message', { sender_num: 1, num: 0, str: message, id: NULL_KEY })
+  script.linkset.advanceTime(LANDED_MS)
+}
 
 it('reports the linked root seat identity and uses configured targets', async () => {
   const pair = await loadRlvPair({ source: controller })
@@ -57,7 +67,8 @@ it('reports the linked root seat identity and uses configured targets', async ()
     seat.scripts.target!.start(); script.start()
     issue(script, '@sit:' + seat.prims[1]!.key + '=force,getsitid=225101')
     expect(avatar.sittingOn).toBe(seat.prims[1])
-    expect(script.global('replies')).toEqual([seat.prims[0]!.key])
+    issue(script, '@getsitid=225101')
+    expect(script.global('replies')).toEqual([NULL_KEY, seat.prims[0]!.key])
     expect(avatar.position.z).toBe(0.5)
     issue(script, '@unsit=force')
     issue(script, '@sit:' + seat.prims[0]!.key + '=force')
@@ -83,7 +94,7 @@ it.each(['unknown', 'cross-region', 'attachment', 'occupied', 'removed'] as cons
     issue(script, '@sit:' + target + '=force,getsitid=225101')
     expect(avatar.sittingOn).toBe(script.host)
     expect(script.global('replies')).toEqual([script.host.key])
-    expect(avatar.viewer.commandLog.at(-2)).toMatchObject({ status: 'action', actionOutcome: 'refused' })
+    expect(avatar.viewer.commandLog.filter(entry => entry.status === 'action').at(-1)).toMatchObject({ actionOutcome: 'refused' })
   }
 })
 
@@ -117,7 +128,10 @@ it('has named null-UUID ground-sit expectations', async () => {
     expect(avatar.sittingOn).toBeNull()
     expect(avatar.info & 16).toBe(profile === 'rlva' ? 16 : 0)
     expect(avatar.info & 32).toBe(0)
-    expect(script.global('replies')).toEqual([profile === 'rlva' ? avatar.key : NULL_KEY])
+    // In-world: standing, "@sitground=force,getsitid" replied with the null key.
+    expect(script.global('replies')).toEqual([NULL_KEY])
+    issue(script, '@getsitid=225101')
+    expect(script.global('replies')).toEqual([NULL_KEY, profile === 'rlva' ? avatar.key : NULL_KEY])
     issue(script, '@unsit=force')
     expect(avatar.info & 16).toBe(0)
     expect(script.global('changes')).toBe(0)
@@ -131,10 +145,12 @@ it('gates object force sit on sit and seated unsit locks, including its own lock
     script.start()
     issue(script, '@sit=n,sit:' + script.host.key + '=force')
     expect(avatar.sittingOn).toBeNull()
-    issue(script, '@clear,sit:' + script.host.key + '=force,unsit=n,sit:' + other.prims[0]!.key + '=force')
+    issue(script, '@clear,sit:' + script.host.key + '=force')
+    issue(script, '@unsit=n,sit:' + other.prims[0]!.key + '=force')
     expect(avatar.sittingOn).toBe(script.host)
     expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'action', actionOutcome: 'refused', reason: 'restriction' })
-    issue(script, '@clear,unsit=force,unsit=n,sit:' + other.prims[0]!.key + '=force')
+    issue(script, '@clear,unsit=force')
+    issue(script, '@unsit=n,sit:' + other.prims[0]!.key + '=force')
     expect(avatar.sittingOn).toBe(other.prims[0])
   }
 })
@@ -144,11 +160,14 @@ it('exempts only the issuing prim from RLVa forced unsit and ground-sit locks', 
   for (const profile of ['rlv', 'rlva'] as const) {
     const { script, avatar, world } = pair[profile]
     script.start()
-    issue(script, '@sit:' + script.host.key + '=force,unsit=n,unsit=force')
+    issue(script, '@sit:' + script.host.key + '=force')
+    issue(script, '@unsit=n,unsit=force')
     expect(avatar.sittingOn).toBe(profile === 'rlva' ? null : script.host)
-    issue(script, '@clear,unsit=force,sit=n,sit:' + NULL_KEY + '=force')
+    issue(script, '@clear,unsit=force')
+    issue(script, '@sit=n,sit:' + NULL_KEY + '=force')
     expect(avatar.info & 16).toBe(profile === 'rlva' ? 16 : 0)
-    issue(script, '@clear,unsit=force,sit:' + script.host.key + '=force')
+    issue(script, '@clear,unsit=force')
+    issue(script, '@sit:' + script.host.key + '=force')
     const foreign = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
       prims: [{ scripts: [{ name: 'lock', source: { source: controller } }] }] })
     foreign.scripts.lock!.start()

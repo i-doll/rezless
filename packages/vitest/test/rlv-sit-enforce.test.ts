@@ -39,7 +39,11 @@ it('keeps two independent unsit locks until the last issuer removes its lock', a
     const other = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
       prims: [{ scripts: [{ name: 'other', source: { source } }] }] })
     script.start(); other.scripts.other!.start()
-    const send = (s: typeof script, str: string) => s.fire('link_message', { sender_num: 1, num: 0, str, id: avatar.key })
+    // A force sit lands about 0.25 s after the command.
+    const send = (s: typeof script, str: string) => {
+      s.fire('link_message', { sender_num: 1, num: 0, str, id: avatar.key })
+      s.linkset.advanceTime(250)
+    }
     expect(fixture.userSit(script.host)).toBe(true)
     send(script, '@unsit=n'); send(other.scripts.other!, '@unsit=n')
     expect(fixture.userStand()).toBe(false)
@@ -100,7 +104,11 @@ it('combines competing sittp limits and removes only the matching issuer rule', 
       prims: [{ scripts: [{ name: 'lock', source: { source } }] }] })
     const locker = foreign.scripts.lock!
     locker.start()
-    const send = (s: typeof script, str: string) => s.fire('link_message', { sender_num: 1, num: 0, str, id: avatar.key })
+    // A force sit lands about 0.25 s after the command.
+    const send = (s: typeof script, str: string) => {
+      s.fire('link_message', { sender_num: 1, num: 0, str, id: avatar.key })
+      s.linkset.advanceTime(250)
+    }
     avatar.position = { x: 2.5, y: 0, z: 0 }
     send(script, '@sittp:3=n'); send(locker, '@sittp:2=n')
     expect(fixture.userSit(script.host)).toBe(false)
@@ -188,7 +196,11 @@ it('does not apply sittp to forced sits from either issuer and keeps object sit 
       position: { x: 10, y: 0, z: 0 }, prims: [{ scripts: [{ name: 'foreign', source: { source } }] }] })
     const forcer = foreign.scripts.foreign!
     forcer.start()
-    const send = (s: typeof script, str: string) => s.fire('link_message', { sender_num: 1, num: 0, str, id: avatar.key })
+    // A force sit lands about 0.25 s after the command.
+    const send = (s: typeof script, str: string) => {
+      s.fire('link_message', { sender_num: 1, num: 0, str, id: avatar.key })
+      s.linkset.advanceTime(250)
+    }
     send(script, '@sittp=n')
     expect(fixture.userSit(foreign.prims[0]!)).toBe(false)
     send(script, '@sit:' + foreign.prims[0]!.key + '=force')

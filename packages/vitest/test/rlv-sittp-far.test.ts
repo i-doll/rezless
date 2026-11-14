@@ -10,8 +10,12 @@ const source = `integer changes; default {
   changed(integer c) { if (c & CHANGED_LINK) ++changes; }
 }`
 const profiles = ['rlv', 'rlva'] as const
-const send = (fixture: Awaited<ReturnType<typeof loadRlvPair>>['rlv'], command: string) =>
+// In-world: a force sit or stand landed 0.2-0.25 s after the command (Aditi, SLua Tideland, 2026-11-14).
+const LANDED_MS = 250
+const send = (fixture: Awaited<ReturnType<typeof loadRlvPair>>['rlv'], command: string) => {
   fixture.script.fire('link_message', { sender_num: 1, num: 0, str: command, id: fixture.avatar.key })
+  fixture.script.linkset.advanceTime(LANDED_MS)
+}
 
 it.each(profiles)('%s applies a simulator surface pose beyond 8 m without a sittp force limit', async profile => {
   const fixture = (await loadRlvPair({ source }))[profile]
@@ -206,7 +210,7 @@ it('does not log an old session cancellation when a new session requests a sit',
     avatar.viewer.session.setReady(true)
     const count = avatar.viewer.commandLog.length
     send(fixture, '@sit:' + script.host.key + '=force')
-    expect(avatar.viewer.commandLog).toHaveLength(count + 1)
+    expect(avatar.viewer.commandLog.slice(count).map(entry => 'actionOutcome' in entry && entry.actionOutcome)).toEqual(['pending', 'applied'])
     expect(avatar.sittingOn).toBe(script.host)
     script.linkset.advanceTime(1000)
     expect(avatar.sittingOn).toBe(script.host)

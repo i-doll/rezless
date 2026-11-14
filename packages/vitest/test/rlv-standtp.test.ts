@@ -14,8 +14,12 @@ const source = `integer teleports; integer changes; list replies; default {
   changed(integer c) { changes = changes | c; if (c & CHANGED_TELEPORT) ++teleports; }
   listen(integer c,string n,key id,string m) { replies += [m]; }
 }`
-const issue = (script: Script, message: string, num = 0) =>
+// In-world: a force sit or stand landed 0.2-0.25 s after the command (Aditi, SLua Tideland, 2026-11-14).
+const LANDED_MS = 250
+const issue = (script: Script, message: string, num = 0) => {
   script.fire('link_message', { sender_num: 1, num, str: message, id: NULL_KEY })
+  script.linkset.advanceTime(LANDED_MS)
+}
 const origin = { x: 20, y: 30, z: 40 }
 const moved = { x: 80, y: 90, z: 50 }
 
@@ -283,7 +287,8 @@ it.each(['user', 'force'] as const)('names profile outcomes when a seated %s cha
 
 it('returns when RLVa changes from an object to ground and does not capture ground sit alone', async () => {
   const { rlva: { avatar, script } } = await setup()
-  issue(script, '@standtp=n,sit=force,unsit=force')
+  issue(script, '@standtp=n,sit=force')
+  issue(script, '@unsit=force')
   expect(avatar.position).toEqual(origin)
   issue(script, '@sit:' + script.host.key + '=force')
   script.host.params.position = { ...moved }

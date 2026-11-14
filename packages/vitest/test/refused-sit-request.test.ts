@@ -176,6 +176,8 @@ describe('@sit:<key>=force on a prim out of reach', () => {
     const far = await loadLinkset({ world, region: avatar.region, position: { x: 31, y: 0, z: 0 }, prims: [{}] })
     const force = () => {
       script.fire('link_message', { sender_num: 1, num: 0, str: `@sit:${far.linkset.prims[0]!.key}=force`, id: avatar.key })
+      // The region hears of a force sit about 0.25 s after the command.
+      script.linkset.advanceTime(250)
       return avatar.viewer.commandLog.at(-1)
     }
     script.start()
@@ -261,9 +263,10 @@ describe("the viewer's message for a refused @sit:<key>=force", () => {
     const { world, avatar, script } = fixture
     const far = await loadLinkset({ world, region: avatar.region, position: { x: 3, y: 0, z: 0 }, prims: [{}] })
     far.linkset.prims[0]!.params.sitFlags = 6
-    const force = () => script.fire('link_message', {
-      sender_num: 1, num: 0, str: `@sit:${far.linkset.prims[0]!.key}=force`, id: avatar.key,
-    })
+    const force = () => {
+      script.fire('link_message', { sender_num: 1, num: 0, str: `@sit:${far.linkset.prims[0]!.key}=force`, id: avatar.key })
+      script.linkset.advanceTime(250)
+    }
     script.start()
     force()
     expect(avatar.viewer.alerts).toEqual([NO_SURFACE])

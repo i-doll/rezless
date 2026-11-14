@@ -21,8 +21,13 @@ const seatSource = `list seen; list replies; default {
   changed(integer c) { if (c & CHANGED_LINK) seen += llGetAgentInfo(llGetOwner()) & 48; }
   listen(integer c, string n, key id, string m) { replies += [m]; }
 }`
-const issue = (script: Script, message: string) =>
+// In-world: a force sit or stand landed 0.2-0.25 s after the command (Aditi, SLua Tideland, 2026-11-14).
+// The ground sit from a seat comes a further 0.265-0.53 s after that stand.
+const LANDED_MS = 250
+const issue = (script: Script, message: string) => {
   script.fire('link_message', { sender_num: 1, num: 0, str: message, id: NULL_KEY })
+  script.linkset.advanceTime(LANDED_MS)
+}
 
 async function pair() {
   const fixtures = await loadRlvPair({ source: seatSource })
@@ -83,7 +88,7 @@ describe('@sitground=force from a seat', () => {
     f.seat()
     issue(f.script, '@sitground=force')
     expect(f.script.global('seen')).toEqual([AGENT_SITTING | AGENT_ON_OBJECT, 0])
-    expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'pending', seat: NULL_KEY })
+    expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'pending', seat: f.script.host.key })
     expect(f.avatar.sittingOn).toBeNull()
     f.wait(0)
     expect(f.script.global('seen')).toEqual([AGENT_SITTING | AGENT_ON_OBJECT, 0])
@@ -137,6 +142,43 @@ describe('@sitground=force from a seat', () => {
   })
 })
 
+describe('@sitground=force after another force command in the message', () => {
+  // RLVa (RlvForceHandler<RLV_BHVR_SITGROUND>) and Kokua (RRInterface::force) choose between the
+  // stand and the ground sit from the seat the viewer knows of when the command arrives, and an
+  // earlier force command in the same message hasn't reached the region yet.
+  // In-world: seated, "@unsit=force,sitground=force", then "@getsitid" after 0.35 s -> the null key
+  // and after 0.85 s -> the avatar's key: it stood first and sat on the ground later. Standing,
+  // "@sitground=force,sitground=force" -> 22 (Aditi, SLua Tideland, 2026-11-14).
+  it.each(['rlv', 'rlva'] as const)('%s stands first after an @unsit=force in the same message', async profile => {
+    const f = (await pair())[profile]
+    f.seat()
+    issue(f.script, '@unsit=force,sitground=force')
+    expect(f.script.global('seen')).toEqual([AGENT_SITTING | AGENT_ON_OBJECT, 0])
+    expect(f.sitting()).toBe(0)
+    f.wait(GROUND_BY_MS)
+    expect(f.sitting()).toBe(AGENT_SITTING)
+  })
+
+  it.each(['rlv', 'rlva'] as const)('%s leaves a second ground sit unchanged', async profile => {
+    const f = (await pair())[profile]
+    issue(f.script, '@sitground=force,sitground=force')
+    expect(f.avatar.viewer.commandLog.map(e => 'actionOutcome' in e && e.actionOutcome)).toEqual(['pending', 'pending', 'applied', 'unchanged'])
+    expect(f.sitting()).toBe(AGENT_SITTING)
+  })
+
+  // Kokua's LLAgent::sitDown checks the sit and interact locks when it sends the ground sit.
+  it('rlv checks its ground-sit locks at the command', async () => {
+    const f = (await pair()).rlv
+    issue(f.script, '@sitground=force,sit=n')
+    expect(f.sitting()).toBe(AGENT_SITTING)
+    issue(f.script, '@clear,unsit=force')
+    f.script.fire('link_message', { sender_num: 1, num: 0, str: '@sit=n,sitground=force', id: NULL_KEY })
+    f.script.fire('link_message', { sender_num: 1, num: 0, str: '@clear', id: NULL_KEY })
+    f.wait(GROUND_BY_MS)
+    expect(f.sitting()).toBe(0)
+  })
+})
+
 describe('locks on @sitground=force', () => {
   // In-world: seated, the seat said "@unsit=n" then "@sitground=force" -> changed read 262, then 22
   // at 0.265 s. Another object holding "@unsit=n" -> no changed, still 54. Standing, another object
@@ -158,7 +200,8 @@ describe('locks on @sitground=force', () => {
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'refused', reason: 'restriction' })
     expect(f.avatar.sittingOn).toBe(f.script.host)
     issue(lock.scripts.lock!, '@clear,sit=n')
-    issue(f.script, '@unsit=force,sitground=force')
+    issue(f.script, '@unsit=force')
+    issue(f.script, '@sitground=force')
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'refused', reason: 'restriction' })
     expect(f.sitting()).toBe(0)
   })
@@ -173,6 +216,7 @@ describe('locks on @sitground=force', () => {
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'refused', reason: 'restriction' })
     expect(f.avatar.sittingOn).toBe(f.script.host)
     issue(f.script, '@clear,unsit=force,sit=n,sitground=force')
+    f.wait(GROUND_BY_MS)
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'refused', reason: 'restriction' })
     expect(f.sitting()).toBe(0)
     issue(f.script, '@clear')

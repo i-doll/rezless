@@ -110,8 +110,9 @@ it('prevents a blacklisted forced stand while leaving the other profile unaffect
   const seat=await loadLinkset({world:f.world,region:f.avatar.region,owner:f.avatar.key,prims:[{name:'seat'}]})
   expect(f.userSit(seat.linkset.prims[0]!)).toBe(true)
   f.script.start()
+  f.script.linkset.advanceTime(250)
   expect(!!f.avatar.sittingOn).toBe(profile === 'rlv')
-  expect(f.avatar.viewer.commandLog[0]).toMatchObject(profile === 'rlv'
+  expect(f.avatar.viewer.commandLog.at(-1)).toMatchObject(profile === 'rlv'
    ? {status:'ignored',outcome:'ignored-blacklist'} : {status:'action',action:'unsit',actionOutcome:'applied'})
  }
 })

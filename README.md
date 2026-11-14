@@ -1228,9 +1228,10 @@ snapshot; asset loading and rendering remain external.
 Unsupported effects keep their diagnostics under either setting.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
-Force `sit`, `sitground` and `unsit` update World seating and expose action outcomes in the
-viewer command log. A ground sit from a seat stands the avatar first and lands on
-the ground after a short delay in virtual time. `getsitid` reports the object root, null standing, or the avatar
+Force `sit`, `sitground` and `unsit` update World seating 250 ms of virtual time after the
+command and expose action outcomes in the viewer command log. Until then the issuing script,
+`getsitid` and the rest of the message see the old seat. A ground sit from a seat stands the
+avatar first and lands on the ground after a further short delay. `getsitid` reports the object root, null standing, or the avatar
 UUID for RLVa ground sitting. Profile-specific force lock checks are supported;
 explicit simulator sit responses supply surface poses at any same-region distance
 and timed autopilot outcomes. A refused response stands the avatar up from another object it sits on and changes nothing else.

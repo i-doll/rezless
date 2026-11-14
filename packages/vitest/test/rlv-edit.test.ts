@@ -129,6 +129,7 @@ it('checks interaction before RLVa touchme but after Kokua touchme, and preserve
     issuer.scripts.grant!.start()
     expect(f.touch(issuer.linkset.prims[0]!).status, profile).toBe(profile === 'rlv' ? 'touched' : 'blocked')
     command(f, `@sit:${t.linkset.prims[0]!.key}=force`)
+    f.script.linkset.advanceTime(250)
     expect(f.avatar.sittingOn).toBe(t.linkset.prims[0])
     expect(f.userStand()).toBe(true)
     expect(f.userSit(t.linkset.prims[0]!)).toBe(false)
