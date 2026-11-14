@@ -92,6 +92,50 @@ describe('coroutine.running() in SLua', () => {
     const each = (where: string) => [`${where} nil nil true`, 'resumed true', `${where} after nil`]
     expect(texts(s)).toEqual([...each('once'), ...each('every'), ...each('touch'), ...each('touch')])
   })
+
+  it('carries on from a yield on the script thread, which returns nothing', async () => {
+    // In-world, at the top level: pcall(coroutine.yield) -> true and nothing else; select("#", coroutine.yield())
+    // -> 0; select("#", coroutine.yield(1, 2)) -> 0 and select("#", pcall(coroutine.yield, 1, 2)) -> 1, and the
+    // script went on at once. The same three lines from a touch_start handler, on each of two touches.
+    const body = `
+      local r = table.pack(pcall(coroutine.yield))
+      ll.OwnerSay("pcall " .. tostring(r[1]) .. " " .. r.n)
+      ll.OwnerSay("bare " .. select("#", coroutine.yield()))
+      ll.OwnerSay("values " .. select("#", coroutine.yield(1, 2)) .. " " .. select("#", pcall(coroutine.yield, 1, 2)))
+    `
+    const lines = ['pcall true 1', 'bare 0', 'values 0 1']
+    expect(await said(body)).toEqual(lines)
+    const s = await slua(`LLEvents:on("touch_start", function() ${body} end)`)
+    s.start()
+    touch(s)
+    touch(s)
+    expect(texts(s)).toEqual([...lines, ...lines])
+  })
+})
+
+describe('coroutine.yield() where the script thread cannot yield', () => {
+  it('fails in a metamethod and an xpcall handler, and carries on in a comparator and a gsub callback', async () => {
+    // In-world, at the top level, each under pcall: coroutine.yield(1) in an __index and in a __tostring
+    // metamethod -> false, "attempt to yield across metamethod/C-call boundary"; in an xpcall handler -> false,
+    // "error in error handling"; in a table.sort comparator -> true, and the table was sorted; in a string.gsub
+    // callback -> true, "zb".
+    expect(
+      await said(`
+        local function show(label, ok, v) ll.OwnerSay(label .. " " .. tostring(ok) .. " " .. tostring(v)) end
+        show("index", pcall(function() return setmetatable({}, {__index = function() coroutine.yield(1) return 5 end}).x end))
+        show("tostring", pcall(function() return tostring(setmetatable({}, {__tostring = function() coroutine.yield(1) return "t" end})) end))
+        show("handler", xpcall(function() error("x", 0) end, function() coroutine.yield(1) return "h" end))
+        show("sort", pcall(function() local t = {2, 1} table.sort(t, function(a, b) coroutine.yield(1) return a < b end) return t[1] end))
+        show("gsub", pcall(function() return (string.gsub("ab", "a", function() coroutine.yield(1) return "z" end)) end))
+      `),
+    ).toEqual([
+      'index false attempt to yield across metamethod/C-call boundary',
+      'tostring false attempt to yield across metamethod/C-call boundary',
+      'handler false error in error handling',
+      'sort true 1',
+      'gsub true zb',
+    ])
+  })
 })
 
 describe('SLua memory errors', () => {
@@ -234,6 +278,167 @@ describe('SLua memory errors', () => {
       'touch true',
       'touch after true',
     ])
+  })
+})
+
+describe('llcompat.SetMemoryLimit in SLua', () => {
+  it('refuses a limit below what the script uses, and takes one equal to it', async () => {
+    // In-world, after llcompat.SetMemoryLimit(100000), with nothing allocated between reading ll.GetUsedMemory()
+    // and the call: used + 4000, + 2000, + 1000, + 500, + 200, + 100, + 64, + 32, + 16, + 8, + 4, + 2, + 1 and
+    // + 0 -> 1 each, and ll.GetMemoryLimit() is then the new limit; used - 1 and used - 100 -> 0, limit unchanged.
+    // From the default limit, one script each: used - 1 -> 0, 131072; used -> 1; used + 1 -> 1;
+    // llcompat.SetMemoryLimit(ll.GetUsedMemory()) -> 1; llcompat.SetMemoryLimit(ll.GetUsedMemory() - 1) -> 0.
+    expect(
+      await said(`
+        local set, used, lim = llcompat.SetMemoryLimit, ll.GetUsedMemory, ll.GetMemoryLimit
+        local D = {4000, 16, 1, 0, -1, -100}
+        local res = table.create(#D * 2, 0)
+        set(100000)
+        for i = 1, #D do
+          local before = used()
+          res[i * 2 - 1] = set(before + D[i])
+          res[i * 2] = lim() - before
+        end
+        local same = set(used())
+        local below = set(used() - 1)
+        set(131072)
+        for i = 1, #D do ll.OwnerSay(D[i] .. " -> " .. res[i * 2 - 1] .. " " .. res[i * 2]) end
+        ll.OwnerSay(same .. " " .. below)
+      `),
+    ).toEqual(['4000 -> 1 4000', '16 -> 1 16', '1 -> 1 1', '0 -> 1 0', '-1 -> 0 0', '-100 -> 0 0', '1 0'])
+  })
+
+  it('counts what the script allocated since it read its use', async () => {
+    // In-world, one script each: local u = ll.GetUsedMemory(), then a string built from u (25 bytes more in
+    // use), then llcompat.SetMemoryLimit(u) -> 0; llcompat.SetMemoryLimit(u + 1) in the same way -> 0.
+    expect(
+      await said(`
+        local u = ll.GetUsedMemory()
+        local label = "used " .. u
+        ll.OwnerSay(llcompat.SetMemoryLimit(u) .. " " .. llcompat.SetMemoryLimit(u + 1) .. " " .. ll.GetMemoryLimit())
+      `),
+    ).toEqual(['0 0 131072'])
+  })
+
+  it('stops the script at a lowered limit', async () => {
+    // In-world: llcompat.SetMemoryLimit(40000) -> 1, ll.GetFreeMemory() 35456; a pcall filling a table with
+    // strings for ever -> "not enough memory" with 39961 bytes in use and 858 strings; after dropping 100 of
+    // them, llcompat.SetMemoryLimit(used - 1000) -> 0, limit still 40000; (60000) -> 1 and the fill went on to
+    // 59963 bytes; (131072) -> 1 and it went on to 131045. (How close to the limit a fill stops depends on where
+    // its table next grows, so the test takes anything within 4096 bytes.)
+    expect(
+      await said(
+        `local t = {}
+        local function fill() local n = #t while true do n += 1 t[n] = "s" .. n end end
+        local function drop(k) for i = #t, #t - k + 1, -1 do t[i] = nil end end
+        local function upTo(limit)
+          local set = llcompat.SetMemoryLimit(limit)
+          local ok, e = pcall(fill)
+          local used = ll.GetUsedMemory()
+          drop(100)
+          ll.OwnerSay(limit .. " " .. set .. " " .. tostring(e) .. " " .. tostring(used > limit - 4096 and used <= limit))
+        end
+        upTo(40000)
+        ll.OwnerSay(llcompat.SetMemoryLimit(ll.GetUsedMemory() - 1000) .. " " .. ll.GetMemoryLimit())
+        upTo(60000)
+        upTo(131072)`,
+        { memoryLimit: true },
+      ),
+    ).toEqual(['40000 1 not enough memory true', '0 40000', '60000 1 not enough memory true', '131072 1 not enough memory true'])
+  })
+
+  it('fails every allocation once the limit is what the script uses', async () => {
+    // In-world, one script each: after llcompat.SetMemoryLimit(ll.GetUsedMemory()) -> 1, pcall(string.rep, "x", 64)
+    // -> false, "not enough memory", and so did a pcall of a function calling itself 200 deep;
+    // llcompat.SetMemoryLimit(131072) -> 1 afterwards. (Making a function at that limit ended the script in-world
+    // with "not enough memory". rezless charges nothing for a function without upvalues, so it carries on there.)
+    expect(
+      await said(
+        `local function down(n) if n == 0 then return 0 end return (down(n - 1)) end
+        local a = llcompat.SetMemoryLimit(ll.GetUsedMemory())
+        local ok, e = pcall(string.rep, "x", 64)
+        local ok2, e2 = pcall(down, 200)
+        local b = llcompat.SetMemoryLimit(131072)
+        ll.OwnerSay(a .. " " .. tostring(e) .. " / " .. tostring(e2) .. " " .. b)`,
+        { memoryLimit: true },
+      ),
+    ).toEqual(['1 not enough memory / not enough memory 1'])
+  })
+
+  it('keeps a limit close to what the script uses from one event to the next', async () => {
+    // In-world: a script that set its limit to what it used plus 4000, 2000 and so on down to plus 0 carried on
+    // after each, and a script at 40000 took a touch.
+    const s = await slua(
+      `local set, used = llcompat.SetMemoryLimit, ll.GetUsedMemory
+      LLEvents:on("touch_start", function() ll.OwnerSay("touch") end)
+      ll.OwnerSay("top")
+      set(used() + 200)`,
+      { memoryLimit: true },
+    )
+    s.start()
+    touch(s)
+    expect(texts(s)).toEqual(['top', 'touch'])
+    expect(s.memoryLimit).toBeLessThan(3300)
+  })
+
+  it('keeps a lowered limit through ll.ResetScript', async () => {
+    // In-world: llcompat.SetMemoryLimit(50000) -> 1, then ll.ResetScript(); the script started again with
+    // ll.GetMemoryLimit() 50000 and ll.GetFreeMemory() + ll.GetUsedMemory() 50000. With the limit at what the
+    // script used plus 1000 before the reset, it started again and read that limit, with 1000 bytes fewer in use.
+    const reset = (limit: string, options = {}) =>
+      slua(
+        `if ll.GetObjectDesc() == "again" then
+          ll.SetObjectDesc("done")
+          ll.OwnerSay("restarted")
+          ll.OwnerSay("after " .. ll.GetMemoryLimit() .. " " .. (ll.GetFreeMemory() + ll.GetUsedMemory()))
+        else
+          ll.SetObjectDesc("again")
+          local used = ll.GetUsedMemory()
+          llcompat.SetMemoryLimit(${limit})
+          ll.ResetScript()
+        end`,
+        options,
+      )
+    const s = await reset('50000')
+    s.start()
+    s.advanceTime(1000)
+    expect(texts(s)).toEqual(['restarted', 'after 50000 50000'])
+
+    const enforced = await reset('used + 1000', { memoryLimit: true })
+    enforced.start()
+    enforced.advanceTime(1000)
+    expect(texts(enforced)).toEqual(['restarted', expect.stringMatching(/^after (\d+) \1$/)])
+    expect(enforced.memoryLimit).toBeLessThan(6000)
+  })
+
+  it('fails the restart when the kept limit is too low to start in', async () => {
+    // In-world: with the limit at what the script used, ll.ResetScript() -> "Script run-time error" and "not
+    // enough memory" on DEBUG_CHANNEL before the script said anything. With the limit at that plus 64, the script
+    // said its first line after the reset and then failed the same way.
+    const reset = (limit: string) =>
+      slua(
+        `if ll.GetObjectDesc() == "again" then
+          ll.SetObjectDesc("done")
+          ll.OwnerSay("restarted")
+          ll.OwnerSay("after reset limit=" .. ll.GetMemoryLimit() .. " used=" .. ll.GetUsedMemory())
+        else
+          ll.SetObjectDesc("again")
+          local set, used = llcompat.SetMemoryLimit, ll.GetUsedMemory
+          local u = used()
+          local r = set(u + ${limit})
+          ll.ResetScript()
+        end`,
+        { memoryLimit: true },
+      )
+    const exact = await reset('0')
+    expect(() => exact.start()).toThrow('not enough memory')
+    expect(texts(exact)).toEqual([])
+    expect(texts(exact, DEBUG_CHANNEL)).toEqual(['Script run-time error', 'not enough memory'])
+
+    const close = await reset('64')
+    expect(() => close.start()).toThrow('not enough memory')
+    expect(texts(close)).toEqual(['restarted'])
+    expect(texts(close, DEBUG_CHANNEL)).toEqual(['Script run-time error', 'not enough memory'])
   })
 })
 

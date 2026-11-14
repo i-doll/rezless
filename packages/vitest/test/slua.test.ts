@@ -271,14 +271,6 @@ describe('SLua values and errors', () => {
     expect(s.chat[0]!.text).toBe(`true ${s.memoryLimit}`)
   })
 
-  it('treats a bare yield as preemption, and a yield with values as an error', async () => {
-    const bare = await slua(`ll.OwnerSay("a"); coroutine.yield(); ll.OwnerSay("b")`)
-    bare.start()
-    expect(bare.chat.map((c) => c.text)).toEqual(['a', 'b'])
-    const valued = await slua(`coroutine.yield(1)`)
-    expect(() => valued.start()).toThrow(/unexpected yield/)
-  })
-
   it('stops on ll.Die as an LSL script does', async () => {
     // rezless lets the call after llDie finish, then halts: the same for both languages.
     const lsl = await loadScript({ source: 'default { state_entry() { llDie(); llOwnerSay("after"); llOwnerSay("never"); } }' })

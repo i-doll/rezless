@@ -902,15 +902,18 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **Environment**: scripts get the libraries SLua's host gives them. There
   is no `getfenv`, `setfenv` or `ares`. `gcinfo()` reports the script's own
   memory. `coroutine.running()` is `nil` at the top level, in a handler and
-  in a timer callback, and the coroutine inside one.
+  in a timer callback, and the coroutine inside one. A `coroutine.yield()`
+  outside any coroutine carries on at once and returns nothing, except in
+  a metamethod or an `xpcall` handler, where it is an error.
 * **Memory**: SLua scripts get 128 KiB, counting what running handlers
   hold. With `memoryLimit: true` the VM enforces it, and a script that goes
   past it fails with `not enough memory`, which `pcall` can catch. A
   runaway recursion ends this way, not in a stack overflow. The stack a
   handler grew is given back when the handler ends. A script whose code
-  alone takes all 128 KiB fails as it starts, before any of it runs.
-  `ll.GetUsedMemory`, `ll.GetFreeMemory`, and `ll.ScriptProfiler` with
-  `ll.GetSPMaxMemory` all read the VM's own count.
+  alone takes all 128 KiB fails as it starts, before any of it runs. `ll.GetUsedMemory`, `ll.GetFreeMemory`, and
+  `ll.ScriptProfiler` with `ll.GetSPMaxMemory` all read the VM's own count.
+  `llcompat.SetMemoryLimit` takes a limit from what the script uses up to
+  131072, and with `memoryLimit: true` the VM enforces the new limit.
 * **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
   write Lua globals (not locals). `s.printed` collects `print()` output.
   `s.language` is `'slua'`.
@@ -932,10 +935,6 @@ Not modelled yet:
 
 * SLua script state isn't serialized, so a copy (rezzed from inventory,
   remote-loaded) starts afresh.
-* `llcompat.SetMemoryLimit` accepts a limit below what the script uses,
-  which Second Life refuses, and a lowered limit changes what
-  `ll.GetMemoryLimit` and `ll.GetFreeMemory` report but not when the VM
-  runs out.
 * `print()` goes to `s.printed`, not chat.
 * A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
