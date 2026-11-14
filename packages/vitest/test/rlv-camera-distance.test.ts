@@ -160,7 +160,7 @@ it('discovers supported distance forms and keeps absent profile handlers inspect
     listen(integer c,string n,key id,string m) { replies += [m]; }
   }` })
   pair.rlva.script.start()
-  expect(pair.rlva.script.global('replies')).toEqual(['setcam_avdist;setcam_avdistmax;setcam_avdistmin;getcam_avdist;getcam_avdistmax;getcam_avdistmin'])
+  expect(pair.rlva.script.global('replies')).toEqual(['setcam_avdist;setcam_avdistmin;setcam_avdistmax;getcam_avdist;getcam_avdistmin;getcam_avdistmax'])
   expect(getRlvCommandCoverage('rlv').find(f => f.behaviour === 'setcam_origindistmin')).toBeUndefined()
   expect(getRlvCommandCoverage('rlva').find(f => f.behaviour === 'setcam_avdist')).toMatchObject({ support: 'state-only' })
 })

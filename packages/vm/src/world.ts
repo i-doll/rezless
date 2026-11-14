@@ -8,7 +8,7 @@ import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } f
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
-import { cancelPendingGroundSit, cancelPendingSit, groundSitAfterStand, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
+import { cancelPendingGroundSit, cancelPendingSit, cancelSeatRequests, groundSitAfterStand, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
@@ -721,6 +721,7 @@ export class World {
       position = landing.position
       lookAt = landing.lookAt ?? lookAt
     }
+    cancelSeatRequests(avatar)
     this.standAvatar(avatar)
     const changes = CHANGED_TELEPORT | (avatar.region === region.name ? 0 : CHANGED_REGION)
     avatar.region = region.name

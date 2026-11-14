@@ -1252,10 +1252,17 @@ against `sittp` before accepting a response; forced sits bypass that restriction
 Pathfinding, automatic collision placement and avatar body offsets remain explicit
 inputs rather than a simulated physics or avatar skeleton.
 
+Force `sit`, `sitground` and `unsit` reach World seating 225 ms of virtual time
+after the command (the grid switched between 0.2 and 0.25 s), and the command log
+records `pending` first. Until then `getsitid`, later commands in the same message
+and event, and `llGetAgentInfo` see the old seat, so step virtual time (250 ms is
+enough) after an RLV force sit or stand before reading the seat. Lock checks run
+at the command.
+
 Empty and null-UUID sit requests ground sitting in RLVa and have no effect in
 Kokua. `sitground=force` ground-sits in both profiles and ignores its option.
 Ground sitting sets `AGENT_SITTING`, clears `AGENT_ON_OBJECT`, and removes an
-existing object seat. From a seat, the avatar stands at once, so the seat's
+existing object seat. From a seat, the avatar stands first, so the seat's
 `CHANGED_LINK` handler reads it standing, and sits on the ground 300 ms later (the grid's delay varied between 0.265 and
 0.53 s in seven runs over two sessions);
 advance virtual time to finish it. The command log records `pending`, then the outcome. A later sit request drops it. Kokua checks
@@ -1296,7 +1303,9 @@ The manifest includes `getsitid`, force `sit`/`sitground`/`unsit`, and add/remov
 
 `@getcommand[:<substring>[;<type>[;<separator>]]]=<channel>` is available in the
 Firestorm RLVa 2.4.2 fixture. It lists implemented manifest forms, including
-state-only restrictions, rather than the full viewer dictionary. The default
+state-only restrictions, rather than the full viewer dictionary, in the
+dictionary's order. Environment and debug settings and the overlay and sphere
+modifiers are not dictionary entries, so they stay out of discovery. The default
 and `any` type include add, force and reply forms; `add`, `force` and `reply`
 select one type. Names match substrings. The separator defaults to `;`; an
 explicit empty separator concatenates names. Extra fields are ignored and wire

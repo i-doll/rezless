@@ -10,8 +10,14 @@ const source = `integer changes; default {
   changed(integer c) { if (c & CHANGED_LINK) ++changes; }
 }`
 const profiles = ['rlv', 'rlva'] as const
-const send = (fixture: Awaited<ReturnType<typeof loadRlvPair>>['rlv'], command: string) =>
+// In-world: a force sit or stand landed 0.2-0.25 s after the command (Aditi, SLua Tideland, 2026-11-14).
+const LANDED_MS = 250
+// The model's delay inside the measured 0.2-0.25 s window.
+const FORCE_SEAT_MS = 225
+const send = (fixture: Awaited<ReturnType<typeof loadRlvPair>>['rlv'], command: string) => {
   fixture.script.fire('link_message', { sender_num: 1, num: 0, str: command, id: fixture.avatar.key })
+  fixture.script.linkset.advanceTime(LANDED_MS)
+}
 
 it.each(profiles)('%s applies a simulator surface pose beyond 8 m without a sittp force limit', async profile => {
   const fixture = (await loadRlvPair({ source }))[profile]
@@ -68,7 +74,8 @@ it.each(profiles)('%s completes successful autopilot before seating and changed 
   send(fixture, '@sit:' + prim.key + '=force')
   expect(avatar.sittingOn).toBeNull()
   expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ actionOutcome: 'pending' })
-  seat.linkset.advanceTime(1999)
+  // The pilot starts when the request reaches the region, LANDED_MS - FORCE_SEAT_MS before now.
+  seat.linkset.advanceTime(2000 - (LANDED_MS - FORCE_SEAT_MS) - 1)
   expect(avatar.sittingOn).toBeNull()
   expect(seat.scripts.seat!.global('changes')).toBe(0)
   seat.linkset.advanceTime(1)
@@ -206,7 +213,7 @@ it('does not log an old session cancellation when a new session requests a sit',
     avatar.viewer.session.setReady(true)
     const count = avatar.viewer.commandLog.length
     send(fixture, '@sit:' + script.host.key + '=force')
-    expect(avatar.viewer.commandLog).toHaveLength(count + 1)
+    expect(avatar.viewer.commandLog.slice(count).map(entry => 'actionOutcome' in entry && entry.actionOutcome)).toEqual(['pending', 'applied'])
     expect(avatar.sittingOn).toBe(script.host)
     script.linkset.advanceTime(1000)
     expect(avatar.sittingOn).toBe(script.host)

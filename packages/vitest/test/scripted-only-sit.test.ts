@@ -257,7 +257,8 @@ describe('@sit:<key>=force on an object with a scripted-only prim', () => {
       script.start()
       await run(fixture, (key) => {
         script.fire('link_message', { sender_num: 1, num: 0, str: `@sit:${key}=force`, id: avatar.key })
-        script.host.linkset!.advanceTime(100)
+        // The region hears of a force sit about 0.25 s after the command.
+        script.host.linkset!.advanceTime(350)
       })
     }
   }

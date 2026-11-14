@@ -132,7 +132,7 @@ it('delivers queued exact wire replies to an LSL listener and discovers every ca
     const f = pair[profile]
     f.script.start()
     expect(f.script.global('replies')).toEqual(profile === 'rlva'
-      ? ['0.778', 'setcam_fovmax;setcam_fovmin;setcam_fov;getcam_fov;getcam_fovmax;getcam_fovmin'] : ['0.777777'])
+      ? ['0.778', 'setcam_fovmin;setcam_fovmax;setcam_fov;getcam_fov;getcam_fovmin;getcam_fovmax'] : ['0.777777'])
   }
 })
 
