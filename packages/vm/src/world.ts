@@ -14,6 +14,7 @@ import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
+import { sitSpot } from './sit-spot.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import type { Linkset } from './linkset.js'
@@ -568,7 +569,7 @@ export class World {
     const position = prim.regionPosition(), origin = avatar.position
     // The default plain-prim response covers nearby seats. Other surfaces use explicit responses.
     if (Math.hypot(position.x - origin.x, position.y - origin.y, position.z - origin.z) > 8) return null
-    return { position: ZERO_VECTOR, rotation: ZERO_ROTATION }
+    return sitSpot(prim, avatar)
   }
 
   /** Seed simulator seating on a free prim, independently of viewer restrictions. */

@@ -578,9 +578,22 @@ A prim without a sit target is out of reach more than 8 m away, unless
 `world.setSitResponse` gives it a response. Second Life's rule for that reach
 is not known, and 8 m from the prim's centre is an approximation: it gets 70
 of 113 requests measured with prims of several sizes, shapes, turns and
-heights right. A sit request on a prim out of reach is refused too, and again
-an avatar sitting on another object stands up from it. A sit target seats the
-avatar at any distance in the region.
+heights right, and 14 of 21 with prims tilted about X or Y. A sit request on a
+prim out of reach is refused too, and again an avatar sitting on another
+object stands up from it. A sit target seats the avatar at any distance in the
+region.
+
+A sit request seats the avatar on a prim without a sit target where Second
+Life does on a box. Take the line from a point 3 m behind the avatar and
+1.94 m above it to the prim's centre. Seen from above, it leaves the prim
+through a side. The avatar sits 0.09 m out from that side, in line with where
+the line first meets the prim, and 0.63 m above the prim's top. It sits
+upright, facing out from that side, and `PRIM_POS_LOCAL` and `PRIM_ROT_LOCAL`
+of its link read that spot. In Second Life this holds for boxes and round
+cylinders with an axis vertical. Spheres, tori, most prisms, cylinders with an
+oval top and tilted prims seat the avatar elsewhere, which rezless does not
+model. `world.sitAvatar` without a placement seats the avatar on the prim's
+sit target, or at its centre when it has none.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
 `name`, `message` and the clock time `at`. A sit request refused for

@@ -163,7 +163,8 @@ it('snapshots responses, supports explicit refusal and clearing, and validates t
     expect(fixture.userSit(script.host)).toBe(false)
     world.setSitResponse(script.host, undefined)
     expect(fixture.userSit(script.host)).toBe(true)
-    expect(avatar.position).toEqual({ x: 0, y: 0, z: 0 })
+    // The default response seats the avatar on the prim's top, at the side behind it.
+    expect(avatar.sitPlacement!.position).toEqual({ x: Math.fround(-0.34), y: 0, z: Math.fround(0.88) })
     expect(() => world.setSitResponse(script.host, { position: { x: NaN, y: 0, z: 0 } })).toThrow(RangeError)
     expect(() => world.setSitResponse(script.host, { position, autopilot: { durationMs: -1, success: true } })).toThrow(RangeError)
   }
