@@ -233,6 +233,20 @@ it('keeps reading the holder after its sit target is removed or set again', asyn
   expect(world.avatarOnSitTarget(box)).toBe(first)
 })
 
+it('leaves the holder seated when it asks again after its sit target is removed', async () => {
+  // In-world: a repeated sit request on the box an avatar already sat on left it where it
+  // was, with no event (the beside-sitter case below). The holder is treated the same way.
+  const { first, second, linkset, sit } = await scene()
+  const box = linkset.prims[0]!
+  box.params.sitTarget = TARGET
+  expect(sit(first)).toBe(true)
+  expect(linkset.world!.sitAvatar(second, box)).toBe(true)
+  box.params.sitTarget = { enabled: false, offset: { x: 0, y: 0, z: 0 }, rotation: TARGET.rotation }
+  expect(sit(first)).toBe(true)
+  expect(first.sitPlacement?.position).toEqual(TARGET.offset)
+  expect(first.viewer.alerts).toEqual([])
+})
+
 it('refuses a far sit request on a taken sit target without an alert', async () => {
   // In-world: with the second avatar on the box's sit target, the first asked from 12 m
   // away. It stayed standing, no script got an event and the viewer showed nothing.

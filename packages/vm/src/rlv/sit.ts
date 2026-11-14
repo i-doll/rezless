@@ -383,7 +383,8 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   const previous = avatar.sittingOn
   if (saveOrigin) rememberStandtpSit(world, avatar)
   const sit = (): 'applied' | 'unchanged' | 'refused' => {
-    if (spotTaken(world, avatar, seat, response.position)) {
+    // In-world a repeated request on the seat the avatar sits on leaves it where it is.
+    if (previous !== seat && spotTaken(world, avatar, seat, response.position)) {
       alertOnce(world, avatar, 'CantSitNoRoom', 'No room to sit here, try another spot.')
       return 'refused'
     }
