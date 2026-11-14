@@ -266,8 +266,15 @@ export class Linkset {
     }
   }
 
-  /** Snapshot an inventory object, or instantiate it in the rezzer's world. */
+  /**
+   * Snapshot an inventory object, or instantiate it in the rezzer's world. A snapshot of an
+   * object that is sat on stands its sitter up first, as taking it or a copy of it does.
+   */
   copy(opts: LinksetOptions = {}, from?: Linkset): Linkset {
+    // In-world: taking an object, or a copy of it, stood up the avatar sitting on it.
+    const sitters = opts.world ? [] : this.world?.avatars.filter(avatar => avatar.sittingOn?.linkset === this) ?? []
+    for (const avatar of sitters) this.world!.standAvatar(avatar)
+    const unseated = sitters.length > 0
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
     copy.lastAttachmentPoint = this.lastAttachmentPoint
     for (const source of this.prims) {
@@ -280,7 +287,7 @@ export class Linkset {
       prim.keyframedMotion = source.keyframedMotion?.copyTo(prim, copy.clock) ?? null
       for (const item of source.inventory) {
         if (item.script) {
-          const script = item.script.copyTo(prim)
+          const script = item.script.copyTo(prim, { unseated })
           Object.assign(prim.inventory.at(-1)!, { ...item, permMask: { ...item.permMask }, script })
         } else prim.placeInventory({ ...item, permMask: { ...item.permMask } })
       }

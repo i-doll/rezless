@@ -142,9 +142,10 @@ describe('acceptpermission automatic permission replies', () => {
       // sent @acceptpermission=add and asked for 4 again -> the viewer answered,
       // run_time_permissions(4) fired once, and Yes on the old dialog afterwards fired nothing
       // (Aditi, SLua Tideland, 2026-11-13, Firestorm RLVa). Kokua was not probed.
-      expect(script.permissionRequests.map(r => r.answered)).toEqual([true, true])
+      expect(script.permissionRequests.map(r => r.answered)).toEqual([false, true])
       expect(script.global('events')).toBe(1)
       expect(() => script.denyPermissions()).toThrow('no pending permission request')
+      script.grantPermissions(undefined, script.permissionRequests[0])
       expect(script.global('events')).toBe(1)
     }
   })

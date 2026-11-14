@@ -1,6 +1,6 @@
 import { clearTargetMotion } from './builtins/motion.js'
 import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
-import { PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
+import { CHANGED_LINK, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
@@ -200,6 +200,10 @@ export class Script {
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
+  /** Set on a copy of an object that was taken from under a sitter, until it is rezzed. */
+  private unseated = false
+  /** Set on a copy of an SLua script that was asleep, until the copy's VM carries that code on. */
+  private sluaAsleep = false
   /** What an SLua script passed to print(), in order. */
   readonly printed: string[] = []
 
@@ -298,7 +302,7 @@ export class Script {
       },
       appearance: this.host.appearance,
       gameControlSnapshot: null,
-      permissions: { granted: 0, agent: NULL_KEY, requests: [], autoGrant: options.autoGrantPermissions ?? null },
+      permissions: { granted: 0, agent: NULL_KEY, requests: [], waiting: false, autoGrant: options.autoGrantPermissions ?? null },
       experience: options.experience ?? null,
       experienceRequests: [],
       controls: { taken: null, level: 0 },
@@ -599,12 +603,13 @@ export class Script {
    * An avatar stopped sitting on this script's object. If the script holds
    * its permissions for that avatar, Second Life takes controls and camera
    * control back and stops waiting on the script's dialogs: answers to them
-   * do nothing. A script that holds nothing for the avatar keeps waiting.
+   * do nothing until the script asks again. A script that holds nothing for
+   * the avatar keeps waiting.
    */
   sitterLeft(avatar: string): void {
     if (this.state.permissions.agent.toLowerCase() !== avatar.toLowerCase()) return
     this.releaseSeat()
-    this.dropWaitingRequests()
+    this.state.permissions.waiting = false
   }
 
   /** What a stand leaves: no controls or camera control, and no permission key once nothing is held. */
@@ -615,10 +620,7 @@ export class Script {
 
   /** The object went into inventory: a dialog raised before that does nothing afterwards. */
   detached(): void {
-    this.dropWaitingRequests()
-  }
-
-  private dropWaitingRequests(): void {
+    this.unseated = false
     for (const request of this.state.permissions.requests) request.answered = true
   }
 
@@ -643,24 +645,32 @@ export class Script {
   }
 
   /**
-   * Answer a waiting permission request, the most recent one unless `request`
-   * names another entry of `permissionRequests`. Grants the requested bits
-   * that are also in `permissions` (all of them by default) and fires
-   * `run_time_permissions` on this script. Every other waiting request is
-   * dropped: Second Life acts on the first answer only.
+   * Answer a permission dialog: the most recent one unless `request` names
+   * another entry of `permissionRequests`. Grants the dialog's bits that are
+   * also in `permissions` (all of them by default) and fires
+   * `run_time_permissions` on this script. Second Life acts on the first
+   * answer only, so the script then stops waiting.
+   *
+   * A dialog stays on the avatar's screen after the script stops waiting for
+   * it (another answer, an automatic grant, a stand, a reset). Naming such a
+   * dialog in `request` does nothing, as in Second Life, unless the script
+   * has asked again since: then the answer is honoured, with the old
+   * dialog's bits. Without `request` there must be a request waiting.
    */
   grantPermissions(permissions?: number, request?: PermissionRequestEntry): void {
-    const requests = this.state.permissions.requests
-    const req = request ?? [...requests].reverse().find((r) => !r.answered)
-    if (!req || req.answered || !requests.includes(req)) {
-      throw new Error(requests.length
-        ? 'no pending permission request: every request was already answered, granted automatically or dropped by a reset'
+    const held = this.state.permissions
+    const req = request ?? (held.waiting ? [...held.requests].reverse().find((r) => !r.answered) : undefined)
+    if (!req || req.answered || !held.requests.includes(req)) {
+      throw new Error(held.requests.length
+        ? 'no pending permission request: the script is not waiting for an answer. Its requests were answered or granted automatically, or a stand, a detach or a reset ended the wait'
         : 'no pending permission request')
     }
-    for (const waiting of requests) waiting.answered = true
+    req.answered = true
+    if (!held.waiting) return
+    held.waiting = false
     const granted = req.permissions & (permissions ?? req.permissions)
-    this.state.permissions.granted = granted
-    this.state.permissions.agent = req.agent
+    held.granted = granted
+    held.agent = req.agent
     if (!(granted & PERMISSION_TAKE_CONTROLS)) this.state.controls.taken = null
     const started = this.handles('run_time_permissions') ? [this] : []
     this.clockView.schedule(this.now, 'run_time_permissions', { perm: granted })
@@ -676,7 +686,7 @@ export class Script {
     this.state.controls.taken = null
   }
 
-  /** Answer a waiting permission request with No: the most recent one, or `request`. */
+  /** Answer a permission dialog with No: the most recent one, or `request`. See `grantPermissions`. */
   denyPermissions(request?: PermissionRequestEntry): void {
     this.grantPermissions(0, request)
   }
@@ -1048,25 +1058,52 @@ export class Script {
     else this.parkedEvents.push({ at: this.now, event: 'state_entry', payload: {} })
   }
 
-  /** Copy inventory code; fresh copies omit saved runtime state for remote loading. */
-  copyTo(host: Prim, opts: { fresh?: boolean } = {}): Script {
-    if (this.sluaSource !== undefined) return this.copySluaTo(host, opts.fresh)
-    const copy = new Script(this.ast, { ...this.options, host, coverage: false })
+  /**
+   * Copy inventory code; fresh copies omit saved runtime state for remote loading.
+   * `unseated` marks a copy of an object taken from under a sitter.
+   */
+  copyTo(host: Prim, opts: { fresh?: boolean; unseated?: boolean } = {}): Script {
+    const copy = this.sluaSource === undefined ? new Script(this.ast, { ...this.options, host, coverage: false }) : this.freshSluaCopy(host)
     Object.assign(copy.mocks, this.mocks)
     copy.state.permissions.autoGrant = this.state.permissions.autoGrant
-    copy.state.coverage = this.state.coverage
+    if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
-    for (const g of this.ast.globals) {
-      const value = this.global(g.name)
-      const saved = Array.isArray(value)
-        ? typedList(structuredClone(value), listElementTypes(value) ?? [])
-        : structuredClone(value)
-      copy.setGlobal(g.name, saved)
+    copy.running = this.running && !this.dead
+    if (this.slua) {
+      // In-world: an SLua script comes out of inventory as it went in.
+      const carryOn = copy.slua!.adopt(this.slua)
+      // In-world: code that was asleep when the object was taken finished its sleep after the rez
+      // (time in inventory did not count) and ran to its end before on_rez. A touch handler
+      // still read who had touched it.
+      if (this.task?.slua && (this.slua.running || this.sluaAsleep)) {
+        // The copy gets the event's data, not the host's bookkeeping for the original's delivery.
+        const slua = { event: this.task.slua.event, payload: eventData(this.task.slua.payload) }
+        copy.sluaAsleep = true
+        copy.task = {
+          run: copy.runHandler(slua.event, () => {
+            copy.sluaAsleep = false
+            return copy.sluaRun(carryOn())
+          }, slua.payload),
+          startedAt: copy.now - (this.now - this.task.startedAt),
+          wakeAt: copy.now + Math.max(0, this.task.wakeAt - this.now),
+          slua,
+        }
+      }
+    } else {
+      for (const g of this.ast.globals) {
+        const value = this.global(g.name)
+        const saved = Array.isArray(value)
+          ? typedList(structuredClone(value), listElementTypes(value) ?? [])
+          : structuredClone(value)
+        copy.setGlobal(g.name, saved)
+      }
+      copy.state.currentState = this.state.currentState
     }
     copy.state.memory.limit = this.state.memory.limit
-    copy.state.currentState = this.state.currentState
-    copy.started = this.started
-    copy.running = this.running && !this.dead
+    // An SLua script whose start is still queued has not run: the copy starts it.
+    copy.started = this.slua ? this.slua.started : this.started
+    // A saved object keeps the mark for every rez. A rezzed one has used it up.
+    copy.unseated = !!opts.unseated || (this.unseated && !this.linkset.world)
     copy.crashed = this.crashed
     Object.assign(copy.state.random, this.state.random)
     // A copy made for the same owner keeps what the script held. What one made for another owner
@@ -1075,8 +1112,8 @@ export class Script {
       copy.state.permissions.granted = this.state.permissions.granted
       copy.state.permissions.agent = this.state.permissions.agent
       const agent = this.state.permissions.agent.toLowerCase()
-      // An object taken while the permission avatar sits on it comes out as a stand leaves it,
-      // and one that is worn or detached as a detach leaves it.
+      // A copy made while the permission avatar sits on the original holds what a stand leaves,
+      // and one of an object that is worn or detached what a detach leaves.
       if (this.linkset.world?.avatars.some(a => a.key.toLowerCase() === agent && a.sittingOn?.linkset === this.linkset)) copy.releaseSeat()
       else if (this.clockView.inInventory || this.linkset.attachment) copy.dropSeatPermissions()
     }
@@ -1101,6 +1138,8 @@ export class Script {
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
     if (this.clockView.inInventory) this.dropSeatPermissions()
+    const unseated = this.unseated
+    this.unseated = false
     // A crashed LSL script runs again when its object comes out of inventory.
     // Rezzed or attached from an inventory item, it runs state_entry of the
     // state it was in, with its globals, then on_rez. A crashed SLua script
@@ -1123,6 +1162,9 @@ export class Script {
     this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
     if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer()
+    // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
+    // time it is rezzed, and after attach when it is worn.
+    if (unseated) this.clockView.schedule(this.now, '__unseated', { changes: CHANGED_LINK })
   }
 
   private boot(): void {
@@ -1186,7 +1228,8 @@ export class Script {
     this.state.urls.length = 0
     this.state.permissions.granted = 0
     this.state.permissions.agent = NULL_KEY
-    for (const r of this.state.permissions.requests) r.answered = true
+    // A dialog raised before the reset stays on screen, and is honoured if the script asks again.
+    this.state.permissions.waiting = false
     for (const r of this.state.experienceRequests) r.answered = true
     this.state.controls.taken = null
     stopSensors(this)
@@ -1222,6 +1265,14 @@ export class Script {
       if (!this.running) this.queueStart()
       return
     }
+    if (event === '__unseated') {
+      // Queued behind on_rez. A wear queues attach next, and the changed event comes after that.
+      if (this.linkset.clock.hasPending(this, 'attach')) {
+        this.clockView.schedule(this.now, 'changed', payload)
+        return
+      }
+      event = 'changed'
+    }
     if (this.slua) {
       // SLua has no states: the "first event" is running the script itself.
       if (event === 'state_entry') {
@@ -1233,7 +1284,7 @@ export class Script {
       if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
       const engine = this.slua
       const args = bindPayload(event, payload)
-      this.step({ run: this.runHandler(event, () => this.sluaRun(engine.dispatch(event, args)), payload), startedAt: this.now, wakeAt: 0 })
+      this.step({ run: this.runHandler(event, () => this.sluaRun(engine.dispatch(event, args)), payload), startedAt: this.now, wakeAt: 0, slua: { event, payload } })
       return
     }
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
@@ -1417,7 +1468,7 @@ export class Script {
   /** Run the SLua script from the top, as a script starts. */
   private beginSluaMain(): void {
     const engine = this.slua!
-    this.step({ run: this.runHandler('state_entry', () => this.sluaRun(engine.start()), {}), startedAt: this.now, wakeAt: 0 })
+    this.step({ run: this.runHandler('state_entry', () => this.sluaRun(engine.start()), {}), startedAt: this.now, wakeAt: 0, slua: { event: 'state_entry', payload: {} } })
   }
 
   /** Run SLua code; true when it ended in llResetScript. */
@@ -1482,19 +1533,16 @@ export class Script {
     }
   }
 
-  /** A copy of this SLua script in `host`. The copy starts afresh: SLua state isn't carried over. */
-  private copySluaTo(host: Prim, fresh = false): Script {
+  /** A copy of this SLua script in `host` that has not run yet. */
+  private freshSluaCopy(host: Prim): Script {
     const coverage = this.state.coverage instanceof SluaCoverage ? this.state.coverage : null
     // An instrumented VM when the original is covered, counting into the original's collector.
     const copy = Script.fromSlua(this.sluaSource!, { ...this.options, host, coverage: coverage !== null })
-    Object.assign(copy.mocks, this.mocks)
-    copy.state.permissions.autoGrant = this.state.permissions.autoGrant
     if (coverage) {
       copy.state.coverage = coverage
       coverage.attach(copy.slua!)
     }
     copy.running = this.running && !this.dead
-    copy.crashed = this.crashed && !fresh
     copy.crashText = this.crashText
     return copy
   }
@@ -1573,10 +1621,21 @@ export class Script {
   }
 }
 
+/** A copy of an event's payload without the keys the host keeps for itself (`__...`). */
+function eventData(payload: Record<string, unknown>): Record<string, unknown> {
+  const data: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(payload)) {
+    if (!key.startsWith('__')) data[key] = Array.isArray(value) ? value.map(entry => ({ ...entry })) : value
+  }
+  return data
+}
+
 interface Task {
   readonly run: Generator<Suspension, boolean, unknown>
   readonly startedAt: number
   readonly wakeAt: number
+  /** For SLua code: the event it runs for and that event's payload, so a copy can carry it on. */
+  readonly slua?: { readonly event: string; readonly payload: Record<string, unknown> }
 }
 
 function bindPayload(

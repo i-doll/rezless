@@ -7,9 +7,15 @@ import {
   PERMISSION_TRIGGER_ANIMATION,
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
+import { isKey } from './viewer.js'
 import { NULL_KEY } from '../values/types.js'
 
-/** A permission request, including whether it has already been answered. */
+/**
+ * A permission request. `answered` is true once its dialog has been answered or can no longer
+ * be, and for a request that was granted without one. A dialog left unanswered stays on the
+ * avatar's screen: while the object stays rezzed, Second Life acts on its answer whenever the
+ * script is waiting for one.
+ */
 export interface PermissionRequestEntry {
   readonly agent: string
   readonly permissions: number
@@ -43,12 +49,27 @@ function grantedOnObject(ctx: CallContext, agent: string): number | null {
 }
 
 /**
+ * Whether `agent` is an avatar the grid can find: in a world, one of its avatars, in any region.
+ * A script outside a world has no avatars to check. There its owner stands in for one, as does
+ * any other valid key that is not NULL_KEY or a prim's.
+ */
+function isAvatar(ctx: CallContext, agent: string): boolean {
+  const key = agent.toLowerCase()
+  const { linkset } = ctx
+  if (linkset.world) return linkset.world.avatars.some(avatar => avatar.key.toLowerCase() === key)
+  if (key === linkset.owner.toLowerCase()) return true
+  return isKey(key) && key !== NULL_KEY && !linkset.peers.some(l => l.prims.some(prim => prim.key.toLowerCase() === key))
+}
+
+/**
  * llRequestPermissions(key agent, integer permissions) — records the
  * request and grants it at once when the simulator or the recipient's viewer
  * would. Other requests wait for Script.grantPermissions or
  * Script.denyPermissions. Requesting no permissions fires nothing unless the
- * agent is sitting on the object or wearing it. A request that includes camera
- * control is refused whole, with an error and no dialog, for anyone else.
+ * agent is sitting on the object or wearing it. A request to a key that is
+ * not an avatar fails with an error. A request that includes camera control
+ * is refused whole, with an error and no dialog, unless the agent is sitting
+ * on the object or wearing it.
  * Asking anyone but the owner for a permission only the owner can grant is
  * refused without a request, except in a group-deeded object, which was not
  * measured.
@@ -64,12 +85,9 @@ export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const automatic = mode === 'sl' || permissions === 0
     ? covered !== null && (permissions & ~covered) === 0
     : mode !== 'none' && mode({ agent, permissions })
-  const world = ctx.linkset.world
-  const absent = covered === null && (agent === NULL_KEY ||
-    (!!world && !world.avatars.some(avatar => avatar.key.toLowerCase() === agent.toLowerCase())))
-  // Second Life looks for the agent before anything else and fails every request to one it cannot
-  // find. Only the camera control request is modelled; the others still wait for the test to answer.
-  if ((permissions & PERMISSION_CONTROL_CAMERA) && absent && !automatic) {
+  // Second Life looks for the agent before it checks what is asked, and fails every request, even
+  // one for nothing, to a key that is not an avatar it can find.
+  if (!automatic && covered === null && !isAvatar(ctx, agent)) {
     sayError(ctx, 'Unable to find specified agent to request permissions.')
     return undefined
   }
@@ -78,7 +96,7 @@ export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
     return undefined
   }
   const owner = ctx.linkset.owner.toLowerCase()
-  const deeded = world?.sensorProperties.get(ctx.linkset)?.group?.toLowerCase() === owner
+  const deeded = ctx.linkset.world?.sensorProperties.get(ctx.linkset)?.group?.toLowerCase() === owner
   if ((permissions & OWNER_ONLY) && !deeded && agent.toLowerCase() !== owner) {
     sayError(ctx, 'Script asking non-owner for run time permissions only owner can grant')
     return undefined
@@ -92,13 +110,12 @@ export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const answered = automatic || (!!avatar && acceptsRlvPermissions(avatar, ctx.linkset, permissions))
   const { requests } = ctx.state.permissions
   if (answered) {
-    // A grant ends every request still waiting on a dialog; a later answer to one does nothing.
-    for (const request of requests) request.answered = true
+    ctx.state.permissions.waiting = false
     ctx.state.permissions.granted = permissions
     ctx.state.permissions.agent = agent
     if (!(permissions & PERMISSION_TAKE_CONTROLS)) ctx.state.controls.taken = null
     ctx.state.clock.schedule(ctx.state.clock.now, 'run_time_permissions', { perm: permissions })
-  }
+  } else ctx.state.permissions.waiting = true
   requests.push({ agent, permissions, answered })
   return undefined
 }

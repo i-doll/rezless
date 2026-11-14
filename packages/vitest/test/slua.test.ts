@@ -301,7 +301,7 @@ describe('SLua values and errors', () => {
     s.start()
     const other = new Prim({ key: '22222222-2222-2222-2222-222222222222', name: 'Other' })
     s.linkset.addPrim(other)
-    const copy = s.copyTo(other)
+    const copy = s.copyTo(other, { fresh: true })
     expect(copy.language).toBe('slua')
     copy.start()
     expect(copy).toHaveSaid(0, 'hi')
@@ -830,7 +830,7 @@ describe('SLua edges', () => {
     expect(s.global('t')).toEqual([1, 'a', { x: 1, y: 2, z: 3 }])
   })
 
-  it('resets and copies without coverage', async () => {
+  it('resets and copies afresh without coverage', async () => {
     const s = await slua(`ll.OwnerSay("run"); LLEvents:on("touch_start", function() ll.ResetScript() end)`, { coverage: false })
     s.start()
     s.fire('touch_start', { num_detected: 1 })
@@ -838,7 +838,7 @@ describe('SLua edges', () => {
     expect(s.coverage).toBeNull()
     const other = new Prim({ key: '22222222-2222-2222-2222-222222222222', name: 'Other' })
     s.linkset.addPrim(other)
-    const copy = s.copyTo(other)
+    const copy = s.copyTo(other, { fresh: true })
     copy.start()
     expect(copy).toHaveSaid(0, 'run')
     expect(copy.coverage).toBeNull()
@@ -877,12 +877,12 @@ describe('SLua review follow-ups', () => {
     expect(s.chat.length).toBe(1)
   })
 
-  it('lets go of a removed copy, keeping its coverage', async () => {
+  it('lets go of a removed fresh copy, keeping its coverage', async () => {
     const s = await slua(`ll.OwnerSay("hi"); LLEvents:on("touch_start", function() ll.Die() end)`, { coverage: true })
     s.start()
     const other = new Prim({ key: '22222222-2222-2222-2222-222222222222', name: 'Other' })
     s.linkset.addPrim(other)
-    const copy = s.copyTo(other)
+    const copy = s.copyTo(other, { fresh: true })
     copy.start()
     copy.fire('touch_start', { num_detected: 1 })
     expect(copy.dead).toBe(true)

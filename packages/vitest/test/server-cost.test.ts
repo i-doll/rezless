@@ -216,6 +216,8 @@ describe('OBJECT_SERVER_COST of an object built in-world', () => {
   // viewer linked them, from either prim, and 0.75 each once it unlinked them.
   it('counts every script when prims are linked and unlinked', async () => {
     const s = await scene()
+    // The owner the script asks for PERMISSION_CHANGE_LINKS: a request to a key that is no avatar fails.
+    s.world.addAvatar({ region: 'home', key: AVATAR, username: 'av', position: { x: 116, y: 48, z: 20 } })
     const root = await s.box(1, `default {
       touch_start(integer n) { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
       run_time_permissions(integer p) { if (llGetNumberOfPrims() > 1) llBreakLink(2); else llCreateLink(llGetObjectDesc(), TRUE); }

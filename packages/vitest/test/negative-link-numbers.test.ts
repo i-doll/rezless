@@ -675,6 +675,7 @@ describe('llBreakLink keeps its own rule', () => {
   it('breaks link 2 for a number below LINK_THIS called from a child', async () => {
     const world = new World()
     world.addRegion('home', { x: 0, y: 0 })
+    world.addAvatar({ region: 'home', key: AVATAR, username: 'owner' })
     const { linkset, scripts } = await loadLinkset({
       world, region: 'home', owner: AVATAR, position: { x: 116, y: 50, z: 20 },
       prims: [1, 2, 3, 4, 5].map((i) => ({

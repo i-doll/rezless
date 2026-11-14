@@ -422,7 +422,9 @@ it('does not invent a local owner avatar when the world contains none', async ()
    default {state_entry(){got=llGetAttachedList(llGetOwner());llRequestPermissions(llGetOwner(),32);}
    run_time_permissions(integer p){llAttachToAvatar(6);}}`)
   world.avatars.length=0
-  script.start();script.grantPermissions()
+  // Nobody is there to ask, so the request itself would fail; the test grants it to reach the attach.
+  script.autoGrantPermissions=()=>true
+  script.start()
   expect(script.global('got')).toEqual(['NOT FOUND'])
   expect(linkset.attachment).toBeNull()
   expect(script.chat.map(c=>c.text)).toEqual(['Cannot find the agent to attach to.'])

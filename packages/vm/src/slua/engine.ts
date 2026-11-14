@@ -311,6 +311,31 @@ export class SluaEngine {
     return (this.handlerCounts.get(event) ?? 0) > 0
   }
 
+  /**
+   * Become a copy of `from` as it stands: globals, upvalues, tables, coroutines, LLEvents
+   * handlers and LLTimers timers. Both engines must have loaded the same source the same way,
+   * so their VMs sit at the same addresses and the whole state is the VM's memory. Calls out of
+   * the copy reach this engine's host. Coverage counters start again from zero.
+   *
+   * Returns how to carry on the code that was asleep in `from` (its top level or an event
+   * handler); run that when the sleep is over.
+   */
+  adopt(from: SluaEngine): () => Generator<Suspension, void, unknown> {
+    const memory = this.x.memory as WasmMemory & { grow(pages: number): number }
+    const missing = from.x.memory.buffer.byteLength - memory.buffer.byteLength
+    if (missing > 0) memory.grow(missing / 65536)
+    new Uint8Array(memory.buffer).set(new Uint8Array(from.x.memory.buffer))
+    this.started = from.started
+    this.handlerCounts.clear()
+    for (const [event, count] of from.handlerCounts) this.handlerCounts.set(event, count)
+    const counted = { s: 0, b: 0, f: 0 }
+    for (const entry of this.plan) counted[entry.t]++
+    for (const [kind, n] of [counted.s, counted.b * 2, counted.f].entries()) {
+      new Int32Array(memory.buffer, this.x.rz_hits(this.s, kind), n).fill(0)
+    }
+    return () => this.drive(this.x.rz_main_thread(this.s), 0)
+  }
+
   /** The script's global `name` as an LSL value, or undefined if it is nil or not convertible. */
   global(name: string): LslValue | undefined {
     const L = this.x.rz_instance_thread(this.s)

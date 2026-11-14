@@ -287,7 +287,7 @@ describe('permissions (measured in Second Life)', () => {
     expect(s.global('seen')).toEqual([128, OWNER])
   })
 
-  it('llResetScript discards an unanswered request', async () => {
+  it('llResetScript stops waiting for an unanswered request', async () => {
     const s = await loadScript({
       source: `
         list seen;
@@ -300,10 +300,13 @@ describe('permissions (measured in Second Life)', () => {
       owner: OWNER,
     })
     s.fire('touch_start', { num_detected: 1 })
+    // In-world: a probe asked for 64 and reset itself. The dialog stayed on screen, and Yes on it
+    // did nothing (Aditi, SLua Tideland, 2026-11-13).
     expect(s.permissionRequests).toEqual([
-      { agent: OWNER, permissions: PERMISSION_CHANGE_LINKS, answered: true },
+      { agent: OWNER, permissions: PERMISSION_CHANGE_LINKS, answered: false },
     ])
     expect(() => s.grantPermissions()).toThrow(/no pending permission request/)
+    s.grantPermissions(undefined, s.permissionRequests[0])
     expect(s.global('seen')).toEqual([0, NULL_KEY])
   })
 

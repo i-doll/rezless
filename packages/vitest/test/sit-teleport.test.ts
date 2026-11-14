@@ -159,7 +159,8 @@ it('treats a nonexistent landmark as an error rather than a region name', async 
 })
 it('does not use permission granted by a different avatar', async () => {
   // Permission-key mismatch needs a second avatar in-world.
-  const { script, avatar } = await fixture(`default{state_entry(){llRequestPermissions("${OTHER}",PERMISSION_TELEPORT);}run_time_permissions(integer p){llTeleportAgent(llGetOwner(),"",<30,40,50>,ZERO_VECTOR);}}`)
+  const { script, avatar, world } = await fixture(`default{state_entry(){llRequestPermissions("${OTHER}",PERMISSION_TELEPORT);}run_time_permissions(integer p){llTeleportAgent(llGetOwner(),"",<30,40,50>,ZERO_VECTOR);}}`)
+  world.addAvatar({ region: 'home', key: OTHER, username: 'other.resident' })
   script.start(); script.grantPermissions()
   expect(avatar.position).toEqual({ x: 10, y: 20, z: 30 })
   expect(script.teleportRequests).toEqual([expect.objectContaining({ accepted: false })])

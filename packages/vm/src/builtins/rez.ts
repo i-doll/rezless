@@ -9,6 +9,7 @@ import { requestKey } from '../keys.js'
 import { InventoryType } from '../inventory.js'
 import * as C from '../generated/constants.js'
 import { sayError } from './debug.js'
+import { RuntimeError } from '../memory.js'
 
 interface Options {
   position: Vector
@@ -227,7 +228,24 @@ export const llDerezObject: BuiltinImpl = (ctx, args) => {
   }
   if (mode === C.DEREZ_TO_INVENTORY) {
     if (!provenance.rezzer.inventory.includes(provenance.item)) return 0
+    const sat = !!target.world?.avatars.some(avatar => avatar.sittingOn?.linkset === target)
     provenance.item.object = target.copy()
+    // In-world: the seat's script ran the stand's changed(CHANGED_LINK) before the object went.
+    // A script that is stopped or asleep cannot take it before then.
+    try {
+      if (sat) for (const script of target.allScripts()) {
+        if (!script.running || script.wakeAt !== undefined) continue
+        try {
+          script.deliver('changed', { changes: C.CHANGED_LINK })
+        } catch (e) {
+          // A seat script that crashes has said so on DEBUG_CHANNEL. The caller carries on.
+          if (!(e instanceof RuntimeError)) throw e
+        }
+      }
+    } finally {
+      target.remove()
+    }
+    return 1
   }
   target.remove()
   return 1

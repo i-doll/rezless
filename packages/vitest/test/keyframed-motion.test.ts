@@ -228,9 +228,11 @@ it('preserves the new origin when pause is repeated after repositioning', async 
 // Aditi, SLua Tideland, Mono, 2026-11-01. Child play leaves the new root stationary, without a captured diagnostic.
 it('stops motion before a moving root becomes a child', async () => {
   const world=new World();world.addRegion('test',{x:0,y:0})
+  const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  world.addAvatar({region:'test',key:owner,username:'owner'})
   const key='11111111-2222-3333-4444-555555555555'
-  await loadLinkset({world,region:'test',position:{x:20,y:0,z:30},prims:[{key,scripts:[]}]})
-  const {scripts}=await loadLinkset({world,region:'test',position:{x:10,y:0,z:30},prims:[{scripts:[{name:'mover',source:{source:`
+  await loadLinkset({world,region:'test',owner,position:{x:20,y:0,z:30},prims:[{key,scripts:[]}]})
+  const {scripts}=await loadLinkset({world,region:'test',owner,position:{x:10,y:0,z:30},prims:[{scripts:[{name:'mover',source:{source:`
     default {state_entry(){${convex}llSetKeyframedMotion([<4,0,0>,ZERO_ROTATION,2.0],[KFM_MODE,KFM_FORWARD]);
       llRequestPermissions(llGetOwner(),PERMISSION_CHANGE_LINKS);}
       touch_start(integer n){llCreateLink("${key}",FALSE);}
