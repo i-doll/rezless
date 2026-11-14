@@ -737,10 +737,14 @@ describe('multi-script linkset', () => {
       scripts['writer']!.fire('touch_start', { num_detected: 1 })
       // Reader is paused, so it shouldn't have received the second event.
       expect(scripts['reader']!.global('received')).toBe(1)
-      // Re-enable and the parked event should fire.
+      // In-world: a linkset_data event raised while the script was stopped
+      // never arrived after llSetScriptState(TRUE) (Aditi, SLua Tideland,
+      // 2026-11-13).
       scripts['reader']!.running = true
       scripts['reader']!.resumeParked()
       linkset.drainQueue()
+      expect(scripts['reader']!.global('received')).toBe(1)
+      scripts['writer']!.fire('touch_start', { num_detected: 1 })
       expect(scripts['reader']!.global('received')).toBe(2)
     })
 
@@ -1162,7 +1166,7 @@ describe('llResetOtherScript and state changes', () => {
 })
 
 describe('event queue cap with a stopped script', () => {
-  it('keeps the parked events and drops the newer overflow', async () => {
+  it('keeps the events queued before the stop and drops the newer overflow', async () => {
     const { scripts } = await loadLinkset({
       prims: [
         {
@@ -1186,16 +1190,16 @@ describe('event queue cap with a stopped script', () => {
                 source: `
                   default {
                     state_entry() {
-                      llSetScriptState("reader", FALSE);
                       integer i;
                       for (i = 0; i < 64; i++) llLinksetDataWrite("a" + (string)i, "1");
+                      llSetScriptState("reader", FALSE);
                       llSetTimerEvent(1.0);
                     }
                     timer() {
                       llSetTimerEvent(0);
+                      llSetScriptState("reader", TRUE);
                       integer i;
                       for (i = 0; i < 64; i++) llLinksetDataWrite("b" + (string)i, "2");
-                      llSetScriptState("reader", TRUE);
                     }
                   }
                 `,

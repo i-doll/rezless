@@ -771,7 +771,7 @@ export class Linkset {
       // was running, so it applies even if the target was stopped since; the
       // target just stays stopped afterward.
       if (!target.running && next.event !== '__reset') {
-        // Park for replay when the script is re-enabled. A paused script
+        // Queued before it stopped: keep it for when the script runs again. A paused script
         // must not block other scripts' events, so we stash on the script
         // itself rather than holding a slot in the linkset queue.
         target.parkedEvents.push({ at: next.at, event: next.event, payload: next.payload })

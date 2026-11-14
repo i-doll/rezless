@@ -55,11 +55,15 @@ export class LinksetClock {
     return Math.floor(this.startUnixTime * 1e6 + this.now * 1000)
   }
 
-  private readonly tasks = new Set<{ target: Pick<Script, 'dead'>; at: number; run: () => void }>()
+  private readonly tasks = new Set<{ target: Pick<Script, 'dead'>; at: number; run: () => void; afterEvents: boolean }>()
 
-  /** Simulator work follows its target's lifetime, even while script handlers sleep. */
-  scheduleTask(target: Pick<Script, 'dead'>, at: number, run: () => void): () => void {
-    const task = { target, at, run }
+  /**
+   * Simulator work follows its target's lifetime, even while script handlers
+   * sleep. It runs before the events due at the same instant, or after them
+   * with `afterEvents`.
+   */
+  scheduleTask(target: Pick<Script, 'dead'>, at: number, run: () => void, afterEvents = false): () => void {
+    const task = { target, at, run, afterEvents }
     this.tasks.add(task)
     return () => { this.tasks.delete(task) }
   }
@@ -68,16 +72,24 @@ export class LinksetClock {
 
   /**
    * Schedule a one-shot event on `target`'s handler at virtual time `at`.
-   * A script holds at most MAX_PENDING_EVENTS queued events, counting those
-   * parked while it is stopped; further events are dropped.
+   * A stopped or crashed script never gets an event raised while it is down;
+   * the events it already held wait for it. A script holds at most
+   * MAX_PENDING_EVENTS queued events, counting those waiting while it is
+   * stopped; further events are dropped.
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}): void {
     if (event !== '__reset') {
+      if (!target.running) return
       let pending = target.parkedEvents.length
       for (const e of this.queue) if (e.target === target) pending++
       if (pending >= MAX_PENDING_EVENTS) return
     }
     this.queue.push({ at, target, event, payload })
+  }
+
+  /** Put back an event taken out of the queue; a stopped script keeps the events it already held. */
+  restore(event: QueuedEvent): void {
+    this.queue.push(event)
   }
 
   /** Whether `target` has a queued `event` that has not been delivered yet. */
@@ -163,12 +175,14 @@ export class LinksetClock {
       }
     }
 
-    let task: { target: Pick<Script, 'dead'>; at: number; run: () => void } | undefined
+    const nextEvent = Math.min(bestAt, bestTimerAt, wakeAt)
+    let task: { target: Pick<Script, 'dead'>; at: number; run: () => void; afterEvents: boolean } | undefined
     for (const candidate of this.tasks) {
       if (candidate.target.dead) { this.tasks.delete(candidate); continue }
+      if (candidate.afterEvents && nextEvent <= Math.max(candidate.at, this.now)) continue
       if (candidate.at <= horizon && (!task || candidate.at < task.at)) task = candidate
     }
-    if (task && task.at <= Math.min(bestAt, bestTimerAt, wakeAt)) {
+    if (task && task.at <= nextEvent) {
       this.tasks.delete(task)
       this.now = Math.max(this.now, task.at)
       task.run()
@@ -183,7 +197,10 @@ export class LinksetClock {
     if (bestTimerScript && bestTimerAt <= wakeAt) {
       const at = bestTimerAt
       const v = bestTimerScript.clockView
-      v.timerNextFireMs = at + v.timerIntervalMs
+      // A tick held back while the script was down keeps the old schedule if that is still ahead.
+      const kept = v.timerLateDueMs === undefined ? at : v.timerLateDueMs + v.timerIntervalMs
+      v.timerLateDueMs = undefined
+      v.timerNextFireMs = kept > at ? kept : at + v.timerIntervalMs
       return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
     return waking && { at: wakeAt, target: waking, event: '__wake', payload: {} }
@@ -243,6 +260,8 @@ export class ScriptClockView {
   timerIntervalMs = 0
   /** Virtual time at which the next timer event fires. */
   timerNextFireMs = 0
+  /** When the tick that fell due while the script was down should have fired, until that tick fires. */
+  timerLateDueMs: number | undefined
   /** Virtual time at which the script's last handler finished, when it took time (llSleep, delays). */
   busyUntilMs = 0
   /** llMinEventDelay in ms; 0 = none. */
@@ -279,6 +298,24 @@ export class ScriptClockView {
   cancelTimer(): void {
     this.timerIntervalMs = 0
     this.timerNextFireMs = 0
+    this.timerLateDueMs = undefined
+  }
+
+  /**
+   * A script that was stopped or crashed runs again: ticks that fell due
+   * meanwhile collapse into one, fired once the events already waiting have
+   * run. The tick after it keeps the old schedule if that is still ahead, and
+   * otherwise comes a full interval later.
+   */
+  catchUpTimer(): void {
+    if (this.timerIntervalMs <= 0 || this.timerNextFireMs > this.now) return
+    this.timerLateDueMs = this.timerNextFireMs
+    this.timerNextFireMs = this.now
+  }
+
+  /** Whether the script's object is saved in inventory, with its clocks stopped. */
+  get inInventory(): boolean {
+    return this.inventorySince !== undefined
   }
 
   setTimer(intervalMs: number): void {
@@ -287,7 +324,8 @@ export class ScriptClockView {
       return
     }
     this.timerIntervalMs = intervalMs
-    this.timerNextFireMs = this.now + intervalMs
+    // A tick still owed from before the script started keeps its place; only the interval changes.
+    if (this.timerLateDueMs === undefined) this.timerNextFireMs = this.now + intervalMs
   }
 
   /** llMinEventDelay: `ms` below 0 counts as 0, and the delay starts now. */
@@ -333,7 +371,8 @@ export class ScriptClockView {
       this.timerNextFireMs += pausedMs
       if (this.timerNextFireMs <= this.now && this.self().running) {
         this.schedule(this.now, 'timer')
-        this.timerNextFireMs += (Math.floor((this.now - this.timerNextFireMs) / this.timerIntervalMs) + 1) * this.timerIntervalMs
+        const next = this.timerNextFireMs + this.timerIntervalMs
+        this.timerNextFireMs = next > this.now ? next : this.now + this.timerIntervalMs
       }
     }
   }

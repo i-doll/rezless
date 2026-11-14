@@ -64,6 +64,29 @@ it('delivers one already-due timer after rez and attach while retaining its cade
   const { script, linkset } = await fixture()
   // Capture a saved object whose timer became due before suspension, as during
   // the simulator save delay; advance the clock without dispatching handlers.
+  linkset.clock.advance(6000)
+  linkset.detachFromAvatar()
+  linkset.advanceTime(0)
+  const before = (script.global('events') as string[]).length
+  linkset.advanceTime(30000)
+  linkset.attachToAvatar(OWNER, 6)
+  linkset.advanceTime(0)
+  expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer'])
+  expect(script.global('elapsed')).toBe(6)
+  linkset.advanceTime(3999)
+  expect((script.global('events') as string[]).slice(before)).toHaveLength(3)
+  linkset.advanceTime(1)
+  expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer'])
+  expect(script.global('elapsed')).toBe(10)
+})
+
+// In-world: a worn script crashed with a four-second timer running; it was
+// detached 10 s after its next tick fell due and worn again 16 s later ->
+// timer right after attach, then 4.0 s, 8.0 s and 12.0 s after that one. A
+// tick overdue by more than an interval starts a full interval again. Aditi,
+// SLua Tideland, 2026-11-14.
+it('starts a full interval again after a saved timer overdue by more than its interval', async () => {
+  const { script, linkset } = await fixture()
   linkset.clock.advance(11000)
   linkset.detachFromAvatar()
   linkset.advanceTime(0)
@@ -72,12 +95,11 @@ it('delivers one already-due timer after rez and attach while retaining its cade
   linkset.attachToAvatar(OWNER, 6)
   linkset.advanceTime(0)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer'])
-  expect(script.global('elapsed')).toBe(11)
-  linkset.advanceTime(3999)
+  linkset.advanceTime(4999)
   expect((script.global('events') as string[]).slice(before)).toHaveLength(3)
   linkset.advanceTime(1)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer'])
-  expect(script.global('elapsed')).toBe(15)
+  expect(script.global('elapsed')).toBe(16)
 })
 
 it('keeps a timer cancelled by the detach handler cancelled on rewear', async () => {

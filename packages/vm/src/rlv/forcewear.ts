@@ -87,7 +87,8 @@ function wear(avatar: WorldAvatar, issuer: Linkset, plan: WearItem, rules: Retur
   }
   // The existing attachment lifecycle resolves point zero from the saved object.
   // Its events remain queued while replacement removals complete.
-  for (const script of object.allScripts()) script.queueRez()
+  // An object coming back from inventory is rezzed by attachToAvatar itself.
+  if (issuer.peers.includes(object)) for (const script of object.allScripts()) script.queueRez()
   object.attachToAvatar(avatar.key, point)
   const actualPoint = object.attachment!.point
   if (replace) {

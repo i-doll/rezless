@@ -256,7 +256,7 @@ export class RlvSession {
       const pending = this.clock.pendingEvents()
       for (const target of new Set(pending.map(event => event.target))) this.clock.purgeTarget(target)
       for (const event of pending) {
-        if (!this.replyPayloads.has(event.payload)) this.clock.schedule(event.target, event.at, event.event, event.payload)
+        if (!this.replyPayloads.has(event.payload)) this.clock.restore(event)
       }
     }
     for (const recipient of this.recipients) {

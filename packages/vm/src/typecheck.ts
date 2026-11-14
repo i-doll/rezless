@@ -449,9 +449,10 @@ class Checker {
           this.expectAssignable(e, target, value)
           return target
         }
-        // `integer *= float` is a documented SL quirk; every other compound
+        // `integer *= float` is a documented SL quirk: it compiles and stores
+        // an integer, but its value is a float. Every other compound
         // assignment must produce a value assignable back to the target.
-        if (e.operator === '*=' && target === 'integer' && value === 'float') return target
+        if (e.operator === '*=' && target === 'integer' && value === 'float') return 'float'
         const t = binaryType(e.operator[0] as BinaryOp, target, value)
         if (!t || !assignable(target, t)) {
           this.mismatch(e, `'${e.operator}' not defined for ${target} and ${value}`)
