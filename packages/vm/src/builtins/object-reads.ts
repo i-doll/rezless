@@ -5,7 +5,8 @@ import type { PrimShape } from '../prim-params.js'
 import type { Script } from '../script.js'
 import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR, type LslType, type LslValue, type Rotation, type Vector } from '../values/types.js'
 import { mulRotation, rotateVector } from '../values/ops.js'
-import { ruleElementType, typedList } from '../values/list-types.js'
+import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
+import { objectDetailLuaKind } from './slua-result-kinds.js'
 import { formatTimestamp } from './time.js'
 import {
   LINK_THIS,
@@ -507,16 +508,25 @@ export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
   if (!prim && !avatar) return []
   const flags = (args[1] as LslValue[] | undefined) ?? []
   const out: Entry[] = []
+  const kinds: LuaResultKind[] = []
   flags.forEach((flag, i) => {
     const type = ruleElementType(flags, i) ?? (typeof flag === 'number' && Number.isInteger(flag) ? 'integer' : undefined)
     if (type !== 'integer') {
-      if (out.length > 0) out[out.length - 1] = [OBJECT_UNKNOWN_DETAIL, 'integer']
+      if (out.length > 0) {
+        out[out.length - 1] = [OBJECT_UNKNOWN_DETAIL, 'integer']
+        kinds[out.length - 1] = undefined
+      }
       return
     }
-    out.push(...((prim ? detail(prim, flag as number) : avatarDetail(ctx, avatar!, flag as number)) ?? [[OBJECT_UNKNOWN_DETAIL, 'integer']]))
+    const known = prim ? detail(prim, flag as number) : avatarDetail(ctx, avatar!, flag as number)
+    out.push(...(known ?? [[OBJECT_UNKNOWN_DETAIL, 'integer']]))
+    if (known) kinds[out.length - 1] = objectDetailLuaKind(flag as number)
   })
-  return typedList(
-    out.map(([v]) => v),
-    out.map(([, t]) => t),
+  return markLuaResult(
+    typedList(
+      out.map(([v]) => v),
+      out.map(([, t]) => t),
+    ),
+    Array.from(out, (_, i) => kinds[i]),
   )
 }

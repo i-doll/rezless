@@ -3,7 +3,8 @@ import type { EnvironmentChanges, Parcel, Region } from '../world.js'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { NULL_KEY, isRotation, isVector, rot, toFloat32, toFloat32Value, vec } from '../values/types.js'
 import { rotateVector } from '../values/ops.js'
-import { ruleElementType, typedList } from '../values/list-types.js'
+import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
+import { environmentLuaKinds } from './slua-result-kinds.js'
 import { InventoryType } from '../inventory.js'
 import { newEnvironmentChanges } from '../world.js'
 import { estateManager, owns } from './land.js'
@@ -175,6 +176,7 @@ export const llGetEnvironment: BuiltinImpl = (ctx, args) => {
   const scope = scopeAt(ctx, pos)
   const values: LslValue[] = []
   const types: LslType[] = []
+  const kinds: LuaResultKind[] = []
   for (const rule of requested as readonly number[]) {
     let tuple = environmentTuple(scope, rule, trackFor(scope, rule, pos.z))
     if (rule === 200) tuple = [dayLength(scope), dayOffset(scope), secondsIntoDay(ctx, scope)]
@@ -186,8 +188,9 @@ export const llGetEnvironment: BuiltinImpl = (ctx, args) => {
     const tupleTypes = ENVIRONMENT_TYPES[rule]!
     values.push(...tuple.map((value, i) => toFloat32Value(value, tupleTypes[i]!)))
     types.push(...tupleTypes)
+    kinds.push(...tupleTypes.map((_, i) => environmentLuaKinds(rule)[i]))
   }
-  return typedList(values, types)
+  return markLuaResult(typedList(values, types), kinds)
 }
 
 // Where a set rule lands in the getter's tuples when the shapes differ.

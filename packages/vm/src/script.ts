@@ -44,6 +44,7 @@ import { animationAvatars, playingAnimations, setAnimationState } from './builti
 import { HaltSignal, ResetScriptSignal } from './builtins/object.js'
 import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
+import { faceTextureIsItem } from './builtins/slua-result-kinds.js'
 import { typedList, listElementTypes } from './values/list-types.js'
 import { NULL_KEY } from './values/types.js'
 import { execHandler, StateChangeSignal } from './interpreter.js'
@@ -1376,6 +1377,7 @@ export class Script {
         unixTime: () => this.clockView.unixMicros() / 1e6,
         setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
         print: (text) => this.printed.push(text),
+        faceTextureIsItem: (face) => faceTextureIsItem(this.host, face),
       },
       this.state.filename,
       this.sluaSource!,

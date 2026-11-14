@@ -88,8 +88,9 @@ export const llGiveInventory: BuiltinImpl = (ctx, args) => {
 function listItems(ctx: CallContext, values: ReadonlyArray<LslValue>, foreign: boolean): InventoryItem[] {
   const items: InventoryItem[] = []
   for (let i = 0; i < values.length; i++) {
-    const name = formatListElement(values[i]!, listElementType(values, i))
-    const item = ctx.prim.inventory.find(it => it.name === name)
+    // Only a string names an item: a number or a key with an item's name as its text finds nothing.
+    const type = listElementType(values, i)
+    const item = type === undefined || type === 'string' ? ctx.prim.inventory.find(it => it.name === values[i]) : undefined
     if (item && (item.permMask.owner & PERM_COPY) && (!foreign || (item.permMask.owner & PERM_TRANSFER))) items.push(item)
   }
   return items
