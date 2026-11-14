@@ -284,10 +284,10 @@ export class SluaEngine {
   /** Run the script's main chunk, as a script starts. */
   *start(): Generator<Suspension, void, unknown> {
     this.started = true
-    // A script whose code alone takes all its memory can't run at all. (SLua's
+    // A script whose code alone is past its limit can't run at all. (SLua's
     // host only checks as the script allocates; rezless refuses it up front, as
     // it does an LSL script whose code is past its limit.)
-    if (this.memoryLimit > 0 && this.usedMemory() >= this.memoryLimit) throw new SluaRuntimeError('not enough memory')
+    if (this.memoryLimit > 0 && this.usedMemory() > this.memoryLimit) throw new SluaRuntimeError('not enough memory')
     yield* this.drive(this.x.rz_main_thread(this.s), 0)
   }
 

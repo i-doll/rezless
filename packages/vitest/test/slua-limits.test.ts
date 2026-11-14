@@ -398,8 +398,8 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
   })
 
   it('keeps a limit close to what the script uses from one event to the next', async () => {
-    // In-world: a script that set its limit to what it used plus 4000, 2000 and so on down to plus 0 carried on
-    // after each, and a script at 40000 took a touch.
+    // In-world: a script whose last statement set its limit to what it used plus 200 answered three touches
+    // afterwards, and raised the limit again in the second.
     const s = await slua(
       `local set, used = llcompat.SetMemoryLimit, ll.GetUsedMemory
       LLEvents:on("touch_start", function() ll.OwnerSay("touch") end)
@@ -445,8 +445,10 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
 
   it('fails the restart when the kept limit is too low to start in', async () => {
     // In-world: with the limit at what the script used, ll.ResetScript() -> "Script run-time error" and "not
-    // enough memory" on DEBUG_CHANNEL before the script said anything. With the limit at that plus 64, the script
-    // said its first line after the reset and then failed the same way.
+    // enough memory" on DEBUG_CHANNEL before the script, whose first line reads its description, said anything.
+    // With the limit at that plus 64, the script said its first line after the reset and then failed the same way.
+    // A script whose restart begins with calls that allocate nothing (ll.GetAlpha, ll.SetObjectDesc and ll.Say
+    // of constants) ran those with the limit at what it used, and failed at its first concatenation.
     const reset = (limit: string) =>
       slua(
         `if ll.GetObjectDesc() == "again" then
@@ -471,6 +473,25 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
     expect(() => close.start()).toThrow('not enough memory')
     expect(texts(close)).toEqual(['restarted'])
     expect(texts(close, DEBUG_CHANNEL)).toEqual(['Script run-time error', 'not enough memory'])
+
+    const frugal = await slua(
+      `if ll.GetAlpha(0) < 0.5 then
+        ll.SetObjectDesc("second run")
+        ll.OwnerSay("second run")
+        ll.OwnerSay("limit " .. ll.GetMemoryLimit())
+      else
+        ll.SetAlpha(0.25, 0)
+        ll.OwnerSay("first run")
+        local set, used = llcompat.SetMemoryLimit, ll.GetUsedMemory
+        set(used())
+        ll.SetObjectDesc("reset called")
+        ll.ResetScript()
+      end`,
+      { memoryLimit: true },
+    )
+    expect(() => frugal.start()).toThrow('not enough memory')
+    expect(texts(frugal)).toEqual(['first run', 'second run'])
+    expect(frugal.host.description).toBe('second run')
   })
 })
 
