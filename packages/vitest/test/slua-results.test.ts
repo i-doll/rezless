@@ -409,6 +409,22 @@ describe('SLua: uuids in list results', () => {
     )
   })
 
+  it('goes by the stored sculpt map, not by an item that happens to be named like it', async () => {
+    // A sculpt map reads back as an item's name only when the prim holds the stored map asset as that
+    // item (see the in-world reads above). A texture item added later whose name is the map's key text
+    // holds another asset, so the map stays a uuid.
+    const s = await loadScript({
+      source: `${PRELUDE}
+      ll.SetPrimitiveParams({PRIM_TYPE, PRIM_TYPE_SCULPT, U, PRIM_SCULPT_TYPE_SPHERE})
+      LLEvents:on("touch_start", function() ll.Say(7777, show(ll.GetPrimitiveParams({PRIM_TYPE}))) end)`,
+      language: 'slua',
+    })
+    s.start()
+    s.host.addInventory(makeInventoryItem({ name: U, type: InventoryType.TEXTURE, key: ASSET }))
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.chat.filter((c) => c.channel === 7777).map((c) => c.text)).toEqual([`{number:7 | uuid:${U} | number:1}`])
+  })
+
   it("returns a glTF texture by key even when it was set by an item's name", async () => {
     await expectResults(
       [

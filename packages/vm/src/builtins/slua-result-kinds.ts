@@ -126,11 +126,11 @@ export function primParamLuaKinds(
     const kind = pattern[i % pattern.length]
     if (kind === 'boolean') return v === '' ? undefined : kind
     if (kind !== 'uuid') return kind
-    // A sculpt's map is kept as the script gave it, so a name is still a name.
-    const named =
-      param === PRIM_TYPE
-        ? !!prim?.inventory.some((it) => it.type === itemType && it.name === v)
-        : prim !== undefined && assets !== undefined && heldAsItem(prim, itemType, assets[Math.floor(i / pattern.length)] ?? NULL_KEY)
+    const shape = prim?.params.shape
+    const asset = param === PRIM_TYPE
+      ? (shape && 'map' in shape ? shape.map : undefined)
+      : assets?.[Math.floor(i / pattern.length)]
+    const named = prim !== undefined && heldAsItem(prim, itemType, asset ?? NULL_KEY)
     return named ? 'string' : kind
   })
 }
