@@ -100,7 +100,8 @@ describe('PRIM_LINK_TARGET in a read', () => {
   })
 
   it('ends the read when it names no prim, from the root of four prims', async () => {
-    // In-world: the same probe in the root of four linked boxes. Link 0 names no prim from a root.
+    // In-world: the link numbers were read in the root of four linked boxes, and the last three
+    // lines in the root of two. Link 0 names no prim from a root.
     // A negative link other than LINK_THIS reads link 2, whether it is LINK_SET, LINK_ALL_OTHERS,
     // LINK_ALL_CHILDREN or any other number. As the first argument of llGetLinkPrimitiveParams
     // the three selectors give an empty list and the other negative links read link 2.
@@ -115,8 +116,9 @@ describe('PRIM_LINK_TARGET in a read', () => {
 
   for (const caller of [2, 3, 4]) {
     it(`reads the root for link 0 and for a negative link, from child ${caller} of four prims`, async () => {
-      // In-world: the same probe in links 2, 3 and 4. Link 0 and every negative link other than
-      // LINK_THIS read the root, LINK_ALL_CHILDREN included.
+      // In-world: the link numbers were read in links 2, 3 and 4 of four boxes, and the last
+      // three lines in the child of two. Link 0 and every negative link other than LINK_THIS read
+      // the root, LINK_ALL_CHILDREN included.
       const m = [5, 6, 0, 1][caller - 1]
       expect(await linkProbe(4, caller)).toEqual([
         `[${m}, 5, 0] [${m}, 5, 0] [${m}, 6, 0] [${m}, 0, 0] [${m}, 1, 0] [${m}] [${m}] [${m}] [${m}, ${m}, 0] ` + `[${m}, 5, 0] `.repeat(6),
@@ -238,8 +240,8 @@ describe('rotation angle and axis', () => {
         }
       }`)
     // In-world: the math probes printed the angle, the axis and llAngleBetween(ZERO_ROTATION, q)
-    // for 58 rotations as exact floats. The angle is always the one llAngleBetween gives, except
-    // that a rotation whose sqrt(1 - s * s) is under 0.0005 has a zero angle and a zero axis. The
+    // for 58 rotations as exact floats. The angle is always the one llAngleBetween gives, and
+    // a rotation whose sqrt(1 - s * s) is under 0.0005 has a zero angle and a zero axis. The
     // axis is x, y, z over that square root, so it is not exactly a unit vector: <0.01, 0, 0, 1>
     // gives 1.000463 and <0, 0, 0.001, 0.5> gives 0.993424. A rotation within 1e-6 of unit length
     // is not normalised first, so <1e-3, 0, 0, 1> has s = 1 and reads as no rotation. A negative
@@ -378,9 +380,9 @@ describe('faces kept by a shape change', () => {
         }
       }`)
     // In-world: the shape probe. Each result is the face count, then for each face the face of
-    // the old shape it shows. A sculpt's one face shows face 1 of a box, a prism, a cylinder and
-    // their cut and hollow forms, which is their first outer side, and face 0 of a sphere, a
-    // torus, a tube and a ring. Every sculpt type does the same, and type 5 leaves the box as it
+    // the old shape it shows. A sculpt's one face shows the old shape's first outer side.
+    // That is face 1 where the shape has a top (a box, a prism, a cylinder, and the cut and hollow
+    // sphere, torus and tube) and face 0 of a plain sphere, torus, tube and ring. Every sculpt type does the same, and type 5 leaves the box as it
     // was. Going back, every face of the new shape shows the sculpt's face (8 here).
     expect(said(s)).toEqual([
       '0>20=1:1 1>20=1:1 2>20=1:1 3>20=1:1 4>20=1:1 5>20=1:1 6>20=1:1 7>20=1:1 8>20=1:1 9>20=1:0 10>20=1:1 11>20=1:0 12>20=1:1 13>20=1:0 14>20=1:0 15>20=1:1 0>21=1:1 0>22=1:1 0>23=1:1 0>24=1:1 0>25=6:012345',

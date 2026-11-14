@@ -144,7 +144,7 @@ const GIMBAL_THRESHOLD = 0.000436
  * Second Life gives each angle of llRot2Euler in steps of 1e-7 degrees, so a
  * zero is never negative. The stepped angle is a single-precision number of
  * degrees before it is turned back into radians, which pins turns of under
- * 0.1 degrees about one axis. Larger turns can still be a few floats off.
+ * 0.1 degrees about one axis. Larger turns can differ.
  */
 function stepAngle(radians: number) {
   const steps = Math.round(Math.abs(radians) * (180 / Math.PI) * 1e7)
