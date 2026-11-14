@@ -250,13 +250,16 @@ export class Prim {
    */
   removeInventory(...names: string[]): void {
     const indexes = [...new Set(names)].map((name) => this.#inventoryIndex('removeInventory', name))
+    let removedScript = false
     for (const item of indexes.map((index) => this.inventory[index]!)) {
       this.inventory.splice(this.inventory.indexOf(item), 1)
       if (!item.script) continue
       const running = this.scripts.indexOf(item.script)
       if (running >= 0) this.scripts.splice(running, 1)
       item.script.markDead()
+      removedScript = true
     }
+    if (removedScript) this.linkset?.recountScripts()
     if (names.length) this.#ownerEditedInventory()
   }
 

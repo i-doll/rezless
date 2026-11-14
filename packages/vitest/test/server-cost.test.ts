@@ -186,6 +186,17 @@ describe('OBJECT_SERVER_COST of an object built in-world', () => {
     expect(costs).toEqual([1, 1, 0.75])
   })
 
+  it('counts the scripts left when the owner removes them', async () => {
+    const s = await scene()
+    const box = await s.box(3)
+    const costs = [s.cost(key(box))]
+    for (const name of ['s2', 's1', 's0']) {
+      box.linkset.prims[0]!.removeInventory(name)
+      costs.push(s.cost(key(box)))
+    }
+    expect(costs).toEqual([1, 1, 0.75, 0.5])
+  })
+
   // In-world: a box that read 0.75 with its one script (taken and rezzed
   // again) still read 0.75 with a second script dragged in, and 1.0 after the
   // viewer changed its size.
