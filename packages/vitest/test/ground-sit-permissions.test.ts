@@ -352,7 +352,7 @@ describe('sit requests to and from the ground', () => {
   // In-world: in the changed(32) of those ground sits the seat read llGetAgentInfo 262, with
   // neither AGENT_SITTING nor AGENT_ON_OBJECT: the avatar had stood up and was not on the ground
   // yet. It read 22 when asked a moment later.
-  // Fails for now: rezless does not defer the ground sit past the stand's event yet.
+  // Fails for now: rezless does not defer the ground sit past the stand's event yet (#457).
   it.fails('has the avatar standing when the seat hears of the stand', async () => {
     const f = await fixture()
     f.sit()
