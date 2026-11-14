@@ -308,9 +308,10 @@ describe('events that come up while a handler sleeps', () => {
   // click's events, timer, the second click's events, and the next timer 3 s later. Each sleep
   // gives one tick, released with what else was held back.
   //
-  // Not modelled: with no click at all the grid still ran two ticks after the second sleep.
-  // rezless gives one, as a main-grid measurement of two sleeps in a row has it (clock.test.ts,
-  // "delivers one pending tick, not a burst").
+  // Not modelled: with no click at all Aditi still ran two ticks after the last of two, three
+  // or four sleeps in a row, also with that main-grid test's own script. rezless gives one, as
+  // the main-grid measurement of two sleeps in a row has it (clock.test.ts, "delivers one
+  // pending tick, not a burst"), and the difference is unexplained.
   it('give one timer tick for each sleep that held something back', async () => {
     const f = await fixture()
     const made = await make(f, `list log; default {

@@ -1389,6 +1389,11 @@ export class Script {
     return this.task?.wakeAt
   }
 
+  /** Virtual time the running handler began at, or undefined when the script is idle. */
+  get handlerStartedAt(): number | undefined {
+    return this.task?.startedAt
+  }
+
   /**
    * In-world: a sleep did not run down while the worn object was in inventory. `since` is when
    * it went there; a handler that started later has only been asleep since its own start.
