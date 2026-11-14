@@ -32,6 +32,10 @@ import { loadLinkset, World } from '../src/index.js'
 // A viewer's camera sits about where the point is by default, but moving the
 // viewer's own camera could not be tested, so whether the point is the
 // camera is not known.
+//
+// The viewer's requests had no click offset, as RLVa's @sit:<key>=force
+// sends, and the avatar's camera stayed at the viewer's default place. A click elsewhere on the prim, which a viewer's
+// pie menu sends, and a moved camera are not modelled.
 
 type Shape = 'box' | 'cylinder' | 'sphere' | 'prism' | 'torus'
 type Row = [string, Shape, number[], number[], number[], number, number[], number[]]

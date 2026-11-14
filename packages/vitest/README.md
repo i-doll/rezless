@@ -592,8 +592,12 @@ upright, facing out from that side, and `PRIM_POS_LOCAL` and `PRIM_ROT_LOCAL`
 of its link read that spot. In Second Life this holds for boxes and round
 cylinders with an axis vertical. Spheres, tori, most prisms, cylinders with an
 oval top and tilted prims seat the avatar elsewhere; rezless seats it on them
-by the same rule. `world.sitAvatar` without a placement seats the avatar on the prim's
-sit target, or at its centre when it has none.
+by the same rule. The rule was measured for sit requests with no click
+offset, as `@sit:<key>=force` sends them, with the avatar's camera at the
+viewer's default place. A click elsewhere on
+the prim and a moved camera are not modelled. `world.sitAvatar` without a
+placement seats the avatar on the prim's sit target, or at its centre when it
+has none.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
 `name`, `message` and the clock time `at`. A sit request refused for
