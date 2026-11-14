@@ -30,7 +30,7 @@ describe('licence files in the published packages', () => {
     ['package.json', 'MIT'],
     ['packages/parser/package.json', 'MIT'],
     ['packages/vitest/package.json', 'MIT'],
-    ['packages/vm/package.json', 'MIT AND Apache-2.0 AND LGPL-2.0-only'],
+    ['packages/vm/package.json', 'MIT AND Apache-2.0 AND Unicode-3.0'],
   ])('%s declares the licence %s', (file, license) => {
     expect(JSON.parse(read(file)).license).toBe(license)
   })
@@ -91,23 +91,24 @@ describe('third-party notices for slua.wasm', () => {
     expect(texts).toContain(line)
   })
 
-  it('put the Mono case tables under the LGPL v2 and ship its text and their source', () => {
+  it('put the case tables under the Unicode License v3 and ship its text', () => {
+    const unicode = texts.slice(texts.indexOf('7. Unicode case mappings'), texts.indexOf('8. Unicode confusables'))
+    const licence = read('vendor/LICENSE-unicode')
+    expect(licence.startsWith('UNICODE LICENSE V3\n')).toBe(true)
+    expect(unicode).toContain(licence.trimEnd())
+    expect(unicode).toContain('UnicodeData-2.1.5.txt')
+    expect(notice).toContain('Copyright © 1991-2026 Unicode, Inc.')
+    expect(notice).toContain('vendor/UnicodeData-2.1.5.txt')
+    expect(notice).toContain('Unicode-3.0')
+  })
+
+  it('carry no Mono-derived case tables or LGPL terms', () => {
     const { files } = JSON.parse(read('packages/vm/package.json'))
-    expect(files).toContain('src/values/mono-case.ts')
-    const header = read('packages/vm/src/values/mono-case.ts').split('/**')[0]!
-    for (const text of [notice, texts, header]) {
-      expect(text.replace(/(\n\/\/)?\s+/g, ' ')).toContain(
-        'GNU Library General Public License, version 2',
-      )
+    expect(files).not.toContain('src/values/mono-case.ts')
+    for (const text of [notice, texts, read('packages/vm/src/values/mono-case.ts')]) {
+      expect(text).not.toContain('GNU Library General Public License')
+      expect(text).not.toContain('char-conversions.h')
     }
-    expect(header).toMatch(/Changed from the original on \d{4}-\d{2}-\d{2}/)
-    expect(header).toContain('wasm/THIRD-PARTY-LICENSES.txt')
-    expect(notice).toContain('Copyright 2001-2003 Ximian, Inc (http://www.ximian.com)')
-    expect(notice).toContain('Copyright 2004-2009 Novell, Inc (http://www.novell.com)')
-    expect(texts).toContain('GNU LIBRARY GENERAL PUBLIC LICENSE\n')
-    expect(texts).toContain('Version 2, June 1991')
-    expect(texts).toContain('END OF TERMS AND CONDITIONS')
-    expect(texts).toContain('16. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW')
   })
 
   it('ship the Apache License text for the APR routines', () => {

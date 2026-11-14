@@ -71,6 +71,7 @@ import { loadScript } from '@rezless/vitest'
 ```sh
 pnpm install
 pnpm gen          # regenerate ll* stub tables from vendor/lsl_definitions.yaml
+pnpm gen:case     # regenerate the llToLower/llToUpper tables from vendor/UnicodeData-2.1.5.txt
 pnpm typecheck
 pnpm build        # per-package tsc emit
 pnpm test
@@ -2289,7 +2290,8 @@ Not modelled yet:
   nested tables and functions. It can't read a function.
 
 `scripts/build-slua-wasm.sh` rebuilds `packages/vm/wasm/slua.wasm` from SLua's
-source at that release. It needs Emscripten and CMake.
+source at that release, with the case tables `pnpm gen:case` writes in place of
+SLua's own. It needs Emscripten and CMake.
 
 ## Coverage
 

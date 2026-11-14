@@ -2,7 +2,7 @@
   "name": "@rezless/vm",
   "version": "0.13.0",
   "description": "Tree-walking interpreter and virtual clock for the Linden Scripting Language (LSL).",
-  "license": "MIT AND Apache-2.0 AND LGPL-2.0-only",
+  "license": "MIT AND Apache-2.0 AND Unicode-3.0",
   "author": "i-doll",
   "homepage": "https://github.com/i-doll/rezless#readme",
   "bugs": {
@@ -32,7 +32,6 @@
   },
   "files": [
     "dist",
-    "src/values/mono-case.ts",
     "wasm",
     "LICENSE",
     "NOTICE",
