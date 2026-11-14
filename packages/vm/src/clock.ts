@@ -416,6 +416,7 @@ export class ScriptClockView {
   }
 
   cancelTimer(): void {
+    this.linksetClock.purgeWhere((e) => e.target === this.self() && e.event === 'timer')
     this.timerIntervalMs = 0
     this.timerNextFireMs = 0
     this.timerLateDueMs = undefined
@@ -438,6 +439,10 @@ export class ScriptClockView {
     if (intervalMs <= 0) {
       this.cancelTimer()
       return
+    }
+    // A tick that fell due and has not run yet still runs.
+    if (this.timerIntervalMs > 0 && this.timerNextFireMs <= this.now && this.timerLateDueMs === undefined) {
+      this.schedule(this.timerNextFireMs, 'timer')
     }
     this.timerIntervalMs = intervalMs
     // A tick still owed from before the script started keeps its place; only the interval changes.

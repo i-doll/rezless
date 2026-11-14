@@ -414,6 +414,42 @@ describe('a handler that sleeps several times', () => {
   })
 })
 
+describe('a timer tick that fell due while a handler slept', () => {
+  const timed = `list log; default {
+    state_entry() { llListen(5, "", "", ""); }
+    listen(integer c, string name, key id, string m) {
+      if (m == "sleep") { llSetTimerEvent(3.0); llSleep(8.0); }
+      else if (m == "stop") { llSetTimerEvent(0.0); log += "stop"; }
+      else if (m == "reset") { llSetTimerEvent(20.0); log += "reset"; }
+    }
+    timer() { log += "timer"; }
+    touch_start(integer n) { log += "touch"; } }`
+
+  async function sleepWithTimer(clicked: boolean, command: string) {
+    const f = await fixture()
+    const made = await make(f, timed)
+    queue(f, made.script, 'listen', heard('sleep'))
+    made.linkset.advanceTime(1_500)
+    if (clicked) queue(f, made.script, 'touch_start', click(0))
+    made.linkset.advanceTime(2_500)
+    queue(f, made.script, 'listen', heard(command))
+    made.linkset.advanceTime(12_000)
+    return made.script.global('log')
+  }
+
+  // In-world: a 3 s timer set as an 8 s sleep began, a click 1.5 s into the sleep and a chat
+  // line 2.5 s later that turned the timer off -> stop, touch. Without the click -> stop.
+  it.each([[true, ['stop', 'touch']], [false, ['stop']]])('does not run once the timer is turned off (click: %s)', async (clicked, log) => {
+    expect(await sleepWithTimer(clicked, 'stop')).toEqual(log)
+  })
+
+  // In-world: the same with llSetTimerEvent(20.0) in place of 0 -> reset, timer, touch. Without
+  // the click -> reset, timer.
+  it.each([[true, ['reset', 'timer', 'touch']], [false, ['reset', 'timer']]])('still runs when the timer is set again (click: %s)', async (clicked, log) => {
+    expect(await sleepWithTimer(clicked, 'reset')).toEqual(log)
+  })
+})
+
 describe('clicks by one avatar while a handler sleeps', () => {
   // In-world: three clicks, on faces 0, 2 and 4 -> one touch_start that read face 0, one touch
   // and one touch_end that read face 4. Each event had one detected avatar. With link messages
