@@ -11,8 +11,9 @@ import { loadLinkset, loadRlvPair } from '../src/index.js'
 // with llSitTarget(<0,0,0.6>, ZERO_ROTATION) issuing the commands with llOwnerSay.
 
 const AGENT_SITTING = 0x10, AGENT_ON_OBJECT = 0x20
-// The grid's ground sit came 0.265-0.333 s after the stand in six runs.
-const FIRST_GROUND_READING_MS = 265, LAST_GROUND_READING_MS = 333
+// The grid's delay varied between 0.265 and 0.53 s in seven runs over two sessions, so the tests
+// only ask that the avatar is standing just after the stand and on the ground by 0.6 s.
+const GROUND_BY_MS = 600
 
 const seatSource = `list seen; list replies; default {
   state_entry() { llSitTarget(<0,0,0.6>, ZERO_ROTATION); llListen(225101, "", llGetOwner(), ""); }
@@ -74,8 +75,9 @@ describe('@sitground=force from standing', () => {
 describe('@sitground=force from a seat', () => {
   // In-world: seated (54), "@sitground=force" -> the seat's changed(CHANGED_LINK) read 262, then
   // 6 at 0.066 s, sometimes 134 at 0.2 s, and 22 at 0.333, 0.266, 0.266 and 0.333 s after the
-  // event, plus 0.266 and 0.265 s in the two runs below: 0.265-0.333 s in six runs. rezless lands it
-  // at 300 ms, inside that range.
+  // event, plus 0.266 and 0.265 s in the two runs below. A seventh run in another session read 6 at
+  // 0.26 s and 22 at 0.53 s. The delay varied between 0.265 and 0.53 s in seven runs over two
+  // sessions. rezless lands it at 300 ms.
   it.each(['rlv', 'rlva'] as const)('%s stands the avatar before the seat hears of it, then sits it on the ground', async profile => {
     const f = (await pair())[profile]
     f.seat()
@@ -83,9 +85,10 @@ describe('@sitground=force from a seat', () => {
     expect(f.script.global('seen')).toEqual([AGENT_SITTING | AGENT_ON_OBJECT, 0])
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'pending', seat: NULL_KEY })
     expect(f.avatar.sittingOn).toBeNull()
-    f.wait(FIRST_GROUND_READING_MS - 1)
+    f.wait(0)
+    expect(f.script.global('seen')).toEqual([AGENT_SITTING | AGENT_ON_OBJECT, 0])
     expect(f.sitting()).toBe(0)
-    f.wait(LAST_GROUND_READING_MS - FIRST_GROUND_READING_MS + 1)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(AGENT_SITTING)
     expect(f.script.global('seen')).toEqual([AGENT_SITTING | AGENT_ON_OBJECT, 0])
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'applied', seat: profile === 'rlva' ? f.avatar.key : NULL_KEY })
@@ -98,7 +101,7 @@ describe('@sitground=force from a seat', () => {
     issue(f.script, '@sit=force')
     expect(f.script.global('seen')).toEqual([AGENT_SITTING | AGENT_ON_OBJECT, 0])
     expect(f.last()).toMatchObject({ action: 'sit', actionOutcome: 'pending' })
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(AGENT_SITTING)
   })
 
@@ -107,7 +110,7 @@ describe('@sitground=force from a seat', () => {
     f.seat()
     issue(f.script, '@sitground=force')
     f.seat()
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.avatar.sittingOn).toBe(f.script.host)
     expect(f.sitting()).toBe(AGENT_SITTING | AGENT_ON_OBJECT)
     expect(f.last()).toMatchObject({ action: 'sit', actionOutcome: 'applied' })
@@ -120,7 +123,7 @@ describe('@sitground=force from a seat', () => {
     f.wait(50)
     f.seat()
     issue(f.script, '@unsit=force')
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(0)
     const far = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
       position: { x: 60, y: 0, z: 0 }, prims: [{}] })
@@ -143,7 +146,7 @@ describe('locks on @sitground=force', () => {
     f.seat()
     issue(f.script, '@unsit=n,sitground=force')
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'pending' })
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(AGENT_SITTING)
     issue(f.script, '@clear,unsit=force')
     const lock = await loadLinkset({ world: f.world, region: f.avatar.region, owner: f.avatar.key,
@@ -175,7 +178,7 @@ describe('locks on @sitground=force', () => {
     issue(f.script, '@clear')
     f.seat()
     issue(f.script, '@sitground=force,sit=n')
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(0)
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'refused', reason: 'restriction' })
   })
@@ -205,7 +208,7 @@ describe('locks on @sitground=force', () => {
     f.seat()
     f.avatar.position = { x: 50, y: 60, z: 70 }
     issue(f.script, '@sitground=force')
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(AGENT_SITTING)
     expect(f.avatar.position).toMatchObject({ x: 10, y: 20 })
     f.avatar.position = { x: 90, y: 90, z: 90 }
@@ -218,7 +221,7 @@ describe('locks on @sitground=force', () => {
     const f = (await pair()).rlva
     f.seat()
     issue(f.script, '@sitground=force,sit=n')
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(AGENT_SITTING)
   })
 
@@ -235,19 +238,19 @@ describe('locks on @sitground=force', () => {
     f.avatar.position = { x: 50, y: 60, z: 70 }
     issue(f.script, '@sitground=force')
     expect(f.last()).toMatchObject({ action: 'sitground', actionOutcome: 'applied' })
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(0)
     expect(f.avatar.position).toMatchObject({ x: 10, y: 20, z: 30 })
     issue(f.script, '@standtp=y')
     f.seat()
     expect(f.world.userStandAvatar(f.avatar)).toBe(true)
-    f.wait(FIRST_GROUND_READING_MS - 1)
+    f.wait(0)
     expect(f.script.global('seen')).toEqual([48, 0, 48, 0])
     expect(f.sitting()).toBe(0)
-    f.wait(LAST_GROUND_READING_MS - FIRST_GROUND_READING_MS + 1)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(AGENT_SITTING)
     issue(f.script, '@unsit=force,sit:' + f.script.host.key + '=force,unsit=force')
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(0)
   })
 
@@ -257,11 +260,11 @@ describe('locks on @sitground=force', () => {
     issue(f.script, '@standtp=n')
     f.seat()
     issue(f.script, '@sitground=force')
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     issue(f.script, '@standtp=y,sitground=force,unsit=force')
     f.seat()
     issue(f.script, '@unsit=force')
-    f.wait(LAST_GROUND_READING_MS)
+    f.wait(GROUND_BY_MS)
     expect(f.sitting()).toBe(0)
   })
 })
