@@ -314,11 +314,6 @@ export class ScriptClockView {
     this.timerNextFireMs = this.now
   }
 
-  /** Whether the script's object is saved in inventory, with its clocks stopped. */
-  get inInventory(): boolean {
-    return this.inventorySince !== undefined
-  }
-
   setTimer(intervalMs: number): void {
     if (intervalMs <= 0) {
       this.cancelTimer()
