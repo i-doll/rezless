@@ -381,11 +381,11 @@ describe('requests still waiting when the sitter stands', () => {
     f.world.addAvatar({ region: 'home', key: BOB, username: 'bob' })
     f.ask(ANIMATION, BOB)
     f.script.grantPermissions()
-    f.ask(DEBIT, BOB)
+    f.ask(ATTACH, BOB)
     expect(f.world.sitAvatar(f.avatar, f.linkset.prims[0]!)).toBe(true)
     f.world.standAvatar(f.avatar)
     f.script.grantPermissions()
-    expect(f.script.global('events')).toEqual([ANIMATION, DEBIT])
+    expect(f.script.global('events')).toEqual([ANIMATION, ATTACH])
   })
 })
 
