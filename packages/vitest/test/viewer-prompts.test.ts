@@ -24,10 +24,10 @@ it('records the URL prompt sent to the owner', async () => {
 // https://wiki.secondlife.com/wiki/LlMapDestination
 // https://wiki.secondlife.com/wiki/LlMapBeacon
 it('records a map destination with its position and look direction', async () => {
-  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { state_entry() {
+  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { touch_start(integer n) {
     llMapDestination("SLua Tideland", <116,48,1999>, <1,2,3>);
   } }` })
-  s.start()
+  s.linkset.touch(0)
   expect(s.viewerRequests).toEqual([{ kind: 'mapDestination', agent: s.linkset.owner,
     region: 'SLua Tideland', position: { x: 116, y: 48, z: 1999 }, lookAt: { x: 1, y: 2, z: 3 } }])
 })
@@ -109,16 +109,17 @@ it('allows tests to place a recipient in or out of the region', async () => {
 
 it.each(['llMapDestination("", <-20,999,9000>, ZERO_VECTOR)', 'llMapBeacon("", <-20,999,9000>, [BEACON_MAP])', 'llMapBeacon("", <-20,999,9000>, [BEACON_MAP,"x","y"])'])('silently records unusual map arguments: %s', async call => {
   // In-world: viewer 6,9,10,13 -> silent; all map calls dt ~= 1 s.
-  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { state_entry() { ${call}; } }` })
-  s.start()
+  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { touch_start(integer n) { ${call}; } }` })
+  s.linkset.touch(0)
   expect(s.viewerRequests).toHaveLength(1)
   expect(s.viewerRequests[0]).toMatchObject({ region: '', position: { x: -20, y: 999, z: 9000 } })
   expect(s.chat).toEqual([])
   expect(s.now).toBe(1000)
 })
 
-it('addresses a touch map request to the toucher, and other events to the owner', async () => {
-  // Foreign toucher routing follows the wiki; a second avatar is needed to measure it.
+it('addresses a touch map request to the toucher, and a sensor beacon to the owner', async () => {
+  // In-world: fivebot's click on i doll's object showed the map to fivebot only
+  // (Aditi, SLua Tideland, 2026-11-14; more in two-avatars.test.ts). llMapBeacon follows the wiki.
   const owner = '00000000-0000-0000-0000-00000000000a'
   const toucher = '00000000-0000-0000-0000-00000000000b'
   const s = await loadScript({ owner, source: `default {

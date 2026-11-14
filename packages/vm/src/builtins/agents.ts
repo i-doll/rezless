@@ -17,8 +17,9 @@ export const llGetAgentInfo: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as
 export const llGetAgentLanguage: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.language ?? ''
 export const llGetAgentSize: BuiltinImpl = (ctx, args) => ({ ...(avatar(ctx, args[0] as string)?.size ?? ZERO_VECTOR) })
 
-// In-world, dotted input uses its first two components, whereas an extra
-// space-separated word remains part of the surname and prevents a match.
+// In-world, dotted input uses its first two components and an empty second
+// component means Resident, whereas an extra space-separated word remains
+// part of the surname and prevents a match.
 function username(name: string): string {
   const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   let first: string, last: string
@@ -26,7 +27,7 @@ function username(name: string): string {
   if (name.includes('.')) {
     const parts = name.split('.')
     first = clean(parts[0]!)
-    last = clean(parts[1]!)
+    last = clean(parts[1]!) || 'resident'
   } else {
     const parts = clean(name).split(' ')
     first = parts.shift()!

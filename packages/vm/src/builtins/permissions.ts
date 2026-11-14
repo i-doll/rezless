@@ -1,8 +1,10 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { acceptsRlvPermissions } from '../rlv/permissions.js'
 import {
-  PERMISSION_ATTACH, PERMISSION_CONTROL_CAMERA, PERMISSION_GAME_CONTROL, PERMISSION_OVERRIDE_ANIMATIONS,
-  PERMISSION_TAKE_CONTROLS, PERMISSION_TELEPORT, PERMISSION_TRACK_CAMERA, PERMISSION_TRIGGER_ANIMATION,
+  PERMISSION_ATTACH, PERMISSION_CHANGE_LINKS, PERMISSION_CONTROL_CAMERA, PERMISSION_DEBIT, PERMISSION_GAME_CONTROL,
+  PERMISSION_OVERRIDE_ANIMATIONS, PERMISSION_PRIVILEGED_LAND_ACCESS, PERMISSION_RETURN_OBJECTS,
+  PERMISSION_SILENT_ESTATE_MANAGEMENT, PERMISSION_TAKE_CONTROLS, PERMISSION_TELEPORT, PERMISSION_TRACK_CAMERA,
+  PERMISSION_TRIGGER_ANIMATION,
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
 
@@ -12,6 +14,9 @@ export interface PermissionRequestEntry {
   readonly permissions: number
   answered: boolean
 }
+
+const OWNER_ONLY = PERMISSION_DEBIT | PERMISSION_CHANGE_LINKS | PERMISSION_RETURN_OBJECTS |
+  PERMISSION_SILENT_ESTATE_MANAGEMENT | PERMISSION_PRIVILEGED_LAND_ACCESS
 
 /**
  * Which requests the simulator grants without a dialog: `'sl'` follows Second
@@ -46,12 +51,21 @@ function simulatorGrants(ctx: CallContext, agent: string, permissions: number): 
  * would. Other requests wait for Script.grantPermissions or
  * Script.denyPermissions. Requesting no permissions fires nothing unless the
  * agent is sitting on the object or wearing it.
+ * Asking anyone but the owner for a permission only the owner can grant is
+ * refused without a request, except in a group-deeded object, which was not
+ * measured.
  */
 export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const agent = (args[0] as string | undefined) ?? ''
   const permissions = ((args[1] as number | undefined) ?? 0) & REQUESTABLE_PERMISSIONS
   if (ctx.linkset.attachment?.temporary && (permissions & PERMISSION_TELEPORT)) {
     sayError(ctx, 'Temporary attachments cannot request runtime permissions to teleport')
+    return undefined
+  }
+  const owner = ctx.linkset.owner.toLowerCase()
+  const deeded = ctx.linkset.world?.sensorProperties.get(ctx.linkset)?.group?.toLowerCase() === owner
+  if ((permissions & OWNER_ONLY) && !deeded && agent.toLowerCase() !== owner) {
+    sayError(ctx, 'Script asking non-owner for run time permissions only owner can grant')
     return undefined
   }
   const mode = ctx.state.permissions.autoGrant ?? ctx.linkset.world?.autoGrantPermissions ?? 'sl'
