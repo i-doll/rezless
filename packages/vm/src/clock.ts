@@ -314,6 +314,11 @@ export class ScriptClockView {
     this.timeReferenceMs = this.inventorySince ?? this.now
   }
 
+  /** True between a detach into inventory and the next wear. */
+  get inInventory(): boolean {
+    return this.inventorySince !== undefined
+  }
+
   pauseForInventory(): void {
     this.inventorySince = this.now
   }

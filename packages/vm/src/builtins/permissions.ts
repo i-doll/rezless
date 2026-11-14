@@ -7,6 +7,7 @@ import {
   PERMISSION_TRIGGER_ANIMATION,
 } from '../generated/constants.js'
 import { sayError } from './debug.js'
+import { NULL_KEY } from '../values/types.js'
 
 /** A permission request, including whether it has already been answered. */
 export interface PermissionRequestEntry {
@@ -32,17 +33,13 @@ const WEARER_PERMISSIONS = SITTER_PERMISSIONS | PERMISSION_ATTACH | PERMISSION_O
 /** The bits a request can carry: 1 to 12 and 14 to 20. Second Life drops the rest before it decides anything. */
 const REQUESTABLE_PERMISSIONS = 0x1fdffe
 
-/**
- * Second Life grants a request without a dialog when the agent is sitting on
- * the script's object or wearing it, and every requested bit is one it grants
- * to a sitter or a wearer. One other bit sends the whole request to a dialog.
- */
-function simulatorGrants(ctx: CallContext, agent: string, permissions: number): boolean {
+/** The bits Second Life grants `agent` without a dialog: a wearer's, a sitter's, or null for anyone else. */
+function grantedOnObject(ctx: CallContext, agent: string): number | null {
   const key = agent.toLowerCase()
   const { linkset } = ctx
+  if (linkset.attachment?.avatar.toLowerCase() === key) return WEARER_PERMISSIONS
   const seated = linkset.world?.avatars.some(avatar => avatar.key.toLowerCase() === key && avatar.sittingOn?.linkset === linkset)
-  const covered = linkset.attachment?.avatar.toLowerCase() === key ? WEARER_PERMISSIONS : seated ? SITTER_PERMISSIONS : null
-  return covered !== null && (permissions & ~covered) === 0
+  return seated ? SITTER_PERMISSIONS : null
 }
 
 /**
@@ -50,7 +47,8 @@ function simulatorGrants(ctx: CallContext, agent: string, permissions: number): 
  * request and grants it at once when the simulator or the recipient's viewer
  * would. Other requests wait for Script.grantPermissions or
  * Script.denyPermissions. Requesting no permissions fires nothing unless the
- * agent is sitting on the object or wearing it.
+ * agent is sitting on the object or wearing it. A request that includes camera
+ * control is refused whole, with an error and no dialog, for anyone else.
  * Asking anyone but the owner for a permission only the owner can grant is
  * refused without a request, except in a group-deeded object, which was not
  * measured.
@@ -58,22 +56,38 @@ function simulatorGrants(ctx: CallContext, agent: string, permissions: number): 
 export const llRequestPermissions: BuiltinImpl = (ctx, args) => {
   const agent = (args[0] as string | undefined) ?? ''
   const permissions = ((args[1] as number | undefined) ?? 0) & REQUESTABLE_PERMISSIONS
+  const mode = ctx.state.permissions.autoGrant ?? ctx.linkset.world?.autoGrantPermissions ?? 'sl'
+  // Second Life grants the request when the agent is sitting on the object or wearing it and
+  // every requested bit is one it grants there. One other bit sends the whole request to a dialog.
+  // A request for nothing never reaches a dialog, so the setting has nothing to decide.
+  const covered = grantedOnObject(ctx, agent)
+  const automatic = mode === 'sl' || permissions === 0
+    ? covered !== null && (permissions & ~covered) === 0
+    : mode !== 'none' && mode({ agent, permissions })
+  const world = ctx.linkset.world
+  const absent = covered === null && (agent === NULL_KEY ||
+    (!!world && !world.avatars.some(avatar => avatar.key.toLowerCase() === agent.toLowerCase())))
+  // Second Life looks for the agent before anything else and fails every request to one it cannot
+  // find. Only the camera control request is modelled; the others still wait for the test to answer.
+  if ((permissions & PERMISSION_CONTROL_CAMERA) && absent && !automatic) {
+    sayError(ctx, 'Unable to find specified agent to request permissions.')
+    return undefined
+  }
   if (ctx.linkset.attachment?.temporary && (permissions & PERMISSION_TELEPORT)) {
     sayError(ctx, 'Temporary attachments cannot request runtime permissions to teleport')
     return undefined
   }
   const owner = ctx.linkset.owner.toLowerCase()
-  const deeded = ctx.linkset.world?.sensorProperties.get(ctx.linkset)?.group?.toLowerCase() === owner
+  const deeded = world?.sensorProperties.get(ctx.linkset)?.group?.toLowerCase() === owner
   if ((permissions & OWNER_ONLY) && !deeded && agent.toLowerCase() !== owner) {
     sayError(ctx, 'Script asking non-owner for run time permissions only owner can grant')
     return undefined
   }
-  const mode = ctx.state.permissions.autoGrant ?? ctx.linkset.world?.autoGrantPermissions ?? 'sl'
-  // A request for nothing never reaches a dialog, so the setting has nothing to decide.
-  const automatic = mode === 'sl' || permissions === 0
-    ? simulatorGrants(ctx, agent, permissions)
-    : mode !== 'none' && mode({ agent, permissions })
   if (permissions === 0 && !automatic) return undefined
+  if ((permissions & PERMISSION_CONTROL_CAMERA) && covered === null && !automatic) {
+    sayError(ctx, 'Camera control currently only supported for attachments and objects on which you are sitting.')
+    return undefined
+  }
   const avatar = ctx.linkset.world?.avatars.find(avatar => avatar.key.toLowerCase() === agent.toLowerCase())
   const answered = automatic || (!!avatar && acceptsRlvPermissions(avatar, ctx.linkset, permissions))
   const { requests } = ctx.state.permissions

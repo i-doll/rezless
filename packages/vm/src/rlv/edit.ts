@@ -83,6 +83,8 @@ export function attemptAvatarRez(world: World, avatar: WorldAvatar, itemId: stri
   const item = avatar.viewer.inventory.snapshot().find(entry => entry.id === itemId && entry.kind === 'item')
   const retained = avatar.viewer.inventory.attachmentObject(itemId)
   const definition = retained && !retained.dead ? retained : item?.object
+  // The viewer refuses to rez an item that is worn.
+  if (retained && !retained.dead && retained.attachment) return record('unsupported', 'worn')
   if (!item || !definition?.prims.length || item.wearableType) return record('unsupported', 'item')
   if (item.content && !(item.content.permMask.owner & PERM_COPY)) return record('unsupported', 'no-copy-item')
   const object = definition.copy({ world, region: avatar.region, owner: avatar.key })

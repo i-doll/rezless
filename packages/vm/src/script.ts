@@ -138,6 +138,11 @@ export interface ScriptOptions {
    */
   readonly functions?: Readonly<Record<string, FunctionSignature>>
   /**
+   * Which permission requests are granted without a dialog; see
+   * `Script.autoGrantPermissions`. Defaults to the world's setting.
+   */
+  readonly autoGrantPermissions?: AutoGrantPermissions
+  /**
    * What happens when the script calls a function rezless only stubs:
    * 'allow' (default) returns the type's default value silently, 'warn'
    * also warns once per function, 'throw' fails the call.
@@ -290,7 +295,7 @@ export class Script {
       },
       appearance: this.host.appearance,
       gameControlSnapshot: null,
-      permissions: { granted: 0, agent: NULL_KEY, requests: [], autoGrant: null },
+      permissions: { granted: 0, agent: NULL_KEY, requests: [], autoGrant: options.autoGrantPermissions ?? null },
       experience: options.experience ?? null,
       experienceRequests: [],
       controls: { taken: null, level: 0 },
@@ -586,16 +591,39 @@ export class Script {
     this.state.permissions.autoGrant = mode
   }
 
-  /** An avatar stopped sitting on this script's object. */
+  /**
+   * An avatar stopped sitting on this script's object. If the script holds
+   * its permissions for that avatar, Second Life takes controls and camera
+   * control back and stops waiting on the script's dialogs: answers to them
+   * do nothing. A script that holds nothing for the avatar keeps waiting.
+   */
   sitterLeft(avatar: string): void {
-    if (this.state.permissions.agent.toLowerCase() === avatar.toLowerCase()) this.dropSeatPermissions()
+    if (this.state.permissions.agent.toLowerCase() !== avatar.toLowerCase()) return
+    this.releaseSeat()
+    this.dropWaitingRequests()
+  }
+
+  /** What a stand leaves: no controls or camera control, and no permission key once nothing is held. */
+  private releaseSeat(): void {
+    this.dropSeatPermissions()
+    if (!this.state.permissions.granted) this.state.permissions.agent = NULL_KEY
+  }
+
+  /** The object went into inventory: a dialog raised before that does nothing afterwards. */
+  detached(): void {
+    this.dropWaitingRequests()
+  }
+
+  private dropWaitingRequests(): void {
+    for (const request of this.state.permissions.requests) request.answered = true
   }
 
   /**
    * Second Life takes controls and camera control back, with no event, when
-   * the avatar stops sitting on the object and by the time a detached
-   * attachment is rezzed again. The permission key goes with the last bit,
-   * and the avatar's camera goes back to its own rules.
+   * the avatar stops sitting on the object, when the object is taken from
+   * under its sitter, and by the time a detached attachment is rezzed again.
+   * The permission key goes with the last bit, and the avatar's camera goes
+   * back to its own rules.
    */
   private dropSeatPermissions(): void {
     const held = this.state.permissions
@@ -1028,6 +1056,17 @@ export class Script {
     copy.running = this.running && !this.dead
     copy.crashed = this.crashed
     Object.assign(copy.state.random, this.state.random)
+    // A copy made for the same owner keeps what the script held. What one made for another owner
+    // holds needs a second avatar to measure, so that one starts with nothing.
+    if (host.linkset!.owner.toLowerCase() === this.linkset.owner.toLowerCase()) {
+      copy.state.permissions.granted = this.state.permissions.granted
+      copy.state.permissions.agent = this.state.permissions.agent
+      const agent = this.state.permissions.agent.toLowerCase()
+      // An object taken while the permission avatar sits on it comes out as a stand leaves it,
+      // and one that is worn or detached as a detach leaves it.
+      if (this.linkset.world?.avatars.some(a => a.key.toLowerCase() === agent && a.sittingOn?.linkset === this.linkset)) copy.releaseSeat()
+      else if (this.clockView.inInventory || this.linkset.attachment) copy.dropSeatPermissions()
+    }
     copy.state.listens.push(...structuredClone(this.state.listens))
     copy.state.listenHandleCounter = this.state.listenHandleCounter
     copy.clockView.timerIntervalMs = this.clockView.timerIntervalMs
@@ -1044,7 +1083,7 @@ export class Script {
   /** Queue rez lifecycle events after restoring the inventory script's saved data. */
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
-    this.dropSeatPermissions()
+    if (this.clockView.inInventory) this.dropSeatPermissions()
     // A crashed LSL script runs again when its object is rezzed: state_entry
     // of the state it was in, with its globals, then on_rez. A crashed SLua
     // script stays crashed.
