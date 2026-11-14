@@ -1297,11 +1297,11 @@ export function checkPrimRule(param: number, rules: ReadonlyArray<LslValue>, cur
 
 /**
  * What a face is on its shape: a path end (top / bottom), the hollow's inner
- * face, one of the two profile-cut faces, or an outer profile side covering
- * `[from, to]` of the profile. Faces are numbered top, outer sides, inner,
- * bottom, cut faces, as measured on a box in Second Life.
+ * face, one of the two profile-cut faces, or the outer profile side with that
+ * index. Faces are numbered top, outer sides, inner, bottom, cut faces, as
+ * measured on a box in Second Life.
  */
-type FaceRole = 'top' | 'inner' | 'bottom' | 'cutStart' | 'cutEnd' | { from: number; to: number }
+type FaceRole = 'top' | 'inner' | 'bottom' | 'cutStart' | 'cutEnd' | number
 
 const PROFILE_SIDES: Readonly<Record<number, number>> = {
   [SHAPE_BOX]: 4, [SHAPE_CYLINDER]: 1, [SHAPE_PRISM]: 3, [SHAPE_SPHERE]: 1,
@@ -1311,7 +1311,7 @@ const PROFILE_SIDES: Readonly<Record<number, number>> = {
 const isCut = (range: Vector): boolean => range.x > 0 || range.y < 1
 
 function faceRoles(shape: PrimShape): FaceRole[] {
-  if (shape.kind === SHAPE_SCULPT) return [{ from: 0, to: 1 }]
+  if (shape.kind === SHAPE_SCULPT) return [0]
   const looped = shape.kind === SHAPE_TORUS || shape.kind === SHAPE_TUBE || shape.kind === SHAPE_RING
   const profileCut = looped ? shape.advancedCut : shape.cut
   const pathEnds = shape.kind === SHAPE_SPHERE
@@ -1320,8 +1320,7 @@ function faceRoles(shape: PrimShape): FaceRole[] {
   const sides = PROFILE_SIDES[shape.kind]!
   const roles: FaceRole[] = pathEnds ? ['top'] : []
   for (let i = 0; i < sides; i++) {
-    const from = i / sides, to = (i + 1) / sides
-    if (from < profileCut.y && to > profileCut.x) roles.push({ from, to })
+    if (i / sides < profileCut.y && (i + 1) / sides > profileCut.x) roles.push(i)
   }
   if (shape.hollow > 0) roles.push('inner')
   if (pathEnds) roles.push('bottom')
@@ -1331,21 +1330,24 @@ function faceRoles(shape: PrimShape): FaceRole[] {
 
 /**
  * Rebuild the face slots for a new shape. A face keeps the values of the old
- * face with the same role; an outer side takes the first old outer side it
- * overlaps, else the nearest one; any other new face copies the old last face.
+ * face with the same role. A new outer side copies the old outer side with
+ * the nearest index. A new top, bottom or inner face copies the old bottom,
+ * and a new cut face the old inner face or else the bottom. Without those,
+ * they copy the first old outer side.
  */
 function remapFaces(p: PrimParams, oldShape: PrimShape): void {
   const oldRoles = faceRoles(oldShape)
   const old = p.faces
-  const last = old[old.length - 1]!
-  const oldOuter = oldRoles.flatMap((r, i) => (typeof r === 'string' ? [] : [{ ...r, face: old[i]! }]))
-  const source = (role: FaceRole): PrimFace => {
-    if (typeof role === 'string') return old[oldRoles.indexOf(role)] ?? last
-    const gap = (o: { from: number; to: number }) => Math.max(o.from - role.to, role.from - o.to)
-    const overlap = oldOuter.find((o) => gap(o) < 0)
-    if (overlap) return overlap.face
-    const nearest = oldOuter.reduce<(typeof oldOuter)[number] | undefined>((a, o) => (!a || gap(o) < gap(a) ? o : a), undefined)
-    return nearest?.face ?? last
+  const oldFace = (role: FaceRole | undefined) => old[oldRoles.indexOf(role as FaceRole)]
+  const oldSides = oldRoles.filter((r) => typeof r === 'number')
+  const firstSide = oldFace(oldSides[0]) ?? old[0]!
+  const fallback = oldFace('bottom') ?? firstSide
+  const source = (role: FaceRole) => {
+    const same = oldFace(role)
+    if (same) return same
+    if (typeof role === 'number') return role < oldSides[0]! ? firstSide : (oldFace(oldSides.at(-1)) ?? firstSide)
+    if (role === 'cutStart' || role === 'cutEnd') return oldFace('inner') ?? fallback
+    return fallback
   }
   p.faces = faceRoles(p.shape).map((role) => structuredClone(source(role)))
   p.glow = p.faces.map((f) => f.glow)
