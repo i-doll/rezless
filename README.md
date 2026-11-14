@@ -71,6 +71,7 @@ import { loadScript } from '@rezless/vitest'
 ```sh
 pnpm install
 pnpm gen          # regenerate ll* stub tables from vendor/lsl_definitions.yaml
+pnpm gen:case     # regenerate the llToLower/llToUpper tables from vendor/UnicodeData-2.1.5.txt
 pnpm typecheck
 pnpm build        # per-package tsc emit
 pnpm test
@@ -977,7 +978,8 @@ Not modelled yet:
   nested tables and functions. It can't read a function.
 
 `scripts/build-slua-wasm.sh` rebuilds `packages/vm/wasm/slua.wasm` from SLua's
-source at that release. It needs Emscripten and CMake.
+source at that release, with the case tables `pnpm gen:case` writes in place of
+SLua's own. It needs Emscripten and CMake.
 
 ## Coverage
 
@@ -1427,8 +1429,8 @@ vendored at `vendor/lsl_definitions.yaml` and licensed under the **MIT
 License**; see [`NOTICE`](NOTICE) for the full attribution.
 
 `@rezless/vm` includes third-party code under other licences. The case-mapping
-tables behind `llToLower` and `llToUpper` come from Mono 2.6.4 and are under
-the **GNU Library General Public License, version 2**, and `slua.wasm` is built
-from SLua and the libraries listed in [`NOTICE`](NOTICE). The licence texts
+tables behind `llToLower` and `llToUpper` are generated from Unicode data under
+the **Unicode License v3**, and `slua.wasm` is built from SLua and the libraries
+listed in [`NOTICE`](NOTICE). The licence texts
 are in
 [`packages/vm/wasm/THIRD-PARTY-LICENSES.txt`](packages/vm/wasm/THIRD-PARTY-LICENSES.txt).

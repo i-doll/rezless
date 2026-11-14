@@ -16,6 +16,7 @@
   "type": "module",
   "scripts": {
     "gen": "tsx scripts/gen-stubs.ts",
+    "gen:case": "tsx scripts/gen-case-tables.ts",
     "build": "pnpm -r build",
     "prepare": "pnpm gen && pnpm build",
     "test": "vitest run",
