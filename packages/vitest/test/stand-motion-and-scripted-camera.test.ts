@@ -126,6 +126,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar sits', () => {
   it('reads "Sitting on Ground" after a ground sit', async () => {
     const f = await fixture()
     f.worn.send('rlv', 0, SIT_GROUND)
+    f.advance(225)
     expect(f.watcher.read()).toEqual([AGENT_SITTING, 'Sitting on Ground'])
     expect(f.seat.changes()).toEqual([])
   })
@@ -135,6 +136,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar sits', () => {
   it('reads "Sitting" when the avatar sits on an object from the ground', async () => {
     const f = await fixture()
     f.worn.send('rlv', 0, SIT_GROUND)
+    f.advance(225)
     f.sit()
     expect(f.seat.changes()).toEqual([[AGENT_SITTING | AGENT_ON_OBJECT, 'Sitting']])
   })
@@ -177,6 +179,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     const f = await fixture()
     f.sit()
     f.worn.send('rlv', 0, '@unsit=force')
+    f.advance(225)
     expect(f.seat.changes().at(-1)).toEqual([AGENT_IN_AIR, 'Striding'])
     f.advance(100)
     expect(f.watcher.read()).toEqual([0, 'Standing'])
@@ -220,6 +223,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
   it('reads the same for a stand from the ground', async () => {
     const f = await fixture()
     f.worn.send('rlv', 0, SIT_GROUND)
+    f.advance(225)
     f.stand()
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Striding'])
     f.advance(100)
@@ -234,6 +238,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     const f = await fixture()
     f.sit()
     f.worn.send('rlv', 0, SIT_GROUND)
+    f.advance(225)
     f.advance(1000)
     expect(f.watcher.read()).toEqual([AGENT_SITTING, 'Sitting on Ground'])
   })
@@ -279,6 +284,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Falling Down'])
     f.advance(700)
     f.worn.send('rlv', 0, SIT_GROUND)
+    f.advance(225)
     expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 30, z: 30 })).toBe(true)
     f.advance(0)
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Falling Down'])
