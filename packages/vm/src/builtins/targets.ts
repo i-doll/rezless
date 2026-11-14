@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Script } from '../script.js'
 import type { Rotation, Vector } from '../values/types.js'
 import { ZERO_ROTATION } from '../values/types.js'
-import { llAngleBetween } from './math.js'
+import { rotTargetAngle } from './math.js'
 
 /** Aditi's stationary single-target handlers ran about once every 44 ms. */
 const INTERVAL = 1000 / 22.5
@@ -42,7 +42,6 @@ function emit(script: Script, event: string, payload: Record<string, unknown> = 
   script.clockView.schedule(script.clockView.now, event, payload)
 }
 
-const angleBetween = (a: Rotation, b: Rotation) => Number(llAngleBetween(undefined as never, [a, b]))
 
 function check(script: Script, entries: Targets): void {
   if (!script.running || script.dead) return
@@ -64,7 +63,7 @@ function check(script: Script, entries: Targets): void {
   if (entries.rotations.length) {
     let reached = false
     for (const target of entries.rotations) {
-      if (angleBetween(target.value, rotation) < target.range) {
+      if (rotTargetAngle(target.value, rotation) < target.range) {
         reached = true
         emit(script, 'at_rot_target', { handle: target.handle, targetrot: { ...target.value }, ourrot: { ...rotation } })
       }

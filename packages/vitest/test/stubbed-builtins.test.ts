@@ -171,7 +171,8 @@ describe('rotation helpers (measured in Second Life)', () => {
     ['llRot2Fwd(<0,0,0,2>)', '<1.00000, 0.00000, 0.00000>'],
     ['llRot2Axis(ZERO_ROTATION)', '<0.00000, 0.00000, 0.00000>'],
     ['llRot2Angle(ZERO_ROTATION)', '0.000000'],
-    ['llRot2Axis(<0,0,0.7071068,-0.7071068>)', '<0.00000, 0.00000, -1.00000>'],
+    // In-world: the zeros are negative (Aditi, SLua Tideland, 2026-11-14).
+    ['llRot2Axis(<0,0,0.7071068,-0.7071068>)', '<-0.00000, -0.00000, -1.00000>'],
     ['llRot2Angle(<0,0,0.7071068,-0.7071068>)', '1.570796'],
     ['llAxisAngle2Rot(<0,0,1>, PI_BY_TWO)', '<0.00000, 0.00000, 0.70711, 0.70711>'],
     ['llAxisAngle2Rot(<0,0,2>, PI_BY_TWO)', '<0.00000, 0.00000, 0.70711, 0.70711>'],
