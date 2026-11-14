@@ -126,7 +126,8 @@ describe('coroutine.running() in SLua', () => {
   it('carries on from a yield on the script thread, which returns nothing', async () => {
     // In-world, at the top level: pcall(coroutine.yield) -> true and nothing else; select("#", coroutine.yield())
     // -> 0; select("#", coroutine.yield(1, 2)) -> 0 and select("#", pcall(coroutine.yield, 1, 2)) -> 1, and the
-    // script went on at once. The same three lines from a touch_start handler, on each of two touches.
+    // script went on to its next line each time. The same three lines from a touch_start handler, on each of
+    // two touches.
     const body = `
       local r = table.pack(pcall(coroutine.yield))
       ll.OwnerSay("pcall " .. tostring(r[1]) .. " " .. r.n)
@@ -178,7 +179,8 @@ describe('SLua memory errors', () => {
     // In-world: pcall(rec, 1) with rec counting its depth -> false, "not enough memory", at depth 1212, with
     // 130329 of 131072 bytes in use straight after it (743 free) and the script still running. A second
     // pcall(rec, 1) gave the same answer at the same depth. On the next touch the script answered, with 4151 bytes
-    // in use. (The depth moves by one with the locals the top level holds, so the test takes 1201 to 1219.)
+    // in use.
+    // In rezless the depth moves by one with the locals the top level holds, so the test takes 1201 to 1219.
     const s = await slua(
       `${REC}
       LLEvents:on("touch_start", function() ll.OwnerSay("touch " .. tostring(ll.GetUsedMemory() < 8000)) end)
@@ -352,20 +354,20 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
 
   it('stops the script at a lowered limit', async () => {
     // In-world: llcompat.SetMemoryLimit(40000) -> 1, ll.GetFreeMemory() 35456; a pcall filling a table with
-    // strings for ever -> "not enough memory" with 39961 bytes in use and 858 strings; after dropping 100 of
-    // them, llcompat.SetMemoryLimit(used - 1000) -> 0, limit still 40000; (60000) -> 1 and the fill went on to
-    // 59963 bytes; (131072) -> 1 and it went on to 131045. (How close to the limit a fill stops depends on where
-    // its table next grows, so the test takes anything within 4096 bytes.)
+    // strings for ever -> "not enough memory" with 39961 bytes in use and 958 strings; with 100 of them
+    // dropped, llcompat.SetMemoryLimit(used - 1000) -> 0, limit still 40000; (60000) -> 1 and the fill went on to
+    // 59963 bytes; (131072) -> 1 and it went on to 131045.
+    // How close to the limit a fill stops depends on where its table next grows, so the test takes anything
+    // within 4096 bytes.
     expect(
       await said(
         `local t = {}
         local function fill() local n = #t while true do n += 1 t[n] = "s" .. n end end
-        local function drop(k) for i = #t, #t - k + 1, -1 do t[i] = nil end end
         local function upTo(limit)
           local set = llcompat.SetMemoryLimit(limit)
           local ok, e = pcall(fill)
           local used = ll.GetUsedMemory()
-          drop(100)
+          for i = #t, #t - 99, -1 do t[i] = nil end
           ll.OwnerSay(limit .. " " .. set .. " " .. tostring(e) .. " " .. tostring(used > limit - 4096 and used <= limit))
         end
         upTo(40000)
@@ -414,7 +416,7 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
   it('keeps a lowered limit through ll.ResetScript', async () => {
     // In-world: llcompat.SetMemoryLimit(50000) -> 1, then ll.ResetScript(); the script started again with
     // ll.GetMemoryLimit() 50000 and ll.GetFreeMemory() + ll.GetUsedMemory() 50000. With the limit at what the
-    // script used plus 1000 before the reset, it started again and read that limit, with 1000 bytes fewer in use.
+    // script used plus 1000 before the reset, it started again and read that limit, with its use 1000 below it.
     const reset = (limit: string, options = {}) =>
       slua(
         `if ll.GetObjectDesc() == "again" then
@@ -496,7 +498,8 @@ describe('nested xpcall in SLua', () => {
     // outer pcall "error in error handling" too. The innermost xpcall alone saw "C stack overflow": returning it
     // as a value from 1000 deep -> "caught:C stack overflow" with one handler call. Between 198 and 400 deep the
     // region gave either answer for the same depth from one run to the next (198 deep: "C stack overflow" with
-    // 199 handler calls, then "error in error handling" with 198; 200 and 225 deep: the depth itself once), so
+    // 199 handler calls, then "error in error handling" with 198; 205 and 225 deep: the depth itself once; 200
+    // deep: the depth itself twice), so
     // those depths are not pinned.
     expect(
       await said(`${DEEP}
