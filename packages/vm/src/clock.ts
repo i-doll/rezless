@@ -27,12 +27,15 @@ export interface QueuedEvent {
 
 /**
  * Events Second Life holds back while a handler sleeps. When the handler wakes or ends they go
- * behind the events that waited for it, in this order, whatever order they came up in.
+ * behind the events that waited for it, in this order, whatever order they came up in. Events
+ * of one rank keep the order they came up in.
  */
 const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['timer', 0], ['sensor', 1], ['no_sensor', 1],
   ['at_target', 2], ['not_at_target', 2], ['at_rot_target', 2], ['not_at_rot_target', 2],
-  ['touch_start', 3], ['touch', 4], ['touch_end', 5], ['changed', 6], ['__unseated', 6], ['__ownerChanged', 6],
+  ['collision_start', 3], ['collision', 3], ['land_collision_start', 3],
+  ['touch_start', 4], ['touch', 5], ['touch_end', 6], ['changed', 7], ['__unseated', 7], ['__ownerChanged', 7],
+  ['collision_end', 8], ['land_collision', 8], ['land_collision_end', 8],
 ])
 
 /** `changed` and the events a rez raises that run as `changed`. */
@@ -315,9 +318,11 @@ export class LinksetClock {
    * those of a kind that an earlier wake released and that still waits: those stay held back
    * until the handler ends. In-world, a colour change in each of three sleeps gave two
    * changed events, and changes held in the first sleep ran ahead of chat from the second.
+   * A sensor result is one kind: a no_sensor held in a second sleep stayed held while the
+   * sensor event released at the first wake waited.
    */
   releaseAtWake(script: Script, since: number): void {
-    const kind = (e: QueuedEvent) => CHANGED_EVENTS.has(e.event) ? 'changed' : e.event
+    const kind = (e: QueuedEvent) => CHANGED_EVENTS.has(e.event) ? 'changed' : e.event === 'no_sensor' ? 'sensor' : e.event
     const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
     const waiting = new Set(waited.filter((e) => HELD_ORDER.has(e.event) && !this.heldBack(e, since)).map(kind))
     const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)))

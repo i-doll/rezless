@@ -25,6 +25,8 @@ interface SensorTask {
   missed: boolean
   /** The scheduled scan is one owed from while the script was down. */
   late: boolean
+  /** The result this sensor last queued, which its next result replaces. */
+  waiting: Record<string, unknown> | undefined
   cancel: (() => void) | undefined
 }
 const sensors = new WeakMap<Script, SensorTask>()
@@ -49,12 +51,12 @@ function schedule(script: Script, task: SensorTask, delay: number, late = false)
 function run(script: Script, task: SensorTask): void {
   if (task.rate > 0) schedule(script, task, task.rate * 1000)
   else sensors.delete(script)
-  scan(script, task.q)
+  scan(script, task)
 }
 
 function register(script: Script, q: Scan, rate: number): void {
   stopSensors(script)
-  const task: SensorTask = { q, rate, dueAt: 0, remainingMs: 0, missed: false, late: false, cancel: undefined }
+  const task: SensorTask = { q, rate, dueAt: 0, remainingMs: 0, missed: false, late: false, waiting: undefined, cancel: undefined }
   sensors.set(script, task)
   schedule(script, task, rate * 1000)
 }
@@ -89,7 +91,7 @@ export function runMissedSensor(script: Script): void {
 export function copySensors(from: Script, to: Script): void {
   const task = sensors.get(from)
   if (!task) return
-  const copy: SensorTask = { ...task, q: { ...task.q }, cancel: undefined, missed: false, late: false }
+  const copy: SensorTask = { ...task, q: { ...task.q }, cancel: undefined, missed: false, late: false, waiting: undefined }
   sensors.set(to, copy)
   const left = task.cancel ? Math.max(0, task.dueAt - from.clockView.now) : task.remainingMs
   // A scan that fell due while the script was down is due at once.
@@ -133,7 +135,8 @@ function targets(script: Script): WorldEntity[] {
   return out
 }
 
-function scan(script: Script, q: Scan): void {
+function scan(script: Script, task: SensorTask): void {
+  const q = task.q
   if (script.dead || q.radius <= 0 || q.type === 0) return
   const origin = script.host.regionPosition()
   const forward = rotateVector({ x: 1, y: 0, z: 0 }, script.host.regionRotation())
@@ -171,9 +174,20 @@ function scan(script: Script, q: Scan): void {
     } })
   }
   const detected = found.sort((a, b) => a.distance - b.distance).slice(0, 32).map((f) => f.entry)
-  // A busy handler holds the latest completed result, rather than a backlog of scans.
-  script.linkset.clock.purgeEvent(script, detected.length ? 'sensor' : 'no_sensor')
-  script.clockView.schedule(script.clockView.now, detected.length ? 'sensor' : 'no_sensor', { num_detected: detected.length, detected })
+  // A sleeping handler holds back the latest completed result, rather than a backlog of scans.
+  // In-world: a repeating sensor that found its target and then lost it during one sleep gave
+  // one no_sensor after it, and one that lost it and then found it one sensor event. A result
+  // released by an earlier wake or handler kept its place and ran ahead of the new one.
+  const event = detected.length ? 'sensor' : 'no_sensor'
+  const payload = { num_detected: detected.length, detected }
+  const clock = script.linkset.clock
+  const since = script.handlerStartedAt
+  const waiting = task.waiting
+  clock.purgeWhere((e) => e.target === script && (since === undefined
+    ? e.event === event
+    : clock.heldBack(e, since) && (e.event === event || (waiting !== undefined && e.payload === waiting))))
+  task.waiting = payload
+  script.clockView.schedule(script.clockView.now, event, payload)
 }
 
 export const llSensor: BuiltinImpl = (ctx, args) => {

@@ -406,6 +406,16 @@ describe('one long advanceTime', () => {
 })
 
 describe('timer after a handler that started late', () => {
+  // Measured on the main grid: 6,7,8.
+  //
+  // In-world on Aditi (SLua Tideland, 2026-11-14) this script, run as it stands, logged
+  // 6,6,7,8 in both runs: ticks at 6.1 and 6.2 s, then 7.2 and 8.2. Changing one thing at a time
+  // gave two ticks after the last sleep every time: a 3 s timer with two 8 s sleeps, the second
+  // link message sent 1.5 s into the first sleep, the sleeps in a listen handler with the second
+  // command sent during the first sleep, the timer set from a listen handler, and three or four
+  // 2 s sleeps in a row. The second tick came about 0.1 s after the first, and the next one an
+  // interval after that. What makes the two grids differ is not known, and rezless keeps the
+  // main grid's result.
   it('delivers one pending tick, not a burst', async () => {
     const s = await load(`
       string log;
