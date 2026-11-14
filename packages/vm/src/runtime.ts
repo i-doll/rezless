@@ -103,6 +103,8 @@ export interface ScriptState {
     granted: number
     agent: string
     readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
+    /** The script's own setting; null follows the world's. */
+    autoGrant: import('./builtins/permissions.js').AutoGrantPermissions | null
   }
   /** The experience the script was compiled with, or null. */
   readonly experience: import('./experience.js').Experience | null

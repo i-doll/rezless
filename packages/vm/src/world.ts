@@ -151,6 +151,8 @@ export interface SensorObjectProperties {
 export interface WorldOptions {
   /** Unix time in seconds at virtual time 0, read by llGetUnixTime and friends. Default 0. */
   readonly startUnixTime?: number
+  /** Which llRequestPermissions requests are granted without a dialog, for scripts that don't set their own. Default 'sl'. */
+  readonly autoGrantPermissions?: import('./builtins/permissions.js').AutoGrantPermissions
 }
 
 /** Global position of a region's south-west corner, in metres. Regions are 256 m squares. */
@@ -348,9 +350,11 @@ export class World {
   /** Optional sensor metadata for linksets loaded with loadLinkset. */
   readonly sensorProperties = new Map<Linkset, SensorObjectProperties>()
   private readonly regions = new Map<string, Region>()
+  autoGrantPermissions: import('./builtins/permissions.js').AutoGrantPermissions
 
   constructor(opts: WorldOptions = {}) {
     this.clock = new LinksetClock(opts.startUnixTime)
+    this.autoGrantPermissions = opts.autoGrantPermissions ?? 'sl'
   }
 
   /** Play a prepared gesture, recording its outcome and any emitted chat. */
@@ -465,6 +469,7 @@ export class World {
         snapshotSeat()
         if (value && value.linkset !== seat?.linkset) sittingOrder = ++world.nextSittingOrder
         const previous = seat?.linkset
+        if (previous && previous !== value?.linkset) for (const script of previous.allScripts()) script.sitterLeft(avatar.key)
         seat = value
         // A sitter is a link, so the object it leaves and the one it joins renumber.
         if (previous && previous !== seat?.linkset) previous.recomputeLinkNumbers()

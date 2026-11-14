@@ -242,7 +242,6 @@ it('recovers a permitted LSL simulator detach through a child-issued lock', asyn
   loaded.linkset.attachToAvatar(avatar.key, 1)
   loaded.scripts.root!.start()
   loaded.scripts.child!.start()
-  loaded.scripts.root!.grantPermissions()
   loaded.scripts.root!.fire('touch_start', { num_detected: 1 })
   expect(loaded.linkset.attachment).toBeNull()
   script.advanceTime(20000)

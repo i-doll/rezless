@@ -129,6 +129,7 @@ it('keeps camera tracking permission independent and shares the pose with HUD pr
   }` })
   for (const f of Object.values(pair)) {
     f.script.linkset.attachToAvatar(f.avatar.key, 35)
+    f.script.autoGrantPermissions = 'none'
     f.script.start(); f.script.fire('touch_start', { num_detected: 1 })
     expect(f.script.global('position')).toEqual(vec(0, 0, 0))
     expect(f.script.global('hud')).toEqual(vec(0, 0, 0))
