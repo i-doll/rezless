@@ -28,6 +28,12 @@ export interface ChatEntry {
   readonly type: ChatType
   /** For `regionSayTo` / `instantMessage`: the target avatar/object key. */
   readonly to?: string
+  /**
+   * The key of the link that said it, when that is not the script's own prim:
+   * another prim of the object, or an avatar seated on it. Left out for the
+   * script's own prim.
+   */
+  readonly from?: string
 }
 
 export interface CallEntry {

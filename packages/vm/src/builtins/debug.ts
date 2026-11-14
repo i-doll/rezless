@@ -8,7 +8,7 @@ import { isPrim, type Link } from '../linkset.js'
  * script's prim: another prim of the object, or an avatar seated on it.
  */
 export function sayError(ctx: CallContext, text: string, speaker: Link = ctx.prim): void {
-  ctx.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
+  ctx.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say', ...(speaker === ctx.prim ? {} : { from: speaker.key }) })
   if (isPrim(speaker)) ctx.linkset.routeChat(speaker, 'say', DEBUG_CHANNEL, text)
   else ctx.linkset.routeAvatarSay(speaker, DEBUG_CHANNEL, text)
 }

@@ -85,6 +85,8 @@ describe('media errors on an avatar link', () => {
       'box', s.prim.key, malformed,
     ])
     expect(s.box.global('heard')).toEqual(Array(4).fill('Av Atar'))
+    expect(s.box.chat.map((c) => c.from)).toEqual([AVATAR, AVATAR, AVATAR, AVATAR, undefined, undefined])
+    expect(s.box.chat.every((c) => c.channel === 2147483647 && c.type === 'say')).toBe(true)
   })
 
   it.each([
@@ -120,6 +122,31 @@ describe('media errors on an avatar link', () => {
     expect(s.box.global('heard')).toEqual([])
   })
 
+  // In-world (the same grid and day, a later probe): the seated avatar wore a
+  // box on the chest and three linked boxes on the left hand, and in a second
+  // run a box on the centre HUD point and a temporary attachment on the right
+  // hand. Each listened on DEBUG_CHANNEL and heard llSetLinkMedia(2, 45, ...)
+  // from the avatar, by its name and key. The test wears the chest box, and
+  // puts it far away because a worn object hears its wearer wherever the
+  // fixture has it.
+  it('are heard by what the avatar wears', async () => {
+    const s = await scene('llSetLinkMedia(2, 45, [PRIM_MEDIA_HOME_URL, U]);')
+    const worn = await loadLinkset({
+      world: s.world, region: 'home', owner: AVATAR, position: { x: 200, y: 200, z: 20 },
+      prims: [{ name: 'worn', scripts: [{ name: 'worn', source: { source: `
+        list heard;
+        default {
+          state_entry() { llListen(DEBUG_CHANNEL, "", NULL_KEY, ""); }
+          listen(integer c, string name, key id, string msg) { heard += [name, (string)id]; }
+        }` } }] }],
+    })
+    worn.scripts.worn!.start()
+    worn.linkset.attachToAvatar(AVATAR, 1)
+    s.run()
+    worn.linkset.advanceTime(1000)
+    expect(worn.scripts.worn!.global('heard')).toEqual(['Av Atar', AVATAR])
+  })
+
   // In-world, two linked boxes: llSetLinkMedia(2, 6, ...) and llGetLinkMedia(2,
   // ALL_SIDES, ...) from the root were heard from child 2, by its name and key,
   // by the root's script and by a listener in another object. Child 2 did not
@@ -148,6 +175,8 @@ describe('media errors on an avatar link', () => {
     linkset.advanceTime(1000)
     expect(scripts.e1!.global('heard')).toEqual(['e2', e2, 'e2', e2])
     expect(scripts.e2!.global('heard')).toEqual([])
+    expect(scripts.e1!.chat.map((c) => c.from)).toEqual([e2, e2])
+    expect(scripts.e2!.chat).toEqual([])
     linkset.touch(2)
     linkset.advanceTime(1000)
     expect(scripts.e1!.global('heard')).toEqual(['e2', e2, 'e2', e2])

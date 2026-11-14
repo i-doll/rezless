@@ -176,7 +176,7 @@ s.running                                       // false while paused via llSetS
 s.crashed                                       // true after a run-time error, until the script runs again
 s.global(name)                                  // read a script global
 s.setGlobal(name, value)                        // seed a script global
-s.chat                                          // [{ channel, text, type, to? }, ...]
+s.chat                                          // [{ channel, text, type, to?, from? }, ...]
 s.calls                                         // [{ name, args, returned }, ...]
 s.callsOf(name)                                 // filter call log by ll* name
 s.httpRequests                                  // [{ key, url, method, body, headers, mimetype, ... }]
@@ -492,6 +492,9 @@ Display name defaults to `name`, then `username`.
 `llGetObjectDetails` reads an attachment point from either the root or a child prim.
 `OBJECT_TEMP_ATTACHED` is 1 only for the root of a temporary attachment; children
 and normal attachments return 0. Rezzed objects return 0 for both attachment flags.
+`llGetObjectPrimCount` reads 0 for any prim of a worn object, from its own
+scripts and from other objects. `llGetNumberOfPrims` and `OBJECT_PRIM_COUNT`
+still count its prims.
 
 `llGetObjectDetails` reads avatars in the caller's region. Position, rotation,
 velocity and size use the live avatar fixture; a seated avatar reports its seat's
@@ -533,6 +536,17 @@ prim moves or the sit target is edited, which only affects future sits. Deleting
 its sitter only while the target is enabled. `llSitOnLink` requires an allowed
 experience and an accepted avatar; `llUnSit` needs no runtime permission for a
 sitter on its own object. Land ownership also permits unsitting other sitters.
+
+`world.sitAvatar` seats the avatar whatever the sit flags say. The wiki says
+`SIT_FLAG_SCRIPTED_ONLY` leaves scripted sits open; that was not measured,
+because `llSitOnLink` needs an experience. `world.userSitAvatar(avatar, prim)`
+is a viewer's sit request, and Second Life refuses it for
+`SIT_FLAG_SCRIPTED_ONLY`. The request passes over a scripted-only sit target
+and takes the next free one. With no sit target to take, one scripted-only
+prim anywhere in the object refuses it: the call returns `false` and no script
+in that object gets an event. An avatar sitting on another object stands up
+from it, and one sitting on the ground stays there. `@sit:<key>=force` is
+refused the same way.
 
 A seated avatar is a link of the object, numbered after the prims. Several
 sitters are numbered in seating order, and later sitters move down a link when
@@ -576,7 +590,9 @@ needs an experience to measure. `llGetLinkSitFlags` and
 `PRIM_SIT_FLAGS` report `SIT_FLAG_SIT_TARGET` while the prim has a sit target;
 a script cannot set that bit. `PRIM_ALLOW_UNSIT` and `PRIM_SCRIPTED_SIT_ONLY`
 are the matching bits of the sit flags. A media error is said by the link the
-call named: that prim, or the seated avatar from where it sits.
+call named: that prim, or the seated avatar from where it sits. The calling
+script's `chat` keeps the error, with `from` set to that link's key when it is
+not the script's own prim. Objects the avatar wears hear it from the avatar.
 
 With `standtp=n`, user stand, force unsit, `llUnSit` and seat deletion return the
 avatar to its saved global origin. Viewer object-sit requests save that origin;
