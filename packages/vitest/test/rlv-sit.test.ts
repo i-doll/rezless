@@ -216,8 +216,11 @@ it('handles empty sit, ground/object transitions, repeated actions and removed s
     expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ actionOutcome: 'unchanged', seat: script.host.key })
     expect(script.global('changes')).toBe(1)
     issue(script, '@sit=force,getsitid:ignored=225101')
-    expect(script.global('replies')).toEqual([profile === 'rlva' ? avatar.key : script.host.key])
+    expect(script.global('replies')).toEqual([profile === 'rlva' ? NULL_KEY : script.host.key])
     expect(script.global('changes')).toBe(profile === 'rlva' ? 2 : 1)
+    script.linkset.advanceTime(3000)
+    issue(script, '@getsitid=225101')
+    expect(script.global('replies')).toEqual(profile === 'rlva' ? [NULL_KEY, avatar.key] : [script.host.key, script.host.key])
     script.linkset.dead = true
     expect(avatar.sittingOn).toBeNull()
   }
@@ -230,7 +233,7 @@ it('discovers seating force and reply forms without duplicate force entries', as
     listen(integer c,string n,key id,string m) { replies += [m]; }
   }` })
   pair.rlva.script.start(); pair.rlv.script.start()
-  expect(pair.rlva.script.global('replies')).toEqual(['setenv_bluedensity;setenv_bluedensityb;setenv_bluedensityd;setenv_bluedensityg;setenv_bluedensityi;setenv_bluedensityr;setenv_bluedensityx;setenv_bluedensityy;setenv_clouddensity;setenv_densitymultiplier;setenv_hazedensity;setenv_sunmoonposition;sit;unsit'.slice(0, 1023), 'getenv_bluedensity;getenv_bluedensityb;getenv_bluedensityd;getenv_bluedensityg;getenv_bluedensityi;getenv_bluedensityr;getenv_bluedensityx;getenv_bluedensityy;getenv_clouddensity;getenv_densitymultiplier;getenv_hazedensity;getenv_sunmoonposition;getsitid'.slice(0, 1023)])
+  expect(pair.rlva.script.global('replies')).toEqual(['setenv_bluedensity;setenv_bluedensityb;setenv_bluedensityd;setenv_bluedensityg;setenv_bluedensityi;setenv_bluedensityr;setenv_bluedensityx;setenv_bluedensityy;setenv_clouddensity;setenv_densitymultiplier;setenv_hazedensity;setenv_sunmoonposition;sit;sitground;unsit'.slice(0, 1023), 'getenv_bluedensity;getenv_bluedensityb;getenv_bluedensityd;getenv_bluedensityg;getenv_bluedensityi;getenv_bluedensityr;getenv_bluedensityx;getenv_bluedensityy;getenv_clouddensity;getenv_densitymultiplier;getenv_hazedensity;getenv_sunmoonposition;getsitid'.slice(0, 1023)])
   expect(pair.rlv.script.global('replies')).toEqual([])
 })
 
