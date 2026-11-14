@@ -36,6 +36,7 @@ async function scene(
 ) {
   const world = new World({ startUnixTime: 1_793_474_000 })
   world.addRegion('SLua Tideland', { x: 40960, y: 23296 })
+  world.addAvatar({ region: 'SLua Tideland', key: OWNER, username: 'owner' })
   const conductor = {
     name: 'conductor',
     source: {

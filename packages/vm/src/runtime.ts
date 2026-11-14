@@ -109,6 +109,8 @@ export interface ScriptState {
     granted: number
     agent: string
     readonly requests: import('./builtins/permissions.js').PermissionRequestEntry[]
+    /** Whether a request is waiting for a dialog to be answered. An answer does nothing otherwise. */
+    waiting: boolean
     /** The script's own setting; null follows the world's. */
     autoGrant: import('./builtins/permissions.js').AutoGrantPermissions | null
   }

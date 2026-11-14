@@ -276,10 +276,14 @@ describe('requests still waiting when the sitter stands', () => {
     f.world.standAvatar(f.avatar)
     return f
   }
+  /** The script waits for no answer, and answering each dialog still on screen does nothing. */
   const dropped = (f: Awaited<ReturnType<typeof fixture>>) => {
-    expect(f.script.permissionRequests.every(r => r.answered)).toBe(true)
     expect(() => f.script.grantPermissions()).toThrow('no pending permission request')
     expect(() => f.script.denyPermissions()).toThrow('no pending permission request')
+    const before = [f.script.global('events'), f.held()]
+    for (const request of f.script.permissionRequests.filter(r => !r.answered)) f.script.grantPermissions(undefined, request)
+    expect([f.script.global('events'), f.held()]).toEqual(before)
+    expect(f.script.permissionRequests.every(r => r.answered)).toBe(true)
   }
 
   // In-world, each from a freshly reset probe that held nothing: the sitter was asked, stood, and

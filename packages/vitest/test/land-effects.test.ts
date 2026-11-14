@@ -7,6 +7,9 @@ const TARGET = '33333333-3333-3333-3333-333333333333'
 function fixture() {
   const world = new World()
   world.addRegion('Sandbox', { x: 0, y: 0 })
+  // The avatars the scripts ask for permissions: a request to a key that is no avatar fails.
+  world.addAvatar({ region: 'Sandbox', key: OWNER, username: 'owner' })
+  world.addAvatar({ region: 'Sandbox', key: OTHER, username: 'other' })
   const parcel = world.addParcel({ region: 'Sandbox', owner: OWNER, musicURL: 'old' })
   return { world, parcel }
 }

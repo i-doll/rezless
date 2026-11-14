@@ -547,13 +547,15 @@ describe('requests left waiting when another is answered', () => {
   // In-world: a seated probe asked for 128 (dialog), then for 16 (granted at once). Answering the
   // 128 dialog afterwards, Yes on one probe and No on another, fired nothing and left
   // llGetPermissions() at 16.
-  it('drops a waiting request when a later one is granted automatically', async () => {
+  it('stops waiting on a dialog when a later request is granted automatically', async () => {
     const f = await fixture('seated', [LINKS, ANIMATION])
     f.ask(2)
-    expect(f.script.permissionRequests.map(r => r.answered)).toEqual([true, true])
+    expect(f.script.permissionRequests.map(r => r.answered)).toEqual([false, true])
     expect(() => f.script.grantPermissions()).toThrow('no pending permission request')
     expect(() => f.script.denyPermissions()).toThrow('no pending permission request')
+    f.script.grantPermissions(undefined, f.script.permissionRequests[0])
     expect(f.script.global('events')).toEqual([16])
+    expect(f.held()).toEqual([16, OWNER])
   })
 
   // In-world: a seated probe asked for 128 (dialog), then for 0 -> run_time_permissions(0) fired,
@@ -575,22 +577,24 @@ describe('requests left waiting when another is answered', () => {
     const [older, newer] = f.script.permissionRequests
     f.script.grantPermissions(undefined, first === 0 ? older : newer)
     expect(f.script.global('events')).toEqual([bits])
-    expect(f.script.permissionRequests.map(r => r.answered)).toEqual([true, true])
-    expect(() => f.script.grantPermissions(undefined, first === 0 ? newer : older)).toThrow('no pending permission request')
+    expect(f.script.permissionRequests.map(r => r.answered)).toEqual([first === 0, first === 1])
+    f.script.grantPermissions(undefined, first === 0 ? newer : older)
     expect(f.script.global('events')).toEqual([bits])
+    expect(f.script.permissionRequests.map(r => r.answered)).toEqual([true, true])
   })
 
   // In-world: the same two dialogs, with No on one first (the older on one probe, the newer on
   // another) -> run_time_permissions(0) fired once, and Yes on the other dialog then did nothing.
-  it.each([0, 1])('drops the other request when request %i is denied first', async first => {
+  it.each([0, 1])('ignores the other dialog when request %i is denied first', async first => {
     const f = await fixture('standing', [LINKS, ANIMATION])
     f.ask(2)
     const requests = f.script.permissionRequests
     f.script.denyPermissions(requests[first])
     expect(f.script.global('events')).toEqual([0])
-    expect(() => f.script.grantPermissions(undefined, requests[1 - first])).toThrow('no pending permission request')
     expect(() => f.script.grantPermissions()).toThrow('no pending permission request')
+    f.script.grantPermissions(undefined, requests[1 - first])
     expect(f.script.global('events')).toEqual([0])
+    expect(() => f.script.grantPermissions(undefined, requests[1 - first])).toThrow('no pending permission request')
   })
 
   it('refuses to answer a request that is not one of the script\'s', async () => {
