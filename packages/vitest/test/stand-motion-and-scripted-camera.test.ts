@@ -163,8 +163,8 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
   // In-world: a viewer stand from the seat, from the prim with no sit target, and "@unsit=force"
   // from the seat each gave a changed in the seat that read 262 (AGENT_IN_AIR, no AGENT_SITTING,
   // no AGENT_ON_OBJECT) and "Striding". The watching probe read 262 "Striding" for one 0.05 s
-  // sample (about 0.07 s), then 6 "Standing". Some stands then read 134 (AGENT_WALKING) "Walking"
-  // for a few tenths of a second before settling on 6 "Standing"; rezless leaves those out.
+  // sample (about 0.07 s), then 6 "Standing". The "Walking" that follows is pinned in
+  // stand-walk-teleport-fall-flying-sit.test.ts.
   it('reads AGENT_IN_AIR and "Striding" in the seat\'s changed event, then "Standing"', async () => {
     const f = await fixture()
     f.sit()
@@ -194,8 +194,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
 
   // In-world: llUnSit(owner) from the seat, three runs. Two changed events read 262 "Striding"
   // and one read 6 "Standing". The watching probe read 262 "Striding" for one sample, then 6
-  // "Standing". Read in the same handler straight after llUnSit, the seat got 6 "Striding":
-  // rezless gives 262 "Striding" there too.
+  // "Standing". What the calling handler reads is pinned in stand-walk-teleport-fall-flying-sit.test.ts.
   it('reads the same after llUnSit', async () => {
     const f = await fixture()
     f.sit()
@@ -254,7 +253,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     expect(f.seat.changes().at(-1)).toEqual([AGENT_IN_AIR, 'Falling Down'])
     f.advance(300)
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Falling Down'])
-    f.advance(400)
+    f.advance(700)
     expect(f.watcher.read()).toEqual([0, 'Standing'])
   })
 
@@ -270,7 +269,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     f.seat.script.grantPermissions()
     f.seat.send('tplocal')
     expect(f.seat.changes().at(-1)).toEqual([AGENT_IN_AIR, 'Falling Down'])
-    f.advance(700)
+    f.advance(1000)
     expect(f.watcher.read()).toEqual([0, 'Standing'])
   })
 
@@ -288,7 +287,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 30, z: 30 })).toBe(true)
     f.advance(0)
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Falling Down'])
-    f.advance(700)
+    f.advance(1000)
     expect(f.watcher.read()).toEqual([0, 'Standing'])
   })
 
@@ -317,7 +316,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 30, z: 30 })).toBe(true)
     f.advance(0)
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Falling Down'])
-    f.advance(700)
+    f.advance(1000)
     expect(f.watcher.read()).toEqual([0, 'Standing'])
   })
 

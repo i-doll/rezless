@@ -20,7 +20,7 @@ import { LinksetClock } from './clock.js'
 import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
 import type { Linkset } from './linkset.js'
 import type { Prim } from './prim.js'
-import { AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
+import { AGENT_ATTACHMENTS, AGENT_SCRIPTED, AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 
@@ -457,7 +457,12 @@ export class World {
       displayName: opts.displayName ?? opts.name ?? opts.username,
       size: { ...(opts.size ?? { x: 0.45, y: 0.6, z: 1.9 }) },
       get info() { clearRemovedSeat(); return info },
-      set info(value) { info = value & AGENT_MOUSELOOK && !canRlvEnterMouselook(avatar) ? value & ~AGENT_MOUSELOOK : value },
+      set info(value) {
+        const flyingSit = (value ^ info) & AGENT_FLYING ? world.flyingSits.get(avatar) : undefined
+        if (flyingSit) world.flyingSits.delete(avatar)
+        info = value & AGENT_MOUSELOOK && !canRlvEnterMouselook(avatar) ? value & ~AGENT_MOUSELOOK : value
+        if (flyingSit && !(value & AGENT_FLYING)) world.endFlyingSit(avatar, flyingSit)
+      },
       get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat, seatOffset) : position },
       set position(value) { cancelPendingSit(avatar); position = value },
       get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat, seatOrientation) : rotation },
@@ -618,8 +623,9 @@ export class World {
     avatar.sittingOn = prim
     this.sitPlacements.delete(avatar)
     avatar.standingRotation = null
-    avatar.info = (avatar.info & ~(AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING | AGENT_ON_OBJECT
+    avatar.info = (avatar.info & ~(AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING | AGENT_ON_OBJECT
     this.animate(avatar, 'Sitting')
+    if (avatar.info & AGENT_FLYING) this.landFlyingSit(avatar)
     if (previous && previous !== linkset) this.sitChanged(previous)
     this.sitChanged(linkset)
     return true
@@ -640,7 +646,13 @@ export class World {
     avatar.info &= ~(AGENT_SITTING | AGENT_ON_OBJECT)
     if (avatar.standingRotation) avatar.rotation = avatar.standingRotation
     avatar.standingRotation = null
-    if (sitting && motion) this.landAvatar(avatar, motion)
+    const flyingSit = this.flyingSits.get(avatar)
+    if (sitting && motion === 'Striding' && previous && flyingSit && avatar.info & AGENT_FLYING) {
+      avatar.info = (avatar.info & ~AGENT_WALKING) | AGENT_IN_AIR
+      flyingSit.hover = {}
+      this.landings.set(avatar, flyingSit.hover)
+      this.animate(avatar, 'Hovering Up')
+    } else if (sitting && motion) this.landAvatar(avatar, motion, !!previous)
     if (previous) this.sitChanged(previous)
     if (sitting) returnStandtpAvatar(this, avatar)
     if (previous) groundSitAfterStand(this, avatar)
@@ -655,32 +667,111 @@ export class World {
 
   private readonly landings = new WeakMap<WorldAvatar, object>()
 
-  /** The avatar is in the air with `motion` until it lands and stands. */
-  private landAvatar(avatar: WorldAvatar, motion: AnimationState): void {
-    avatar.info |= AGENT_IN_AIR
+  private presence(avatar: WorldAvatar): { readonly dead: boolean } {
+    const world = this
+    return { get dead() { return !world.avatars.includes(avatar) } }
+  }
+
+  /**
+   * The avatar is in the air with `motion` until it lands and stands. A stand from an object
+   * walks for a moment after it lands.
+   */
+  private landAvatar(avatar: WorldAvatar, motion: AnimationState, walk = false): void {
+    avatar.info = (avatar.info & ~AGENT_WALKING) | AGENT_IN_AIR
     this.animate(avatar, motion)
     const landing = {}
     this.landings.set(avatar, landing)
-    const world = this
-    // In-world: a stand read AGENT_IN_AIR "Striding" for one 0.05 s sample; a viewer teleport
-    // read AGENT_IN_AIR "Falling Down" for 0.6 s.
-    const ms = motion === 'Falling Down' ? 600 : 50
-    this.clock.scheduleTask({ get dead() { return !world.avatars.includes(avatar) } }, this.clock.now + ms, () => {
-      if (this.landings.get(avatar) !== landing || avatar.info & AGENT_SITTING) return
-      avatar.info &= ~AGENT_IN_AIR
-      if (regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state === motion) this.animate(avatar, 'Standing')
+    // In-world: a stand read AGENT_IN_AIR "Striding" for one 0.05 s sample, then "Standing"; a
+    // stand from an object read AGENT_WALKING "Walking" from 0.29-0.40 s to 0.42-0.53 s. A
+    // teleport read AGENT_IN_AIR "Falling Down" for the drop to the floor (0.6 s for 1.6 m), then
+    // "Landing" for 0.05-0.71 s.
+    const walking: [number, number, AnimationState][] = [[350, AGENT_WALKING, 'Walking'], [480, 0, 'Standing']]
+    const steps: [number, number, AnimationState][] = motion === 'Falling Down'
+      ? [[600, 0, 'Landing'], [850, 0, 'Standing']]
+      : [[50, 0, 'Standing'], ...walk ? walking : []]
+    let expected = motion
+    for (const [ms, flags, state] of steps) {
+      const from = expected
+      expected = state
+      this.clock.scheduleTask(this.presence(avatar), this.clock.now + ms, () => {
+        if (this.landings.get(avatar) !== landing || avatar.info & AGENT_SITTING) return
+        if (avatar.info & AGENT_FLYING && (state === 'Walking' || from === 'Walking')) {
+          if (from !== 'Walking') return
+          avatar.info &= ~AGENT_WALKING
+          if (regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state === 'Walking') this.animate(avatar, 'Hovering')
+          return
+        }
+        avatar.info &= ~AGENT_IN_AIR
+        if (regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state !== from) {
+          this.landings.delete(avatar)
+          return
+        }
+        avatar.info = (avatar.info & ~AGENT_WALKING) | flags
+        this.animate(avatar, state)
+      })
+    }
+  }
+
+  private readonly flyingSits = new WeakMap<WorldAvatar, { hover?: object }>()
+
+  /**
+   * In-world: a flying avatar's sit read AGENT_FLYING in the seat's changed event and for 0.31 to
+   * 0.36 s after. Standing up in that time read AGENT_FLYING "Hovering Up" until the flag cleared,
+   * then AGENT_IN_AIR "Falling Down"; a teleport read "Hovering", then fell.
+   */
+  private landFlyingSit(avatar: WorldAvatar): void {
+    const sit: { hover?: object } = {}
+    this.flyingSits.set(avatar, sit)
+    this.clock.scheduleTask(this.presence(avatar), this.clock.now + 320, () => {
+      if (this.flyingSits.get(avatar) === sit) avatar.info &= ~AGENT_FLYING
     })
   }
+
+  /** Any change of AGENT_FLYING ends a flying sit; an avatar hovering after it falls. */
+  private endFlyingSit(avatar: WorldAvatar, sit: { hover?: object }): void {
+    if (!sit.hover || this.landings.get(avatar) !== sit.hover || avatar.info & AGENT_SITTING) return
+    const state = regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state
+    if (state === 'Hovering Up' || state === 'Hovering') this.landAvatar(avatar, 'Falling Down')
+    else avatar.info &= ~AGENT_IN_AIR
+  }
+
+  private readonly arrivals = new WeakMap<WorldAvatar, { bits: number }>()
 
   /** @internal A teleport: stand the avatar, move it with its animations, and let it fall. */
   relocateAvatar(avatar: WorldAvatar, region: string, position: Vector): void {
     this.unseat(avatar, null)
     moveRegionAnimations(this.clock, avatar.region, region, avatar.key)
+    if (avatar.region !== region) this.arrive(avatar)
     avatar.region = region
     avatar.position = { ...position }
+    const flyingSit = this.flyingSits.get(avatar)
+    if (flyingSit && avatar.info & AGENT_FLYING) {
+      // In-world: llTeleportAgent from the changed event of a flying avatar's sit read AGENT_FLYING
+      // "Hovering" until the flag cleared.
+      avatar.info |= AGENT_IN_AIR
+      flyingSit.hover = {}
+      this.landings.set(avatar, flyingSit.hover)
+      this.animate(avatar, 'Hovering')
+      return
+    }
     // In-world: a teleport read AGENT_IN_AIR "Falling Down" for a while whether the avatar stood,
     // sat on the ground or sat on an object, and so did llTeleportAgent from a seat.
     this.landAvatar(avatar, 'Falling Down')
+  }
+
+  /**
+   * In-world: an avatar teleported in from another region read without AGENT_ATTACHMENTS and
+   * AGENT_SCRIPTED for its first 0.34-0.38 s there.
+   */
+  private arrive(avatar: WorldAvatar): void {
+    const arrival = { bits: avatar.info & (AGENT_ATTACHMENTS | AGENT_SCRIPTED) | (this.arrivals.get(avatar)?.bits ?? 0) }
+    this.arrivals.set(avatar, arrival)
+    avatar.info &= ~arrival.bits
+    this.clock.scheduleTask(this.presence(avatar), this.clock.now + 350, () => {
+      if (this.arrivals.get(avatar) !== arrival) return
+      this.arrivals.delete(avatar)
+      avatar.info |= arrival.bits
+    })
   }
 
   private animate(avatar: WorldAvatar, state: AnimationState): void {
