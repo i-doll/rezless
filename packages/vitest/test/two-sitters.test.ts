@@ -174,3 +174,16 @@ it('refuses a sit request at the spot another sitter has', async () => {
   expect(sit(second)).toBe(true)
   expect(log().slice(0, 2)).toEqual([1, 3])
 })
+
+it('lets an avatar that sat beside a sit target hold the next free one it sits on', async () => {
+  const { world, first, second, linkset } = await scene(2)
+  const [p1, p2] = linkset.prims
+  p1!.params.sitTarget = TARGET
+  p2!.params.sitTarget = TARGET
+  expect(world.sitAvatar(first, p1!)).toBe(true)
+  expect(world.sitAvatar(second, p1!)).toBe(true)
+  expect(world.avatarOnSitTarget(p1!)).toBe(first)
+  world.standAvatar(second)
+  second.sittingOn = p2!
+  expect(world.avatarOnSitTarget(p2!)).toBe(second)
+})
