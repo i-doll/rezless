@@ -29,7 +29,7 @@ const AGENT_SITTING = 0x10, AGENT_ON_OBJECT = 0x20, CHANGED_LINK = 32
 const SEATING = AGENT_SITTING | AGENT_ON_OBJECT
 
 const source = `
-  list sync; list events; list changes; integer held; key holder; integer info; integer onTarget; key root;
+  list sync; list events; list changes; list seen; integer held; key holder; integer info; integer onTarget; key root;
   default {
     state_entry() { llSitTarget(<0.0, 0.0, 0.6>, ZERO_ROTATION); }
     link_message(integer sender, integer num, string str, key id) {
@@ -44,10 +44,10 @@ const source = `
       root = llList2Key(llGetObjectDetails(llGetOwner(), [OBJECT_ROOT]), 0);
     }
     run_time_permissions(integer p) { events += p; }
-    changed(integer c) { changes += c; changes += llGetPermissions(); }
+    changed(integer c) { changes += c; changes += llGetPermissions(); seen += llGetAgentInfo(llGetOwner()) & 48; }
   }`
 
-async function fixture(where: 'worn' | 'rezzed' = 'rezzed') {
+async function fixture() {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   const avatar = world.addAvatar({ region: 'home', key: OWNER, username: 'owner', viewer: { profile: 'rlva' } })
@@ -76,23 +76,24 @@ async function fixture(where: 'worn' | 'rezzed' = 'rezzed') {
       changes: () => script.global('changes'),
       errors: () => script.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text),
       /** Answer the dialog that asked for `bits`. */
-      answer: (bits: number, how: 'yes' | 'no' = 'yes') => {
-        const request = script.permissionRequests.findLast(r => r.permissions === bits && !r.answered)!
-        if (how === 'yes') script.grantPermissions(undefined, request)
-        else script.denyPermissions(request)
+      answer: (bits: number) => {
+        const request = script.permissionRequests.findLast(r => r.permissions === bits && !r.answered)
+        expect(request).toBeDefined()
+        script.grantPermissions(undefined, request)
         tick()
       },
     }
   }
-  const probe = await load()
-  if (where === 'worn') probe.linkset.attachToAvatar(OWNER, 5)
+  const worn = await load()
+  worn.linkset.attachToAvatar(OWNER, 5)
+  const rezzed = await load()
   const seat = await load()
-  avatar.viewer.session.bind(probe.linkset, avatar)
-  avatar.viewer.session.bind(seat.linkset, avatar)
+  for (const { linkset } of [worn, rezzed, seat]) avatar.viewer.session.bind(linkset, avatar)
+  const lastCommand = () => avatar.viewer.commandLog.at(-1)
   const groundSit = () => { world.sitAvatarOnGround(avatar); tick() }
   const stand = () => { expect(world.userStandAvatar(avatar)).toBe(true); tick() }
   const sit = () => { expect(world.userSitAvatar(avatar, seat.prim)).toBe(true); tick() }
-  return { world, avatar, probe, seat, groundSit, stand, sit }
+  return { world, avatar, worn, rezzed, seat, groundSit, stand, sit, lastCommand }
 }
 
 describe('what a script reads of an avatar sitting on the ground', () => {
@@ -101,51 +102,55 @@ describe('what a script reads of an avatar sitting on the ground', () => {
   // was still the avatar's own key, llAvatarOnSitTarget() of the seat stayed NULL_KEY and no probe
   // got a changed event. After the stand they read 6 again, still with no event.
   it('reads AGENT_SITTING without AGENT_ON_OBJECT, and no object hears of it', async () => {
-    const f = await fixture('worn')
-    expect(f.probe.sitting()).toBe(0)
+    const f = await fixture()
+    const probes = [f.worn, f.rezzed, f.seat]
+    expect(probes.map(p => p.sitting())).toEqual([0, 0, 0])
     f.groundSit()
-    expect(f.probe.sitting()).toBe(AGENT_SITTING)
-    expect(f.seat.sitting()).toBe(AGENT_SITTING)
+    expect(probes.map(p => p.sitting())).toEqual([AGENT_SITTING, AGENT_SITTING, AGENT_SITTING])
     expect(f.seat.script.global('root')).toBe(OWNER)
     expect(f.seat.script.global('onTarget')).toBe(0)
     f.stand()
-    expect(f.probe.sitting()).toBe(0)
-    expect(f.probe.changes()).toEqual([])
-    expect(f.seat.changes()).toEqual([])
+    expect(probes.map(p => p.sitting())).toEqual([0, 0, 0])
+    expect(probes.map(p => p.changes())).toEqual([[], [], []])
   })
 })
 
 describe('permission requests to an avatar sitting on the ground', () => {
   // In-world: avatar on the ground, the worn probe asked for each bit in turn -> 4, 16, 32, 1024,
   // 2048, 32768 and 1048576 each read back on the next line and fired run_time_permissions. The
-  // other twelve left llGetPermissions() as it was and raised a dialog. These are a wearer's
-  // grants: sitting on the ground adds nothing and takes nothing away.
+  // other twelve left llGetPermissions() as it was, and the viewer listed dialogs from the worn
+  // probe for bits among them (2, 8, 64, 128 and 256 were read). These are a wearer's grants:
+  // sitting on the ground adds nothing and takes nothing away.
   it('grants a wearer what a wearer gets', async () => {
-    const f = await fixture('worn')
+    const f = await fixture()
+    const wearer = [CONTROLS, ANIMATION, ATTACH, TRACK, CAMERA, OVERRIDE, GAME]
     f.groundSit()
     const granted = []
     for (const bits of ALL_BITS) {
-      f.probe.ask(bits)
-      if (f.probe.held()[0] === bits) granted.push(bits)
+      f.worn.ask(bits)
+      if (f.worn.held()[0] === bits) granted.push(bits)
     }
-    expect(granted).toEqual([CONTROLS, ANIMATION, ATTACH, TRACK, CAMERA, OVERRIDE, GAME])
-    expect(f.probe.events()).toEqual(granted)
-    expect(f.probe.errors()).toEqual([])
+    expect(granted).toEqual(wearer)
+    expect(f.worn.events()).toEqual(wearer)
+    expect(f.worn.errors()).toEqual([])
+    expect(f.worn.script.permissionRequests.map(r => [r.permissions, r.answered]))
+      .toEqual(ALL_BITS.map(bits => [bits, wearer.includes(bits)]))
   })
 
   // In-world: avatar on the ground, the rezzed probe asked for each bit in turn -> none was
   // granted and no event fired. 2048 raised no dialog: DEBUG_CHANNEL said the camera control
-  // error once. The viewer listed dialogs for other bits (2, 4, 8, 16 and 32 were among those
-  // read). An avatar on the ground is a standing avatar to an object it is not wearing.
+  // error once. The viewer listed dialogs from the rezzed probe for bits among the rest (2, 4, 8,
+  // 16 and 32 were read). An avatar on the ground is a standing avatar to an object it is not
+  // wearing, and a standing avatar gets a dialog for every bit but 2048.
   it('grants a rezzed object nothing and refuses it camera control', async () => {
     const f = await fixture()
     f.groundSit()
-    for (const bits of ALL_BITS) f.probe.ask(bits)
-    expect(f.probe.script.global('sync')).toEqual(ALL_BITS.map(() => 0))
-    expect(f.probe.events()).toEqual([])
-    expect(f.probe.held()).toEqual([0, '00000000-0000-0000-0000-000000000000'])
-    expect(f.probe.errors()).toEqual([REFUSAL])
-    expect(f.probe.script.permissionRequests.map(r => [r.permissions, r.answered]))
+    for (const bits of ALL_BITS) f.rezzed.ask(bits)
+    expect(f.rezzed.script.global('sync')).toEqual(ALL_BITS.map(() => 0))
+    expect(f.rezzed.events()).toEqual([])
+    expect(f.rezzed.held()).toEqual([0, '00000000-0000-0000-0000-000000000000'])
+    expect(f.rezzed.errors()).toEqual([REFUSAL])
+    expect(f.rezzed.script.permissionRequests.map(r => [r.permissions, r.answered]))
       .toEqual(ALL_BITS.filter(bits => bits !== CAMERA).map(bits => [bits, false]))
   })
 
@@ -157,29 +162,29 @@ describe('permission requests to an avatar sitting on the ground', () => {
   it('treats the rezzed object\'s requests as those to a standing avatar', async () => {
     const f = await fixture()
     f.groundSit()
-    f.probe.ask(ANIMATION)
-    f.probe.answer(ANIMATION)
-    expect(f.probe.events()).toEqual([ANIMATION])
-    f.probe.ask(0)
-    f.probe.ask(CONTROLS | ANIMATION)
-    f.probe.ask(CAMERA)
-    expect(f.probe.events()).toEqual([ANIMATION])
-    expect(f.probe.held()).toEqual([ANIMATION, OWNER])
-    expect(f.probe.errors()).toEqual([REFUSAL])
+    f.rezzed.ask(ANIMATION)
+    f.rezzed.answer(ANIMATION)
+    expect(f.rezzed.events()).toEqual([ANIMATION])
+    f.rezzed.ask(0)
+    f.rezzed.ask(CONTROLS | ANIMATION)
+    f.rezzed.ask(CAMERA)
+    expect(f.rezzed.events()).toEqual([ANIMATION])
+    expect(f.rezzed.held()).toEqual([ANIMATION, OWNER])
+    expect(f.rezzed.errors()).toEqual([REFUSAL])
     f.stand()
-    expect(f.probe.held()).toEqual([ANIMATION, OWNER])
-    f.probe.answer(CONTROLS | ANIMATION)
-    expect(f.probe.events()).toEqual([ANIMATION, CONTROLS | ANIMATION])
+    expect(f.rezzed.held()).toEqual([ANIMATION, OWNER])
+    f.rezzed.answer(CONTROLS | ANIMATION)
+    expect(f.rezzed.events()).toEqual([ANIMATION, CONTROLS | ANIMATION])
   })
 
   // In-world: avatar on the ground, the worn probe asked for 0 -> run_time_permissions(0), with the
   // avatar as the permission key.
   it('answers a wearer on the ground who is asked for nothing', async () => {
-    const f = await fixture('worn')
+    const f = await fixture()
     f.groundSit()
-    f.probe.ask(0)
-    expect(f.probe.events()).toEqual([0])
-    expect(f.probe.held()).toEqual([0, OWNER])
+    f.worn.ask(0)
+    expect(f.worn.events()).toEqual([0])
+    expect(f.worn.held()).toEqual([0, OWNER])
   })
 
   // In-world: the rezzed probe asked its standing owner for 16 and the dialog was left open. The
@@ -187,12 +192,12 @@ describe('permission requests to an avatar sitting on the ground', () => {
   // still on the ground, fired run_time_permissions(16).
   it('does not answer an open dialog by sitting on the ground', async () => {
     const f = await fixture()
-    f.probe.ask(ANIMATION)
+    f.rezzed.ask(ANIMATION)
     f.groundSit()
-    expect(f.probe.held()[0]).toBe(0)
-    expect(f.probe.events()).toEqual([])
-    f.probe.answer(ANIMATION)
-    expect(f.probe.events()).toEqual([ANIMATION])
+    expect(f.rezzed.held()[0]).toBe(0)
+    expect(f.rezzed.events()).toEqual([])
+    f.rezzed.answer(ANIMATION)
+    expect(f.rezzed.events()).toEqual([ANIMATION])
   })
 })
 
@@ -205,18 +210,18 @@ describe('standing up from the ground', () => {
   it('takes nothing from a rezzed object and leaves its dialog answerable', async () => {
     const f = await fixture()
     const held = DEBIT | CONTROLS | ANIMATION | TRACK
-    f.probe.ask(held)
-    f.probe.answer(held)
-    f.probe.send('controls')
-    f.probe.ask(DEBIT)
+    f.rezzed.ask(held)
+    f.rezzed.answer(held)
+    f.rezzed.send('controls')
+    f.rezzed.ask(DEBIT)
     f.groundSit()
-    expect(f.probe.held()).toEqual([held, OWNER])
+    expect(f.rezzed.held()).toEqual([held, OWNER])
     f.stand()
-    expect(f.probe.held()).toEqual([held, OWNER])
-    expect(f.probe.script.controls).not.toBeNull()
-    expect(f.probe.events()).toEqual([held])
-    f.probe.answer(DEBIT)
-    expect(f.probe.events()).toEqual([held, DEBIT])
+    expect(f.rezzed.held()).toEqual([held, OWNER])
+    expect(f.rezzed.script.controls).not.toBeNull()
+    expect(f.rezzed.events()).toEqual([held])
+    f.rezzed.answer(DEBIT)
+    expect(f.rezzed.events()).toEqual([held, DEBIT])
   })
 
   // In-world: the worn probe was granted 3092 as a wearer, locked the camera 20 m up and asked for
@@ -224,20 +229,20 @@ describe('standing up from the ground', () => {
   // 3092, camera unchanged. Stood up -> 3092, camera unchanged. Grant on the dialog for 2 then
   // fired run_time_permissions(2).
   it('takes nothing from an attachment, whose camera stays', async () => {
-    const f = await fixture('worn')
+    const f = await fixture()
     const held = CONTROLS | ANIMATION | TRACK | CAMERA
-    f.probe.ask(held)
-    f.probe.send('camera')
-    f.probe.ask(DEBIT)
-    const camera = new Map(f.probe.script.cameraParams)
+    f.worn.ask(held)
+    f.worn.send('camera')
+    f.worn.ask(DEBIT)
+    const camera = new Map(f.worn.script.cameraParams)
     expect(camera.size).toBeGreaterThan(0)
     f.groundSit()
-    expect(f.probe.held()).toEqual([held, OWNER])
+    expect(f.worn.held()).toEqual([held, OWNER])
     f.stand()
-    expect(f.probe.held()).toEqual([held, OWNER])
-    expect(new Map(f.probe.script.cameraParams)).toEqual(camera)
-    f.probe.answer(DEBIT)
-    expect(f.probe.events()).toEqual([held, DEBIT])
+    expect(f.worn.held()).toEqual([held, OWNER])
+    expect(new Map(f.worn.script.cameraParams)).toEqual(camera)
+    f.worn.answer(DEBIT)
+    expect(f.worn.events()).toEqual([held, DEBIT])
   })
 
   // In-world: the seat, holding nothing, asked its sitter for 2056. The sitter stood up and then
@@ -265,65 +270,94 @@ describe('standing up from the ground', () => {
 
 describe('sit requests to and from the ground', () => {
   // In-world: avatar on the ground, the viewer sent a sit request for the seat -> the seat got one
-  // changed(32) and read llGetAgentInfo 54 (22 plus AGENT_ON_OBJECT) and the avatar on its sit
-  // target. The worn probe got no event. The seat asked for 20 -> granted on the next line. The
-  // avatar stood up -> one changed(32), the seat held 16 and the probes read 6: standing, not back
-  // on the ground.
+  // changed(32) and read llGetAgentInfo 54 (22 plus AGENT_ON_OBJECT) in it, with the avatar on its
+  // sit target. The worn probe got no event. The seat asked for 20 -> granted on the next line.
+  // The avatar stood up -> one changed(32), the seat held 16 and the probes read 6: standing, not
+  // back on the ground.
   it('sits a ground sitter on an object at a plain sit request', async () => {
-    const f = await fixture('worn')
+    const f = await fixture()
     f.groundSit()
     f.sit()
     expect(f.seat.changes()).toEqual([CHANGED_LINK, 0])
+    expect(f.seat.script.global('seen')).toEqual([SEATING])
     expect(f.seat.sitting()).toBe(SEATING)
     expect(f.seat.script.global('onTarget')).toBe(1)
     f.seat.ask(CONTROLS | ANIMATION)
     expect(f.seat.script.global('sync')).toEqual([CONTROLS | ANIMATION])
     f.stand()
     expect(f.seat.changes()).toEqual([CHANGED_LINK, 0, CHANGED_LINK, ANIMATION])
-    expect(f.seat.sitting()).toBe(0)
-    expect(f.probe.changes()).toEqual([])
+    expect(f.seat.script.global('seen')).toEqual([SEATING, 0])
+    expect([f.seat.sitting(), f.worn.sitting()]).toEqual([0, 0])
+    expect(f.worn.changes()).toEqual([])
   })
 
   // In-world: avatar on the ground, the worn probe said "@sit:<seat key>=force" -> the seat got
   // one changed(32) with the avatar on its sit target, and a request for 20 was granted at once.
   it('sits a ground sitter on an object at a forced sit', async () => {
-    const f = await fixture('worn')
+    const f = await fixture()
     f.groundSit()
-    f.probe.rlv(`@sit:${f.seat.prim.key}=force`)
+    f.worn.rlv(`@sit:${f.seat.prim.key}=force`)
+    expect(f.lastCommand()).toMatchObject({ action: 'sit', actionOutcome: 'applied' })
     expect(f.seat.changes()).toEqual([CHANGED_LINK, 0])
     expect(f.seat.sitting()).toBe(SEATING)
+    expect(f.seat.script.global('onTarget')).toBe(1)
     f.seat.ask(CONTROLS | ANIMATION)
     expect(f.seat.events()).toEqual([CONTROLS | ANIMATION])
   })
 
-  // In-world: avatar on the seat, which held 20 (and in a second run 3092 with a locked camera)
-  // and had a dialog for 2 open. A probe said "@sitground=force", once the worn probe and once the
-  // rezzed one -> the seat got one changed(32) and held 16 (1040 in the second run), and
-  // llGetCameraPos() left the scripted position. The probes then read llGetAgentInfo 22 and the
-  // seat's sit target was empty. Grant on the dialog for 2 did nothing. This is a stand from the
-  // seat followed by a ground sit, and the seat's scripts lose what a stand takes. The worn probe
-  // held 3092 throughout.
-  //
-  // In that changed event the seat read llGetAgentInfo 262: the avatar had stood up and was not
-  // on the ground yet. rezless puts the avatar on the ground at once, so the test reads the avatar
-  // after the event and not from it.
-  it.each(['worn', 'rezzed'] as const)('stands a sitter up from the seat when a %s object sits it on the ground', async where => {
-    const f = await fixture(where)
+  // In-world: avatar on the seat, which held 20 and had a dialog for 2 open. The worn probe said
+  // "@sitground=force" -> the seat got one changed(32) and held 16. The probes then read
+  // llGetAgentInfo 22 and the seat's sit target was empty. Grant on the dialog for 2 did nothing.
+  // This is a stand from the seat followed by a ground sit, and the seat's scripts lose what a
+  // stand takes.
+  it('stands a sitter up from the seat when an attachment sits it on the ground', async () => {
+    const f = await fixture()
+    const held = CONTROLS | ANIMATION
+    f.sit()
+    f.seat.ask(held)
+    f.seat.ask(DEBIT)
+    f.worn.rlv(SIT_GROUND)
+    expect(f.lastCommand()).toMatchObject({ action: 'sit', actionOutcome: 'applied' })
+    expect(f.seat.changes()).toEqual([CHANGED_LINK, 0, CHANGED_LINK, ANIMATION])
+    expect(f.seat.held()).toEqual([ANIMATION, OWNER])
+    expect([f.seat.sitting(), f.worn.sitting()]).toEqual([AGENT_SITTING, AGENT_SITTING])
+    expect(f.seat.script.global('onTarget')).toBe(0)
+    f.seat.answer(DEBIT)
+    expect(f.seat.events()).toEqual([held])
+    expect(f.seat.held()).toEqual([ANIMATION, OWNER])
+  })
+
+  // In-world: avatar on the seat, which held 3092 and had locked the camera 20 m up; the worn
+  // probe held 3092 too. The rezzed probe said "@sitground=force" -> the seat got one changed(32)
+  // and held 1040, the worn probe still held 3092. In a run with nothing else holding camera
+  // control, llGetCameraPos() read the scripted position before the command and the avatar's own
+  // camera after it.
+  it('takes the seat\'s camera when a rezzed object sits the sitter on the ground', async () => {
+    const f = await fixture()
     const held = CONTROLS | ANIMATION | TRACK | CAMERA
     f.sit()
     f.seat.ask(held)
     f.seat.send('camera')
-    f.seat.ask(DEBIT)
-    if (where === 'worn') f.probe.ask(held)
-    f.probe.rlv(SIT_GROUND)
+    expect(f.seat.script.cameraParams.size).toBeGreaterThan(0)
+    f.worn.ask(held)
+    f.rezzed.rlv(SIT_GROUND)
+    expect(f.lastCommand()).toMatchObject({ action: 'sit', actionOutcome: 'applied' })
     expect(f.seat.changes()).toEqual([CHANGED_LINK, 0, CHANGED_LINK, ANIMATION | TRACK])
     expect(f.seat.held()).toEqual([ANIMATION | TRACK, OWNER])
     expect(f.seat.script.cameraParams.size).toBe(0)
-    expect(f.seat.sitting()).toBe(AGENT_SITTING)
-    expect(f.seat.script.global('onTarget')).toBe(0)
-    f.seat.answer(DEBIT)
-    expect(f.seat.events()).toEqual([held])
-    if (where === 'worn') expect(f.probe.held()).toEqual([held, OWNER])
+    expect(f.worn.held()).toEqual([held, OWNER])
+    expect(f.rezzed.sitting()).toBe(AGENT_SITTING)
+  })
+
+  // In-world: in the changed(32) of those ground sits the seat read llGetAgentInfo 262: the avatar
+  // had stood up and was not on the ground yet. It read 22 when asked a moment later. rezless has
+  // no such moment: the avatar is on the ground as soon as the command is handled, so the seat's
+  // handler reads AGENT_SITTING. This pins what rezless does, not what the grid did.
+  it('has the avatar on the ground already when the seat hears of the stand', async () => {
+    const f = await fixture()
+    f.sit()
+    f.worn.rlv(SIT_GROUND)
+    expect(f.seat.script.global('seen')).toEqual([SEATING, AGENT_SITTING])
   })
 
   // In-world: avatar on the seat, which held nothing and had a dialog for 2 open. The worn probe
@@ -331,10 +365,10 @@ describe('sit requests to and from the ground', () => {
   // ground, fired run_time_permissions(2). A script that holds nothing for the avatar keeps
   // waiting through the stand, as it does when the sitter stands up.
   it('keeps the dialog of a seat that held nothing for the sitter', async () => {
-    const f = await fixture('worn')
+    const f = await fixture()
     f.sit()
     f.seat.ask(DEBIT)
-    f.probe.rlv(SIT_GROUND)
+    f.worn.rlv(SIT_GROUND)
     expect(f.seat.changes()).toEqual([CHANGED_LINK, 0, CHANGED_LINK, 0])
     f.seat.answer(DEBIT)
     expect(f.seat.events()).toEqual([DEBIT])
@@ -344,16 +378,17 @@ describe('sit requests to and from the ground', () => {
   // In-world: avatar on the ground. The worn probe said "@sitground=force" again -> still
   // llGetAgentInfo 22, no event. The rezzed probe, on land its owner does not own, called
   // llUnSit(owner) -> still 22. The worn probe said "@unsit=force" -> 6, the avatar stood.
-  it('leaves a ground sitter alone for a second ground sit and for llUnSit, and stands it at a forced unsit', async () => {
-    const f = await fixture('worn')
+  it('ignores a second ground sit and an llUnSit from land the owner does not own, and stands at a forced unsit', async () => {
+    const f = await fixture()
     f.groundSit()
-    f.probe.rlv(SIT_GROUND)
-    expect(f.probe.sitting()).toBe(AGENT_SITTING)
-    f.seat.send('unsit')
-    expect(f.probe.sitting()).toBe(AGENT_SITTING)
-    f.probe.rlv('@unsit=force')
-    expect(f.probe.sitting()).toBe(0)
-    expect(f.probe.changes()).toEqual([])
-    expect(f.seat.changes()).toEqual([])
+    f.worn.rlv(SIT_GROUND)
+    expect(f.lastCommand()).toMatchObject({ action: 'sit', actionOutcome: 'unchanged' })
+    expect(f.worn.sitting()).toBe(AGENT_SITTING)
+    f.rezzed.send('unsit')
+    expect(f.worn.sitting()).toBe(AGENT_SITTING)
+    f.worn.rlv('@unsit=force')
+    expect(f.lastCommand()).toMatchObject({ action: 'unsit', actionOutcome: 'applied' })
+    expect(f.worn.sitting()).toBe(0)
+    expect([f.worn, f.rezzed, f.seat].map(p => p.changes())).toEqual([[], [], []])
   })
 })
