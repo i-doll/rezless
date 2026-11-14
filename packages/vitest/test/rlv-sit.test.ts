@@ -76,19 +76,13 @@ it('reports the linked root seat identity and uses configured targets', async ()
   }
 })
 
-it.each(['unknown', 'cross-region', 'attachment', 'occupied', 'removed'] as const)('refuses %s targets without changing the current seat', async kind => {
+it.each(['unknown', 'cross-region', 'attachment', 'removed'] as const)('refuses %s targets without changing the current seat', async kind => {
   const pair = await loadRlvPair({ source: controller })
   for (const { script, world, avatar } of Object.values(pair)) {
     world.addRegion('other', { x: 256, y: 0 })
     const seat = await loadLinkset({ world, region: kind === 'cross-region' ? 'other' : avatar.region,
       owner: avatar.key, prims: [{}] })
     if (kind === 'attachment') seat.linkset.attachToAvatar(avatar.key, 1)
-    if (kind === 'occupied') {
-      // In-world: a second avatar asking from where the first had asked gets the same
-      // spot and is refused with CantSitNoRoom (Aditi, SLua Tideland, 2026-11-14).
-      const other = world.addAvatar({ username: 'occupant', region: avatar.region })
-      world.sitAvatar(other, seat.prims[0]!, world.getSitResponse(avatar, seat.prims[0]!)!)
-    }
     if (kind === 'removed') seat.linkset.dead = true
     world.sitAvatar(avatar, script.host)
     script.start()
@@ -97,7 +91,25 @@ it.each(['unknown', 'cross-region', 'attachment', 'occupied', 'removed'] as cons
     expect(avatar.sittingOn).toBe(script.host)
     expect(script.global('replies')).toEqual([script.host.key])
     expect(avatar.viewer.commandLog.filter(entry => entry.status === 'action').at(-1)).toMatchObject({ actionOutcome: 'refused' })
-    if (kind === 'occupied') expect(avatar.viewer.alerts.map(alert => alert.name)).toEqual(['CantSitNoRoom'])
+  }
+})
+
+it('stands the avatar up from its seat when an occupied spot refuses @sit', async () => {
+  // In-world: a second avatar asking from where the first had asked gets the same spot and is
+  // refused with CantSitNoRoom. An avatar seated on another object that was refused so stood up
+  // beside it, three times out of three (Aditi, SLua Tideland, 2026-11-14).
+  const pair = await loadRlvPair({ source: controller })
+  for (const { script, world, avatar } of Object.values(pair)) {
+    const seat = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{}] })
+    const other = world.addAvatar({ username: 'occupant', region: avatar.region })
+    world.sitAvatar(other, seat.prims[0]!, world.getSitResponse(avatar, seat.prims[0]!)!)
+    world.sitAvatar(avatar, script.host)
+    script.start()
+    issue(script, '@sit:' + seat.prims[0]!.key + '=force,getsitid=225101')
+    expect(avatar.sittingOn).toBeNull()
+    expect(script.global('replies')).toEqual([script.host.key])
+    expect(avatar.viewer.commandLog.filter(entry => entry.status === 'action').at(-1)).toMatchObject({ actionOutcome: 'refused' })
+    expect(avatar.viewer.alerts.map(alert => alert.name)).toEqual(['CantSitNoRoom'])
   }
 })
 

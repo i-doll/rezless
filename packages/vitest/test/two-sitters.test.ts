@@ -175,6 +175,30 @@ it('refuses a sit request at the spot another sitter has', async () => {
   expect(log().slice(0, 2)).toEqual([1, 3])
 })
 
+it('stands an avatar up from another object when it is refused for no room', async () => {
+  // In-world (Aditi, SLua Tideland, 2026-11-14): one avatar sat on a sit target on a second box
+  // 2.2 m away and asked for the first box, which seated it at a spot. It sat back on the second
+  // box, a script moved the other avatar to that spot, and the same request was refused with
+  // "No room to sit here, try another spot." Each of the three times, the avatar stood up beside
+  // the second box.
+  const { world, first, second, linkset, sit } = await scene()
+  const { linkset: chair } = await loadLinkset({
+    world, region: 'home', owner: FIRST, position: { x: 120, y: 50.2, z: 20 },
+    prims: [{ name: 'chair', size: { x: 1, y: 1, z: 1 } }],
+  })
+  chair.prims[0]!.params.sitTarget = TARGET
+  expect(world.sitAvatar(second, chair.prims[0]!)).toBe(true)
+  expect(sit(second)).toBe(true)
+  const spot = second.sitPlacement!
+  expect(world.sitAvatar(second, chair.prims[0]!)).toBe(true)
+  expect(world.sitAvatar(first, linkset.prims[0]!, spot)).toBe(true)
+
+  expect(sit(second)).toBe(false)
+  expect(second.viewer.alerts.map(alert => alert.name)).toEqual(['CantSitNoRoom'])
+  expect(second.sittingOn).toBeNull()
+  expect(first.sittingOn).toBe(linkset.prims[0])
+})
+
 it('lets an avatar that sat beside a sit target hold the next free one it sits on', async () => {
   const { world, first, second, linkset } = await scene(2)
   const [p1, p2] = linkset.prims
