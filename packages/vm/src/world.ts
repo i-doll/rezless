@@ -8,13 +8,13 @@ import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } f
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
-import { cancelPendingGroundSit, cancelPendingSit, cancelSeatRequests, groundSitAfterStand, returnStandtpAvatar, userSitAvatar, userStandAvatar } from './rlv/sit.js'
+import { cancelPendingGroundSit, cancelPendingSit, cancelSeatRequests, groundSitAfterStand, returnStandtpAvatar, userSitAvatar, userSitAvatarOnGround, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import { deterministicKey } from './keys.js'
-import { sitSpot } from './sit-spot.js'
+import { defaultCamera, sitSpot } from './sit-spot.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
@@ -574,6 +574,11 @@ export class World {
     return userSitAvatar(this, avatar, prim, offset)
   }
 
+  /** Attempt a ground sit from the viewer's own menu, as RLV restrictions allow. */
+  userSitAvatarOnGround(avatar: WorldAvatar): boolean {
+    return userSitAvatarOnGround(this, avatar)
+  }
+
   /** Attempt a viewer movement input and record the deciding restrictions. */
   attemptAvatarMovement(avatar: WorldAvatar, action: AvatarMovement): AvatarMovementAction {
     return attemptAvatarMovement(this, avatar, action)
@@ -604,7 +609,7 @@ export class World {
   }
 
   /** Simulator responses can place a sitter on a surface at any same-region distance. */
-  getSitResponse(avatar: WorldAvatar, prim: Prim): AvatarSitResponse | null {
+  getSitResponse(avatar: WorldAvatar, prim: Prim, offset: Vector = ZERO_VECTOR): AvatarSitResponse | null {
     if (this.sitResponses.has(prim)) return this.sitResponses.get(prim)!
     const target = prim.params.sitTarget
     const holder = this.avatarOnSitTarget(prim)
@@ -613,7 +618,21 @@ export class World {
     const position = prim.regionPosition(), origin = avatar.position
     // The default plain-prim response covers nearby seats. Other surfaces use explicit responses.
     if (Math.hypot(position.x - origin.x, position.y - origin.y, position.z - origin.z) > 8) return null
-    return sitSpot(prim, avatar)
+    return sitSpot(prim, this.avatarCameras.get(avatar) ?? defaultCamera(avatar), offset)
+  }
+
+  private readonly avatarCameras = new WeakMap<WorldAvatar, Vector>()
+
+  /**
+   * Move the avatar's own viewer camera to `position` in its region, or put it
+   * back behind the avatar. A sit request on a prim without a sit target
+   * seats the avatar where the line from this camera meets the prim. A
+   * teleport puts the camera back.
+   */
+  setAvatarCamera(avatar: WorldAvatar, position?: Vector): void {
+    if (position && !Object.values(position).every(Number.isFinite)) throw new RangeError('The camera needs a finite position')
+    if (position) this.avatarCameras.set(avatar, { ...position })
+    else this.avatarCameras.delete(avatar)
   }
 
   private readonly sitTargetHolders = new WeakMap<WorldAvatar, Prim>()
@@ -760,6 +779,7 @@ export class World {
   /** @internal A teleport: stand the avatar, move it with its animations, and let it fall. */
   relocateAvatar(avatar: WorldAvatar, region: string, position: Vector): void {
     this.unseat(avatar, null)
+    this.avatarCameras.delete(avatar)
     moveRegionAnimations(this.clock, avatar.region, region, avatar.key)
     if (avatar.region !== region) this.arrive(avatar)
     avatar.region = region

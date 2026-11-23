@@ -1,6 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { nextDataserverKey } from './dataserver.js'
 import { sayError } from './debug.js'
+import { findNotecard, rememberRemovedNotecard } from './notecard-search.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
@@ -143,20 +144,10 @@ export const llGetInventoryPermMask: BuiltinImpl = (ctx, args) => {
 }
 
 /**
- * The named notecard's lines, or undefined after saying an error when there is no such notecard.
- * A notecard with embedded items reads as having no lines.
- */
-function notecardLines(ctx: CallContext, name: string): ReadonlyArray<string> | undefined {
-  const item = find(ctx.prim.inventory, name)
-  if (item && item.type === InventoryType.NOTECARD && (item.hasEmbeddedItems || item.notecardLines)) return item.hasEmbeddedItems ? [] : item.notecardLines
-  sayError(ctx, `Could not find notecard '${name}'.`)
-  return undefined
-}
-
-/**
  * Record a notecard dataserver request and return its key. A missing
- * notecard says an error and fires no event; otherwise `data` is
- * scheduled for every script in the prim once the call's delay has passed.
+ * notecard says an error and fires no event; a key that finds no notecard
+ * delivers EOF; otherwise `data` is scheduled for every script in the prim
+ * once the call's delay has passed.
  */
 function notecardRequest(
   ctx: CallContext,
@@ -168,12 +159,12 @@ function notecardRequest(
   const key = nextDataserverKey(ctx)
   const req = { key, source, args, fulfilled: false }
   ctx.state.dataserverRequests.push(req)
-  const lines = notecardLines(ctx, name)
-  if (!lines) return key
+  const notecard = findNotecard(ctx, name, true)
+  if (notecard === 'missing') return key
   // Schedule after the dispatcher's post-call throttle advance so the event
   // fires after the call returns (matches real LSL).
   const at = ctx.state.clock.now + (ctx.spec?.delay ?? 0) * 1000
-  const payload = { queryid: key, data: data(lines) }
+  const payload = { queryid: key, data: notecard === 'unknown-key' ? EOF : data(notecard.lines) }
   for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, at, 'dataserver', payload)
   req.fulfilled = true
   return key
@@ -214,6 +205,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
     return undefined
   }
   const [item] = ctx.prim.inventory.splice(index, 1)
+  rememberRemovedNotecard(ctx, item!)
   if (releaseInventoryAsset(ctx.prim, item!)) raisePrimChanged(ctx.prim, CHANGED_RENDER_MATERIAL)
   const script = item!.script
   if (script) {
@@ -227,12 +219,14 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
 
 /**
  * llGetNotecardLineSync(string name, integer line) — the line itself, EOF past the end, or NAK
- * (after an error) for a missing notecard. Notecards are always cached here.
+ * (after an error) for a missing notecard. Notecards in the prim are always cached here; one found
+ * by key elsewhere is cached once a dataserver read has fetched it. An uncached or unknown key
+ * gives NAK silently.
  */
 export const llGetNotecardLineSync: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const line = (args[1] as number | undefined) ?? 0
-  const lines = notecardLines(ctx, name)
-  if (!lines) return NAK
-  return line >= 0 && line < lines.length ? lines[line]! : EOF
+  const notecard = findNotecard(ctx, name)
+  if (typeof notecard === 'string') return NAK
+  return line >= 0 && line < notecard.lines.length ? notecard.lines[line]! : EOF
 }

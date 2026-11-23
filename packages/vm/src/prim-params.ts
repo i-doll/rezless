@@ -18,6 +18,7 @@ import {
   PRIM_BUMP_SHINY,
   PRIM_CAST_SHADOWS,
   PRIM_CLICK_ACTION,
+  PRIM_COLLISION_SOUND,
   PRIM_COLOR,
   PRIM_DAMAGE,
   PRIM_DESC,
@@ -272,6 +273,8 @@ export const renderMaterialKey = (prim: Prim, material: string) => assetKey(prim
 
 export const textureKey = (prim: Prim, texture: string) => assetKey(prim, InventoryType.TEXTURE, texture)
 
+export const soundKey = (prim: Prim, sound: string) => assetKey(prim, InventoryType.SOUND, sound)
+
 /** A map reads back as a string when an inventory texture gives it a name, and as a key otherwise. */
 const mapType = (prim: Prim, key: string): LslType => (textureName(prim, key) === key ? 'key' : 'string')
 
@@ -308,6 +311,7 @@ export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean 
     if (face.specular.texture === key) face.specular = defaultFace().specular
   }
   if (p.shape.kind === SHAPE_SCULPT && p.shape.map === key) p.shape = { ...p.shape, map: SCULPT_MAP_DEFAULT }
+  if (p.projector.texture === key) p.projector = { ...p.projector, texture: NULL_KEY }
   return false
 }
 
@@ -429,7 +433,8 @@ const asRot = (v: LslValue | undefined): Rotation => {
   return identityRot()
 }
 const toByteChannel = (c: number): number => Math.floor(Math.min(1, Math.max(0, c)) * 255) / 255
-const roundToByte = (c: number) => Math.round(Math.min(1, Math.max(0, Math.fround(c))) * 255) / 255
+/** A light's colour and intensity are kept in 8 bits, rounded, and read back as a multiple of the float 1/255. */
+const lightByte = (c: number) => Math.fround(Math.round(Math.fround(Math.min(1, Math.max(0, Math.fround(c))) * 255)) * Math.fround(1 / 255))
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const clampVec = (v: Vector, lo: number, hi: number): Vector =>
   ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
@@ -437,6 +442,8 @@ const clampVec = (v: Vector, lo: number, hi: number): Vector =>
 export function normalizeRot(r: Rotation): Rotation {
   const mag = Math.hypot(r.x, r.y, r.z, r.s)
   if (mag === 0) return identityRot()
+  // Second Life keeps a rotation within 1e-6 of unit length as it is.
+  if (Math.abs(1 - mag) <= 1e-6) return r
   return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
 }
 
@@ -478,6 +485,8 @@ export function writePrimParamSlots(
       return 3
     case PRIM_REFLECTION_PROBE: case PRIM_PROJECTOR:
       return 4
+    case PRIM_COLLISION_SOUND:
+      return 2
     case PRIM_POINT_LIGHT:
       return 5
     case PRIM_FLEXIBLE:
@@ -609,12 +618,18 @@ export function writePrimParam(
     case PRIM_DAMAGE:
       p.damage = { amount: num(rules[cursor]), type: num(rules[cursor + 1]) | 0 }
       return 2
+    case PRIM_COLLISION_SOUND:
+      // A sound's name stores its key, a key is kept, and any other name stores NULL_KEY.
+      prim.collisionSound = { sound: soundKey(caller, str(rules[cursor])) ?? NULL_KEY, volume: limit(f32(num(rules[cursor + 1])), 0, 1) }
+      return 2
     case PRIM_OMEGA: {
+      // The axis is normalised and its length moved into the spin rate, in float arithmetic.
       const axis = asVec(rules[cursor])
-      const length = Math.hypot(axis.x, axis.y, axis.z) || 1
+      const length = f32(Math.sqrt(f32(f32(f32(f32(axis.x) * f32(axis.x)) + f32(f32(axis.y) * f32(axis.y))) + f32(f32(axis.z) * f32(axis.z))))) || 1
+      const inverse = f32(1 / length)
       p.omega = {
-        axis: { x: axis.x / length, y: axis.y / length, z: axis.z / length },
-        spinrate: num(rules[cursor + 1]) * length,
+        axis: { x: f32(f32(axis.x) * inverse), y: f32(f32(axis.y) * inverse), z: f32(f32(axis.z) * inverse) },
+        spinrate: f32(f32(num(rules[cursor + 1])) * length),
         gain: num(rules[cursor + 2]),
       }
       return 3
@@ -624,8 +639,8 @@ export function writePrimParam(
       p.pointLight = num(rules[cursor]) !== 0
         ? {
             enabled: true,
-            color: { x: roundToByte(color.x), y: roundToByte(color.y), z: roundToByte(color.z) },
-            intensity: roundToByte(num(rules[cursor + 2])),
+            color: { x: lightByte(color.x), y: lightByte(color.y), z: lightByte(color.z) },
+            intensity: lightByte(num(rules[cursor + 2])),
             radius: clamp(num(rules[cursor + 3]), 0, 20),
             falloff: clamp(num(rules[cursor + 4]), 0, 2),
           }
@@ -643,21 +658,22 @@ export function writePrimParam(
         : { enabled: false, ambiance: 0, clipDistance: 0, flags: 0 }
       return 4
     case PRIM_PROJECTOR:
+      // A texture that names nothing in the prim's contents, and isn't a key, stores NULL_KEY.
       p.projector = {
-        texture: str(rules[cursor]),
-        fov: num(rules[cursor + 1]),
-        focus: num(rules[cursor + 2]),
-        ambiance: num(rules[cursor + 3]),
+        texture: textureKey(caller, str(rules[cursor])) ?? NULL_KEY,
+        fov: limit(f32(num(rules[cursor + 1])), 0, 3),
+        focus: limit(f32(num(rules[cursor + 2])), -20, 20),
+        ambiance: limit(f32(num(rules[cursor + 3])), -1, 1),
       }
       return 4
     case PRIM_FLEXIBLE:
       p.flexible = {
         enabled: num(rules[cursor]) !== 0,
-        softness: num(rules[cursor + 1]) | 0,
-        gravity: num(rules[cursor + 2]),
-        friction: num(rules[cursor + 3]),
-        wind: num(rules[cursor + 4]),
-        tension: num(rules[cursor + 5]),
+        softness: limit(num(rules[cursor + 1]) | 0, 0, 3),
+        gravity: flexGravity(num(rules[cursor + 2])),
+        friction: flexTenths(num(rules[cursor + 3])),
+        wind: flexTenths(num(rules[cursor + 4])),
+        tension: flexTenths(num(rules[cursor + 5])),
         force: asVec(rules[cursor + 6]),
       }
       return 7
@@ -746,16 +762,8 @@ export function writePrimParam(
       const key = textureKey(caller, tex) ?? NULL_KEY
       // Without a texture, the rule's other values are dropped for the defaults.
       const reset = key === NULL_KEY
-      const repeats = reset ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
-      const offsets = reset ? zero() : asVec(rules[cursor + 3])
-      const rot = reset ? 0 : num(rules[cursor + 4])
       for (const f of faces) {
-        p.faces[f]!.normal = {
-          texture: key,
-          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
-          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
-          textureRotation: rot,
-        }
+        p.faces[f]!.normal = { texture: key, ...(reset ? defaultMap() : storedMap(rules, cursor + 2)) }
       }
       return 5
     }
@@ -764,19 +772,14 @@ export function writePrimParam(
       const tex = str(rules[cursor + 1])
       const key = textureKey(caller, tex) ?? NULL_KEY
       const reset = key === NULL_KEY
-      const repeats = reset ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
-      const offsets = reset ? zero() : asVec(rules[cursor + 3])
-      const rot = reset ? 0 : num(rules[cursor + 4])
       const color = reset ? one() : asVec(rules[cursor + 5])
       const gloss = reset ? 51 : clamp(num(rules[cursor + 6]) | 0, 0, 255)
       const env = reset ? 0 : clamp(num(rules[cursor + 7]) | 0, 0, 255)
       for (const f of faces) {
         p.faces[f]!.specular = {
           texture: key,
-          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
-          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
-          // Second Life stores a negative rotation as 0 and the colour in 8 bits per channel
-          textureRotation: Math.max(0, rot),
+          ...(reset ? defaultMap() : storedMap(rules, cursor + 2)),
+          // Second Life stores the colour in 8 bits per channel
           color: { x: toByteChannel(color.x), y: toByteChannel(color.y), z: toByteChannel(color.z) },
           glossiness: gloss,
           environment: env,
@@ -869,6 +872,31 @@ const toInt32 = (v: number) => (v > -2147483649 && v < 2147483648 ? Math.trunc(v
 
 /** Profile cuts and hollow are kept in steps of 0.00001, cut off toward zero. */
 const toHundredThousandths = (v: number) => f32(toInt32(f32(v * 100000)) / 100000)
+
+/** Normal and specular map repeats, offsets and rotation are kept in steps of 0.0001, cut off toward zero. */
+const toTenThousandths = (v: number) => f32(toInt32(f32(v * 10000)) / 10000)
+
+const defaultMap = () => ({ textureRepeats: { x: 1, y: 1, z: 0 }, textureOffsets: zero(), textureRotation: 0 })
+
+/** A normal or specular map's repeats are -100 to 100, its offsets 0 to 1 and its rotation 0 to two pi. */
+function storedMap(rules: ReadonlyArray<LslValue>, cursor: number) {
+  const repeats = asVec(rules[cursor])
+  const offsets = asVec(rules[cursor + 1])
+  const repeat = (v: number) => toTenThousandths(limit(f32(v), -100, 100))
+  const offset = (v: number) => toTenThousandths(limit(f32(v), 0, 1))
+  return {
+    textureRepeats: { x: repeat(repeats.x), y: repeat(repeats.y), z: repeats.z },
+    textureOffsets: { x: offset(offsets.x), y: offset(offsets.y), z: offsets.z },
+    textureRotation: toTenThousandths(limit(f32(num(rules[cursor + 2])), 0, f32(2 * Math.PI))),
+  }
+}
+
+/**
+ * Flexible drag, wind and tension are kept in tenths, 0 to 10, and gravity in tenths from -10,
+ * each cut off after scaling by 10.01 in float arithmetic.
+ */
+const flexTenths = (v: number) => f32(Math.trunc(f32(limit(f32(v), 0, 10) * f32(10.01))) / 10)
+const flexGravity = (v: number) => f32(f32(Math.trunc(f32(f32(limit(f32(v), -10, 10) + 10) * f32(10.01))) / 10) - 10)
 
 const MIN_CUT = f32(0.02)
 
@@ -1049,8 +1077,6 @@ export function readPrimParam(
       return { values: [p.tempOnRez ? 1 : 0], consumed: 0 }
     case PRIM_PHYSICS_SHAPE_TYPE:
       return { values: [p.physicsShapeType], consumed: 0 }
-    case PRIM_CAST_SHADOWS:
-      return { values: [p.castShadows ? 1 : 0], consumed: 0 }
     case PRIM_ALLOW_UNSIT:
       return { values: [p.sitFlags & SIT_FLAG_ALLOW_UNSIT ? 1 : 0], consumed: 0 }
     case PRIM_SCRIPTED_SIT_ONLY:
@@ -1073,9 +1099,13 @@ export function readPrimParam(
       const r = p.reflectionProbe
       return { values: [r.enabled ? 1 : 0, r.ambiance, r.clipDistance, r.flags], consumed: 0 }
     }
-    // A projector can't be read: the rule gives nothing and ends the read.
-    case PRIM_PROJECTOR:
+    // A projector or shadow setting can't be read: the rule gives nothing and ends the read.
+    case PRIM_PROJECTOR: case PRIM_CAST_SHADOWS:
       return null
+    case PRIM_COLLISION_SOUND: {
+      const sound = prim.collisionSound
+      return { values: [sound?.sound ?? NULL_KEY, sound?.volume ?? 1], consumed: 0 }
+    }
     case PRIM_FLEXIBLE: {
       const f = p.flexible
       return {
@@ -1271,6 +1301,7 @@ const PRIM_PARAM_TYPES: Readonly<Record<number, ReadonlyArray<LslType>>> = {
   [PRIM_POINT_LIGHT]: ['integer', 'vector', 'float', 'float', 'float'],
   [PRIM_REFLECTION_PROBE]: ['integer', 'float', 'float', 'integer'],
   [PRIM_PROJECTOR]: ['string', 'float', 'float', 'float'],
+  [PRIM_COLLISION_SOUND]: ['key', 'float'],
   [PRIM_FLEXIBLE]: ['integer', 'integer', 'float', 'float', 'float', 'float', 'vector'],
   [PRIM_SIT_TARGET]: ['integer', 'vector', 'rotation'],
   [PRIM_COLOR]: ['vector', 'float'],
@@ -1323,7 +1354,7 @@ const RULE_CONSTANTS: Readonly<Record<string, number>> = {
   PRIM_REFLECTION_PROBE, PRIM_PROJECTOR, PRIM_FLEXIBLE, PRIM_SIT_TARGET, PRIM_TYPE, PRIM_COLOR,
   PRIM_TEXTURE, PRIM_RENDER_MATERIAL, PRIM_FULLBRIGHT, PRIM_GLOW, PRIM_BUMP_SHINY, PRIM_TEXGEN,
   PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE, PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL,
-  PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE, PRIM_LINK_TARGET,
+  PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE, PRIM_COLLISION_SOUND, PRIM_LINK_TARGET,
 }
 const RULE_NAMES = new Map(Object.entries(RULE_CONSTANTS).map(([name, value]) => [value, name]))
 

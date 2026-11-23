@@ -49,7 +49,7 @@ it('keeps prim settings across script reset', async () => {
   expect(s.host.allowInventoryDrop).toBe(true)
   expect(s.host.volumeDetect).toBe(true)
   expect(s.host.collisionFilter).toEqual({name:'allowed',key:'00000000-0000-0000-0000-000000000000',accept:false})
-  expect(s.host.collisionSound).toEqual({sound:'',volume:.5})
+  expect(s.host.collisionSound).toEqual({sound:'00000000-0000-0000-0000-000000000000',volume:0})
 })
 
 // In-world: batch.py and fixed.py -> any nonzero detect enables volume detection;
@@ -127,10 +127,15 @@ it('preserves collision event injection without detected data and leaves land co
 // sound from it, with no llCollisionSound call or after llCollisionSound with a sound key at
 // volumes -1, 0.3, 1 and 2, "" at 0.5 and 0, "missing" and NULL_KEY. It heard the avatar's
 // footsteps, so triggered sounds did reach it.
-it.each(['"",-1','"",2','"missing",.5','(string)NULL_KEY,1','"ed124764-705d-d497-167a-182cd9fa2e6c",2'])('records collision sound request %s without a script error',async args=>{
+// In-world (Aditi, SLua Tideland, 2026-11-23), read back with PRIM_COLLISION_SOUND: "" stored
+// NULL_KEY at volume 0 whatever volume it was given, a name that is not a sound in the prim stored
+// NULL_KEY, and the volume was clamped to 0..1.
+it.each([
+  ['"",-1',0,0],['"",2',0,0],['"missing",.5',0,.5],['(string)NULL_KEY,1',0,1],['"ed124764-705d-d497-167a-182cd9fa2e6c",2',1,1],
+])('stores collision sound %s without a script error',async(args,named,volume)=>{
   const s=await loadScript({source:`default{state_entry(){llCollisionSound(${args});}}`})
   s.start()
-  expect(s.host.collisionSound).toEqual({sound:s.calls.find(c=>c.name==='llCollisionSound')!.args[0],volume:s.calls.find(c=>c.name==='llCollisionSound')!.args[1]})
+  expect(s.host.collisionSound).toEqual({sound:named?'ed124764-705d-d497-167a-182cd9fa2e6c':'00000000-0000-0000-0000-000000000000',volume})
   expect(s.chat).toEqual([])
 })
 
@@ -142,7 +147,7 @@ it('shares collision and PIN settings between scripts on a prim, keeping other p
   ]})
   scripts.setter!.start();scripts.child!.start()
   expect(scripts.observer!.host.collisionFilter).toEqual({name:'root',key:'00000000-0000-0000-0000-000000000000',accept:false})
-  expect(scripts.observer!.host.collisionSound).toEqual({sound:'',volume:.5})
+  expect(scripts.observer!.host.collisionSound).toEqual({sound:'00000000-0000-0000-0000-000000000000',volume:0})
   expect(scripts.observer!.host.remoteScriptAccessPin).toBe(-42)
   expect(linkset.prims[0]!.allowInventoryDrop).toBe(true)
   // In-world: a child's own llAllowInventoryDrop(TRUE) opened that child to gifts (two-avatar-ownership.test.ts).

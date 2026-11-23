@@ -1225,7 +1225,7 @@ Comparison: confirmed difference. Wiki allows nonzero channels and describes 255
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Object queries reject zero. Positive replies use avatar-origin shout across regions within 100 m and take a raw 1023-byte prefix. Negative replies use avatar-origin dialog chat within 20 m in the current region and take a raw 254-byte prefix. Partial UTF-8 becomes U+FFFD in VM strings. DEBUG_CHANNEL replies use the positive-channel shout path.
+Support depth: enforced. Object queries reject zero. Positive replies use avatar-origin shout across regions within 100 m and take a raw 1023-byte prefix. Negative replies use avatar-origin dialog chat within 20 m across regions and take a raw 254-byte prefix. Partial UTF-8 becomes U+FFFD in VM strings. DEBUG_CHANNEL replies use the positive-channel shout path.
 
 - Signed nonzero version-query channels
 - sendViewerReply: single-message payload truncation and avatar-origin routing

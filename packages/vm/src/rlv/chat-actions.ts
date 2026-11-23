@@ -28,6 +28,8 @@ export interface AvatarChatAction {
   readonly deliveredVolume?: AvatarChatVolume
   readonly status: 'sent' | 'blocked' | 'unsupported'
   readonly deliveredMessage?: string
+  /** The separate chat messages listeners got, when the viewer split `deliveredMessage`. */
+  readonly deliveredParts?: readonly string[]
   readonly redirected?: readonly Readonly<{ channel: number; message: string; volume: AvatarChatVolume; status: 'sent' | 'blocked'; restrictions: readonly RlvRestriction[] }>[]
   readonly reason?: 'redirchat' | 'rediremote' | 'sendchat' | 'sendchannel' | 'channel' | 'avatar'
   readonly restrictions: readonly RlvRestriction[]
@@ -93,8 +95,6 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
   const profile = avatar.viewer.profile
   const hasChatRedirect = redirectRules.some(rule => rule.behaviour === 'redirchat')
   let deliveredMessage = message
-  // Negative channels travel as a dialog reply, whose text field holds 254 bytes.
-  if (channel < 0) deliveredMessage = truncateUtf8(message, 254)
   // Kokua's chat editor crunches before the low-level redirect handler, unless
   // redirchat is present. RLVa's handler redirects before sendchat filtering.
   if (channel === 0 && chatRules.length && profile === 'rlv' && !hasChatRedirect)
@@ -131,12 +131,47 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
       deliveredMessage = filterPublicChat(profile, message, emoteRules.length > 0)
   }
   const status = reason === 'sendchannel' || reason === 'sendchat' || reason === 'redirchat' || reason === 'rediremote' ? 'blocked' : reason ? 'unsupported' : 'sent'
+  const parts = chatParts(profile, channel, deliveredMessage)
   const record: AvatarChatAction = Object.freeze({ action: 'chat', channel, message, volume, status,
-    ...(status === 'sent' ? { deliveredMessage, deliveredVolume } : {}),
+    ...(status === 'sent' ? { deliveredMessage: parts.length > 1 ? deliveredMessage : parts[0]!, ...(parts.length > 1 ? { deliveredParts: Object.freeze(parts) } : {}), deliveredVolume } : {}),
     ...(reason ? { reason } : channel === 0 && deliveredMessage !== message ? { reason: 'sendchat' as const } : {}), restrictions })
   logs.set(avatar, Object.freeze([...avatarChatLog(avatar), record]))
-  if (record.status === 'sent') deliverAvatarChat(world, avatar, channel, deliveredMessage, deliveredVolume)
+  if (record.status === 'sent') for (const part of parts) deliverAvatarChat(world, avatar, channel, part, deliveredVolume)
   return record
+}
+
+/**
+ * Firestorm sends chat in pieces of at most 1023 bytes, and a negative channel
+ * travels as a dialog reply that carries 254 bytes of each piece.
+ */
+function chatParts(profile: WorldAvatar['viewer']['profile'], channel: number, text: string): string[] {
+  const parts = profile === 'rlva' ? splitFirestormChat(text) : [text]
+  return channel < 0 ? parts.map(part => truncateUtf8(part, 254)) : parts
+}
+
+/**
+ * Firestorm's send_chat_from_viewer: each piece ends before the last space
+ * that fits in 1023 bytes, or else before a UTF-8 continuation byte. The space
+ * starts the next piece. A text of exactly 1023 bytes still looks for a space.
+ */
+function splitFirestormChat(text: string): string[] {
+  const bytes = new TextEncoder().encode(text)
+  const decoder = new TextDecoder('utf-8', { ignoreBOM: true })
+  const parts: string[] = []
+  for (let pos = 0; pos < bytes.length;) {
+    let next = Math.min(1023, bytes.length - pos)
+    if (pos + 1023 <= bytes.length) {
+      while (next > 0 && bytes[pos + next] !== 0x20) --next
+      if (next === 0) {
+        next = 1023
+        while (next > 0 && (bytes[pos + next] ?? 0) >= 0x80 && bytes[pos + next]! < 0xc0) --next
+      }
+      if (next === 0) next = 1023
+    }
+    parts.push(decoder.decode(bytes.subarray(pos, pos + next)))
+    pos += next
+  }
+  return parts.length ? parts : [text]
 }
 
 function isRlvaEmote(message: string): boolean {

@@ -33,19 +33,19 @@ it('records a map destination with its position and look direction', async () =>
 })
 
 it('records beacon map options', async () => {
-  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { state_entry() {
+  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { touch_start(integer n) {
     llMapBeacon("SLua Tideland", <116,48,1999>, [BEACON_MAP, TRUE, FALSE]);
   } }` })
-  s.start()
+  s.linkset.touch(0)
   expect(s.viewerRequests).toEqual([{ kind: 'mapBeacon', agent: s.linkset.owner,
     region: 'SLua Tideland', position: { x: 116, y: 48, z: 1999 }, options: [1, 1, 0] }])
 })
 
 it('preserves raw beacon options for request inspection', async () => {
-  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { state_entry() {
+  const s = await loadScript({ owner: '00000000-0000-0000-0000-00000000000a', source: `default { touch_start(integer n) {
     llMapBeacon("", <-1,999,9000>, [999]);
   } }` })
-  s.start()
+  s.linkset.touch(0)
   expect(s.viewerRequests[0]).toMatchObject({ kind: 'mapBeacon', options: [999] })
 })
 
@@ -117,9 +117,10 @@ it.each(['llMapDestination("", <-20,999,9000>, ZERO_VECTOR)', 'llMapBeacon("", <
   expect(s.now).toBe(1000)
 })
 
-it('addresses a touch map request to the toucher, and a sensor beacon to the owner', async () => {
+it('addresses a touch map request to the toucher, and a sensor beacon to nobody', async () => {
   // In-world: fivebot's click on i doll's object showed the map to fivebot only
-  // (Aditi, SLua Tideland, 2026-11-14; more in two-avatars.test.ts). llMapBeacon follows the wiki.
+  // (Aditi, SLua Tideland, 2026-11-14; more in two-avatars.test.ts). A rezzed object's
+  // llMapBeacon outside a touch showed nobody (2026-11-23, agent-list-beacon-friends.test.ts).
   const owner = '00000000-0000-0000-0000-00000000000a'
   const toucher = '00000000-0000-0000-0000-00000000000b'
   const s = await loadScript({ owner, source: `default {
@@ -128,7 +129,7 @@ it('addresses a touch map request to the toucher, and a sensor beacon to the own
   }` })
   s.linkset.touch(0, { avatar: { key: toucher, name: 'Toucher' } })
   s.fire('sensor', { num_detected: 1, detected: [{ key: toucher, name: 'Toucher' }] })
-  expect(s.viewerRequests.map(r => r.agent)).toEqual([toucher, owner])
+  expect(s.viewerRequests.map(r => r.agent)).toEqual([toucher])
 })
 
 it('uses World avatar locations and shares presence overrides between scripts', async () => {

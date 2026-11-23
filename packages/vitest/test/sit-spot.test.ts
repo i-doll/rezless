@@ -29,13 +29,12 @@ import { loadLinkset, World } from '../src/index.js'
 // up to 3 mm, so the test allows 5 mm. Where the viewer reported the avatar
 // sat in the 51 seated requests on boxes and cylinders that sit-reach.test.ts
 // lists fits the rule to within 2 mm too; those positions are not kept here.
-// A viewer's camera sits about where the point is by default, but moving the
-// viewer's own camera could not be tested, so whether the point is the
-// camera is not known.
+// A viewer's camera rests about where the point is, and the point is the
+// camera: sit-spot-camera-click.test.ts moves it, and clicks elsewhere on the
+// prim.
 //
-// The viewer's requests had no click offset, as RLVa's @sit:<key>=force
-// sends, and the avatar's camera stayed at the viewer's default place. A click elsewhere on the prim, which a viewer's
-// pie menu sends, and a moved camera are not modelled.
+// The viewer's requests here had no click offset, as RLVa's @sit:<key>=force
+// sends, and the avatar's camera stayed at the viewer's default place.
 
 type Shape = 'box' | 'cylinder' | 'sphere' | 'prism' | 'torus'
 type Row = [string, Shape, number[], number[], number[], number, number[], number[]]

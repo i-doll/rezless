@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { nextDataserverKey } from './dataserver.js'
 import { sayError } from './debug.js'
-import { InventoryType } from '../inventory.js'
+import { InventoryType, type InventoryItem } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
 import { EOF, NAK } from '../generated/constants.js'
 import { own } from '../own.js'
@@ -9,21 +9,68 @@ import { own } from '../own.js'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_DEFAULT_MATCHES = 64
 
-type Notecard = { lines: ReadonlyArray<string>; embedded: boolean } | 'missing' | 'unknown-key'
+export type NotecardText = { lines: ReadonlyArray<string>; embedded: boolean }
+export type Notecard = NotecardText | 'missing' | 'unknown-key'
+
+type Assets = { readonly removed: Map<string, NotecardText>; readonly fetched: Map<string, NotecardText> }
+const assets = new WeakMap<object, Assets>()
+
+const isKey = (name: string) => UUID.test(name) && name !== NULL_KEY
+
+/** Notecards removed from the script's world, still readable by key, and the notecards a dataserver read has fetched, by key. */
+function worldAssets(ctx: CallContext): Assets {
+  let known = assets.get(ctx.linkset.peers)
+  if (!known) assets.set(ctx.linkset.peers, (known = { removed: new Map(), fetched: new Map() }))
+  return known
+}
+
+function notecardText(item: InventoryItem): NotecardText | undefined {
+  if (item.type !== InventoryType.NOTECARD) return undefined
+  if (item.hasEmbeddedItems) return { lines: [], embedded: true }
+  return item.notecardLines && { lines: item.notecardLines, embedded: false }
+}
+
+const withKey = (key: string) => (item: InventoryItem) => item.type === InventoryType.NOTECARD && item.key.toLowerCase() === key
+
+/** Keep a notecard the script removes readable by its key, as its asset outlives the item. */
+export function rememberRemovedNotecard(ctx: CallContext, item: InventoryItem): void {
+  const text = notecardText(item)
+  if (text && item.key !== NULL_KEY) worldAssets(ctx).removed.set(item.key.toLowerCase(), text)
+}
 
 /**
- * Find a notecard by name or asset key. A name that isn't a notecard says an error; a key that
- * matches no notecard here is silent, as an uncached notecard is in-world. A notecard with embedded
- * items is searched as an empty text.
+ * Find a notecard by name or asset key, as measured in-world. An item of that name wins; a name that
+ * isn't a notecard says an error, and so does NULL_KEY. Any other key, in any case, finds the
+ * notecard in the prim with that key, then one held anywhere in the world or removed by a script.
+ * Notecards in the prim are always cached; one found elsewhere is cached once a `fetch` (a dataserver
+ * read) of it, by name or key, has run. A key that finds nothing readable is silent. A notecard with
+ * embedded items reads as an empty text.
  */
-function findNotecard(ctx: CallContext, name: string): Notecard {
+export function findNotecard(ctx: CallContext, name: string, fetch = false): Notecard {
   const inventory = ctx.prim.inventory
+  const known = worldAssets(ctx)
   const byName = inventory.find((it) => it.name === name)
-  const item =
-    byName ?? (UUID.test(name) ? inventory.find((it) => it.type === InventoryType.NOTECARD && it.key.toLowerCase() === name.toLowerCase()) : undefined)
-  if (item && item.type === InventoryType.NOTECARD && item.hasEmbeddedItems) return { lines: [], embedded: true }
-  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) return { lines: item.notecardLines, embedded: false }
-  if (!byName && UUID.test(name)) return 'unknown-key'
+  if (!byName && isKey(name)) {
+    const key = name.toLowerCase()
+    const here = inventory.find(withKey(key))
+    const text = here && notecardText(here)
+    if (text) {
+      if (fetch) known.fetched.set(key, text)
+      return text
+    }
+    const cached = known.fetched.get(key)
+    if (cached || !fetch) return cached ?? 'unknown-key'
+    const held = ctx.linkset.peers.flatMap((linkset) => linkset.prims).flatMap((prim) => prim.inventory).find(withKey(key))
+    const elsewhere = (held && notecardText(held)) ?? known.removed.get(key)
+    if (!elsewhere) return 'unknown-key'
+    known.fetched.set(key, elsewhere)
+    return elsewhere
+  }
+  const text = byName && notecardText(byName)
+  if (text) {
+    if (fetch && byName.key !== NULL_KEY) known.fetched.set(byName.key.toLowerCase(), text)
+    return text
+  }
   sayError(ctx, `Could not find notecard '${name}'.`)
   return 'missing'
 }
@@ -321,7 +368,8 @@ function locator(bytes: Uint8Array): (index: number, length: number) => number[]
  * [line, column, length] for each match after the first `start`. A count of 0 returns up to 64
  * matches, a negative count one. Returns [NAK] for a notecard that isn't here, and [] for an invalid
  * pattern. A notecard with embedded items gives [] for any valid pattern, even one that matches
- * empty text. Notecards are always cached here. Options are ignored.
+ * empty text. Notecards in the prim are always cached here; one found by key elsewhere gives [NAK] until a
+ * dataserver read has fetched it. Options are ignored.
  */
 export const llFindNotecardTextSync: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
@@ -347,12 +395,12 @@ export const llFindNotecardTextSync: BuiltinImpl = (ctx, args) => {
 /**
  * llFindNotecardTextCount(string name, string pattern, list options) — raise dataserver with the
  * number of matches. Returns NULL_KEY with no event for a missing notecard or an invalid pattern; a key
- * that matches no notecard here delivers EOF.
+ * that finds no notecard delivers EOF.
  */
 export const llFindNotecardTextCount: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const pattern = (args[1] as string | undefined) ?? ''
-  const notecard = findNotecard(ctx, name)
+  const notecard = findNotecard(ctx, name, true)
   if (notecard === 'missing') return NULL_KEY
   let data = EOF
   if (notecard !== 'unknown-key') {
