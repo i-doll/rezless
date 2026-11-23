@@ -70,8 +70,7 @@ describe('llRequestUserKey throttle', () => {
   })
 
   // In-world: 50 calls 0.51 s apart -> 20 answered, then all 30 refused over the next
-  // 15 s. 60 calls 0.42 s apart, made 7 s after 40 calls 0.61 s apart -> 18 answered,
-  // then 42 refused over 17 s.
+  // 15 s.
   it('refuses calls made about two a second after the 20th', async () => {
     const { objects: [o] } = await setup()
     o!.run(50, 0.51)

@@ -541,9 +541,9 @@ tag; body shape uses `visualParams[80]` and hover height uses `movement.hoverOff
 `llGetAgentLanguage`, `llGetAgentSize` and `llGetVisualParams` query avatars in
 the script's region. `llRequestUserKey` searches all World avatar usernames and
 answers every script in the prim through `dataserver`, with a UUID string or
-`NULL_KEY`. An owner gets 20 lookups in about 10 seconds in each region. The next
-call returns `NULL_KEY`, says an error on `DEBUG_CHANNEL` and gets no answer, and
-calls stay refused for about 16 seconds. `llGetAgentList` uses parcel fixtures for parcel scopes and rejects
+`NULL_KEY`. An owner gets 20 lookups in 10.5 seconds in each region. The next call
+returns `NULL_KEY`, says an error message on `DEBUG_CHANNEL` and gets no answer,
+and calls stay refused for 16.5 seconds. `llGetAgentList` uses parcel fixtures for parcel scopes and rejects
 nonempty options. `llIsFriend` reads fixture friendships; `llSameGroup` compares
 active avatar groups, prim groups from `world.sensorProperties`, World object
 groups, or a literal group UUID.

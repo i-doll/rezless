@@ -55,8 +55,9 @@ export const llLoadURL: BuiltinImpl = (ctx, args) => {
 
 const mapClicks = new WeakMap<object, WeakSet<object>>()
 
-// An attachment shows the map to its owner, unless someone else clicked it. A
-// rezzed object shows it only to whoever clicked it, once per click.
+// An attachment shows the map or beacon to its owner, unless someone else clicked it.
+// A rezzed object shows it only to whoever clicked it, once per click and script,
+// and llMapDestination and llMapBeacon share that once.
 function mapAgent(ctx: CallContext): string | undefined {
   const owner = ctx.linkset.owner.toLowerCase()
   const detected = ctx.state.detectedStack.at(-1)

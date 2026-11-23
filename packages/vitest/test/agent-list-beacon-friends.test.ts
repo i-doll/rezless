@@ -116,12 +116,12 @@ describe('llMapBeacon audiences', () => {
   // the beacon to i doll. fivebot's click showed it to nobody.
   it('shows an attachment\'s beacon to its owner only', async () => {
     const { script, linkset } = await setup()
-    script.advanceTime(2000)
     linkset.attachToAvatar(OWNER, 5)
+    script.advanceTime(2000)
     linkset.touch(0, { avatar: { key: OWNER, name: 'i Doll' } })
     linkset.touch(0, { avatar: { key: OTHER, name: 'fivebot' } })
     script.deliverChat({ channel: 5, name: 'fivebot', key: OTHER, message: 'x' })
-    expect(beacons(script)).toEqual([[OWNER, 7], [OWNER, 1], [OWNER, 2], [OWNER, 3], [OWNER, 4]])
+    expect(beacons(script)).toEqual([[OWNER, 7], [OWNER, 5], [OWNER, 1], [OWNER, 2], [OWNER, 3], [OWNER, 4]])
   })
 })
 
@@ -150,8 +150,9 @@ describe('llIsFriend between two friends', () => {
   })
 
   // In-world: once friends, both present -> 1 from each object. With fivebot in another
-  // region -> still 1 from each. With both away when the objects asked -> 0 from each.
-  it('is true while either of them is in the region', async () => {
+  // region -> still 1 from each, so i doll's object (owner present) and fivebot's object
+  // (friend present) both answered. With both away when the objects asked -> 0 from each.
+  it('is true while the owner or the friend is in the region', async () => {
     const { mine, theirs, ask, move } = await setup(true)
     expect([ask(mine), ask(theirs)]).toEqual([1, 1])
     move(OTHER, 'away')

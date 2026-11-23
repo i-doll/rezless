@@ -48,9 +48,9 @@ const USER_KEY_LOCKOUT_MS = 16_500
 const userKeyThrottles = new WeakMap<object, Map<string, { answered: number[]; lockedUntil: number }>>()
 
 // In-world the limit is shared by every object an owner has in a region. The 20th
-// call answered within the window shuts it for the lockout. The window is between
-// 9.7 s (20 calls 0.51 s apart were shut) and 10.7 s (calls 0.555 s apart never
-// were); the lockout is between 15.1 s and 18 s after a burst. Refused calls made
+// call answered within the window shuts it for the lockout. In-world, 20 calls
+// spread over 9.7 s shut it and 20 calls spread over 10.7 s (0.555 s apart) did not;
+// the VM's 10.5 s keeps both. The lockout lay between 15.1 s and 18 s after a burst. Refused calls made
 // during the lockout lengthened it by differing amounts, which is not modelled.
 function userKeyThrottled(ctx: CallContext): boolean {
   let byOwner = userKeyThrottles.get(ctx.linkset.clock)
