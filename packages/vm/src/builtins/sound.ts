@@ -3,17 +3,16 @@ import type { AttachedSound, PrimSoundState, SoundTrigger } from '../prim.js'
 import type { Vector } from '../values/types.js'
 import { isPrim, type Link } from '../linkset.js'
 import { NULL_KEY } from '../values/types.js'
-import { InventoryType } from '../inventory.js'
 import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, SOUND_LOOP, SOUND_SYNC, SOUND_TRIGGER } from '../generated/constants.js'
 import { sayError } from './debug.js'
+import { soundKey } from '../prim-params.js'
 
-const KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const volume = (value: number) => Math.max(0, Math.min(1, value))
 
 /** Link sounds resolve names in the caller's inventory, before selecting targets. */
 function resolve(ctx: CallContext, name: string): string | undefined {
-  const id = KEY.test(name) ? name : ctx.prim.inventory.find(it => it.name === name && it.type === InventoryType.SOUND)?.key
-  if (id !== undefined && id.toLowerCase() !== NULL_KEY) return id.toLowerCase()
+  const id = soundKey(ctx.prim, name)
+  if (id !== null && id !== NULL_KEY) return id
   sayError(ctx, `Could not find sound '${name}'.`)
   return undefined
 }
