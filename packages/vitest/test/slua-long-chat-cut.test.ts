@@ -9,6 +9,9 @@ import { loadLinkset } from '../src/index.js'
 // The owner's copy of a crash error is cut so the prim's name and the text come to 1151 bytes
 // (slua-error-owner-text.test.ts). Chat a script says is cut to 1024 bytes first, for the owner and for listeners
 // alike, so that cut never applies to it. It does apply to the owner's copy of an error the simulator says.
+//
+// rezless cuts that copy after the error flood cap (flood-cap tests) has had its say, so the flood notice, which is
+// short, is never cut, and an error the cap drops is never shown at all.
 
 const DEBUG_CHANNEL = 2147483647
 const NAME = `probe issue-456 chat${'x'.repeat(43)}`
@@ -91,19 +94,29 @@ describe('long chat from an SLua script under a 63-byte name', () => {
   })
 
   // In-world: "Could not find object '<1100 bytes>'." came to 1125 bytes; the listener heard all of them, and the
-  // owner saw the first 1088, so the prim's name and the text came to 1151 bytes as for a crash error. rezless doesn't
-  // cut the owner's copy of a simulator error yet.
-  it.fails("cuts the owner's copy of a simulator error to fit the prim name", async () => {
+  // owner saw the first 1088, so the prim's name and the text came to 1151 bytes as for a crash error.
+  it("cuts the owner's copy of a simulator error to fit the prim name", async () => {
     const { shown, heard } = await say('n5')
     const error = `Could not find object '${body('N5:', 1100)}'.`
     expect(heard).toEqual([{ channel: DEBUG_CHANNEL, text: error }])
     expect(shown).toEqual([{ channel: DEBUG_CHANNEL, type: 'say', text: error.slice(0, 1088) }])
   })
 
-  // In-world: print showed the owner 1024 bytes as an owner-say from the prim. rezless keeps what a script prints
-  // out of its chat.
-  it.fails('shows the owner what print prints, cut to 1024 bytes', async () => {
+  // In-world: print showed the owner 1024 bytes as an owner-say from the prim.
+  it('shows the owner what print prints, cut to 1024 bytes', async () => {
     const { shown } = await say('n7')
     expect(shown).toEqual([{ channel: 0, type: 'ownerSay', text: body('N7:', 1024) }])
+  })
+
+  it('cuts each simulator error up to the flood notice, which it leaves whole', async () => {
+    const { scripts, linkset } = await loadLinkset({
+      prims: [{ name: NAME, scripts: [{ source: { source: 'for i = 1, 10 do ll.RezObject(string.rep("e", 1100) .. i, ll.GetPos(), ZERO_VECTOR, ZERO_ROTATION, 0) end', filename: 'p.luau', language: 'slua' }, name: 'p', start: false }] }],
+    })
+    scripts.p!.start()
+    linkset.advanceTime(1000)
+    const shown = scripts.p!.chat.map((c) => c.text)
+    expect(shown.length).toBe(9)
+    expect(shown.slice(0, 8)).toEqual(Array.from({ length: 8 }, (_, i) => `Could not find object '${'e'.repeat(1100)}${i + 1}'.`.slice(0, 1088)))
+    expect(shown[8]).toBe('Too many errors... dropping further messages until the flood stops')
   })
 })
