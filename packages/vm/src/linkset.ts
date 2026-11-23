@@ -4,7 +4,7 @@ import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds, playLandSound } from './builtins/collision.js'
-import { copyPhysicalMotion, queueMoving, setVelocity } from './builtins/motion.js'
+import { copyMovingState, copyPhysicalMotion, queueMoving, SELECTION_MS, selectMotion, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import { restepRezzedShape } from './prim-params.js'
@@ -409,7 +409,11 @@ export class Linkset {
     for (const avatar of sitters) this.world!.standAvatar(avatar)
     const unseated = sitters.length > 0
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
-    this.fill(copy, (script, prim) => script.copyTo(prim, { unseated, waiting }))
+    this.fill(copy, (script, prim) => {
+      const copied = script.copyTo(prim, { unseated, waiting })
+      copyMovingState(script, copied)
+      return copied
+    })
     // A copy that joins a world or a rezzer's clock is rezzed or worn; any other is a snapshot.
     if (opts.world || from) for (const prim of copy.prims) restepRezzedShape(prim.params)
     copy.recountScripts()
@@ -427,6 +431,7 @@ export class Linkset {
     if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY) || prim.inventory.some(item => !(item.permMask.owner & PERM_COPY)))) {
       throw new Error('duplicate: the object is no-copy')
     }
+    selectMotion(this, SELECTION_MS.copy)
     const region = this.region
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)

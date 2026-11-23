@@ -34,6 +34,8 @@ function interpolate(a: Rotation, b: Rotation, t: number): Rotation {
   return normalize({x:a.x*u+b.x*v,y:a.y*u+b.y*v,z:a.z*u+b.z*v,s:a.s*u+b.s*v})
 }
 
+type MovingEvent = 'moving_start' | 'moving_end'
+
 /**
  * Raise `event` in every script of the prim's object, root and children alike.
  * In-world: keyframed motion gave moving_start as it began or resumed, and moving_end as it
@@ -41,11 +43,76 @@ function interpolate(a: Rotation, b: Rotation, t: number): Rotation {
  * An llSetRegionPos that moved the object gave moving_start and moving_end together, and
  * llSetPos gave neither. Two llSetRegionPos calls in one handler gave one of each: an event
  * still waiting is not raised again (Aditi, SLua Tideland, 2026-11-23).
+ * `jump` is a move from one place to another, which a script in a handler gets at once.
  */
-function raiseMoving(prim: Prim, event: 'moving_start' | 'moving_end', at: number): void {
+function raiseMoving(prim: Prim, event: MovingEvent, at: number, jump = false): void {
   const linkset = prim.linkset
   if (!linkset || linkset.dead) return
-  for (const script of linkset.allScripts()) queueMoving(linkset.clock, script, event, at)
+  for (const script of linkset.allScripts()) {
+    if (jump) queueMoving(linkset.clock, script, event, at)
+    else raiseFor(linkset.clock, script, event, at)
+  }
+}
+
+/** The moving event each script was last given, and the change it has not been given yet. */
+const given = new WeakMap<Script, MovingEvent>()
+const held = new WeakMap<Script, MovingEvent>()
+
+function hold(script: Script, event: MovingEvent): void {
+  held.set(script, event)
+  const clock = script.linkset.clock
+  clock.holdMoving(script, (when) => {
+    const change = held.get(script)
+    held.delete(script)
+    if (change && change !== (given.get(script) ?? 'moving_end')) queueMoving(clock, script, change, when)
+  })
+}
+
+/** A copy of a script that carries on where it was (not one that starts from the top) knows what it knew. */
+export function copyMovingState(from: Script, to: Script): void {
+  const event = given.get(from), change = held.get(from)
+  if (event) given.set(to, event)
+  if (change) hold(to, change)
+}
+
+/** Whether the object moves, in keyframed motion or physically. */
+function moving(linkset: Linkset): boolean {
+  return !!linkset.prims[0]?.keyframedMotion?.playing || !!physicalMotion.get(linkset)?.moving
+}
+
+/**
+ * A reset script has been told nothing. In-world: keyframed motion started in a handler that
+ * then reset the script, at once or after a 1 s sleep, gave the reset script state_entry and
+ * then moving_start, and moving_end when the motion ended.
+ */
+function forgetMoving(script: Script): void {
+  given.delete(script)
+  held.delete(script)
+  if (!script.dead && moving(script.linkset)) hold(script, 'moving_start')
+}
+
+/**
+ * A script in a handler, running or asleep, gets the change in its object's motion when it wakes
+ * or the handler ends, and only if the object moves otherwise than it was last told.
+ *
+ * In-world: a keyframed motion of 0.2, 0.5, 1 or 2 s that ended inside the sleep its own call
+ * was followed by gave neither event, for sleeps 0.05 to 1.2 s longer than the motion (three
+ * runs each). Physics switched on for a box at rest, or 0.3 m above the platform, gave neither
+ * when the box came to rest inside the sleep, and so did a hop from llApplyImpulse or
+ * llPushObject inside a 3 s sleep. A sleep that ended while the object still moved gave
+ * moving_start after it, and moving_end as the object stopped: a 0.5 s motion in a 0.3 s sleep
+ * and a 0.6 s sleep after it gave both. A llSleep(0.0) before a 1 s sleep gave neither. A 0.01 or
+ * 0.05 s busy loop before the 1 s sleep gave both: a handler that runs on past the call sees the
+ * change too, which rezless cannot show, as its handlers take no time but sleeps (Aditi, SLua
+ * Tideland, 2026-11-23).
+ */
+function raiseFor(clock: LinksetClock, script: Script, event: MovingEvent, at: number): void {
+  if (script.dead) return
+  if (script.handling || script.wakeAt !== undefined) {
+    hold(script, event)
+    return
+  }
+  queueMoving(clock, script, event, at)
 }
 
 /**
@@ -54,8 +121,11 @@ function raiseMoving(prim: Prim, event: 'moving_start' | 'moving_end', at: numbe
  * Start, pause, play and stop gave both, as did start and pause, and start and stop. A
  * moving_start takes away a moving_end that waits.
  */
-export function queueMoving(clock: LinksetClock, script: Script, event: 'moving_start' | 'moving_end', at: number): void {
+export function queueMoving(clock: LinksetClock, script: Script, event: MovingEvent, at: number): void {
   if (script.dead) return
+  // A change queued now replaces one the script was still to be told of.
+  held.delete(script)
+  given.set(script, event)
   if (event === 'moving_start' && script.running) clock.purgeWhere((e) => e.target === script && e.event === 'moving_end')
   if (!clock.hasPending(script, event)) clock.schedule(script, at, event)
 }
@@ -69,7 +139,9 @@ const physicalMotion = new WeakMap<Linkset, PhysicalMotion>()
  * exactly zero from then on. It came 0.09 to 0.13 s after llSetVelocity(ZERO_VECTOR) stopped a
  * floating box, and 0.13 to 0.18 s after physics was switched on for a box resting on the
  * platform. A box floating at 0.04 m/s or more never came to rest; at 0.001 to 0.035 m/s the
- * engine stopped it after 0.8 to 2.2 s. When an object comes to rest is left to the test.
+ * engine stopped it after 0.8 to 2.2 s. Later runs of physics switched on for a box at rest took
+ * longer: 0.78 to 0.83 s in 24 runs (convex and prim physics shapes alike), and 1.6 and 2.0 s for
+ * a box that had rested a while. When an object comes to rest is left to the test.
  */
 export const SETTLE_MS = 133
 
@@ -158,9 +230,106 @@ export function setVelocity(linkset: Linkset, velocity: Vector): void {
   }
 }
 
-/** Object-owned motion. Simulator frame drift and selection pauses are not simulated. */
+/**
+ * A push, an impulse or a move target sets a physical object at rest moving; it comes to rest
+ * when the test sets its velocity to zero. In-world: llApplyImpulse and llPushObject lifting a
+ * physical box resting on the platform gave moving_start 0.04 to 0.07 s after the call, and
+ * moving_end as it landed 0.47 to 0.51 s later; a box another box pushed got moving_start within
+ * 0.1 s and moving_end 0.64 to 1.07 s later. An impulse of ZERO_VECTOR gave moving_start too, and
+ * a few start and end pairs as the box settled. llMoveToTarget 0.5 m up gave moving_start, and
+ * moving_end 2 s later as the box hung at the target; to where the box rested, moving_start and
+ * moving_end 0.35 s later. None of them gave an event for a box that was not physical.
+ */
+export function setMoving(linkset: Linkset): void {
+  const root = linkset.prims[0]
+  if (!root || !(root.statusFlags & STATUS_PHYSICS)) return
+  const state = motionOf(linkset)
+  physicalMotion.set(linkset, state)
+  state.settle?.()
+  state.settle = undefined
+  if (state.moving) return
+  state.moving = true
+  raiseMoving(root, 'moving_start', linkset.clock.now)
+}
+
+/**
+ * Call once `object` is rezzed and its on_rez queued. In-world: a box a script rezzed physical,
+ * with REZ_FLAG_PHYSICAL or from a physical item, got on_rez, moving_start straight after it,
+ * and moving_end as it came to rest on the platform 0.84 to 1.27 s later (here SETTLE_MS later
+ * unless it was rezzed with a velocity). The viewer rezzing a physical item gave the same in two
+ * runs of three. A box a script rezzed not physical with llRezObject, llRezAtRoot or
+ * llRezObjectWithParams got on_rez, moving_start and moving_end, seven runs; one the viewer
+ * rezzed got neither.
+ */
+export function rezzedMoving(object: Linkset, byScript: boolean): void {
+  const root = object.prims[0]
+  if (!root) return
+  if (!(root.statusFlags & STATUS_PHYSICS)) {
+    // In-world: a box whose keyframed motion a script derezzed playing, rezzed again, got on_rez
+    // only and moved on.
+    if (!byScript || root.keyframedMotion?.playing) return
+    raiseMoving(root, 'moving_start', object.clock.now, true)
+    raiseMoving(root, 'moving_end', object.clock.now, true)
+    return
+  }
+  physicalMotion.get(object)?.settle?.()
+  const state: PhysicalMotion = { moving: true }
+  physicalMotion.set(object, state)
+  raiseMoving(root, 'moving_start', object.clock.now)
+  if (still(velocityOf(object))) settleLater(object, state)
+}
+
+/**
+ * How long the viewer holds an object selected. In-world the moving_start came 0.31 to 0.47 s
+ * after an edit or an inspect selected the object (five runs), and 0.54 to 0.86 s after a
+ * Duplicate (three runs) or a Take Copy (one run).
+ */
+export const SELECTION_MS = { edit: 400, copy: 700 } as const
+
+/**
+ * The viewer selects an object to edit, Duplicate or Take it, which pauses its keyframed motion
+ * until the viewer lets go of it. In-world: a looping motion gave moving_end at the selection and
+ * moving_start again when the viewer let go, where the object stayed. A script that paused the
+ * motion in its moving_end handler got the moving_start all the same; one that stopped it got
+ * nothing more, and the motion stayed stopped. The copy, and the object
+ * rezzed from a Take or Take Copy item, stood still with no event, and KFM_CMD_PLAY started its
+ * motion again (Aditi, SLua Tideland, 2026-11-23).
+ */
+export function selectMotion(linkset: Linkset, ms: number): boolean {
+  const motion = linkset.prims[0]?.keyframedMotion
+  if (motion && selecting.has(motion)) return true
+  if (!motion?.playing) return false
+  motion.command(KFM_CMD_PAUSE)
+  selecting.add(motion)
+  const stops = motion.stops
+  linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0]?.keyframedMotion !== motion } },
+    linkset.clock.now + ms, () => {
+      selecting.delete(motion)
+      if (motion.stops === stops) motion.command(KFM_CMD_PLAY)
+    })
+  return true
+}
+
+/** Motion a viewer selection has paused and not let go of yet. */
+const selecting = new WeakSet<KeyframedMotion>()
+
+/**
+ * A copy taken of a selected object holds its motion paused and has been told of no motion:
+ * in-world the object rezzed from the item got on_rez only.
+ */
+export function stillCopy(copy: Linkset): void {
+  for (const script of copy.allScripts()) {
+    copy.clock.purgeWhere((e) => e.target === script && (e.event === 'moving_start' || e.event === 'moving_end'))
+    held.delete(script)
+    given.set(script, 'moving_end')
+  }
+}
+
+/** Object-owned motion. Simulator frame drift is not simulated. */
 export class KeyframedMotion {
   playing = true
+  /** How many times the motion was stopped. */
+  stops = 0
   private completed = false
   private elapsed = 0
   private startedAt: number
@@ -292,7 +461,7 @@ export class KeyframedMotion {
       this.completed=false
       this.held=this.transform()
       this.cancel?.();this.cancel=undefined
-      if (command===KFM_CMD_STOP) { this.elapsed=0;this.rebuild() }
+      if (command===KFM_CMD_STOP) { this.elapsed=0;this.stops++;this.rebuild() }
     } else if (command===KFM_CMD_PLAY && !this.playing) {
       if (this.completed) {
         this.completed=false
@@ -380,8 +549,8 @@ export const llSetRegionPos: BuiltinImpl = (ctx,args) => {
   root.params.position={...target,z:Math.max(target.z,ground)}
   const after=root.params.position
   if (before.x!==after.x || before.y!==after.y || before.z!==after.z) {
-    raiseMoving(root,'moving_start',ctx.state.clock.now)
-    raiseMoving(root,'moving_end',ctx.state.clock.now)
+    raiseMoving(root,'moving_start',ctx.state.clock.now,true)
+    raiseMoving(root,'moving_end',ctx.state.clock.now,true)
   }
   return Number(root.params.position.z-target.z<.1)
 }
@@ -435,6 +604,8 @@ export function clearTargetMotion(script: Script): void {
   const root = script.linkset.prims[0]!, caller = { prim: script.host.key, script: script.instanceId }
   stopTargetMotion(root, 'move', caller)
   stopTargetMotion(root, 'look', caller)
+  // Runs at a reset and a removal.
+  forgetMoving(script)
 }
 
 function lookRotation(position: Vector, target: Vector): Rotation {
@@ -524,7 +695,10 @@ export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
   // In-world: edge-64 moved, edge-64.01 and distance-64.9 did not.
   if (Math.hypot(delta.x, delta.y, delta.z) > 64) return
   root.targetMotion.move = { owner: initiator, target: { ...target }, tau, ...slackOf(held) }
+  setMoving(ctx.linkset)
 }
+// In-world: llStopMoveToTarget gave moving_start when the box fell from the target, and nothing
+// when it rested where it was; the fall is left to the test.
 export const llStopMoveToTarget: BuiltinImpl = ctx => { stopTargetMotion(ctx.linkset.prims[0]!, 'move', owner(ctx)) }
 
 function setLook(ctx: CallContext, target: LookRequest['target'], strength: number, damping: number): void {

@@ -12,9 +12,11 @@ const source = `integer changes; default {
   link_message(integer s, integer n, string m, key id) { llOwnerSay(m); }
   changed(integer c) { changes = changes | c; }
 }`
-const issue = (script: Script, command: string) => script.fire('link_message', {
-  sender_num: 1, num: 0, str: command, id: NULL_KEY,
-})
+// A forced teleport lands about 220 ms after the command (teleport-travel-time.test.ts).
+const issue = (script: Script, command: string) => {
+  script.fire('link_message', { sender_num: 1, num: 0, str: command, id: NULL_KEY })
+  if (command.includes('tpto')) script.linkset.advanceTime(220)
+}
 const landing = { x: 80, y: 90, z: 50 }
 
 it('settles below-ground requests above the configured terrain in both profiles', async () => {
@@ -51,7 +53,8 @@ it('routes to the landing point and facing, and notifies worn objects at the res
     worn.scripts.worn!.start()
     script.start()
     issue(script, '@tpto:Destination/10/20/100;0=force')
-    worn.linkset.advanceTime(0)
+    // The changed event of a region crossing comes 640 ms after the avatar leaves.
+    worn.linkset.advanceTime(640)
     expect(avatar.position).toEqual({ ...landing, z: 60.975 })
     expect(avatar.rotation.z).toBeCloseTo(Math.SQRT1_2)
     expect(worn.linkset.region).toBe('Destination')

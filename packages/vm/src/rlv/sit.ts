@@ -43,7 +43,7 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
       if (!(avatar.info & AGENT_SITTING)) return record('unchanged')
       world.standAvatar(avatar)
       return record('applied')
-    })
+    }, () => 'unchanged')
   }
   if (target === NULL_KEY) {
     if (viewer.profile === 'rlv') {
@@ -60,7 +60,8 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
     // Kokua's sitDown stops flying and checks its locks when it asks for a ground sit from standing.
     if (!seated && viewer.profile === 'rlv' && !kokuaAskGroundSit(world, avatar)) return record('refused', 'restriction')
     return reachRegion(world, avatar, record, () =>
-      forceGroundSit(world, avatar, seated, (outcome, reason) => outcome === 'pending' || record(outcome, reason)))
+      forceGroundSit(world, avatar, seated, (outcome, reason) => outcome === 'pending' || record(outcome, reason)),
+    sameRegion => sameRegion ? undefined : 'refused')
   }
   if (locked('sit') || sitting && (locked('unsit') || viewer.profile === 'rlva' && hasStandtp(avatar))) return record('refused', 'restriction')
   const requested = world.linksets.flatMap(l => l.prims).find(p => p.key.toLowerCase() === target)
@@ -91,11 +92,20 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
 // so a script that sleeps 0.25 s reads the new seat.
 const FORCE_SEAT_DELAY_MS = 225
 
+// In-world: with a force request and @tpto in the same event, the teleport left first. A force sit
+// never landed in six of seven runs within the region, and in the seventh it landed in the frame the
+// avatar left; into the next region it never landed. A force stand found the avatar already stood
+// by the teleport. A ground sit from standing landed at a destination in the same region, and never
+// in another region (Aditi, SLua Tideland and SLua Tombolo, 2026-11-23).
+/** What a teleport does to a request still on its way: an outcome to close it with, or keep it. */
+type Overtaken = (sameRegion: boolean) => Action['actionOutcome'] | undefined
+
 /**
  * The viewer asks the region to sit or stand the avatar and hears back a round
  * trip later, so commands in the same message or event still see the old seat.
  */
-function reachRegion(world: World, avatar: WorldAvatar, record: GroundSitRecord, land: () => void): true {
+function reachRegion(world: World, avatar: WorldAvatar, record: GroundSitRecord, land: () => void,
+  overtaken: Overtaken = () => 'refused'): true {
   const lifetime = avatar.viewer.session.lifetime
   let requests = requestsInFlight.get(lifetime)
   if (!requests) requestsInFlight.set(lifetime, requests = new Set())
@@ -103,20 +113,24 @@ function reachRegion(world: World, avatar: WorldAvatar, record: GroundSitRecord,
     requests.delete(drop)
     if (world.avatars.includes(avatar)) land()
   })
-  const drop = () => { cancel(); record('refused', 'world-constraint') }
+  const drop = (sameRegion: boolean) => {
+    const outcome = overtaken(sameRegion)
+    if (!outcome) return
+    requests.delete(drop)
+    cancel()
+    record(outcome, outcome === 'refused' ? 'world-constraint' : undefined)
+  }
   requests.add(drop)
   return record('pending')
 }
 
-const requestsInFlight = new WeakMap<Readonly<{ dead: boolean }>, Set<() => void>>()
+const requestsInFlight = new WeakMap<Readonly<{ dead: boolean }>, Set<(sameRegion: boolean) => void>>()
 
 /** A teleport moves the avatar away before the region answers a force sit or stand. */
-export function cancelSeatRequests(avatar: WorldAvatar): void {
+export function cancelSeatRequests(avatar: WorldAvatar, sameRegion: boolean): void {
   const requests = requestsInFlight.get(avatar.viewer.session.lifetime)
   if (!requests) return
-  const drops = [...requests]
-  requests.clear()
-  for (const drop of drops) drop()
+  for (const drop of [...requests]) drop(sameRegion)
 }
 
 // In-world: after a ground sit from a seat, the seat's changed handler read the avatar standing
@@ -239,7 +253,7 @@ export function cancelPendingGroundSit(avatar: WorldAvatar): void {
 // to the next region left it standing there.
 /** A script teleport to another region drops the force seating requests the viewer still waits on. */
 export function leaveRegionSeatRequests(avatar: WorldAvatar): void {
-  cancelSeatRequests(avatar)
+  cancelSeatRequests(avatar, false)
   cancelPendingGroundSit(avatar)
 }
 

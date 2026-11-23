@@ -6,7 +6,11 @@ const source = `default {
   state_entry() { llSitTarget(<0,0,0.5>,ZERO_ROTATION); }
   link_message(integer s,integer n,string m,key id) { llOwnerSay(m); }
 }`
-const issue = (script: Script, str: string) => script.fire('link_message', { sender_num: 1, num: 0, str, id: NULL_KEY })
+// A forced teleport lands about 220 ms after the command (teleport-travel-time.test.ts).
+const issue = (script: Script, str: string) => {
+  script.fire('link_message', { sender_num: 1, num: 0, str, id: NULL_KEY })
+  if (str.includes('tpto')) script.linkset.advanceTime(220)
+}
 
 it.each([
   { option: '0x1p2tail', rlv: true, rlva: true, stored: true },

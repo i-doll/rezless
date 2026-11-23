@@ -1,4 +1,5 @@
 import type { Prim } from '../prim.js'
+import type { Script } from '../script.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { ViewerProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
@@ -30,6 +31,10 @@ export interface AvatarBuyAction {
   readonly reason?: string
   readonly restrictions: readonly RlvRestriction[]
 }
+/** `menu: true` models paying through the viewer's Pay menu, offered only when the prim or its root has a running money handler. */
+export interface AvatarPayOptions {
+  readonly menu?: boolean
+}
 const payments = new WeakMap<WorldAvatar, readonly AvatarPayAction[]>()
 const purchases = new WeakMap<WorldAvatar, readonly AvatarBuyAction[]>()
 const sales = new WeakMap<Prim, ObjectSale>()
@@ -56,7 +61,7 @@ function denials(avatar: WorldAvatar, behaviour: 'pay' | 'buy'): readonly RlvRes
 }
 
 /** Inject a completed avatar payment after checking the viewer's payment permission. */
-export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim | WorldAvatar, amount: number): AvatarPayAction {
+export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim | WorldAvatar, amount: number, options: AvatarPayOptions = {}): AvatarPayAction {
   let recipient: string | undefined
   let kind: AvatarPayAction['kind']
   const record = (status: AvatarPayAction['status'], reason?: string, restrictions: readonly RlvRestriction[] = []): AvatarPayAction => {
@@ -87,17 +92,19 @@ export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim
       kind = 'object'
     }
   }
-  const blocks = denials(avatar, kind === 'avatar' ? 'pay' : 'buy')
-  if (blocks.length) return record('blocked', blocks[0]!.behaviour, blocks)
+  const handlers = (p: Prim) => p.scripts.filter(s => s.running && s.handles('money'))
+  let scripts: Script[] = []
   if (prim) {
     const root = prim.linkset!.prims[0]!
-    const payable = (p: Prim) => p.payPrice !== null || p.scripts.some(s => s.running && s.handles('money'))
-    if (!payable(prim) && !payable(root)) return record('unsupported', 'not-payable')
+    scripts = handlers(prim)
+    if (!scripts.length && prim !== root) scripts = handlers(root)
+    if (options.menu && !scripts.length) return record('unsupported', 'not-payable')
   }
+  const blocks = denials(avatar, kind === 'avatar' ? 'pay' : 'buy')
+  if (blocks.length) return record('blocked', blocks[0]!.behaviour, blocks)
   const result = record('paid')
   if (prim) {
     // Queue every recipient before settling so a sleeping handler cannot reorder delivery.
-    const scripts = prim.scripts.filter(s => s.running && s.handles('money'))
     for (const script of scripts) script.clockView.schedule(script.now, 'money', { id: avatar.key, amount })
     prim.linkset!.settle(scripts)
   }
