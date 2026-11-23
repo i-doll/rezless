@@ -178,11 +178,18 @@ function wasmModule(): object {
 /** Every LSL function rezless can answer, by index. */
 const LL_FUNCTIONS: ReadonlyArray<BuiltinSpec> = Object.values(BUILTIN_SPECS as Record<string, BuiltinSpec>)
 
-/** How rz_add_ll registers a function: in `ll` and `llcompat`, or in `llcompat` alone. */
+/**
+ * How rz_add_ll registers a function: in `ll` and `llcompat` (keeping SLua's
+ * own implementation where it has one, or replacing it), or in `llcompat` alone.
+ */
 const enum Register {
   Both = 0,
+  Replace = 1,
   CompatOnly = 2,
 }
+
+/** SLua's own versions of these keep results below the smallest normal float, which Second Life's don't. */
+const REPLACED = new Set(['llPow', 'llAtan2'])
 
 const utf8 = new TextEncoder()
 const fromUtf8 = new TextDecoder()
@@ -261,7 +268,12 @@ export class SluaEngine {
     this.s = x.rz_new()
     // The functions SLua took out of `ll` are still in `llcompat`.
     LL_FUNCTIONS.forEach((spec, fn) =>
-      x.rz_add_ll(this.s, this.cString(spec.name.slice(2)), fn, spec.slua?.removed ? Register.CompatOnly : Register.Both),
+      x.rz_add_ll(
+        this.s,
+        this.cString(spec.name.slice(2)),
+        fn,
+        spec.slua?.removed ? Register.CompatOnly : REPLACED.has(spec.name) ? Register.Replace : Register.Both,
+      ),
     )
     if (memoryLimit > 0) x.rz_set_memory_limit(this.s, memoryLimit)
     // Source and name share one buffer: source, NUL, name, NUL.
@@ -476,7 +488,11 @@ export class SluaEngine {
     const indexParams = new Set(spec.slua?.indexParams ?? [])
     const name = spec.name.slice(2)
     const wanted = spec.params.length
-    if (nargs < wanted) return `Fewer arguments than expected, ${nargs} < ${wanted}`
+    if (nargs < wanted) {
+      // The ones standing in for SLua's own word it as SLua does.
+      if (REPLACED.has(spec.name)) return `missing argument #${nargs + 1} to '${name}' (${EXPECTED[spec.params[nargs]!.type]!} expected)`
+      return `Fewer arguments than expected, ${nargs} < ${wanted}`
+    }
     const args: LslValue[] = []
     for (const [i, p] of spec.params.entries()) {
       const slot = i + 1

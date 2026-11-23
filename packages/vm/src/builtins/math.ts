@@ -15,6 +15,13 @@ export const llFabs: BuiltinImpl = (_ctx, args) => {
   return x < 0 ? -x : x
 }
 
+const FLOAT32_MIN_NORMAL = 2 ** -126
+
+/** A single-precision result below the smallest normal float, as a zero with its sign. */
+const flushTiny = (n: number) => (n !== 0 && Math.abs(Math.fround(n)) < FLOAT32_MIN_NORMAL ? n * 0 : n)
+
+const sluaFlush = (ctx: CallContext, n: number) => (ctx.script.language === 'slua' ? flushTiny(n) : n)
+
 /** C's `result == -0.0`, which is true for either zero: both become +0. */
 const unsignedZero = (n: number): number => (n === 0 ? 0 : n)
 
@@ -37,8 +44,13 @@ export const llCeil: BuiltinImpl = (_ctx, args) =>
 export const llFloor: BuiltinImpl = (_ctx, args) =>
   toIntOrMin(Math.floor((args[0] as number | undefined) ?? 0))
 
-/** llPow, with the Mono 2.x limit cases SLua reproduces. */
-export const llPow: BuiltinImpl = (_ctx, args) => {
+/**
+ * llPow, with the Mono 2.x limit cases SLua reproduces. In SLua a result
+ * below the smallest normal float is a zero with its sign; Mono keeps it.
+ */
+export const llPow: BuiltinImpl = (ctx, args) => sluaFlush(ctx, pow(args))
+
+function pow(args: readonly LslValue[]) {
   const x = (args[0] as number) ?? 0
   const y = (args[1] as number) ?? 0
   if (Number.isNaN(x) || Number.isNaN(y)) return NaN
@@ -59,12 +71,15 @@ export const llCos: BuiltinImpl = (_ctx, args) => Math.cos((args[0] as number) ?
 export const llTan: BuiltinImpl = (ctx, args) => monoZero(ctx, Math.tan((args[0] as number) ?? 0))
 export const llAsin: BuiltinImpl = (_ctx, args) => Math.asin((args[0] as number) ?? 0)
 export const llAcos: BuiltinImpl = (_ctx, args) => Math.acos((args[0] as number) ?? 0)
-/** llAtan2: both arguments infinite gives NaN, and a zero result is +0 (Mono 2.x, as SLua). */
-export const llAtan2: BuiltinImpl = (_ctx, args) => {
+/**
+ * llAtan2: both arguments infinite gives NaN, and a zero result is +0 (Mono 2.x, as SLua).
+ * In SLua a result below the smallest normal float is a zero with its sign.
+ */
+export const llAtan2: BuiltinImpl = (ctx, args) => {
   const y = (args[0] as number) ?? 0
   const x = (args[1] as number) ?? 0
   if (!Number.isFinite(y) && !Number.isFinite(x) && !Number.isNaN(y) && !Number.isNaN(x)) return NaN
-  return unsignedZero(Math.atan2(y, x))
+  return sluaFlush(ctx, unsignedZero(Math.atan2(y, x)))
 }
 export const llLog: BuiltinImpl = (_ctx, args) => {
   const x = (args[0] as number | undefined) ?? 0
@@ -90,11 +105,6 @@ export const llFrand: BuiltinImpl = (ctx, args) => {
 const f32 = Math.fround
 
 const toF32Vector = (v: Vector) => vec(f32(v.x), f32(v.y), f32(v.z))
-
-const FLOAT32_MIN_NORMAL = 2 ** -126
-
-/** A single-precision result below the smallest normal float, as a zero with its sign. */
-const flushTiny = (n: number) => (n !== 0 && Math.abs(f32(n)) < FLOAT32_MIN_NORMAL ? n * 0 : n)
 
 /** A single-precision square as SLua computes it: below the smallest normal float it is zero. */
 const square = (n: number) => {
@@ -210,46 +220,99 @@ export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
 }
 
 /**
- * llEuler2Rot(vector v) → rotation. Measured in Second Life:
- * llEuler2Rot(<0.1, 0.2, 0.3>) turns the x axis to <0.93629, 0.31299, -0.15935>.
+ * Second Life steps each llEuler2Rot angle to 1e-7 degrees through a 64-bit integer. A NaN or
+ * infinite angle, or one too large for that, becomes its lowest value, a turn of about 25.07 degrees.
+ */
+function stepEuler(radians: number) {
+  const steps = Math.floor(radians * f32(RAD_TO_DEG) * 1e7 + 0.5)
+  return f32(f32((Math.abs(steps) < 2 ** 63 ? steps : -(2 ** 63)) / 1e7) * DEG_TO_RAD)
+}
+
+/** A matrix diagonal within this of 1 or -1 counts as exactly that, which clears the rest of its row and column. */
+const AXIS_SNAP = 1e-10
+
+/**
+ * llEuler2Rot(vector v) → rotation. Measured in Second Life: each angle is
+ * stepped to 1e-7 degrees and the rotation goes through a matrix. A diagonal
+ * entry within 1e-10 of 1 or -1 (a turn of 1.414e-5 radians or less about the
+ * other two axes, or that close to a half turn) clears its row and column, so
+ * the small turns about those axes are dropped. The matrix is single
+ * precision when it is turned back into a rotation, which makes s positive,
+ * or when |s| <= 0.5 the largest of x, y, z.
  */
 export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
   const v = args[0] as Vector | undefined
   if (!v) return { x: 0, y: 0, z: 0, s: 1 }
-  const cz = halfAngleTerm(Math.cos, v.z)
-  const sz = halfAngleTerm(Math.sin, v.z)
-  const cy = halfAngleTerm(Math.cos, v.y)
-  const sy = halfAngleTerm(Math.sin, v.y)
-  const cx = halfAngleTerm(Math.cos, v.x)
-  const sx = halfAngleTerm(Math.sin, v.x)
-  const q = rot(
-    sx * cy * cz + cx * sy * sz,
-    cx * sy * cz - sx * cy * sz,
-    cx * cy * sz + sx * sy * cz,
-    cx * cy * cz - sx * sy * sz,
-  )
-  // Second Life goes through a rotation matrix, which makes s positive, or
-  // when |s| <= 0.5 the largest of x, y, z (the first on a tie), and never
-  // gives a negative zero.
-  const xx = q.x * q.x
-  const yy = q.y * q.y
-  const zz = q.z * q.z
-  let sign = q.s
-  if (3 - 4 * (xx + yy + zz) <= 0) sign = zz > Math.max(xx, yy) ? q.z : yy > xx ? q.y : q.x
-  return sign < 0 ? rot(0 - q.x, 0 - q.y, 0 - q.z, 0 - q.s) : rot(q.x + 0, q.y + 0, q.z + 0, q.s + 0)
+  const hx = stepEuler(v.x) / 2
+  const hy = stepEuler(v.y) / 2
+  const hz = stepEuler(v.z) / 2
+  const cx = Math.cos(hx)
+  const sx = Math.sin(hx)
+  const cy = Math.cos(hy)
+  const sy = Math.sin(hy)
+  const cz = Math.cos(hz)
+  const sz = Math.sin(hz)
+  const x = sx * cy * cz + cx * sy * sz
+  const y = cx * sy * cz - sx * cy * sz
+  const z = cx * cy * sz + sx * sy * cz
+  const s = cx * cy * cz - sx * sy * sz
+  const m = [
+    [1 - 2 * (y * y + z * z), 2 * (x * y + z * s), 2 * (x * z - y * s)],
+    [2 * (x * y - z * s), 1 - 2 * (x * x + z * z), 2 * (y * z + x * s)],
+    [2 * (x * z + y * s), 2 * (y * z - x * s), 1 - 2 * (x * x + y * y)],
+  ]
+  for (let i = 0; i < 3; i++) {
+    if (!(1 - Math.abs(m[i]![i]!) < AXIS_SNAP)) continue
+    for (let j = 0; j < 3; j++) {
+      if (j === i) continue
+      m[i]![j] = 0
+      m[j]![i] = 0
+    }
+  }
+  // Single precision from here, with the rows made orthogonal as llRot2Euler makes them.
+  const fwd = unitRow(m[0]!.map(f32) as Row)
+  const row1 = m[1]!.map(f32) as Row
+  const along = dot3(fwd, row1)
+  const left = unitRow([f32(row1[0] - f32(fwd[0] * along)), f32(row1[1] - f32(fwd[1] * along)), f32(row1[2] - f32(fwd[2] * along))])
+  const up: Row = [
+    f32(f32(fwd[1] * left[2]) - f32(fwd[2] * left[1])),
+    f32(f32(fwd[2] * left[0]) - f32(fwd[0] * left[2])),
+    f32(f32(fwd[0] * left[1]) - f32(fwd[1] * left[0])),
+  ]
+  const q = matrixToRotation([fwd, left, up])
+  const rx = f32(q.x) + 0
+  const rz = f32(q.z) + 0
+  const rs = f32(q.s) + 0
+  let ry = f32(q.y) + 0
+  // When s is the largest part, a zero y takes the sign of x * z: <-1.546875, 0, 0> gives y = -0.
+  if (ry === 0 && Math.abs(rs) > Math.max(Math.abs(rx), Math.abs(rz)) && Object.is(rx * rz, -0)) ry = -0
+  return rot(rx, ry, rz, rs)
 }
 
 /**
- * Second Life clears half-angle sines and cosines below this. A turn about one axis of 1.414e-5
- * radians or less gives no rotation, and one of 1.415e-5 does; a turn within 1.398e-5 of PI is
- * exactly a half turn, and one 1.422e-5 short of it isn't. Three small turns together can still
- * give a rotation (<1e-5, 1e-5, 1e-5> does), which this doesn't do.
+ * A rotation matrix (rows are the turned axes) as a rotation: from the trace
+ * when it is positive, otherwise from the largest diagonal entry.
  */
-const HALF_ANGLE_ZERO = 0.00001 * Math.SQRT1_2
-
-function halfAngleTerm(fn: (a: number) => number, angle: number): number {
-  const v = fn(angle * 0.5)
-  return Math.abs(v) < HALF_ANGLE_ZERO ? 0 : v
+function matrixToRotation(m: number[][]): Rotation {
+  const tr = m[0]![0]! + m[1]![1]! + m[2]![2]!
+  if (tr > 0) {
+    const t = Math.sqrt(tr + 1)
+    const k = 0.5 / t
+    return rot((m[1]![2]! - m[2]![1]!) * k, (m[2]![0]! - m[0]![2]!) * k, (m[0]![1]! - m[1]![0]!) * k, t / 2)
+  }
+  let i = 0
+  if (m[1]![1]! > m[0]![0]!) i = 1
+  if (m[2]![2]! > m[i]![i]!) i = 2
+  const j = (i + 1) % 3
+  const k = (j + 1) % 3
+  const q = [0, 0, 0, 0]
+  let t = Math.sqrt(m[i]![i]! - (m[j]![j]! + m[k]![k]!) + 1)
+  q[i] = t * 0.5
+  if (t !== 0) t = 0.5 / t
+  q[3] = (m[j]![k]! - m[k]![j]!) * t
+  q[j] = (m[i]![j]! + m[j]![i]!) * t
+  q[k] = (m[i]![k]! + m[k]![i]!) * t
+  return rot(q[0]!, q[1]!, q[2]!, q[3]!)
 }
 
 function rotationAxis(q: Rotation, axis: Vector): Vector {
@@ -337,9 +400,12 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   const cos = dot3(ua, ub)
   if (cos > PARALLEL_DOT) return rot(0, 0, 0, 1)
   if (cos < -PARALLEL_DOT) {
-    // Summed before rounding: the measured opposite pairs need it.
-    const k = f32(a[0] / f32(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]))
-    const side: Row = [f32(1 - f32(k * a[0])), f32(0 - f32(k * a[1])), f32(0 - f32(k * a[2]))]
+    // A unit vector u along a, from its length in double precision; the axis is u . u - u.x * u.x, -u.y * u.x, -u.z * u.x.
+    const k = f32(1 / Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]))
+    const u: Row = [f32(a[0] * k), f32(a[1] * k), f32(a[2] * k)]
+    const uu = dot3(u, u)
+    const along = f32(u[0] * u[0])
+    const side: Row = [f32(uu - along), f32(0 - f32(u[1] * u[0])), f32(0 - f32(u[2] * u[0]))]
     if (!(f32(Math.sqrt(dot3(side, side))) >= ROT_BETWEEN_MIN_LENGTH)) return rot(0, 0, 1, 0)
     const axis = unitRow(side)
     return rot(axis[0], axis[1], axis[2], 0)
@@ -402,25 +468,8 @@ export const llAxes2Rot: BuiltinImpl = (_ctx, args) => {
     return [u.x, u.y, u.z]
   }
   const m = [row(args[0]), row(args[1]), row(args[2])]
-  const tr = m[0]![0]! + m[1]![1]! + m[2]![2]!
-  if (tr > 0) {
-    const s = Math.sqrt(tr + 1)
-    const k = 0.5 / s
-    return rot((m[1]![2]! - m[2]![1]!) * k, (m[2]![0]! - m[0]![2]!) * k, (m[0]![1]! - m[1]![0]!) * k, s / 2)
-  }
-  let i = 0
-  if (m[1]![1]! > m[0]![0]!) i = 1
-  if (m[2]![2]! > m[i]![i]!) i = 2
-  const j = (i + 1) % 3
-  const k = (j + 1) % 3
-  const q = [0, 0, 0, 0]
-  let s = Math.sqrt(m[i]![i]! - (m[j]![j]! + m[k]![k]!) + 1)
-  q[i] = s * 0.5
-  if (s !== 0) s = 0.5 / s
-  q[3] = (m[j]![k]! - m[k]![j]!) * s
-  q[j] = (m[i]![j]! + m[j]![i]!) * s
-  q[k] = (m[i]![k]! + m[k]![i]!) * s
-  return normalizeRotation(rot(q[0]!, q[1]!, q[2]!, q[3]!))
+  const q = matrixToRotation(m)
+  return m[0]![0]! + m[1]![1]! + m[2]![2]! > 0 ? q : normalizeRotation(q)
 }
 
 const mapColour = (v: LslValue | undefined, fn: (c: number) => number): Vector => {
