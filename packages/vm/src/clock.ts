@@ -520,7 +520,10 @@ export class LinksetClock {
       const tv = ev.target.clockView
       if (ev.event === 'timer' && typeof due === 'number') {
         const passed = ev.payload['__passedAt']
-        tv.timerLate((typeof passed === 'number' ? passed : at) - due)
+        const interval = ev.payload['__interval']
+        // In-world: a held tick that a call let run after more than one interval left no lag.
+        const once = typeof interval !== 'number' || due + interval > at
+        tv.timerLate(once ? (typeof passed === 'number' ? passed : at) - due : 0)
       } else {
         // In-world: a tick that waited behind another handler had the lag it had when that handler started.
         if (tv.timerIntervalMs > 0 && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= at
@@ -687,6 +690,8 @@ export class ScriptClockView {
   private owedWhileStopped = false
   /** When the script was last stopped. */
   private stoppedAtMs = 0
+  /** Whether the script was in a handler, asleep or not, when it was last stopped. */
+  private stoppedInHandler = false
   /** Whether the due tick is the one that follows an owed tick, which a call replaces. */
   private followsOwed = false
   /** Whether an llSetTimerEvent call made the owed tick due, so a later call replaces it. */
@@ -741,7 +746,9 @@ export class ScriptClockView {
 
   /** The script stopped running. */
   stopped(): void {
+    const script = this.self()
     this.stoppedAtMs = this.now
+    this.stoppedInHandler = script.handling || script.wakeAt !== undefined
   }
 
   /** A reset ends the timer and its lag. */
@@ -776,14 +783,13 @@ export class ScriptClockView {
     // A start that missed more than one tick, or whose tick ran after the next was due on the
     // schedule it had, leaves no lag; a tick a call made due always does.
     this.timerLagMs = (bySet || at < this.owedNextMs) && this.owedTickLags ? (passed ?? at) - late : 0
-    // In-world: a script that missed a tick while stopped, then slept in a waiting handler while
-    // another fell due, woke to the caught-up tick and then that one. One stopped and started
-    // during a sleep with no tick missed meanwhile woke to one.
+    if (bySet || !this.owedWhileStopped) return
+    // In-world: after a start that missed more than one tick, the next came an interval after the
+    // start. A script that slept in a waiting handler while that tick fell due woke to the
+    // caught-up tick and then that one. One stopped during its own sleep woke to one.
     const running = kept > this.owedStartMs ? kept : this.owedStartMs + this.timerIntervalMs
-    if (!bySet && this.owedWhileStopped && running <= at) {
-      this.timerNextFireMs = running
-      this.followsOwed = true
-    }
+    this.timerNextFireMs = running
+    this.followsOwed = running <= at
   }
 
   /** A tick ran `ms` after it was due. */
@@ -811,7 +817,7 @@ export class ScriptClockView {
     this.owedBySet = false
     this.timerPassedAt = undefined
     this.owedStartMs = this.now
-    this.owedWhileStopped = lag && this.timerLateDueMs >= this.stoppedAtMs
+    this.owedWhileStopped = lag && !this.stoppedInHandler && this.timerLateDueMs >= this.stoppedAtMs
     this.owedNextMs = this.timerLateDueMs + this.timerIntervalMs
     this.owedTickLags = lag && this.lags && this.owedNextMs > this.now
     this.timerLagMs = this.owedTickLags ? this.now - this.timerLateDueMs : 0
@@ -827,7 +833,7 @@ export class ScriptClockView {
     if (this.timerIntervalMs > 0 && this.timerNextFireMs <= this.now && this.timerLateDueMs === undefined && !this.followsOwed) {
       // Its due time is bookkeeping: a copy in inventory drops it, and with it the lag.
       const passed = this.timerPassedAt === undefined ? {} : { __passedAt: this.timerPassedAt }
-      this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs, ...passed })
+      this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs, __interval: this.timerIntervalMs, ...passed })
     }
     this.followsOwed = false
     this.timerIntervalMs = intervalMs
@@ -903,10 +909,12 @@ export class ScriptClockView {
     // In-world: a worn script detached during a timer lag and worn again had none.
     this.timerLagMs = 0
     this.timerPassedAt = undefined
+    this.followsOwed = false
     for (const e of this.linksetClock.pendingEvents()) {
       if (e.target === this.self() && e.event === 'timer') {
         delete e.payload['__due']
         delete e.payload['__passedAt']
+        delete e.payload['__interval']
       }
     }
   }

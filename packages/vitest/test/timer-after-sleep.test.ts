@@ -11,11 +11,11 @@ import { loadLinkset, NULL_KEY, type Linkset } from '../src/index.js'
 // twice, and most three to six times, with the same result each time.
 
 /** Virtual times, in ms, of each tick while the clock ran for `ms`; two ticks at one time show twice. */
-function tickTimes(linkset: Linkset, ticks: () => number, ms: number): number[] {
+function tickTimes(linkset: Linkset, ticks: () => number, ms: number, step = 50): number[] {
   const out: number[] = []
   let last = ticks()
-  for (let elapsed = 0; elapsed < ms; elapsed += 50) {
-    linkset.advanceTime(50)
+  for (let elapsed = 0; elapsed < ms; elapsed += step) {
+    linkset.advanceTime(step)
     const now = ticks()
     for (; last < now; last++) out.push(linkset.clock.now)
   }
@@ -85,6 +85,8 @@ const timed = `integer ticks; float next;
       else if (n == 2) next = (float)m;
       else if (n == 4) llMinEventDelay((float)m);
       else if (n == 7) llSleep((float)m);
+      else if (n == 9) { llSetTimerEvent(4.0); llSleep((float)m); }
+      else if (n == 10) { llSleep((float)m); llSetTimerEvent(4.0); }
       else if (n == 8) llSetTimerEvent(0.0);
     }
     timer() { ++ticks; if (next > 0.0) { llSetTimerEvent(next); next = 0.0; } }
@@ -97,6 +99,10 @@ const control = `default {
       else if (m == "start") llSetScriptState("t", TRUE);
       else if (llGetSubString(m, 0, 6) == "q+stop:") {
         llMessageLinked(LINK_THIS, 7, llGetSubString(m, 7, -1), "");
+        llSetScriptState("t", FALSE);
+      }
+      else if (llGetSubString(m, 0, 7) == "qs+stop:") {
+        llMessageLinked(LINK_THIS, 9, llGetSubString(m, 8, -1), "");
         llSetScriptState("t", FALSE);
       }
       else {
@@ -119,11 +125,11 @@ async function rig() {
 }
 
 /** A timer of `interval` ms set at 0, a queued `sleep` s handler and a stop at `stopAt`, a start at `startAt`. */
-async function stoppedWithSleep(interval: number, sleep: number, stopAt: number, startAt: number) {
+async function stoppedWithSleep(interval: number, sleep: number, stopAt: number, startAt: number, queue = 'q+stop') {
   const r = await rig()
   r.tell(`1:${interval / 1000}`)
   r.at(stopAt)
-  r.tell(`q+stop:${sleep}`)
+  r.tell(`${queue}:${sleep}`)
   r.at(startAt)
   r.tell('start')
   return r
@@ -164,12 +170,13 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
   it('gives one tick at the wake when it was stopped and started during the sleep', async () => {
     // In-world: a handler set a 3 s timer and slept 10 s. Stopped 4 s in and started at 5 s,
     // 7 s or 8.5 s, it woke at 10 s to one timer event and then ticked every 3 s, in five runs:
-    // a tick missed while it was stopped added none to the one already held.
-    for (const startAt of [5000, 7000, 8500]) {
+    // a tick missed while it was stopped added none to the one already held. Stopped 2 s in,
+    // before any tick, and started at 4 s, it did the same in two runs.
+    for (const [stopAt, startAt] of [[4000, 5000], [4000, 7000], [4000, 8500], [2000, 4000]] as const) {
       const r = await rig()
       r.tell('1:3.0')
       r.tell('7:10.0')
-      r.at(4000)
+      r.at(stopAt)
       r.tell('stop')
       r.at(startAt)
       r.tell('start')
@@ -198,15 +205,35 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
   })
 
   it('leaves the lag of the tick due during the sleep', async () => {
-    // Follows the measured rules: the tick held 1 s past its time with the next still ahead
-    // leaves 1 s of lag, as a fresh start's tick held through one interval does below.
-    const r = await stoppedWithSleep(4000, 4, 1000, 5000)
-    r.at(9100)
-    expect(r.ticks()).toBe(2)
-    r.tell('8:')
-    r.at(9500)
-    r.tell('1:4.0')
-    expect(tickTimes(r.linkset, r.ticks, 4000)).toEqual([12_500])
+    // In-world: the 4 s sleep woke at 9 s to two events; llSetTimerEvent(0) in the second and
+    // llSetTimerEvent(4) 0.6 s after the wake ticked 2.9 s after the call, in two runs. A 6 s
+    // sleep woke at 11 s, and the same call ticked 0.85 s to 0.9 s after it: the tick due at 8 s
+    // left 3 s of lag.
+    for (const [sleep, wake, after] of [[4, 9000, 3000], [6, 11_000, 1000]] as const) {
+      const r = await stoppedWithSleep(4000, sleep, 1000, 5000)
+      r.at(wake + 100)
+      expect(r.ticks()).toBe(2)
+      r.tell('8:')
+      r.at(wake + 600)
+      r.tell('1:4.0')
+      expect(tickTimes(r.linkset, r.ticks, after + 100)).toEqual([wake + 600 + after])
+    }
+  })
+
+  it('ticks an interval after a start that missed several ticks, also during a short sleep', async () => {
+    // In-world: a 1 s timer stopped at 0.25 s and started at 3.75 s with a 0.75 s sleep queued
+    // woke to one timer event, then ticked 1.0 s after the start and every second from there, in
+    // two runs.
+    const r = await stoppedWithSleep(1000, 0.75, 250, 3750)
+    expect(tickTimes(r.linkset, r.ticks, 2100)).toEqual([4500, 4750, 5750])
+  })
+
+  it('gives both ticks when the waiting handler sets the timer before it sleeps', async () => {
+    // In-world: a 4 s timer stopped at 1 s with a handler queued that called llSetTimerEvent(4)
+    // and slept 4 s, started at 5 s, woke at 9 s to two timer events and ticked again at 12 s, in
+    // two runs.
+    const r = await stoppedWithSleep(4000, 4, 1000, 5000, 'qs+stop')
+    expect(tickTimes(r.linkset, r.ticks, 7100)).toEqual([9000, 9000, 12_000])
   })
 })
 
@@ -215,17 +242,32 @@ describe('the lag a held tick leaves', () => {
     // In-world: a 4 s timer and a 5 s sleep in a fresh start ticked at the wake; the timer
     // handler called llSetTimerEvent(0), and llSetTimerEvent(4) 0.55 s later ticked 2.98 s and
     // 3.00 s after the call. With a 1 s or 2 s timer the call ticked 4.0 s after it, in three runs.
-    for (const [interval, after] of [[4, 3000], [2, 4000], [1, 4000]] as const) {
+    // A 2 s timer and a 4 s sleep, held just past two intervals, ticked 4.0 s after the call in
+    // two runs.
+    for (const [interval, sleep, after] of [[4, 5, 3000], [2, 5, 4000], [1, 5, 4000], [2, 4, 4000]] as const) {
       const r = await rig()
       r.tell(`1:${interval}.0`)
-      r.tell('7:5.0')
-      r.at(5000)
+      r.tell(`7:${sleep}.0`)
+      r.at(sleep * 1000)
       expect(r.ticks()).toBe(1)
       r.tell('8:')
-      r.at(5550)
+      r.at(sleep * 1000 + 550)
       r.tell('1:4.0')
-      expect(tickTimes(r.linkset, r.ticks, 4100)).toEqual([5550 + after])
+      expect(tickTimes(r.linkset, r.ticks, 4100)).toEqual([sleep * 1000 + 550 + after])
     }
+  })
+
+  it('does not lag a held tick that a call let run after more than one interval', async () => {
+    // In-world: a 3 s timer and a handler that slept 10 s and then called llSetTimerEvent(4): the
+    // held tick still ran, and llSetTimerEvent(4) in its handler ticked 4.0 s after the call, in
+    // two runs.
+    const r = await rig()
+    r.tell('1:3.0')
+    r.tell('2:4.0')
+    r.tell('10:10.0')
+    r.at(10_000)
+    expect(r.ticks()).toBe(1)
+    expect(tickTimes(r.linkset, r.ticks, 4100)).toEqual([14_000])
   })
 
   it('lags a tick llMinEventDelay held back for less than an interval', async () => {
@@ -261,5 +303,26 @@ describe('the lag a held tick leaves', () => {
     r.tell('4:2.5')
     r.tell('1:2.0')
     expect(tickTimes(r.linkset, r.ticks, 10_100)).toEqual([2500, 5000, 7500, 10_000])
+  })
+})
+
+describe('a timer handler that sleeps', () => {
+  it('ticks as each sleep ends when the sleep is longer than the interval', async () => {
+    // In-world: a 1 s timer whose handler slept 1.5 s ticked every 1.56 s, and one whose handler
+    // slept 1.2 s every 1.27 s: as each handler ended, with the region's own delay on top.
+    for (const sleep of [1.5, 1.2]) {
+      const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `
+        integer ticks;
+        default {
+          state_entry() { llSetTimerEvent(1.0); }
+          timer() { ++ticks; llSleep(${sleep}); }
+        }
+      ` } }] }] })
+      const s = scripts['s']!
+      s.start()
+      // A float sleep runs a fraction of a millisecond over, so read the times to the nearest 10 ms.
+      const times = tickTimes(linkset, () => s.global('ticks') as number, 1000 + 4 * sleep * 1000 + 50, 1)
+      expect(times.map((t) => Math.round(t / 10) * 10)).toEqual([0, 1, 2, 3, 4].map((k) => 1000 + k * sleep * 1000))
+    }
   })
 })

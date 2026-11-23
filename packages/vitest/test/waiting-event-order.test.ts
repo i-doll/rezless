@@ -444,11 +444,13 @@ describe('a timer tick that fell due while a handler slept', () => {
   // In-world (2026-11-23): a 1 s timer, stopped at 0.5 s with a 4 s sleep queued, started at
   // 3.5 s and clicked 1 s later, woke to the caught-up tick, the click and a second tick, 22 ms
   // apart, then ticked every second, in two runs. With llSetTimerEvent(20) in the first tick's
-  // handler it woke to the tick and the click, and no second tick came.
+  // handler it woke to the tick and the click, and no second tick came. With llSetTimerEvent(1)
+  // in the click's handler, no second tick came and the next was 1.0 s after the call.
   it.each([
-    [true, ['timer 8', 'touch']],
-    [false, ['timer 8', 'touch', 'timer 8', 'timer 9', 'timer 10', 'timer 11']],
-  ])('lets the overdue tick of a restarted script go once it has run (reset in its handler: %s)', async (reset, log) => {
+    ['timer', ['timer 8', 'touch']],
+    ['touch', ['timer 8', 'touch', 'timer 9', 'timer 10', 'timer 11']],
+    ['none', ['timer 8', 'touch', 'timer 8', 'timer 9', 'timer 10', 'timer 11']],
+  ])('lets the overdue tick of a restarted script go once it has run (timer set in: %s)', async (where, log) => {
     const f = await fixture()
     const made = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [
       { name: 'main', source: { source: `list log; integer armed; default {
@@ -456,10 +458,10 @@ describe('a timer tick that fell due while a handler slept', () => {
         listen(integer c, string name, key id, string m) { armed = TRUE; llSleep(4.0); }
         timer() {
           log += "timer " + (string)llRound(llGetTime());
-          if (armed && ${reset ? 'TRUE' : 'FALSE'}) llSetTimerEvent(20.0);
+          if (armed && ${where === 'timer' ? 'TRUE' : 'FALSE'}) llSetTimerEvent(20.0);
           if (llGetTime() > 9.5) llSetTimerEvent(0.0);
         }
-        touch_start(integer n) { log += "touch"; } }` } },
+        touch_start(integer n) { log += "touch"; ${where === 'touch' ? 'llSetTimerEvent(1.0);' : ''} } }` } },
       { name: 'ctl', source: { source: 'default { link_message(integer from, integer n, string s, key id) { llSetScriptState("main", n); } }' } },
     ] }] })
     const [main, ctl] = [made.scripts.main!, made.scripts.ctl!]
