@@ -165,14 +165,18 @@ export function leaveDamageEvent(payload: Record<string, unknown>): void {
 /**
  * A state change inside on_damage ends that script's part at once: the damage goes on
  * without waiting for state_exit or state_entry, and the script gets no final_damage.
+ * True when the script was taking part in a damage.
  */
-export function leaveDamageOnStateChange(script: Script): void {
+export function leaveDamageOnStateChange(script: Script): boolean {
+  let left = false
   for (const delivery of deliveries.get(script.linkset.clock) ?? []) {
     if (delivery.script === script && delivery.active) {
       delivery.damage.noFinal.add(script)
       delivery.complete()
+      left = true
     }
   }
+  return left
 }
 
 /** Release a barrier when reset, state change, death or queue overflow drops its event. */

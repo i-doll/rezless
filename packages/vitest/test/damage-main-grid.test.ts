@@ -157,6 +157,23 @@ describe('which key takes damage', () => {
     expect(reader.global('link')).toBe(0)
   })
 
+  // In-world: a source with no damage handlers read type 12 (SCRIPTED | PASSIVE) while it was not
+  // physical and 10 (SCRIPTED | ACTIVE) after llSetStatus(STATUS_PHYSICS, TRUE), in both
+  // on_damage and final_damage.
+  it.each([[false, 12], [true, 10]])('reports a source that is physical: %s as llDetectedType %i', async (physical, type) => {
+    const world = combatWorld()
+    const target = await object(world, { t: `integer onType; integer finalType; default {
+      on_damage(integer n) { onType = llDetectedType(0); }
+      final_damage(integer n) { finalType = llDetectedType(0); }
+    }` })
+    const shooter = await object(world, { gun: `default { touch_start(integer n) {
+      llSetStatus(STATUS_PHYSICS, ${physical ? 'TRUE' : 'FALSE'}); llDamage("${target.linkset.prims[0]!.key}", 1.0, 0);
+    } }` })
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    expect([target.scripts.t!.global('onType'), target.scripts.t!.global('finalType')]).toEqual([type, type])
+  })
+
   // In-world: damage aimed at the child prim's key reached nobody.
   it('not a child prim', async () => {
     const world = combatWorld()
@@ -230,8 +247,8 @@ describe('llAdjustDamage outside on_damage', () => {
 describe('a state change inside on_damage', () => {
   // In-world: a script whose on_damage changed state said the error from state_exit and from
   // state_entry, read no llDetectedDamage in either, and never got final_damage. The other
-  // script in the object got final_damage with the damage unadjusted before state_exit ran, and
-  // a worn pair of the same scripts still cost the avatar the damage.
+  // script in the object got final_damage with the damage unadjusted 46 ms before state_exit
+  // ran, and a worn pair of the same scripts still cost the avatar the damage.
   const changer = `list log;
     ${DD}
     default {
@@ -253,6 +270,26 @@ describe('a state change inside on_damage', () => {
     expect(target.scripts.changer!.global('log')).toEqual(['exit ', 'entry '])
     expect(debugChat(target.scripts.changer!)).toEqual([ERROR, ERROR])
     expect(target.scripts.recorder!.global('log')).toEqual(['on 1 12,5,12', 'final 1 12,5,12 12,5,12'])
+  })
+
+  it('lets the other scripts\' final_damage run before state_exit', async () => {
+    const world = combatWorld()
+    const target = await object(world, {
+      changer: `default {
+        on_damage(integer n) { state two; }
+        state_exit() { llRegionSay(9, "exit"); }
+      }
+      state two { state_entry() { llRegionSay(9, "entry"); } }`,
+      other: `default { final_damage(integer n) { llRegionSay(9, "final"); } }`,
+    })
+    const ear = await object(world, { ear: `list heard; default {
+      state_entry() { llListen(9, "", NULL_KEY, ""); }
+      listen(integer c, string n, key id, string m) { heard += m; }
+    }` })
+    const shooter = await object(world, { gun: gun(target.linkset.prims[0]!.key, 12) })
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 1000)
+    expect(ear.scripts.ear!.global('heard')).toEqual(['final', 'exit', 'entry'])
   })
 
   it('still applies the damage to the avatar', async () => {
