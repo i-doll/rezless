@@ -110,7 +110,7 @@ function repeater(clock: LinksetClock) {
 }
 
 function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<DetectedEntry>): void {
-  if (s.handles(event)) s.linkset.clock.schedule(s, s.linkset.clock.now, event, { num_detected: 1, detected })
+  if (s.handles(event)) s.linkset.clock.scheduleTouch(s, event, { num_detected: 1, detected })
 }
 
 const raising = (s: Script) => !s.dead && s.running && s.linkset.peers.includes(s.linkset)
@@ -140,7 +140,7 @@ function armTouches(clock: LinksetClock): void {
  * touch 0.022 s after touch_start and then every 0.044 s, two simulator frames. Under
  * llMinEventDelay(1.0) the first touch still came 0.022 s after touch_start, the next 1.0 s
  * after touch_start, and each after that a second after the touch before it, whatever the
- * timer did; the rest were dropped.
+ * timer did; the ones in between merged into the waiting one.
  */
 function raiseHeldTouches(clock: LinksetClock): void {
   for (const s of repeater(clock).scripts) {
@@ -149,7 +149,6 @@ function raiseHeldTouches(clock: LinksetClock): void {
       if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
       click.dueAt += TOUCH_REPEAT_MS
       if (!s.handles('touch')) continue
-      if (s.clockView.minEventDelayMs > 0 && (clock.hasPending(s, 'touch') || s.clockView.touchHeldBack())) continue
       click.touched = true
       scheduleTouch(s, 'touch', click.detected)
     }
@@ -816,10 +815,11 @@ export class Linkset {
         ...(opts.binormal && { touchBinormal: opts.binormal }),
       },
     ]
-    // Under llMinEventDelay a script holds one waiting click; it drops the others.
-    const dropped = new Set(
-      receivers.filter((s) => s.clockView.minEventDelayMs > 0 && this.clock.hasPending(s, 'touch_start')),
-    )
+    // Under llMinEventDelay a script holds one waiting click; another avatar's click is dropped,
+    // and the same avatar's merges into it.
+    const waitingStart = (s: Script) => this.clock.pendingEvents().some((e) => e.target === s && e.event === 'touch_start' &&
+      (e.payload['detected'] as ReadonlyArray<DetectedEntry> | undefined)?.[0]?.key.toLowerCase() !== by)
+    const dropped = new Set(receivers.filter((s) => s.clockView.minEventDelayMs > 0 && waitingStart(s)))
     const live = (s: Script) => s.running && !s.dead
     const clicked = receivers.filter((s) => !dropped.has(s) && live(s))
     const clicks = new Map<Script, HeldTouch>()
