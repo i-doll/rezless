@@ -222,7 +222,8 @@ describe('animation name resolution', () => {
 describe('animation permission gates', () => {
   // In-world: animation.lsl stages 1-5: no-permission calls returned empty
   // values or did nothing, with no error on either DEBUG_CHANNEL listener.
-  it('silently rejects calls without permissions before checking their arguments', async () => {
+  // The errors go to the owner alone (see animation-permission-errors.test.ts).
+  it('rejects calls without permissions before checking their arguments', async () => {
     const s = await load(`
       llStartAnimation("missing"); llStopAnimation("missing");
       llSetAnimationOverride("bad state", "missing");
@@ -232,11 +233,18 @@ describe('animation permission gates', () => {
     s.linkset.touch(0)
     expect(s.global('got')).toEqual([''])
     expect(s.getPlayingAnimations(AGENT)).toEqual([])
-    expect(errors(s)).toEqual([])
+    expect(errors(s)).toEqual([
+      'Script trying to trigger animations but PERMISSION_TRIGGER_ANIMATION permission not set',
+      'Script trying to stop animations but PERMISSION_TRIGGER_ANIMATION permission not set',
+      'llSetAnimationOverride error: PERMISSION_OVERRIDE_ANIMATIONS permission not set',
+      'llResetAnimationOverride error: PERMISSION_OVERRIDE_ANIMATIONS permission not set',
+      'llGetAnimationOverride error: neither PERMISSION_OVERRIDE_ANIMATIONS or PERMISSION_TRIGGER_ANIMATION permissions are set',
+    ])
   })
 
   // In-world: resolution.lsl: Standing was set to walk; after a new grant
-  // of trigger only, reset ALL left it at walk and produced no debug error.
+  // of trigger only, reset ALL left it at walk, and a DEBUG_CHANNEL listener
+  // heard nothing. The owner is told (see animation-permission-errors.test.ts).
   it('does not reset an existing override after losing override permission', async () => {
     const s = await load(`
       if (llGetPermissions() & PERMISSION_OVERRIDE_ANIMATIONS) {
@@ -253,7 +261,7 @@ describe('animation permission gates', () => {
     s.linkset.touch(0)
     expect(s.global('got')).toEqual(['walk'])
     expect(s.getPlayingAnimations(AGENT)).toContain(SIT)
-    expect(errors(s)).toEqual([])
+    expect(errors(s)).toEqual(['llResetAnimationOverride error: PERMISSION_OVERRIDE_ANIMATIONS permission not set'])
   })
 
   it('cannot stop an animation with only override permission', async () => {
@@ -266,7 +274,7 @@ describe('animation permission gates', () => {
     s.grantPermissions(PERMISSION_OVERRIDE_ANIMATIONS)
     s.linkset.touch(0)
     expect(s.getPlayingAnimations(AGENT)).toContain(SIT)
-    expect(errors(s)).toEqual([])
+    expect(errors(s)).toEqual(['Script trying to stop animations but PERMISSION_TRIGGER_ANIMATION permission not set'])
   })
 })
 
