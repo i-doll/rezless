@@ -167,7 +167,7 @@ s.sendGameControl(agent, { buttons?, axes? })    // deliver raw input plus a sem
 s.setCamera({ pos?, rot?, fov?, aspect? })      // set the camera llGetCameraPos / Rot / FOV / Aspect report
 s.setAnimationState(avatar, "Standing")          // register an avatar in this region and set its locomotion state
 s.mock(name, impl)                              // override any ll* function (real or stubbed) per-test
-s.reset()                                       // re-init globals + return to default + state_entry
+s.reset()                                       // the owner's Reset: re-init globals, default state, state_entry; a crashed script runs again, a stopped one waits for its start
 
 // Inspect
 s.currentState                                  // current LSL state name
@@ -278,7 +278,9 @@ working — they're just scoped to one script in a larger system.
 Chat a script sends reaches matching `listen` handlers in other prims, named
 and keyed after the sending prim. `llWhisper`, `llSay` and `llShout` reach
 prims within 10, 20 and 100 m of the sending prim, and so do its
-`DEBUG_CHANNEL` errors, which are said. `llRegionSay` reaches every prim in the
+`DEBUG_CHANNEL` errors, which are said. The errors of `llSetPrimitiveParams`
+and its link variants, and of the pathfinding calls made with no character, go
+to the owner only: they are in `s.chat`, but no script hears them. `llRegionSay` reaches every prim in the
 region. `llRegionSayTo` reaches only the prim with the target key, or, when
 targeting an avatar on a nonzero channel, matching listens in every attachment
 that avatar wears in the sender's region. Channel 0 to an avatar reaches no

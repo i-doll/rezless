@@ -1319,7 +1319,7 @@ const RULE_CONSTANTS: Readonly<Record<string, number>> = {
   PRIM_REFLECTION_PROBE, PRIM_PROJECTOR, PRIM_FLEXIBLE, PRIM_SIT_TARGET, PRIM_TYPE, PRIM_COLOR,
   PRIM_TEXTURE, PRIM_RENDER_MATERIAL, PRIM_FULLBRIGHT, PRIM_GLOW, PRIM_BUMP_SHINY, PRIM_TEXGEN,
   PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE, PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL,
-  PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE,
+  PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE, PRIM_LINK_TARGET,
 }
 const RULE_NAMES = new Map(Object.entries(RULE_CONSTANTS).map(([name, value]) => [value, name]))
 
@@ -1347,35 +1347,122 @@ function typeAccepts(param: number, expected: LslType, given: LslType): boolean 
 /** `%g`-style number text, as the simulator prints it in error messages. */
 const formatG = (v: number): string => String(Number(v.toPrecision(6)))
 
+const SHAPE_NAMES: Readonly<Record<number, string>> = {
+  [PRIM_TYPE_BOX]: 'PRIM_TYPE_BOX', [PRIM_TYPE_CYLINDER]: 'PRIM_TYPE_CYLINDER', [PRIM_TYPE_PRISM]: 'PRIM_TYPE_PRISM',
+  [PRIM_TYPE_SPHERE]: 'PRIM_TYPE_SPHERE', [PRIM_TYPE_TORUS]: 'PRIM_TYPE_TORUS', [PRIM_TYPE_TUBE]: 'PRIM_TYPE_TUBE',
+  [PRIM_TYPE_RING]: 'PRIM_TYPE_RING', [PRIM_TYPE_SCULPT]: 'PRIM_TYPE_SCULPT',
+}
+
+const MAP_LABELS = ['texture repeat', 'texture offset', 'texture rotation']
+const PATH_LABELS = ['hole type', 'cut', 'hollow', 'twist']
+const LOOP_LABELS = [...PATH_LABELS, 'hole size', 'top shear', 'advanced cut', 'taper', 'revolutions', 'radius offset', 'skew']
+
+/** The name the simulator gives each value of a rule in its error messages; most rules give none. */
+const ARG_LABELS: Readonly<Record<number, ReadonlyArray<string>>> = {
+  [PRIM_TEXT]: ['text', 'color', 'alpha'],
+  [PRIM_COLOR]: ['face number', 'color', 'alpha'],
+  [PRIM_TEXTURE]: ['face number', 'texture name', ...MAP_LABELS],
+  [PRIM_RENDER_MATERIAL]: ['face number', 'render material name'],
+  [PRIM_FULLBRIGHT]: ['face number', 'fullbright'],
+  [PRIM_GLOW]: ['face number', 'glow'],
+  [PRIM_BUMP_SHINY]: ['face number', 'shininess', 'bump mapping'],
+  [PRIM_TEXGEN]: ['face number', 'generation mode'],
+  [PRIM_NORMAL]: ['face number', 'normal texture name', ...MAP_LABELS],
+  [PRIM_SPECULAR]: ['face number', 'specular texture name', ...MAP_LABELS, 'color', 'glossy', 'environment'],
+  [PRIM_ALPHA_MODE]: ['face number', 'alpha mode', 'alpha mask cutoff'],
+  [PRIM_GLTF_BASE_COLOR]: ['face number', 'texture name', ...MAP_LABELS, 'color', 'alpha', 'alpha mode', 'alpha mask cutoff', 'double sided'],
+  [PRIM_GLTF_NORMAL]: ['face number', 'normal texture name', ...MAP_LABELS],
+  [PRIM_GLTF_METALLIC_ROUGHNESS]: ['face number', 'normal texture name', ...MAP_LABELS, 'metallic factor', 'roughness factor'],
+  [PRIM_GLTF_EMISSIVE]: ['face number', 'emissive texture name', ...MAP_LABELS, 'color'],
+}
+
+function shapeLabels(kind: number): ReadonlyArray<string> {
+  if (kind === PRIM_TYPE_SCULPT) return ['texture', 'type']
+  if (kind === PRIM_TYPE_SPHERE) return [...PATH_LABELS, 'dimple']
+  if (kind === PRIM_TYPE_TORUS || kind === PRIM_TYPE_TUBE || kind === PRIM_TYPE_RING) return LOOP_LABELS
+  return [...PATH_LABELS, 'top size', 'top shear']
+}
+
+/** A type as the simulator names it in an error message. */
+function typeName(param: number, type: LslType): string {
+  if (type === 'rotation') return 'quaternion'
+  if (type === 'key' || (type === 'string' && !STRING_ONLY_RULES.has(param))) return 'string or key'
+  return type
+}
+
+/** The rules a set call can apply to a seated avatar. */
+const AGENT_RULES: ReadonlySet<number> = new Set([PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL])
+
+/** What the simulator says about a rule: an error that ends the call, or a bounds error that skips only the rule. */
+export interface PrimRuleError {
+  readonly text: string
+  readonly ends: boolean
+}
+
+const SET_ERROR = 'llSetPrimitiveParams error running rule #'
+
+function bounds(rule: number, name: string, value: number, high: number): PrimRuleError {
+  return { text: `${SET_ERROR}${rule} (${name}): bounds error; ${formatG(value)} is not in (0, ${high}).`, ends: false }
+}
+
 /**
- * Check the PRIM_* rule at `rules[index]` of a set call before it is applied.
- * Returns null if the rule can run. Otherwise the call ends there, and the
- * result is the error text that follows "rule #N" in the simulator's message
- * (e.g. " (PRIM_SIZE): arg #1 vector expected but string given"), or "" when
- * the call ends without one.
+ * Check the PRIM_* rule at `rules[index]` of a set call before it is applied,
+ * `rule` being its 1-based position. Returns null if the rule can run, or
+ * what the simulator says. Every set function words its errors as
+ * llSetPrimitiveParams. `toAgent` is set when the rule goes to a seated
+ * avatar, which takes only the position and rotation rules.
  */
-export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number): string | null {
-  if (givenType(rules, index) !== 'integer') return ': unknown rule'
+export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number, rule: number, toAgent = false): PrimRuleError | null {
+  const fail = (text: string): PrimRuleError => ({ text: `${SET_ERROR}${rule}${text}.`, ends: true })
+  if (givenType(rules, index) !== 'integer') return fail(': non-integer rule')
   const param = rules[index] as number
-  const cursor = index + 1
-  if (param === PRIM_LINK_TARGET) return cursor < rules.length && givenType(rules, cursor) === 'integer' ? null : ''
-  const name = RULE_NAMES.get(param)
-  if (name === undefined) return ': unknown rule'
-  const slots = writePrimParamSlots(param, rules, cursor)
-  if (slots === null) return param === PRIM_TYPE ? null : ': unknown rule'
-  if (cursor + slots > rules.length) return ''
-  const pattern = param === PRIM_TYPE ? primTypeTypes(rules[cursor]) : PRIM_PARAM_TYPES[param]!
-  const expected = PER_FACE_RULES.has(param) ? ['integer' as const, ...pattern] : pattern
-  for (let i = 0; i < expected.length; i++) {
+  let name = RULE_NAMES.get(param)
+  if (name === undefined) return fail(': unknown rule')
+  if (toAgent && param !== PRIM_LINK_TARGET && !AGENT_RULES.has(param)) {
+    return { text: `llSetPrimitiveParams warning running rule #${rule} (${name}): ${name} disallowed on agent.`, ends: true }
+  }
+  let cursor = index + 1
+  let pattern: ReadonlyArray<LslType>
+  let labels: ReadonlyArray<string>
+  if (param === PRIM_TYPE) {
+    if (cursor >= rules.length) return fail(': missing prim type')
+    if (givenType(rules, cursor) !== 'integer') return fail(': need integer prim type')
+    const kind = rules[cursor] as number
+    if (SHAPE_NAMES[kind] === undefined) return null
+    name = SHAPE_NAMES[kind]!
+    pattern = primTypeTypes(kind).slice(1)
+    labels = shapeLabels(kind)
+    cursor++
+  } else if (param === PRIM_LINK_TARGET) {
+    pattern = ['integer']
+    labels = []
+  } else {
+    pattern = PER_FACE_RULES.has(param) ? ['integer', ...PRIM_PARAM_TYPES[param]!] : PRIM_PARAM_TYPES[param]!
+    labels = ARG_LABELS[param] ?? []
+  }
+  for (let i = 0; i < pattern.length; i++) {
+    const arg = ` (${name}): arg #${i + 1}${labels[i] ? ` (${labels[i]})` : ''}`
+    if (cursor + i >= rules.length) return fail(`${arg} is missing`)
     if (i > 0 && GLTF_RULES.has(param) && rules[cursor + i] === '') continue
     const given = givenType(rules, cursor + i)
-    if (!typeAccepts(param, expected[i]!, given)) {
-      return ` (${name}): arg #${i + 1} ${expected[i]} expected but ${given} given`
+    if (!typeAccepts(param, pattern[i]!, given)) {
+      return fail(`${arg} ${typeName(param, pattern[i]!)} expected but ${given === 'rotation' ? 'quaternion' : given} given`)
     }
   }
-  if (param === PRIM_GLOW) {
-    const glow = num(rules[cursor + 1])
-    if (glow < 0 || glow > 1) return ` (${name}): bounds error; ${formatG(glow)} is not in (0, 1)`
+  const value = (i: number) => num(rules[cursor + i])
+  if (param === PRIM_GLOW && (value(1) < 0 || value(1) > 1)) return { ...bounds(rule, name, value(1), 1), ends: true }
+  if (param === PRIM_MATERIAL && (value(0) < PRIM_MATERIAL_STONE || value(0) > PRIM_MATERIAL_LIGHT)) {
+    return bounds(rule, name, value(0), PRIM_MATERIAL_LIGHT)
+  }
+  if (param === PRIM_FULLBRIGHT && value(1) !== 0 && value(1) !== 1) return bounds(rule, name, value(1), 1)
+  if (param === PRIM_TEXT) {
+    const color = rules[cursor + 1] as Vector
+    const wrong = [color.x, color.y, color.z, value(2)].find((v) => v < 0 || v > 1)
+    if (wrong !== undefined) return bounds(rule, name, wrong, 1)
+  }
+  if (param === PRIM_PHYSICS_SHAPE_TYPE) {
+    if (value(0) < PRIM_PHYSICS_SHAPE_PRIM) return { text: 'ERROR: Failed to set physics shape type. Unexpected behavior may result.', ends: false }
+    if (value(0) > PRIM_PHYSICS_SHAPE_CONVEX) return { text: 'Invalid physics shape type requested.', ends: false }
   }
   return null
 }

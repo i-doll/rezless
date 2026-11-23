@@ -464,8 +464,8 @@ describe('llRemoveInventory (measured in Second Life)', () => {
       } }`,
     })
     s.start()
-    // Not measured: owner chat after a removal is only visible in the owner's viewer. This follows the measured llDie rule
-    // (a loop iteration halts) and keeps a removed script from looping forever.
+    // In-world (Aditi, 2026-11-23): removed before a loop, the script showed the first turn's owner chat and stopped.
+    // Removed partway through a loop it raced, sometimes running to the end (owner-error-chat.test.ts).
     expect(s.chat.map((c) => c.text)).toEqual(['0'])
     expect(s.host.scripts).toHaveLength(0)
   })
