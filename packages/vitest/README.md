@@ -3006,13 +3006,20 @@ preserving the avatar's active group and membership data.
 `fixture.pay(target, amount)` and `world.attemptAvatarPay(avatar, target, amount)`
 inject a completed payment after checking the payer's viewer restrictions.
 The target is a live `Prim` or an avatar in the same World. Amounts are integers
-from zero through 2147483647. An allowed object payment queues `money(id, amount)`
-on the selected prim's running handlers. The recipient is the object's owner.
+from zero through 2147483647. The recipient of an object payment is the object's
+owner, as Second Life pays it, whether or not any script takes money.
+It queues `money(id, amount)` on the paid prim's running handlers, or on the
+root's running handlers when the paid prim has none. A payment to a root never
+reaches a child's handler.
 A payment through an attachment goes to its wearer and sends no attachment event.
 `fixture.payActions` records `paid`, `blocked`, and `unsupported` outcomes,
 including the target, effective recipient, amount and deciding restrictions.
-Pay-price settings and running money handlers supply object pay eligibility.
-Payment injection does not simulate the pay dialog or validate its button choices.
+
+Pass `{ menu: true }` as the last argument to pay through the viewer's Pay menu
+instead. The menu offers Pay only when the prim or its root has a running money
+handler; otherwise the payment is `unsupported` with reason `not-payable`.
+`llSetPayPrice` alone doesn't make the menu offer Pay. Payment injection doesn't
+validate the dialog's button choices.
 
 `world.setObjectSale(prim, { type: 'original' | 'copy' | 'contents', price })`
 sets sale information on the object's root. Pass `null` to clear it.

@@ -81,10 +81,10 @@ export const RLV_MANIFEST: {
         rlva: { ...firestorm('rlvactions.cpp', ['RlvActions::canBuyObject', 'RlvActions::canPayObject', 'RlvActions::canPayAvatar'],
           behaviour === 'pay'
             ? 'No-option pay denies avatar payments. Attachment payments target their wearer without money events on the attachment. Add/remove aliases and per-issuer clear apply; options, secure variants and force forms are unsupported.'
-            : 'No-option buy denies payments to objects and purchase requests for original, copy and contents sale types at every price. Allowed injected object payments deliver money to the selected prim. Purchases capture sale type and price without money events; balances, settlement and inventory transfers are external. Options, secure variants and force forms are unsupported.'),
+            : 'No-option buy denies payments to objects and purchase requests for original, copy and contents sale types at every price. Allowed injected object payments deliver money to the running handlers of the paid prim, or of the root when the paid prim has none. Purchases capture sale type and price without money events; balances, settlement and inventory transfers are external. Options, secure variants and force forms are unsupported.'),
           support: 'enforced' as const, coveredForms: [`@${behaviour}=n|add|y|rem`],
           commandForms: [{ behaviour, type: 'add' as const, support: 'enforced' as const, option: 'none' as const }] },
-      }, tests: [...tests, 'packages/vitest/test/rlv-pay.test.ts'],
+      }, tests: [...tests, 'packages/vitest/test/rlv-pay.test.ts', 'packages/vitest/test/pay-object.test.ts'],
     })),
     {
       id: 'setgroup', forms: ['@setgroup=n|add|y|rem', '@setgroup:<group>=force', '@setgroup:<group>;<role>=force'], comparison: 'confirmed difference',
