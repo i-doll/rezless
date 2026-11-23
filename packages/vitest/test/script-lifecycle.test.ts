@@ -731,6 +731,28 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([4000, 8000])
   })
 
+  it('has no lag from a kept tick that waited through a detach', async () => {
+    // Follows the measured detach and wear, which left no lag.
+    const owner = '11111111-1111-1111-1111-111111111111'
+    const { t, tell, linkset } = await rig({ source: timed }, undefined, owner)
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    linkset.attachToAvatar(owner, 6)
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:0:')
+    linkset.advanceTime(500)
+    tell('msg:7:')
+    linkset.advanceTime(6500)
+    linkset.detachFromAvatar()
+    linkset.advanceTime(10_000)
+    linkset.attachToAvatar(owner, 6)
+    linkset.advanceTime(5000)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    const start = linkset.clock.now
+    expect(changes(linkset, ticks, 10_500).map((at) => at - start)).toEqual([10_000])
+  })
+
   it('has no lag in a crashed script that comes back in a rez', async () => {
     // In-world: llSetTimerEvent(4) at 0 s, a Math Error at 1 s, the object taken
     // 6.5 s in and rezzed 2.5 s later. The overdue tick came 70 ms after

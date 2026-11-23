@@ -772,6 +772,13 @@ export class ScriptClockView {
     this.inventorySince = this.now
     // In-world: a worn script detached during a timer lag and worn again had none.
     this.timerLagMs = 0
+    this.timerPassedAt = undefined
+    for (const e of this.linksetClock.pendingEvents()) {
+      if (e.target === this.self() && e.event === 'timer') {
+        delete e.payload['__due']
+        delete e.payload['__passedAt']
+      }
+    }
   }
 
   /** Restore saved timer phase; lifecycle events must already be queued. */
