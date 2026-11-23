@@ -57,6 +57,11 @@ function regenerate(holder: object, health: number, now: number, start: number):
   return result
 }
 
+/** A world avatar's health, caught up with regeneration. */
+export function worldAvatarHealth(avatar: WorldAvatar, now: number): number {
+  return avatar.objectDetails.health = regenerate(avatar, avatar.objectDetails.health ?? 100, now, 0)
+}
+
 function worldAvatar(ctx: CallContext, id: string): WorldAvatar | undefined {
   return ctx.linkset.world?.avatars.find((a) => a.key.toLowerCase() === id)
 }
@@ -84,7 +89,7 @@ function combatant(ctx: CallContext, id: string): Combatant | undefined {
       .filter((l) => !l.dead && l.attachment?.avatar.toLowerCase() === id)
       .flatMap((l) => l.allScripts()),
     seat,
-    health: (now) => avatar.objectDetails.health = regenerate(avatar, avatar.objectDetails.health ?? 100, now, 0),
+    health: (now) => worldAvatarHealth(avatar, now),
     setHealth: (health) => { avatar.objectDetails.health = health; regeneratedAt.set(avatar, { at: ctx.linkset.clock.now, health }) },
   }
 }
@@ -117,6 +122,8 @@ interface Damage {
   readonly seatEntries: DetectedEntry[]
   riderEntries: DetectedEntry[]
   phase: 'seat' | 'riders' | 'done'
+  /** The phase whose handlers were asked first; a new hit can join only while it lasts. */
+  joinPhase: 'seat' | 'riders' | 'done'
   pending: Delivery[]
   /** Scripts that changed state in their handler, which costs them the final_damage. */
   readonly noFinal: Set<Script>
@@ -253,7 +260,7 @@ function queueFinal(clock: LinksetClock, script: Script, entries: readonly Detec
  * started handling it.
  */
 function joinable(damage: Damage | undefined, clock: LinksetClock): damage is Damage {
-  if (!damage || damage.at !== clock.now || damage.phase !== (damage.seat ? 'seat' : 'riders')) return false
+  if (!damage || damage.at !== clock.now || damage.phase === 'done' || damage.phase !== damage.joinPhase) return false
   const queued = new Set(clock.pendingEvents().map((e) => e.payload))
   return damage.pending.every((d) => !d.active && queued.has(d.payload))
 }
@@ -266,20 +273,24 @@ function start(ctx: CallContext, key: unknown, entry: DetectedEntry, seat: Links
   if (joinable(current, clock)) {
     // In-world (main grid, 2026-11-23): three llDamage calls in one handler, or hits from eight
     // objects in one moment, reached the target as one on_damage with num_detected 3 or 8.
-    const entries = current.seat ? current.seatEntries : current.riderEntries
-    entries.push(entry)
+    // A seat without on_damage handlers passes the hit straight on to what the avatar wears.
+    if (current.seat) current.seatEntries.push(entry)
+    if (current.phase === 'riders') current.riderEntries.push(current.seat ? forRiders(entry) : entry)
+    const entries = current.phase === 'seat' ? current.seatEntries : current.riderEntries
     for (const d of current.pending) d.payload['num_detected'] = entries.length
     return
   }
   const damage: Damage = {
     key, at: clock.now, clock, seat, riders, adjust, noFinal: new Set(),
-    seatEntries: seat ? [entry] : [], riderEntries: seat ? [] : [entry], phase: seat ? 'seat' : 'riders', pending: [],
+    seatEntries: seat ? [entry] : [], riderEntries: seat ? [] : [entry], phase: seat ? 'seat' : 'riders',
+    joinPhase: 'done', pending: [],
   }
   byTarget.set(key, damage)
   const waiting = seat
     ? askToAdjust(damage, seat.allScripts(), damage.seatEntries)
     : askToAdjust(damage, riders.flatMap((r) => r.attachments), damage.riderEntries)
   if (!waiting) advance(damage)
+  damage.joinPhase = damage.phase
 }
 
 export const llGetHealth: BuiltinImpl = (ctx, args) => {

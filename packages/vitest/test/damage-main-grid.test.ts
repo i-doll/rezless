@@ -385,6 +385,19 @@ describe('avatar health set by a test', () => {
     expect(reader.scripts.r!.global('seen')).toEqual([100, 50])
   })
 
+  it('regenerates in llGetObjectDetails as in llGetHealth', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
+    const reader = await object(world, { r: `list seen; default {
+      touch_start(integer n) { llDamage("${BOT}", 10.0, 0); }
+      touch_end(integer n) { seen += llList2Float(llGetObjectDetails("${BOT}", [OBJECT_HEALTH]), 0); }
+    }` })
+    reader.scripts.r!.fire('touch_start', { num_detected: 1 })
+    tick(world, 6000)
+    reader.scripts.r!.fire('touch_end', { num_detected: 1 })
+    expect(reader.scripts.r!.global('seen')).toEqual([91])
+  })
+
   it('reads 0 for an avatar in another region', async () => {
     const world = combatWorld()
     world.addRegion('elsewhere', { x: 256, y: 0 })
@@ -613,6 +626,20 @@ describe('hits in one moment keep their own targets', () => {
     expect(log.filter((l) => l.startsWith('final')).map((l) => l.split(' ')[1]))
       .toEqual(log.filter((l) => l.startsWith('on')).map((l) => l.split(' ')[1]))
     expect(world.avatars[0]!.objectDetails.health).toBe(85)
+  })
+
+  it('stay together through a seat that does not handle on_damage', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
+    const seat = await object(world, { seat: `list log; default { final_damage(integer n) { log += n; } }` }, BOT)
+    world.sitAvatar(world.avatars[0]!, seat.linkset.prims[0]!)
+    const worn = await object(world, { w: recorder }, BOT)
+    worn.linkset.attachToAvatar(BOT, 1)
+    const shooter = await object(world, { gun: gun(BOT, 1, 3) })
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    expect(worn.scripts.w!.global('log')).toEqual(['on 3 1,0,1', 'final 3 1,0,1 1,0,1'])
+    expect(seat.scripts.seat!.global('log')).toEqual([3])
   })
 
   it('keep the seat\'s own hit on its sitter out of the seat\'s on_damage', async () => {
