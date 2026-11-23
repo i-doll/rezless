@@ -1154,7 +1154,6 @@ export class Script {
     if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
-    if (reset) slackenTargetMotion(this, true)
     copy.detachedInHandler = this.detachedInHandler
     copy.resetPastWear = this.resetPastWear
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
@@ -1314,7 +1313,7 @@ export class Script {
     const held = !!this.task || detachedInHandler
     const waiting = held ? clock.pendingEvents().filter(e => e.target === this) : []
     if (held) clock.purgeTarget(this)
-    const room = MAX_PENDING_EVENTS - waiting.length
+    const room = MAX_PENDING_EVENTS - waiting.filter(e => e.event !== '__scriptState').length
     // A start that had not run yet still comes first.
     for (const e of waiting) if (e.event === 'state_entry') clock.schedule(this, this.now, e.event, e.payload)
     if (!this.started) {
@@ -1469,6 +1468,23 @@ export class Script {
       this.restart()
       // Stopped since the reset was asked for: state_entry waits for the start.
       if (!this.running) this.queueStart()
+      return
+    }
+    if (event === '__scriptState') {
+      const target = this.host.findScript(payload['name'] as string)
+      if (!target) return
+      if (payload['reset']) {
+        if (target.crashed) { if (!target.dead) target.recover() }
+        // A reset goes behind the events the target already has.
+        else if (target.running) this.linkset.clock.schedule(target, this.now, '__reset', {})
+      }
+      // Queued behind the wear's attach events of the script it changes.
+      else if (target.running && this.linkset.clock.hasPending(target, 'attach')) target.clockView.schedule(this.now, '__running', payload)
+      else if (!target.crashed) target.running = payload['running'] as boolean
+      return
+    }
+    if (event === '__running') {
+      if (!this.crashed) this.running = payload['running'] as boolean
       return
     }
     if (event === '__unseated' || event === '__ownerChanged') {
@@ -1851,9 +1867,10 @@ export class Script {
   }
 
   set running(value: boolean) {
-    const starting = value && !this.isRunning
+    const starting = value && !this.isRunning, stopping = !value && this.isRunning
     this.isRunning = value
     if (value) this.crashed = false
+    if (stopping && !this.crashed) slackenTargetMotion(this, true)
     if (starting) {
       slackenTargetMotion(this, false)
       this.catchUp()
@@ -1881,8 +1898,8 @@ export class Script {
     this.crashText = error.said
     this.crashShown = error.shown
     this.sayCrash()
-    this.running = false
     this.crashed = true
+    this.running = false
   }
 
   private sayCrash(): void {

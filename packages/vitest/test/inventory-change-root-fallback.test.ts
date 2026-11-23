@@ -390,7 +390,8 @@ describe('a stopped script through other trips to inventory', () => {
 
 // In-world, third session: a physical box whose script called llMoveToTarget (1 m up),
 // llRotLookAt (90 degrees about Z) or llLookAt hovered or turned to its target, and kept holding
-// it after the script was set not running. Taken and rezzed, or taken as a copy and the copy
+// it after the script was set not running. Later sessions (#573) saw the box drop within about
+// 2 s of the stop in 11 of 13 tries; see target-of-a-stopped-script.test.ts. Taken and rezzed, or taken as a copy and the copy
 // rezzed, each copy dropped to the platform and kept the rotation it was rezzed with, before
 // and after its script was started. With the script running, a Take Copy's copy and a taken
 // box both went to the original's target. The box left behind by a Take Copy of a stopped
@@ -448,12 +449,13 @@ describe('a move or look target of a stopped script through inventory', () => {
     expect(root.rotation.z).toBeCloseTo(Math.SQRT1_2, 2)
   })
 
-  it('keeps acting on the original of a shift-drag copy', async () => {
+  it('goes back to the original of a shift-drag copy once its script starts', async () => {
     const f = await moving(false)
     f.linkset.duplicate()
     const root = f.linkset.prims[0]!.params
     const target = { ...held(f.linkset).move!.target }
     root.position = { ...target, z: target.z - 1 }
+    f.script.running = true
     f.linkset.advanceTime(3_000)
     expect(root.position.z).toBeCloseTo(target.z, 2)
   })

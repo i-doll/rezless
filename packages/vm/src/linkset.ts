@@ -423,6 +423,8 @@ export class Linkset {
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)
     // In-world: the copy of a stopped script was stopped too. Started, it ran state_entry.
     this.fill(copy, (script, prim) => Object.assign(script.copyTo(prim, { fresh: true }), { running: script.running }))
+    // The copy's scripts are new instances, so no stopped script owns its targets.
+    for (const request of [copy.prims[0]!.targetMotion.move, copy.prims[0]!.targetMotion.look]) delete request?.slack
     const root = copy.prims[0]!.params
     root.position = { x: root.position.x + offset.x, y: root.position.y + offset.y, z: root.position.z + offset.z }
     // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
