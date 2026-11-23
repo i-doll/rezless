@@ -90,6 +90,42 @@ describe('an owner Reset or Recompile of a script whose handler is running', () 
       })
     }
   }
+
+  it('stops the handler of a script stopped and then reset inside it', async () => {
+    const { scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 'a', source: { source: lsl } }] }] })
+    const a = scripts['a']!
+    a.start()
+    const said: string[] = []
+    a.mock('llOwnerSay', (_, [text]) => {
+      said.push(text as string)
+      if (text === 'x') {
+        a.running = false
+        a.reset()
+      }
+      return undefined
+    })
+    a.fire('touch_start', { num_detected: 1 })
+    expect(said).toEqual(['x'])
+    expect(a.global('log')).toEqual([])
+    a.running = true
+    a.linkset.advanceTime(0)
+    expect(a.global('log')).toEqual(['se 1'])
+  })
+
+  it('waits for an SLua top level that sleeps after a reset inside a handler', async () => {
+    const { scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 'a', language: 'slua', source: { source: `log = {}
+      table.insert(log, "se")
+      ll.Sleep(1.0)
+      table.insert(log, "woke")
+      LLEvents:on("touch_start", function() ll.OwnerSay("x"); table.insert(log, "t2") end)` } }] }] })
+    const a = scripts['a']!
+    a.start()
+    a.linkset.advanceTime(2000)
+    a.mock('llOwnerSay', () => { a.reset(); return undefined })
+    a.fire('touch_start', { num_detected: 1 })
+    expect(a.wakeAt).toBeUndefined()
+    expect(Object.values(a.global('log') as Record<string, unknown>)).toEqual(['se', 'woke'])
+  })
 })
 
 describe('a detach while a handler of the worn object\'s script is running', () => {
@@ -121,10 +157,40 @@ describe('a detach while a handler of the worn object\'s script is running', () 
     expect(a.global('log')).toEqual(['attach 1', 'begin', 'end', 'rez', 'heard a', 'attach 0', 'attach 1'])
   })
 
+  it('keeps the events in a copy of the detached object', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
+    const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'a', source: { source: `list log;
+      default {
+        on_rez(integer p) { log += "rez"; }
+        attach(key id) { log += "attach " + (string)(id != NULL_KEY); }
+        link_message(integer s, integer n, string m, key id) {
+          if (m == "busy") { log += "begin"; llOwnerSay("x"); log += "end"; }
+          else log += "heard " + m; } }` } }] }] })
+    const a = scripts['a']!
+    a.start()
+    linkset.attachToAvatar(OWNER, 5)
+    linkset.advanceTime(0)
+    a.mock('llOwnerSay', () => {
+      a.fire('link_message', { sender_num: 0, num: 0, str: 'a', id: '' })
+      linkset.detachFromAvatar()
+      return undefined
+    })
+    a.fire('link_message', { sender_num: 0, num: 0, str: 'busy', id: '' })
+    const copy = linkset.copy({ world, region: 'home', owner: OWNER })
+    for (const script of copy.allScripts()) script.queueRez()
+    copy.attachToAvatar(OWNER, 5)
+    copy.advanceTime(0)
+    expect(copy.allScripts()[0]!.global('log')).toEqual(['attach 1', 'begin', 'end', 'rez', 'heard a', 'attach 0', 'attach 1'])
+  })
+
+  // As for a handler asleep at the detach, the script gets no attach(NULL_KEY) before the
+  // temporary attachment goes.
   it('still removes a temporary attachment detached during the handler', async () => {
-    const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [{ name: 'a', source: { source: `default {
+    const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [{ name: 'a', source: { source: `list log; default {
       link_message(integer s, integer n, string m, key id) { llOwnerSay("x"); }
-      attach(key id) {} }` } }] }] })
+      attach(key id) { log += "attach " + (string)(id != NULL_KEY); } }` } }] }] })
     const a = scripts['a']!
     a.start()
     linkset.attachToAvatar(OWNER, 5, true)
@@ -132,5 +198,6 @@ describe('a detach while a handler of the worn object\'s script is running', () 
     a.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
     a.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
     expect(linkset.dead).toBe(true)
+    expect(a.global('log')).toEqual(['attach 1'])
   })
 })

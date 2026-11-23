@@ -1119,6 +1119,7 @@ export class Script {
     if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    copy.detachedInHandler = this.detachedInHandler
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1381,12 +1382,11 @@ export class Script {
     if (this.state.coverage) this.state.coverage.hitState('default')
     // Per LSL: if the script is stopped, reset just clears state — no
     // state_entry runs until it's restarted.
-    if (!this.running) return
     // A handler still running stops at its next call, and state_entry runs after it.
-    if (this.handling) {
-      this.state.lifecycle.reset = true
-      this.queueStart()
-    } else this.boot()
+    if (this.handling) this.state.lifecycle.reset = true
+    if (!this.running) return
+    if (this.handling) this.queueStart()
+    else this.boot()
   }
 
   /**
@@ -1434,7 +1434,8 @@ export class Script {
 
   /** Whether the script handles `event` now: a handler in the current LSL state, or an SLua LLEvents handler. */
   handles(event: string): boolean {
-    if (this.slua) return this.slua.handles(event)
+    // Until it starts, an SLua script's state_entry is its top level.
+    if (this.slua) return event === 'state_entry' ? !this.slua.started : this.slua.handles(event)
     return this.handlersByState.get(this.state.currentState)!.has(event)
   }
 
