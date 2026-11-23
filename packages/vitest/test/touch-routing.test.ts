@@ -170,20 +170,17 @@ describe('linkset.touch routes a click like Second Life', () => {
   })
 
   it('hold delays touch_end, and lets the clock run in between', async () => {
-    // Not measured: the headless viewer can only click, not hold, so how often
-    // touch repeats during a long hold is not modelled; it fires once.
     const timed = `
       list got = [];
       default {
-        touch_start(integer n) { got += ["start@" + (string)llGetTime()]; llSetTimerEvent(0.5); }
-        touch(integer n) { got += ["touch@" + (string)llGetTime()]; }
+        touch_start(integer n) { got += ["start@" + (string)llGetTime()]; llSetTimerEvent(0.1); }
         timer() { got += ["timer@" + (string)llGetTime()]; llSetTimerEvent(0); }
         touch_end(integer n) { got += ["end@" + (string)llGetTime()]; }
       }
     `
     const { linkset, got } = await setup([[script('s', timed)]])
     linkset.touch(0, { hold: 1500 })
-    expect(got('s')).toEqual(['start@0.000000', 'touch@0.000000', 'timer@0.500000', 'end@1.500000'])
+    expect(got('s')).toEqual(['start@0.000000', 'timer@0.100000', 'end@1.500000'])
   })
 
   it('hold counts from the click, not from when the touch_start handler finishes', async () => {
@@ -221,15 +218,360 @@ describe('linkset.touch routes a click like Second Life', () => {
     expect(got('s')).toEqual(['start', 'touch', 'end'])
   })
 
-  it('a script stopped during a hold never gets that release', async () => {
-    // Not measured: the headless viewer cannot hold a click. In-world a
-    // stopped script is never sent a touch, so a release that happens while
-    // it is stopped is not queued for it.
-    const { linkset, got } = await setup([[script('s', selfStopping('timer')), script('r', restarter)]])
-    linkset.touch(0, { hold: 1000 })
+  it('a script stopped through the release keeps getting touch once restarted, until the next click ends it', async () => {
+    // In-world: a script stopped 0.5 s into a 2 s hold and restarted 4 s later got no
+    // touch_end. From the restart it got touch 22 times a second, still 746 times after
+    // 30 s. The same avatar's next click raised no touch_start, only touch_end, and the
+    // touch events stopped; the click after that was a normal click with one touch.
+    const counting = `
+      list got = [];
+      integer n;
+      default {
+        touch_start(integer k) { got += ["start"]; }
+        touch(integer k) { ++n; }
+        touch_end(integer k) { got += ["end", n]; n = 0; }
+        link_message(integer s, integer k, string m, key id) { got += ["touches", n]; n = 0; }
+      }
+    `
+    const stopper = `
+      integer done;
+      default {
+        touch_start(integer n) { if (!done) llSetTimerEvent(0.5); done = TRUE; }
+        timer() { llSetTimerEvent(0); llSetScriptState("s", FALSE); }
+        link_message(integer s, integer n, string m, key k) { if (m == "go") llSetScriptState("s", TRUE); }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', counting), script('c', stopper)]])
+    linkset.touch(0, { hold: 2000 })
+    expect(got('s')).toEqual(['start'])
+    linkset.advanceTime(2000)
+    linkset.deliverLinkMessage(0, 0, 0, 'go', '')
+    linkset.advanceTime(1000)
     linkset.deliverLinkMessage(0, 0, 0, '', '')
     linkset.advanceTime(0)
-    expect(got('s')).toEqual(['start', 'touch'])
+    // 11 touch events before the stop, then 23 in the second after the restart: the first
+    // 0.022 s after it, then every 0.044 s.
+    expect(got('s')).toEqual(['start', 'touches', 34])
+    linkset.touch(0)
+    linkset.touch(0)
+    expect(got('s')).toEqual(['start', 'touches', 34, 'end', 1, 'start', 'end', 1])
+    linkset.advanceTime(1000)
+    linkset.deliverLinkMessage(0, 0, 0, '', '')
+    linkset.advanceTime(0)
+    expect(got('s').slice(-2)).toEqual(['touches', 0])
+  })
+
+  it('a script stopped and restarted during a hold gets touch again and the release', async () => {
+    // In-world: stopped 0.5 s into a 4 s hold, restarted 1.1 s later -> 11 touch events
+    // before the stop, none while stopped, the next one 0.022 s after the restart, then
+    // touch_end at the release.
+    const log = `
+      list got = [];
+      default {
+        touch_start(integer k) { got += ["start"]; }
+        touch(integer k) { got += llRound(llGetTime() * 1000); }
+        touch_end(integer k) { got += ["end", llRound(llGetTime() * 1000)]; }
+      }
+    `
+    const stopper = `
+      integer step;
+      default {
+        touch_start(integer n) { llSetTimerEvent(0.5); }
+        timer() { llSetScriptState("s", step); step = !step; if (step == 0) llSetTimerEvent(0); else llSetTimerEvent(1.1); }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log), script('c', stopper)]])
+    linkset.touch(0, { hold: 4000 })
+    const times = got('s').filter((x): x is number => typeof x === 'number')
+    expect(times.filter((t) => t < 500)).toHaveLength(11)
+    expect(times.filter((t) => t > 500 && t < 1600)).toEqual([])
+    expect(times.find((t) => t >= 1600)).toBe(1622)
+    expect(got('s').slice(-2)).toEqual(['end', 4000])
+  })
+
+  it('a held click raises touch every two simulator frames', async () => {
+    // In-world: held 1.5 s, touch came 0.022 s after touch_start and then every 0.044 s,
+    // 34 in all, and touch_end 1.511 s after touch_start (one frame past the release). Held
+    // 1.0 s with no surface point: 24 touch events.
+    const log = `
+      list got = [];
+      default {
+        touch(integer k) { got += llGetTime(); }
+        touch_end(integer k) { got += ["end", llGetTime()]; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.touch(0, { hold: 1500 })
+    const times = got('s').slice(0, -2) as number[]
+    expect(times).toHaveLength(34)
+    expect(times[0]).toBeCloseTo(0.022, 3)
+    expect(times.slice(1).map((t, i) => Math.round((t - times[i]!) * 1000))).toEqual(Array(33).fill(44))
+    expect(got('s').slice(-2)).toEqual(['end', 1.5])
+  })
+
+  it('under llMinEventDelay a held click raises touch once per delay, on its own beat', async () => {
+    // In-world: llMinEventDelay(1.0) and a 4 s hold -> touch at 0.022, 1.000, 2.022, 3.044
+    // and 4.044 after touch_start, and touch_end at 4.067, not delayed. With a 0.1 s timer
+    // as well: timer at 0.978, 2.000, 3.000 and touch at 0.022, 1.000, 2.022, 3.023 -- the
+    // touch events kept a second apart from each other, not from the timer.
+    const log = `
+      list got = [];
+      default {
+        state_entry() { llMinEventDelay(1.0); }
+        touch_start(integer k) { llResetTime(); got += ["start"]; }
+        touch(integer k) { got += llRound(llGetTime() * 1000); }
+        touch_end(integer k) { got += ["end", llRound(llGetTime() * 1000)]; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.advanceTime(2000)
+    linkset.touch(0, { hold: 4000 })
+    // Two frames a beat here, so the touch in-world at 4.044 would come at 4.067, after the release.
+    expect(got('s')).toEqual(['start', 22, 1000, 2022, 3044, 'end', 4000])
+  })
+
+  it('under llMinEventDelay held touch events keep their beat apart from a timer', async () => {
+    const log = `
+      list got = [];
+      integer on;
+      default {
+        state_entry() { llMinEventDelay(1.0); llSetTimerEvent(0.1); }
+        timer() { if (on) got += "timer"; }
+        touch_start(integer k) { on = 1; got += "start"; }
+        touch(integer k) { got += "touch"; }
+        touch_end(integer k) { on = 0; got += "end"; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    // The click waits for the timer's beat at 3 s, as in-world, where touch_start came 0.455 s
+    // after the click and touch_end 3.045 s after touch_start.
+    linkset.advanceTime(2500)
+    linkset.touch(0, { hold: 3600 })
+    expect(got('s')).toEqual(['start', 'touch', 'timer', 'touch', 'timer', 'touch', 'timer', 'touch', 'end'])
+  })
+
+  describe('a click a script still holds', () => {
+    // In-world probe: a prim with a touch script that reports, once a second, how many touch
+    // events it got and the face of the last, and a second script that stops it 0.5 s into a
+    // 2 s hold on face 1 and starts it again 4 s later, leaving the click stuck.
+    const reporter = `
+      list got = [];
+      integer n;
+      integer face = -9;
+      report() { if (n) got += ["touches", n, face]; n = 0; }
+      default {
+        touch_start(integer k) { report(); got += ["start", llDetectedTouchFace(0)]; }
+        touch(integer k) { ++n; face = llDetectedTouchFace(0); }
+        touch_end(integer k) { report(); got += ["end", llDetectedTouchFace(0)]; }
+        link_message(integer s, integer k, string m, key id) {
+          report();
+          if (m == "reset") llResetScript();
+          if (m == "state") state other;
+        }
+      }
+      state other {
+        touch_start(integer k) { report(); got += ["other start", llDetectedTouchFace(0)]; }
+        touch(integer k) { ++n; face = llDetectedTouchFace(0); }
+        touch_end(integer k) { report(); got += ["other end", llDetectedTouchFace(0)]; }
+        link_message(integer s, integer k, string m, key id) { report(); if (m == "back") state default; }
+      }
+    `
+    const stopper = `
+      integer done;
+      default {
+        touch_start(integer n) { if (!done) llSetTimerEvent(0.5); done = TRUE; }
+        timer() { llSetTimerEvent(0); llSetScriptState("s", FALSE); }
+        link_message(integer s, integer n, string m, key k) { if (m == "go") llSetScriptState("s", TRUE); }
+      }
+    `
+    async function stuck() {
+      const made = await setup([[script('s', reporter), script('c', stopper)]])
+      const send = (m: string) => {
+        made.linkset.deliverLinkMessage(0, 0, 0, m, '')
+        made.linkset.advanceTime(0)
+      }
+      made.linkset.touch(0, { face: 1, hold: 2000 })
+      made.linkset.advanceTime(2000)
+      send('go')
+      made.linkset.advanceTime(1000)
+      return { ...made, send }
+    }
+
+    it('gives the next click\'s data to the touch_end that ends it', async () => {
+      // In-world: stuck on face 1, then clicked on face 3 -> touch_end read face 3.
+      const { linkset, got } = await stuck()
+      linkset.touch(0, { face: 3 })
+      expect(got('s')).toEqual(['start', 1, 'touches', 35, 3, 'end', 3])
+    })
+
+    it('is forgotten by a reset', async () => {
+      // In-world: stuck, then llResetScript -> no more touch events; the next click raised
+      // touch_start, one touch and touch_end.
+      const { linkset, got, send } = await stuck()
+      send('reset')
+      linkset.advanceTime(2000)
+      send('')
+      expect(got('s')).toEqual([])
+      linkset.touch(0, { face: 2 })
+      expect(got('s')).toEqual(['start', 2, 'touches', 1, 2, 'end', 2])
+    })
+
+    it('stops raising touch after a state change but still keeps the next click from starting', async () => {
+      // In-world: stuck, then `state other` -> no touch events in the new state, nor after
+      // going back; the next click raised no touch_start, only one touch and touch_end.
+      const { linkset, got, send } = await stuck()
+      send('state')
+      linkset.advanceTime(2000)
+      send('back')
+      linkset.advanceTime(2000)
+      send('')
+      expect(got('s')).toEqual(['start', 1, 'touches', 34, 1])
+      linkset.touch(0, { face: 2 })
+      expect(got('s')).toEqual(['start', 1, 'touches', 34, 1, 'touches', 1, 2, 'end', 2])
+    })
+
+    it('keeps raising touch through a detach and a wear, without its surface point', async () => {
+      // In-world: worn, stuck on face 1, detached and worn again -> touch kept coming, 22 a
+      // second, reading face -1; the next click raised no touch_start, only touch_end.
+      const { linkset, got, send } = await stuck()
+      linkset.attachToAvatar(linkset.owner, 1)
+      linkset.advanceTime(1000)
+      send('')
+      linkset.detachFromAvatar()
+      linkset.attachToAvatar(linkset.owner, 1)
+      linkset.advanceTime(1000)
+      send('')
+      expect(got('s').slice(-3)).toEqual(['touches', 23, -1])
+      linkset.touch(0, { face: 2 })
+      expect(got('s').slice(-5)).toEqual(['touches', 1, 2, 'end', 2])
+      expect(got('s').filter((x) => x === 'start')).toHaveLength(1)
+    })
+
+    it('keeps raising touch in an object rezzed from a take, without its surface point', async () => {
+      // In-world: stuck on face 1, taken and rezzed -> touch kept coming, 22 a second, reading
+      // face -1; the next click raised no touch_start, only touch_end.
+      const { linkset, send } = await stuck()
+      send('')
+      const rezzed = linkset.copy()
+      linkset.remove()
+      rezzed.advanceTime(1000)
+      const s = rezzed.allScripts().find((x) => x.scriptName === 's')!
+      rezzed.deliverLinkMessage(0, 0, 0, '', '')
+      rezzed.advanceTime(0)
+      expect((s.global('got') as unknown[]).slice(-3)).toEqual(['touches', 22, -1])
+      rezzed.touch(0, { face: 2 })
+      expect((s.global('got') as unknown[]).slice(-5)).toEqual(['touches', 1, 2, 'end', 2])
+    })
+
+    it('stays with the script when its prim is unlinked', async () => {
+      // In-world: a child prim's script stuck on face 1, then the child unlinked -> touch kept
+      // coming, still reading face 1; a click on the unlinked prim raised only touch_end.
+      const made = await setup([[], [script('s', reporter), script('c', stopper)]])
+      made.linkset.touch(2, { face: 1, hold: 2000 })
+      made.linkset.advanceTime(2000)
+      made.linkset.deliverLinkMessage(1, -1, 0, 'go', '')
+      made.linkset.advanceTime(1000)
+      made.linkset.deliverLinkMessage(1, -1, 0, '', '')
+      made.linkset.advanceTime(0)
+      const child = made.linkset.prims[1]!
+      made.linkset.breakOff(child)
+      const apart = child.linkset!
+      apart.advanceTime(1000)
+      apart.deliverLinkMessage(0, -1, 0, '', '')
+      apart.advanceTime(0)
+      expect(made.got('s').slice(-3)).toEqual(['touches', 22, 1])
+      apart.touch(0, { face: 2 })
+      expect(made.got('s').slice(-3)).toEqual([2, 'end', 2])
+      expect(made.got('s').filter((x) => x === 'start')).toHaveLength(1)
+    })
+  })
+
+  it('a reset in the middle of a hold stops touch, and the release still ends the click', async () => {
+    // In-world: 1.5 s into a 5 s hold the script called llResetScript -> no touch events after
+    // the reset, then touch_end at the release; the next click was a normal one.
+    const log = `
+      list got = [];
+      default {
+        state_entry() { got += "entry"; }
+        touch_start(integer k) { got += "start"; if (llGetListLength(got) == 2) llSetTimerEvent(1.5); }
+        touch(integer k) { got += "touch"; }
+        touch_end(integer k) { got += "end"; }
+        timer() { llResetScript(); }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.touch(0, { hold: 5000 })
+    expect(got('s')).toEqual(['entry', 'end'])
+    linkset.touch(0)
+    expect(got('s')).toEqual(['entry', 'end', 'start', 'touch', 'end'])
+  })
+
+  it('each held click starts its touch events half a beat after it, even right after another', async () => {
+    const log = `list got = []; default { touch_start(integer k) { llResetTime(); } touch(integer k) { got += llRound(llGetTime() * 1000); } }`
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.touch(0, { hold: 100 })
+    linkset.advanceTime(10)
+    linkset.touch(0, { hold: 100 })
+    expect(got('s')).toEqual([22, 67, 22, 67])
+  })
+
+  it('a state change in the middle of a hold stops touch, and the release still ends the click', async () => {
+    // In-world: 1.5 s into a 5 s hold the script changed state -> no touch events after it,
+    // and touch_end in the new state at the release. The next click was a normal one.
+    const log = `
+      list got = [];
+      default {
+        touch_start(integer k) { got += "start"; llSetTimerEvent(1.5); }
+        touch(integer k) { got += "touch"; }
+        timer() { llSetTimerEvent(0); state other; }
+      }
+      state other {
+        touch_start(integer k) { got += "other start"; }
+        touch(integer k) { got += "other touch"; }
+        touch_end(integer k) { got += "other end"; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.touch(0, { hold: 5000 })
+    expect(got('s').filter((x) => x === 'touch')).toHaveLength(34)
+    expect(got('s').slice(-1)).toEqual(['other end'])
+    linkset.touch(0)
+    expect(got('s').slice(-3)).toEqual(['other start', 'other touch', 'other end'])
+  })
+
+  it('held clicks repeat again after a detach and a wear', async () => {
+    const log = `list got = []; default { touch(integer k) { got += "touch"; } }`
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.attachToAvatar(linkset.owner, 1)
+    linkset.advanceTime(0)
+    linkset.touch(0, { hold: 500 })
+    linkset.detachFromAvatar()
+    linkset.advanceTime(100)
+    linkset.attachToAvatar(linkset.owner, 1)
+    linkset.advanceTime(0)
+    linkset.touch(0, { hold: 500 })
+    expect(got('s')).toHaveLength(22)
+  })
+
+  it('under llMinEventDelay a quick click still raises its touch', async () => {
+    // In-world: llMinEventDelay(2.0), clicks at about t, t+0.3, t+2.8 and t+3.1 -> three clicks
+    // got through, each with touch_start, touch and touch_end.
+    const log = `
+      list got = [];
+      default {
+        state_entry() { llMinEventDelay(2.0); }
+        touch_start(integer k) { got += "start"; }
+        touch(integer k) { got += "touch"; }
+        touch_end(integer k) { got += "end"; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.advanceTime(4000)
+    for (const wait of [300, 2500, 300, 10_000]) {
+      linkset.touch(0)
+      linkset.advanceTime(wait)
+    }
+    expect(got('s')).toEqual(['start', 'touch', 'end', 'start', 'touch', 'end', 'start', 'touch', 'end'])
   })
 
   it('starts scripts that have not run state_entry yet', async () => {

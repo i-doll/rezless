@@ -399,6 +399,10 @@ export class ScriptClockView {
   minEventDelayMs = 0
   /** Earliest virtual time the next timer or touch_start may start, under llMinEventDelay. */
   delayedUntilMs = 0
+  /** Earliest virtual time a held click's next `touch` may be raised, under llMinEventDelay. */
+  private touchDelayedUntilMs = 0
+  /** The first `touch` after a `touch_start` is not delayed and leaves the delay where touch_start put it. */
+  private touchAfterStart = false
 
   constructor(
     private readonly linksetClock: LinksetClock,
@@ -458,6 +462,22 @@ export class ScriptClockView {
     this.timerIntervalMs = intervalMs
     // A tick still owed from before the script started keeps its place; only the interval changes.
     if (this.timerLateDueMs === undefined) this.timerNextFireMs = this.now + intervalMs
+  }
+
+  /** Whether llMinEventDelay holds back a held click's next `touch` now. */
+  touchHeldBack(): boolean {
+    return this.minEventDelayMs > 0 && !this.touchAfterStart && this.now < this.touchDelayedUntilMs - 1e-6
+  }
+
+  /** Under llMinEventDelay, held `touch` events are spaced from `touch_start` and from each other. */
+  touchDelivered(event: string): void {
+    if (event === 'touch_start') {
+      this.touchDelayedUntilMs = this.now + this.minEventDelayMs
+      this.touchAfterStart = true
+    } else if (event === 'touch') {
+      if (!this.touchAfterStart) this.touchDelayedUntilMs = this.now + this.minEventDelayMs
+      this.touchAfterStart = false
+    }
   }
 
   /** llMinEventDelay: `ms` below 0 counts as 0, and the delay starts now. */

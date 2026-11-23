@@ -8,7 +8,7 @@ import { Prim } from './prim.js'
 import type { Script } from './script.js'
 import { mergeLinksetData, type LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
-import type { DetectedEntry } from './builtins/detected.js'
+import { touchThroughInventory, type DetectedEntry } from './builtins/detected.js'
 import type { ChatType } from './runtime.js'
 import type { World, WorldAvatar } from './world.js'
 import { NULL_KEY, type Vector } from './values/types.js'
@@ -76,10 +76,106 @@ export interface TouchOptions {
   readonly st?: Vector
   /** Where on the texture the click landed, after repeats and offsets. */
   readonly uv?: Vector
+  /** Where the click landed, as the viewer reports it: region coordinates, or the HUD's own for a HUD. */
+  readonly pos?: Vector
+  /** The surface normal at the point clicked. */
+  readonly normal?: Vector
+  /** The surface binormal at the point clicked. */
+  readonly binormal?: Vector
   /** Milliseconds the click is held before release. Default 0. */
   readonly hold?: number
   /** Who clicked. Defaults to the owner. */
-  readonly avatar?: Omit<DetectedEntry, 'linkNumber' | 'touchFace' | 'touchST' | 'touchUV'>
+  readonly avatar?: Omit<DetectedEntry, 'linkNumber' | 'touchFace' | 'touchST' | 'touchUV' | 'touchPos' | 'touchNormal' | 'touchBinormal'>
+}
+
+/** A click a script still counts as held: it gets `touch` for it while `repeating`. */
+export interface HeldTouch {
+  detected: ReadonlyArray<DetectedEntry>
+  repeating: boolean
+  /** Whether it has raised a `touch` yet. */
+  touched: boolean
+  /** Whether the button came up while the script was stopped. */
+  released: boolean
+  /** When its next `touch` is due. */
+  dueAt: number
+}
+
+/** The scripts on one clock that hold clicks, and the task that raises their next `touch`. */
+const repeaters = new WeakMap<LinksetClock, { scripts: Set<Script>; cancel?: (() => void) | undefined; at?: number | undefined }>()
+
+function repeater(clock: LinksetClock) {
+  let found = repeaters.get(clock)
+  if (!found) repeaters.set(clock, found = { scripts: new Set() })
+  return found
+}
+
+function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<DetectedEntry>): void {
+  if (s.handles(event)) s.linkset.clock.schedule(s, s.linkset.clock.now, event, { num_detected: 1, detected })
+}
+
+const raising = (s: Script) => !s.dead && s.running && s.linkset.peers.includes(s.linkset)
+
+/** Schedule the task for the earliest `touch` a held click owes, or cancel it when none does. */
+function armTouches(clock: LinksetClock): void {
+  const found = repeater(clock)
+  let next = Infinity
+  for (const s of found.scripts) {
+    if (s.dead || !s.heldClicks.size) found.scripts.delete(s)
+    else if (raising(s)) for (const click of s.heldClicks.values()) if (click.repeating) next = Math.min(next, click.dueAt)
+  }
+  if (found.at === next) return
+  found.cancel?.()
+  found.cancel = found.at = undefined
+  if (next === Infinity) return
+  found.at = next
+  found.cancel = clock.scheduleTask({ dead: false }, next, () => {
+    found.cancel = found.at = undefined
+    raiseHeldTouches(clock)
+    armTouches(clock)
+  })
+}
+
+/**
+ * Raise `touch` for each held click that is due. In-world: held for 1.5 s, a click raised
+ * touch 0.022 s after touch_start and then every 0.044 s, two simulator frames. Under
+ * llMinEventDelay(1.0) the first touch still came 0.022 s after touch_start, the next 1.0 s
+ * after touch_start, and each after that a second after the touch before it, whatever the
+ * timer did; the rest were dropped.
+ */
+function raiseHeldTouches(clock: LinksetClock): void {
+  for (const s of repeater(clock).scripts) {
+    if (!raising(s)) continue
+    for (const click of s.heldClicks.values()) {
+      if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
+      click.dueAt += TOUCH_REPEAT_MS
+      if (!s.handles('touch')) continue
+      if (s.clockView.minEventDelayMs > 0 && (clock.hasPending(s, 'touch') || s.clockView.touchHeldBack())) continue
+      click.touched = true
+      scheduleTouch(s, 'touch', click.detected)
+    }
+  }
+}
+
+/** In-world: a script started again during a hold, or after it, got touch 0.022 s later. */
+export function resumeHeldTouches(s: Script): void {
+  if (!s.heldClicks.size) return
+  for (const click of s.heldClicks.values()) click.dueAt = s.linkset.clock.now + TOUCH_REPEAT_MS / 2
+  repeater(s.linkset.clock).scripts.add(s)
+  armTouches(s.linkset.clock)
+}
+
+/**
+ * In-world: after llResetScript, or a state change, a held click raised no more touch events,
+ * and its release still raised touch_end. A reset also forgot a click whose button came up
+ * while the script was stopped, so the next click was a normal one; after a state change
+ * that next click still raised no touch_start.
+ */
+export function forgetHeldTouches(s: Script, reset: boolean): void {
+  for (const [by, click] of s.heldClicks) {
+    if (reset && click.released) s.heldClicks.delete(by)
+    else click.repeating = false
+  }
+  armTouches(s.linkset.clock)
 }
 
 export interface RezRecord {
@@ -95,6 +191,8 @@ export interface RezRecord {
 }
 
 const TOUCH_EVENTS = ['touch_start', 'touch', 'touch_end'] as const
+/** How often a held click raises `touch`: every second simulator frame. */
+export const TOUCH_REPEAT_MS = 2000 / 45
 
 const CHAT_RANGE: Partial<Record<ChatType, number>> = { whisper: 10, say: 20, shout: 100 }
 
@@ -229,7 +327,10 @@ export class Linkset {
       resumeTargets(script)
     }
     this.broadcastAttach(avatar)
-    for (const script of this.allScripts()) script.clockView.resumeFromInventory()
+    for (const script of this.allScripts()) {
+      script.clockView.resumeFromInventory()
+      resumeHeldTouches(script)
+    }
   }
 
   /** Detach into inventory, preserving script state and the remembered point. */
@@ -253,6 +354,10 @@ export class Linkset {
       // In-world: a chat line waiting for a handler that was asleep at the detach ran when the
       // object was worn again, after on_rez and before the two attach events.
       if (script.wakeAt === undefined) this.clock.purgeTarget(script)
+    }
+    // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
+    for (const script of this.allScripts()) {
+      for (const click of script.heldClicks.values()) click.detected = touchThroughInventory(click.detected)
     }
     this.broadcastAttach(NULL_KEY)
     this.finishTemporaryDetach()
@@ -672,9 +777,15 @@ export class Linkset {
    * also reaches the root's scripts when the prim set PASS_ALWAYS, or when
    * no running script in it handles any touch event and it did not set
    * PASS_NEVER. In every receiver llDetectedLinkNumber is `link` and
-   * llDetectedTouchFace is `face`. `touch_end` is queued `hold` ms after
-   * the click, only for receivers still running then; `touch` fires once,
-   * right after `touch_start`.
+   * llDetectedTouchFace is `face`.
+   *
+   * A click with no `hold` raises all three events at once. A held click
+   * raises `touch_start`, then `touch` every TOUCH_REPEAT_MS, starting half
+   * a beat after the click, to each receiver that is running, and
+   * `touch_end` at the release. A receiver that is stopped at the release
+   * gets no `touch_end`: once it runs again it keeps getting `touch` for
+   * that avatar until the avatar's next click, which raises no
+   * `touch_start` there and whose release ends it.
    */
   touch(link: number, opts: TouchOptions = {}): void {
     const prim =
@@ -692,35 +803,50 @@ export class Linkset {
       receivers.push(...handlers(root))
     }
     const avatar = opts.avatar ?? { key: this.owner, name: '' }
-    const detected = [
+    const by = avatar.key.toLowerCase()
+    const detected: DetectedEntry[] = [
       {
         ...avatar,
         linkNumber: prim.linkNumber,
         touchFace: opts.face ?? 0,
         ...(opts.st && { touchST: opts.st }),
         ...(opts.uv && { touchUV: opts.uv }),
+        ...(opts.pos && { touchPos: opts.pos }),
+        ...(opts.normal && { touchNormal: opts.normal }),
+        ...(opts.binormal && { touchBinormal: opts.binormal }),
       },
     ]
     // Under llMinEventDelay a script holds one waiting click; it drops the others.
     const dropped = new Set(
       receivers.filter((s) => s.clockView.minEventDelayMs > 0 && this.clock.hasPending(s, 'touch_start')),
     )
-    const queue = (events: ReadonlyArray<string>) => {
-      for (const s of receivers) {
-        if (dropped.has(s)) continue
-        if (!s.running || s.dead) continue
-        for (const e of events) {
-          if (s.handles(e)) this.clock.schedule(s, this.clock.now, e, { num_detected: 1, detected })
-        }
-      }
+    const live = (s: Script) => s.running && !s.dead
+    const clicked = receivers.filter((s) => !dropped.has(s) && live(s))
+    const clicks = new Map<Script, HeldTouch>()
+    const firstAt = this.clock.now + Math.min(TOUCH_REPEAT_MS / 2, opts.hold ?? 0)
+    for (const s of clicked) {
+      // In-world: a script still holding this avatar's earlier click raised no touch_start.
+      if (!s.heldClicks.has(by)) scheduleTouch(s, 'touch_start', detected)
+      const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt: firstAt }
+      s.heldClicks.set(by, click)
+      clicks.set(s, click)
+      repeater(this.clock).scripts.add(s)
     }
     if (opts.hold) {
-      queue(['touch_start', 'touch'])
+      armTouches(this.clock)
       this.advanceTime(opts.hold)
-      queue(['touch_end'])
-    } else {
-      queue(TOUCH_EVENTS)
     }
+    for (const [s, click] of clicks) {
+      if (!live(s)) {
+        click.released = true
+        continue
+      }
+      if (s.heldClicks.get(by) === click) s.heldClicks.delete(by)
+      // In-world: every click, however short, raised one touch.
+      if (!click.touched) scheduleTouch(s, 'touch', click.detected)
+      scheduleTouch(s, 'touch_end', click.detected)
+    }
+    armTouches(this.clock)
     this.settle(receivers)
   }
 
