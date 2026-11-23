@@ -15,7 +15,7 @@ import { loadLinkset, loadRlvPair, World } from '../src/index.js'
 // available on the grid; its menu ground sit is taken to ask the same sitDown
 // as its @sitground=force, which rlv-sitground.test.ts reads from its source.
 
-const AGENT_SITTING = 0x10, AGENT_ON_OBJECT = 0x20
+const AGENT_FLYING = 0x1, AGENT_SITTING = 0x10, AGENT_ON_OBJECT = 0x20
 const source = `list seen; default {
   state_entry() { llSitTarget(<0, 0, 0.6>, ZERO_ROTATION); }
   link_message(integer s, integer n, string m, key id) { llOwnerSay(m); }
@@ -184,4 +184,22 @@ describe('a menu ground sit racing a forced sit', () => {
       expect(f.avatar.sittingOn).toBe(f.script.host)
       expect(f.sitting()).toBe(AGENT_SITTING | AGENT_ON_OBJECT)
     })
+})
+
+describe('a menu ground sit while flying', () => {
+  // Firestorm's and Kokua's "Sit Down" menu item is disabled while the avatar
+  // flies (enable_sitdown_self in llviewermenu.cpp checks !gAgent.getFlying()),
+  // so the viewer never asks for the ground sit. Its land menu's "Sit Here" takes
+  // another path: it stops flying, then asks. In-world (Aditi, SLua Tideland,
+  // 2026-11-23): flown about 8 m above the platform (16647 "Hovering"), a ground
+  // sit asked for that way read 16406 "Sitting on Ground", still in the air.
+  it.each(['rlva', 'rlv'] as const)('is refused by %s', async profile => {
+    const pair = await loadRlvPair({ source })
+    const { script, avatar, world } = pair[profile]
+    script.start()
+    avatar.info |= AGENT_FLYING
+    expect(world.userSitAvatarOnGround(avatar)).toBe(false)
+    script.linkset.advanceTime(600)
+    expect(avatar.info & (AGENT_SITTING | AGENT_FLYING)).toBe(AGENT_FLYING)
+  })
 })

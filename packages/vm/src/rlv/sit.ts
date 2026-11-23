@@ -417,12 +417,14 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
  * sits on the ground once the region has stood it up, unless a standtp
  * return takes it back. Kokua takes the path of its @sitground=force, which
  * asks the same sitDown: it checks @unsit at once and @sit and @interact when
- * it asks for the ground sit.
+ * it asks for the ground sit. A flying avatar can't pick it.
  */
 export function userSitAvatarOnGround(world: World, avatar: WorldAvatar): boolean {
   if (!world.avatars.includes(avatar)) return false
   const { viewer } = avatar
   const sitting = !!(avatar.info & AGENT_SITTING)
+  // The viewers disable their "Sit Down" menu item while the avatar flies.
+  if (!sitting && avatar.info & AGENT_FLYING) return false
   if (viewer.profile !== 'disabled') {
     const locked = (behaviour: string) => viewer.restrictions.snapshot().some(rule => rule.behaviour === behaviour && !rule.option)
     if (sitting && locked('unsit')) return false

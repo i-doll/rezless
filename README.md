@@ -674,7 +674,9 @@ avatar sits, on an object or on the ground; no other seating restriction
 blocks it. From an object the avatar stands first and sits on the ground once
 the region has stood it up; when `@standtp` sends it back to where it sat
 from, it stays standing there. Kokua checks `@unsit` at once, and `@sit` and
-`@interact` when it asks for the ground sit, after any stand.
+`@interact` when it asks for the ground sit, after any stand. Every viewer
+returns `false` while the avatar flies and isn't sitting, since its menu item
+is disabled then.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
 `name`, `message` and the clock time `at`. A sit request refused for
