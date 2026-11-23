@@ -201,17 +201,17 @@ export const llGetTexture: BuiltinImpl = (ctx, args) => {
   return textureName(ctx.prim, ctx.prim.params.faces[face]!.texture)
 }
 export const llGetTextureOffset: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
+  const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return ZERO_VECTOR
   return ctx.prim.params.faces[face]!.textureOffsets
 }
 export const llGetTextureScale: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
+  const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return ZERO_VECTOR
   return ctx.prim.params.faces[face]!.textureRepeats
 }
 export const llGetTextureRot: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
+  const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return 0
   return ctx.prim.params.faces[face]!.textureRotation
 }

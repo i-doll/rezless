@@ -18,8 +18,10 @@ import {
 } from '../generated/constants.js'
 
 // Internal AST. `empty` represents the implicit-null slots LSL JSON allows
-// in `{"k":,}` and `[,,]` (`{"k":}` is invalid); on Get/Type these
-// short-circuit to JSON_NULL regardless of remaining specifiers.
+// in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
+// regardless of remaining specifiers. A `missing` value, as in `{"k":}` or
+// the extra "" member a trailing comma adds to an object, reads as
+// JSON_INVALID instead.
 type JNode =
   | { t: 'null' }
   | { t: 'true' }
@@ -28,7 +30,7 @@ type JNode =
   | { t: 'str'; v: string; raw?: string }
   | { t: 'arr'; items: JNode[]; raw?: string }
   | { t: 'obj'; entries: Array<[string, JNode]>; raw?: string }
-  | { t: 'empty' }
+  | { t: 'empty'; missing?: true }
 
 const SENTINEL_STRINGS: ReadonlySet<string> = new Set([
   JSON_INVALID,
@@ -107,8 +109,9 @@ class Parser {
       this.ws()
       const nc = this.src[this.i]
       let v: JNode
-      if (nc === '}') return null
-      if (nc === ',') {
+      if (nc === '}') {
+        v = { t: 'empty', missing: true }
+      } else if (nc === ',') {
         v = { t: 'empty' }
       } else {
         const parsed = this.parseValue()
@@ -126,6 +129,7 @@ class Parser {
         this.ws()
         if (this.src[this.i] === '}') {
           this.i++
+          entries.push(['', { t: 'empty', missing: true }])
           return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
         }
         continue
@@ -292,7 +296,7 @@ function printJson(n: JNode): string {
         '}'
       )
     case 'empty':
-      return 'null'
+      return ''
   }
 }
 
@@ -304,7 +308,7 @@ type WalkResult =
 function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
   let cur: JNode = root
   for (const [i, spec] of specs.entries()) {
-    if (cur.t === 'empty') return { kind: 'null' }
+    if (cur.t === 'empty') return cur.missing ? { kind: 'invalid' } : { kind: 'null' }
     if (typeof spec === 'string' && cur.t === 'arr') {
       const item = cur.items[parseLslInteger(spec)]
       if (item === undefined || item.t === 'empty') return { kind: 'invalid' }
@@ -326,7 +330,7 @@ function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
       return { kind: 'invalid' }
     }
   }
-  if (cur.t === 'empty') return { kind: 'null' }
+  if (cur.t === 'empty') return cur.missing ? { kind: 'invalid' } : { kind: 'null' }
   return { kind: 'node', node: cur }
 }
 
@@ -453,7 +457,7 @@ function setIn(
     if (idx > arr.items.length) return { ok: false }
     if (idx === arr.items.length) {
       if (rest.length === 0) {
-        if (value === 'delete') return { ok: true, node: arr }
+        if (value === 'delete') return { ok: false }
         arr.items.push(value)
         return { ok: true, node: arr }
       }
@@ -463,11 +467,8 @@ function setIn(
       return { ok: true, node: arr }
     }
     if (rest.length === 0) {
-      if (value === 'delete') {
-        // Cannot delete from arrays per wiki — return invalid.
-        return { ok: false }
-      }
-      arr.items[idx] = value
+      if (value === 'delete') arr.items.splice(idx, 1)
+      else arr.items[idx] = value
       return { ok: true, node: arr }
     }
     const sub = setIn(arr.items[idx]!, rest, value)
@@ -476,14 +477,17 @@ function setIn(
     return { ok: true, node: arr }
   }
   if (typeof head === 'string') {
+    // An object whose only member has no value is written to as an empty one.
+    const lone = root?.t === 'obj' && root.entries.length === 1 && root.entries[0]![1].t === 'empty' && root.entries[0]![1].missing
     const obj: { t: 'obj'; entries: Array<[string, JNode]> } =
-      root && root.t === 'obj'
+      root && root.t === 'obj' && !lone
         ? { t: 'obj', entries: collapseDuplicateKeys(root.entries) }
         : { t: 'obj', entries: [] }
     const existingIdx = obj.entries.findIndex(([k]) => k === head)
     if (rest.length === 0) {
       if (value === 'delete') {
-        if (existingIdx >= 0) obj.entries.splice(existingIdx, 1)
+        if (existingIdx < 0) return { ok: false }
+        obj.entries.splice(existingIdx, 1)
         return { ok: true, node: obj }
       }
       if (existingIdx >= 0) obj.entries[existingIdx] = [head, value]
