@@ -312,6 +312,7 @@ prims[0].renameInventory('Notes', 'Settings')                        // a taken 
 prims[0].removeInventory('Settings')                                 // a removed script stops
 prims[0].removeInventory('a', 'b')                                   // deleted together: one event
 prims[0].removeInventory('Wood')                                     // faces showing it go back to plywood
+prims[0].removeInventory('Dance')                                    // a playing animation goes on
 
 const door = await addScript(prims[1], { source: 'door.lsl', name: 'door' })  // dropped in: runs state_entry
 await addScript(prims[1], { source: 'spare.lsl' }, { running: false })        // dropped in, not running

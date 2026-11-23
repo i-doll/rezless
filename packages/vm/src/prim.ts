@@ -264,8 +264,8 @@ export class Prim {
   /**
    * Delete items as the owner does in the object's contents. Deleted scripts
    * stop. The prim stops using a deleted texture or material, as after
-   * `llRemoveInventory`, and a playing sound goes on. The prim's remaining
-   * scripts get one `changed(CHANGED_INVENTORY)` for the call, however many
+   * `llRemoveInventory`, and a playing sound or animation goes on. The
+   * prim's remaining scripts get one `changed(CHANGED_INVENTORY)` for the call, however many
    * items it names, with CHANGED_RENDER_MATERIAL when a face lost its material.
    */
   removeInventory(...names: string[]): void {
