@@ -1448,6 +1448,8 @@ export class Script {
       }
       event = 'changed'
     }
+    // Land collisions released from a sleep read where the prim is when they run.
+    if (payload['__here']) payload = { ...payload, pos: this.host.regionPosition() }
     if (this.slua) {
       // SLua has no states: the "first event" is running the script itself.
       if (event === 'state_entry') {

@@ -477,7 +477,7 @@ export class LinksetClock {
   private release(script: Script, events: QueuedEvent[], timerWaits: boolean): void {
     const held = mergeHeld(events.sort((a, b) => a.at - b.at))
       .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false,
-        payload: LAND_EVENTS.has(event) ? { ...payload, pos: target.host.regionPosition() } : payload }))
+        payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
     const v = script.clockView
     // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first
     // click, timer, the second click. The ticks that fell due during one sleep give one event,

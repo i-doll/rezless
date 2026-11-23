@@ -4,7 +4,7 @@ import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds } from './builtins/collision.js'
-import { setVelocity } from './builtins/motion.js'
+import { queueMoving, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
@@ -534,9 +534,7 @@ export class Linkset {
       // In-world: a box linked as a child into an object playing keyframed motion got
       // moving_start at the link, ahead of changed, and moving_end with the object.
       if (this.prims[0]?.keyframedMotion?.playing) {
-        for (const script of other.allScripts()) {
-          if (!this.clock.hasPending(script, 'moving_start')) this.clock.schedule(script, this.clock.now, 'moving_start')
-        }
+        for (const script of other.allScripts()) queueMoving(this.clock, script, 'moving_start', this.clock.now)
       }
       this.place([this.prims[0]!, ...other.prims, ...this.prims.slice(1)])
       mergeLinksetData(this.linksetData, other.linksetData)

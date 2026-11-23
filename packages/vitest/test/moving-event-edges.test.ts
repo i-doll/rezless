@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, STATUS_PHYSICS } from '../src/index.js'
+import { loadLinkset, STATUS_PHYSICS, World } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/Moving_start
 // https://wiki.secondlife.com/wiki/Moving_end
@@ -29,8 +29,9 @@ const mover = `${logger}
     }
   }`
 
-async function box(source: string, x = 128) {
-  const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 'main', source: { source } }] }] })
+async function box(source: string, x = 128, world?: World) {
+  const { linkset, scripts } = await loadLinkset({ ...(world && { world, region: 'home' }),
+    prims: [{ scripts: [{ name: 'main', source: { source } }] }] })
   linkset.prims[0]!.params.position = { x, y: 128, z: 100 }
   const script = scripts.main!
   script.start()
@@ -52,6 +53,21 @@ describe('moving events when an object is linked', () => {
     root.linkset.advanceTime(4_000)
     expect(root.log()).toEqual(['moving_start 0', 'moving_end 40'])
     expect(child.log().map((line) => line.split(' ').slice(0, -1).join(' '))).toEqual(['moving_start', 'changed 32', 'moving_end'])
+  })
+
+  // Follows the rule measured below: the link's moving_start takes away the moving_end that
+  // stopping the incoming mover raised.
+  it('takes away the moving_end of a mover linked into a moving object', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const root = await box(mover, 128, world)
+    const child = await box(mover, 130, world)
+    send(root, 'long')
+    send(child, 'long')
+    root.linkset.advanceTime(1_200)
+    root.linkset.absorb(child.linkset)
+    root.linkset.advanceTime(4_000)
+    expect(child.log().map((line) => line.split(' ')[0])).toEqual(['moving_start', 'moving_start', 'moving_end'])
   })
 })
 
@@ -183,6 +199,17 @@ describe('moving events from physical motion', () => {
     expect(b.log()).toEqual(['moving_start 0', 'moving_end 1'])
   })
 
+  it('ends a copy of a moving physical object when its velocity becomes zero', async () => {
+    const b = await box(physical)
+    b.linkset.setVelocity({ x: 0.5, y: 0, z: 0 })
+    send(b, 'on')
+    b.linkset.advanceTime(1_000)
+    const rezzed = b.linkset.copy().copy()
+    rezzed.setVelocity({ x: 0, y: 0, z: 0 })
+    rezzed.advanceTime(1_000)
+    expect((rezzed.prims[0]!.scripts[0]!.global('log') as string[]).at(-1)?.split(' ')[0]).toBe('moving_end')
+  })
+
   it('raises nothing for a velocity set on an object that is not physical', async () => {
     const b = await box(physical)
     b.linkset.setVelocity({ x: 0.5, y: 0, z: 0 })
@@ -208,6 +235,22 @@ describe('land collisions held back in one sleep', () => {
       land_collision_end(vector p) { log += "lce " + at(p); }
     }`
   const ground = (x: number) => ({ pos: { x, y: 48, z: 22.25 } })
+
+  it('reads the position when the event runs, after a second sleep', async () => {
+    const b = await box(`list log;
+      default {
+        link_message(integer f, integer n, string s, key id) { llSleep(1.0); llSleep(1.0); }
+        land_collision_start(vector p) { log += (string)llRound(p.z * 10); }
+      }`, 121)
+    b.linkset.clock.schedule(b.script, 0, 'link_message', { sender_num: 0, num: 0, str: '', id: '' })
+    b.linkset.advanceTime(0)
+    b.linkset.advanceTime(500)
+    b.linkset.clock.schedule(b.script, b.linkset.clock.now, 'land_collision_start', ground(121))
+    b.linkset.advanceTime(1_000)
+    b.linkset.prims[0]!.params.position = { x: 121, y: 48, z: 30 }
+    b.linkset.advanceTime(2_000)
+    expect(b.log()).toEqual(['300'])
+  })
 
   it.each([1, 2])('gives one start, four land_collision and one end for %i drops', async (drops) => {
     const b = await box(sleeper, 121)

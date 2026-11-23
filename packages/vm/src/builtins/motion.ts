@@ -45,14 +45,19 @@ function interpolate(a: Rotation, b: Rotation, t: number): Rotation {
 function raiseMoving(prim: Prim, event: 'moving_start' | 'moving_end', at: number): void {
   const linkset = prim.linkset
   if (!linkset || linkset.dead) return
-  for (const script of linkset.allScripts()) {
-    if (script.dead) continue
-    // In-world: start, pause and play 0.5 s apart in one handler gave only moving_start after
-    // it, and moving_end when the motion ended. Start, pause, play and stop gave both, as did
-    // start and pause, and start and stop. A moving_start takes away a moving_end that waits.
-    if (event === 'moving_start' && script.running) linkset.clock.purgeWhere((e) => e.target === script && e.event === 'moving_end')
-    if (!linkset.clock.hasPending(script, event)) linkset.clock.schedule(script, at, event)
-  }
+  for (const script of linkset.allScripts()) queueMoving(linkset.clock, script, event, at)
+}
+
+/**
+ * Queue a moving event unless one of its kind waits. In-world: start, pause and play 0.5 s
+ * apart in one handler gave only moving_start after it, and moving_end when the motion ended.
+ * Start, pause, play and stop gave both, as did start and pause, and start and stop. A
+ * moving_start takes away a moving_end that waits.
+ */
+export function queueMoving(clock: LinksetClock, script: Script, event: 'moving_start' | 'moving_end', at: number): void {
+  if (script.dead) return
+  if (event === 'moving_start' && script.running) clock.purgeWhere((e) => e.target === script && e.event === 'moving_end')
+  if (!clock.hasPending(script, event)) clock.schedule(script, at, event)
 }
 
 /** Whether a physical object's scripts were told it moves, and the settle that will end it. */
@@ -114,11 +119,12 @@ export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
 export function setVelocity(linkset: Linkset, velocity: Vector): void {
   const root = linkset.prims[0]
   if (!root) return
+  const before = velocityOf(linkset)
   root.physics.velocity = { ...velocity }
   if (!(root.statusFlags & STATUS_PHYSICS)) return
-  // An object made physical some other way, such as rezzed physical, starts at rest.
+  // An object made physical some other way, rezzed physical or copied, moves as its velocity says.
   let state = physicalMotion.get(linkset)
-  if (!state) physicalMotion.set(linkset, state = { moving: false })
+  if (!state) physicalMotion.set(linkset, state = { moving: !still(before) })
   if (still(velocity)) { settleLater(linkset, state); return }
   state.settle?.()
   state.settle = undefined
