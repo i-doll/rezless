@@ -683,9 +683,11 @@ from a child, and the sitter from a lone prim someone sits on. Calls that take
 it that way. That was measured in Second Life for `llMessageLinked` and the
 calls that set prim parameters, colour, alpha, texture, material and sit flags,
 the link sound calls, `llSetLinkTextureAnim` and `llLinkParticleSystem`. The
-link sound calls also reach seated avatars: the three group flags take every
-sitter as well as their prims, and a link number that names a sitter gives that
-avatar the sound. Read it from `world.avatars[i].sound`. Calls that take one
+link sound calls and `llSetLinkTextureAnim` also reach seated avatars: the
+three group flags take every sitter as well as their prims, and a link number
+that names a sitter gives that avatar the sound or animation. Read them from
+`world.avatars[i].sound` and `world.avatars[i].textureAnim`. Particles never
+reach an avatar. Calls that take one
 link (`llGetLinkKey`, `llGetLinkName`, `llGetLinkSitFlags`,
 `llAvatarOnLinkSitTarget`, `llLinkSitTarget`, `llSetLinkCamera`, the link media
 calls) read the three group flags as the first other link as well.

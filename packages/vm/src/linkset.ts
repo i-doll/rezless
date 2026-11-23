@@ -695,6 +695,16 @@ export class Linkset {
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
   }
 
+  /**
+   * The prims and seated avatars a link call reaches. In-world, the three group
+   * flags take every sitter as well, and a link number naming an avatar takes that avatar.
+   */
+  linksWithSitters(from: Prim, link: number): Link[] {
+    const { prims, sitter } = this.linksFrom(from, link)
+    if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return [...prims, ...this.sitters()]
+    return sitter ? [sitter] : prims
+  }
+
   /** Resolve LINK_* / specific link number to the set of target prims. */
   resolveTargets(senderLink: number, target: number): Prim[] {
     const sender = this.prims.find((p) => p.linkNumber === senderLink)

@@ -4,7 +4,7 @@ import type { Vector } from '../values/types.js'
 import { isPrim, type Link } from '../linkset.js'
 import { NULL_KEY } from '../values/types.js'
 import { InventoryType } from '../inventory.js'
-import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, SOUND_LOOP, SOUND_SYNC, SOUND_TRIGGER } from '../generated/constants.js'
+import { SOUND_LOOP, SOUND_SYNC, SOUND_TRIGGER } from '../generated/constants.js'
 import { sayError } from './debug.js'
 
 const KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -18,12 +18,8 @@ function resolve(ctx: CallContext, name: string): string | undefined {
   return undefined
 }
 
-// In-world, the link sound calls also reach seated avatars: the three group
-// flags take every sitter, and a link number naming an avatar takes that avatar.
 function targets(ctx: CallContext, link: number): Link[] {
-  const { prims, sitter } = ctx.linkset.linksFrom(ctx.prim, link)
-  if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return [...prims, ...ctx.linkset.sitters()]
-  return sitter ? [sitter] : prims
+  return ctx.linkset.linksWithSitters(ctx.prim, link)
 }
 
 function attach(state: PrimSoundState, sound: string, gain: number, loop: boolean, sync: AttachedSound['sync']): void {
