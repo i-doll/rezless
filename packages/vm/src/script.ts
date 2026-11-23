@@ -1,4 +1,4 @@
-import { clearTargetMotion } from './builtins/motion.js'
+import { clearTargetMotion, slackenTargetMotion } from './builtins/motion.js'
 import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
@@ -1135,6 +1135,7 @@ export class Script {
     // reset. Started, it ran state_entry of the default state with its globals back at their
     // start and the default memory limit, and no on_rez. A sleep it was stopped in never ended.
     const reset = !this.running && !this.crashed && !this.dead
+    if (reset) slackenTargetMotion(this, true)
     // In-world: an LSL handler that was asleep when the object was taken finished its sleep
     // after the rez, with its locals and llDetected* data, and ran to its end before on_rez.
     if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
@@ -1799,6 +1800,7 @@ export class Script {
     this.isRunning = value
     if (value) this.crashed = false
     if (starting) {
+      slackenTargetMotion(this, false)
       this.catchUp()
       resumeHeldTouches(this)
     }
