@@ -419,7 +419,8 @@ export class Linkset {
   /**
    * Drop a worn object to the ground, as the viewer's Drop does: at `position`, or where its
    * wearer stands. It keeps its key, its scripts run on and get attach(NULL_KEY), the region
-   * counts its scripts again, and RLV restrictions it set stay in force. Its inventory item is
+   * counts its scripts again, and RLV restrictions it set stay in force. Its scripts lose
+   * controls and camera control, and keep their other permissions. Its inventory item is
    * gone. The viewer offers no Drop for a temporary attachment, which has no item.
    */
   dropFromAvatar(position?: Vector): void {
@@ -433,6 +434,9 @@ export class Linkset {
     const at = position ?? wearer?.position
     if (at) this.prims[0]!.params.position = { ...at }
     this.attachment = null
+    // In-world: the dropped box's script already read llGetPermissions without
+    // PERMISSION_TAKE_CONTROLS and PERMISSION_CONTROL_CAMERA in attach(NULL_KEY).
+    for (const script of this.allScripts()) script.droppedFromAvatar()
     this.recountScripts()
     this.broadcastAttach(NULL_KEY)
   }
