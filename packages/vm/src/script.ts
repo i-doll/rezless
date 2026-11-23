@@ -165,6 +165,9 @@ export interface ScriptOptions {
   readonly experience?: Experience
 }
 
+/** The most bytes of prim name and text the owner sees of a crash. */
+const OWNER_ERROR_BYTES = 1151
+
 /**
  * Public handle for a loaded LSL script. Tests interact almost entirely
  * with this surface: drive events via fire(), inspect chat / calls,
@@ -193,8 +196,9 @@ export class Script {
   private isRunning = true
   /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
   crashed = false
-  /** What the run-time error said after its first line; a crashed SLua script says it again when rezzed. */
+  /** What the run-time error said after its first line, to listeners and to the owner; a crashed SLua script says it again when rezzed. */
   private crashText = ''
+  private crashShown = ''
   /** Running a game_control handler that still reads its own event's values. */
   private inGameControl = false
   /** Events that were already queued when the script stopped; delivered when it runs again. */
@@ -207,6 +211,8 @@ export class Script {
   resumedAt = 0
   /** True while a handler of this script is on the call stack; events for it wait until it returns or sleeps. */
   handling = false
+  /** Set when the object was detached while a handler of this script was on the call stack. */
+  detachedInHandler = false
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
@@ -332,6 +338,7 @@ export class Script {
       lifecycle: {
         dead: false,
         dying: false,
+        reset: false,
         removed: false,
       },
       filename,
@@ -1122,11 +1129,16 @@ export class Script {
     const copy = this.sluaSource === undefined ? new Script(this.ast, { ...this.options, host, coverage: false }) : this.freshSluaCopy(host)
     Object.assign(copy.mocks, this.mocks)
     copy.state.permissions.autoGrant = this.state.permissions.autoGrant
+    // In-world: a stopped LSL or SLua script came out of a take, a Take Copy or llDerezObject
+    // reset. Started, it ran state_entry of the default state with its globals back at their
+    // start and the default memory limit, and no on_rez. A sleep it was stopped in never ended.
+    const reset = !this.running && !this.crashed && !this.dead
     // In-world: an LSL handler that was asleep when the object was taken finished its sleep
     // after the rez, with its locals and llDetected* data, and ran to its end before on_rez.
-    if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
+    if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    copy.detachedInHandler = this.detachedInHandler
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1223,6 +1235,7 @@ export class Script {
       }
       copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, this.linkset.clock.heldBack(e, this.task?.startedAt))
     }
+    if (reset) copy.resetIntoInventory()
     return copy
   }
 
@@ -1258,13 +1271,17 @@ export class Script {
       // A worn object that was detached and is worn again runs on without state_entry.
       if (!this.clockView.inInventory) this.clockView.schedule(this.now, 'state_entry')
     }
+    const detachedInHandler = this.detachedInHandler
+    this.detachedInHandler = false
     if (!this.running) return
     // In-world: the events a script brought out of inventory ran after on_rez. A script that
     // came out with 64 events waiting ran them all and got no on_rez; one with 63 got it.
-    // A script that is not asleep has no such events: what it has queued stays ahead.
+    // A script that is not asleep, and was not in a handler at the detach, has no such events:
+    // what it has queued stays ahead.
     const clock = this.linkset.clock
-    const waiting = this.task ? clock.pendingEvents().filter(e => e.target === this) : []
-    if (this.task) clock.purgeTarget(this)
+    const held = !!this.task || detachedInHandler
+    const waiting = held ? clock.pendingEvents().filter(e => e.target === this) : []
+    if (held) clock.purgeTarget(this)
     const room = MAX_PENDING_EVENTS - waiting.length
     // A start that had not run yet still comes first.
     for (const e of waiting) if (e.event === 'state_entry') clock.schedule(this, this.now, e.event, e.payload)
@@ -1329,6 +1346,18 @@ export class Script {
   }
 
   /**
+   * A stopped script, neither crashed nor dead, that goes into inventory with its object comes
+   * back reset, its `state_entry` waiting for the start.
+   */
+  resetIntoInventory(): void {
+    if (this.running || this.crashed || this.dead) return
+    // The new SLua VM takes its limit from the state when restart() builds it.
+    if (this.slua) this.state.memory.limit = SLUA_MEMORY_LIMIT
+    this.restart()
+    this.queueStart()
+  }
+
+  /**
    * llResetOtherScript on a crashed script: it reads as running at once and
    * starts over with state_entry as its next event. Nothing it held or had
    * waiting survives.
@@ -1389,7 +1418,11 @@ export class Script {
     if (this.state.coverage) this.state.coverage.hitState('default')
     // Per LSL: if the script is stopped, reset just clears state — no
     // state_entry runs until it's restarted.
-    if (this.running) this.boot()
+    // A handler still running stops at its next call, and state_entry runs after it.
+    if (this.handling) this.state.lifecycle.reset = true
+    if (!this.running) return
+    if (this.handling) this.queueStart()
+    else this.boot()
   }
 
   /**
@@ -1437,7 +1470,8 @@ export class Script {
 
   /** Whether the script handles `event` now: a handler in the current LSL state, or an SLua LLEvents handler. */
   handles(event: string): boolean {
-    if (this.slua) return this.slua.handles(event)
+    // Until it starts, an SLua script's state_entry is its top level.
+    if (this.slua) return event === 'state_entry' ? !this.slua.started : this.slua.handles(event)
     return this.handlersByState.get(this.state.currentState)!.has(event)
   }
 
@@ -1517,6 +1551,7 @@ export class Script {
       throw e
     } finally {
       this.handling = outer
+      if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until }
@@ -1749,6 +1784,7 @@ export class Script {
     }
     copy.running = this.running && !this.dead
     copy.crashText = this.crashText
+    copy.crashShown = this.crashShown
     return copy
   }
 
@@ -1784,6 +1820,7 @@ export class Script {
     if (error.reported) return
     error.reported = true
     this.crashText = error.said
+    this.crashShown = error.shown
     this.sayCrash()
     this.running = false
     this.crashed = true
@@ -1791,8 +1828,10 @@ export class Script {
 
   private sayCrash(): void {
     const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
-    for (const text of [`${this.host.name} [script:${name}] Script run-time error`, this.crashText]) {
-      this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
+    const header = `${this.host.name} [script:${name}] Script run-time error`
+    const room = OWNER_ERROR_BYTES - new TextEncoder().encode(this.host.name).length
+    for (const [text, shown] of [[header, header], [this.crashText, this.crashShown]] as const) {
+      this.state.chat.push({ channel: DEBUG_CHANNEL, text: truncateUtf8(shown, room), type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
   }

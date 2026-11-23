@@ -918,7 +918,7 @@ describe('taking an object that is sat on', () => {
     expect(f.rezzer.log().at(-1)).toBe('derez 1')
     expect(f.seat.dead).toBe(true)
     const said = f.script('faulty.luau').chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)
-    expect(said).toEqual(['Object [script:faulty.luau] Script run-time error', 'runtime error'])
+    expect(said).toEqual(['Object [script:faulty.luau] Script run-time error', 'lua_script:1: boom\n[C] function error\nlua_script:1\n[C] function _handleEvent\n'])
     expect(f.script('zlast').global('log')).toEqual(['changed', 'changed'])
   })
 

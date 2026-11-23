@@ -162,3 +162,26 @@ describe('a ground sit from the viewer menu in Kokua', () => {
     expect(rlv.avatar.info & AGENT_SITTING).toBe(0)
   })
 })
+
+describe('a menu ground sit racing a forced sit', () => {
+  // In-world: standing 4 m from the box, the avatar chatted a command and the
+  // viewer asked for a menu ground sit at once; the box slept 0 to 1.2 s and
+  // then forced "@sit:<box>=force". In other runs the viewer asked for the
+  // ground sit first and chatted the command after. In all 18 runs the box's
+  // changed(CHANGED_LINK) fired about 0.2 s after the forced sit and the avatar
+  // ended up on the box: llGetAgentInfo read 54 (on an object) 3 s later.
+  // When the force came first, the box read 6, standing, as it forced.
+  it.each([['a ground sit asked for inside the forced sit\'s delay', 100], ['a forced sit sent while sitting on the ground', -1]] as const)(
+    'leaves the avatar on the object after %s', async (_, groundAt) => {
+      const f = await rlva()
+      if (groundAt < 0) expect(f.ground()).toBe(true)
+      f.say(`@sit:${f.script.host.key}=force`)
+      if (groundAt >= 0) {
+        f.script.linkset.advanceTime(groundAt)
+        expect(f.world.userSitAvatarOnGround(f.avatar)).toBe(true)
+      }
+      f.script.linkset.advanceTime(3000)
+      expect(f.avatar.sittingOn).toBe(f.script.host)
+      expect(f.sitting()).toBe(AGENT_SITTING | AGENT_ON_OBJECT)
+    })
+})

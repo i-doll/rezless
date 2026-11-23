@@ -346,15 +346,19 @@ export class Linkset {
     // A detached object leaves region queries and recurring timers. The final
     // attach event still runs from the shared clock's explicit event queue.
     for (const script of this.allScripts()) {
+      // In-world: a stopped script detached and worn again, or rezzed from the item, ran
+      // state_entry of the default state with fresh globals once it was started.
+      script.resetIntoInventory()
       script.clockView.pauseForInventory()
       script.detached()
       pauseSensors(script)
       pauseTargets(script)
-      // In-world: a chat line waiting for a handler that was asleep at the detach ran when the
-      // object was worn again, after on_rez and before the two attach events.
-      if (script.wakeAt === undefined) this.clock.purgeTarget(script)
+      // In-world: a chat line waiting for a handler that was asleep, or busy in a loop, at the
+      // detach ran when the object was worn again, after on_rez and before the two attach events.
+      if (script.handling) script.detachedInHandler = true
+      else if (script.wakeAt === undefined) this.clock.purgeTarget(script)
       // In-world: a game_control waiting for a script asleep at the detach never ran.
-      else this.clock.purgeWhere((e) => e.target === script && e.event === 'game_control')
+      if (script.wakeAt !== undefined) this.clock.purgeWhere((e) => e.target === script && e.event === 'game_control')
     }
     // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
     for (const script of this.allScripts()) {
@@ -365,7 +369,7 @@ export class Linkset {
   }
 
   private finishTemporaryDetach(): void {
-    if (!this.deleteAfterDetach || this.allScripts().some(s => s.running && s.wakeAt === undefined && this.clock.hasPending(s, 'attach'))) return
+    if (!this.deleteAfterDetach || this.allScripts().some(s => s.running && s.wakeAt === undefined && !s.detachedInHandler && this.clock.hasPending(s, 'attach'))) return
     this.deleteAfterDetach = false
     this.remove()
   }

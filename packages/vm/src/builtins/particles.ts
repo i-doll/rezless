@@ -3,13 +3,12 @@ import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { isVector, NULL_KEY } from '../values/types.js'
 import { ruleElementType, sliceList } from '../values/list-types.js'
-import { InventoryType } from '../inventory.js'
+import { textureKey } from '../prim-params.js'
 import { PSYS_SRC_TEXTURE } from '../generated/constants.js'
 
 const integers = new Set([0, 9, 15, 24, 25])
 const floats = new Set([2, 4, 7, 10, 11, 13, 16, 17, 18, 19, 22, 23, 26, 27])
 const vectors = new Set([1, 3, 5, 6, 8, 21])
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function integer(rules: ReadonlyArray<LslValue>, index: number): boolean {
   const type = ruleElementType(rules, index)
@@ -36,8 +35,7 @@ function texture(prim: Prim, rules: ReadonlyArray<LslValue>): string {
   for (let i = 0; i + 1 < rules.length; i += 2) {
     if (integer(rules, i) && rules[i] === PSYS_SRC_TEXTURE) name = rules[i + 1] as string
   }
-  if (UUID.test(name)) return name.toLowerCase()
-  return prim.inventory.find(item => item.type === InventoryType.TEXTURE && item.name === name)?.key.toLowerCase() ?? NULL_KEY
+  return textureKey(prim, name) ?? NULL_KEY
 }
 
 function set(prim: Prim, rules: ReadonlyArray<LslValue>): void {
