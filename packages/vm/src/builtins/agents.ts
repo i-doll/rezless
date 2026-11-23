@@ -56,12 +56,14 @@ function username(name: string): string {
   return `${first}.${last}`
 }
 
-// In-world: llName2Key kept returning the key of an avatar that had left, 75 s after it went and
-// after every other read had lost it, and through the frame a dying seat hides its sitter.
+// In-world: llName2Key kept returning the key of an avatar that had left at the end of a 75 s watch,
+// after every other read had lost it, and through the frame a dying seat hides its sitter. The watch
+// didn't see it end, so here it never does.
 export const llName2Key: BuiltinImpl = (ctx, args) => {
   const wanted = username(args[0] as string)
   const { world, region } = ctx.linkset
-  return world?.avatars.find(a => username(a.username) === wanted && (a.region === region || world.hasLeft(a, region)))?.key ?? NULL_KEY
+  return world?.avatars.find(a => username(a.username) === wanted
+    && (a.region === region || world.hasLeft(a, region) || world.lingeringAvatar(a, region) !== undefined))?.key ?? NULL_KEY
 }
 
 const userKeyThrottles = new WeakMap<object, Map<string, WindowThrottle>>()

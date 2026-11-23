@@ -107,9 +107,12 @@ describe('OBJECT_VELOCITY and OBJECT_SCALE of an avatar that left', () => {
 
   // In-world: in SLua Tombolo the avatar walked back and forth; OBJECT_VELOCITY followed it
   // (<3.2, -0.08, 0>, then <-3.16, 0.53, 0>, then zero once it stopped) and OBJECT_SCALE read its size.
-  it('follows the velocity of an avatar in the next region', async () => {
+  // Through "Init" it read zero in all five teleports out; the one that left walking went far away.
+  it('follows the velocity of an avatar in the next region once its "Init" ends', async () => {
     const f = await fixture()
+    f.avatar.velocity = { ...WALKING }
     f.teleport('north')
+    expect(f.watcher.details(OBJECT_VELOCITY)).toEqual([ZERO])
     f.advance(1000)
     f.avatar.velocity = { x: -3.16, y: 0.53, z: 0 }
     expect(f.watcher.details(OBJECT_VELOCITY)).toEqual([f.avatar.velocity])
@@ -133,7 +136,9 @@ describe('the region an avatar leaves, while it reads "Init"', () => {
   it('lists it by the parcel it left from', async () => {
     const f = await fixture()
     expect(f.across.lists()).toEqual([0, 0, 1])
-    f.teleport('far')
+    const corner = f.world.corner('far')
+    expect(f.world.teleportAvatar(f.avatar, { x: corner.x + 200, y: corner.y + 128, z: 30 })).toBe(true)
+    expect(f.watcher.lists()).toEqual([1, 1, 1])
     expect(f.across.lists()).toEqual([0, 0, 1])
   })
 
@@ -191,6 +196,12 @@ describe('llName2Key, llGetVisualParams and llSameGroup for an avatar that left'
     const f = await fixture()
     f.teleport('north')
     f.advance(120_000)
+    expect(f.watcher.others()).toEqual([1, 1, '0.596079'])
+  })
+
+  it('finds an avatar in the next region by name, as it reads its group', async () => {
+    const f = await fixture()
+    f.avatar.region = 'north'
     expect(f.watcher.others()).toEqual([1, 1, '0.596079'])
   })
 })
