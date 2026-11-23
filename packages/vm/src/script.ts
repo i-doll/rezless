@@ -1328,7 +1328,7 @@ export class Script {
     const rezzed = waiting.some(e => e.event === 'on_rez')
     if (room > 0 && !rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
-    if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer()
+    if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer(false)
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
       const detected = e.payload['detected']
@@ -1438,7 +1438,7 @@ export class Script {
     stopSensors(this)
     clearTargets(this)
     clearTargetMotion(this)
-    this.clockView.cancelTimer()
+    this.clockView.resetTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
     this.clockView.resetReference()
@@ -1866,7 +1866,7 @@ export class Script {
     this.resumeParked()
     // A detached object's timer and sensor wait for it to be worn again.
     if (this.clockView.inInventory) return
-    this.clockView.catchUpTimer()
+    this.clockView.catchUpTimer(!this.slua)
     runMissedSensor(this)
   }
 

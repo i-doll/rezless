@@ -620,12 +620,15 @@ describe('print', () => {
     s.fire('touch_start', { num_detected: 1 })
     expect(s.chat.map((c) => c.text)).toEqual([
       'Object [script:<inline>] Script run-time error',
-      'System.InvalidProgramException: Invalid IL code in LSL :timer ()',
+      'System.InvalidProgramException: Invalid IL code in LSL :timer ()\n\n\n' +
+        '  at UserScript.OnTimer () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ',
     ])
   })
 
   it('halts on entering a user function that uses the value of a key print', async () => {
-    // Unmeasured: a user function failing on entry like a handler, and its name in the message.
+    // In-world: a user function holding the value of an integer *= float failed on entry the
+    // same way, as `gfn (int)`, with the handler that called it in the stack (Aditi, SLua
+    // Tideland, 2026-11-23; mono-invalid-program.test.ts pins the measured text).
     const s = await loadScript({
       source: `
         integer r;
@@ -638,7 +641,8 @@ describe('print', () => {
     expect(s.global('r')).toBe(1)
     expect(s.chat.map((c) => c.text)).toEqual([
       'Object [script:<inline>] Script run-time error',
-      'System.InvalidProgramException: Invalid IL code in LSL :f ()',
+      'System.InvalidProgramException: Invalid IL code in LSL :gf ()\n\n\n' +
+        '  at LSL .state_entry () \n  at UserScript.OnStateEntry () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ',
     ])
   })
 

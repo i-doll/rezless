@@ -42,7 +42,7 @@ export function typecheck(
   return new Checker(ast, filename, functions).run()
 }
 
-/** Functions and handlers that use the value of a key print, which Mono can't run. */
+/** Functions and handlers Mono can't run: they use the value of a key print or of `integer *= float`. */
 export function invalidPrograms(
   ast: Ast,
   functions: Readonly<Record<string, FunctionSignature>> = {},
@@ -155,6 +155,8 @@ class Checker {
   /** Every label in the current function or handler; Mono rejects duplicates. */
   /** The function or handler being checked. */
   private owner: Node | null = null
+  /** The expression of a statement, `for` init or update, whose value nothing uses. */
+  private discarded: Expression | null = null
   readonly invalid = new Set<Node>()
 
   constructor(
@@ -308,7 +310,9 @@ class Checker {
       case 'EmptyStatement':
         return []
       case 'ExpressionStatement':
-        this.expr(s.expression.kind === 'PrintExpression' ? s.expression.argument : s.expression)
+        // In-world: print(i *= f) failed like any other use of the value.
+        if (s.expression.kind === 'PrintExpression') this.expr(s.expression.argument)
+        else this.unused(s.expression)
         return []
       case 'IfStatement': {
         this.condition(s.test)
@@ -327,9 +331,9 @@ class Checker {
         this.condition(s.test)
         return []
       case 'ForStatement':
-        for (const e of s.init) this.expr(e)
+        for (const e of s.init) this.unused(e)
         if (s.test) this.condition(s.test)
-        for (const e of s.update) this.expr(e)
+        for (const e of s.update) this.unused(e)
         this.stmt(s.body, 'allowed')
         return []
       case 'ReturnStatement': {
@@ -450,9 +454,12 @@ class Checker {
           return target
         }
         // `integer *= float` is a documented SL quirk: it compiles and stores
-        // an integer, but its value is a float. Every other compound
-        // assignment must produce a value assignable back to the target.
-        if (e.operator === '*=' && target === 'integer' && value === 'float') return 'float'
+        // an integer, but its value is a float, which Mono can't produce. Every
+        // other compound assignment must produce a value assignable back to the target.
+        if (e.operator === '*=' && target === 'integer' && value === 'float') {
+          if (e !== this.discarded && this.owner) this.invalid.add(this.owner)
+          return 'float'
+        }
         const t = binaryType(e.operator[0] as BinaryOp, target, value)
         if (!t || !assignable(target, t)) {
           this.mismatch(e, `'${e.operator}' not defined for ${target} and ${value}`)
@@ -485,6 +492,12 @@ class Checker {
         return t
       }
     }
+  }
+
+  private unused(e: Expression): void {
+    this.discarded = e
+    this.expr(e)
+    this.discarded = null
   }
 
   private component(e: Expression): void {

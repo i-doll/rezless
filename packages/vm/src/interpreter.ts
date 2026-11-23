@@ -39,11 +39,57 @@ import { CONSTANT_TABLE } from './generated/constants_table.js'
 import { RuntimeError, StackHeapCollision, frameBytes } from './memory.js'
 import { HaltSignal } from './builtins/object.js'
 
-/** Mono can't run a function or handler that uses the value of a key print. */
+/** How Mono names each LSL type: in the failing method's signature, and in a stack frame. */
+const MONO_TYPES: Readonly<Record<string, readonly [string, string]>> = {
+  integer: ['int', 'Int32'],
+  float: ['single', 'Single'],
+  string: ['string', 'System.String'],
+  key: ['Key', 'Key'],
+  vector: ['Vector', 'Vector'],
+  rotation: ['Quaternion', 'Quaternion'],
+  list: ['System.Collections.ArrayList', 'System.Collections.ArrayList'],
+}
+
+type Params = ReadonlyArray<{ typeName: string; name: string }>
+
+const frameParams = (params: Params, named: (p: Params[number], i: number) => string) =>
+  params.map((p, i) => `${MONO_TYPES[p.typeName]![1]} ${named(p, i)}`).join(', ')
+
+/** Mono's name for a handler: a handler outside the default state carries `e` and its state's name. */
+const handlerMethod = (state: string, event: string) => state === 'default' ? event : `e${state}${event}`
+
+/**
+ * Mono can't run a function or handler that uses the value of a key print or of
+ * `integer *= float`. It fails when the script enters it, naming the method and listing
+ * the methods that called it.
+ */
 class InvalidProgram extends RuntimeError {
-  constructor(name: string) {
-    super(`System.InvalidProgramException: Invalid IL code in LSL :${name} ()`)
+  private readonly frames: string[] = []
+
+  constructor(private readonly method: string, params: Params) {
+    super('')
     this.name = 'InvalidProgram'
+    this.method = `${method} (${params.map((p) => MONO_TYPES[p.typeName]![0]).join(',')})`
+    this.update()
+  }
+
+  /** A user function or handler the failure passed through on its way out. */
+  calledFrom(method: string, params: Params): void {
+    this.frames.push(`LSL .${method} (${frameParams(params, (p) => p.name)})`)
+    this.update()
+  }
+
+  /** The handler's entry point and the runtime's frames below it. */
+  ranFor(event: string, params: Params): void {
+    const camel = event.split('_').map((w) => w[0]!.toUpperCase() + w.slice(1)).join('')
+    this.frames.push(`UserScript.On${camel} (${frameParams(params, (_, i) => `p${i}`)})`, 'Script.UserEvent (ScriptEvent e)', 'Script.Run (ScriptEvent evt)')
+    this.update()
+  }
+
+  // The offset and instruction Mono reports after the signature depend on the compiled code,
+  // so they are left out.
+  private update(): void {
+    this.message = `System.InvalidProgramException: Invalid IL code in LSL :${this.method}\n\n\n${this.frames.map((f) => `  at ${f} `).join('\n')}`
   }
 }
 
@@ -229,7 +275,12 @@ function* runHandler(
   handler: EventHandler,
   args: ReadonlyArray<EvalResult>,
 ): Exec<void> {
-  if (ctx.invalidPrograms.has(handler)) throw new InvalidProgram(handler.name)
+  const method = handlerMethod(ctx.state.currentState, handler.name)
+  if (ctx.invalidPrograms.has(handler)) {
+    const e = new InvalidProgram(method, handler.params)
+    e.ranFor(handler.name, handler.params)
+    throw e
+  }
   if (ctx.state.coverage) {
     ctx.state.coverage.hitFunction(handler.loc)
     // execBlock bypasses execStatement for the outermost body, so credit
@@ -249,6 +300,12 @@ function* runHandler(
   } catch (e) {
     if (e instanceof ReturnSignal) return
     if (e instanceof JumpSignal) throw new Error(jumpError(e, `event handler '${handler.name}'`))
+    // In-world: a handler that called the failing function showed its own frame with its
+    // parameter names, as a function's frame does.
+    if (e instanceof InvalidProgram) {
+      e.calledFrom(method, handler.params)
+      e.ranFor(handler.name, handler.params)
+    }
     throw e
   } finally {
     ctx.state.memory.releaseLocals(locals)
@@ -265,7 +322,7 @@ function* callUserFunction(
   fn: FunctionDeclaration,
   args: ReadonlyArray<EvalResult>,
 ): UserCall {
-  if (ctx.invalidPrograms.has(fn)) throw new InvalidProgram(fn.name)
+  if (ctx.invalidPrograms.has(fn)) throw new InvalidProgram(`g${fn.name}`, fn.params)
   if (ctx.state.coverage) {
     ctx.state.coverage.hitFunction(fn.loc)
     ctx.state.coverage.hitStatement(fn.body.loc)
@@ -295,6 +352,7 @@ function* callUserFunction(
     }
     // The host ran out of stack before the memory model did.
     if (e instanceof RangeError) throw new StackHeapCollision()
+    if (e instanceof InvalidProgram) e.calledFrom(`g${fn.name}`, fn.params)
     throw e
   } finally {
     memory.releaseLocals(locals)
@@ -383,11 +441,7 @@ function* execStatement(ctx: InterpreterContext, env: Env, stmt: Statement): Exe
       yield* execVariableDeclaration(ctx, env, stmt)
       return
     case 'ExpressionStatement':
-      yield* evalDiscarded(
-        ctx,
-        env,
-        stmt.expression.kind === 'PrintExpression' ? stmt.expression.argument : stmt.expression,
-      )
+      yield* evalExpression(ctx, env, stmt.expression.kind === 'PrintExpression' ? stmt.expression.argument : stmt.expression)
       return
     case 'IfStatement':
       yield* execIf(ctx, env, stmt)
@@ -472,7 +526,7 @@ function* execDoWhile(ctx: InterpreterContext, env: Env, stmt: DoWhileStatement,
 function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement, resume: JumpPath | null = null): Exec<void> {
   const child = env.push()
   const cov = ctx.state.coverage
-  if (!resume) for (const e of stmt.init) yield* evalDiscarded(ctx, child, e)
+  if (!resume) for (const e of stmt.init) yield* evalExpression(ctx, child, e)
   while (true) {
     if (resume) {
       // A jump landed in the body: finish it, then update and test as usual.
@@ -486,7 +540,7 @@ function* execFor(ctx: InterpreterContext, env: Env, stmt: ForStatement, resume:
       if (!t) break
       yield* execStatement(ctx, child, stmt.body)
     }
-    for (const e of stmt.update) yield* evalDiscarded(ctx, child, e)
+    for (const e of stmt.update) yield* evalExpression(ctx, child, e)
     iterate(ctx)
   }
 }
@@ -658,17 +712,10 @@ function assignsFloat(env: Env, target: Expression): boolean {
   return target.kind === 'Identifier' && env.get(target.name).type === 'float'
 }
 
-/** Evaluate an expression whose value nothing uses: a statement, or a `for` init or update. */
-function* evalDiscarded(ctx: InterpreterContext, env: Env, e: Expression): Exec<void> {
-  if (e.kind === 'AssignmentExpression') yield* evalAssignment(ctx, env, e, false)
-  else yield* evalExpression(ctx, env, e)
-}
-
 function* evalAssignment(
   ctx: InterpreterContext,
   env: Env,
   e: AssignmentExpression,
-  used = true,
 ): Exec<EvalResult> {
   let newValue = yield* evalExpression(ctx, env, e.value)
   // An integer constant assigned to a float (`f = 1`, `f += 1`, `v.x = 1`) is
@@ -676,12 +723,7 @@ function* evalAssignment(
   if (newValue.type === 'integer' && isFoldedConstant(e.value, false) && assignsFloat(env, e.target)) {
     newValue = toFloatConstant(newValue)
   }
-  const result = assignTo(ctx, env, e.target, e.operator, newValue)
-  // `integer *= float` stores its result, but Mono can't produce it as a value.
-  if (used && e.operator === '*=' && result.type === 'integer' && newValue.type === 'float') {
-    throw new RuntimeError('cannot take result of integer *= float')
-  }
-  return result
+  return assignTo(ctx, env, e.target, e.operator, newValue)
 }
 
 function assignTo(
