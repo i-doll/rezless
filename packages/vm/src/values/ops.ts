@@ -391,6 +391,20 @@ function hamilton(a: Rotation, b: Rotation): Rotation {
   )
 }
 
+/**
+ * Second Life's quaternion normalise, in single precision: it leaves a
+ * rotation within 1e-6 of unit length as it is, and turns one of length 1e-7
+ * or less into ZERO_ROTATION.
+ */
+export function normalizeRotation(q: Rotation): Rotation {
+  const f32 = Math.fround
+  const m = f32(Math.sqrt(f32(f32(f32(f32(q.x * q.x) + f32(q.y * q.y)) + f32(q.z * q.z)) + f32(q.s * q.s))))
+  if (!(m > f32(1e-7))) return rot(0, 0, 0, 1)
+  if (Math.abs(f32(1 - m)) <= 1e-6) return q
+  const k = f32(1 / m)
+  return rot(f32(q.x * k), f32(q.y * k), f32(q.z * k), f32(q.s * k))
+}
+
 export function conjugate(q: Rotation): Rotation {
   return rot(-q.x, -q.y, -q.z, q.s)
 }
