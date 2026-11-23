@@ -77,6 +77,7 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   let changed: number | undefined
   let touches: number | undefined
   let gameControl: number | undefined
+  let landEnd: number | undefined
   for (const e of held) {
     // In-world: a release and a new press sent while the handler slept gave one game_control,
     // for the press.
@@ -99,9 +100,15 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       continue
     }
     if (LAND_EVENTS.has(e.event)) {
+      // The end kept is the last contact's; a contact that starts after it marks it as reopened.
+      if (landEnd !== undefined && e.event !== 'land_collision') {
+        const end = merged[landEnd]!
+        merged[landEnd] = e.event === 'land_collision_end' ? e : { ...end, payload: { ...end.payload, [REOPENED]: true } }
+      }
       const kept = land.get(e.event) ?? 0
       if (kept < (e.event === 'land_collision' ? HELD_LAND_COLLISIONS : 1)) {
         land.set(e.event, kept + 1)
+        if (e.event === 'land_collision_end') landEnd = merged.length
         merged.push(e)
       }
       continue
@@ -167,6 +174,8 @@ const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'colli
  */
 const LAND_EVENTS: ReadonlySet<string> = new Set(['land_collision_start', 'land_collision', 'land_collision_end'])
 const HELD_LAND_COLLISIONS = 4
+/** Marks a held land_collision_end whose object touched the land again after it. */
+const REOPENED = '__reopened'
 
 /**
  * Held land events released together, carried in their payload's `__here`: the script's events
@@ -174,7 +183,7 @@ const HELD_LAND_COLLISIONS = 4
  */
 interface LandTail {
   readonly script: Script; readonly since: number; limit?: number; ran: number; dropped: number
-  readonly copies: Map<Script, LandTail>
+  readonly copies: WeakMap<Script, LandTail>
 }
 
 function landTailOf(tail: LandTail, script: Script): LandTail {
@@ -395,17 +404,25 @@ export class LinksetClock {
     this.ran.set(e.target, ran + (counts ? 1 : 0))
     const released = e.payload['__here'] as LandTail | true | undefined
     const tail = typeof released === 'object' ? landTailOf(released, e.target) : undefined
-    if (e.event !== 'land_collision') {
-      if (!tail && LAND_EVENTS.has(e.event)) this.openContacts.delete(e.target)
+    if (!tail) return this.dropsLiveLandEvent(e.target, e.event)
+    if (e.event !== 'land_collision') return false
+    tail.limit ??= Math.max(1, HELD_LAND_COLLISIONS - Math.floor((ran - tail.since) / 2))
+    if (tail.ran >= tail.limit) return true
+    tail.ran++
+    return false
+  }
+
+  /**
+   * Whether a live land event of `script`, one that wasn't held, gives nothing: a land_collision
+   * of a contact whose held land_collision events ran at the wake, until one more has come than
+   * those. Another land_collision_start or a land_collision_end ends the contact.
+   */
+  dropsLiveLandEvent(script: Script, event: string): boolean {
+    if (event !== 'land_collision') {
+      if (LAND_EVENTS.has(event)) this.openContacts.delete(script)
       return false
     }
-    if (tail) {
-      tail.limit ??= Math.max(1, HELD_LAND_COLLISIONS - Math.floor((ran - tail.since) / 2))
-      if (tail.ran >= tail.limit) return true
-      tail.ran++
-      return false
-    }
-    const open = this.openContacts.get(e.target)
+    const open = this.openContacts.get(script)
     if (!open?.ran || open.ran + 1 <= open.dropped) return false
     open.dropped++
     return true
@@ -546,15 +563,18 @@ export class LinksetClock {
 
   /** Queue held-back events behind the others, merged and in the held order. */
   private release(script: Script, events: QueuedEvent[], timerWaits: boolean): void {
-    const held = mergeHeld(events.sort((a, b) => a.at - b.at))
+    const merged = mergeHeld(events.sort((a, b) => a.at - b.at))
+    // The contact goes on past the wake when no end of it was held.
+    const open = !merged.some((e) => e.event === 'land_collision_end' && !e.payload[REOPENED])
+    const held = merged.filter((e) => !e.payload[REOPENED])
       .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false,
         payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
     const lands = held.filter((e) => e.event === 'land_collision')
     if (lands.length) {
-      const tail: LandTail = { script, since: this.ran.get(script) ?? 0, ran: 0, dropped: 0, copies: new Map() }
+      const tail: LandTail = { script, since: this.ran.get(script) ?? 0, ran: 0, dropped: 0, copies: new WeakMap() }
       for (const e of held) if (LAND_EVENTS.has(e.event)) e.payload['__here'] = tail
-      if (held.some((e) => e.event === 'land_collision_end')) this.openContacts.delete(script)
-      else this.openContacts.set(script, tail)
+      if (open) this.openContacts.set(script, tail)
+      else this.openContacts.delete(script)
     }
     const v = script.clockView
     // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first

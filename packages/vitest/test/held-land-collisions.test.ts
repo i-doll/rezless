@@ -137,6 +137,45 @@ describe('land_collision held through a sleep', () => {
     expect(landed(f.log())).toBe(after - 1)
   })
 
+  // Follows the rule above: of two contacts held in one sleep, the one still going on at the wake
+  // is the one whose live land_collision events stand in for the held ones.
+  it('drops live land_collision for a second contact that goes on past the wake', async () => {
+    const f = await box()
+    f.link('sleep', 4_000)
+    f.linkset.advanceTime(1_000)
+    contact(f, 6)
+    f.linkset.advanceTime(1_000)
+    contact(f, 6, false)
+    f.linkset.advanceTime(4_000 - f.linkset.clock.now)
+    for (let i = 0; i < 12; i++) {
+      f.linkset.advanceTime(44)
+      f.at('land_collision')
+    }
+    f.linkset.advanceTime(44)
+    f.at('land_collision_end')
+    f.linkset.advanceTime(1_000)
+    expect(landed(f.log())).toBe(11)
+  })
+
+  // The same contact going on past the wake, with the live events given to the script directly.
+  it('drops the live land_collision events fired at an idle script as well', async () => {
+    const f = await box()
+    f.link('sleep', 2_000)
+    f.linkset.advanceTime(1_500)
+    contact(f, 6, false)
+    f.linkset.advanceTime(2_000 - f.linkset.clock.now)
+    for (let i = 0; i < 12; i++) {
+      f.linkset.advanceTime(44)
+      f.script.fire('land_collision', ground)
+    }
+    f.linkset.advanceTime(44)
+    f.script.fire('land_collision_end', ground)
+    f.linkset.advanceTime(1_000)
+    expect(f.log().slice(0, 2)).toEqual(['woke', 'lcs'])
+    expect(f.log().at(-1)).toBe('lce')
+    expect(landed(f.log())).toBe(11)
+  })
+
   // In-world: the same with the sleeper resetting itself in its first land_collision after the
   // wake -> after the reset it got every live land_collision, 15 of 15 and 14 of 14, and
   // land_collision_end. It also got a new land_collision_start, as a script reset during any
