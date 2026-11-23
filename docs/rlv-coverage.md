@@ -1540,9 +1540,9 @@ Comparison: confirmed difference. Both profiles share ordinary cross-prim except
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs an ordinary or secure exception on that same prim. With permissive=n every restricting issuer needs its own exception. Options match the literal decimal outgoing channel. Other permissive command families remain unsupported.
+Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs an ordinary or secure exception on that same prim. With permissive=n every restricting issuer needs its own exception. Options match the literal decimal outgoing channel, negative channels included. Other permissive command families remain unsupported.
 
-- Positive private-channel avatar say via sendAvatarChat
+- Private-channel avatar chat via sendAvatarChat, negative channels included
 - No-option sendchannel/sendchannel_sec blocks and literal channel exceptions
 - No-option permissive scoped to sendchannel
 - Channel zero bypasses sendchannel; denied attempts are logged without delivery
@@ -1551,9 +1551,9 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs its own exception; with permissive=n every restricting issuer does. Exceptions accept positive signed 32-bit decimal prefixes; zero, negative and invalid options are rejected. Ordinary and secure option forms grant the same channel exception. Other permissive command families remain unsupported.
+Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs its own exception; with permissive=n every restricting issuer does. Exceptions accept positive signed 32-bit decimal prefixes; zero, negative and invalid options are rejected, so a no-option block also closes every negative channel. Ordinary and secure option forms grant the same channel exception. Other permissive command families remain unsupported.
 
-- Positive private-channel avatar say via sendAvatarChat
+- Private-channel avatar chat via sendAvatarChat, negative channels included
 - No-option sendchannel/sendchannel_sec blocks and numeric channel exceptions
 - No-option permissive scoped to sendchannel
 - Channel zero bypasses sendchannel; denied attempts are logged without delivery

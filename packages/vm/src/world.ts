@@ -367,7 +367,11 @@ export class World {
     return playAvatarGesture(this, avatar, gesture)
   }
 
-  /** Simulate avatar local chat; restrictions apply only through this action. */
+  /**
+   * Make `avatar` chat on `channel`. Whisper, say and shout reach 10, 20 and
+   * 100 m; a negative channel reaches 20 m in its region. RLV restrictions
+   * apply only through this action.
+   */
   sendAvatarChat(avatar: WorldAvatar, channel: number, message: string, volume: AvatarChatVolume = 'say'): AvatarChatAction {
     return sendAvatarChat(this, avatar, channel, message, volume)
   }

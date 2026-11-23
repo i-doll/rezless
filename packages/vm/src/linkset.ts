@@ -793,13 +793,18 @@ export class Linkset {
     return this.broadcast((linkset, p) => distanceSquared(origin, linkset.globalPosition(p)) <= range * range, chat)
   }
 
-  /** Queue avatar shout or dialog reply chat; never drain inside a builtin. */
-  routeViewerReply(avatar: WorldAvatar, channel: number, message: string): void {
+  /**
+   * Queue avatar chat on the listens it reaches and return the matched
+   * scripts; never drain inside a builtin. Channel 0 and positive channels
+   * reach `volume` range in any region. A negative channel is a dialog reply:
+   * 20 m in the avatar's region, whatever the volume.
+   */
+  routeViewerReply(avatar: WorldAvatar, channel: number, message: string, volume: 'whisper' | 'say' | 'shout' = 'shout'): Script[] {
     const corner = this.world!.corner(avatar.region)
     const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
-    const range = channel < 0 ? CHAT_RANGE.say! : CHAT_RANGE.shout!
+    const range = CHAT_RANGE[channel < 0 ? 'say' : volume]!
     // Attachment positions are fixture values, but a worn object always hears its wearer.
-    this.broadcast((linkset, prim) => linkset.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() ||
+    return this.broadcast((linkset, prim) => linkset.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() ||
       (channel >= 0 || linkset.region === avatar.region) && distanceSquared(origin, linkset.globalPosition(prim)) <= range ** 2,
       { channel, name: avatar.name, key: avatar.key, message })
   }

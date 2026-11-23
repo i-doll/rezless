@@ -2,7 +2,6 @@ import { rlvIntegerPrefix } from './classifier.js'
 import { truncateUtf8 } from '../values/utf8.js'
 import { deliverAvatarReceivedChat } from './received.js'
 import type { World, WorldAvatar } from '../world.js'
-import type { Script } from '../script.js'
 import type { RlvRestriction } from './restrictions.js'
 
 export type AvatarChatVolume = 'whisper' | 'say' | 'shout'
@@ -76,7 +75,7 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
   const restrictions = channel === 0 ? Object.freeze(rules.filter(rule => chatRules.includes(rule) || volumeRules.includes(rule) || redirectRules.includes(rule) || emoteRules.includes(rule)))
     : channel === 2147483647 && (chatRules.length || debugRedirect) ? Object.freeze([...chatRules, ...(debugRedirect ? redirectRules : []), ...avatar.viewer.restrictions.channelDenials(channel)]) : avatar.viewer.restrictions.channelDenials(channel)
   const has = (behaviour: string) => volumeRules.some(rule => rule.behaviour === behaviour)
-  let deliveredVolume = volume
+  let deliveredVolume: AvatarChatVolume = channel < 0 ? 'say' : volume
   if (avatar.viewer.profile === 'rlv') {
     if (deliveredVolume === 'whisper' && has('chatwhisper')) deliveredVolume = 'say'
     if (deliveredVolume === 'shout' && has('chatshout')) deliveredVolume = 'say'
@@ -87,13 +86,15 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
     else if (volume === 'whisper' && has('chatwhisper')) deliveredVolume = 'say'
   }
   const reason = !world.avatars.includes(avatar) ? 'avatar'
-    : !Number.isInteger(channel) || channel < 0 || channel > 2147483647 ? 'channel'
+    : !Number.isInteger(channel) || channel < -2147483648 || channel > 2147483647 ? 'channel'
     : channel === 2147483647 && chatRules.length ? 'sendchat'
     : debugRedirect ? (isRlvaEmote(message) ? 'rediremote' : 'redirchat')
     : channel !== 0 && restrictions.length ? 'sendchannel' : undefined
   const profile = avatar.viewer.profile
   const hasChatRedirect = redirectRules.some(rule => rule.behaviour === 'redirchat')
   let deliveredMessage = message
+  // Negative channels travel as a dialog reply, whose text field holds 254 bytes.
+  if (channel < 0) deliveredMessage = truncateUtf8(message, 254)
   // Kokua's chat editor crunches before the low-level redirect handler, unless
   // redirchat is present. RLVa's handler redirects before sendchat filtering.
   if (channel === 0 && chatRules.length && profile === 'rlv' && !hasChatRedirect)
@@ -132,7 +133,7 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
   const status = reason === 'sendchannel' || reason === 'sendchat' || reason === 'redirchat' || reason === 'rediremote' ? 'blocked' : reason ? 'unsupported' : 'sent'
   const record: AvatarChatAction = Object.freeze({ action: 'chat', channel, message, volume, status,
     ...(status === 'sent' ? { deliveredMessage, deliveredVolume } : {}),
-    ...(reason ? { reason } : deliveredMessage !== message ? { reason: 'sendchat' as const } : {}), restrictions })
+    ...(reason ? { reason } : channel === 0 && deliveredMessage !== message ? { reason: 'sendchat' as const } : {}), restrictions })
   logs.set(avatar, Object.freeze([...avatarChatLog(avatar), record]))
   if (record.status === 'sent') deliverAvatarChat(world, avatar, channel, deliveredMessage, deliveredVolume)
   return record
@@ -150,20 +151,6 @@ function rlvaFiltersSpeech(message: string): boolean {
 
 function deliverAvatarChat(world: World, avatar: WorldAvatar, channel: number, deliveredMessage: string, deliveredVolume: AvatarChatVolume): void {
   deliverAvatarReceivedChat(world, avatar, channel, deliveredMessage, deliveredVolume)
-  const range = deliveredVolume === 'whisper' ? 10 : deliveredVolume === 'shout' ? 100 : 20
-  const corner = world.corner(avatar.region)
-  const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
-  const matched: Script[] = []
-  for (const linkset of world.linksets) {
-    for (const prim of linkset.prims) {
-      const local = prim.regionPosition()
-      const region = world.corner(linkset.region)
-      const position = { x: region.x + local.x, y: region.y + local.y, z: local.z }
-      if ((position.x - origin.x) ** 2 + (position.y - origin.y) ** 2 + (position.z - origin.z) ** 2 > range ** 2) continue
-      for (const script of prim.scripts) {
-        if (script.matchChatListens({ channel, name: avatar.name, key: avatar.key, message: deliveredMessage })) matched.push(script)
-      }
-    }
-  }
+  const matched = world.linksets[0]?.routeViewerReply(avatar, channel, deliveredMessage, deliveredVolume) ?? []
   matched[0]?.linkset.settle(matched.filter(script => script.handles('listen')))
 }
