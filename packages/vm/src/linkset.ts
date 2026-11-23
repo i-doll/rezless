@@ -3,6 +3,7 @@ import { retainRlvAttachment } from './rlv/attachments.js'
 import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
+import { playCollisionSounds } from './builtins/collision.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
@@ -188,7 +189,6 @@ export interface RezRecord {
   velocity: Vector
   acceleration: Vector
   accelerationLocal: boolean
-  collisionSound: { sound: string; volume: number } | null
 }
 
 const TOUCH_EVENTS = ['touch_start', 'touch', 'touch_end'] as const
@@ -702,6 +702,21 @@ export class Linkset {
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
   }
 
+  /** Play the collision sounds of this object landing on `struck` at `speed` m/s. Collision events are fired separately. */
+  collide(struck: Linkset, speed: number) {
+    playCollisionSounds(this, struck, speed)
+  }
+
+  /**
+   * The prims and seated avatars a link call reaches. In-world, the three group
+   * flags take every sitter as well, and a link number naming an avatar takes that avatar.
+   */
+  linksWithSitters(from: Prim, link: number) {
+    const { prims, sitter } = this.linksFrom(from, link)
+    if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return [...prims, ...this.sitters()]
+    return sitter ? [sitter] : prims
+  }
+
   /** Resolve LINK_* / specific link number to the set of target prims. */
   resolveTargets(senderLink: number, target: number): Prim[] {
     const sender = this.prims.find((p) => p.linkNumber === senderLink)
@@ -945,7 +960,8 @@ export class Linkset {
       for (const { script, completed } of goals) {
         // Inventory suspends sleeping detach handlers until the object is worn
         // again. They cannot complete as goals of this settling call.
-        if (script.running && script.linkset.peers.includes(script.linkset) &&
+        // A script whose handler is still on the call stack wakes once that handler returns.
+        if (script.running && !script.handling && script.linkset.peers.includes(script.linkset) &&
             script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
           at = Math.min(at, script.wakeAt)
         }

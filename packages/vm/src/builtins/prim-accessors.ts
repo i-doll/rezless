@@ -6,7 +6,7 @@ import { sayError } from './debug.js'
 import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
-import type { Linkset } from '../linkset.js'
+import { isPrim, type Linkset } from '../linkset.js'
 import {
   ALL_SIDES,
   CHANGED_COLOR,
@@ -308,8 +308,10 @@ export const llSetLinkTextureAnim: BuiltinImpl = (ctx, args) => {
     length: num(args[6]),
     rate: num(args[7]),
   }
-  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
-    p.params.textureAnim = { ...anim }
+  // In-world, texture animation reaches seated avatars as the link sound calls do.
+  for (const target of ctx.linkset.linksWithSitters(ctx.prim, link)) {
+    if (isPrim(target)) target.params.textureAnim = { ...anim }
+    else target.textureAnim = { ...anim }
   }
   return undefined
 }

@@ -5,16 +5,33 @@ import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import { readAvatarLinkParam, writeAvatarLinkParam } from '../avatar-link.js'
 import {
-  LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET, PRIM_PHYSICS_SHAPE_NONE,
-  PRIM_PHYSICS_SHAPE_TYPE, PRIM_TYPE, PRIM_TYPE_PRISM,
+  LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_BUMP_SHINY, PRIM_CLICK_ACTION, PRIM_COLOR, PRIM_FULLBRIGHT,
+  PRIM_GLOW, PRIM_LINK_TARGET, PRIM_PHYSICS_SHAPE_NONE, PRIM_PHYSICS_SHAPE_TYPE, PRIM_TEXGEN, PRIM_TYPE, PRIM_TYPE_PRISM,
 } from '../generated/constants.js'
-import { checkPrimRule, primGetRuleRuns, primParamTypes, writePrimParamSlots } from '../prim-params.js'
+import { checkPrimRule, formatG, isPerFaceRule, primGetRuleCheck, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
 import { primParamLuaKinds } from './slua-result-kinds.js'
 import { sayError } from './debug.js'
 import { setPrimParamWithChanged } from '../prim-changed.js'
 
 const zeroForNan = (v: number) => (Number.isNaN(v) ? 0 : v)
+
+/**
+ * Say a prim parameter error to the owner only. Said by any link but the
+ * root, a child prim or a seated avatar, it ends with the root's name and
+ * position.
+ */
+function sayPrimParamError(ctx: CallContext, text: string, speaker: Link = ctx.prim): void {
+  const root = ctx.linkset.prims[0]!
+  const at = root.regionPosition()
+  const suffix = speaker === root ? '' : ` {RootName ${root.name}, RootPosition { ${[at.x, at.y, at.z].map((v) => formatG(Math.fround(v))).join(', ')} }}`
+  sayError(ctx, text + suffix, speaker, false)
+}
+
+/** Face rules an avatar link can't read, by the wording of their error. */
+const TEXTURE_INFO_RULES: ReadonlySet<number> = new Set([PRIM_COLOR, PRIM_BUMP_SHINY, PRIM_FULLBRIGHT, PRIM_TEXGEN, PRIM_GLOW])
+const avatarFaceError = (rule: number) =>
+  TEXTURE_INFO_RULES.has(rule) ? 'texture info cannot be accessed for avatars.' : 'texture and material parameters cannot be used for avatars.'
 
 /** In SLua a NaN in the cut or hollow of a box, cylinder or prism counts as 0. */
 function sluaShapeRules(rules: ReadonlyArray<LslValue>, cursor: number) {
@@ -48,11 +65,11 @@ function walkSet(ctx: CallContext, target: Prim[], rules: ReadonlyArray<LslValue
   for (let ruleNumber = 1; i < rules.length; ruleNumber++) {
     const error = checkPrimRule(rules, i, ruleNumber, sitter !== undefined && cur.length === 0)
     if (error !== null) {
-      sayError(ctx, error.text, ctx.prim, false)
+      sayPrimParamError(ctx, error.text)
       if (error.ends) return
     }
     if (rules[i] === PRIM_PHYSICS_SHAPE_TYPE && rules[i + 1] === PRIM_PHYSICS_SHAPE_NONE && cur.includes(linkset.prims[0]!)) {
-      sayError(ctx, 'ERROR: Root prim may not be set to shape type none.', ctx.prim, false)
+      sayPrimParamError(ctx, 'ERROR: Root prim may not be set to shape type none.')
     }
     const rule = rules[i] as number
     if (rule === PRIM_LINK_TARGET) {
@@ -90,52 +107,59 @@ function walkSet(ctx: CallContext, target: Prim[], rules: ReadonlyArray<LslValue
  * Read a PRIM_* rules list from the link `start`. A read is on one link at a
  * time. PRIM_LINK_TARGET counts from `start`, not from the calling prim: there
  * LINK_THIS is `start` and every other negative number is the first link that
- * is not `start`. A read on no link returns nothing more. A rule a prim can't
- * read, PRIM_PROJECTOR and PRIM_CAST_SHADOWS among them, ends the read with an
- * error said by `start`, counting rules from 0 and a PRIM_LINK_TARGET as two.
- * A read that starts on a seated avatar says none.
+ * is not `start`. A rule a link can't read, a missing face, or a link that
+ * isn't there ends the read with an error said by `start`, counting rules
+ * from 0 and a PRIM_LINK_TARGET and its link as one each. A rule that is not
+ * an integer ends it without one. A click action's value is replaced by the
+ * next value read.
  */
 function walkGet(ctx: CallContext, start: Link | undefined, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
   const linkset = ctx.linkset
   const out: LslValue[] = []
   const types: Array<LslType | undefined> = []
   const kinds: LuaResultKind[] = []
+  const fail = (param: number, reason: string) =>
+    sayPrimParamError(ctx, `llGetPrimitiveParams error: Param ${param} error, ${reason}`, start!)
   let cur = start
   let i = 0
   let param = 0
+  let clickAt: number | undefined
   while (cur && i < rules.length) {
-    if (!primGetRuleRuns(rules, i)) break
+    const check = primGetRuleCheck(rules, i)
+    if (check === 'notRule') break
+    if (check === 'badFace') {
+      fail(param, 'missing or bad face number.')
+      break
+    }
     const rule = rules[i] as number
     if (rule === PRIM_LINK_TARGET) {
-      const link = rules[i + 1]
-      const type = ruleElementType(rules, i + 1)
-      if (type ? type !== 'integer' : !Number.isInteger(link)) break
-      cur = linkset.oneLink(start!, (link as number) | 0)
+      cur = check === 'ok' ? linkset.oneLink(start!, (rules[i + 1] as number) | 0) : undefined
+      if (!cur) fail(param + 1, 'PRIM_LINK_TARGET has missing or bad link number.')
       i += 2
       param += 2
       continue
     }
-    if (rule === PRIM_CLICK_ACTION && i !== rules.length - 1) {
-      i++
-      param++
-      continue
-    }
     let consumed = 0
-    let values: ReadonlyArray<LslValue>
+    let values: ReadonlyArray<LslValue> | null
     let valueTypes: ReadonlyArray<LslType> | undefined
     if (isPrim(cur)) {
       const r = cur.getPrimParam(rule, rules, i + 1)
-      if (r === null) {
-        if (isPrim(start)) sayError(ctx, `llGetPrimitiveParams error: Param ${param} error, unknown parameter`, start)
-        break
-      }
-      values = r.values
-      valueTypes = r.types
-      consumed = r.consumed
+      values = r?.values ?? null
+      valueTypes = r?.types
+      consumed = r?.consumed ?? 0
+    } else if (isPerFaceRule(rule)) {
+      fail(param, avatarFaceError(rule))
+      break
     } else {
-      const read = readAvatarLinkParam(cur, rule)
-      if (read === null) break
-      values = read
+      values = readAvatarLinkParam(cur, rule)
+    }
+    if (values === null) {
+      fail(param, 'unknown parameter')
+      break
+    }
+    if (values.length > 0) {
+      if (clickAt !== undefined) for (const list of [out, types, kinds]) list.splice(clickAt, 1)
+      clickAt = rule === PRIM_CLICK_ACTION ? out.length : undefined
     }
     out.push(...values)
     types.push(...(valueTypes ?? primParamTypes(rule, values)))

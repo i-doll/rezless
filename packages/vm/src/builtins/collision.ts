@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { Script } from '../script.js'
 import type { DetectedEntry } from './detected.js'
+import type { Prim } from '../prim.js'
 import { NULL_KEY } from '../values/types.js'
 import { REZ_FLAG_DIE_ON_COLLIDE, REZ_FLAG_NO_COLLIDE_FAMILY, REZ_FLAG_NO_COLLIDE_OWNER, STATUS_PHANTOM } from '../generated/constants.js'
 import type { Linkset } from '../linkset.js'
@@ -29,6 +30,39 @@ export const llCollisionSound: BuiltinImpl = (ctx, args) => {
   ctx.prim.collisionSound = sound === ''
     ? { sound: NULL_KEY, volume: 0 }
     : { sound: soundKey(ctx.prim, sound) ?? NULL_KEY, volume: Math.min(1, Math.max(0, Math.fround(Number(args[1])))) }
+}
+
+/** Impact speed in m/s from which a collision plays sounds. In-world, drops of 0.2 m (1.98 m/s) played none and drops of 0.25 m (2.21 m/s) did. */
+export const COLLISION_SOUND_MIN_SPEED = 2
+
+const IMPACT_GAIN = 0.75
+
+/** The prim whose setting an object uses: its root once the root has called, else the first child with a sound. */
+function settingPrim(linkset: Linkset): Prim | undefined {
+  const [root, ...children] = linkset.prims
+  return root?.collisionSound ? root : children.find(p => p.collisionSound && p.collisionSound.sound !== NULL_KEY)
+}
+
+/**
+ * The sounds an impact plays: `mover` lands on `struck` at `speed` m/s. The caller
+ * vouches that the objects touched. Each object that set a sound triggers it from
+ * its root at 0.75 times one volume: the mover's root's once that root has called,
+ * else the struck object's, else the mover's child's. When the setting an object
+ * uses holds NULL_KEY, as "" and a missing name leave it, the impact plays nothing.
+ * Objects that never called play nothing here; their default material sounds are
+ * not simulated.
+ */
+export function playCollisionSounds(mover: Linkset, struck: Linkset, speed: number) {
+  if (!(speed >= COLLISION_SOUND_MIN_SPEED)) return
+  const objects = [mover, struck].map(linkset => ({ root: linkset.prims[0], setting: settingPrim(linkset)?.collisionSound }))
+  if (objects.some(({ setting }) => setting?.sound === NULL_KEY)) return
+  const [moving, hit] = objects
+  const volume = (mover.prims[0]?.collisionSound ? moving!.setting : hit!.setting ?? moving!.setting)?.volume ?? 0
+  const gain = IMPACT_GAIN * volume
+  if (gain <= 0) return
+  for (const { root, setting } of objects) {
+    if (setting && root) root.sound.triggers.push({ sound: setting.sound, volume: gain, position: { ...root.regionPosition() } })
+  }
 }
 
 /** Opens this prim, root or child, to gifts its owner could not otherwise put there. */

@@ -1,10 +1,10 @@
 import type { WorldAvatar } from './world.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
-import { ZERO_ROTATION, ZERO_VECTOR } from './values/types.js'
+import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR } from './values/types.js'
 import { mulRotation } from './values/ops.js'
 import { normalizeRot } from './prim-params.js'
 import {
-  PRIM_ALLOW_UNSIT, PRIM_CLICK_ACTION, PRIM_DAMAGE, PRIM_DESC, PRIM_FLEXIBLE, PRIM_HEALTH, PRIM_MATERIAL,
+  PRIM_ALLOW_UNSIT, PRIM_CLICK_ACTION, PRIM_COLLISION_SOUND, PRIM_DAMAGE, PRIM_DESC, PRIM_FLEXIBLE, PRIM_HEALTH, PRIM_MATERIAL,
   PRIM_NAME, PRIM_OMEGA, PRIM_PHANTOM, PRIM_PHYSICS, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POINT_LIGHT, PRIM_POSITION,
   PRIM_POS_LOCAL, PRIM_REFLECTION_PROBE, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SCRIPTED_SIT_ONLY, PRIM_SIT_FLAGS,
   PRIM_SIT_TARGET, PRIM_SIZE, PRIM_SLICE, PRIM_TEMP_ON_REZ, PRIM_TEXT, PRIM_TYPE,
@@ -35,11 +35,12 @@ const FIXED: Readonly<Record<number, () => LslValue[]>> = {
   [PRIM_REFLECTION_PROBE]: () => [0, 0, 0, 0],
   [PRIM_HEALTH]: () => [0],
   [PRIM_DAMAGE]: () => [0, 0],
+  [PRIM_COLLISION_SOUND]: () => [NULL_KEY, 1],
 }
 
 /**
- * Read one PRIM_* rule from a seated avatar's link. Null stops the walk:
- * the rules that take a face, and the ones an avatar has no value for.
+ * Read one PRIM_* rule from a seated avatar's link. Null for a rule the
+ * avatar has no value for; the face rules are refused before this.
  */
 export function readAvatarLinkParam(avatar: WorldAvatar, param: number): LslValue[] | null {
   switch (param) {

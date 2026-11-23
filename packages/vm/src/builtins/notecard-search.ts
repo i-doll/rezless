@@ -16,6 +16,8 @@ type Assets = { readonly removed: Map<string, NotecardText>; readonly fetched: M
 const assets = new WeakMap<object, Assets>()
 const fetchedKeyless = new WeakSet<InventoryItem>()
 
+const ALWAYS = { dead: false }
+
 const isKey = (name: string) => UUID.test(name) && name !== NULL_KEY
 
 /** Notecard assets no item in the world holds any more, still readable by key, and the notecards a dataserver read has fetched, by key. */
@@ -39,6 +41,12 @@ export function rememberNotecardAsset(peers: object, item: InventoryItem): void 
   if (text && item.key !== NULL_KEY) worldAssets(peers).removed.set(item.key.toLowerCase(), text)
 }
 
+/** Keep a notecard asset that no item in the world holds, such as one in an avatar's inventory, readable by its key. */
+export function addNotecardAsset(peers: object, key: string, lines: ReadonlyArray<string>): void {
+  if (!isKey(key)) throw new Error(`addNotecardAsset: '${key}' is not a notecard asset key`)
+  worldAssets(peers).removed.set(key.toLowerCase(), { lines: [...lines], embedded: false })
+}
+
 function cache(known: Assets, item: InventoryItem, text: NotecardText): void {
   if (item.key === NULL_KEY) fetchedKeyless.add(item)
   else known.fetched.set(item.key.toLowerCase(), text)
@@ -52,12 +60,14 @@ const cached = (known: Assets, item: InventoryItem) =>
  * isn't a notecard says an error, and so does NULL_KEY. Any other key, in any case, finds the
  * notecard in the prim with that key, then one held anywhere in the world or gone from it. Without a
  * `fetch` (a dataserver read) only a notecard an earlier fetch cached, by name or key, is found;
- * anything else is 'uncached'. A key that finds nothing readable is silent. A notecard with embedded
- * items reads as an empty text.
+ * anything else is 'uncached'. A fetch given an object leaves the caching to its caller as `fill`, for
+ * llFindNotecardTextCount, which caches the notecard only once its answer is ready. A key that finds nothing readable is silent.
+ * A notecard with embedded items reads as an empty text.
  */
-export function findNotecard(ctx: CallContext, name: string, fetch = false): Notecard {
+export function findNotecard(ctx: CallContext, name: string, fetch: boolean | { fill?: () => void } = false): Notecard {
   const inventory = ctx.prim.inventory
   const known = worldAssets(ctx.linkset.peers)
+  const store = (fill: () => void) => (typeof fetch === 'object' ? (fetch.fill = fill) : fill())
   const byName = inventory.find((it) => it.name === name)
   if (!byName && isKey(name)) {
     const key = name.toLowerCase()
@@ -67,7 +77,7 @@ export function findNotecard(ctx: CallContext, name: string, fetch = false): Not
     const held = inventory.find(withKey(key)) ?? ctx.linkset.peers.flatMap((linkset) => linkset.prims).flatMap((prim) => prim.inventory).find(withKey(key))
     const text = (held && notecardText(held)) ?? known.removed.get(key)
     if (!text) return 'unknown-key'
-    known.fetched.set(key, text)
+    store(() => known.fetched.set(key, text))
     return text
   }
   const text = byName && notecardText(byName)
@@ -75,7 +85,7 @@ export function findNotecard(ctx: CallContext, name: string, fetch = false): Not
     sayError(ctx, `Could not find notecard '${name}'.`)
     return 'missing'
   }
-  if (fetch) cache(known, byName, text)
+  if (fetch) store(() => cache(known, byName, text))
   else if (!cached(known, byName)) return 'uncached'
   return text
 }
@@ -404,7 +414,8 @@ export const llFindNotecardTextSync: BuiltinImpl = (ctx, args) => {
 export const llFindNotecardTextCount: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const pattern = (args[1] as string | undefined) ?? ''
-  const notecard = findNotecard(ctx, name, true)
+  const later: { fill?: () => void } = {}
+  const notecard = findNotecard(ctx, name, later)
   if (notecard === 'missing') return NULL_KEY
   let data = EOF
   if (typeof notecard !== 'string') {
@@ -415,6 +426,7 @@ export const llFindNotecardTextCount: BuiltinImpl = (ctx, args) => {
   const key = nextDataserverKey(ctx)
   ctx.state.dataserverRequests.push({ key, source: 'notecard_text_count', args: [name, pattern], fulfilled: true })
   const at = ctx.state.clock.now + (ctx.spec?.delay ?? 0) * 1000
+  if (later.fill) ctx.linkset.clock.scheduleTask(ALWAYS, at, later.fill)
   for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, at, 'dataserver', { queryid: key, data })
   return key
 }
