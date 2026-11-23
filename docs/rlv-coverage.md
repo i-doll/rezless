@@ -16,10 +16,10 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 
 | Contract | Profile and version | Command form or operation | Support depth | Comparison | Tests |
 | --- | --- | --- | --- | --- | --- |
-| [pay](#pay) | Kokua RLV 2.09.35.00 | <code>@pay=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
-| [pay](#pay) | Firestorm RLVa 2.4.2 | <code>@pay=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
-| [buy](#buy) | Kokua RLV 2.09.35.00 | <code>@buy=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
-| [buy](#buy) | Firestorm RLVa 2.4.2 | <code>@buy=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts) |
+| [pay](#pay) | Kokua RLV 2.09.35.00 | <code>@pay=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts)<br>[pay-object.test.ts](../packages/vitest/test/pay-object.test.ts) |
+| [pay](#pay) | Firestorm RLVa 2.4.2 | <code>@pay=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts)<br>[pay-object.test.ts](../packages/vitest/test/pay-object.test.ts) |
+| [buy](#buy) | Kokua RLV 2.09.35.00 | <code>@buy=n&#124;add&#124;y&#124;rem</code> | unsupported | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts)<br>[pay-object.test.ts](../packages/vitest/test/pay-object.test.ts) |
+| [buy](#buy) | Firestorm RLVa 2.4.2 | <code>@buy=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts)<br>[pay-object.test.ts](../packages/vitest/test/pay-object.test.ts) |
 | [setgroup](#setgroup) | Kokua RLV 2.09.35.00 | <code>@setgroup=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
 | [setgroup](#setgroup) | Kokua RLV 2.09.35.00 | <code>@setgroup[:&lt;option&gt;]=force</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
 | [setgroup](#setgroup) | Firestorm RLVa 2.4.2 | <code>@setgroup=n&#124;add&#124;y&#124;rem</code> | enforced | confirmed difference | [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-group.test.ts](../packages/vitest/test/rlv-group.test.ts) |
@@ -940,7 +940,7 @@ Support depth: enforced. No-option pay denies avatar payments. Attachment paymen
 
 Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canBuyObject</code>, <code>RlvActions::canPayObject</code>, <code>RlvActions::canPayAvatar</code>.
 
-Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts).
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts)<br>[pay-object.test.ts](../packages/vitest/test/pay-object.test.ts).
 
 ### buy
 
@@ -963,7 +963,7 @@ Support depth: enforced. No-option buy denies payments to objects and purchase r
 
 Reference symbols: <code>indra/newview/rlvactions.cpp</code>: <code>RlvActions::canBuyObject</code>, <code>RlvActions::canPayObject</code>, <code>RlvActions::canPayAvatar</code>.
 
-Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts).
+Tests: [rlv-profiles.test.ts](../packages/vitest/test/rlv-profiles.test.ts)<br>[rlv-pay.test.ts](../packages/vitest/test/rlv-pay.test.ts)<br>[pay-object.test.ts](../packages/vitest/test/pay-object.test.ts).
 
 ### setgroup
 

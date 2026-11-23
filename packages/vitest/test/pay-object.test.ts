@@ -32,8 +32,9 @@ describe('paying an object directly', () => {
   // -> each accepted, L$1 to the owner, no money event.
   it('accepts a payment to a prim with no running money handler and pays the owner', async () => {
     for (const scripts of [[], [{ name: 's', source: plain }], [{ name: 's', source: payPrice }], [{ name: 's', source: handler, running: false }]]) {
-      const { owner, pay } = await setup([{ scripts }])
+      const { owner, pay, log } = await setup([{ scripts }])
       expect(pay(1)).toMatchObject({ status: 'paid', recipient: owner.key, kind: 'object' })
+      if (scripts[0]?.source === handler) expect(log('s')).toEqual([])
     }
   })
 
@@ -100,4 +101,8 @@ it('checks the Pay menu before an RLVa buy restriction', async () => {
   const prim = loaded.linkset.prims[0]!
   expect(f.pay(prim, 1, { menu: true }).reason).toBe('not-payable')
   expect(f.pay(prim, 1).status).toBe('blocked')
+  const payee = await loadLinkset({ world: f.world, region: f.avatar.region, prims: [{ scripts: [{ name: 'payee', source: { source: handler } }] }] })
+  payee.scripts.payee!.start()
+  expect(f.pay(payee.linkset.prims[0]!, 1, { menu: true })).toMatchObject({ status: 'blocked', reason: 'buy' })
+  expect(payee.scripts.payee!.global('log')).toEqual([])
 })

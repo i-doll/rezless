@@ -1595,8 +1595,9 @@ object payments and original, copy or contents purchase requests. Kokua keeps
 both commands unsupported. An allowed object payment goes to the owner and runs the
 paid prim's `money` handlers, or the root's when the prim has none running. Pass
 `{ menu: true }` to pay through the Pay menu, which is offered only when the prim or
-its root has a running money handler. Attachment payments go to the wearer. Purchases capture requests without money
-events. Balances, settlement and purchase inventory delivery are outside the fixture.
+its root has a running money handler; otherwise the payment is `unsupported` with
+reason `not-payable`. Attachment payments go to the wearer. Purchases capture
+requests without money events. Balances, settlement and purchase inventory delivery are outside the fixture.
 
 ## License
 
