@@ -189,7 +189,6 @@ export interface RezRecord {
   velocity: Vector
   acceleration: Vector
   accelerationLocal: boolean
-  collisionSound: { sound: string; volume: number } | null
 }
 
 const TOUCH_EVENTS = ['touch_start', 'touch', 'touch_end'] as const

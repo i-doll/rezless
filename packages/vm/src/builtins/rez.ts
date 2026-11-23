@@ -9,6 +9,7 @@ import { requestKey } from '../keys.js'
 import { InventoryType } from '../inventory.js'
 import * as C from '../generated/constants.js'
 import { sayError } from './debug.js'
+import { soundKey } from '../prim-params.js'
 import { RuntimeError } from '../memory.js'
 
 interface Options {
@@ -27,6 +28,7 @@ interface Options {
   damage: number | undefined
   damageType: number | undefined
   sound: { sound: string; volume: number; loop: boolean } | undefined
+  /** The last REZ_SOUND_COLLIDE: only it counts. As given until llRezObjectWithParams resolves it. */
   collisionSound: { sound: string; volume: number } | undefined
   locks: Vector | undefined
 }
@@ -174,8 +176,8 @@ function rez(ctx: CallContext, name: string, o: Options): string {
     rezzer: ctx.prim, rezzerKey: ctx.linkset.prims[0]!.key, item,
     copyable: !!(item.permMask.owner & C.PERM_COPY), flags: o.flags ?? 0,
     velocity, acceleration: o.acceleration, accelerationLocal: o.accelerationLocal,
-    collisionSound: o.collisionSound ? { sound: resolveSound(ctx, o.collisionSound.sound), volume: Math.max(0, Math.min(1, o.collisionSound.volume)) } : null,
   }
+  if (o.collisionSound) root.collisionSound = o.collisionSound
   if (o.omega) root.params.omega = {
     axis: o.omega.local ? rotateVector(o.omega.axis, root.params.rotation) : o.omega.axis,
     spinrate: o.omega.spin, gain: o.omega.gain,
@@ -211,7 +213,20 @@ export const llRezObject = legacy(false)
 export const llRezAtRoot = legacy(true)
 export const llRezObjectWithParams: BuiltinImpl = (ctx, args) => {
   const o = options(ctx, args[1] as readonly LslValue[])
-  return o ? rez(ctx, args[0] as string, o) : NULL_KEY
+  if (!o) return NULL_KEY
+  // "" keeps the sound the object was saved with. A key other than NULL_KEY, or the name of a sound in the rezzer, sets it.
+  const given = o.collisionSound
+  o.collisionSound = undefined
+  if (given?.sound) {
+    const sound = soundKey(ctx.prim, given.sound)
+    if (sound === null || sound === NULL_KEY) {
+      sayError(ctx, `Could not find sound '${given.sound}'.`)
+      ctx.sleep(1000)
+      return NULL_KEY
+    }
+    o.collisionSound = { sound, volume: Math.max(0, Math.min(1, Math.fround(given.volume))) }
+  }
+  return rez(ctx, args[0] as string, o)
 }
 
 export const llDerezObject: BuiltinImpl = (ctx, args) => {
