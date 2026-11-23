@@ -409,6 +409,16 @@ describe('avatar health set by a test', () => {
     expect(reader.scripts.r!.global('seen')).toEqual([50, 51])
   })
 
+  it('regenerates from when a test set it, read or not', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
+    const reader = await object(world, { r: `float h; default { touch_start(integer n) { h = llGetHealth("${BOT}"); } }` })
+    world.avatars[0]!.objectDetails.health = 50
+    tick(world, 6000)
+    reader.scripts.r!.fire('touch_start', { num_detected: 1 })
+    expect(reader.scripts.r!.global('h')).toBe(51)
+  })
+
   it('reads 0 for an avatar in another region', async () => {
     const world = combatWorld()
     world.addRegion('elsewhere', { x: 256, y: 0 })
@@ -671,6 +681,40 @@ describe('hits in one moment keep their own targets', () => {
     tick(world, 0)
     expect(seat.scripts.seat!.global('log')).toEqual(['on 1 gun'])
     expect(world.avatars[0]!.objectDetails.health).toBe(89)
+  })
+
+  it('keep separate final_damage events for hits from different moments that finish together', async () => {
+    const world = combatWorld()
+    const target = await object(world, {
+      slow: `integer first = TRUE; default { on_damage(integer n) { if (first) { first = FALSE; llSleep(1.0); } } }`,
+      recorder,
+    })
+    const shooter = await object(world, { gun: gun(target.linkset.prims[0]!.key, 1) })
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    tick(world, 500)
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 2000)
+    const log = target.scripts.recorder!.global('log') as string[]
+    expect(log.map((l) => l.split(' ').slice(0, 2).join(' '))).toEqual(['on 1', 'on 1', 'final 1', 'final 1'])
+  })
+
+  it('still tell a prim unlinked during on_damage', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: OWNER, username: 'owner' })
+    const target = await loadLinkset({ world, region: 'arena', owner: OWNER, prims: [
+      { scripts: [{ name: 'root', source: { source: `default {
+        state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+        on_damage(integer n) { llBreakLink(2); }
+      }` } }] },
+      { scripts: [{ name: 'child', source: { source: recorder } }] },
+    ] })
+    target.scripts.root!.start(); target.scripts.child!.start()
+    target.scripts.root!.grantPermissions(128)
+    const shooter = await object(world, { gun: gun(target.linkset.prims[0]!.key, 4) })
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    expect(target.scripts.child!.global('log')).toEqual(['on 1 4,0,4', 'final 1 4,0,4 4,0,4'])
   })
 
   it('send on_death before the lethal hit\'s final_damage', async () => {

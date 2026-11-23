@@ -48,18 +48,30 @@ interface Combatant {
 }
 
 function regenerate(holder: object, health: number, now: number): number {
-  const last = regeneratedAt.get(holder)
-  // Health that a test set since the last reading starts regenerating from now.
-  const since = last?.health === health ? last.at : now
+  const since = regeneratedAt.get(holder)?.at ?? now
   const ticks = Math.floor(now / REGENERATION_MS) - Math.floor(since / REGENERATION_MS)
   const result = ticks > 0 && health > 0 ? Math.min(100, health + ticks) : health
   regeneratedAt.set(holder, { at: now, health: result })
   return result
 }
 
-/** A world avatar regenerates from when it was added. */
-export function startRegeneration(avatar: WorldAvatar, now: number): void {
-  regeneratedAt.set(avatar, { at: now, health: avatar.objectDetails.health ?? 100 })
+/**
+ * A world avatar regenerates from when it was added, and from whenever its health is set,
+ * by a test or by damage.
+ */
+export function startRegeneration(avatar: WorldAvatar, clock: { readonly now: number }): void {
+  const details = avatar.objectDetails
+  let health = details.health
+  regeneratedAt.set(avatar, { at: clock.now, health: health ?? 100 })
+  Object.defineProperty(details, 'health', {
+    enumerable: true,
+    configurable: true,
+    get: () => health,
+    set: (value: number | undefined) => {
+      health = value
+      regeneratedAt.set(avatar, { at: clock.now, health: value ?? 100 })
+    },
+  })
 }
 
 /** A world avatar's health, caught up with regeneration. */
@@ -95,7 +107,7 @@ function combatant(ctx: CallContext, id: string): Combatant | undefined {
       .flatMap((l) => l.allScripts()),
     seat,
     health: (now) => worldAvatarHealth(avatar, now),
-    setHealth: (health) => { avatar.objectDetails.health = health; regeneratedAt.set(avatar, { at: ctx.linkset.clock.now, health }) },
+    setHealth: (health) => { avatar.objectDetails.health = health },
   }
 }
 
@@ -121,6 +133,8 @@ interface Damage {
   readonly at: number
   readonly clock: LinksetClock
   readonly seat: Linkset | undefined
+  /** The seat's scripts when the damage began; a prim unlinked meanwhile still hears final_damage. */
+  readonly seatScripts: readonly Script[]
   readonly riders: readonly Combatant[]
   /** Who may adjust it: nobody for an avatar's own attachment, nobody when the region forbids it. */
   readonly adjust: boolean
@@ -218,9 +232,9 @@ function advance(damage: Damage): void {
     for (const entry of damage.riderEntries) applyToAvatar(damage.clock, rider, entry.damage!.amount)
   }
   const tell = (scripts: readonly Script[], entries: readonly DetectedEntry[]) => {
-    for (const s of scripts) if (!damage.noFinal.has(s)) queueFinal(damage.clock, s, entries)
+    for (const s of scripts) if (!damage.noFinal.has(s)) queueFinal(damage.clock, s, entries, damage.at)
   }
-  if (damage.seat) tell(damage.seat.allScripts(), damage.seatEntries)
+  tell(damage.seatScripts, damage.seatEntries)
   for (const rider of damage.riders) tell(rider.attachments, damage.riderEntries)
 }
 
@@ -240,23 +254,24 @@ function applyToAvatar(clock: LinksetClock, avatar: Combatant, amount: number): 
   }
 }
 
-const finals = new WeakMap<Script, Record<string, unknown>>()
+const finals = new WeakMap<Script, { readonly payload: Record<string, unknown>, readonly hitAt: number }>()
 
 /**
- * Damage that lands on one script in the same moment arrives as one final_damage, with every
- * hit in num_detected, as long as that event has not started.
+ * Hits that landed on one script in the same moment arrive as one final_damage, with every hit
+ * in num_detected, as long as that event has not started. Hits from different moments that
+ * finish together keep their own final_damage.
  */
-function queueFinal(clock: LinksetClock, script: Script, entries: readonly DetectedEntry[]): void {
+function queueFinal(clock: LinksetClock, script: Script, entries: readonly DetectedEntry[], hitAt: number): void {
   if (!live(script) || !script.handles('final_damage')) return
   const waiting = finals.get(script)
-  if (waiting && clock.pendingEvents().some((e) => e.payload === waiting && e.at === clock.now && e.target === script)) {
-    const detected = waiting['detected'] as DetectedEntry[]
+  if (waiting?.hitAt === hitAt && clock.pendingEvents().some((e) => e.payload === waiting.payload && e.at === clock.now && e.target === script)) {
+    const detected = waiting.payload['detected'] as DetectedEntry[]
     detected.push(...entries)
-    waiting['num_detected'] = detected.length
+    waiting.payload['num_detected'] = detected.length
     return
   }
   const payload = { num_detected: entries.length, detected: [...entries] }
-  finals.set(script, payload)
+  finals.set(script, { payload, hitAt })
   clock.schedule(script, clock.now, 'final_damage', payload)
 }
 
@@ -286,13 +301,13 @@ function start(ctx: CallContext, key: unknown, entry: DetectedEntry, seat: Links
     return
   }
   const damage: Damage = {
-    key, at: clock.now, clock, seat, riders, adjust, noFinal: new Set(),
+    key, at: clock.now, clock, seat, seatScripts: seat?.allScripts() ?? [], riders, adjust, noFinal: new Set(),
     seatEntries: seat ? [entry] : [], riderEntries: seat ? [] : [entry], phase: seat ? 'seat' : 'riders',
     joinPhase: 'done', pending: [],
   }
   byTarget.set(key, damage)
   const waiting = seat
-    ? askToAdjust(damage, seat.allScripts(), damage.seatEntries)
+    ? askToAdjust(damage, damage.seatScripts, damage.seatEntries)
     : askToAdjust(damage, riders.flatMap((r) => r.attachments), damage.riderEntries)
   if (!waiting) advance(damage)
   damage.joinPhase = damage.phase

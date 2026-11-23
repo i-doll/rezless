@@ -531,7 +531,7 @@ export class World {
     }
     avatar.owner = avatar.key
     this.avatars.push(avatar)
-    startRegeneration(avatar, this.clock.now)
+    startRegeneration(avatar, this.clock)
     return avatar
   }
 
