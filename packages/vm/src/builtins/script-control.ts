@@ -1,4 +1,4 @@
-import type { BuiltinImpl } from '../runtime.js'
+import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { sayError } from './debug.js'
 import { llResetScript } from './object.js'
 
@@ -20,14 +20,25 @@ export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
     }
     return undefined
   }
+  if (target === ctx.script) return target.running ? llResetScript(ctx, []) : undefined
+  if (pastWear(ctx, name, { reset: true })) return undefined
   if (target.crashed) {
     if (!target.dead) target.recover()
     return undefined
   }
   if (!target.running) return undefined
-  if (target === ctx.script) return llResetScript(ctx, [])
   ctx.linkset.clock.schedule(target, ctx.linkset.clock.now, '__reset', {})
   return undefined
+}
+
+/**
+ * In-world: the rest of a handler that was busy at a detach ran after the wear, so a sibling it
+ * stopped, started or reset changed after that sibling's on_rez and attach events.
+ */
+function pastWear(ctx: CallContext, name: string, change: { running: boolean } | { reset: true }): boolean {
+  if (!ctx.script.detachedInHandler || !ctx.script.clockView.inInventory) return false
+  ctx.script.pastWearChanges.push({ name, ...change })
+  return true
 }
 
 /** llSetScriptState(string name, integer running) — enable/disable a script; one that stops itself stops at once. A crashed script stays down. */
@@ -40,6 +51,8 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
     ctx.sleep(1000)
     return undefined
   }
+  // Held changes are judged after the wear, when a crashed LSL script may be running again.
+  if (target !== ctx.script && pastWear(ctx, name, { running })) return undefined
   if (target.crashed) return undefined
   target.running = running
   if (target === ctx.script && !running) ctx.sleep(0)

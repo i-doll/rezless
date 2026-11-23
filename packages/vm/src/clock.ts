@@ -42,6 +42,9 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['collision_end', 9], ['land_collision', 9], ['land_collision_end', 9],
 ])
 
+/** Changes to running state held from the rest of a handler that was busy at a detach; they take no event slot. */
+export const HELD_CONTROL: ReadonlySet<string> = new Set(['__running', '__scriptState'])
+
 /** `changed` and the events a rez raises that run as `changed`. */
 const CHANGED_EVENTS: ReadonlySet<string> = new Set(['changed', '__unseated', '__ownerChanged'])
 
@@ -284,9 +287,9 @@ export class LinksetClock {
       // A click or a change that merges into one already held back takes no room of its own.
       if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
     }
-    if (event !== '__reset') {
-      let pending = target.parkedEvents.length
-      for (const e of this.queue) if (e.target === target) pending++
+    if (event !== '__reset' && !HELD_CONTROL.has(event)) {
+      let pending = target.parkedEvents.filter(e => !HELD_CONTROL.has(e.event)).length
+      for (const e of this.queue) if (e.target === target && !HELD_CONTROL.has(e.event)) pending++
       if (pending >= MAX_PENDING_EVENTS) return
     }
     this.queue.push(queued)
@@ -318,8 +321,8 @@ export class LinksetClock {
     if (!before.length) return false
     const after = mergeHeld([...before, queued])
     if (after.length > before.length) {
-      let pending = target.parkedEvents.length
-      for (const e of this.queue) if (e.target === target) pending++
+      let pending = target.parkedEvents.filter(e => !HELD_CONTROL.has(e.event)).length
+      for (const e of this.queue) if (e.target === target && !HELD_CONTROL.has(e.event)) pending++
       if (pending + after.length - before.length > MAX_PENDING_EVENTS) return true
     }
     const at = this.queue.indexOf(before[0]!)
@@ -449,7 +452,8 @@ export class LinksetClock {
       // and the click's touch and touch_end waited behind the touch_start.
       if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
       if (due <= horizon && due < bestAt && !e.target.handling &&
-          (e.event === '__reset' || (e.target.wakeAt === undefined && !e.target.detachedInHandler))) {
+          (e.event === '__reset' || (e.event === '__running' && !e.target.running) ||
+            (e.target.wakeAt === undefined && !e.target.detachedInHandler))) {
         bestAt = due
         bestIdx = i
       }
@@ -608,13 +612,13 @@ export class LinksetClock {
    * `upTo` (default: all of them), except events named `keep`. Used on reset
    * and state change.
    */
-  purgeTarget(script: Script, upTo = Infinity, keep?: string): void {
+  purgeTarget(script: Script, upTo = Infinity, keep: readonly string[] = []): void {
     // In-world: a script reset during a contact it had held events of got every live
     // land_collision after the reset.
     if (upTo === Infinity) this.openContacts.delete(script)
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const e = this.queue[i]!
-      if (e.target === script && e.at <= upTo && e.event !== keep) this.queue.splice(i, 1)
+      if (e.target === script && e.at <= upTo && !keep.includes(e.event)) this.queue.splice(i, 1)
     }
   }
 
