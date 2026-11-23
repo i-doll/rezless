@@ -267,7 +267,6 @@ export class LinksetClock {
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean): void {
     if (event !== '__reset' && !target.running) return
-    this.landEventCame(target, event)
     // Due now, in the middle of a sleep: held back even at the instant the handler began.
     const wakeAt = target.wakeAt
     if (held === undefined && at <= this.now && wakeAt !== undefined && wakeAt > this.now) held = true
@@ -389,7 +388,7 @@ export class LinksetClock {
   private readonly ran = new WeakMap<Script, number>()
   /** The released contact still going on, by script: its live land_collision events to drop. */
   private readonly openContacts = new WeakMap<Script, LandTail>()
-  /** Scripts whose last land event to come up, run or not, was not a land_collision_end. */
+  /** Scripts whose last land event taken was not a land_collision_end. */
   private readonly onLand = new WeakSet<Script>()
   /** Scripts reset during a land contact, owed a land_collision_start ahead of its next land_collision. */
   private readonly restarted = new WeakSet<Script>()
@@ -414,6 +413,7 @@ export class LinksetClock {
     const counts = e.event === '__wake' ? before !== undefined
       : e.event !== 'land_collision_start' && e.target.handles(CHANGED_EVENTS.has(e.event) ? 'changed' : e.event)
     this.ran.set(e.target, ran + (counts ? 1 : 0))
+    this.landEventCame(e.target, e.event)
     const released = e.payload['__here'] as LandTail | true | undefined
     const tail = typeof released === 'object' ? landTailOf(released, e.target) : undefined
     if (!tail) return this.dropsLiveLandEvent(e.target, e.event)
@@ -446,7 +446,7 @@ export class LinksetClock {
     return true
   }
 
-  /** A land event came up for `script`, queued or given to it at once. */
+  /** A land event of `script` was taken from the queue or given to it at once. */
   landEventCame(script: Script, event: string): void {
     if (event === 'land_collision_end') this.onLand.delete(script)
     else if (LAND_EVENTS.has(event)) this.onLand.add(script)
@@ -460,7 +460,12 @@ export class LinksetClock {
    */
   landContactRestarted(script: Script, reset: boolean): void {
     this.openContacts.delete(script)
-    if (reset && this.onLand.has(script)) this.restarted.add(script)
+    if (!reset) return
+    // In-world: a script reset while it slept through the start of a contact got the new start
+    // too. Land events due but not taken yet count; ones still to come don't.
+    const due = this.queue.filter((e) => e.target === script && e.at <= this.now && LAND_EVENTS.has(e.event)).at(-1)
+    if (due) this.landEventCame(script, due.event)
+    if (this.onLand.has(script)) this.restarted.add(script)
   }
 
   /** Whether `event`, about to run, is the first land_collision of `script` since a reset during the contact. */

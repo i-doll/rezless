@@ -159,6 +159,22 @@ describe.each([['queued', queued], ['fired at the script', direct]] as const)('a
     expect(f.log()).toEqual(['lcs', ...lcs(2), 'lce'])
   })
 
+  // Follows the measurement above: a land_collision_end still to come doesn't end the contact
+  // before its time.
+  it('raises the new start when the contact ends only after the reset', async () => {
+    const f = await box()
+    queued(f.script, f.linkset, 'land_collision_start')
+    f.linkset.advanceTime(44)
+    queued(f.script, f.linkset, 'land_collision')
+    f.linkset.clock.schedule(f.script, f.linkset.clock.now + 500, 'land_collision_end', ground)
+    f.linkset.advanceTime(44)
+    f.script.reset()
+    f.linkset.advanceTime(44)
+    fire(f.script, f.linkset, 'land_collision')
+    goOn(f, fire, 1)
+    expect(f.log()).toEqual(['lcs', 'lc', 'lc', 'lce'])
+  })
+
   // Follows the measurement above: the start comes back only for a contact going on at the reset.
   it('raises nothing for a reset after the contact ended', async () => {
     const f = await box()

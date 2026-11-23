@@ -1477,8 +1477,8 @@ export class Script {
     this.startParameter = 0
     this.clockView.resetReference()
     // A held running-state change, from a sibling or for one, outlives the script's own events.
-    this.linkset.clock.purgeTarget(this, Infinity, ['__running', '__scriptState'])
     this.linkset.clock.landContactRestarted(this, true)
+    this.linkset.clock.purgeTarget(this, Infinity, ['__running', '__scriptState'])
     for (let i = this.parkedEvents.length - 1; i >= 0; i--) if (!HELD_CONTROL.has(this.parkedEvents[i]!.event)) this.parkedEvents.splice(i, 1)
     this.waitingGameControl = undefined
     this.started = false
