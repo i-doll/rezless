@@ -301,10 +301,7 @@ export class Prim {
     if (saved.type === InventoryType.NOTECARD && saved.key !== NULL_KEY) this.#notecardKeys().set(notecardText(saved.notecardLines), saved.key)
     const script = old.script
     if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
-    this.#ownerEditedScript(script, () => {
-      script.reset()
-      if (!script.running) script.queueStart()
-    })
+    this.#ownerEditedScript(script, () => script.reset())
   }
 
   /**
