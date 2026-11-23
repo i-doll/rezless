@@ -649,27 +649,33 @@ Life does on a box. Take the line from a point 3 m behind the avatar and
 through a side. The avatar sits 0.09 m out from that side, in line with where
 the line first meets the prim, and 0.63 m above the prim's top. It sits
 upright, facing out from that side, and `PRIM_POS_LOCAL` and `PRIM_ROT_LOCAL`
-of its link read that spot. In Second Life this holds for boxes and round
-cylinders with an axis vertical. Spheres, tori, most prisms, cylinders with an
-oval top and tilted prims seat the avatar elsewhere; rezless seats it on them
-by the same rule. The point 3 m behind and 1.94 m above is where a
-viewer's camera rests: `world.setAvatarCamera(avatar, position)` moves the
-camera to a region position, and the line then starts there;
+of its link read that spot. In Second Life this holds for boxes with an axis
+vertical and upright cylinders; a cylinder more than 1% longer one way than
+the other acts as the nine-sided polygon whose corners lie on its oval every
+40 degrees round it, counted the way the oval is drawn from a circle
+stretched along its axes, starting at +X. Spheres, tori, most prisms and tilted prims seat the avatar
+elsewhere; rezless seats it on them by the same rule. The point 3 m behind
+and 1.94 m above is where a viewer's camera rests:
+`world.setAvatarCamera(avatar, position)` moves the camera to a region
+position, and the line then starts there;
 `world.setAvatarCamera(avatar)` and a teleport put it back. A click on the
 prim, the `offset` of `world.userSitAvatar` from its centre in region axes as
 a viewer sends it, moves the line's end from the centre to that spot on the
 prim's surface: a click on a box's side seats the
 avatar where the line first meets the box, and so does a click on a
-cylinder's side. Where the line from above meets a box's top first, with or
-without a click, the avatar sits at a side, in line with the spot where it
-met: rays across the top from that spot towards the camera, away
-from it and towards the avatar each reach a side, and the avatar sits at the
-one nearest the spot. Where two are equally near, rezless takes the side
-towards the camera, then the one away from it; Second Life follows no fixed
-order there. Second Life refuses some clicks low on a side, depending on the
-camera's angle and the prim's size, and rezless seats them. Clicks on a
-cylinder's top and on spheres seat the avatar elsewhere in Second Life, and
-on a prism it can sit about 2.5 cm lower. `world.sitAvatar` without a
+cylinder's side. Where the line from above meets a box's or a cylinder's top
+first, with or without a click, the avatar sits at a side, in line with the
+spot where it met: rays across the top from that spot towards the camera,
+away from it and towards the avatar each reach the edge, and the avatar sits
+at the side or tangent there nearest the spot, facing out from it. The
+seat's rotation reads its turn from the prim's heading in (-120, 240]
+degrees. Where two
+are equally near, rezless takes the side towards the camera, then the one
+away from it; Second Life follows no fixed order there. Second Life refuses
+some clicks low on a side of some box sizes, depending on the camera's angle,
+and rezless seats them. Clicks on spheres seat the avatar elsewhere in Second
+Life, and on a prism it can sit a few centimetres lower, or 0.5 m lower at an
+end. `world.sitAvatar` without a
 placement seats the avatar on the prim's sit target, or at its centre when it
 has none.
 

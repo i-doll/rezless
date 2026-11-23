@@ -33,6 +33,12 @@ import { loadLinkset, World } from '../src/index.js'
 // camera: sit-spot-camera-click.test.ts moves it, and clicks elsewhere on the
 // prim.
 //
+// A cylinder with an oval top more than 1% longer one way follows the same
+// rule with its outline taken as the nine-sided polygon with corners on the
+// oval at (x cos t, y sin t), t every 40 degrees from 0, for its half sizes x
+// and y: the avatar sat 0.09 m out from the polygon's side the line met,
+// facing out from it. sit-spot-shapes.test.ts has clicks on such a top.
+//
 // The viewer's requests here had no click offset, as RLVa's @sit:<key>=force
 // sends, and the avatar's camera stayed at the viewer's default place.
 
@@ -88,10 +94,15 @@ const MATCHED: Row[] = [
   ['10 x 10 x 0.1 m box the avatar stood on 1.961 m along X and 0.978 m along Y from its centre, facing 90 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [1.961, 0.978, 0.97], 90, [0.034, -5.09, 0.68], [0, 0, -0.707, 0.707]],
   ['10 x 10 x 0.1 m box the avatar stood on -2.021 m along X and 1.051 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [-2.021, 1.051, 0.971], 0, [-5.09, 0.018, 0.68], [0, 0, 1, 0]],
   ['10 x 10 x 0.1 m box the avatar stood on 3.487 m along X and 0.063 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [3.487, 0.063, 0.972], 0, [5.09, 0.001, 0.68], [0, 0, 0, 1]],
+  ['2 x 1 x 1 m cylinder', 'cylinder', [2, 1, 1], [0, 0, 0, 1], [-4, 0, 0], 0, [-1.03, -0.001, 1.13], [0, 0, 1, 0]],
+  ['1 x 2 x 1 m cylinder', 'cylinder', [1, 2, 1], [0, 0, 0, 1], [-3.998, -0.001, 0], 0.017, [-0.56, 0.001, 1.13], [0, 0, 1, 0]],
+  ['3 x 1 x 1 m cylinder at 25 degrees', 'cylinder', [3, 1, 1], [0, 0, 0, 1], [-3.625, -1.692, 0], 25.017, [-0.88, -0.478, 1.13], [0, 0, -0.827, 0.562]],
+  ['2 x 1 x 1 m cylinder at 25 degrees', 'cylinder', [2, 1, 1], [0, 0, 0, 1], [-3.626, -1.691, 0], 25.001, [-0.733, -0.399, 1.13], [0, 0, 0.869, -0.494]],
+  ['2 x 1 x 1 m cylinder at 40 degrees', 'cylinder', [2, 1, 1], [0, 0, 0, 1], [-3.065, -2.571, 0], 39.998, [-0.555, -0.505, 1.13], [0, 0, 0.869, -0.494]],
 ]
 
 // Prims tilted from an axis vertical, spheres, tori, prisms other than
-// unturned, cylinders with an oval top or lying across the line, and a 2 m
+// unturned, a cylinder lying across the line, and a 2 m
 // box turned 45 degrees, where the line ran through a corner and the avatar
 // sat at the other side from the one rezless picks. Last, four requests on a
 // box the avatar stood on, facing +X from its +X half, where the line met the
@@ -116,14 +127,9 @@ const MISSED: Row[] = [
   ['2 m prism turned 180 degrees', 'prism', [2, 2, 2], [0, 0, -1, 0], [-4, 0, 0], 0.006, [-0.17, 0, 1.029], [0, 0, 0, -1]],
   ['2 m prism turned 90 degrees', 'prism', [2, 2, 2], [0, 0, 0.707, 0.707], [-4, 0, 0], -0.005, [0.131, 0, 0.728], [0, 0, 0, 1]],
   ['2 m torus', 'torus', [2, 2, 2], [0, 0.707, 0, 0.707], [-4, 0, 0], 0.005, [-1.376, -0.006, -0.978], [-0.704, 0.062, 0.704, -0.062]],
-  ['2 x 1 x 1 m cylinder at 25 degrees', 'cylinder', [2, 1, 1], [0, 0, 0, 1], [-3.626, -1.691, 0], 25.001, [-0.733, -0.399, 1.13], [0, 0, 0.869, -0.494]],
   ['1 x 2 x 0.4 m box tilted 30 degrees', 'box', [1, 2, 0.4], [0.683, -0.183, 0.183, 0.683], [-3.939, 0.694, 0], -9.997, [-0.263, 1.591, -0.122], [0.183, 0.683, 0.683, 0.183]],
   ['2 x 2 x 0.3 m box tilted 10 degrees about Y', 'box', [2, 2, 0.3], [0, 0.087, 0, 0.996], [-4, 0, 0], -0.001, [-1.218, 0, 0.743], [-0.087, 0, 0.996, 0]],
   ['2 x 2 x 0.3 m box tilted -10 degrees about Y', 'box', [2, 2, 0.3], [0, -0.087, 0, 0.996], [-3.999, -0.003, 0], 0.042, [-0.979, 0, 0.786], [0.087, 0, 0.996, 0]],
-  ['2 x 1 x 1 m cylinder', 'cylinder', [2, 1, 1], [0, 0, 0, 1], [-4, 0, 0], 0, [-1.03, -0.001, 1.13], [0, 0, 1, 0]],
-  ['1 x 2 x 1 m cylinder', 'cylinder', [1, 2, 1], [0, 0, 0, 1], [-3.998, -0.001, 0], 0.017, [-0.56, 0.001, 1.13], [0, 0, 1, 0]],
-  ['2 x 1 x 1 m cylinder at 40 degrees', 'cylinder', [2, 1, 1], [0, 0, 0, 1], [-3.065, -2.571, 0], 39.998, [-0.555, -0.505, 1.13], [0, 0, 0.869, -0.494]],
-  ['3 x 1 x 1 m cylinder at 25 degrees', 'cylinder', [3, 1, 1], [0, 0, 0, 1], [-3.625, -1.692, 0], 25.017, [-0.88, -0.478, 1.13], [0, 0, -0.827, 0.562]],
   ['10 x 10 x 0.1 m box the avatar stood on 2.046 m along X and 1.022 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [2.046, 1.022, 0.971], 0, [5.09, 0.018, 0.68], [0, 0, 0, 1]],
   ['10 x 10 x 0.1 m box the avatar stood on 2.001 m along X and 0.938 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [2.001, 0.938, 0.971], 0, [5.09, 0.016, 0.68], [0, 0, 0, 1]],
   ['10 x 10 x 0.1 m box the avatar stood on 2.015 m along X and 0.439 m along Y from its centre, facing 0 degrees', 'box', [10, 10, 0.1], [0, 0, 0, 1], [2.015, 0.439, 0.971], 0, [5.09, 0.008, 0.68], [0, 0, 0, 1]],
