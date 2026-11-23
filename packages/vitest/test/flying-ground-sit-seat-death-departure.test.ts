@@ -147,6 +147,18 @@ describe('a ground sit while flying', () => {
     expect(steps(watch(f.watcher, f.advance, 1500))).toEqual([[AGENT_IN_AIR, 'Falling Down'], [0, 'Landing'], [0, 'Standing']])
   })
 
+  it('falls when the avatar lands after it hovers', async () => {
+    const f = await fixture()
+    f.fly()
+    f.watcher.send('rlv', '@sitground=force')
+    f.advance(1000)
+    expect(f.world.userStandAvatar(f.avatar)).toBe(true)
+    f.advance(500)
+    f.world.attemptAvatarMovement(f.avatar, 'land')
+    f.advance(0)
+    expect(steps(watch(f.watcher, f.advance, 1500))).toEqual([[AGENT_IN_AIR, 'Falling Down'], [0, 'Landing'], [0, 'Standing']])
+  })
+
   it('keeps a state the test sets during "Hovering Up"', async () => {
     const f = await fixture()
     f.fly()
