@@ -1,5 +1,5 @@
-import { expect, it } from 'vitest'
-import { loadScript, loadLinkset } from '../src/index.js'
+import { describe, expect, it } from 'vitest'
+import { loadScript, loadLinkset, InventoryType, makeInventoryItem } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LlVolumeDetect
 // In-world: batch.py settings 11-13 accepted signed PIN limits and 0 with a ~0.2 s delay.
@@ -121,12 +121,6 @@ it('preserves collision event injection without detected data and leaves land co
 
 // In-world: last.py -> missing sound and a script inventory name did not report errors.
 // llPlaySound with the same missing name did, and the listener caught a deliberate math error.
-// These fields record requests. The impact sound and its effective gain could not be read: on
-// Aditi (SLua Tideland, 2026-11-23) a physical box dropped onto a prim floor from 0.3 to 6 m, and
-// bumped by a walking avatar, raised collision_start each time, yet the viewer heard no collision
-// sound from it, with no llCollisionSound call or after llCollisionSound with a sound key at
-// volumes -1, 0.3, 1 and 2, "" at 0.5 and 0, "missing" and NULL_KEY. It heard the avatar's
-// footsteps, so triggered sounds did reach it.
 // In-world (Aditi, SLua Tideland, 2026-11-23), read back with PRIM_COLLISION_SOUND: "" stored
 // NULL_KEY at volume 0 whatever volume it was given, a name that is not a sound in the prim stored
 // NULL_KEY, and the volume was clamped to 0..1.
@@ -342,4 +336,127 @@ it('takes the new root\'s volume detection when an object that has it is linked 
   for (const event of ['collision_start', 'collision', 'collision_end']) counter.fire(event, AVATAR_HIT)
   plain.linkset.advanceTime(100)
   expect([counter.global('starts'), counter.global('ongoing'), counter.global('ends')]).toEqual([1, 1, 1])
+})
+
+// https://wiki.secondlife.com/wiki/LlCollisionSound
+//
+// In-world (Aditi beta grid, SLua Tideland, Firestorm 7.3.0, 2026-11-23): a
+// physical 0.5 m box (or a two-box linkset) with a script was lifted and dropped
+// from 0.1 to 3 m onto a non-physical target box, or a two- or three-box linkset,
+// after llCollisionSound calls on both. A timer logged llGetVel every 0.02 s until collision_start. The viewer
+// listed the triggered sounds it heard and which object played them. On the main
+// grid an impact played the collision sound at gain 0.75 for volume 1.0 too.
+// Dropped onto the 0.01 m thick prim floor of the test platform, the box raised
+// collision_start but played no sound, with or without a call, at up to 7.4 m/s;
+// rezless doesn't model that floor.
+describe('collision sounds on impact', () => {
+  const S = 'ed124764-705d-d497-167a-182cd9fa2e6c'
+  const S2 = 'a1b2c3d4-0000-4000-8000-000000000521'
+  const S3 = 'b1b2c3d4-0000-4000-8000-000000000521'
+  const call = (args: string) => args ? `default{state_entry(){llCollisionSound(${args});}}` : 'default{state_entry(){}}'
+  async function object(...calls: string[]) {
+    const prims = calls.map((args, i) => ({ scripts: [{ name: `p${i}`, source: { source: call(args) } }] }))
+    const { linkset, scripts } = await loadLinkset({ prims })
+    for (const s of Object.values(scripts)) s.start()
+    return linkset
+  }
+  const heard = (l: Awaited<ReturnType<typeof object>>) => l.prims.flatMap(p => p.sound.triggers.map(t => `${t.sound}@${+t.volume.toFixed(4)}`))
+  async function impact(mover: string, struck: string, child?: string, speed = 4) {
+    const a = await object(mover)
+    const b = child === undefined ? await object(struck) : await object(struck, child)
+    a.collide(b, speed)
+    return [heard(a), heard(b)]
+  }
+
+  // In-world: 1.0 -> both objects' sounds at 0.75; 0.3 -> both at 0.225 (target at
+  // 0.2 and 0.6); 0.5 -> both at 0.375; 2 -> 0.75; 0 and -1 -> nothing from either.
+  it.each([
+    ['1.0', [[`${S}@0.75`], [`${S3}@0.75`]]],
+    ['0.3', [[`${S}@0.225`], [`${S3}@0.225`]]],
+    ['0.5', [[`${S}@0.375`], [`${S3}@0.375`]]],
+    ['2', [[`${S}@0.75`], [`${S3}@0.75`]]],
+    ['0', [[], []]],
+    ['-1', [[], []]],
+  ])('plays both sounds at 0.75 times the falling object\'s volume %s', async (volume, want) => {
+    expect(await impact(`"${S}",${volume}`, `"${S3}",.2`)).toEqual(want)
+  })
+
+  // In-world: the target's own volume, 0 to 1, never changed the gain.
+  it('ignores the struck object\'s volume', async () => {
+    expect(await impact(`"${S}",1`, `"${S3}",0`)).toEqual([[`${S}@0.75`], [`${S3}@0.75`]])
+  })
+
+  // In-world, by drop height: falls of 0.1, 0.15 and 0.2 m (free-fall impact speeds
+  // up to 1.98 m/s) played nothing, and falls from 0.25 m (2.21 m/s) to 3 m played the
+  // same sound at 0.75 each time.
+  it.each([[1.5, 0], [1.98, 0], [2.21, 1], [7.4, 1]])('at %s m/s plays %s sounds per object', async (speed, n) => {
+    const [mover, struck] = await impact(`"${S}",1`, `"${S3}",1`, undefined, speed)
+    expect([mover!.length, struck!.length]).toEqual([n, n])
+  })
+
+  // In-world: a box that never called landed on a two-box target whose child alone
+  // set a sound at 1: the target played it at 0.75. On a target whose root set one
+  // at 0.3 it played at 0.225, and at 0 nothing. A box with a sound landed on an
+  // unscripted box: only the falling box played.
+  it('takes the struck object\'s volume when the falling object never called', async () => {
+    expect(await impact('', '', `"${S2}",1`)).toEqual([[], [`${S2}@0.75`]])
+    expect(await impact('', `"${S3}",.3`)).toEqual([[], [`${S3}@0.225`]])
+    expect(await impact('', `"${S3}",0`)).toEqual([[], []])
+    expect(await impact(`"${S}",1`, '')).toEqual([[`${S}@0.75`], []])
+  })
+
+  // In-world, a falling two-box linkset whose child alone set a sound: onto a target
+  // whose root set one, both played at 0.75 times the target's volume (child at 0.3,
+  // target at 1 gave 0.75; child at 1, target at 0.3 gave 0.225). Onto a two-box target
+  // whose child set one at 1, both played at 0.75. Onto an unscripted box, the
+  // linkset played its child's sound at 0.75 times the child's volume, 0.3.
+  it('takes a falling linkset\'s child volume only when the struck object set none', async () => {
+    const cases: [string[], string[], string[][]][] = [
+      [['', `"${S}",.3`], [`"${S3}",1`], [[`${S}@0.75`], [`${S3}@0.75`]]],
+      [['', `"${S}",1`], [`"${S3}",.3`], [[`${S}@0.225`], [`${S3}@0.225`]]],
+      [['', `"${S}",.3`], ['', `"${S2}",1`], [[`${S}@0.75`], [`${S2}@0.75`]]],
+      [['', `"${S}",.3`], [''], [[`${S}@0.225`], []]],
+    ]
+    for (const [mover, struck, want] of cases) {
+      const a = await object(...mover)
+      const b = await object(...struck)
+      a.collide(b, 4)
+      expect([heard(a), heard(b)]).toEqual(want)
+    }
+  })
+
+  // In-world: "", NULL_KEY and the name of a missing item on either object
+  // silenced the whole impact, at any volume.
+  it.each(['""', 'NULL_KEY', '"missing"'])('silences the impact when either object\'s root sets %s', async sound => {
+    expect(await impact(`${sound},1`, `"${S3}",1`)).toEqual([[], []])
+    expect(await impact(`"${S}",1`, `${sound},.5`)).toEqual([[], []])
+    expect(await impact(`"${S}",1`, `${sound},0`)).toEqual([[], []])
+  })
+
+  // In-world, a two-box target: a child's sound played (from the root) while the
+  // root had never called, also when the falling box hit the child; once the root
+  // called, its sound played whichever prim was hit, even after the child called
+  // again. A child's "" with the root never called left the falling box's sound
+  // playing; the root's "" silenced both. On a three-box target whose root never
+  // called, link 2's sound played whichever child called last.
+  it('uses the root\'s setting once the root has called, else the first child\'s sound', async () => {
+    expect(await impact(`"${S}",1`, '', `"${S2}",1`)).toEqual([[`${S}@0.75`], [`${S2}@0.75`]])
+    expect(await impact(`"${S}",1`, `"${S3}",.5`, `"${S2}",.3`)).toEqual([[`${S}@0.75`], [`${S3}@0.75`]])
+    expect(await impact(`"${S}",.3`, '', '"",.5')).toEqual([[`${S}@0.225`], []])
+    expect(await impact(`"${S}",1`, '"",0', `"${S2}",.3`)).toEqual([[], []])
+    const a = await object('')
+    const b = await object('', `"${S2}",.3`, `"${S3}",1`)
+    a.collide(b, 4)
+    expect(heard(b)).toEqual([`${S2}@0.225`])
+  })
+
+  it('resolves a sound named in the inventory of the prim that set it', async () => {
+    const { linkset: a, scripts } = await loadLinkset({ prims: [{
+      inventory: [makeInventoryItem({ name: 'thud', type: InventoryType.SOUND, key: S2 })],
+      scripts: [{ name: 'root', source: { source: call('"thud",1') } }],
+    }] })
+    scripts.root!.start()
+    a.collide(await object(`"${S3}",1`), 3)
+    expect(a.prims[0]!.sound.triggers).toEqual([{ sound: S2, volume: 0.75, position: a.prims[0]!.regionPosition() }])
+  })
 })

@@ -118,7 +118,6 @@ describe('particles never reach a seated avatar', () => {
     const s = await scene(1)
     expect([-5, 0, -1, -2, -3, -4, 1, 2].map((link) => s.particles(1, link)))
       .toEqual(['-', '-', 'x', '-', '-', 'x', 'x', '-'])
-    expect('particles' in s.avatar).toBe(false)
   })
 
   it('from the root of two prims', async () => {

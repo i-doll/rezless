@@ -3,6 +3,7 @@ import { retainRlvAttachment } from './rlv/attachments.js'
 import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
+import { playCollisionSounds } from './builtins/collision.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
@@ -693,6 +694,11 @@ export class Linkset {
     if (group) return { prims: group, sitter: undefined }
     const one = this.oneLink(from, link)
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
+  }
+
+  /** Play the collision sounds of this object landing on `struck` at `speed` m/s. Collision events are fired separately. */
+  collide(struck: Linkset, speed: number) {
+    playCollisionSounds(this, struck, speed)
   }
 
   /**
