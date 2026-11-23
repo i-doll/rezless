@@ -607,6 +607,25 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(changes(linkset, ticks, 8000)).toEqual([15_400, 19_400])
   })
 
+  it('takes the lag of a tick held through a sleep from the wake, not from when it runs', async () => {
+    // In-world: llSetTimerEvent(10), then a handler slept from 7.9 s to 12.9 s and a second,
+    // waiting, from 12.9 s to 17.9 s. The tick ran after the second sleep, 8.0 s late, and
+    // llSetTimerEvent(10) 0.44 s later ticked 7.09 s after the call: the lag was the 2.9 s
+    // the tick was late at the first wake.
+    const { t, tell, linkset } = await rig({ source: timed })
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:7:')
+    linkset.advanceTime(500)
+    tell('msg:7:')
+    linkset.advanceTime(9600)
+    expect(ticks()).toBe(1)
+    linkset.advanceTime(400)
+    tell('msg:1:10.0')
+    expect(changes(linkset, ticks, 8000)).toEqual([25_500])
+  })
+
   it('has no lag after more than one missed tick, even when a waiting handler lengthens the interval', async () => {
     // In-world: a link message queued before the stop called llSetTimerEvent(10); started 8.5 s
     // after the stop, with the 4 s and 8 s ticks missed, the caught-up tick came 20 ms after

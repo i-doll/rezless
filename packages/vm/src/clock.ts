@@ -435,7 +435,10 @@ export class LinksetClock {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
       const due = ev.payload['due']
-      if (ev.event === 'timer' && typeof due === 'number') ev.target.clockView.timerLate(Math.max(bestAt, this.now) - due)
+      const tv = ev.target.clockView
+      if (ev.event === 'timer' && typeof due === 'number') tv.timerLate(Math.max(bestAt, this.now) - due)
+      // In-world: a tick that waited behind another handler had the lag it had when that handler started.
+      else if (tv.timerIntervalMs > 0 && tv.timerLateDueMs === undefined && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= Math.max(bestAt, this.now)
       return bestAt > ev.at ? { ...ev, at: bestAt } : ev
     }
     if (bestTimerScript && bestTimerAt <= wakeAt) {
@@ -502,6 +505,7 @@ export class LinksetClock {
         !timerWaits && !held.some((e) => e.event === 'timer')) {
       held.push({ at: this.now, target: script, event: 'timer', payload: {}, held: false })
       // As in takeNextDue: an overdue tick keeps the old schedule if that is still ahead.
+      // In-world: its lag is how late it was at the wake, even when another handler held it longer.
       v.timerFired(this.now)
     }
     // In-world: a box that fell onto land and was lifted off it while asleep woke to
@@ -569,6 +573,8 @@ export class ScriptClockView {
   timerLagMs = 0
   /** False for an SLua script: its LLTimers timer has no lag. */
   lags = true
+  /** When the overdue tick first waited behind another event. */
+  timerPassedAt: number | undefined
   /** Whether the owed tick leaves a lag when it fires. */
   private owedTickLags = false
   /** Whether an llSetTimerEvent call made the owed tick due, so a later call replaces it. */
@@ -616,6 +622,7 @@ export class ScriptClockView {
     this.timerIntervalMs = 0
     this.timerNextFireMs = 0
     this.timerLateDueMs = undefined
+    this.timerPassedAt = undefined
     this.owedBySet = false
   }
 
@@ -633,11 +640,13 @@ export class ScriptClockView {
   timerFired(at: number): void {
     const late = this.timerLateDueMs
     const due = this.timerNextFireMs
+    const passed = this.timerPassedAt
+    this.timerPassedAt = undefined
     const kept = late === undefined ? at : late + this.timerIntervalMs
     this.timerLateDueMs = undefined
     this.owedBySet = false
     this.timerNextFireMs = kept > at ? kept : at + this.timerIntervalMs
-    if (late === undefined) this.timerLate(at - due)
+    if (late === undefined) this.timerLate((passed ?? at) - due)
     else this.timerLagMs = kept > at && this.owedTickLags ? at - late : 0
   }
 
@@ -676,6 +685,7 @@ export class ScriptClockView {
       this.schedule(this.timerNextFireMs, 'timer', { due: this.timerNextFireMs })
     }
     this.timerIntervalMs = intervalMs
+    this.timerPassedAt = undefined
     // A tick still owed from before the script started keeps its place; only the interval changes.
     if (this.timerLateDueMs !== undefined && !this.owedBySet) return
     // A lag moves the first tick earlier. One that would be due already is owed: it fires once the
