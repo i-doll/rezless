@@ -15,6 +15,7 @@ async function run(source: string) {
   return s
 }
 
+const FLOOD = 'Too many errors... dropping further messages until the flood stops'
 const said = (s: { chat: ReadonlyArray<{ channel: number; text: string }> }, channel = 0) =>
   s.chat.filter((c) => c.channel === channel).map((c) => c.text)
 
@@ -345,9 +346,10 @@ describe('the case of a stored key', () => {
   ])('%s stores a key in lower case and refuses what is not a key', async (_, set) => {
     const s = await run(KEY_PROBE(set, 'llGetTexture(0) + " " + first(llGetPrimitiveParams([PRIM_TEXTURE, 0]))'))
     // In-world: the ten refused inputs, the null key among them, left BASE and each said
-    // "Could not find texture '<input>'." on DEBUG_CHANNEL.
+    // "Could not find texture '<input>'." on DEBUG_CHANNEL. In-world (Aditi, 2026-11-23):
+    // ten such errors in one event gave 8, then the error flood notice.
     expect(s.global('out')).toEqual(results(`${LO} 3:${LO}`, `${BASE} 3:${BASE}`))
-    expect(said(s, DEBUG_CHANNEL)).toEqual(NOT_KEYS.map((input) => `Could not find texture '${input}'.`))
+    expect(said(s, DEBUG_CHANNEL)).toEqual([...NOT_KEYS.slice(0, 8).map((input) => `Could not find texture '${input}'.`), FLOOD])
   })
 
   it.each([
@@ -381,9 +383,11 @@ describe('the case of a stored key', () => {
     expect(s.global('out')).toEqual(
       results(`${LO} 3:${LO}`, (input) => (input === NULL_KEY ? `${NULL_KEY} 3:${NULL_KEY}` : `${BASE} 3:${BASE}`)),
     )
-    expect(said(s, DEBUG_CHANNEL)).toEqual(
-      NOT_KEYS.filter((input) => input !== NULL_KEY).map((input) => `Could not find render material '${input}'.`),
-    )
+    // Nine errors in one event: the ninth gives way to the error flood notice.
+    expect(said(s, DEBUG_CHANNEL)).toEqual([
+      ...NOT_KEYS.filter((input) => input !== NULL_KEY).slice(0, 8).map((input) => `Could not find render material '${input}'.`),
+      FLOOD,
+    ])
   })
 
   it('PRIM_RENDER_MATERIAL stores a key in lower case and the null key for what is not a key', async () => {

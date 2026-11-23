@@ -185,7 +185,10 @@ describe('a permission request to a key that is not an avatar', () => {
   it.each(['NULL_KEY', 'an unknown key', "the script's own prim", "another object's prim"] as const)(
     'fails every request to %s with an error', async name => {
       const f = await holding()
-      for (const bits of BITS) f.lsl.ask(bits, f.keys[name])
+      for (const bits of BITS) {
+        f.lsl.ask(bits, f.keys[name])
+        f.lsl.script.linkset.advanceTime(5000)
+      }
       expect(f.lsl.errors()).toEqual(BITS.map(() => NOT_FOUND))
       expect(f.lsl.events()).toEqual([ANIMATION])
       expect(f.lsl.log().filter(line => line.startsWith('asked')).slice(2)).toEqual(BITS.map(() => `asked 16 ${OWNER}`))

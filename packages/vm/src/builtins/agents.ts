@@ -5,6 +5,7 @@ import { ruleElementType, typedList, uniformList } from '../values/list-types.js
 import { nextDataserverKey } from './dataserver.js'
 import { findObjectPrim } from './object-reads.js'
 import { sayError } from './debug.js'
+import { WindowThrottle } from '../throttle.js'
 
 const sameKey = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const localAvatars = (ctx: CallContext): WorldAvatar[] =>
@@ -42,28 +43,18 @@ export const llName2Key: BuiltinImpl = (ctx, args) => {
   return localAvatars(ctx).find(a => username(a.username) === wanted)?.key ?? NULL_KEY
 }
 
-const USER_KEY_BURST = 20
-const USER_KEY_WINDOW_MS = 10_500
-const USER_KEY_LOCKOUT_MS = 16_500
-const userKeyThrottles = new WeakMap<object, Map<string, { answered: number[]; lockedUntil: number }>>()
+const userKeyThrottles = new WeakMap<object, Map<string, WindowThrottle>>()
 
-// In-world the limit is shared by every object an owner has in a region. The 20th
-// call answered within the window shuts it for the lockout. In-world, 20 calls
-// spread over 9.7 s shut it and 20 calls spread over 10.7 s (0.555 s apart) did not;
-// the VM's 10.5 s keeps both. The lockout lay between 15.1 s and 18 s after a burst. Refused calls made
-// during the lockout lengthened it by differing amounts, which is not modelled.
+// In-world the limit is 20 lookups per owner and region, counted over 10 s periods
+// by a sliding window, and a lookup past it shuts lookups until the end of the next
+// period. Refused lookups count too.
 function userKeyThrottled(ctx: CallContext): boolean {
   let byOwner = userKeyThrottles.get(ctx.linkset.clock)
   if (!byOwner) userKeyThrottles.set(ctx.linkset.clock, byOwner = new Map())
   const id = `${ctx.linkset.region ?? ''}\n${ctx.linkset.owner.toLowerCase()}`
   let throttle = byOwner.get(id)
-  if (!throttle) byOwner.set(id, throttle = { answered: [], lockedUntil: -Infinity })
-  const now = ctx.state.clock.now
-  if (now < throttle.lockedUntil) return true
-  throttle.answered = throttle.answered.filter(t => t > now - USER_KEY_WINDOW_MS)
-  throttle.answered.push(now)
-  if (throttle.answered.length >= USER_KEY_BURST) throttle.lockedUntil = now + USER_KEY_LOCKOUT_MS
-  return false
+  if (!throttle) byOwner.set(id, throttle = new WindowThrottle(10_000, 20))
+  return throttle.take(ctx.state.clock.now) !== 'open'
 }
 
 /** Global fixture lookup; answers on every script in this prim, like dataserver. */

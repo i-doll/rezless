@@ -282,8 +282,11 @@ working — they're just scoped to one script in a larger system.
 Chat a script sends reaches matching `listen` handlers in other prims, named
 and keyed after the sending prim. `llWhisper`, `llSay` and `llShout` reach
 prims within 10, 20 and 100 m of the sending prim, and so do its
-`DEBUG_CHANNEL` errors, which are said. `llRegionSay` reaches every prim in the
-region. `llRegionSayTo` reaches only the prim with the target key, or, when
+`DEBUG_CHANNEL` errors, which are said. A prim's errors stop after 8 in 16
+seconds: the next one is replaced by `Too many errors... dropping further
+messages until the flood stops`, and later errors are dropped for at least 16
+seconds, and for as long as they keep coming about every 2 seconds or faster.
+`llRegionSay` reaches every prim in the region. `llRegionSayTo` reaches only the prim with the target key, or, when
 targeting an avatar on a nonzero channel, matching listens in every attachment
 that avatar wears in the sender's region. Channel 0 to an avatar reaches no
 script. A prim never hears its own chat, and `llOwnerSay` and
@@ -554,9 +557,11 @@ tag; body shape uses `visualParams[80]` and hover height uses `movement.hoverOff
 `llGetAgentLanguage`, `llGetAgentSize` and `llGetVisualParams` query avatars in
 the script's region. `llRequestUserKey` searches all World avatar usernames and
 answers every script in the prim through `dataserver`, with a UUID string or
-`NULL_KEY`. An owner gets 20 lookups in 10.5 seconds in each region. The next call
-returns `NULL_KEY`, says an error message on `DEBUG_CHANNEL` and gets no answer,
-and calls stay refused for 16.5 seconds. `llGetAgentList` uses parcel fixtures for parcel scopes and rejects
+`NULL_KEY`. An owner gets about 20 lookups per 10 seconds in each region, counted
+over a sliding window. A call past that returns `NULL_KEY`, says an error message
+on `DEBUG_CHANNEL` and gets no answer, and calls stay refused for the rest of that
+10-second period and all of the next, longer if calls keep going past the limit.
+`llGetAgentList` uses parcel fixtures for parcel scopes and rejects
 nonempty options. `llIsFriend` reads fixture friendships; `llSameGroup` compares
 active avatar groups, prim groups from `world.sensorProperties`, World object
 groups, or a literal group UUID.

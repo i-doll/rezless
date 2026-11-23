@@ -82,6 +82,7 @@ import type { Journal } from './dispatch.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { parse } from '@rezless/parser'
+import { flood, FLOOD } from './builtins/debug.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -1752,7 +1753,10 @@ export class Script {
 
   private sayCrash(): void {
     const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
-    for (const text of [`${this.host.name} [script:${name}] Script run-time error`, this.crashText]) {
+    for (let text of [`${this.host.name} [script:${name}] Script run-time error`, this.crashText]) {
+      const state = flood(this.host, this.state.clock.now)
+      if (state === 'refused') continue
+      if (state === 'shuts') text = FLOOD
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
