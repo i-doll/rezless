@@ -194,18 +194,42 @@ describe('a viewer teleport from a seat', () => {
   })
 })
 
+describe('a teleport while flying', () => {
+  // In-world: viewer teleports within SLua Tideland of a flying avatar, and of one sitting on the
+  // ground with AGENT_FLYING after "@sitground=force", read 263 "Hovering" for the rest of a 4 s
+  // watch, two runs each: the avatar kept flying and didn't fall.
+  it('keeps hovering after the teleport', async () => {
+    const f = await fixture()
+    f.fly()
+    expect(f.world.teleportAvatar(f.avatar, { x: 120, y: 52, z: 30 })).toBe(true)
+    f.advance(0)
+    expect(steps(watch(f.watcher, f.advance, 3000))).toEqual([[AGENT_FLYING | AGENT_IN_AIR, 'Hovering']])
+  })
+
+  it('hovers after a teleport from a ground sit that kept AGENT_FLYING', async () => {
+    const f = await fixture()
+    f.fly()
+    f.watcher.send('rlv', '@sitground=force')
+    f.advance(1000)
+    expect(f.world.teleportAvatar(f.avatar, { x: 120, y: 52, z: 30 })).toBe(true)
+    f.advance(0)
+    expect(steps(watch(f.watcher, f.advance, 3000))).toEqual([[AGENT_FLYING | AGENT_IN_AIR, 'Hovering']])
+  })
+})
+
 describe('the region an avatar leaves', () => {
   // In-world: a watch in SLua Tideland as the avatar teleported to SLua Tombolo, four runs standing:
-  // 6 "Init" with a non-zero llGetAgentSize for 0.20, 0.09, 0.07 and
-  // 0.09 s, then 0, "" and a zero size. From the seat: 54 "Sitting", then 6 "Init" for 0.04 s, then
-  // gone. Two earlier runs (2026-11-14) read "Init" for 0.26 and 0.37 s. rezless keeps the avatar in
-  // the old region as "Init", with its motion bits cleared, for 100 ms.
+  // 6 "Init" with a non-zero llGetAgentSize for 0.20, 0.09, 0.07 and 0.09 s, then 0, "" and a zero
+  // size. From the seat: 54 "Sitting", then 6 "Init" for 0.04 s, then gone. Flying, two runs: 263
+  // "Hovering", then 7 "Init" (AGENT_FLYING kept) for 0.41 and 0.25 s. Two earlier runs (2026-11-14)
+  // read "Init" for 0.26 and 0.37 s. rezless keeps the avatar in the old region as "Init" for 200 ms,
+  // the median of the nine runs, without its sitting, walking and in-air bits.
   it('reads "Init" with no motion bits for a moment, then nothing', async () => {
     const f = await fixture()
     expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 286, z: 30 })).toBe(true)
     f.advance(0)
     expect(f.watcher.read()).toEqual([AGENT_ATTACHMENTS | AGENT_SCRIPTED, 'Init', 1])
-    f.advance(90)
+    f.advance(190)
     expect(f.watcher.read()).toEqual([AGENT_ATTACHMENTS | AGENT_SCRIPTED, 'Init', 1])
     f.advance(10)
     expect(f.watcher.read()).toEqual([0, '', 0])
@@ -219,6 +243,14 @@ describe('the region an avatar leaves', () => {
     expect(f.watcher.read()).toEqual([AGENT_ATTACHMENTS | AGENT_SCRIPTED, 'Init', 1])
   })
 
+  it('keeps AGENT_FLYING when the avatar leaves flying', async () => {
+    const f = await fixture()
+    f.fly()
+    expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 286, z: 30 })).toBe(true)
+    f.advance(0)
+    expect(f.watcher.read()).toEqual([AGENT_ATTACHMENTS | AGENT_SCRIPTED | AGENT_FLYING, 'Init', 1])
+  })
+
   it('reads the avatar as usual once it comes back', async () => {
     const f = await fixture()
     expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 286, z: 30 })).toBe(true)
@@ -226,6 +258,18 @@ describe('the region an avatar leaves', () => {
     expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 30, z: 30 })).toBe(true)
     f.advance(0)
     expect(f.watcher.read()[1]).toBe('Falling Down')
+  })
+
+  it('keeps reading it there when the avatar moves on to a third region at once', async () => {
+    const f = await fixture()
+    f.world.addRegion('far', { x: 0, y: 512 })
+    expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 286, z: 30 })).toBe(true)
+    f.advance(20)
+    expect(f.world.teleportAvatar(f.avatar, { x: 30, y: 542, z: 30 })).toBe(true)
+    f.advance(0)
+    expect(f.watcher.read()[1]).toBe('Init')
+    f.advance(180)
+    expect(f.watcher.read()[1]).toBe('')
   })
 
   it('does not read "Init" after a teleport within the region', async () => {

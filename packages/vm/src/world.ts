@@ -27,7 +27,7 @@ import { AGENT_ATTACHMENTS, AGENT_SCRIPTED, AGENT_MOUSELOOK, AGENT_SITTING, AGEN
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 
-const AVATAR_MOTION = AGENT_FLYING | AGENT_SITTING | AGENT_ON_OBJECT | AGENT_WALKING | AGENT_IN_AIR
+const CLEARED_ON_DEPARTURE = AGENT_SITTING | AGENT_ON_OBJECT | AGENT_WALKING | AGENT_IN_AIR
 
 /** Prim-local simulator sit placement and an optional viewer autopilot outcome. */
 export interface AvatarSitResponse {
@@ -819,18 +819,19 @@ export class World {
   }
 
   private readonly arrivals = new WeakMap<WorldAvatar, { bits: number }>()
-  private readonly departures = new WeakMap<WorldAvatar, { region: string, info: number, until: number }>()
+  private readonly departures = new WeakMap<WorldAvatar, Map<string, { info: number, until: number }>>()
 
   /**
    * @internal The llGetAgentInfo bits `region` still reads for an avatar that has just teleported
    * out of it, or undefined.
    *
-   * In-world: a watch in the region the avatar left read it with its motion bits cleared, "Init"
-   * and a non-zero llGetAgentSize for 0.04 to 0.37 s (0.04, 0.07, 0.09, 0.09, 0.20, 0.26, 0.37).
+   * In-world: a watch in the region the avatar left read it as "Init", with a non-zero
+   * llGetAgentSize and without its sitting, walking and in-air bits (a flying avatar kept
+   * AGENT_FLYING), for 0.04 to 0.41 s (0.04, 0.07, 0.09, 0.09, 0.20, 0.25, 0.26, 0.37, 0.41).
    */
   departingAvatarInfo(avatar: WorldAvatar, region: string): number | undefined {
-    const departure = this.departures.get(avatar)
-    return departure?.region === region && this.clock.now < departure.until && avatar.region !== region ? departure.info : undefined
+    const departure = this.departures.get(avatar)?.get(region)
+    return departure && this.clock.now < departure.until && avatar.region !== region ? departure.info : undefined
   }
 
   /** @internal A teleport: stand the avatar, move it with its animations, and let it fall. */
@@ -839,7 +840,9 @@ export class World {
     this.avatarCameras.delete(avatar)
     moveRegionAnimations(this.clock, avatar.region, region, avatar.key)
     if (avatar.region !== region) {
-      this.departures.set(avatar, { region: avatar.region, info: avatar.info & ~AVATAR_MOTION, until: this.clock.now + 100 })
+      let departures = this.departures.get(avatar)
+      if (!departures) this.departures.set(avatar, departures = new Map())
+      departures.set(avatar.region, { info: avatar.info & ~CLEARED_ON_DEPARTURE, until: this.clock.now + 200 })
       this.arrive(avatar)
     }
     avatar.region = region
@@ -851,6 +854,14 @@ export class World {
       avatar.info |= AGENT_IN_AIR
       flyingSit.hover = {}
       this.landings.set(avatar, flyingSit.hover)
+      this.animate(avatar, 'Hovering')
+      return
+    }
+    if (avatar.info & AGENT_FLYING) {
+      // In-world: a viewer teleport of a flying avatar, and of one sitting on the ground with
+      // AGENT_FLYING, read 263 "Hovering" for the rest of a 4 s watch, two runs each.
+      avatar.info = (avatar.info & ~AGENT_WALKING) | AGENT_IN_AIR
+      this.landings.delete(avatar)
       this.animate(avatar, 'Hovering')
       return
     }
