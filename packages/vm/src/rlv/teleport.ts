@@ -12,7 +12,7 @@ import type { RlvRestriction } from './restrictions.js'
 export interface RlvTeleportAction {
   readonly status: 'action'
   readonly action: 'tpto'
-  readonly actionOutcome: 'applied' | 'refused'
+  readonly actionOutcome: 'applied' | 'refused' | 'pending'
   readonly target: string
   readonly seat: string
   readonly requested: Vector | null
@@ -67,6 +67,16 @@ export function teleportSupport(profile: ViewerProfile, behaviour: string, optio
   return undefined
 }
 
+// In-world: the worn object's changed event came 199 to 245 ms after "@tpto" within the region, in
+// 22 ms frames, mean 220 ms over 40 runs, and the avatar left for another region after the same
+// delay (Aditi, SLua Tideland, 2026-11-23). The viewer sends the request and the region moves the
+// avatar a round trip after the script spoke.
+const TPTO_DELAY_MS = 220
+// In-world: two @tpto in the same event took the avatar to the second destination, with one changed
+// event, three runs. A @tpto that llTeleportAgent overtook still landed afterwards, three runs.
+/** A later @tpto replaces one still on its way. */
+const pendingTeleports = new WeakMap<Readonly<{ dead: boolean }>, () => void>()
+
 export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: WorldAvatar,
   parsed: RlvParsedCommand, command: string): boolean {
   if (parsed.kind !== 'force' || parsed.behaviour !== 'tpto') return false
@@ -80,9 +90,9 @@ export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: Wo
   const world = linkset.world!
   let requested: Vector | null = null
   let resolved: AvatarDestination | null = null
-  const record = (reason?: RlvTeleportAction['reason'] | 'invalid-option', lookAt?: Vector): true => {
+  const record = (reason?: RlvTeleportAction['reason'] | 'invalid-option', lookAt?: Vector, pending = false): true => {
     viewer.commandLog.push({ command, sourcePrim: prim.key, parsed, status: 'action', action: 'tpto',
-      actionOutcome: reason ? 'refused' : 'applied', target: parsed.option, seat: getRlvSitId(avatar),
+      actionOutcome: pending ? 'pending' : reason ? 'refused' : 'applied', target: parsed.option, seat: getRlvSitId(avatar),
       requested, destination: resolved, result: { region: avatar.region, position: { ...avatar.position } },
       ...(reason ? { reason: reason === 'invalid-option' ? 'world-constraint' as const : reason } : {}),
       ...(reason === 'invalid-option' ? { outcome: 'invalid-option' as const } : {}), ...(lookAt ? { lookAt } : {}) })
@@ -141,8 +151,15 @@ export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: Wo
     const angle = viewer.profile === 'rlva' ? destination.angle : undefined
     const lookAt = angle === undefined ? undefined : Number.isFinite(angle)
       ? { x: Math.cos(angle), y: Math.sin(angle), z: 0 } : { x: 0, y: 0, z: 0 }
-    if (!world.teleportAvatar(avatar, requested, lookAt, true)) return record('world-constraint', lookAt)
-    return record(undefined, lookAt)
+    const destinationGlobal = requested
+    const lifetime = viewer.session.lifetime
+    pendingTeleports.get(lifetime)?.()
+    const cancel = world.clock.scheduleTask(lifetime, world.clock.now + TPTO_DELAY_MS, () => {
+      pendingTeleports.delete(lifetime)
+      record(world.teleportAvatar(avatar, destinationGlobal, lookAt, true) ? undefined : 'world-constraint', lookAt)
+    })
+    pendingTeleports.set(lifetime, () => { cancel(); record('world-constraint', lookAt) })
+    return record(undefined, lookAt, true)
   } finally {
     // Named callbacks already have the restored locks.
     if (destination === 'invalid' || destination.region === undefined) setLifted('add')

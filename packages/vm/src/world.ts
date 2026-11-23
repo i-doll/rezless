@@ -1073,21 +1073,33 @@ export class World {
       position = landing.position
       lookAt = landing.lookAt ?? lookAt
     }
-    cancelSeatRequests(avatar)
-    const changes = CHANGED_TELEPORT | (avatar.region === region.name ? 0 : CHANGED_REGION)
+    const sameRegion = avatar.region === region.name
     this.relocateAvatar(avatar, region.name, position)
-    teleportPendingGroundSit(avatar, !(changes & CHANGED_REGION))
+    cancelSeatRequests(avatar, sameRegion)
+    teleportPendingGroundSit(avatar, sameRegion)
     if (lookAt && (lookAt.x || lookAt.y)) {
       const half = Math.atan2(lookAt.y, lookAt.x) / 2
       avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
     }
-    for (const linkset of this.linksets) {
-      if (linkset.dead || linkset.attachment?.avatar.toLowerCase() !== avatar.key.toLowerCase()) continue
-      for (const script of linkset.allScripts()) {
-        if (script.running) this.clock.schedule(script, this.clock.now, 'changed', { changes })
+    this.reportTeleport(avatar, !sameRegion)
+    return true
+  }
+
+  // In-world: after a teleport into another region the worn object's changed event came 577 to
+  // 834 ms after the avatar left, for viewer, @tpto and script teleports alike, mean 640-649 ms.
+  /** @internal Tell the avatar's attachments it arrived: at once in its region, after the handoff in another. */
+  reportTeleport(avatar: WorldAvatar, crossing: boolean): void {
+    const changes = CHANGED_TELEPORT | (crossing ? CHANGED_REGION : 0)
+    const report = () => {
+      for (const linkset of this.linksets) {
+        if (linkset.dead || linkset.attachment?.avatar.toLowerCase() !== avatar.key.toLowerCase()) continue
+        for (const script of linkset.allScripts()) {
+          if (script.running) this.clock.schedule(script, this.clock.now, 'changed', { changes })
+        }
       }
     }
-    return true
+    if (crossing) this.clock.scheduleTask(this.presence(avatar), this.clock.now + 640, report)
+    else report()
   }
 
   /** Resolve forced location travel before changing seating or attachment state. */

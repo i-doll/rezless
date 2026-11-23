@@ -15,8 +15,11 @@ const source = `integer changes; default {
   link_message(integer s,integer n,string m,key id) { llOwnerSay(m); }
   changed(integer c) { if(c & CHANGED_LINK) ++changes; }
 }`
-const issue = (script: import('@rezless/vm').Script, message: string) =>
+// A forced teleport lands about 220 ms after the command (teleport-travel-time.test.ts).
+const issue = (script: import('@rezless/vm').Script, message: string) => {
   script.fire('link_message', { sender_num: 1, num: 0, str: message, id: NULL_KEY })
+  if (message.includes('tpto')) script.linkset.advanceTime(220)
+}
 const setup = async () => {
   const pair = await loadRlvPair({ source })
   for (const { world, avatar, script } of Object.values(pair)) {
@@ -115,6 +118,7 @@ it('stands with normal changed events and leaves simulator teleport permissions 
   } }` })
   for (const { avatar, script } of Object.values(pair)) {
     script.start()
+    script.advanceTime(220)
     expect(avatar.position).toEqual({ x: 20, y: 30, z: 40 })
     expect(script.teleportRequests).toMatchObject([{ accepted: false }])
   }
@@ -381,7 +385,7 @@ describe('worn objects during forced teleport', () => {
       issue(script, '@tpto:200/200/30=force')
       script.advanceTime(0)
       issue(script, '@tpto:north/10/10/30=force')
-      script.advanceTime(0)
+      script.advanceTime(640)
       expect(script.global('changes')).toEqual([CHANGED_TELEPORT, CHANGED_TELEPORT | CHANGED_REGION])
     }
   })

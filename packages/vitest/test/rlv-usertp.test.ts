@@ -135,7 +135,8 @@ it('delivers teleport and region changes to worn scripts through the shared move
     f.world.userTeleportAvatarViaLandmark(f.avatar, { x: 12, y: 24, z: 36 })
     f.script.advanceTime(0)
     f.world.userTeleportAvatarViaMap(f.avatar, { x: 10, y: 300, z: 30 })
-    f.script.advanceTime(0)
+    // The changed event of a region crossing comes 640 ms after the avatar leaves.
+    f.script.advanceTime(640)
     expect(f.script.global('changes')).toEqual([CHANGED_TELEPORT, CHANGED_TELEPORT | CHANGED_REGION])
     expect(f.script.linkset.region).toBe('North')
   }
