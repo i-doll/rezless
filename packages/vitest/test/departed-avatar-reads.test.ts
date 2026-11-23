@@ -32,6 +32,7 @@ const source = `
         details = llGetObjectDetails(o, typed);
       }
       else if (str == "die") llDie();
+      else if (str == "lang") out = [llGetAgentLanguage(o)];
     }
   }`
 
@@ -46,8 +47,9 @@ async function probe(world: World) {
     linkset.advanceTime(0)
   }
   const read = () => { send('rd'); return script.global('out') as unknown[] }
+  const language = () => { send('lang'); return (script.global('out') as unknown[])[0] }
   const details = (flags: number[]) => { send('details', flags.join(',')); return script.global('details') as unknown[] }
-  return { linkset, send, read, details, prim: linkset.prims[0]! }
+  return { linkset, send, read, details, language, prim: linkset.prims[0]! }
 }
 
 async function fixture() {
@@ -99,10 +101,12 @@ describe('the region an avatar leaves, while it reads "Init"', () => {
     f.teleport('far')
     expect(f.watcher.read()).toEqual([...NAMES, 0, 'Init', 1, 1, '', 1])
     expect(f.watcher.details([OBJECT_POS, OBJECT_RUNNING_SCRIPT_COUNT])).toEqual([{ x: 128, y: 128, z: 20 }, 0])
+    expect(f.watcher.language()).toBe('en')
     f.advance(210)
     expect(f.watcher.read()).toEqual([...NAMES, 0, '', 0, 1, '', 1])
     f.advance(20)
     expect(f.watcher.read()).toEqual([...NAMES, 0, '', 0, 0, 'NOT ON REGION', 1])
+    expect(f.watcher.language()).toBe('')
   })
 })
 
@@ -215,5 +219,13 @@ describe('the region an avatar leaves for the next one', () => {
     f.advance(2000)
     expect(f.watcher.read().slice(0, 3)).toEqual(NAMES)
     expect(f.watcher.read()[6]).toBe(1)
+  })
+})
+
+describe('an avatar far away that the region never saw', () => {
+  it('reads llGetAttachedList "NOT FOUND"', async () => {
+    const f = await fixture()
+    f.avatar.region = 'far'
+    expect(f.watcher.read()).toEqual([...GONE, 'NOT FOUND', 0])
   })
 })

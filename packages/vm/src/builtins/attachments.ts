@@ -14,7 +14,7 @@ const isHUD = (point: number) => point >= 31 && point <= 38
 
 function localAgent(ctx: CallContext, key: string): boolean {
   return isAgentInRegion(ctx, key) && (!ctx.linkset.world ||
-    ctx.linkset.world.avatars.some(a => sameKey(a.key, key) && ctx.linkset.world!.avatarInRegion(a, ctx.linkset.region)))
+    ctx.linkset.world.avatars.some(a => sameKey(a.key, key) && a.region === ctx.linkset.region))
 }
 
 function attach(ctx: CallContext, point: number, temporary: boolean): void {
@@ -76,7 +76,7 @@ function attachments(ctx: CallContext, avatar: string): Linkset[] | string {
   // "NOT ON REGION" while it still knew the avatar, then "NOT FOUND".
   if (known && known.region !== ctx.linkset.region && left?.mode !== 'departing') return left ? 'NOT ON REGION' : 'NOT FOUND'
   if (left?.mode === 'departing') return worn(ctx, avatar)
-  if (!localAgent(ctx, avatar)) return 'NOT FOUND'
+  if (!localAgent(ctx, avatar) || (known && !ctx.linkset.world!.avatarInRegion(known, ctx.linkset.region))) return 'NOT FOUND'
   return worn(ctx, avatar)
 }
 

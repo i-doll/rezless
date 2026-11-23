@@ -867,8 +867,8 @@ export class World {
    * and its live position and rotation lasted the whole 25 and 75 s watches, also when it came there
    * from a distant region. After it left for a distant region, or for diagonal SLua Yardang, the
    * names lasted 50.34 and 50.36 s past the llGetAgentList drop, with no position; after it went on
-   * from SLua Tombolo to a distant region they lasted about 49 s, with the position and rotation it
-   * last had in SLua Tombolo.
+   * from SLua Tombolo to a distant region they lasted about 49 s past that teleport (the drop itself
+   * wasn't timed), with the position and rotation it last had in SLua Tombolo.
    */
   lingeringAvatar(avatar: WorldAvatar, region: string | undefined):
     { mode: 'departing' | 'neighbour' | 'away', position: Vector | null, rotation: Rotation } | undefined {

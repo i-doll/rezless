@@ -202,4 +202,12 @@ describe('a menu ground sit while flying', () => {
     script.linkset.advanceTime(600)
     expect(avatar.info & (AGENT_SITTING | AGENT_FLYING)).toBe(AGENT_FLYING)
   })
+
+  it('is refused without RLV', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ username: 'av', region: 'home', info: AGENT_FLYING })
+    expect(world.userSitAvatarOnGround(avatar)).toBe(false)
+    expect(avatar.info & AGENT_SITTING).toBe(0)
+  })
 })
