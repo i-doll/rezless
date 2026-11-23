@@ -336,17 +336,30 @@ const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
 const overrideType = (code: LslValue): LslType | undefined => (typeof code === 'number' ? OVERRIDE_TYPES[code] : undefined)
 
 /**
- * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs. The base
- * colour and alpha form one factor that "" leaves alone; "" clears the others.
- * One wrong-typed value rejects the whole call; an unknown code is skipped.
+ * Check llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs in order. The
+ * first bad pair rejects the whole call: a code that isn't an integer, even one
+ * with no value after it, says why; a wrong-typed value is rejected without the
+ * error here. Returns null when the call can run.
+ */
+export function rejectGltfOverrides(params: ReadonlyArray<LslValue>): { error: string | null } | null {
+  for (let i = 0; i < params.length; i += 2) {
+    if (givenType(params, i) !== 'integer') {
+      return { error: `llSetGLTFOverrides Error running rule #${i / 2 + 1}: non-integer rule.` }
+    }
+    const expected = overrideType(params[i]!)
+    if (expected === undefined || i + 1 >= params.length || params[i + 1] === '') continue
+    const given = givenType(params, i + 1)
+    if (given !== expected && !(expected === 'float' && given === 'integer')) return { error: null }
+  }
+  return null
+}
+
+/**
+ * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs, already
+ * checked by rejectGltfOverrides. The base colour and alpha form one factor
+ * that "" leaves alone; "" clears the others. An unknown code is skipped.
  */
 export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslValue>): void {
-  for (let i = 0; i + 1 < params.length; i += 2) {
-    const expected = overrideType(params[i]!)
-    if (expected === undefined || params[i + 1] === '') continue
-    const given = givenType(params, i + 1)
-    if (given !== expected && !(expected === 'float' && given === 'integer')) return
-  }
   const bc = g.baseColor
   for (let i = 0; i + 1 < params.length; i += 2) {
     const v = params[i + 1]!

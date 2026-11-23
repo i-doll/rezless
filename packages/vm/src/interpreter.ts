@@ -41,10 +41,20 @@ import { HaltSignal } from './builtins/object.js'
 
 /** Mono can't run a function or handler that uses the value of a key print. */
 class InvalidProgram extends RuntimeError {
-  constructor(name: string) {
-    super(`System.InvalidProgramException: Invalid IL code in LSL :${name} ()`)
+  constructor(name: string, params = '') {
+    super(`System.InvalidProgramException: Invalid IL code in LSL :${name} (${params})`)
     this.name = 'InvalidProgram'
   }
+}
+
+const MONO_PARAM_TYPES: Readonly<Record<TypeName, string>> = {
+  integer: 'int',
+  float: 'single',
+  string: 'string',
+  key: 'Key',
+  vector: 'Vector',
+  rotation: 'Quaternion',
+  list: 'System.Collections.ArrayList',
 }
 
 /**
@@ -265,7 +275,9 @@ function* callUserFunction(
   fn: FunctionDeclaration,
   args: ReadonlyArray<EvalResult>,
 ): UserCall {
-  if (ctx.invalidPrograms.has(fn)) throw new InvalidProgram(fn.name)
+  if (ctx.invalidPrograms.has(fn)) {
+    throw new InvalidProgram(`g${fn.name}`, fn.params.map((p) => MONO_PARAM_TYPES[p.typeName]).join(','))
+  }
   if (ctx.state.coverage) {
     ctx.state.coverage.hitFunction(fn.loc)
     ctx.state.coverage.hitStatement(fn.body.loc)

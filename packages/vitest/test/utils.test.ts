@@ -1061,15 +1061,19 @@ describe('in-world parity — math, strings, hashes', () => {
     expect(await evalExpr('integer', expr)).toBe(-2147483648)
   })
 
-  // Unmeasured: infinity and NaN follow the measured out-of-range result.
+  // In-world: llPow(10.0, 999.0) is Infinity and llSqrt(-1.0) is NaN; llCeil and llFloor of them gave
+  // -2147483648 (Aditi, SLua Tideland, 2026-11-23).
   it.each([
     ['llCeil(llPow(10.0, 999.0))'],
+    ['llFloor(llPow(10.0, 999.0))'],
+    ['llCeil(llSqrt(-1.0))'],
     ['llFloor(llSqrt(-1.0))'],
   ])('%s is -2147483648', async (expr) => {
     expect(await evalExpr('integer', expr)).toBe(-2147483648)
   })
 
-  // In-world: llLog(0) and llLog(-1) gave 0.0. llLog10(x <= 0) = 0 is from the wiki, not measured.
+  // In-world: llLog(0) and llLog(-1) gave 0.0; llLog10(0.0) and llLog10(-5.0) gave 0.0 and llLog10(100.0)
+  // 2.0 (Aditi, SLua Tideland, 2026-11-23).
   it.each([
     ['llLog(0.0)', 0],
     ['llLog(-1.0)', 0],
@@ -1097,9 +1101,31 @@ describe('in-world parity — math, strings, hashes', () => {
     expect(await evalExpr('string', `llUnescapeURL("${input}")`)).toBe(want)
   })
 
-  // Unmeasured: a multi-byte character before an escape.
-  it('llUnescapeURL keeps a non-BMP character before an escape', async () => {
+  // In-world: llUnescapeURL("😀%41") = "😀A" and llUnescapeURL("é%41") = "éA" (Aditi, SLua Tideland, 2026-11-23).
+  it('llUnescapeURL keeps a multi-byte character before an escape', async () => {
     expect(await evalExpr('string', 'llUnescapeURL("😀%41")')).toBe('😀A')
+    expect(await evalExpr('string', 'llUnescapeURL("é%41")')).toBe('éA')
+  })
+
+  // In-world: llUnescapeURL turns each byte of a bad UTF-8 sequence into ?, whether it is cut short,
+  // overlong, a surrogate or past U+10FFFF (Aditi, SLua Tideland, 2026-11-23).
+  it.each([
+    ['%E0%A4%A', '??'],
+    ['%E2%82A', '??A'],
+    ['%E2%82', '??'],
+    ['%F0%9F%98AA', '???AA'],
+    ['%80A', '?A'],
+    ['%80%80A', '??A'],
+    ['%C3%C3A', '??A'],
+    ['%E2%82%AC', '€'],
+    ['%F0%9F%98', '???'],
+    ['%C0', '?'],
+    ['%C0%C1A', '??A'],
+    ['%ED%A0%80A', '???A'],
+    ['%E0%80A', '??A'],
+    ['%F4%90A', '??A'],
+  ])('llUnescapeURL(%j) turns bad bytes into %j', async (input, want) => {
+    expect(await evalExpr('string', `llUnescapeURL("${input}")`)).toBe(want)
   })
 
   // In-world values for llModPow; base, exponent and modulus are unsigned 32-bit.

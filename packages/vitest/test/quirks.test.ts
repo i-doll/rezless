@@ -555,10 +555,65 @@ describe('llBase64ToString replacement characters', () => {
     expect(s.global('kept')).toBe(`a${replacement}b`)
     expect(s.global('invalid')).toBe('?')
     expect(s.global('nul')).toBe('a?b')
-    // Not measured in-world: a lead byte with a bad or missing continuation
-    // follows the measured single-byte rule, one ? per invalid byte.
+    // In-world: llBase64ToString("w0E=") (C3 41) = "?A" and "ww==" (C3) = "?" (Aditi, SLua Tideland, 2026-11-23).
     expect(s.global('badTail')).toBe('?A')
     expect(s.global('cutShort')).toBe('?')
     expect(s.global('bom')).toBe(`a${bom}b`)
+  })
+
+  // In-world: a sequence cut short or overlong becomes one ?; a surrogate, a code point past
+  // U+10FFFF and every byte that can't start a sequence become one ? each (Aditi, SLua Tideland, 2026-11-23).
+  it.each([
+    ['4oJB', 'E2 82 41', '?A'],
+    ['4oI=', 'E2 82', '?'],
+    ['8J+YQQ==', 'F0 9F 98 41', '?A'],
+    ['8J+Y', 'F0 9F 98', '?'],
+    ['4oJBQQ==', 'E2 82 41 41', '?AA'],
+    ['4IBB', 'E0 80 41', '?A'],
+    ['9JBB', 'F4 90 41', '?A'],
+    ['4IA=', 'E0 80', '?'],
+    ['7aA=', 'ED A0', '?'],
+    ['gEE=', '80 41', '?A'],
+    ['gIBB', '80 80 41', '??A'],
+    ['w8NB', 'C3 C3 41', '??A'],
+    ['wA==', 'C0', '?'],
+    ['wMFB', 'C0 C1 41', '??A'],
+    ['wIBB', 'C0 80 41', '?A'],
+    ['wYFB', 'C1 81 41', '?A'],
+    ['4ICAQQ==', 'E0 80 80 41', '?A'],
+    ['4ICA', 'E0 80 80', '?'],
+    ['8ICAgEE=', 'F0 80 80 80 41', '?A'],
+    ['7aCAQQ==', 'ED A0 80 41', '???A'],
+    ['7b+/QQ==', 'ED BF BF 41', '???A'],
+    ['9JCAgEE=', 'F4 90 80 80 41', '????A'],
+    ['+IiAgIBB', 'F8 88 80 80 80 41', '?????A'],
+    ['/kE=', 'FE 41', '?A'],
+    ['9YCAgEE=', 'F5 80 80 80 41', '????A'],
+    ['97+/vw==', 'F7 BF BF BF', '????'],
+    ['4gBB', 'E2 00 41', '??A'],
+    ['4oKs', 'E2 82 AC', '€'],
+    ['woBB', 'C2 80 41', '\u0080A'],
+    ['77+/QQ==', 'EF BF BF 41', '\uFFFFA'],
+    ['4p+/QQ==', 'E2 9F BF 41', '\u27FFA'],
+  ])('llBase64ToString(%j), bytes %s, is %j', async (input, _bytes, want) => {
+    const s = await run(`string out; default { state_entry() { out = llBase64ToString("${input}"); } }`)
+    expect(s.global('out')).toBe(want)
+  })
+
+  // In-world: a NUL as the last byte is dropped, while one before it reads ?: "AA==" gave "",
+  // "YQA=" gave "a", "YQAA" gave "a?" and "4oIA" (E2 82 00) gave "?" (Aditi, SLua Tideland, 2026-11-23).
+  it.each([
+    ['AA==', '00', ''],
+    ['YQA=', '61 00', 'a'],
+    ['YQAA', '61 00 00', 'a?'],
+    ['AEE=', '00 41', '?A'],
+    ['wAA=', 'C0 00', '?'],
+    ['wABB', 'C0 00 41', '??A'],
+    ['4gA=', 'E2 00', '?'],
+    ['gAA=', '80 00', '?'],
+    ['4oIA', 'E2 82 00', '?'],
+  ])('llBase64ToString(%j), bytes %s, drops only a final NUL: %j', async (input, _bytes, want) => {
+    const s = await run(`string out; default { state_entry() { out = llBase64ToString("${input}"); } }`)
+    expect(s.global('out')).toBe(want)
   })
 })
