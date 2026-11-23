@@ -68,7 +68,7 @@ import {
   XP_ERROR_NOT_PERMITTED,
 } from './generated/constants.js'
 import { own } from './own.js'
-import { deterministicKey } from './keys.js'
+import { deterministicKey, scriptInstanceId } from './keys.js'
 import { Memory, RuntimeError, codeBytes } from './memory.js'
 import { invalidPrograms } from './typecheck.js'
 import type { Experience } from './experience.js'
@@ -185,6 +185,7 @@ export class Script {
   readonly clockView: ScriptClockView
   readonly host: Prim
   readonly scriptName: string
+  readonly instanceId: string
   /** When false, drainQueue parks events instead of delivering them. */
   private isRunning = true
   /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
@@ -361,6 +362,7 @@ export class Script {
 
     // Register with the prim only once the script is fully built, so a failed
     // construction (e.g. a Stack-Heap Collision in a global) leaves no trace.
+    this.instanceId = scriptInstanceId(host, this.scriptName)
     if (!host.scripts.includes(this)) {
       host.addScript(this)
     }
@@ -1158,7 +1160,7 @@ export class Script {
     copyTargets(this, copy)
     for (const kind of ['move', 'look'] as const) {
       const request = host.linkset!.prims[0]!.targetMotion[kind]
-      if (request?.owner.prim === this.host.key && request.owner.script === this.scriptName) request.owner.prim = host.key
+      if (request?.owner.prim === this.host.key && request.owner.script === this.instanceId) request.owner = { prim: host.key, script: copy.instanceId }
     }
     // In-world: a chat line and a touch that were waiting for a sleeping handler came out of
     // inventory with the script and ran in the rezzed copy, after on_rez.

@@ -449,7 +449,7 @@ export function sendIncomingHttp(
     ['user-agent', given.get('user-agent') ?? ''],
   ])
   state.httpInCounter += 1
-  const key = deterministicKey(`${script.host.key}/${script.scriptName}/http-in/${state.httpInCounter}`)
+  const key = deterministicKey(`${script.host.key}/${script.instanceId}/http-in/${state.httpInCounter}`)
   const body = method === 'DELETE' ? '' : incomingBody(init.body ?? '', given.get('content-type') ?? '')
   const req = new IncomingHttpRequest(key, url, method, body, headers, clock, clock.now)
   state.incomingHttp.push(req)
