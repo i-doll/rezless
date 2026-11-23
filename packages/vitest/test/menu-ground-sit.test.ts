@@ -95,6 +95,21 @@ describe('a ground sit from the viewer menu', () => {
   })
 })
 
+describe('a menu ground sit while an earlier one waits for its stand', () => {
+  // The earlier ground sit is replaced, so a stand before its delay ends
+  // leaves the avatar standing.
+  it('does not sit the avatar down again after a stand', async () => {
+    const f = await rlva()
+    expect(f.world.userSitAvatar(f.avatar, f.script.host)).toBe(true)
+    f.script.linkset.advanceTime(100)
+    expect(f.world.userSitAvatarOnGround(f.avatar)).toBe(true)
+    expect(f.world.userSitAvatarOnGround(f.avatar)).toBe(true)
+    expect(f.world.userStandAvatar(f.avatar)).toBe(true)
+    f.script.linkset.advanceTime(600)
+    expect(f.sitting()).toBe(0)
+  })
+})
+
 describe('a ground sit from the viewer menu under @standtp', () => {
   // In-world: with "@standtp=n", the avatar sat on the box from about 4.6 m
   // away, then asked for the menu ground sit. The box's changed(CHANGED_LINK)
@@ -107,6 +122,7 @@ describe('a ground sit from the viewer menu under @standtp', () => {
     const from = { ...f.avatar.position }
     expect(f.world.userSitAvatar(f.avatar, f.script.host)).toBe(true)
     f.script.linkset.advanceTime(100)
+    f.avatar.position = { x: from.x + 4, y: from.y, z: from.z }
     expect(f.ground()).toBe(true)
     f.script.linkset.advanceTime(3000)
     expect(f.sitting()).toBe(0)

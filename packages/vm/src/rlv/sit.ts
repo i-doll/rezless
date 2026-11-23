@@ -426,6 +426,9 @@ export function userSitAvatarOnGround(world: World, avatar: WorldAvatar): boolea
     if (viewer.profile === 'rlva' && locked('sit')) return false
   }
   if (sitting && !avatar.sittingOn) return true
+  // This request replaces a ground sit still waiting for its stand.
+  cancelPendingGroundSit(avatar)
+  keptGroundSits.delete(viewer.session.lifetime)
   if (!avatar.sittingOn) {
     if (viewer.profile === 'rlv' && !kokuaAskGroundSit(world, avatar)) return false
     world.sitAvatarOnGround(avatar)

@@ -632,8 +632,8 @@ has none.
 menu. In RLVa it returns `false` under `@sit`, and under `@unsit` while the
 avatar sits, on an object or on the ground; no other seating restriction
 blocks it. From an object the avatar stands first and sits on the ground once
-the region has stood it up; under `@standtp` the return takes the stand and
-the avatar stays standing. Kokua checks `@unsit` at once, and `@sit` and
+the region has stood it up; when `@standtp` sends it back to where it sat
+from, it stays standing there. Kokua checks `@unsit` at once, and `@sit` and
 `@interact` when it asks for the ground sit, after any stand.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
