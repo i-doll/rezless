@@ -252,6 +252,29 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
     expect(o.said().slice(8)).toEqual([FLOOD])
   })
 
+  // A crash's lines take their turn like other errors: the one past the limit becomes the
+  // notice for the owner and listeners, and a line before it is still cut to fit the
+  // prim's name.
+  it.each([
+    [6, ['e'.repeat(1146)], ['runtime error']],
+    [7, [FLOOD], [FLOOD]],
+  ])('ends an SLua crash after %i errors', async (errors, shown, heard) => {
+    const source = `for i = 1, ${errors} do ll.PlaySound("missing " .. i, 1.0) end\nerror(string.rep("e", 2000), 0)`
+    const { scripts, linkset } = await loadLinkset({ prims: [
+      { name: 'probe', scripts: [{ source: { source, filename: 'p.luau', language: 'slua' }, name: 'p', start: false }] },
+      { name: 'ear', scripts: [{ source: { source: listener, filename: 'l.lsl' }, name: 'l' }] },
+    ] })
+    scripts.l!.start()
+    expect(() => {
+      scripts.p!.start()
+      linkset.advanceTime(1000)
+    }).toThrow()
+    linkset.advanceTime(1000)
+    const said = scripts.p!.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)
+    expect(said.slice(errors)).toEqual(['probe [script:p] Script run-time error', ...shown])
+    expect((scripts.l!.global('heard') as string[]).slice(errors)).toEqual(['probe [script:p] Script run-time error', ...heard])
+  })
+
   // In-world: 20 llSay calls on DEBUG_CHANNEL in one event all arrived, with no notice.
   it('leaves llSay on DEBUG_CHANNEL alone', async () => {
     const { ear, errors } = await setup()
