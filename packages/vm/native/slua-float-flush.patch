@@ -1,7 +1,25 @@
 diff --git a/VM/src/lbuiltins.cpp b/VM/src/lbuiltins.cpp
-index 52aae135..770f98fc 100644
+index 52aae135..b2f77dbb 100644
 --- a/VM/src/lbuiltins.cpp
 +++ b/VM/src/lbuiltins.cpp
+@@ -149,7 +149,7 @@ static int luauF_deg(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
+     {
+         double a1 = nvalue(arg0);
+         const double rpd = (3.14159265358979323846 / 180.0);
+-        setnvalue(res, a1 / rpd);
++        setnvalue(res, luai_ftz(a1 / rpd));
+         return 1;
+     }
+ 
+@@ -357,7 +357,7 @@ static int luauF_rad(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
+     {
+         double a1 = nvalue(arg0);
+         const double rpd = (3.14159265358979323846 / 180.0);
+-        setnvalue(res, a1 * rpd);
++        setnvalue(res, luai_ftz(a1 * rpd));
+         return 1;
+     }
+ 
 @@ -1076,9 +1076,9 @@ static int luauF_vector(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
                  return -1;
              w = (float)nvalue(args + 2);
@@ -89,18 +107,6 @@ index 52aae135..770f98fc 100644
  #endif
  
          return 1;
-@@ -1567,9 +1567,9 @@ static int luauF_vectorabs(lua_State* L, StkId res, TValue* arg0, int nresults,
-         const float* v = vvalue(arg0);
- 
- #if LUA_VECTOR_SIZE == 4
--        setvvalue(res, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]), fabsf(v[3]));
-+        setvvalueftz(res, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]), fabsf(v[3]));
- #else
--        setvvalue(res, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]), 0.0f);
-+        setvvalueftz(res, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]), 0.0f);
- #endif
- 
-         return 1;
 @@ -1585,9 +1585,9 @@ static int luauF_vectorsign(lua_State* L, StkId res, TValue* arg0, int nresults,
          const float* v = vvalue(arg0);
  
@@ -113,42 +119,6 @@ index 52aae135..770f98fc 100644
  #endif
  
          return 1;
-@@ -1607,7 +1607,7 @@ static int luauF_vectorclamp(lua_State* L, StkId res, TValue* arg0, int nresults
-         if (min[0] <= max[0] && min[1] <= max[1] && min[2] <= max[2])
-         {
- #if LUA_VECTOR_SIZE == 4
--            setvvalue(
-+            setvvalueftz(
-                 res,
-                 luaui_clampf(v[0], min[0], max[0]),
-                 luaui_clampf(v[1], min[1], max[1]),
-@@ -1615,7 +1615,7 @@ static int luauF_vectorclamp(lua_State* L, StkId res, TValue* arg0, int nresults
-                 luaui_clampf(v[3], min[3], max[3])
-             );
- #else
--            setvvalue(res, luaui_clampf(v[0], min[0], max[0]), luaui_clampf(v[1], min[1], max[1]), luaui_clampf(v[2], min[2], max[2]), 0.0f);
-+            setvvalueftz(res, luaui_clampf(v[0], min[0], max[0]), luaui_clampf(v[1], min[1], max[1]), luaui_clampf(v[2], min[2], max[2]), 0.0f);
- #endif
- 
-             return 1;
-@@ -1659,7 +1659,7 @@ static int luauF_vectormin(lua_State* L, StkId res, TValue* arg0, int nresults,
- #endif
-         }
- 
--        setvvalue(res, result[0], result[1], result[2], result[3]);
-+        setvvalueftz(res, result[0], result[1], result[2], result[3]);
-         return 1;
-     }
- 
-@@ -1700,7 +1700,7 @@ static int luauF_vectormax(lua_State* L, StkId res, TValue* arg0, int nresults,
- #endif
-         }
- 
--        setvvalue(res, result[0], result[1], result[2], result[3]);
-+        setvvalueftz(res, result[0], result[1], result[2], result[3]);
-         return 1;
-     }
- 
 @@ -1713,12 +1713,12 @@ static int luauF_vectorlerp(lua_State* L, StkId res, TValue* arg0, int nresults,
      {
          const float* a = vvalue(arg0);
@@ -366,9 +336,25 @@ index cddbf752..4f0e0d35 100644
  }
  
 diff --git a/VM/src/lmathlib.cpp b/VM/src/lmathlib.cpp
-index b9db9d80..af2100c4 100644
+index b9db9d80..5cbcef98 100644
 --- a/VM/src/lmathlib.cpp
 +++ b/VM/src/lmathlib.cpp
+@@ -176,13 +176,13 @@ static int math_exp(lua_State* L)
+ 
+ static int math_deg(lua_State* L)
+ {
+-    lua_pushnumber(L, luaL_checknumber(L, 1) / RADIANS_PER_DEGREE);
++    lua_pushnumber(L, luai_ftz(luaL_checknumber(L, 1) / RADIANS_PER_DEGREE));
+     return 1;
+ }
+ 
+ static int math_rad(lua_State* L)
+ {
+-    lua_pushnumber(L, luaL_checknumber(L, 1) * RADIANS_PER_DEGREE);
++    lua_pushnumber(L, luai_ftz(luaL_checknumber(L, 1) * RADIANS_PER_DEGREE));
+     return 1;
+ }
+ 
 @@ -428,7 +428,7 @@ static int math_map(lua_State* L)
      double outmin = luaL_checknumber(L, 4);
      double outmax = luaL_checknumber(L, 5);
@@ -438,7 +424,7 @@ index 15e96451..307e53b1 100644
      { \
          TValue* i_o = (obj); \
 diff --git a/VM/src/lveclib.cpp b/VM/src/lveclib.cpp
-index 30debf3b..f8232bef 100644
+index 30debf3b..81378008 100644
 --- a/VM/src/lveclib.cpp
 +++ b/VM/src/lveclib.cpp
 @@ -9,6 +9,11 @@
@@ -563,18 +549,6 @@ index 30debf3b..f8232bef 100644
  #endif
  
      return 1;
-@@ -149,9 +154,9 @@ static int vector_abs(lua_State* L)
-     const float* v = luaL_checkvector(L, 1);
- 
- #if LUA_VECTOR_SIZE == 4
--    lua_pushvector(L, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]), fabsf(v[3]));
-+    pushvectorftz(L, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]), fabsf(v[3]));
- #else
--    lua_pushvector(L, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]));
-+    pushvectorftz(L, fabsf(v[0]), fabsf(v[1]), fabsf(v[2]));
- #endif
- 
-     return 1;
 @@ -162,9 +167,9 @@ static int vector_sign(lua_State* L)
      const float* v = luaL_checkvector(L, 1);
  
@@ -596,39 +570,6 @@ index 30debf3b..f8232bef 100644
          L,
          luaui_clampf(v[0], min[0], max[0]),
          luaui_clampf(v[1], min[1], max[1]),
-@@ -189,7 +194,7 @@ static int vector_clamp(lua_State* L)
-         luaui_clampf(v[3], min[3], max[3])
-     );
- #else
--    lua_pushvector(L, luaui_clampf(v[0], min[0], max[0]), luaui_clampf(v[1], min[1], max[1]), luaui_clampf(v[2], min[2], max[2]));
-+    pushvectorftz(L, luaui_clampf(v[0], min[0], max[0]), luaui_clampf(v[1], min[1], max[1]), luaui_clampf(v[2], min[2], max[2]));
- #endif
- 
-     return 1;
-@@ -223,9 +228,9 @@ static int vector_min(lua_State* L)
-     }
- 
- #if LUA_VECTOR_SIZE == 4
--    lua_pushvector(L, result[0], result[1], result[2], result[3]);
-+    pushvectorftz(L, result[0], result[1], result[2], result[3]);
- #else
--    lua_pushvector(L, result[0], result[1], result[2]);
-+    pushvectorftz(L, result[0], result[1], result[2]);
- #endif
- 
-     return 1;
-@@ -259,9 +264,9 @@ static int vector_max(lua_State* L)
-     }
- 
- #if LUA_VECTOR_SIZE == 4
--    lua_pushvector(L, result[0], result[1], result[2], result[3]);
-+    pushvectorftz(L, result[0], result[1], result[2], result[3]);
- #else
--    lua_pushvector(L, result[0], result[1], result[2]);
-+    pushvectorftz(L, result[0], result[1], result[2]);
- #endif
- 
-     return 1;
 @@ -305,12 +310,12 @@ static int vector_mul(lua_State *L)
      {
          float res[3] = {0.0f};
@@ -721,7 +662,7 @@ index 30debf3b..f8232bef 100644
  #endif
  
 diff --git a/VM/src/lvmexecute.cpp b/VM/src/lvmexecute.cpp
-index b24d54ac..8167be04 100644
+index b24d54ac..0124d5e4 100644
 --- a/VM/src/lvmexecute.cpp
 +++ b/VM/src/lvmexecute.cpp
 @@ -1610,7 +1610,7 @@ reentry:
@@ -936,15 +877,6 @@ index b24d54ac..8167be04 100644
                      VM_NEXT();
                  }
                  else if (l_isinteger(rb) && l_isinteger(kv))
-@@ -2420,7 +2420,7 @@ reentry:
-                 else if (ttisvector(rb))
-                 {
-                     const float* vb = vvalue(rb);
--                    setvvalue(ra, -vb[0], -vb[1], -vb[2], -vb[3]);
-+                    setvvalueftz(ra, -vb[0], -vb[1], -vb[2], -vb[3]);
-                     VM_NEXT();
-                 }
-                 else
 @@ -2591,7 +2591,7 @@ reentry:
  
                  double limit = nvalue(ra + 0);
@@ -995,7 +927,7 @@ index d48c5c81..ec5c7f3d 100644
              }
  
 diff --git a/VM/src/lvmutils.cpp b/VM/src/lvmutils.cpp
-index 7bb09e03..23bb5d25 100644
+index 7bb09e03..bc42f4a8 100644
 --- a/VM/src/lvmutils.cpp
 +++ b/VM/src/lvmutils.cpp
 @@ -475,19 +475,19 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
@@ -1023,15 +955,6 @@ index 7bb09e03..23bb5d25 100644
                  ra,
                  float(luai_numidiv(vb[0], vc[0])),
                  float(luai_numidiv(vb[1], vc[1])),
-@@ -496,7 +496,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
-             );
-             return;
-         case TM_UNM:
--            setvvalue(ra, -vb[0], -vb[1], -vb[2], -vb[3]);
-+            setvvalueftz(ra, -vb[0], -vb[1], -vb[2], -vb[3]);
-             return;
-         default:
-             break;
 @@ -508,18 +508,18 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
  
          if (c)

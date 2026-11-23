@@ -273,6 +273,67 @@ const MEASURED2 = [
     'vmodn=ERR lua_script:47: invalid argument #2 to \'__mod\' (vector expected, got number)',
 ]
 
+const PROBE3 = `local function f(x) return string.format("%.9g", x) end
+local function s(x)
+  local t = typeof(x)
+  if t == "vector" then return \`<{f(x.x)},{f(x.y)},{f(x.z)}>\` end
+  if t == "quaternion" then return \`<{f(x.x)},{f(x.y)},{f(x.z)},{f(x.s)}>\` end
+  if t == "number" then return f(x) end
+  return tostring(x)
+end
+local N = tonumber
+local function V(a, b, c) return vector.create(N(a), N(b), N(c)) end
+local function Q(a, b, c, d) return quaternion(N(a), N(b), N(c), N(d)) end
+local buf = ""
+local function add(name, ok, val)
+  local item = name .. "=" .. (ok and s(val) or ("ERR " .. tostring(val)))
+  if #buf + #item > 700 then ll.OwnerSay(buf); buf = "" end
+  buf = buf .. item .. " | "
+end
+local function T(name, fn) add(name, pcall(fn)) end
+local function S() return tovector("<-1e-40, 1e-40, 0>") end
+T("svec", function() return S() end)
+T("sneg", function() return -S() end)
+T("sabs", function() return vector.abs(S()) end)
+T("smin", function() return vector.min(S(), V("1","1","1")) end)
+T("smax", function() return vector.max(S(), V("-1","-1","-1")) end)
+T("sclamp", function() return vector.clamp(S(), V("-1","-1","-1"), V("1","1","1")) end)
+T("sfloor", function() return vector.floor(S()) end)
+T("ssign", function() return vector.sign(S()) end)
+T("smul1", function() return S() * N("1") end)
+T("sadd0", function() return S() + V("0","0","0") end)
+T("sx", function() return S().x end)
+T("seq", function() return S() == V("0","0","0") end)
+T("qneg", function() return -toquaternion("<1e-40, 0, 0, 1>") end)
+T("rad", function() return math.rad(N("1e-306")) end)
+T("deg", function() return math.deg(N("1e-310")) end)
+T("ldexp", function() return math.ldexp(N("1"), N("-1030")) end)
+T("slerpu", function() return quaternion.slerp(Q("0","0","0","1"), Q("1e30","0","0","1"), N("1e-40")) end)
+T("vsl", function() return vector.lerp(V("0","0","0"), V("1e30","0","0"), N("1e-40")) end)
+ll.OwnerSay(buf .. "END")
+`
+
+const MEASURED3 = [
+    'svec=<-9.9999461e-41,9.9999461e-41,0>',
+    'sneg=<9.9999461e-41,-9.9999461e-41,-0>',
+    'sabs=<9.9999461e-41,9.9999461e-41,0>',
+    'smin=<-9.9999461e-41,9.9999461e-41,0>',
+    'smax=<-9.9999461e-41,9.9999461e-41,0>',
+    'sclamp=<-9.9999461e-41,9.9999461e-41,0>',
+    'sfloor=<-1,0,0>',
+    'ssign=<-1,1,0>',
+    'smul1=<-0,0,0>',
+    'sadd0=<-0,0,0>',
+    'sx=-9.9999461e-41',
+    'seq=false',
+    'qneg=<-9.9999461e-41,-0,-0,-1>',
+    'rad=0',
+    'deg=0',
+    'ldexp=8.69169476e-311',
+    'slerpu=<9.99994601e-11,0,0,1>',
+    'vsl=<0,0,0>',
+]
+
 describe('SLua float and number arithmetic near zero', () => {
   it('flushes results below the smallest normal value to zero, as Second Life does', async () => {
     const s = await loadScript({ language: 'slua', filename: 'probe.luau', source: PROBE })
@@ -292,5 +353,16 @@ describe('SLua float and number arithmetic near zero', () => {
     s.start()
     const said = s.chat.map((c) => c.text).join('').split(' | ').filter((x) => x !== 'END')
     expect(said).toEqual(MEASURED2)
+  })
+
+  // In-world: a third script, the same day and region, starting from a vector read from a string,
+  // which keeps -1e-40 and 1e-40. Negation, vector.abs, min, max and clamp keep them, and so does
+  // a quaternion's negation; multiplying by 1 or adding zero flushes them. math.rad and math.deg
+  // flush, while math.ldexp keeps a tiny result, and quaternion.slerp keeps a tiny u.
+  it('keeps tiny values through negation, abs, min, max and clamp', async () => {
+    const s = await loadScript({ language: 'slua', filename: 'probe.luau', source: PROBE3 })
+    s.start()
+    const said = s.chat.map((c) => c.text).join('').split(' | ').filter((x) => x !== 'END')
+    expect(said).toEqual(MEASURED3)
   })
 })
