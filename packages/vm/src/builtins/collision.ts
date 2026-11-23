@@ -167,7 +167,12 @@ export function withCollisionFilter(script: Script, event: string, payload: Reco
   // ground, before its collision_start or land_collision_start handler ran.
   // A physical one that detected volume fell through the ground, with no land collision to die on.
   const dies = !!(flags & REZ_FLAG_DIE_ON_COLLIDE) && !linkset.prims.some(p => p.volumeDetect)
-  if (event.startsWith('land_collision')) return dies ? linkset.remove() : deliver(payload)
+  if (event.startsWith('land_collision')) {
+    if (dies) return linkset.remove()
+    // An idle script gets the event at once, not through the clock's queue.
+    if (script.wakeAt === undefined && !script.handling && linkset.clock.dropsLiveLandEvent(script, event)) return
+    return deliver(payload)
+  }
   if (event !== 'collision_start' && event !== 'collision' && event !== 'collision_end') return deliver(payload)
   let entries = Array.isArray(payload['detected']) ? payload['detected'] as DetectedEntry[] : undefined
   if (entries) {
