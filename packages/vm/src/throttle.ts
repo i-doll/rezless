@@ -13,13 +13,16 @@ export class WindowThrottle {
   private count = 0
   private shutUntil = -Infinity
 
-  /** @param period Period length, in the clock's milliseconds. */
-  constructor(private readonly period: number, private readonly limit: number) {}
+  /**
+   * @param period Period length, in the clock's milliseconds.
+   * @param aligned Periods start at multiples of `period` on the clock rather than at the first request.
+   */
+  constructor(private readonly period: number, private readonly limit: number, private readonly aligned = false) {}
 
   /** `open` lets the request through; `shuts` refuses it and shuts an open throttle; `refused` refuses it otherwise. */
   take(now: number): 'open' | 'shuts' | 'refused' {
     if (now - this.start >= 2 * this.period) {
-      this.start = now
+      this.start = this.aligned ? now - now % this.period : now
       this.previous = this.count = 0
     } else if (now - this.start >= this.period) {
       this.start += this.period

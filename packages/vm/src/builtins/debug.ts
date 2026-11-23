@@ -5,19 +5,26 @@ import { formatG } from '../prim-params.js'
 import { WindowThrottle } from '../throttle.js'
 
 export const FLOOD = 'Too many errors... dropping further messages until the flood stops'
-const floods = new WeakMap<object, WindowThrottle>()
+const floods = new WeakMap<object, Map<string | undefined, WindowThrottle>>()
 
-// In-world a prim gets 8 errors in 16 s, counted by a sliding window and shared by
-// its scripts. The next one is replaced by FLOOD, and errors are dropped until the
-// end of the following period, for the owner and listeners alike. Errors a second
-// or two apart are each past the limit and keep it dropping, and dropped errors count
-// towards the next period. An error only the owner sees counts too, but when it is
-// the one past the limit it is shown as it is. An error said by another link, such
-// as a media error on a child prim or a get error on a seated avatar, counts for the
-// link that says it, and both lines of a script crash count.
+// In-world a prim gets 8 errors in 16 s, counted by a sliding window over periods
+// that start every 16 s on the region's clock, and shared by its scripts. The next
+// one is replaced by FLOOD, and errors are dropped until the end of the following
+// period, for the owner and listeners alike. Errors a second or two apart are each
+// past the limit and keep it dropping, and dropped errors count towards the next
+// period. An error only the owner sees counts too, but when it is the one past the
+// limit it is shown as it is. An error said by another link, such as a media error
+// on a child prim or a get error on a seated avatar, counts for the link that says
+// it, and both lines of a script crash count. Each region keeps its own count for
+// a worn object: one that teleports or crosses into another region starts afresh
+// there, and finds its old count when it comes back. Every region here
+// shares the one clock, so their periods line up, where in-world each has its own.
 export function flood(link: Link, now: number): 'open' | 'shuts' | 'refused' {
-  let throttle = floods.get(link)
-  if (!throttle) floods.set(link, throttle = new WindowThrottle(16_000, 8))
+  const region = isPrim(link) ? link.linkset?.region : link.region
+  let regions = floods.get(link)
+  if (!regions) floods.set(link, regions = new Map())
+  let throttle = regions.get(region)
+  if (!throttle) regions.set(region, throttle = new WindowThrottle(16_000, 8, true))
   return throttle.take(now)
 }
 
