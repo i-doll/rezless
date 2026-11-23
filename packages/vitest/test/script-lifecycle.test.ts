@@ -91,6 +91,7 @@ const timed = `list log;
       else if (n == 3) { llSetTimerEvent(2.0); llSetTimerEvent(10.0); }
       else if (n == 7) llSleep(5.0);
       else if (n == 8) { integer z; z = 1 / z; }
+      else if (n == 9) { llSleep(2.0); llSetTimerEvent(4.0); }
       else if (n == 4) { llSetTimerEvent(3.0); log += "sleep start"; llSleep(10.0); log += "sleep end"; }
       else if (n == 5) { llSetTimerEvent(4.0); llSensorRepeat("", NULL_KEY, AGENT, 20.0, PI, 4.0); }
       else if (n == 6) log += "lm";
@@ -588,6 +589,33 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     at(13_000)
     tell('msg:1:4.0')
     expect(changes(linkset, ticks, 4500)).toEqual([17_000])
+  })
+
+  it('takes the lag of a tick that ran late behind a busy handler', async () => {
+    // In-world: started 2.9 s late, llSetTimerEvent(4) 3.0 s after the start made a tick due
+    // 1.1 s later. A handler that slept 2 s and then called llSetTimerEvent(4) held that tick
+    // back; it ran right after the handler, 1.0 s late. llSetTimerEvent(4) 0.36 s later ticked
+    // 3.0 s after the call, then every 4 s.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:4.0')
+    tell('msg:9:')
+    at(12_000)
+    expect(ticks()).toBe(1)
+    at(12_400)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 8000)).toEqual([15_400, 19_400])
+  })
+
+  it('has no lag after more than one missed tick, even when a waiting handler lengthens the interval', async () => {
+    // In-world: a link message queued before the stop called llSetTimerEvent(10); started 8.5 s
+    // after the stop, with the 4 s and 8 s ticks missed, the caught-up tick came 20 ms after
+    // that handler, and llSetTimerEvent(10) 0.5 s later ticked 10.0 s after the call.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 9500, 'q+stop:1:10.0')
+    expect(ticks()).toBe(1)
+    at(10_000)
+    tell('msg:1:10.0')
+    expect(changes(linkset, ticks, 10_500)).toEqual([20_000])
   })
 
   it('has no lag in a copy taken and rezzed during it', async () => {

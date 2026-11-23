@@ -434,6 +434,8 @@ export class LinksetClock {
     if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
+      const due = ev.payload['due']
+      if (ev.event === 'timer' && typeof due === 'number') ev.target.clockView.timerLate(Math.max(bestAt, this.now) - due)
       return bestAt > ev.at ? { ...ev, at: bestAt } : ev
     }
     if (bestTimerScript && bestTimerAt <= wakeAt) {
@@ -561,11 +563,12 @@ export class ScriptClockView {
   /** When the tick that fell due while the script was down should have fired, until that tick fires. */
   timerLateDueMs: number | undefined
   /**
-   * How late the last owed tick was: the one a start caught up on, or one an llSetTimerEvent
-   * call made due at once. An llSetTimerEvent call counts its interval from that much earlier,
-   * until a tick that was not owed fires.
+   * How late the last tick ran after it was due; for the tick a start caught up on, how late the
+   * start was. An LSL llSetTimerEvent call counts its interval from that much earlier.
    */
   timerLagMs = 0
+  /** False for an SLua script: its LLTimers timer has no lag. */
+  lags = true
   /** Whether the owed tick leaves a lag when it fires. */
   private owedTickLags = false
   /** Whether an llSetTimerEvent call made the owed tick due, so a later call replaces it. */
@@ -629,11 +632,18 @@ export class ScriptClockView {
    */
   timerFired(at: number): void {
     const late = this.timerLateDueMs
+    const due = this.timerNextFireMs
     const kept = late === undefined ? at : late + this.timerIntervalMs
     this.timerLateDueMs = undefined
     this.owedBySet = false
     this.timerNextFireMs = kept > at ? kept : at + this.timerIntervalMs
-    this.timerLagMs = late !== undefined && kept > at && this.owedTickLags ? at - late : 0
+    if (late === undefined) this.timerLate(at - due)
+    else this.timerLagMs = kept > at && this.owedTickLags ? at - late : 0
+  }
+
+  /** A tick ran `ms` after it was due. */
+  timerLate(ms: number): void {
+    this.timerLagMs = this.lags ? Math.max(0, ms) : 0
   }
 
   /**
@@ -652,8 +662,8 @@ export class ScriptClockView {
     // none. An SLua script's LLTimers timer had none, and neither had a crashed script that came
     // back in a rez.
     this.owedBySet = false
-    this.owedTickLags = lag
-    this.timerLagMs = lag && this.timerLateDueMs + this.timerIntervalMs > this.now ? this.now - this.timerLateDueMs : 0
+    this.owedTickLags = lag && this.lags && this.timerLateDueMs + this.timerIntervalMs > this.now
+    this.timerLagMs = this.owedTickLags ? this.now - this.timerLateDueMs : 0
   }
 
   setTimer(intervalMs: number): void {
@@ -661,9 +671,9 @@ export class ScriptClockView {
       this.cancelTimer()
       return
     }
-    // A tick that fell due and has not run yet still runs.
+    // A tick that fell due and has not run yet still runs, and leaves how late it ran as the lag.
     if (this.timerIntervalMs > 0 && this.timerNextFireMs <= this.now && this.timerLateDueMs === undefined) {
-      this.schedule(this.timerNextFireMs, 'timer')
+      this.schedule(this.timerNextFireMs, 'timer', { due: this.timerNextFireMs })
     }
     this.timerIntervalMs = intervalMs
     // A tick still owed from before the script started keeps its place; only the interval changes.

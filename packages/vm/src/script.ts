@@ -377,6 +377,7 @@ export class Script {
       throw new Error('LSL script has no default state')
     }
     this.sluaSource = sluaSource
+    this.clockView.lags = sluaSource === undefined
     if (sluaSource !== undefined) {
       // SLua scripts get 128 KiB (Executor/src/Script.cpp).
       this.state.memory.limit = SLUA_MEMORY_LIMIT
@@ -1866,7 +1867,7 @@ export class Script {
     this.resumeParked()
     // A detached object's timer and sensor wait for it to be worn again.
     if (this.clockView.inInventory) return
-    this.clockView.catchUpTimer(!this.slua)
+    this.clockView.catchUpTimer()
     runMissedSensor(this)
   }
 
