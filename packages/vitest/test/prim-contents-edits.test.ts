@@ -241,6 +241,35 @@ describe('owner renames an item inside a prim', () => {
     expect(names(prims[0]!)).toContain(long)
     expect(names(prims[0]!)).toContain(`${long.slice(0, 61)} 2`)
   })
+
+  it('keeps the spaces a cut leaves before the number, for renames and drops', async () => {
+    // In-world: three notecards renamed in turn to 60 "y" + " ab" -> that name,
+    // then 60 "y" + "  2" and 60 "y" + "  3"; the same with 59 "w" + "  ab" ->
+    // 59 "w" + "   2" and "   3". A notecard named 60 "x" + " ab" dropped three
+    // times -> that name, then 60 "x" + "  1" and "  2"; 59 "z" + "  ab" -> 59
+    // "z" + "   1" and "   2". Two notecards renamed to 61 "q" + " a" -> that
+    // name and 61 "q" + " 2". Aditi beta grid, SLua Tideland, 2026-11-23.
+    const renames: [string, number, string[]][] = [
+      ['y'.repeat(60) + ' ab', 3, ['y'.repeat(60) + '  2', 'y'.repeat(60) + '  3']],
+      ['w'.repeat(59) + '  ab', 3, ['w'.repeat(59) + '   2', 'w'.repeat(59) + '   3']],
+      ['q'.repeat(61) + ' a', 2, ['q'.repeat(61) + ' 2']],
+    ]
+    for (const [name, count, numbered] of renames) {
+      const items = ['m1', 'm2', 'm3'].slice(0, count)
+      const { prims: [prim] } = await loadLinkset({ prims: [{ inventory: items.map((n) => notecard(n)) }] })
+      for (const item of items) prim!.renameInventory(item, name)
+      expect(names(prim!)).toEqual([name, ...numbered].sort())
+    }
+    const drops: [string, string[]][] = [
+      ['x'.repeat(60) + ' ab', ['x'.repeat(60) + '  1', 'x'.repeat(60) + '  2']],
+      ['z'.repeat(59) + '  ab', ['z'.repeat(59) + '   1', 'z'.repeat(59) + '   2']],
+    ]
+    for (const [name, numbered] of drops) {
+      const { prims: [prim] } = await loadLinkset({ prims: [{}] })
+      for (let i = 0; i < 3; i++) prim!.addInventory(notecard(name))
+      expect(names(prim!)).toEqual([name, ...numbered].sort())
+    }
+  })
 })
 
 describe('the name a rename gives', () => {
