@@ -11,8 +11,8 @@ import type { Linkset, Script } from '../src/index.js'
 // 1.5 or 2 s later, and logged every land event it got. The other reset itself, or changed to a
 // second state with the same land handlers, in its first land_collision, either straight away or
 // after a 1 s sleep that the contact went on past, or reset itself there and then reset or changed
-// state again in the land_collision_start that came next. Each script logged the time of every
-// event.
+// state again in the land_collision_start that came next, or was reset by the other script while
+// it slept through the start of the contact. Each script logged the time of every event.
 const source = `list log; integer mode;
   default {
     link_message(integer f, integer n, string s, key id) {
@@ -145,6 +145,20 @@ describe.each([['queued', queued], ['fired at the script', direct]] as const)('a
     expect(f.log()).toEqual(['lcs', ...lcs(3), 'lce'])
   })
 
+  // Follows the measurement above: a link message that runs between the reset and the next
+  // land_collision leaves the start owed.
+  it('keeps the new start owed through other events', async () => {
+    const f = await box()
+    f.script.fire('link_message', { sender_num: 0, num: 0, str: 'reset', id: '' })
+    fire(f.script, f.linkset, 'land_collision_start')
+    f.linkset.advanceTime(44)
+    fire(f.script, f.linkset, 'land_collision')
+    f.linkset.advanceTime(1)
+    f.script.fire('link_message', { sender_num: 0, num: 0, str: 'nothing', id: '' })
+    goOn(f, fire, 2)
+    expect(f.log()).toEqual(['lcs', ...lcs(2), 'lce'])
+  })
+
   // Follows the measurement above: the start comes back only for a contact going on at the reset.
   it('raises nothing for a reset after the contact ended', async () => {
     const f = await box()
@@ -173,6 +187,24 @@ describe('a contact whose held land_collision ran, through a reset or a state ch
     f.linkset.advanceTime(1_000 - f.linkset.clock.now)
     return f
   }
+
+  // In-world: another script in the box reset the sleeper with llResetOtherScript 0.55 s into a
+  // contact that came up while it slept, so it never ran that contact's land_collision_start (two
+  // runs) -> state_entry, a new land_collision_start at the next physics step, then every
+  // land_collision the other script got, and land_collision_end.
+  it('raises a new start for a script reset before it ran the contact\'s start', async () => {
+    const f = await box()
+    f.linkset.clock.schedule(f.script, f.linkset.clock.now, 'link_message', { sender_num: 0, num: 3_000, str: 'sleep', id: '' })
+    f.linkset.advanceTime(350)
+    queued(f.script, f.linkset, 'land_collision_start')
+    for (let i = 0; i < 12; i++) {
+      f.linkset.advanceTime(44)
+      queued(f.script, f.linkset, 'land_collision')
+    }
+    f.script.reset()
+    goOn(f, queued, 20)
+    expect(f.log()).toEqual(['lcs', ...lcs(20), 'lce'])
+  })
 
   // In-world: the sleeper reset itself in its first held land_collision -> a new
   // land_collision_start, then every live land_collision the other script got after the reset

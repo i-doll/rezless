@@ -171,6 +171,7 @@ export function withCollisionFilter(script: Script, event: string, payload: Reco
     if (dies) return linkset.remove()
     // An idle script gets the event at once, not through the clock's queue.
     if (script.wakeAt === undefined && !script.handling) {
+      linkset.clock.landEventCame(script, event)
       if (linkset.clock.dropsLiveLandEvent(script, event)) return
       // Queued together, so a reset or state change in the start's handler drops this event too.
       if (linkset.clock.owesLandStart(script, event)) {

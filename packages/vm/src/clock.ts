@@ -264,6 +264,7 @@ export class LinksetClock {
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean): void {
     if (event !== '__reset' && !target.running) return
+    this.landEventCame(target, event)
     // Due now, in the middle of a sleep: held back even at the instant the handler began.
     const wakeAt = target.wakeAt
     if (held === undefined && at <= this.now && wakeAt !== undefined && wakeAt > this.now) held = true
@@ -385,7 +386,7 @@ export class LinksetClock {
   private readonly ran = new WeakMap<Script, number>()
   /** The released contact still going on, by script: its live land_collision events to drop. */
   private readonly openContacts = new WeakMap<Script, LandTail>()
-  /** Scripts whose last land event was not a land_collision_end. */
+  /** Scripts whose last land event to come up, run or not, was not a land_collision_end. */
   private readonly onLand = new WeakSet<Script>()
   /** Scripts reset during a land contact, owed a land_collision_start ahead of its next land_collision. */
   private readonly restarted = new WeakSet<Script>()
@@ -413,8 +414,10 @@ export class LinksetClock {
     const released = e.payload['__here'] as LandTail | true | undefined
     const tail = typeof released === 'object' ? landTailOf(released, e.target) : undefined
     if (!tail) return this.dropsLiveLandEvent(e.target, e.event)
-    this.noteLand(e.target, e.event)
-    if (e.event !== 'land_collision') return false
+    if (e.event !== 'land_collision') {
+      this.restarted.delete(e.target)
+      return false
+    }
     tail.limit ??= Math.max(1, HELD_LAND_COLLISIONS - Math.floor((ran - tail.since) / 2))
     if (tail.ran >= tail.limit) return true
     tail.ran++
@@ -427,9 +430,11 @@ export class LinksetClock {
    * those. Another land_collision_start or a land_collision_end ends the contact.
    */
   dropsLiveLandEvent(script: Script, event: string): boolean {
-    this.noteLand(script, event)
     if (event !== 'land_collision') {
-      if (LAND_EVENTS.has(event)) this.openContacts.delete(script)
+      if (LAND_EVENTS.has(event)) {
+        this.openContacts.delete(script)
+        this.restarted.delete(script)
+      }
       return false
     }
     const open = this.openContacts.get(script)
@@ -438,10 +443,10 @@ export class LinksetClock {
     return true
   }
 
-  private noteLand(script: Script, event: string): void {
+  /** A land event came up for `script`, queued or given to it at once. */
+  landEventCame(script: Script, event: string): void {
     if (event === 'land_collision_end') this.onLand.delete(script)
     else if (LAND_EVENTS.has(event)) this.onLand.add(script)
-    if (event !== 'land_collision') this.restarted.delete(script)
   }
 
   /**
