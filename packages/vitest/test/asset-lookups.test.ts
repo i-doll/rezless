@@ -156,6 +156,21 @@ describe('textures by name or key', () => {
     expect(s.global('out')).toEqual(['p420 texA'])
   })
 
+  // In-world: after the owner renamed "p420 texA" to "zz texA", the face read "p420 texA2"; after renaming
+  // "p420 texA2" to "aa texA2", it read "zz texA"; after renaming "zz texA" to "a texA", it read "aa texA2".
+  // Each rename moved the item behind the other one, whatever the names' order.
+  it('finds a renamed item after the others holding the same texture', async () => {
+    const s = await loadScript({ owner: OWNER, source: `list out; default {
+      state_entry() { llSetTexture("p420 texA", 1); } touch_start(integer n) { out += [llGetTexture(1)]; } }` })
+    for (const item of [texture('p420 texA', TEX_A), texture('p420 texA2', TEX_A)]) s.host.addInventory(makeInventoryItem(item))
+    s.start()
+    for (const [from, to] of [['p420 texA', 'zz texA'], ['p420 texA2', 'aa texA2'], ['zz texA', 'a texA']] as const) {
+      prim(s).renameInventory(from, to)
+      s.linkset.touch(0)
+    }
+    expect(s.global('out')).toEqual(['p420 texA2', 'zz texA', 'aa texA2'])
+  })
+
   // In-world: on a face with no render material, llGetRenderMaterial and {PRIM_RENDER_MATERIAL} read
   // "p420 nc", the empty notecard's name, as a string. {PRIM_NORMAL} and {PRIM_SPECULAR} read the null key.
   it('reads no render material as the name of an empty notecard', async () => {
