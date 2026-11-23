@@ -317,3 +317,28 @@ it('starts a script that stopped itself in its on_rez after the wear', async () 
   expect(t.running).toBe(true)
   expect(t.global('log')).toEqual(['on', 'attach'])
 })
+
+// llResetOtherScript restarts a crashed script; a held reset does the same after the wear.
+it('restarts a script that crashed in its on_rez after the wear, when the held change is a reset', async () => {
+  const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+    { name: 'T', source: { source: `list log; integer zero; default {
+      state_entry() { log += "entry"; }
+      on_rez(integer p) { zero = 1 / zero; } }` } },
+    { name: 'C', source: { source: `default { link_message(integer s, integer i, string m, key id) {
+      if (m != "go") return; llOwnerSay("x"); llResetOtherScript("T"); } }` } },
+  ] }] })
+  for (const s of Object.values(scripts)) s.start()
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(0)
+  const c = scripts['C']!, t = scripts['T']!
+  c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+  c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+  linkset.advanceTime(0)
+  t.setGlobal('log', [])
+  linkset.attachToAvatar(OWNER, 5)
+  try { linkset.advanceTime(100) } catch { /* T's on_rez crashes */ }
+  linkset.advanceTime(100)
+  expect(t.crashed).toBe(false)
+  expect(t.running).toBe(true)
+  expect(t.global('log')).toEqual(['entry'])
+})
