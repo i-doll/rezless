@@ -296,13 +296,15 @@ describe('multi-script linkset', () => {
       expect(scripts['p']!.global('past')).toBe(EOF)
     })
 
-    // In-world: llGetNotecardLineSync line 0 of the probe notecard is "line0"; past the end is EOF.
+    // In-world: once a dataserver read has cached the probe notecard, llGetNotecardLineSync line 0
+    // is "line0" and past the end is EOF.
     it('llGetNotecardLineSync returns the line at once, or EOF past the end', async () => {
       const probe = `
         string first = "";
         string past = "";
         default {
-          state_entry() {
+          state_entry() { llGetNumberOfNotecardLines("memo"); }
+          dataserver(key q, string d) {
             first = llGetNotecardLineSync("memo", 0);
             past = llGetNotecardLineSync("memo", 1);
           }
@@ -317,6 +319,7 @@ describe('multi-script linkset', () => {
         ],
       })
       scripts['p']!.start()
+      scripts['p']!.advanceTime(1000)
       expect(scripts['p']!.global('first')).toBe('line0')
       expect(scripts['p']!.global('past')).toBe(EOF)
     })

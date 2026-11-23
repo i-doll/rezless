@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { nextDataserverKey } from './dataserver.js'
 import { sayError } from './debug.js'
-import { findNotecard, rememberRemovedNotecard } from './notecard-search.js'
+import { findNotecard, rememberNotecardAsset } from './notecard-search.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
@@ -164,7 +164,7 @@ function notecardRequest(
   // Schedule after the dispatcher's post-call throttle advance so the event
   // fires after the call returns (matches real LSL).
   const at = ctx.state.clock.now + (ctx.spec?.delay ?? 0) * 1000
-  const payload = { queryid: key, data: notecard === 'unknown-key' ? EOF : data(notecard.lines) }
+  const payload = { queryid: key, data: typeof notecard === 'string' ? EOF : data(notecard.lines) }
   for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, at, 'dataserver', payload)
   req.fulfilled = true
   return key
@@ -205,7 +205,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
     return undefined
   }
   const [item] = ctx.prim.inventory.splice(index, 1)
-  rememberRemovedNotecard(ctx, item!)
+  rememberNotecardAsset(ctx.linkset.peers, item!)
   if (releaseInventoryAsset(ctx.prim, item!)) raisePrimChanged(ctx.prim, CHANGED_RENDER_MATERIAL)
   const script = item!.script
   if (script) {
@@ -219,9 +219,8 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
 
 /**
  * llGetNotecardLineSync(string name, integer line) — the line itself, EOF past the end, or NAK
- * (after an error) for a missing notecard. Notecards in the prim are always cached here; one found
- * by key elsewhere is cached once a dataserver read has fetched it. An uncached or unknown key
- * gives NAK silently.
+ * (after an error) for a missing notecard. A notecard, by name or key, gives NAK silently until a
+ * dataserver read has cached it.
  */
 export const llGetNotecardLineSync: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''

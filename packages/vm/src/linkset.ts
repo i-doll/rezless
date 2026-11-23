@@ -9,6 +9,7 @@ import type { Script } from './script.js'
 import { mergeLinksetData, type LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
 import { touchThroughInventory, type DetectedEntry } from './builtins/detected.js'
+import { rememberNotecardAsset } from './builtins/notecard-search.js'
 import type { ChatType } from './runtime.js'
 import type { World, WorldAvatar } from './world.js'
 import { NULL_KEY, ZERO_VECTOR, type Vector } from './values/types.js'
@@ -339,6 +340,7 @@ export class Linkset {
     for (const prim of this.prims) prim.scriptedCameras.clear()
     this.deleteAfterDetach = this.attachment.temporary
     this.attachment = null
+    for (const item of this.prims.flatMap((prim) => prim.inventory)) rememberNotecardAsset(this.peers, item)
     const index = this.peers.indexOf(this)
     if (index >= 0) this.peers.splice(index, 1)
     // A detached object leaves region queries and recurring timers. The final
@@ -466,6 +468,7 @@ export class Linkset {
       script.markDead()
       this.clock.purgeTarget(script)
     }
+    for (const item of this.prims.flatMap((prim) => prim.inventory)) rememberNotecardAsset(this.peers, item)
     const index = this.peers.indexOf(this)
     if (index >= 0) this.peers.splice(index, 1)
     this.world?.sensorProperties.delete(this)

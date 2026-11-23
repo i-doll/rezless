@@ -2,6 +2,7 @@ import type { VehicleSettings } from './builtins/vehicles.js'
 import type { PhysicsState } from './builtins/physics.js'
 import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
+import { rememberNotecardAsset } from './builtins/notecard-search.js'
 import type { Script } from './script.js'
 import type { InventoryItem, PermMask } from './inventory.js'
 import { InventoryType, freeInventoryName, hearsInventoryChange, inventoryItemName, queueInventoryChanged, renamedInventoryName, renamedItemName } from './inventory.js'
@@ -270,6 +271,7 @@ export class Prim {
     let removedScript = false
     for (const item of indexes.map((index) => this.inventory[index]!)) {
       this.inventory.splice(this.inventory.indexOf(item), 1)
+      if (this.linkset) rememberNotecardAsset(this.linkset.peers, item)
       if (!item.script) continue
       const running = this.scripts.indexOf(item.script)
       if (running >= 0) this.scripts.splice(running, 1)
@@ -284,6 +286,7 @@ export class Prim {
    * Save new content over an item, as the owner does when editing a notecard
    * in the object's contents. The item keeps its name. A notecard gets the key
    * of its new text, and saving the same text keeps its key; any other item gets a new key.
+   * The old notecard text still reads by its old key.
    * `changes.key` overrides either. The prim's scripts get
    * `changed(CHANGED_INVENTORY)`, also for a save that changes nothing. Saving
    * a script recompiles it: the others hear first, then it resets with no
@@ -292,6 +295,7 @@ export class Prim {
   replaceInventory(name: string, changes: Partial<Omit<InventoryItem, 'name' | 'type' | 'script'>>): void {
     const index = this.#inventoryIndex('replaceInventory', name)
     const old = this.inventory[index]!
+    if (this.linkset) rememberNotecardAsset(this.linkset.peers, old)
     const saved = this.inventory[index] = {
       ...old, ...changes, name: old.name, type: old.type,
       key: changes.key ?? this.#savedKey(old, changes.notecardLines),
@@ -299,10 +303,7 @@ export class Prim {
     if (saved.type === InventoryType.NOTECARD && saved.key !== NULL_KEY) this.#notecardKeys().set(notecardText(saved.notecardLines), saved.key)
     const script = old.script
     if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
-    this.#ownerEditedScript(script, () => {
-      script.reset()
-      if (!script.running) script.queueStart()
-    })
+    this.#ownerEditedScript(script, () => script.reset())
   }
 
   /**
