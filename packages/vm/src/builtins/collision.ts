@@ -35,16 +35,14 @@ export const llSetRemoteScriptAccessPin: BuiltinImpl = (ctx, args) => {
   ctx.prim.remoteScriptAccessPin = Number(args[0])
 }
 
-const family = (linkset: Linkset) => !!((linkset.rez?.flags ?? 0) & REZ_FLAG_NO_COLLIDE_FAMILY)
-
-/** Whether REZ_FLAG_NO_COLLIDE_FAMILY hides this collision: on either of two objects from one rezzer, or on the rezzed one of a rezzer and what it rezzed. */
+/** Whether REZ_FLAG_NO_COLLIDE_FAMILY on either object hides this collision: same rezzer, or one rezzed the other. */
 function sameFamily(linkset: Linkset, key: string): boolean {
   const other = linkset.world?.linksets.find(l => l.prims.some(p => p.key.toLowerCase() === key))
   if (!other) return false
+  if (!(((linkset.rez?.flags ?? 0) | (other.rez?.flags ?? 0)) & REZ_FLAG_NO_COLLIDE_FAMILY)) return false
   const root = (l: Linkset) => l.prims[0]!.key.toLowerCase()
   const mine = linkset.rez?.rezzerKey.toLowerCase(), theirs = other.rez?.rezzerKey.toLowerCase()
-  if (mine !== undefined && mine === theirs) return family(linkset) || family(other)
-  return mine === root(other) && family(linkset) || theirs === root(linkset) && family(other)
+  return mine !== undefined && mine === theirs || mine === root(other) || theirs === root(linkset)
 }
 
 /** Filter at test injection, before queueing. Completed events keep their detected data. */

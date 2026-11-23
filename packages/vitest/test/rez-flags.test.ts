@@ -198,3 +198,17 @@ it('hides a no-collide-family child from its rezzer', async () => {
   hit(script, objectEntry(plain))
   expect(script.global('seen')).toEqual([plain])
 })
+
+// In-world: a rezzer that was itself rezzed with REZ_FLAG_NO_COLLIDE_FAMILY rezzed an unflagged
+// physical child above itself; the child came to rest on it and neither raised a collision event.
+// Rezzed without the flag, both did.
+it('hides an object from what it rezzes when it was rezzed with the no-collide-family flag', async () => {
+  const f = await fixture([C.REZ_FLAG_NO_COLLIDE_FAMILY])
+  const middle = f.children[0]!
+  const grandchild = await loadLinkset({ owner: OWNER, world: f.world, region: 'rez region', prims: [{ name: 'grandchild', scripts: [{ name: 'g', source: { source: CHILD } }] }] })
+  grandchild.linkset.rez = { ...middle.rez!, rezzer: middle.prims[0]!, rezzerKey: middle.prims[0]!.key, flags: 0 }
+  const g = grandchild.scripts['g']!
+  hit(g, objectEntry(middle.prims[0]!.key))
+  hit(f.scripts[0]!, objectEntry(grandchild.linkset.prims[0]!.key))
+  expect([g.global('seen'), f.scripts[0]!.global('seen')]).toEqual([[], []])
+})

@@ -384,8 +384,9 @@ collision flags act on collisions a test fires. An object rezzed with
 avatar or the ground, before its handler runs and whatever its collision
 filter; one that detects volume stays. `REZ_FLAG_NO_COLLIDE_OWNER` hides
 collisions with the owner. `REZ_FLAG_NO_COLLIDE_FAMILY` on either of two objects
-from one rezzer hides their collisions with each other, and on a rezzed object
-it hides its collisions with its rezzer. A hidden collision deletes nothing.
+from one rezzer hides their collisions with each other, and on a rezzer or an
+object it rezzed hides their collisions with each other. A hidden collision
+deletes nothing.
 `REZ_FLAG_DIE_ON_NO_REZZER` and `STATUS_DIE_ON_NO_REZZER` compile but do
 nothing, and the status reads `FALSE`. The grid where they were measured had a
 server too old to know them: it refused to compile the names and ignored the
