@@ -140,7 +140,7 @@ export const llVecNorm: BuiltinImpl = (ctx, args) => {
   const m = f32(magnitude(ctx, u.x, u.y, u.z))
   if (!(m > NORMALISE_THRESHOLD)) return { x: 0, y: 0, z: 0 }
   const k = f32(1 / m)
-  return { x: f32(u.x * k), y: f32(u.y * k), z: f32(u.z * k) }
+  return { x: sluaFlush(ctx, f32(u.x * k)), y: sluaFlush(ctx, f32(u.y * k)), z: sluaFlush(ctx, f32(u.z * k)) }
 }
 
 export const llVecDist: BuiltinImpl = (ctx, args) => {
@@ -330,7 +330,8 @@ function matrixToRotation(m: number[][]): Rotation {
 function rotationAxis(q: Rotation, axis: Vector): Vector {
   const m = Math.hypot(q.x, q.y, q.z, q.s)
   if (m === 0) return vec(axis.x, axis.y, axis.z)
-  return rotateVector(axis, rot(q.x / m, q.y / m, q.z / m, q.s / m))
+  const v = rotateVector(axis, rot(q.x / m, q.y / m, q.z / m, q.s / m))
+  return vec(flushTiny(v.x), flushTiny(v.y), flushTiny(v.z))
 }
 
 /** llRot2Fwd(rotation q) — the x axis rotated by q, normalised. */
@@ -368,14 +369,25 @@ export const llRot2Axis: BuiltinImpl = (_ctx, args) => angleAxis(unitRotation(ar
 /** llRot2Angle(rotation q) — the rotation angle in [0, PI]. */
 export const llRot2Angle: BuiltinImpl = (_ctx, args) => angleAxis(unitRotation(args[0])).angle
 
-/** llAxisAngle2Rot(vector axis, float angle) — the axis is normalised; a zero axis gives ZERO_ROTATION. */
+/** A single-precision result, flushed to a zero of its sign below the smallest normal float. */
+const ftz = (n: number) => flushTiny(f32(n))
+
+/**
+ * llAxisAngle2Rot(vector axis, float angle), in single precision as Second Life works it out:
+ * the axis is made a unit vector, or +0 when its length is 1e-7 or less or NaN, each part is
+ * flushed below the smallest normal float, and the result is normalised. So a zero axis still
+ * carries the angle's cosine: TWO_PI gives <-0, -0, -0, -1>. An axis whose squared length
+ * overflows has no direction either, and an infinite part gives ZERO_ROTATION.
+ */
 export const llAxisAngle2Rot: BuiltinImpl = (_ctx, args) => {
-  const axis = (args[0] as Vector | undefined) ?? { x: 0, y: 0, z: 0 }
-  const angle = (args[1] as number | undefined) ?? 0
-  const m = Math.hypot(axis.x, axis.y, axis.z)
-  if (m === 0) return rot(0, 0, 0, 1)
-  const k = Math.sin(angle / 2) / m
-  return rot(axis.x * k, axis.y * k, axis.z * k, Math.cos(angle / 2))
+  const a = toF32Vector((args[0] as Vector | undefined) ?? vec(0, 0, 0))
+  const length = f32(Math.sqrt(ftz(ftz(ftz(a.x * a.x) + ftz(a.y * a.y)) + ftz(a.z * a.z))))
+  const k = f32(1 / length)
+  const u: Row = length > NORMALISE_THRESHOLD ? [ftz(a.x * k), ftz(a.y * k), ftz(a.z * k)] : [0, 0, 0]
+  const half = f32(f32((args[1] as number | undefined) ?? 0) * 0.5)
+  const s = f32(Math.sin(half))
+  const q = normalizeRotation(rot(ftz(u[0] * s), ftz(u[1] * s), ftz(u[2] * s), f32(Math.cos(half))))
+  return rot(ftz(q.x), ftz(q.y), ftz(q.z), ftz(q.s))
 }
 
 /** llRotBetween treats a vector shorter than this as no direction. */
