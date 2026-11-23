@@ -90,7 +90,20 @@ const CYLINDER_TOP: Click[] = [
 // above with the avatar along -Y, so no fixed order fits. On the oval top the
 // ray away from the camera left through the polygon's corner at +X; rezless
 // takes the side above the corner, Second Life the one below.
+// Repeated on 2026-11-23 with the prim at <126, 58> (rows given as if at
+// <123, 52>): the centre click from the camera at -4.24, -4.24, 1.9 took the
+// camera's side four times, with the avatar 4.8 to 5.1 m out along -X and
+// 0 to 0.12 m along +Y, and the avatar's side once, with the avatar 3.95 m out
+// and 0.29 m along -Y. The row above took the avatar's side from 5.58 m out
+// and 0.72 m along -Y, so distance doesn't decide it, and two rows on -Y are
+// too few for a rule. The avatar had turned to face the prim's centre; its
+// heading below is that direction, not read.
+const CYLINDER_TIE_CAMERA: Click[] = [
+  ...[v(118.162, 52, 1997.421), v(118.023, 52.022, 1997.421), v(117.953, 52.013, 1997.421), v(117.858, 52.118, 1997.421)].map(at =>
+    [`cylinder, camera at -4.24, -4.24, 1.90, click at 0, 0, 0.5, avatar at ${at.x}, ${at.y}: at -0.417, -0.417, 1.13`, 'cylinder', v(1, 1, 1), 1997.47, at, Math.atan2(52 - at.y, 123 - at.x) * 180 / Math.PI, v(118.76, 47.76, 1999.37), v(0, 0, 0.5), v(-0.41719, -0.41719, 1.13), [0, 0, 0.92388, -0.38268]] as Click),
+]
 const CYLINDER_TIE: Click[] = [
+  ['cylinder, camera at -4.24, -4.24, 1.90, click at 0, 0, 0.5, avatar at 119.049, 51.71: at -0.589, -0.042, 1.13', 'cylinder', v(1, 1, 1), 1997.47, v(119.049, 51.71, 1997.421), 4.2, v(118.76, 47.76, 1999.37), v(0, 0, 0.5), v(-0.5885, -0.04199, 1.13), [0, 0, 0.99937, -0.0356]],
   ['cylinder, camera at -4.24, -4.24, 1.90, click at 0, 0, 0.5: at -0.585, -0.075, 1.13', 'cylinder', v(1, 1, 1), 1997.47, v(117.423, 51.282, 1997.421), 7.337, v(118.76, 47.76, 1999.37), v(0, 0, 0.5), v(-0.585, -0.075, 1.13), [0, 0, 0.998, -0.063]],
   ['1 x 2 x 1 m cylinder, camera at -6.00, 0.00, 1.90, click at 0.3, 0, 0.5: at 0.582, -0.051, 1.13', 'cylinder', v(1, 2, 1), 1997.47, v(120.063, 51.571, 1997.421), 8.306, v(117, 52, 1999.37), v(0.3, 0, 0.5), v(0.582, -0.051, 1.13), [0, 0, -0.09, 0.996]],
 ]
@@ -172,8 +185,13 @@ const OVAL_TURNED: Click[] = [
 // 0.3 m above was always taken. A 0.75 m deep box refused at every slope
 // tried. Boxes 1.5, 2 and 3 m deep, 2 m wide, 0.5, 0.75 and 1.5 m tall, and
 // 0.5 m and 2 m cubes took every click, even with the camera only 0.2 m above
-// the spot 5.5 m away. No rule tried here fits which sizes refuse, so rezless
-// seats every click: the taken rows pass and the refused ones are pinned.
+// the spot 5.5 m away. Repeated on 2026-11-23 with the prim at <126, 58>,
+// the click 0.2 m above a 1 m box's bottom was refused five times out of five
+// with the camera 1.31 m above the centre and taken five times out of five at
+// 1.44 m, both 6 m out along -X (slopes of 0.29 and 0.32 from the spot), so
+// the cut-off stayed between them. No rule tried here fits which sizes
+// refuse, so rezless seats every click: the taken rows pass and the refused
+// ones are pinned.
 const LOW_TAKEN: Click[] = [
   ['box, camera at -6.00, 0.00, 4.00, click at -0.5, 0, -0.3: at -0.59, 0, 1.13', 'box', v(1, 1, 1), 1997.47, v(119.6, 52.608, 1997.421), -10.148, v(117, 52, 2001.47), v(-0.5, 0, -0.3), v(-0.59, 0, 1.13), [0, 0, 1, 0]],
   ['box, camera at -6.00, 0.00, 1.95, click at -0.5, 0, -0.3: at -0.59, 0, 1.13', 'box', v(1, 1, 1), 1997.47, v(118.084, 51.993, 1997.419), 0.079, v(117, 52, 1999.42), v(-0.5, 0, -0.3), v(-0.59, 0, 1.13), [0, 0, 1, 0]],
@@ -293,7 +311,9 @@ const LOW_REFUSED: Click[] = [
 // A 1 m sphere, camera 6 m along -X and 1.9 m up, with clicks every 45
 // degrees round its +Y half at four heights. The seats follow no rule tried
 // here. Two clicks low on the side towards the camera and one on the +Y side
-// at mid height were refused.
+// at mid height were refused. Repeated on 2026-11-23 with the prim at
+// <126, 58>, the click at -0.433, 0, 0.25 sat at <-0.43366, 0, 1.18201> four
+// times out of four and the click at 0, 0.5, 0 was refused four times.
 const SPHERE: Click[] = [
   ['sphere, camera at -6.00, 0.00, 1.90, no click: at -0.489, 0, 1.148', 'sphere', v(1, 1, 1), 1997.47, v(119.651, 52.628, 1997.421), -10.627, v(117, 52, 1999.37), null, v(-0.489, 0, 1.148), [0, 0, 1, 0]],
   ['sphere, camera at -6.00, 0.00, 1.90, click at -0.433, 0, -0.25: refused', 'sphere', v(1, 1, 1), 1997.47, v(118.118, 51.999, 1997.421), 0.008, v(117, 52, 1999.37), v(-0.433, 0, -0.25), null, null],
@@ -332,7 +352,11 @@ const PRISM: Click[] = [
 ]
 // These sat at the same side and place but 1.7 to 3.9 cm lower, and one
 // click on the +Y end, where the line from the camera met that end, sat there
-// 0.5 m lower. Which requests sit lower follows no rule tried here.
+// 0.5 m lower. Which requests sit lower follows no rule tried here. Each
+// request keeps its height when repeated: on 2026-11-23, with the prim at
+// <126, 58> and the camera at -6, 0, 1.9, the no-click row in PRISM sat at
+// 1.1294 six times out of six, and the click at -0.25, 0.3, 0 sat 1.6 cm
+// lower at <-0.59, 0.28696, 1.11304> five times out of five.
 const PRISM_LOWER: Click[] = [
   ['prism, camera at -6.00, 0.00, 1.90, click at -0.25, 0.3, 0: at -0.59, 0.287, 1.113', 'prism', v(1, 1, 1), 1997.47, v(118.002, 51.842, 1997.421), 1.807, v(117, 52, 1999.37), v(-0.25, 0.3, 0), v(-0.59, 0.287, 1.113), [0, 0, 1, 0]],
   ['prism, camera at -6.00, 1.00, 1.90, click at 0, 0.5, 0: at 0, 0.59, 0.63', 'prism', v(1, 1, 1), 1997.47, v(118.023, 51.974, 1997.421), 0.295, v(117, 53, 1999.37), v(0, 0.5, 0), v(0, 0.59, 0.63), [0, 0, 0.707, 0.707]],
@@ -372,6 +396,7 @@ async function check(row: Click, turn?: { x: number; y: number; z: number; s: nu
 
 describe('where a click seats an avatar on a cylinder, sphere or prism, and low on a box', () => {
   it.each(CYLINDER_TOP)('%s', async (...row) => { await check(row) })
+  it.each(CYLINDER_TIE_CAMERA)('%s', async (...row) => { await check(row) })
   it.fails.each(CYLINDER_TIE)('%s', async (...row) => { await check(row) })
   it.each(CYLINDER_TURN)('%s', async (...row) => { await check(row) })
   it.each(OVAL_SWITCH)('%s', async (...row) => { await check(row) })
