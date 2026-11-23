@@ -275,6 +275,23 @@ describe('land collisions held back in one sleep', () => {
     expect(b.log()).toEqual(['300'])
   })
 
+  it('reads the position when the event runs in a copy taken between the sleeps', async () => {
+    const b = await box(`list log;
+      default {
+        link_message(integer f, integer n, string s, key id) { llSleep(1.0); llSleep(1.0); }
+        land_collision_start(vector p) { log += (string)llRound(p.z * 10); }
+      }`, 121)
+    b.linkset.clock.schedule(b.script, 0, 'link_message', { sender_num: 0, num: 0, str: '', id: '' })
+    b.linkset.advanceTime(0)
+    b.linkset.advanceTime(500)
+    b.linkset.clock.schedule(b.script, b.linkset.clock.now, 'land_collision_start', ground(121))
+    b.linkset.advanceTime(1_000)
+    const rezzed = b.linkset.copy().copy()
+    rezzed.prims[0]!.params.position = { x: 121, y: 48, z: 30 }
+    rezzed.advanceTime(2_000)
+    expect(rezzed.prims[0]!.scripts[0]!.global('log')).toEqual(['300'])
+  })
+
   it.each([1, 2])('gives one start, four land_collision and one end for %i drops', async (drops) => {
     const b = await box(sleeper, 121)
     b.linkset.prims[0]!.params.position = { x: 121, y: 48, z: 22.6 }
