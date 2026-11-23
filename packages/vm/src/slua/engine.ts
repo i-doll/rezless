@@ -16,6 +16,7 @@ import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { isRotation, toFloat32Value, toInt32 } from '../values/types.js'
 import { listElementTypes, luaResultKind, markLuaList, typedList } from '../values/list-types.js'
 import type { LuaKind } from '../values/list-types.js'
+import { boxedArray } from '../values/nan.js'
 import { BUILTIN_SPECS } from '../generated/functions.js'
 import type { BuiltinSpec } from '../generated/functions.js'
 import { EVENT_SPECS } from '../generated/events.js'
@@ -570,7 +571,7 @@ export class SluaEngine {
   private readList(L: number, slot: number): LslValue | { error: string } {
     const x = this.x
     const n = x.rz_objlen(L, slot)
-    const values: LslValue[] = []
+    const values = boxedArray<LslValue>()
     const types: LslType[] = []
     const kinds: LuaKind[] = []
     for (let k = 1; k <= n; k++) {

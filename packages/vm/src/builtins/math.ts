@@ -2,6 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, rot, vec } from '../values/types.js'
 import { normalizeRotation, rotateVector } from '../values/ops.js'
+import { NEGATIVE_NAN, POSITIVE_NAN, addFloat, mulFloat, nanResult, subFloat } from '../values/nan.js'
 
 /** llAbs(integer val) — absolute value (integer). */
 export const llAbs: BuiltinImpl = (_ctx, args) => {
@@ -53,24 +54,39 @@ export const llPow: BuiltinImpl = (ctx, args) => sluaFlush(ctx, pow(args))
 function pow(args: readonly LslValue[]) {
   const x = (args[0] as number) ?? 0
   const y = (args[1] as number) ?? 0
-  if (Number.isNaN(x) || Number.isNaN(y)) return NaN
-  if ((x === 1 || x === -1) && !Number.isFinite(y)) return NaN
+  if (Number.isNaN(x) || Number.isNaN(y)) return POSITIVE_NAN
+  if ((x === 1 || x === -1) && !Number.isFinite(y)) return POSITIVE_NAN
   if (x < -LARGEST_INT_DOUBLE) {
     if (y > LARGEST_INT_DOUBLE) return Infinity
     if (y < -LARGEST_INT_DOUBLE) return 0
   }
   // C's pow(-1, y) is NaN for huge y in some libms, which SLua maps to 1;
   // JavaScript already gives 1, as every double that large is even.
-  return unsignedZero(Math.pow(x, y))
+  // What is left that gives NaN is a negative base to a fractional power.
+  const r = Math.pow(x, y)
+  return r === r ? unsignedZero(r) : NEGATIVE_NAN
 }
-export const llSqrt: BuiltinImpl = (_ctx, args) => Math.sqrt((args[0] as number) ?? 0)
+export const llSqrt: BuiltinImpl = (_ctx, args) => {
+  const x = (args[0] as number) ?? 0
+  return x < 0 ? NEGATIVE_NAN : Math.sqrt(x)
+}
 /** Mono gives 0.0 for the sine and tangent of -0.0. SLua keeps the sign. */
 const monoZero = (ctx: CallContext, n: number) => (ctx.script.language === 'lsl' ? unsignedZero(n) : n)
-export const llSin: BuiltinImpl = (ctx, args) => monoZero(ctx, Math.sin((args[0] as number) ?? 0))
-export const llCos: BuiltinImpl = (_ctx, args) => Math.cos((args[0] as number) ?? 0)
-export const llTan: BuiltinImpl = (ctx, args) => monoZero(ctx, Math.tan((args[0] as number) ?? 0))
-export const llAsin: BuiltinImpl = (_ctx, args) => Math.asin((args[0] as number) ?? 0)
-export const llAcos: BuiltinImpl = (_ctx, args) => Math.acos((args[0] as number) ?? 0)
+/** A NaN argument passes on with its sign, and an infinite one gives a negative NaN. */
+const periodic = (f: (x: number) => number, x: number) => (x !== x ? x : Number.isFinite(x) ? f(x) : NEGATIVE_NAN)
+export const llSin: BuiltinImpl = (ctx, args) => monoZero(ctx, periodic(Math.sin, (args[0] as number) ?? 0))
+export const llCos: BuiltinImpl = (_ctx, args) => periodic(Math.cos, (args[0] as number) ?? 0)
+export const llTan: BuiltinImpl = (ctx, args) => monoZero(ctx, periodic(Math.tan, (args[0] as number) ?? 0))
+/** llAsin passes a NaN on with its sign; out of range is a positive NaN. */
+export const llAsin: BuiltinImpl = (_ctx, args) => {
+  const x = (args[0] as number) ?? 0
+  return x !== x ? x : Math.abs(x) > 1 ? POSITIVE_NAN : Math.asin(x)
+}
+/** llAcos of a NaN, of either sign, or of a value out of range is a positive NaN. */
+export const llAcos: BuiltinImpl = (_ctx, args) => {
+  const x = (args[0] as number) ?? 0
+  return Math.abs(x) <= 1 ? Math.acos(x) : POSITIVE_NAN
+}
 /**
  * llAtan2: both arguments infinite gives NaN, and a zero result is +0 (Mono 2.x, as SLua).
  * In SLua a result below the smallest normal float is a zero with its sign.
@@ -78,7 +94,8 @@ export const llAcos: BuiltinImpl = (_ctx, args) => Math.acos((args[0] as number)
 export const llAtan2: BuiltinImpl = (ctx, args) => {
   const y = (args[0] as number) ?? 0
   const x = (args[1] as number) ?? 0
-  if (!Number.isFinite(y) && !Number.isFinite(x) && !Number.isNaN(y) && !Number.isNaN(x)) return NaN
+  if (y !== y || x !== x) return nanResult(y, x, NaN)
+  if (!Number.isFinite(y) && !Number.isFinite(x)) return POSITIVE_NAN
   return sluaFlush(ctx, unsignedZero(Math.atan2(y, x)))
 }
 export const llLog: BuiltinImpl = (_ctx, args) => {
@@ -97,7 +114,7 @@ export const llLog10: BuiltinImpl = (_ctx, args) => {
  */
 export const llFrand: BuiltinImpl = (ctx, args) => {
   const mag = (args[0] as number | undefined) ?? 0
-  return flushTiny(unsignedZero(ctx.state.random.next() * mag))
+  return flushTiny(unsignedZero(mulFloat(ctx.state.random.next(), mag)))
 }
 
 // ---- Vector / rotation math ----
@@ -118,7 +135,10 @@ const square = (n: number) => {
  * infinite and one under about 1.1e-19 is zero.
  */
 function magnitude(ctx: CallContext, x: number, y: number, z: number) {
-  if (ctx.script.language === 'lsl') return Math.sqrt(x * x + y * y + z * z)
+  if (ctx.script.language === 'lsl') {
+    const sum = addFloat(addFloat(mulFloat(x, x), mulFloat(y, y)), mulFloat(z, z))
+    return sum === sum ? Math.sqrt(sum) : sum
+  }
   return f32(Math.sqrt(f32(f32(square(x) + square(y)) + square(z))))
 }
 
@@ -140,7 +160,7 @@ export const llVecNorm: BuiltinImpl = (ctx, args) => {
   const m = f32(magnitude(ctx, u.x, u.y, u.z))
   if (!(m > NORMALISE_THRESHOLD)) return { x: 0, y: 0, z: 0 }
   const k = f32(1 / m)
-  return { x: sluaFlush(ctx, f32(u.x * k)), y: sluaFlush(ctx, f32(u.y * k)), z: sluaFlush(ctx, f32(u.z * k)) }
+  return { x: sluaFlush(ctx, f32(mulFloat(u.x, k))), y: sluaFlush(ctx, f32(mulFloat(u.y, k))), z: sluaFlush(ctx, f32(mulFloat(u.z, k))) }
 }
 
 export const llVecDist: BuiltinImpl = (ctx, args) => {
@@ -149,7 +169,7 @@ export const llVecDist: BuiltinImpl = (ctx, args) => {
   if (!a || !b) return 0
   const p = toF32Vector(a)
   const q = toF32Vector(b)
-  if (ctx.script.language === 'lsl') return magnitude(ctx, p.x - q.x, p.y - q.y, p.z - q.z)
+  if (ctx.script.language === 'lsl') return magnitude(ctx, subFloat(p.x, q.x), subFloat(p.y, q.y), subFloat(p.z, q.z))
   return magnitude(ctx, f32(p.x - q.x), f32(p.y - q.y), f32(p.z - q.z))
 }
 

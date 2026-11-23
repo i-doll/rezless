@@ -268,18 +268,23 @@ describe('NaN and the infinities in strings', () => {
     ])
   })
 
-  // In-world, llList2CSV and llList2Json print a NaN by its sign bit. Under Mono these gave -nan,
-  // <-nan, 0.000000, 0.000000>, <-nan, 0.000000, 0.000000, 1.000000> and [-nan]: llPow(-1.0, 0.5),
-  // llSqrt(-1.0), llSin(inf), llTan(inf), inf - inf, inf * 0.0, (float)"-nan" and -llAcos(2.0).
-  // -llSqrt(-1.0) gave nan. Compiled to Luau the same eight gave -nan, except llSqrt(-1.0), which
-  // gave nan, and -llSqrt(-1.0) gave -nan. The VM's floats have one NaN without a sign, so every
-  // NaN prints as nan here: the second line below differs from Second Life. The casts print NaN
-  // in-world too.
+  // In-world, llList2CSV and llList2Json print a NaN by its sign bit. Under Mono these eight gave
+  // -nan, <-nan, 0.000000, 0.000000>, <-nan, 0.000000, 0.000000, 1.000000> and [-nan]. Compiled to
+  // Luau the same eight gave -nan, except llSqrt(-1.0), which gave nan; the VM follows Mono. The
+  // casts print NaN in-world too.
   it.each([
     ['llPow(-1.0, 0.5)'], ['llSqrt(-1.0)'], ['llSin(inf)'], ['llTan(inf)'], ['inf - inf'], ['inf * zero'], ['(float)"-nan"'],
-    ['-llAcos(2.0)'], ['-llSqrt(-1.0)'],
-  ])('%s prints as NaN in a cast, and as nan without its sign in llList2CSV', async (expr) => {
+    ['-llAcos(2.0)'],
+  ])('%s prints as NaN in a cast and -nan in llList2CSV', async (expr) => {
     expect(await shown(expr)).toEqual([
+      'NaN NaN NaN NaN <NaN, 0.00000, 0.00000> <NaN, 0.00000, 0.00000, 1.00000> <NaN, 0.000000, 0.000000> <NaN, 0.000000, 0.000000, 1.000000>',
+      '-nan <-nan, 0.000000, 0.000000> <-nan, 0.000000, 0.000000, 1.000000> [-nan]',
+    ])
+  })
+
+  // In-world: -llSqrt(-1.0) gave nan under Mono (and -nan compiled to Luau).
+  it('-llSqrt(-1.0) prints as nan in llList2CSV', async () => {
+    expect(await shown('-llSqrt(-1.0)')).toEqual([
       'NaN NaN NaN NaN <NaN, 0.00000, 0.00000> <NaN, 0.00000, 0.00000, 1.00000> <NaN, 0.000000, 0.000000> <NaN, 0.000000, 0.000000, 1.000000>',
       'nan <nan, 0.000000, 0.000000> <nan, 0.000000, 0.000000, 1.000000> [nan]',
     ])
