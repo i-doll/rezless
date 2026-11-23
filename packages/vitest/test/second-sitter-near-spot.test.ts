@@ -24,7 +24,9 @@ import { loadLinkset, World } from '../src/index.js'
 // teleported to <121, 40, 1998> before each request. The same row gave
 // different seats between runs: B on S facing -X seated A 0.293 m above S in
 // run 1, at <-0.606, 0.372, 0.717> in run 2 and 0.043 m above S in run 3. The
-// camera's height and the side the line comes from change the result too. No
+// camera's height and the side the line comes from change the result too.
+// REPEATED below holds one row asked 52 times in one session: it gave two
+// seats 0.25 m apart, with nothing a script can read telling them apart. No
 // rule found fits these rows, so rezless keeps seating A at S unless B sits
 // within 1 mm of it, and the rows it gets wrong are kept below as it.fails.
 
@@ -106,6 +108,24 @@ const NEAR_CAMERA: [...Row, Vector][] = [
   ['run 2: B 0.1 m down, camera 2 m along +Y', v(-0.59, 0, 1.03), OUT, v(-0.59, 0, 1.10498), SIDEWAYS],
 ]
 
+// One row repeated, measured 2026-11-23 with the same two avatars: B on S
+// facing -X, the level camera, and A teleported to <121, 40, 1998> before
+// each request (its position read <121, 40, 1997.396> every time). The first
+// 20 requests in a row all seated A at 1.42322. Over the next 32, spread
+// across about 15 minutes, A sat at 1.42322 three times and between 1.17224
+// and 1.17371 the other 29 times. The split held whether or not B was moved
+// away and back before each request (from the far side, 0.4 m along +Y,
+// 0.5 m up, 0.5 m down or 0.6 m out), after B stood up and sat again, and
+// when the request waited 6 s after B was moved. No script-visible state
+// separates the two results. Two neighbouring rows repeated in the same
+// session: B 0.1 m up was refused 8 times out of 8, and B 0.2 m along +Y
+// seated A at 1.33618 twice and between 1.17224 and 1.17371 six times.
+const REPEATED: Row[] = [
+  ...[1.42322, 1.17224, 1.17285, 1.17322, 1.17371].map(z => [`B on S facing -X, A teleported first: A at ${z}`, S, OUT, v(-0.59, 0, z)] as Row),
+  ['B 0.1 m up, A teleported first (8 of 8): refused', v(-0.59, 0, 1.23), OUT, null],
+  ...[1.33618, 1.17224, 1.17322, 1.17371].map(z => [`B 0.2 m along +Y, A teleported first: A at ${z}`, v(-0.59, 0.2, 1.13), OUT, v(-0.59, 0, z)] as Row),
+]
+
 /** A's sit request with B already at `placed`: where A sits, or null if refused. */
 async function request(placed: Vector, rotation: Rotation, camera: Vector) {
   const world = new World()
@@ -139,6 +159,10 @@ describe('a sit request near an avatar already seated on a prim without a sit ta
   })
 
   it.fails.each(NEAR)('%s', async (_, placed, rotation, want) => {
+    expectNear((await request(placed, rotation, LEVEL)).place, want)
+  })
+
+  it.fails.each(REPEATED)('%s', async (_, placed, rotation, want) => {
     expectNear((await request(placed, rotation, LEVEL)).place, want)
   })
 

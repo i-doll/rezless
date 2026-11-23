@@ -139,6 +139,25 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['global initialised from print', `integer g = print(1); ${inEntry('')}`, /Syntax error/],
     // In-world: key k = print((key)"k"); fails with "Internal server compile error".
     ['a key local initialised by a key print', inEntry('key k = print((key)"k");'), /Internal server compile error/],
+    // In-world (Aditi, SLua Tideland, 2026-11-23): each of these failed with "Internal server compile
+    // error", for prints of every type: a print assigned, initialising a local, cast, negated, as a
+    // condition, returned, in a list, printed, compared on the left, after + - / % | && < on the
+    // right, before | << == < && on the left, before + after a list, or in parentheses.
+    ...[
+      'integer i = print(1);', 'string s; s = print("s");', 'key k; k = print("s");', 'string s = (string)print(3);',
+      'integer i = -print(1);', 'integer i = !print(1);', 'if (print(1)) ;', 'while (print(0)) ;', 'list l = print([1]);',
+      'list l = [print(1)];', 'print(print("s"));', 'print(llSay(0, ""));', 'integer i; i += print(1);',
+      'integer i = 1 + print(1);', 'string s = "a" + print("s");', 'integer i = 2 - print(1);', 'integer i = 2 / print(1);',
+      'integer i = 2 % print(1);', 'integer i = 2 | print(1);', 'integer i = 2 && print(1);', 'integer i = 2 < print(1);',
+      'integer i = print(1) == 1;', 'integer i = print(1) < 2;', 'integer i = print(1) | 2;', 'integer i = print(1) << 2;',
+      'integer i = print(1) && 1;', 'key k; integer i = print((key)"k") == k;', 'list l = print([1]) + [2];',
+      'integer i = (print(1)) + 1;', 'integer i = 2 * (print(1));', 'integer i; i = i = print(1);',
+      'vector v = <print(1.0), 0, 0>;', '(print(1));', 'integer i; for ((print(1)); i < 1; ++i) ;',
+    ].map((body): [string, string, RegExp] => [`print's value in ${body}`, inEntry(body), /Internal server compile error/]),
+    ['print returning from a function', `integer f() { return print(1); } ${inEntry('f();')}`, /Internal server compile error/],
+    // In-world: llOwnerSay(print("s")) failed with "Function call mismatches type or number of arguments".
+    ['print passed to a function', inEntry('llOwnerSay(print("s"));'), /Function call mismatches type or number of arguments/],
+    ['print passed to a user function', `f(integer x) {} ${inEntry('f(print(1));')}`, /Function call mismatches type or number of arguments/],
     ['statement after the return', `integer f() { return 1; f(); } ${inEntry('')}`, /Not all code paths/],
   ]
 
@@ -196,7 +215,13 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['a local shadowing an outer local', inEntry('integer x; { string x; }')],
     ['a local reusing a parameter name', `f(integer a) { integer a; } ${inEntry('f(1);')}`],
     ['if/else that returns on both branches', `integer f(integer a) { if (a) return 1; else { return 2; } } ${inEntry('f(1);')}`],
-    ['print of any type, used as its value', inEntry('integer i = print(1) + 1; list l = print([i]); print(llSay(0, ""));')],
+    // In-world (Aditi, SLua Tideland, 2026-11-23): each of these compiled.
+    ['print as the left operand of arithmetic', inEntry('integer i = print(1) + 1; i = print(1) - 1; i = print(4) / 2; i = print(4) % 3; i = print(1) * 2; i = print(1) + 1 + 1;')],
+    ['print of other types left of arithmetic', inEntry('string s = print("a") + "b"; vector v = print(<1,2,3>) + <1,1,1>; v = print(<1,2,3>) * 2; rotation r = print(ZERO_ROTATION) * ZERO_ROTATION; float f = print(1) + 1.5;')],
+    ['print as the right operand of *, == and !=', inEntry('integer i = 2 * print(1); float f = 2.0 * print(1.0); vector v = <1,1,1> * print(2.0); string s; key k; list l; i = i == print(1); i = s == print("s"); i = s != print("s"); i = k != print((key)"k"); i = l == print([1]); i = v == print(<1,2,3>);')],
+    ['print added after a list, and inside arithmetic on the right of ==', inEntry('list l = [1] + print([2]); integer i = 2 == print(1) + 1;')],
+    ['print as a statement or a for clause', inEntry('integer i; print(i); for (print((key)"k"); i < 1; ++i) ; for (; i < 2; ++i, print((key)"k")) ;')],
+    ['print on the right of *= and left of + as a statement', inEntry('integer i; i *= print(2); print(1) + 1;')],
     ['a typed function ending in a nested block return', `integer f() { { return 1; } } ${inEntry('f();')}`],
   ]
 

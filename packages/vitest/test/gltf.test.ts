@@ -261,7 +261,12 @@ describe('llSetLinkGLTFOverrides', () => {
       `glo_all_bc3=${UNSET_BC}`,
       `glo_bad_bc=${alpha09}`,
     ])
-    expect(errors).toEqual([])
+    // In-world: each of the three bad calls says why on DEBUG_CHANNEL (gltf-override-errors.test.ts).
+    expect(errors).toEqual([
+      'llSetGLTFOverrides Error running rule #1 (OVERRIDE_GLTF_BASE_ALPHA): Must be empty string to clear override..',
+      'llSetGLTFOverrides Error running rule #1: unknown rule id 99.',
+      'llSetGLTFOverrides Error running rule #1 (OVERRIDE_GLTF_BASE_ALPHA): Expecting float parameter..',
+    ])
   })
 
   it('sets the colour factor alone with alpha 1 and clears the separate overrides with ""', async () => {
@@ -352,7 +357,7 @@ describe('llSetLinkGLTFOverrides codes', () => {
       out("mr", G(PRIM_GLTF_METALLIC_ROUGHNESS));
     `)
     expect(lines).toEqual([`mr=${UNSET_MR}`])
-    expect(errors.some((e) => e.includes('non-integer rule'))).toBe(false)
+    expect(errors).toEqual(['llSetGLTFOverrides Error running rule #1 (OVERRIDE_GLTF_METALLIC_FACTOR): Must be empty string to clear override..'])
   })
 })
 

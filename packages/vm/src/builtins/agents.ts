@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { WorldAvatar } from '../world.js'
-import { NULL_KEY, ZERO_VECTOR, type LslValue, type LslType } from '../values/types.js'
+import { NULL_KEY, ZERO_VECTOR, type LslValue, type LslType, type Vector } from '../values/types.js'
 import { ruleElementType, typedList, uniformList } from '../values/list-types.js'
 import { nextDataserverKey } from './dataserver.js'
 import { findObjectPrim, lingeringAvatar } from './object-reads.js'
@@ -56,9 +56,14 @@ function username(name: string): string {
   return `${first}.${last}`
 }
 
+// In-world: llName2Key kept returning the key of an avatar that had left at the end of a 7 min watch,
+// long after every other read had lost it, and through the frame a dying seat hides its sitter. The
+// watch didn't see it end, so here it never does.
 export const llName2Key: BuiltinImpl = (ctx, args) => {
   const wanted = username(args[0] as string)
-  return localAvatars(ctx).find(a => username(a.username) === wanted)?.key ?? NULL_KEY
+  const { world, region } = ctx.linkset
+  return world?.avatars.find(a => username(a.username) === wanted
+    && (a.region === region || world.hasLeft(a, region) || world.lingeringAvatar(a, region) !== undefined))?.key ?? NULL_KEY
 }
 
 const userKeyThrottles = new WeakMap<object, Map<string, WindowThrottle>>()
@@ -97,14 +102,19 @@ export const llGetAgentList: BuiltinImpl = (ctx, args) => {
   if ((args[1] as readonly LslValue[]).length) return uniformList(['INVALID_OPTIONS'], 'string')
   const { world, region } = ctx.linkset
   const parcel = region === undefined ? undefined : world?.parcelAt(region, ctx.prim.regionPosition())
-  const agents = localAvatars(ctx).filter(a => {
+  const inScope = (position: Vector) => {
     if (scope === 4) return true
-    const target = world!.parcelAt(a.region, a.position)
+    const target = world!.parcelAt(region!, position)
     if (scope === 1) return target === parcel
     return sameKey(target?.owner ?? NULL_KEY, parcel?.owner ?? NULL_KEY)
-  })
-  // In-world: an avatar that teleported out stayed in the region's list until one frame after its "Init".
-  if (scope === 4) agents.push(...(world?.avatars ?? []).filter(a => !agents.includes(a) && departing(ctx, a.key)))
+  }
+  const agents = localAvatars(ctx).filter(a => inScope(a.position))
+  // In-world: an avatar that teleported out stayed in the region's and its parcel's lists until one
+  // frame after its "Init".
+  for (const a of world?.avatars ?? []) {
+    const left = world!.lingeringAvatar(a, region)
+    if (left?.mode === 'departing' && !agents.includes(a) && inScope(left.position!)) agents.push(a)
+  }
   return uniformList(agents.slice(0, 100).map(a => a.key), 'key')
 }
 
@@ -115,7 +125,7 @@ const visualNames: Readonly<Record<string, number>> = {
 }
 const visualIDs = new Set(Object.values(visualNames))
 export const llGetVisualParams: BuiltinImpl = (ctx, args) => {
-  const found = avatar(ctx, args[0] as string)
+  const found = named(ctx, args[0] as string)
   if (!found) return []
   const params = args[1] as readonly LslValue[]
   const types: LslType[] = []
@@ -138,7 +148,7 @@ export const llSameGroup: BuiltinImpl = (ctx, args) => {
   const key = args[0] as string
   const own = group(ctx)
   if (sameKey(own, key)) return 1
-  const target = avatar(ctx, key)
+  const target = named(ctx, key)
     ?? ctx.linkset.world?.objects.find(o => o.region === ctx.linkset.region && sameKey(o.key, key))
   if (target) return Number(sameKey(own, target.group))
   const prim = findObjectPrim(ctx, key)
