@@ -302,6 +302,7 @@ prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: s
 prims[0].renameInventory('Notes', 'Settings')                        // a taken name becomes 'Settings 2'
 prims[0].removeInventory('Settings')                                 // a removed script stops
 prims[0].removeInventory('a', 'b')                                   // deleted together: one event
+prims[0].removeInventory('Wood')                                     // faces showing it go back to plywood
 
 const door = await addScript(prims[1], { source: 'door.lsl', name: 'door' })  // dropped in: runs state_entry
 await addScript(prims[1], { source: 'spare.lsl' }, { running: false })        // dropped in, not running
