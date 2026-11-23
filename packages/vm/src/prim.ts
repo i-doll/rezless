@@ -4,7 +4,7 @@ import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } fro
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import type { Script } from './script.js'
 import type { InventoryItem, PermMask } from './inventory.js'
-import { InventoryType, freeInventoryName, hearsInventoryChange, inventoryItemName, queueInventoryChanged } from './inventory.js'
+import { InventoryType, freeInventoryName, hearsInventoryChange, inventoryItemName, queueInventoryChanged, renamedInventoryName, renamedItemName } from './inventory.js'
 import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
@@ -24,6 +24,13 @@ const COST_RULES = new Set([
 
 let primsMade = 0
 let itemsSaved = 0
+
+/** A save gives a notecard the key of its new text and keeps the key of unchanged text; other items get a new key at each save. */
+function savedKey(old: InventoryItem, lines: ReadonlyArray<string> | undefined): string {
+  if (old.type !== InventoryType.NOTECARD) return deterministicKey(`inventory-save/${++itemsSaved}`)
+  if (!lines || lines.join('\n') === old.notecardLines?.join('\n')) return old.key
+  return deterministicKey(`notecard/${lines.join('\n')}`)
+}
 
 export interface AttachedSound {
   sound: string
@@ -278,18 +285,19 @@ export class Prim {
 
   /**
    * Save new content over an item, as the owner does when editing a notecard
-   * in the object's contents. The item keeps its name and gets a new key
-   * unless `changes.key` supplies one. The prim's scripts get
-   * `changed(CHANGED_INVENTORY)`. Saving a script recompiles it: the others
-   * hear first, then it resets with no event of its own. A stopped script
-   * stays stopped.
+   * in the object's contents. The item keeps its name. A notecard gets the key
+   * of its new text, and saving the same text keeps its key; any other item gets a new key.
+   * `changes.key` overrides either. The prim's scripts get
+   * `changed(CHANGED_INVENTORY)`, also for a save that changes nothing. Saving
+   * a script recompiles it: the others hear first, then it resets with no
+   * event of its own. A stopped script stays stopped.
    */
   replaceInventory(name: string, changes: Partial<Omit<InventoryItem, 'name' | 'type' | 'script'>>): void {
     const index = this.#inventoryIndex('replaceInventory', name)
     const old = this.inventory[index]!
     this.inventory[index] = {
       ...old, ...changes, name: old.name, type: old.type,
-      key: changes.key ?? deterministicKey(`inventory-save/${++itemsSaved}`),
+      key: changes.key ?? savedKey(old, changes.notecardLines),
     }
     const script = old.script
     if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
@@ -300,17 +308,20 @@ export class Prim {
   }
 
   /**
-   * Rename an item as the owner does in the object's contents. The prim's
-   * scripts get `changed(CHANGED_INVENTORY)`. A renamed script keeps running
-   * and gets the event too.
+   * Rename an item as the owner does in the object's contents. Each byte of a
+   * non-ASCII character and each `|` becomes a space, the name is trimmed and
+   * cut to 63 characters. A name another item holds takes the number an
+   * arriving item would get plus one, then the next free one. A name left
+   * empty keeps the old one. The prim's scripts get
+   * `changed(CHANGED_INVENTORY)`, also when the name is unchanged. A renamed
+   * script keeps running and its state, and hears the rename under its new
+   * name; a stopped one stays stopped.
    */
   renameInventory(from: string, to: string): void {
     const item = this.inventory[this.#inventoryIndex('renameInventory', from)]!
-    const name = inventoryItemName(to)
-    if (!name) throw new Error('renameInventory: the new name has no ASCII characters')
-    if (name === item.name) throw new Error(`renameInventory: '${from}' already has that name`)
-    if (this.inventory.some((it) => it.name === name)) throw new Error(`renameInventory: an item named '${name}' already exists`)
-    item.name = name
+    if (!to) throw new Error('renameInventory: the new name is empty')
+    const name = renamedItemName(to)
+    if (name) item.name = renamedInventoryName(this.inventory, item, name)
     this.#ownerEditedInventory()
   }
 

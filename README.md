@@ -294,15 +294,15 @@ scripts get the event instead. No other prim hears of it.
 
 ```ts
 prims[0].addInventory(makeInventoryItem({ name: 'Notes', type: InventoryType.NOTECARD }))
-prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, new key
-prims[0].renameInventory('Notes', 'Settings')
+prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, key of the new text
+prims[0].renameInventory('Notes', 'Settings')                        // a taken name becomes 'Settings 2'
 prims[0].removeInventory('Settings')                                 // a removed script stops
 prims[0].removeInventory('a', 'b')                                   // deleted together: one event
 
 const door = await addScript(prims[1], { source: 'door.lsl', name: 'door' })  // dropped in: runs state_entry
 await addScript(prims[1], { source: 'spare.lsl' }, { running: false })        // dropped in, not running
 prims[1].replaceInventory('door', {})                                         // recompiled: resets, new key
-prims[1].renameInventory('door', 'gate')                                      // keeps running
+prims[1].renameInventory('door', 'gate')                                      // keeps running and its state
 ```
 
 `addScript` takes a script as `loadLinkset` does and returns it, stopped when
