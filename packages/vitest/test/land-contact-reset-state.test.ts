@@ -10,7 +10,9 @@ import type { Linkset, Script } from '../src/index.js'
 // 0.5 m box held two scripts. One switched the box's physics on 0.6 m above bare land and off
 // 1.5 or 2 s later, and logged every land event it got. The other reset itself, or changed to a
 // second state with the same land handlers, in its first land_collision, either straight away or
-// after a 1 s sleep that the contact went on past. Each script logged the time of every event.
+// after a 1 s sleep that the contact went on past, or reset itself there and then reset or changed
+// state again in the land_collision_start that came next. Each script logged the time of every
+// event.
 const source = `list log; integer mode;
   default {
     link_message(integer f, integer n, string s, key id) {
@@ -20,16 +22,21 @@ const source = `list log; integer mode;
       else if (s == "sleep state") { mode = 2; llSleep(n / 1000.0); log += "woke"; }
       else if (s == "sleep") { llSleep(n / 1000.0); log += "woke"; }
       else if (s == "twice") mode = 3;
+      else if (s == "reset then state") mode = 4;
     }
     land_collision_start(vector p) {
       log += "lcs";
-      if (llLinksetDataRead("again") == "1") { llLinksetDataDelete("again"); llResetScript(); }
+      string again = llLinksetDataRead("again");
+      llLinksetDataDelete("again");
+      if (again == "reset") llResetScript();
+      if (again == "state") state two;
     }
     land_collision(vector p) {
       log += "lc";
       if (mode == 1) { mode = 0; llResetScript(); }
       if (mode == 2) { mode = 0; state two; }
-      if (mode == 3) { llLinksetDataWrite("again", "1"); llResetScript(); }
+      if (mode == 3) { llLinksetDataWrite("again", "reset"); llResetScript(); }
+      if (mode == 4) { llLinksetDataWrite("again", "state"); llResetScript(); }
     }
     land_collision_end(vector p) { log += "lce"; }
   }
@@ -98,9 +105,10 @@ describe.each([['queued', queued], ['fired at the script', direct]] as const)('a
     expect(f.log()).toEqual(['lcs', 'lc', 's2', ...lcs(28), 'lce'])
   })
 
-  // Follows the measurement above: a reset in the new land_collision_start is a reset during the
-  // contact too. It drops the land_collision that came with that start, as a reset drops every
-  // event waiting, and the next one waits for another start.
+  // In-world: the script reset itself in its first land_collision and again in the new
+  // land_collision_start (two runs) -> state_entry, then another land_collision_start at the next
+  // physics step, then land_collision. The land_collision of the step the second start came in
+  // never ran.
   it('raises the start again for a script reset in the new start', async () => {
     const f = await box()
     f.script.fire('link_message', { sender_num: 0, num: 0, str: 'twice', id: '' })
@@ -109,6 +117,19 @@ describe.each([['queued', queued], ['fired at the script', direct]] as const)('a
     fire(f.script, f.linkset, 'land_collision')
     goOn(f, fire, 3)
     expect(f.log()).toEqual(['lcs', ...lcs(2), 'lce'])
+  })
+
+  // In-world: the same with `state two` in the new land_collision_start (two runs) -> no other
+  // start, then land_collision. The land_collision of the start's step never ran in one run and
+  // ran after the state change in the other; rezless drops it with the events waiting.
+  it('raises no start again for a state change in the new start', async () => {
+    const f = await box()
+    f.script.fire('link_message', { sender_num: 0, num: 0, str: 'reset then state', id: '' })
+    fire(f.script, f.linkset, 'land_collision_start')
+    f.linkset.advanceTime(44)
+    fire(f.script, f.linkset, 'land_collision')
+    goOn(f, fire, 3)
+    expect(f.log()).toEqual(['lcs', 's2', ...lcs(2), 'lce'])
   })
 
   // Follows the measurement above: a reset from outside the script, here the owner's Reset, is
