@@ -83,7 +83,7 @@ import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { parse } from '@rezless/parser'
 import { flood, FLOOD, ownerErrorText } from './builtins/debug.js'
-import { MAX_CHAT_BYTES } from './builtins/chat.js'
+import { sayToOwner } from './builtins/chat.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -1736,10 +1736,10 @@ export class Script {
     return false
   }
 
-  /** SLua's print: the owner sees it as an owner-say, and tests read it in `printed`. */
+  /** SLua's print: an owner-say, which RLV acts on as on ll.OwnerSay; tests also read it in `printed`. */
   private sluaPrint(text: string): void {
     this.printed.push(text)
-    this.state.chat.push({ channel: 0, text: truncateUtf8(text, MAX_CHAT_BYTES), type: 'ownerSay' })
+    sayToOwner(this.state.chat, this.linkset, this.host, text)
   }
 
   /** A new SLua VM for this script, replacing any it had. */

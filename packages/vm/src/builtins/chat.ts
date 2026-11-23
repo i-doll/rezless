@@ -1,21 +1,31 @@
 import { deliverObjectReceivedChat, deliverObjectReceivedIM } from '../rlv/received.js'
 import { dispatchViewerCommand } from '../rlv/commands.js'
-import type { BuiltinImpl, CallContext, ChatType } from '../runtime.js'
+import type { BuiltinImpl, CallContext, ChatType, ScriptState } from '../runtime.js'
+import type { Linkset } from '../linkset.js'
+import type { Prim } from '../prim.js'
 import { PUBLIC_CHANNEL } from '../generated/constants.js'
 import { truncateUtf8 } from '../values/utf8.js'
 import { sayError } from './debug.js'
 
-export const MAX_CHAT_BYTES = 1024
+const MAX_CHAT_BYTES = 1024
+
+/** An owner-say from `prim`: in the script's chat, to the owner's viewer and RLV, cut to 1024 bytes. */
+export function sayToOwner(chat: ScriptState['chat'], linkset: Linkset, prim: Prim, text: string): void {
+  const entry = { channel: PUBLIC_CHANNEL, text: truncateUtf8(text, MAX_CHAT_BYTES), type: 'ownerSay' as const }
+  chat.push(entry)
+  dispatchViewerCommand(linkset, prim, entry.text)
+  deliverObjectReceivedChat(linkset, prim, entry.type, entry.channel, entry.text)
+}
 
 function emit(ctx: CallContext, channel: number, text: string, type: ChatType, to?: string): undefined {
+  if (type === 'ownerSay') {
+    sayToOwner(ctx.state.chat, ctx.linkset, ctx.prim, text)
+    return undefined
+  }
   const entry = { channel, text: truncateUtf8(text, MAX_CHAT_BYTES), type }
   ctx.state.chat.push(to === undefined ? entry : { ...entry, to })
-  if (type === 'ownerSay') {
-    dispatchViewerCommand(ctx.linkset, ctx.prim, entry.text)
-    deliverObjectReceivedChat(ctx.linkset, ctx.prim, type, channel, entry.text)
-  }
   if (type === 'im') deliverObjectReceivedIM(ctx.linkset, ctx.prim, to ?? '', entry.text)
-  if (type !== 'ownerSay' && type !== 'im') ctx.linkset.routeChat(ctx.prim, type, channel, entry.text, to)
+  if (type !== 'im') ctx.linkset.routeChat(ctx.prim, type, channel, entry.text, to)
   return undefined
 }
 
