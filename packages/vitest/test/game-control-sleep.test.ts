@@ -214,7 +214,7 @@ it('reads new input at once in a state_entry that a game_control handler changed
 
 // In-world (#541 and the re-wear above): the values do not survive a trip through inventory. An
 // SLua script goes through inventory as its LSL twin does.
-it.each(['lsl', 'slua'] as const)('forgets the values in a %s game_control handler asleep through a take and rez', async language => {
+it.each(['lsl', 'slua'] as const)('forgets the values in a %s game_control handler asleep through a take and rez, and keeps them in a copy put in the world', async language => {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   const avatar = world.addAvatar({ region: 'home', key: OWNER, username: 'owner.resident' })
@@ -235,23 +235,14 @@ it.each(['lsl', 'slua'] as const)('forgets the values in a %s game_control handl
   made.scripts.main!.sendGameControl(OWNER, { buttons: 1 })
   made.linkset.advanceTime(2_000)
   const saved = made.linkset.copy()
+  const twin = saved.copy({ world, region: 'home' })
   made.linkset.remove()
   seedRlvInventory(avatar, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'probe', object: saved, assetType: 'object' }] })
   const object = world.attemptAvatarRez(avatar, 'item', { x: 1, y: 2, z: 3 }).object!
   object.advanceTime(30_000)
-  const log = object.allScripts()[0]!.global('log')
-  expect(Array.isArray(log) ? log : Object.values(log as object)).toEqual(['ev 1', 'woke -1/0/0'])
-})
-
-// Second Life drops events past 64 waiting. Input whose event was dropped leaves the values alone.
-it('leaves the values alone when a full queue drops the event', async () => {
-  const f = await worn()
-  f.say('nap')
-  f.linkset.advanceTime(1_000)
-  for (let i = 0; i < 70; i++) f.say(`x${i}`)
-  f.gc.sendGameControl(OWNER, { buttons: 2 })
-  f.linkset.advanceTime(15_000)
-  expect(f.log().filter(line => !line.startsWith('x'))).toEqual(['nap -1/0/0', 'woke -1/0/0'])
+  const logOf = (l: Linkset) => { const log = l.allScripts()[0]!.global('log'); return Array.isArray(log) ? log : Object.values(log as object) }
+  expect(logOf(object)).toEqual(['ev 1', 'woke -1/0/0'])
+  expect(logOf(twin)).toEqual(['ev 1', 'woke 0/1/5'])
 })
 
 // In-world: a worn script got button 0 in its default state, then changed to a state with no

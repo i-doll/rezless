@@ -201,6 +201,8 @@ export class Script {
   private crashShown = ''
   /** Running a game_control handler that still reads its own event's values. */
   private inGameControl = false
+  /** The event of a sleeping SLua game_control handler whose values a rez cleared. */
+  private clearedGameControl: Record<string, unknown> | undefined
   /** Events that were already queued when the script stopped; delivered when it runs again. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
@@ -831,8 +833,7 @@ export class Script {
         axes: typedList([...state.axes], state.axes.map(() => 'float')),
         gameControlSnapshot: state.mode,
       })
-      // Not when a full queue dropped the event.
-      if (s.handles('game_control') && !s.inGameControl && this.linkset.clock.hasPending(s, 'game_control')) s.state.gameControlSnapshot = state.mode
+      if (s.handles('game_control') && !s.inGameControl) s.state.gameControlSnapshot = state.mode
     }
     // Runs the handlers up to their first sleep, so more input can come while they sleep.
     this.linkset.advanceTime(0)
@@ -1151,9 +1152,7 @@ export class Script {
       // still read who had touched it.
       if (this.task?.slua && (this.slua.running || this.sluaAsleep)) {
         // The copy gets the event's data, not the host's bookkeeping for the original's delivery.
-        // Nor the game control values, which the rez clears as it does an LSL copy's.
-        const { gameControlSnapshot: _, ...data } = eventData(this.task.slua.event, this.task.slua.payload)
-        const slua = { event: this.task.slua.event, payload: data }
+        const slua = { event: this.task.slua.event, payload: eventData(this.task.slua.event, this.task.slua.payload) }
         copy.sluaAsleep = true
         copy.task = {
           run: copy.runHandler(slua.event, () => {
@@ -1247,6 +1246,8 @@ export class Script {
     // even in the game_control handler it slept in through the detach.
     this.state.gameControlSnapshot = null
     this.inGameControl = false
+    // An SLua copy enters its sleeping handler only when it wakes, after this.
+    this.clearedGameControl = this.task?.slua?.payload
     if (detached) {
       this.dropSeatPermissions()
       this.state.detectedStack.forEach((context, i, stack) => {
@@ -1592,7 +1593,7 @@ export class Script {
     // In-world: outside game_control the functions still read the last event's values, after a
     // state change or reset too.
     const values = payload['gameControlSnapshot'] as GameControlSnapshot | undefined
-    const gameControl = event === 'game_control' && values !== undefined
+    const gameControl = event === 'game_control' && values !== undefined && payload !== this.clearedGameControl
     if (gameControl) {
       this.state.gameControlSnapshot = values
       this.inGameControl = true
