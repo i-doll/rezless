@@ -6,6 +6,8 @@ import { NULL_KEY, type Vector } from '../values/types.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { ViewerProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
+import { isRlvDetachLocked } from './detach.js'
+import { isRlvInventoryWearLocked } from './outfit.js'
 import { rlvaPieMenuDenials } from './touch.js'
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
@@ -46,7 +48,33 @@ export interface AvatarTakeAction {
   readonly reason?: string
   readonly restrictions: readonly RlvRestriction[]
 }
+export interface AvatarDropAction {
+  readonly action: 'drop'
+  /** The object's root key. */
+  readonly target: string
+  readonly status: 'dropped' | 'blocked' | 'unsupported'
+  readonly reason?: string
+  readonly restrictions: readonly RlvRestriction[]
+}
+export interface AvatarDuplicateAction {
+  readonly action: 'duplicate'
+  /** The original's root key. */
+  readonly target: string
+  readonly status: 'duplicated' | 'blocked' | 'unsupported'
+  readonly object?: Linkset
+  readonly reason?: string
+  readonly restrictions: readonly RlvRestriction[]
+}
+export interface AvatarTakeOptions {
+  readonly copy?: boolean
+  /** Global-axis offset from the clicked prim's center to the point right-clicked. */
+  readonly offset?: Vector
+}
 const edits = new WeakMap<WorldAvatar, readonly AvatarEditAction[]>()
+const drops = new WeakMap<WorldAvatar, readonly AvatarDropAction[]>()
+const duplicates = new WeakMap<WorldAvatar, readonly AvatarDuplicateAction[]>()
+export const avatarDropLog = (avatar: WorldAvatar): readonly AvatarDropAction[] => drops.get(avatar) ?? Object.freeze([])
+export const avatarDuplicateLog = (avatar: WorldAvatar): readonly AvatarDuplicateAction[] => duplicates.get(avatar) ?? Object.freeze([])
 const takes = new WeakMap<WorldAvatar, readonly AvatarTakeAction[]>()
 export const avatarTakeLog = (avatar: WorldAvatar): readonly AvatarTakeAction[] => takes.get(avatar) ?? Object.freeze([])
 const rezzes = new WeakMap<WorldAvatar, readonly AvatarRezAction[]>()
@@ -88,15 +116,17 @@ function editDenials(avatar: WorldAvatar, linkset: Linkset): RlvRestriction[] {
 
 /**
  * Take an object the avatar owns into inventory, or a copy of it. A taken object leaves the
- * world, and either way an avatar sitting on it is stood up. Another avatar may take a copy
- * of an object that everyone may copy, with its contents.
+ * world, and either way an avatar sitting on it is stood up, also when another avatar takes
+ * the copy. Another avatar may take a copy of an object that everyone may copy, with its
+ * contents.
  *
  * The refusals are the viewers' own, read from their menu code. No viewer offers Take for the
- * object its avatar sits on. Firestorm RLVa opens no menu on the object under `interact` or past
- * the `fartouch` reach, refuses a copy of the seat under `unsit`, and a take under `rez`, `edit`
- * or an edit lock on the object. Kokua RLV refuses a take under `rez` and has no check on a copy.
+ * object its avatar sits on. Firestorm RLVa opens no menu on the object under `interact`, or when
+ * both the prim's center is past the `fartouch` reach and the clicked point (`offset` from that
+ * center) is more than 1.5 m away. It refuses a copy of the seat under `unsit`, and a take under
+ * `rez`, `edit` or an edit lock on the object. Kokua RLV refuses a take under `rez` and has no check on a copy.
  */
-export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim, options: { copy?: boolean } = {}): AvatarTakeAction {
+export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim, options: AvatarTakeOptions = {}): AvatarTakeAction {
   const copy = !!options.copy
   const linkset = prim.linkset
   const record = (status: AvatarTakeAction['status'], reason?: string, restrictions: readonly RlvRestriction[] = [], object?: Linkset): AvatarTakeAction => {
@@ -119,7 +149,7 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   const named = (...behaviours: string[]) => rules.filter(rule => !rule.option && behaviours.includes(rule.behaviour))
   // RLVa looks at the object only while edit, rez or unsit is set, or any object is edit-locked.
   const checked = named('edit', 'rez', 'unsit').length > 0 || rules.some(rule => rule.behaviour === 'editobj')
-  const pieMenu = profile === 'rlva' ? rlvaPieMenuDenials(world, avatar, prim) : []
+  const pieMenu = profile === 'rlva' ? rlvaPieMenuDenials(world, avatar, prim, options.offset) : []
   const denials = pieMenu.length ? pieMenu : copy
     ? profile === 'rlva' && seated ? named('unsit') : []
     : profile !== 'rlva' ? named('rez')
@@ -130,6 +160,7 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
     if (!copy) linkset.remove()
     return record('taken', undefined, [], object)
   }
+  const waiting = new Set(linkset.clock.pendingEvents())
   const object = linkset.copy({ owner: avatar.key })
   for (const prim of object.prims) {
     prim.permMask = nextOwnerMask(prim.permMask)
@@ -137,14 +168,92 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   }
   // In-world: the original's scripts got changed(CHANGED_OWNER) when another avatar took a copy,
   // after the events already waiting, and still read their old owner. A copy taken by the owner
-  // raised nothing.
-  for (const script of linkset.allScripts()) linkset.clock.schedule(script, linkset.clock.now, 'changed', { changes: CHANGED_OWNER })
+  // raised nothing. When the copy stood up an avatar sitting on the object, whoever that was,
+  // the stand and the new owner came as one changed(160).
+  const stands = linkset.clock.pendingEvents().filter(e => !waiting.has(e) && e.event === 'changed')
+  for (const script of linkset.allScripts()) {
+    const stand = stands.find(e => e.target === script)
+    if (stand) stand.payload['changes'] = (stand.payload['changes'] as number) | CHANGED_OWNER
+    else linkset.clock.schedule(script, linkset.clock.now, 'changed', { changes: CHANGED_OWNER })
+  }
   return record('taken', undefined, [], object)
 }
 
 function copyableByEveryone(linkset: Linkset): boolean {
   return linkset.prims.every(prim => prim.permMask.everyone & PERM_COPY && prim.permMask.owner & PERM_TRANSFER &&
     prim.inventory.every(item => item.permMask.everyone & PERM_COPY && item.permMask.owner & PERM_TRANSFER))
+}
+
+/**
+ * Drop a worn object to the ground with the viewer's Drop, at `position` or where the avatar
+ * stands (see `Linkset.dropFromAvatar`). Viewers offer Drop only for an attachment that has an
+ * inventory item, so not for a temporary one.
+ *
+ * Firestorm RLVa refuses it for a locked attachment and under `rez`, and opens no menu on an
+ * attachment other than a HUD under `interact`. Kokua RLV refuses it under `rez` and for a locked attachment.
+ */
+export function attemptAvatarDrop(world: World, avatar: WorldAvatar, linkset: Linkset, position?: Vector): AvatarDropAction {
+  const record = (status: AvatarDropAction['status'], reason?: string, restrictions: readonly RlvRestriction[] = []): AvatarDropAction => {
+    const result: AvatarDropAction = Object.freeze({ action: 'drop', target: linkset.prims[0]?.key ?? NULL_KEY, status,
+      ...(reason ? { reason } : {}), restrictions: Object.freeze([...restrictions]) })
+    drops.set(avatar, Object.freeze([...avatarDropLog(avatar), result]))
+    return result
+  }
+  if (!world.avatars.includes(avatar)) return record('unsupported', 'avatar')
+  const attached = linkset.attachment
+  if (linkset.dead || linkset.world !== world || !attached || attached.avatar.toLowerCase() !== avatar.key.toLowerCase()) return record('unsupported', 'target')
+  if (attached.temporary) return record('unsupported', 'temporary')
+  if (position && !Object.values(position).every(Number.isFinite)) return record('unsupported', 'position')
+  const { profile } = avatar.viewer
+  const rules = profile === 'disabled' ? [] : avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
+  const locked = (subset: readonly RlvRestriction[]) => isRlvDetachLocked(avatar, linkset, subset) ||
+    isRlvInventoryWearLocked(avatar, avatar.viewer.inventory.attachmentItem(linkset.prims[0]!.key), false, subset)
+  // Decided on the whole set, where exceptions apply, then named rule by rule.
+  const locks = locked(rules) ? rules.filter(rule => locked([rule])) : []
+  const rez = rules.filter(rule => rule.behaviour === 'rez' && !rule.option)
+  const hud = attached.point >= 31 && attached.point <= 38
+  const interact = profile === 'rlva' && !hud ? rules.filter(rule => rule.behaviour === 'interact' && !rule.option) : []
+  const denials = interact.length ? interact : [...locks, ...rez]
+  if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
+  linkset.dropFromAvatar(position)
+  return record('dropped')
+}
+
+/**
+ * Copy an object the avatar owns with the viewer's Duplicate, `offset` from the original (see
+ * `Linkset.duplicate`). An avatar may sit on the original.
+ *
+ * Firestorm RLVa refuses it under `interact`, and while `edit`, `rez` or `unsit` is set or any
+ * object is edit-locked it refuses an object the avatar can't edit, any object under `edit` or
+ * `rez`, and the object the avatar sits on under `unsit`. Kokua RLV refuses an object the avatar
+ * can't edit, which the build tools need selected.
+ */
+export function attemptAvatarDuplicate(world: World, avatar: WorldAvatar, prim: Prim, offset: Vector = { x: 0, y: 0, z: 0 }): AvatarDuplicateAction {
+  const linkset = prim.linkset
+  const record = (status: AvatarDuplicateAction['status'], reason?: string, restrictions: readonly RlvRestriction[] = [], object?: Linkset): AvatarDuplicateAction => {
+    const result: AvatarDuplicateAction = Object.freeze({ action: 'duplicate', target: linkset?.prims[0]?.key ?? prim.key, status,
+      ...(reason ? { reason } : {}), ...(object ? { object } : {}), restrictions: Object.freeze([...restrictions]) })
+    duplicates.set(avatar, Object.freeze([...avatarDuplicateLog(avatar), result]))
+    return result
+  }
+  if (!world.avatars.includes(avatar)) return record('unsupported', 'avatar')
+  if (!linkset || linkset.dead || linkset.world !== world || !world.linksets.includes(linkset) || !linkset.prims.includes(prim)) return record('unsupported', 'target')
+  if (linkset.attachment) return record('unsupported', 'worn')
+  if (linkset.owner.toLowerCase() !== avatar.key.toLowerCase()) return record('unsupported', 'owner')
+  if (linkset.prims.some(prim => !(prim.permMask.owner & PERM_COPY) || prim.inventory.some(item => !(item.permMask.owner & PERM_COPY)))) {
+    return record('unsupported', 'no-copy')
+  }
+  if (!Object.values(offset).every(Number.isFinite)) return record('unsupported', 'position')
+  const { profile } = avatar.viewer
+  const rules = profile === 'disabled' ? [] : avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
+  const named = (...behaviours: string[]) => rules.filter(rule => !rule.option && behaviours.includes(rule.behaviour))
+  const seated = avatar.sittingOn?.linkset === linkset
+  const checked = named('edit', 'rez', 'unsit').length > 0 || rules.some(rule => rule.behaviour === 'editobj')
+  const denials = profile === 'rlv' ? editDenials(avatar, linkset)
+    : named('interact').length ? named('interact')
+      : checked ? [...new Set([...editDenials(avatar, linkset), ...named('edit', 'rez'), ...seated ? named('unsit') : []])] : []
+  if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
+  return record('duplicated', undefined, [], linkset.duplicate(offset))
 }
 
 /** Drop a saved, copyable inventory object into the avatar's current region. */

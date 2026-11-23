@@ -651,6 +651,11 @@ export class Script {
     this.purgeControlEvents()
   }
 
+  /** The worn object was dropped to the ground: it keeps no controls or camera control. */
+  droppedFromAvatar(): void {
+    this.dropSeatPermissions()
+  }
+
   /** The object went into inventory: a dialog raised before that does nothing afterwards. */
   detached(): void {
     this.unseated = false
@@ -661,7 +666,8 @@ export class Script {
   /**
    * Second Life takes controls and camera control back, with no event, when
    * the avatar stops sitting on the object, when the object is taken from
-   * under its sitter, and by the time a detached attachment is rezzed again.
+   * under its sitter, when a worn object is dropped, and by the time a
+   * detached attachment is rezzed again.
    * The permission key goes with the last bit, and the avatar's camera goes
    * back to its own rules.
    */
