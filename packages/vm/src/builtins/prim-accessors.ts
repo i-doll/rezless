@@ -189,6 +189,7 @@ export const llSetTexture: BuiltinImpl = (ctx, args) => {
   const key = textureKey(ctx.prim, name)
   if (key === null || key === NULL_KEY) {
     sayError(ctx, `Could not find texture '${name}'.`)
+    ctx.sleep(1000)
     return undefined
   }
   for (const f of faceIndices(ctx.prim.params, face)) ctx.prim.params.faces[f]!.texture = key
@@ -278,6 +279,7 @@ export const llSetLinkTexture: BuiltinImpl = (ctx, args) => {
   const key = textureKey(ctx.prim, name)
   if (key === null || key === NULL_KEY) {
     sayError(ctx, `Could not find texture '${name}'.`)
+    ctx.sleep(1000)
     return undefined
   }
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {

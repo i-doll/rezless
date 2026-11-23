@@ -15,9 +15,20 @@ const avatar = (ctx: CallContext, key: string): WorldAvatar | undefined =>
 
 export const llGetUsername: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.username ?? ''
 export const llGetDisplayName: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.displayName ?? ''
-export const llGetAgentInfo: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.info ?? 0
+
+/** An avatar that has just teleported out of the script's region, which still reads it for a moment. */
+function departed(ctx: CallContext, key: string): { agent: WorldAvatar, info: number } | undefined {
+  const world = ctx.linkset.world
+  const agent = world?.avatars.find(a => sameKey(a.key, key))
+  const info = agent && world!.departingAvatarInfo(agent, ctx.linkset.region ?? '')
+  return agent && info !== undefined ? { agent, info } : undefined
+}
+
+export const llGetAgentInfo: BuiltinImpl = (ctx, args) =>
+  avatar(ctx, args[0] as string)?.info ?? departed(ctx, args[0] as string)?.info ?? 0
 export const llGetAgentLanguage: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.language ?? ''
-export const llGetAgentSize: BuiltinImpl = (ctx, args) => ({ ...(avatar(ctx, args[0] as string)?.size ?? ZERO_VECTOR) })
+export const llGetAgentSize: BuiltinImpl = (ctx, args) =>
+  ({ ...(avatar(ctx, args[0] as string) ?? departed(ctx, args[0] as string)?.agent)?.size ?? ZERO_VECTOR })
 
 // In-world, dotted input uses its first two components and an empty second
 // component means Resident, whereas an extra space-separated word remains

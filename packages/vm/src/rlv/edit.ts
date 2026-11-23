@@ -225,10 +225,12 @@ export function attemptAvatarDrop(world: World, avatar: WorldAvatar, linkset: Li
  *
  * Firestorm RLVa refuses it under `interact`, and while `edit`, `rez` or `unsit` is set or any
  * object is edit-locked it refuses an object the avatar can't edit, any object under `edit` or
- * `rez`, and the object the avatar sits on under `unsit`. Kokua RLV refuses an object the avatar
- * can't edit, which the build tools need selected.
+ * `rez`, and the object the avatar sits on under `unsit`. It needs the object selected, which
+ * under `fartouch` takes the same reach as Take: the prim's center, or the clicked point
+ * (`clicked`, from that center) within 1.5 m. Kokua RLV refuses an object the avatar can't edit,
+ * which the build tools need selected.
  */
-export function attemptAvatarDuplicate(world: World, avatar: WorldAvatar, prim: Prim, offset: Vector = { x: 0, y: 0, z: 0 }): AvatarDuplicateAction {
+export function attemptAvatarDuplicate(world: World, avatar: WorldAvatar, prim: Prim, offset: Vector = { x: 0, y: 0, z: 0 }, clicked?: Vector): AvatarDuplicateAction {
   const linkset = prim.linkset
   const record = (status: AvatarDuplicateAction['status'], reason?: string, restrictions: readonly RlvRestriction[] = [], object?: Linkset): AvatarDuplicateAction => {
     const result: AvatarDuplicateAction = Object.freeze({ action: 'duplicate', target: linkset?.prims[0]?.key ?? prim.key, status,
@@ -249,8 +251,9 @@ export function attemptAvatarDuplicate(world: World, avatar: WorldAvatar, prim: 
   const named = (...behaviours: string[]) => rules.filter(rule => !rule.option && behaviours.includes(rule.behaviour))
   const seated = avatar.sittingOn?.linkset === linkset
   const checked = named('edit', 'rez', 'unsit').length > 0 || rules.some(rule => rule.behaviour === 'editobj')
+  const pieMenu = profile === 'rlva' ? rlvaPieMenuDenials(world, avatar, prim, clicked) : []
   const denials = profile === 'rlv' ? editDenials(avatar, linkset)
-    : named('interact').length ? named('interact')
+    : pieMenu.length ? pieMenu
       : checked ? [...new Set([...editDenials(avatar, linkset), ...named('edit', 'rez'), ...seated ? named('unsit') : []])] : []
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
   return record('duplicated', undefined, [], linkset.duplicate(offset))

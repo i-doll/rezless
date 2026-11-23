@@ -49,7 +49,7 @@ export interface RlvFixture {
   /** Drop a worn object with the viewer's Drop; the loaded object by default. */
   drop(attachment?: Linkset, position?: Vector): AvatarDropAction
   readonly duplicateActions: readonly AvatarDuplicateAction[]
-  duplicate(prim: Prim, offset?: Vector): AvatarDuplicateAction
+  duplicate(prim: Prim, offset?: Vector, clicked?: Vector): AvatarDuplicateAction
   readonly touchActions: readonly AvatarTouchAction[]
   touch(prim: Prim, options?: AvatarTouchOptions): AvatarTouchAction
   readonly imActions: readonly AvatarIMAction[]
@@ -105,7 +105,7 @@ export async function loadRlvPair(input: { readonly source: string; readonly vie
       get dropActions() { return avatarDropLog(avatar) },
       drop: (attachment = loaded.linkset, position) => world.attemptAvatarDrop(avatar, attachment, position),
       get duplicateActions() { return avatarDuplicateLog(avatar) },
-      duplicate: (prim, offset) => world.attemptAvatarDuplicate(avatar, prim, offset),
+      duplicate: (prim, offset, clicked) => world.attemptAvatarDuplicate(avatar, prim, offset, clicked),
       get touchActions() { return avatarTouchLog(avatar) },
       touch: (prim, options) => world.attemptAvatarTouch(avatar, prim, options),
       get imActions() { return avatarIMLog(avatar) },

@@ -374,9 +374,10 @@ export const llSetRegionPos: BuiltinImpl = (ctx,args) => {
 
 
 interface TargetOwner { prim: string; script: string }
-interface MoveRequest { owner: TargetOwner; target: Vector; tau: number }
+interface MoveRequest { owner: TargetOwner; target: Vector; tau: number; slack?: boolean }
 interface LookRequest {
   owner: TargetOwner
+  slack?: boolean
   target: { position: Vector } | { rotation: Rotation }
   strength: number
   damping: number
@@ -393,6 +394,23 @@ function stopTargetMotion(prim: Prim, kind: 'move' | 'look', caller: TargetOwner
   const request = prim.targetMotion[kind]
   if (request?.owner.prim === caller.prim && request.owner.script === caller.script) prim.targetMotion[kind] = null
 }
+
+/**
+ * Let go of, or take up again, the move and look targets `script` owns. In-world: the object
+ * left behind by a Take Copy of a stopped script went slack, and went back to its target once
+ * the script was started.
+ */
+export function slackenTargetMotion(script: Script, slack: boolean): void {
+  const root = script.linkset.prims[0]!
+  for (const request of [root.targetMotion.move, root.targetMotion.look]) {
+    if (request?.owner.prim === script.host.key && request.owner.script === script.instanceId) {
+      if (slack) request.slack = true
+      else delete request.slack
+    }
+  }
+}
+
+const acting = <T extends { slack?: boolean }>(request: T | null) => request?.slack ? null : request
 
 /** The initiating script retains stop/reset ownership even when a sibling retargets it. */
 export function clearTargetMotion(script: Script): void {
@@ -439,7 +457,7 @@ export class TargetMotionStepper {
     const from = this.previous
     this.previous = now
     if (now <= from) return
-    const { move, look } = this.prim.targetMotion
+    const move = acting(this.prim.targetMotion.move), look = acting(this.prim.targetMotion.look)
     if (!(this.prim.statusFlags & STATUS_PHYSICS) || !move || !look || !('position' in look.target)) {
       this.coupled = undefined
       advanceTargetMotion(this.prim, (now - from) / 1000)
@@ -466,7 +484,7 @@ export class TargetMotionStepper {
 /** Nominal exponential kinematics. No gravity, angular wobble, contacts or inertia. */
 function advanceTargetMotion(prim: Prim, seconds: number): void {
   if (!(prim.statusFlags & STATUS_PHYSICS)) return
-  const { move, look } = prim.targetMotion
+  const move = acting(prim.targetMotion.move), look = acting(prim.targetMotion.look)
   if (move) {
     const from = prim.params.position, t = -Math.expm1(-seconds / move.tau)
     prim.params.position = { x: from.x + (move.target.x - from.x) * t,

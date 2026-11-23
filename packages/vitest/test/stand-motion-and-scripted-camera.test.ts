@@ -206,13 +206,14 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
 
   // In-world: the seat said llDie() with the avatar on it, and in another run the seat was taken
   // into inventory with the avatar on it. Each time the watching probe went from 54 "Sitting" to
-  // 262 "Striding", then 6 "Standing".
+  // 262 "Striding", then 6 "Standing". After llDie the "Striding" lasted longer; its timing is
+  // pinned in flying-ground-sit-seat-death-departure.test.ts.
   it('reads the same when the seat dies under the avatar', async () => {
     const f = await fixture()
     f.sit()
     f.seat.send('die')
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Striding'])
-    f.advance(100)
+    f.advance(300)
     expect(f.watcher.read()).toEqual([0, 'Standing'])
   })
 

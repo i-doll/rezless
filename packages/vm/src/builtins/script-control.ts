@@ -14,7 +14,10 @@ export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const target = ctx.prim.findScript(name)
   if (!target) {
-    if (!ctx.prim.inventory.some(item => item.name === name)) sayError(ctx, `Could not find script '${name}'`)
+    if (!ctx.prim.inventory.some(item => item.name === name)) {
+      sayError(ctx, `Could not find script '${name}'`)
+      ctx.sleep(1000)
+    }
     return undefined
   }
   if (target.crashed) {
@@ -34,6 +37,7 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   const target = ctx.prim.findScript(name)
   if (!target) {
     sayError(ctx, `Could not find script '${name}'.`)
+    ctx.sleep(1000)
     return undefined
   }
   if (target.crashed) return undefined
@@ -46,7 +50,10 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
 export const llGetScriptState: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const target = ctx.prim.findScript(name)
-  if (!target && !ctx.prim.inventory.some(item => item.name === name)) sayError(ctx, `Could not find script '${name}'.`)
+  if (!target && !ctx.prim.inventory.some(item => item.name === name)) {
+    sayError(ctx, `Could not find script '${name}'.`)
+    ctx.sleep(1000)
+  }
   return target && target.running ? 1 : 0
 }
 

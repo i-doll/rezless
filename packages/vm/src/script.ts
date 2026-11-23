@@ -1,4 +1,4 @@
-import { clearTargetMotion } from './builtins/motion.js'
+import { clearTargetMotion, slackenTargetMotion } from './builtins/motion.js'
 import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
@@ -202,8 +202,12 @@ export class Script {
   private crashShown = ''
   /** Running a game_control handler that still reads its own event's values. */
   private inGameControl = false
+  /** When the game_control handler that is running began. */
+  private gameControlSince = 0
   /** The event of a sleeping SLua game_control handler whose values a rez cleared. */
   private clearedGameControl: Record<string, unknown> | undefined
+  /** Input that waited through a state change into a state with no game_control handler. */
+  private waitingGameControl: Record<string, unknown> | undefined
   /** Events that were already queued when the script stopped; delivered when it runs again. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
@@ -216,6 +220,13 @@ export class Script {
   handling = false
   /** Set when the object was detached while a handler of this script was on the call stack. */
   detachedInHandler = false
+  /**
+   * Set when the handler that was running at a detach went on to call llResetScript. In-world
+   * that handler runs on only after the wear, so the reset drops the wear's rez and attach events.
+   */
+  resetPastWear = false
+  /** Set when such a script came out of inventory: the attach event of that wear is dropped too. */
+  quietAttach = false
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
@@ -828,13 +839,18 @@ export class Script {
       // In-world: a script that slept in another handler, or in a game_control handler worn
       // again since, read new input at once. One asleep in its game_control handler kept that
       // event's values until the next game_control ran. One in a state with no handler kept
-      // reading what it read before.
+      // reading what it read before. One asleep in touch_start while a release from an earlier
+      // sleep waited read that release through a new press.
+      const since = s.handlerStartedAt
+      const older = since !== undefined && s.linkset.clock.pendingEvents().some(e => e.target === s && e.event === 'game_control' && e.payload['heldFor'] !== since)
+      if (s.handles('game_control') && !s.inGameControl && !older) s.state.gameControlSnapshot = state.mode
       s.clockView.schedule(s.now, 'game_control', {
         id: key, button_levels: state.buttons,
         axes: typedList([...state.axes], state.axes.map(() => 'float')),
         gameControlSnapshot: state.mode,
+        // The handler, by its start, that the input came during.
+        heldFor: since,
       })
-      if (s.handles('game_control') && !s.inGameControl) s.state.gameControlSnapshot = state.mode
     }
     // Runs the handlers up to their first sleep, so more input can come while they sleep.
     this.linkset.advanceTime(0)
@@ -1140,7 +1156,9 @@ export class Script {
     if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    if (reset) slackenTargetMotion(this, true)
     copy.detachedInHandler = this.detachedInHandler
+    copy.resetPastWear = this.resetPastWear
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1224,6 +1242,9 @@ export class Script {
     for (const e of waiting) {
       // A copy that came back without its controls has no use for a waiting control event.
       if (e.event === 'control' && !(copy.state.permissions.granted & PERMISSION_TAKE_CONTROLS)) continue
+      // In-world: a release waiting for a game_control handler asleep at a take never ran in the
+      // rezzed copy.
+      if (e.event === 'game_control') continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
       // changed(CHANGED_LINK) in the copy, the one `unseated` brings. An earlier stand event
       // keeps only the other changes that were merged into it.
@@ -1250,6 +1271,9 @@ export class Script {
     // An SLua copy enters its sleeping handler only when it wakes, after this.
     this.clearedGameControl = this.task?.slua?.payload
     if (detached) {
+      // In-world: input carried into a state with no game_control handler never ran after a
+      // detach and a wear.
+      this.waitingGameControl = undefined
       this.dropSeatPermissions()
       this.state.detectedStack.forEach((context, i, stack) => {
         if (isTouch(context.event)) stack[i] = { ...context, entries: throughInventory(context.event, context.entries) }
@@ -1275,6 +1299,14 @@ export class Script {
     }
     const detachedInHandler = this.detachedInHandler
     this.detachedInHandler = false
+    // In-world: a handler that was running at the detach ran on after the wear and ended in
+    // llResetScript. The script then ran state_entry and got no on_rez, chat line or attach event.
+    if (this.resetPastWear) {
+      this.resetPastWear = false
+      this.quietAttach = true
+      this.rezQueued = true
+      return
+    }
     if (!this.running) return
     // In-world: the events a script brought out of inventory ran after on_rez. A script that
     // came out with 64 events waiting ran them all and got no on_rez; one with 63 got it.
@@ -1412,6 +1444,7 @@ export class Script {
     this.clockView.resetReference()
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
+    this.waitingGameControl = undefined
     this.started = false
     // Returning to default counts as a state entry. The constructor records
     // the first one; runHandler records each `state foo;` transition. A
@@ -1545,6 +1578,7 @@ export class Script {
 
   private step(task: Task): void {
     this.resumedAt = this.now
+    this.quietAttach = false
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
     this.handling = true
@@ -1564,7 +1598,10 @@ export class Script {
     }
     this.finish(task)
     this.clockView.finishHandler(r.value)
-    if (r.value) this.restart()
+    if (r.value) {
+      if (this.detachedInHandler && this.clockView.inInventory) this.resetPastWear = true
+      this.restart()
+    }
   }
 
   private finish(task: Task): void {
@@ -1600,6 +1637,7 @@ export class Script {
     if (gameControl) {
       this.state.gameControlSnapshot = values
       this.inGameControl = true
+      this.gameControlSince = this.now
     }
     enterDamageEvent(payload)
     const detected = payload['detected']
@@ -1651,6 +1689,7 @@ export class Script {
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
         // state_exit and state_entry run outside the game_control handler that changed state.
+        const fromGameControl = this.inGameControl
         this.inGameControl = false
         // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
         if (this.clearDamageAdjustment()) yield { until: this.now }
@@ -1675,9 +1714,20 @@ export class Script {
         }
         stopSensors(this)
         this.state.listens.length = 0
+        // In-world: input that waited for a game_control handler that then changed state ran in
+        // the next state with a game_control handler, after its state_entry. Input that waited
+        // for a listen handler that changed state never ran.
+        const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
+        if (input) this.waitingGameControl = input
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
         forgetHeldTouches(this, false)
         this.state.currentState = target
+        const waiting = this.waitingGameControl
+        if (waiting && this.handlersByState.get(target)?.has('game_control')) {
+          const { granted, agent } = this.state.permissions
+          if (granted & PERMISSION_GAME_CONTROL && agent.toLowerCase() === waiting['id']) this.clockView.schedule(this.now, 'game_control', waiting)
+          this.waitingGameControl = undefined
+        }
         if (this.state.coverage) this.state.coverage.hitState(target)
         const entry = this.handlersByState.get(target)?.get('state_entry')
         if (entry) {
@@ -1801,6 +1851,7 @@ export class Script {
     this.isRunning = value
     if (value) this.crashed = false
     if (starting) {
+      slackenTargetMotion(this, false)
       this.catchUp()
       resumeHeldTouches(this)
     }

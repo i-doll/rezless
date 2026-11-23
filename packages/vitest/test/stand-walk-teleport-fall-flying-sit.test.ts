@@ -181,13 +181,13 @@ describe('AGENT_WALKING after a stand from an object', () => {
     expect(f.watcher.read()).toEqual([AGENT_ATTACHMENTS | AGENT_SCRIPTED, 'Walking'])
   })
 
-  // rezless gives a seat that dies the 50 ms "Striding" of every stand (see above), then the walk.
-  it('walks after the seat dies under the avatar', async () => {
+  // A seat that died walked in three of seven runs (2026-11-14 and 2026-11-23); rezless doesn't walk
+  // it. The timing is pinned in flying-ground-sit-seat-death-departure.test.ts.
+  it('does not walk after the seat dies under the avatar', async () => {
     const f = await fixture()
     f.sit()
     f.seat.send('die')
-    expect(steps(watch(f.watcher, f.advance, 800)))
-      .toEqual([[AGENT_IN_AIR, 'Striding'], [0, 'Standing'], [AGENT_WALKING, 'Walking'], [0, 'Standing']])
+    expect(steps(watch(f.watcher, f.advance, 800))).toEqual([[AGENT_IN_AIR, 'Striding'], [0, 'Standing']])
   })
 
   // In-world: two viewer stands and one "@unsit=force" from the ground (after "@sitground=force")
@@ -236,8 +236,9 @@ describe('the fall after a teleport', () => {
   // 0.07, 0.22, 0.67, 0.67, 0.05), sometimes then 134 "Walking" for 0.04 to 0.2 s, then 6 "Standing".
   // rezless has no floor to fall to, so it keeps a 0.6 s fall, inside the measured range, and then
   // reads "Landing" for 0.25 s. From a seat, three viewer teleports read 134 "Walking" for about
-  // 0.1 to 0.2 s after the fall instead of "Landing", and llTeleportAgent read "Landing"; rezless
-  // reads "Landing" after every teleport.
+  // 0.1 to 0.2 s after the fall; on 2026-11-23 teleports from standing to the same height read the
+  // same, so the walk depends on the drop and not on the seat (see
+  // flying-ground-sit-seat-death-departure.test.ts). rezless reads "Landing" after every teleport.
   it('reads "Falling Down" in the measured range, then "Landing", then "Standing"', async () => {
     const f = await fixture()
     expect(f.world.teleportAvatar(f.avatar, { x: 120, y: 52, z: 30 })).toBe(true)
