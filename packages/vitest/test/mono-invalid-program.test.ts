@@ -65,6 +65,16 @@ describe('a handler Mono cannot run', () => {
     expect(said[1]).toBe(text(method, [frame]))
   })
 
+  it('says the same for a key print as for integer *= float', async () => {
+    // In-world: touch_start(integer n) holding the value of a key print in a branch that never ran ->
+    // "touch_start (int): IL_0090: call 0x0a000008", "at UserScript.OnTouchStart (Int32 p0)" and the
+    // runtime's two frames, the same as integer *= float apart from the IL offset and instruction.
+    // The llOwnerSay after the branch never ran (Aditi, SLua Tideland, 2026-11-23).
+    const said = await crash('default { touch_start(integer n) { if (n == 99) llOwnerSay((string)((key)"x" == print((key)"k"))); llOwnerSay("ran"); } }',
+      (s) => s.fire('touch_start', { num_detected: 1 }))
+    expect(said).toEqual(['Object [script:<inline>] Script run-time error', text('touch_start (int)', ['UserScript.OnTouchStart (Int32 p0)'])])
+  })
+
   it('names a handler outside the default state with the state\'s name', async () => {
     // In-world: state two's timer -> "etwotimer (): IL_006d: call 0x0a000013", "at UserScript.OnTimer ()";
     // state two's state_entry -> "etwostate_entry ()", "at UserScript.OnStateEntry ()".
