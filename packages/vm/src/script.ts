@@ -380,6 +380,7 @@ export class Script {
       throw new Error('LSL script has no default state')
     }
     this.sluaSource = sluaSource
+    this.clockView.lags = sluaSource === undefined
     if (sluaSource !== undefined) {
       // SLua scripts get 128 KiB (Executor/src/Script.cpp).
       this.state.memory.limit = SLUA_MEMORY_LIMIT
@@ -1332,7 +1333,7 @@ export class Script {
     const rezzed = waiting.some(e => e.event === 'on_rez')
     if (room > 0 && !rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
-    if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer()
+    if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer(false)
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
       const detected = e.payload['detected']
@@ -1472,7 +1473,7 @@ export class Script {
     stopSensors(this)
     clearTargets(this)
     clearTargetMotion(this)
-    this.clockView.cancelTimer()
+    this.clockView.resetTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
     this.clockView.resetReference()

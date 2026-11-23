@@ -42,7 +42,7 @@ export function typecheck(
   return new Checker(ast, filename, functions).run()
 }
 
-/** Functions and handlers that use the value of a key print, which Mono can't run. */
+/** Functions and handlers Mono can't run: they use the value of a key print or of `integer *= float`. */
 export function invalidPrograms(
   ast: Ast,
   functions: Readonly<Record<string, FunctionSignature>> = {},
@@ -164,6 +164,8 @@ class Checker {
   /** Every label in the current function or handler; Mono rejects duplicates. */
   /** The function or handler being checked. */
   private owner: Node | null = null
+  /** The expression of a statement, `for` init or update, whose value nothing uses. */
+  private unusedValue: Expression | null = null
   readonly invalid = new Set<Node>()
   /** Prints in the few places Mono can compile their value. */
   private readonly usablePrints = new Set<Expression>()
@@ -465,9 +467,12 @@ class Checker {
           return target
         }
         // `integer *= float` is a documented SL quirk: it compiles and stores
-        // an integer, but its value is a float. Every other compound
-        // assignment must produce a value assignable back to the target.
-        if (e.operator === '*=' && target === 'integer' && value === 'float') return 'float'
+        // an integer, but its value is a float, which Mono can't produce. Every
+        // other compound assignment must produce a value assignable back to the target.
+        if (e.operator === '*=' && target === 'integer' && value === 'float') {
+          if (e !== this.unusedValue && this.owner) this.invalid.add(this.owner)
+          return 'float'
+        }
         const t = binaryType(e.operator[0] as BinaryOp, target, value)
         if (!t || !assignable(target, t)) {
           this.mismatch(e, `'${e.operator}' not defined for ${target} and ${value}`)
@@ -506,8 +511,11 @@ class Checker {
   /** An expression whose value is thrown away, where a print's value goes unused. */
   private discarded(e: Expression): void {
     if (e.kind !== 'PrintExpression' || e.parens) {
+      this.unusedValue = e
       this.expr(e)
+      this.unusedValue = null
     } else if (this.expr(e.argument) === 'void') {
+      // The argument's value is used: in-world, print(i *= f) failed like any other use of it.
       this.backendError(e)
     }
   }

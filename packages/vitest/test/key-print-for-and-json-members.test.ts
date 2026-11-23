@@ -40,7 +40,8 @@ describe('a key print in a for clause', () => {
       expect(() => s.fire('timer')).toThrow('System.InvalidProgramException')
       expect(texts(s), statement).toEqual([
         'Object [script:<inline>] Script run-time error',
-        'System.InvalidProgramException: Invalid IL code in LSL :timer ()',
+        'System.InvalidProgramException: Invalid IL code in LSL :timer ()\n\n\n' +
+          '  at UserScript.OnTimer () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ',
       ])
     }
   })

@@ -620,13 +620,15 @@ describe('print', () => {
     s.fire('touch_start', { num_detected: 1 })
     expect(s.chat.map((c) => c.text)).toEqual([
       'Object [script:<inline>] Script run-time error',
-      'System.InvalidProgramException: Invalid IL code in LSL :timer ()',
+      'System.InvalidProgramException: Invalid IL code in LSL :timer ()\n\n\n' +
+        '  at UserScript.OnTimer () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ',
     ])
   })
 
   it('halts on entering a user function that uses the value of a key print', async () => {
     // In-world: the line before the call was said, f's first line never ran, and DEBUG_CHANNEL got "Script run-time error"
     // and "System.InvalidProgramException: Invalid IL code in LSL :gf (): IL_00cd: ..." (Aditi, SLua Tideland, 2026-11-23).
+    // The stack after it is as measured for integer *= float in mono-invalid-program.test.ts.
     const s = await loadScript({
       source: `
         integer r;
@@ -639,7 +641,8 @@ describe('print', () => {
     expect(s.global('r')).toBe(1)
     expect(s.chat.map((c) => c.text)).toEqual([
       'Object [script:<inline>] Script run-time error',
-      'System.InvalidProgramException: Invalid IL code in LSL :gf ()',
+      'System.InvalidProgramException: Invalid IL code in LSL :gf ()\n\n\n' +
+        '  at LSL .state_entry () \n  at UserScript.OnStateEntry () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ',
     ])
   })
 
@@ -659,7 +662,8 @@ describe('print', () => {
       `,
     })
     expect(() => s.start()).toThrow(`Invalid IL code in LSL :${name}`)
-    expect(s.chat.at(-1)?.text).toBe(`System.InvalidProgramException: Invalid IL code in LSL :${name}`)
+    expect(s.chat.at(-1)?.text).toBe(`System.InvalidProgramException: Invalid IL code in LSL :${name}\n\n\n` +
+      '  at LSL .state_entry () \n  at UserScript.OnStateEntry () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ')
   })
 
   it('still runs a key print used as a statement', async () => {

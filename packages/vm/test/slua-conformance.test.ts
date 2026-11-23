@@ -224,7 +224,7 @@ describe('SLua LSL conformance', () => {
   it('Integer MulAssign Float Result Error', () => {
     const run = runConformance('mul_assign_error.lsl')
     expect(run.printed).toEqual([])
-    expect(run.error).toMatch(/cannot take result of integer \*= float/)
+    expect(run.error).toMatch(/^System\.InvalidProgramException: Invalid IL code in LSL :state_entry \(\)/)
   })
 
   it('Integer MulAssign Float Valid Contexts', () => expectPasses('mul_assign_valid.lsl'))

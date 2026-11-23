@@ -88,6 +88,11 @@ const timed = `list log;
     link_message(integer s, integer n, string m, key k) {
       if (n == 1) { llSetTimerEvent((float)m); log += "set " + m; }
       else if (n == 2) { llSetTimerEvent(0.0); log += "off"; }
+      else if (n == 3) { llSetTimerEvent(2.0); llSetTimerEvent(10.0); }
+      else if (n == 7) { float d = (float)m; if (d <= 0.0) d = 5.0; llSleep(d); }
+      else if (n == 8) { integer z; z = 1 / z; }
+      else if (n == 9) { llSleep(2.0); llSetTimerEvent(4.0); }
+      else if (n == 0) { llSleep(5.0); llSetTimerEvent(10.0); }
       else if (n == 4) { llSetTimerEvent(3.0); log += "sleep start"; llSleep(10.0); log += "sleep end"; }
       else if (n == 5) { llSetTimerEvent(4.0); llSensorRepeat("", NULL_KEY, AGENT, 20.0, PI, 4.0); }
       else if (n == 6) log += "lm";
@@ -99,8 +104,8 @@ const timed = `list log;
 
 const mouth = 'default { link_message(integer s, integer n, string m, key k) { llSay(7, m); } }'
 
-async function rig(source: { source: string; filename?: string } = { source: target }, language?: 'slua') {
-  const loaded = await loadLinkset({ prims: [
+async function rig(source: { source: string; filename?: string } = { source: target }, language?: 'slua', owner?: string) {
+  const loaded = await loadLinkset({ ...(owner ? { owner } : {}), prims: [
     { scripts: [{ name: 't', source, ...(language ? { language } : {}) }, { name: 'ctl', source: { source: control } }] },
     { scripts: [{ name: 'mouth', source: { source: mouth } }] },
   ] })
@@ -443,6 +448,412 @@ describe('a script stopped with llSetScriptState', () => {
   })
 })
 
+describe('llSetTimerEvent after a start that caught up on a missed tick', () => {
+  // In-world: one prim held the timed script and a control script that sent it
+  // llSetTimerEvent calls by link message and stopped and started it on a fixed
+  // schedule, each step logged with llGetTimestamp (Aditi, SLua Tideland,
+  // 2026-11-23). In every run that started with one tick missed, a later
+  // llSetTimerEvent(t) gave its first tick t minus the start's lateness after
+  // the call, within a frame, then one every t.
+  async function caughtUp(stopAt: number, startAt: number, how = 'q+stop:2:') {
+    const r = await rig({ source: timed })
+    r.tell('msg:1:4.0')
+    r.linkset.advanceTime(stopAt)
+    r.tell(how)
+    r.linkset.advanceTime(startAt - stopAt)
+    r.tell('start')
+    const ticks = () => (r.t.global('log') as string[]).filter((l) => l === 'timer').length
+    const at = (ms: number) => r.linkset.advanceTime(ms - r.linkset.clock.now)
+    return { ...r, ticks, at }
+  }
+
+  it('counts the new interval from as late as the missed tick was', async () => {
+    // In-world: llSetTimerEvent(4) at 0 s; at 1 s a link message whose handler
+    // calls llSetTimerEvent(0) was queued and the script stopped; started at
+    // 7 s (the 4 s tick 3 s late). llSetTimerEvent(4) at 10 s -> ticks at
+    // 11.07, 15.07 and 19.07 s. A call 0.5 s after the start ticked 1.0 s after
+    // it, and one 33 s after the start 1.0 s after it.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 9500)).toEqual([11_000, 15_000, 19_000])
+    const late = await caughtUp(1000, 7000)
+    late.at(40_000)
+    late.tell('msg:1:4.0')
+    expect(changes(late.linkset, late.ticks, 2000)).toEqual([41_000])
+  })
+
+  it('takes the lateness of the missed tick, whatever the intervals', async () => {
+    // In-world: started 4.5 s after a stop at 1 s (the 4 s tick 1.4 s late),
+    // llSetTimerEvent(4) 3.5 s after the start -> tick 2.6 s after the call.
+    // Started 3 s late, llSetTimerEvent(8) 5.5 s after the start -> 5.0 s after
+    // the call, then 8 s later.
+    const short = await caughtUp(1000, 5500)
+    short.at(9000)
+    short.tell('msg:1:4.0')
+    expect(changes(short.linkset, short.ticks, 3000)).toEqual([11_500])
+    const long = await caughtUp(1000, 7000)
+    long.at(12_500)
+    long.tell('msg:1:8.0')
+    expect(changes(long.linkset, long.ticks, 14_000)).toEqual([17_500, 25_500])
+  })
+
+  it('fires at once when the interval is shorter than the lateness, then an interval after it was due', async () => {
+    // In-world: started 3 s late, llSetTimerEvent(2) 3 s after the start -> a
+    // tick 20 ms after the call, then 1.0 s after the call and every 2 s.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:2.0')
+    expect(ticks()).toBe(1)
+    expect(changes(linkset, ticks, 5500)).toEqual([11_000, 13_000, 15_000])
+  })
+
+  it('keeps the lateness when the caught-up tick ran and the timer was turned off before the next', async () => {
+    // In-world: stopped at 1 s with no message queued, started at 7 s -> a tick
+    // at the start; llSetTimerEvent(0) 0.5 s later; llSetTimerEvent(4) at 10 s
+    // -> ticks at 11.0, 15.0 and 19.0 s.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'stop')
+    expect(ticks()).toBe(1)
+    at(7500)
+    tell('msg:2:')
+    at(10_000)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 9500)).toEqual([11_000, 15_000, 19_000])
+  })
+
+  it('keeps the lateness through another stop and start with no tick missed', async () => {
+    // In-world: started 3 s late at 7 s, stopped at 8 s and started at 8.5 s,
+    // llSetTimerEvent(4) at 10 s -> tick at 11.0 s.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(8000)
+    tell('stop')
+    at(8500)
+    tell('start')
+    at(10_000)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 2000)).toEqual([11_000])
+  })
+
+  it('drops the lateness once a tick after the caught-up one has run', async () => {
+    // In-world: started 3 s late, llSetTimerEvent(4) at 10 s ticked at 11.0 s;
+    // llSetTimerEvent(4) again at 13 s ticked at 17, 21 and 25 s. Stopped with
+    // no message queued and left running after the start, it ticked at 7, 8, 12
+    // and 16 s, and llSetTimerEvent(4) at 17.5 s ticked at 21.5 s.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:4.0')
+    at(13_000)
+    expect(ticks()).toBe(1)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 9000)).toEqual([17_000, 21_000])
+    const running = await caughtUp(1000, 7000, 'stop')
+    expect(changes(running.linkset, running.ticks, 10_000)).toEqual([8000, 12_000, 16_000])
+    running.at(17_500)
+    running.tell('msg:1:4.0')
+    expect(changes(running.linkset, running.ticks, 4500)).toEqual([21_500])
+  })
+
+  it('takes the lag of a tick a call made due at once', async () => {
+    // In-world: started 3 s late, llSetTimerEvent(2) 3 s after the start ticked
+    // 20 ms after the call, 1.0 s late on its schedule. llSetTimerEvent(4) 0.47 s
+    // after that call ticked 2.98 s after it, then every 4 s.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:2.0')
+    expect(ticks()).toBe(1)
+    at(10_500)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 8000)).toEqual([13_500, 17_500])
+  })
+
+  it('lets a second call in the same handler replace a tick the first made due at once', async () => {
+    // In-world: started 3 s late, llSetTimerEvent(2.0) then llSetTimerEvent(10.0)
+    // in one handler 3 s after the start -> no tick at the call; ticks 7.0 s
+    // after it and 10 s later.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:3:')
+    expect(ticks()).toBe(0)
+    expect(changes(linkset, ticks, 18_000)).toEqual([17_000, 27_000])
+  })
+
+  it('has no lag once ticks after the caught-up one have run during a sleep', async () => {
+    // In-world: a link message whose handler sleeps 5 s was queued and the
+    // script stopped at 1 s; started at 7 s (3 s late), it slept to 12 s and
+    // then got its timer events. llSetTimerEvent(4) at 13 s ticked at 17 s.
+    // In-world three timer events came within 0.1 s of the wake: the caught-up
+    // tick, the one due during the sleep and the one due just after it. rezless
+    // gives one there; this test pins only the missing lag.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:7:')
+    at(12_100)
+    expect(ticks()).toBeGreaterThan(0)
+    at(13_000)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 4500)).toEqual([17_000])
+  })
+
+  it('takes the lag of a tick that ran late behind a busy handler', async () => {
+    // In-world: started 2.9 s late, llSetTimerEvent(4) 3.0 s after the start made a tick due
+    // 1.1 s later. A handler that slept 2 s and then called llSetTimerEvent(4) held that tick
+    // back; it ran right after the handler, 1.0 s late. llSetTimerEvent(4) 0.36 s later ticked
+    // 3.0 s after the call, then every 4 s.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:4.0')
+    tell('msg:9:')
+    at(12_000)
+    expect(ticks()).toBe(1)
+    at(12_400)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 8000)).toEqual([15_400, 19_400])
+  })
+
+  it('takes the lag of a tick held through a sleep from the wake, not from when it runs', async () => {
+    // In-world: llSetTimerEvent(10), then a handler slept from 7.9 s to 12.9 s and a second,
+    // waiting, from 12.9 s to 17.9 s. The tick ran after the second sleep, 8.0 s late, and
+    // llSetTimerEvent(10) 0.44 s later ticked 7.09 s after the call: the lag was the 2.9 s
+    // the tick was late at the first wake.
+    const { t, tell, linkset } = await rig({ source: timed })
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:7:')
+    linkset.advanceTime(500)
+    tell('msg:7:')
+    linkset.advanceTime(9600)
+    expect(ticks()).toBe(1)
+    linkset.advanceTime(400)
+    tell('msg:1:10.0')
+    expect(changes(linkset, ticks, 8000)).toEqual([25_500])
+  })
+
+  it('takes the lag of a tick a sleeping handler kept, from when a waiting handler went ahead of it', async () => {
+    // As measured above for a tick released at a wake: the lag is how late the tick was when the
+    // waiting handler started, not when the tick ran.
+    const { t, tell, linkset } = await rig({ source: timed })
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:0:')
+    linkset.advanceTime(500)
+    tell('msg:7:')
+    linkset.advanceTime(10_000)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    const start = linkset.clock.now
+    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
+  })
+
+  it('keeps the lag a waiting tick had when the handler that went ahead of it sets the timer again', async () => {
+    // Follows the measured rule above: the tick was 3 s late when the waiting handler started.
+    const { t, tell, linkset } = await rig({ source: timed })
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:7:')
+    linkset.advanceTime(500)
+    tell('msg:0:')
+    linkset.advanceTime(10_000)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    const start = linkset.clock.now
+    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
+  })
+
+  it('takes the lag of a tick a call made due at once, however late it was', async () => {
+    // Follows the measured rule: 3 s late, llSetTimerEvent(1) makes a tick due 2 s ago, and its
+    // lateness is the new lag.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:1.0')
+    expect(ticks()).toBe(1)
+    at(10_500)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 3000)).toEqual([12_500])
+  })
+
+  it('keeps the start\'s lag when a waiting handler shortens the interval', async () => {
+    // Follows the measured rule: one tick missed, so the start leaves its lateness as the lag,
+    // whatever interval a waiting handler sets before the caught-up tick.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:1:2.0')
+    at(7500)
+    tell('msg:1:10.0')
+    expect(changes(linkset, ticks, 8000).filter((t) => t > 7500)).toEqual([14_500])
+  })
+
+  it('keeps the start\'s lag when a waiting handler runs before the caught-up tick', async () => {
+    // Follows the measured rule: the lag is the start's lateness, fixed when a waiting handler
+    // goes ahead of the tick.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:7:0.5')
+    at(7600)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    expect(changes(linkset, ticks, 8000)).toEqual([14_600])
+  })
+
+  it('has no lag after more than one missed tick, even when a waiting handler lengthens the interval', async () => {
+    // In-world: a link message queued before the stop called llSetTimerEvent(10); started 8.5 s
+    // after the stop, with the 4 s and 8 s ticks missed, the caught-up tick came 20 ms after
+    // that handler, and llSetTimerEvent(10) 0.5 s later ticked 10.0 s after the call.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 9500, 'q+stop:1:10.0')
+    expect(ticks()).toBe(1)
+    at(10_000)
+    tell('msg:1:10.0')
+    expect(changes(linkset, ticks, 10_500)).toEqual([20_000])
+  })
+
+  it('has no lag in a copy taken and rezzed during it', async () => {
+    // In-world: started 3 s late, the object was taken 2.5 s after the start
+    // and rezzed 4 s later. llSetTimerEvent(4) in the copy ticked 4.0 s after the call.
+    const { linkset } = await caughtUp(1000, 7000)
+    linkset.advanceTime(2500)
+    const rezzed = linkset.copy().copy()
+    const named = (n: string) => rezzed.prims[0]!.inventory.find((item) => item.name === n)!.script!
+    const copy = named('t')
+    for (const s of rezzed.allScripts()) s.queueRez()
+    rezzed.advanceTime(4000)
+    named('ctl').fire('link_message', { sender_num: 1, num: 900, str: 'msg:1:4.0', id: NULL_KEY })
+    const start = rezzed.clock.now
+    const ticks = () => (copy.global('log') as string[]).filter((l) => l === 'timer').length
+    expect(changes(rezzed, ticks, 4500).map((t) => t - start)).toEqual([4000])
+  })
+
+  it('has no lag in a worn object detached during it and worn again', async () => {
+    // In-world: the probe was worn; started 3 s late at 7 s, it detached itself
+    // at 8 s and was worn again 6.4 s later. llSetTimerEvent(4) 12 s after the
+    // wear ticked 4.0 s after the call, then every 4 s.
+    const owner = '11111111-1111-1111-1111-111111111111'
+    const { t, tell, linkset } = await rig({ source: timed }, undefined, owner)
+    linkset.attachToAvatar(owner, 6)
+    tell('msg:1:4.0')
+    linkset.advanceTime(1000)
+    tell('q+stop:2:')
+    linkset.advanceTime(6000)
+    tell('start')
+    linkset.advanceTime(1000)
+    linkset.detachFromAvatar()
+    linkset.advanceTime(6400)
+    linkset.attachToAvatar(owner, 6)
+    linkset.advanceTime(12_000)
+    tell('msg:1:4.0')
+    const start = linkset.clock.now
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([4000, 8000])
+  })
+
+  it('has no lag from a kept tick that waited through a detach', async () => {
+    // Follows the measured detach and wear, which left no lag.
+    const owner = '11111111-1111-1111-1111-111111111111'
+    const { t, tell, linkset } = await rig({ source: timed }, undefined, owner)
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    linkset.attachToAvatar(owner, 6)
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:0:')
+    linkset.advanceTime(500)
+    tell('msg:7:')
+    linkset.advanceTime(6500)
+    linkset.detachFromAvatar()
+    linkset.advanceTime(10_000)
+    linkset.attachToAvatar(owner, 6)
+    linkset.advanceTime(5000)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    const start = linkset.clock.now
+    expect(changes(linkset, ticks, 10_500).map((at) => at - start)).toEqual([10_000])
+  })
+
+  it('has no lag in a crashed script that comes back in a rez', async () => {
+    // In-world: llSetTimerEvent(4) at 0 s, a Math Error at 1 s, the object taken
+    // 6.5 s in and rezzed 2.5 s later. The overdue tick came 70 ms after
+    // state_entry and on_rez, and llSetTimerEvent(4) 3.1 s after the rez ticked
+    // 4.0 s after the call, then every 4 s.
+    const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'k', source: { source: timed } }] }] })
+    const saved = payload.scripts['k']!
+    const send = (s: Script, num: number, str = '') => s.fire('link_message', { sender_num: 1, num, str, id: NULL_KEY })
+    send(saved, 1, '4.0')
+    payload.linkset.advanceTime(1000)
+    expect(() => send(saved, 8)).toThrow('Math Error')
+    payload.linkset.advanceTime(5500)
+    const { linkset, rez } = await rezzer(payload.linkset)
+    linkset.advanceTime(2500)
+    const k = rez()
+    linkset.advanceTime(0)
+    expect((k.global('log') as string[]).filter((l) => l === 'timer')).toHaveLength(1)
+    linkset.advanceTime(3100)
+    send(k, 1, '4.0')
+    const start = linkset.clock.now
+    const ticks = () => (k.global('log') as string[]).filter((l) => l === 'timer').length
+    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([4000, 8000])
+  })
+
+  it('has no lag for an SLua LLTimers timer', async () => {
+    // In-world: the same start with an SLua script whose link message handler
+    // called LLTimers:every(4) -> the first tick 4.0 s after the call.
+    const { t, tell, linkset } = await rig({ filename: 't.luau', source: `
+      log = {}
+      local h = nil
+      LLEvents:on("link_message", function(s, n, m, k)
+        if n == 1 then
+          if h then LLTimers:off(h) end
+          h = LLTimers:every(tonumber(m), function() table.insert(log, "timer") end)
+        elseif n == 2 then
+          if h then LLTimers:off(h); h = nil end
+        end
+      end)
+    ` }, 'slua')
+    tell('msg:1:4.0')
+    linkset.advanceTime(1000)
+    tell('q+stop:2:')
+    linkset.advanceTime(6000)
+    tell('start')
+    linkset.advanceTime(3000)
+    tell('msg:1:4.0')
+    const ticks = () => (t.global('log') as string[]).length
+    expect(changes(linkset, ticks, 4500)).toEqual([14_000])
+  })
+
+  it('counts from the call when no tick, or more than one, was missed', async () => {
+    // In-world: stopped from 1 s to 3 s (no tick missed), llSetTimerEvent(4) at
+    // 10 s -> tick at 14.0 s. Stopped from 1 s to 9.5 s (the 4 s and 8 s ticks
+    // missed), llSetTimerEvent(4) at 12 s -> tick at 16.0 s. A 6 s timer
+    // stopped from 1 s to 13 s did the same.
+    const none = await caughtUp(1000, 3000)
+    none.at(10_000)
+    none.tell('msg:1:4.0')
+    expect(changes(none.linkset, none.ticks, 4500)).toEqual([14_000])
+    const two = await caughtUp(1000, 9500)
+    two.at(12_000)
+    two.tell('msg:1:4.0')
+    expect(changes(two.linkset, two.ticks, 4500)).toEqual([16_000])
+  })
+})
+
+describe('a timer and a repeating sensor that fall due together', () => {
+  it('runs the timer first, whichever was set first', async () => {
+    // In-world: llSetTimerEvent(2.0) and llSensorRepeat(..., 2.0) in one
+    // handler, in either order -> the timer event first and the sensor event 20
+    // to 70 ms later, at each of six ticks. The sensor alone and the timer alone
+    // each came 2.0 s after the handler. A sensor that found nothing gave the
+    // same order (Aditi, SLua Tideland, 2026-11-23).
+    for (const calls of [
+      'llSetTimerEvent(2.0); llSensorRepeat("", NULL_KEY, AGENT, 20.0, PI, 2.0);',
+      'llSensorRepeat("", NULL_KEY, AGENT, 20.0, PI, 2.0); llSetTimerEvent(2.0);',
+    ]) {
+      const s = await loadScript({ source: `list log;
+        default {
+          state_entry() { ${calls} }
+          timer() { log += "timer"; }
+          sensor(integer n) { log += "scan"; }
+          no_sensor() { log += "scan"; }
+        }` })
+      s.start()
+      s.advanceTime(4100)
+      expect(s.global('log')).toEqual(['timer', 'scan', 'timer', 'scan'])
+    }
+  })
+})
+
 describe('llResetOtherScript on a running script', () => {
   it('drops the link messages sent before and after it in the same handler', async () => {
     // In-world: the script was in state two with g = 42 and a 3 s timer. One
@@ -642,6 +1053,38 @@ const crasher = `integer scans; integer ticks; list log;
     sensor(integer n) { ++scans; log += "scan"; }
     no_sensor() { ++scans; log += "scan"; }
   }`
+
+describe('an SLua object taken to inventory and rezzed again', () => {
+  it('keeps its LLTimers timer with the time it had left, on its own clock', async () => {
+    // In-world: an SLua script with LLTimers:every(10) and LLTimers:every(1) was
+    // taken 7 to 8 s after it started and rezzed 12 s later. on_rez read
+    // ll.GetTime() 9.09, the 1 s timer went on at 9.11 and 10.13, and the 10 s
+    // timer fired at ll.GetTime() 10.02, 0.9 s after on_rez, then at 20.02
+    // (Aditi, SLua Tideland, 2026-11-23). Time in inventory did not count on
+    // either the clock or the timers.
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const { linkset, scripts } = await loadLinkset({ world, region: 'home', prims: [{ scripts: [{ name: 's', language: 'slua', source: { filename: 's.luau', source: `
+      ticks = {}
+      LLTimers:every(10, function() table.insert(ticks, ll.GetTime()) end)
+      LLEvents:on("on_rez", function() rezAt = ll.GetTime() end)
+    ` } }] }] })
+    scripts['s']!.start()
+    linkset.advanceTime(7500)
+    const saved = linkset.copy()
+    linkset.advanceTime(12_000)
+    const rezzed = saved.copy({ world, region: 'home' })
+    const copy = rezzed.allScripts()[0]!
+    copy.queueRez()
+    rezzed.advanceTime(0)
+    expect(copy.global('rezAt')).toBeCloseTo(7.5, 3)
+    expect(copy.global('ticks')).toEqual([])
+    rezzed.advanceTime(2500)
+    expect(copy.global('ticks')).toEqual([10])
+    rezzed.advanceTime(10_000)
+    expect(copy.global('ticks')).toEqual([10, 20])
+  })
+})
 
 describe('a crashed LSL script whose tick is overdue by more than the interval', () => {
   // In-world (Mono): a 4 s timer and a 7 s sensor armed from a listen event;
