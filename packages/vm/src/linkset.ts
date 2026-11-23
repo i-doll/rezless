@@ -346,6 +346,9 @@ export class Linkset {
     // A detached object leaves region queries and recurring timers. The final
     // attach event still runs from the shared clock's explicit event queue.
     for (const script of this.allScripts()) {
+      // In-world: a stopped script detached and worn again, or rezzed from the item, ran
+      // state_entry of the default state with fresh globals once it was started.
+      script.resetIntoInventory()
       script.clockView.pauseForInventory()
       script.detached()
       pauseSensors(script)

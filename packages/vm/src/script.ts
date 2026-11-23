@@ -1111,11 +1111,20 @@ export class Script {
     const copy = this.sluaSource === undefined ? new Script(this.ast, { ...this.options, host, coverage: false }) : this.freshSluaCopy(host)
     Object.assign(copy.mocks, this.mocks)
     copy.state.permissions.autoGrant = this.state.permissions.autoGrant
+    // In-world: a stopped LSL or SLua script came out of a take, a Take Copy or llDerezObject
+    // reset. Started, it ran state_entry of the default state with its globals back at their
+    // start and the default memory limit, and no on_rez. A sleep it was stopped in never ended.
+    const reset = !opts.fresh && !this.running && !this.crashed && !this.dead
     // In-world: an LSL handler that was asleep when the object was taken finished its sleep
     // after the rez, with its locals and llDetected* data, and ran to its end before on_rez.
-    if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
+    if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    if (reset) {
+      copy.running = false
+      copy.queueStart()
+      return copy
+    }
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1311,6 +1320,17 @@ export class Script {
       if (!this.running) this.queueStart()
     }
     this.linkset.settle([this])
+  }
+
+  /**
+   * A stopped script, neither crashed nor dead, that goes into inventory with its object comes
+   * back reset, its `state_entry` waiting for the start.
+   */
+  resetIntoInventory(): void {
+    if (this.running || this.crashed || this.dead) return
+    this.restart()
+    if (this.slua) this.state.memory.limit = SLUA_MEMORY_LIMIT
+    this.queueStart()
   }
 
   /**

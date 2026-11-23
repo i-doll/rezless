@@ -391,19 +391,26 @@ export class Prim {
 
   /**
    * Queue `changed(CHANGED_INVENTORY)` for an owner edit and return the
-   * scripts that get it. A stopped script, or one that has not
-   * started yet, never hears of the edit. A script busy in a handler gets the
-   * event when it finishes. When no script in a child prim handles `changed`,
-   * the root's scripts get the event.
+   * scripts that get it.
    */
   #queueOwnerEdit(): Script[] {
-    const linkset = this.linkset
-    if (!linkset) return []
-    const hearing = (prim: Prim) => prim.scripts.filter(hearsInventoryChange)
-    let scripts = hearing(this)
-    if (!scripts.some((script) => script.handles('changed'))) scripts = hearing(linkset.prims[0]!)
+    const scripts = this.inventoryChangeListeners()
     for (const script of scripts) queueInventoryChanged(script)
     return scripts
+  }
+
+  /**
+   * The scripts that hear of an owner edit, a gift or a remote script load into this prim. A
+   * stopped script, or one that has not started yet, never hears of it. When no script in a
+   * child prim handles `changed`, the root's scripts hear of it instead. `arriving` is a script
+   * the change itself brings, which neither hears of it nor counts as handling it.
+   */
+  inventoryChangeListeners(arriving?: Script): Script[] {
+    const linkset = this.linkset
+    if (!linkset) return []
+    const hearing = (prim: Prim) => prim.scripts.filter((script) => script !== arriving && hearsInventoryChange(script))
+    const scripts = hearing(this)
+    return scripts.some((script) => script.handles('changed')) ? scripts : hearing(linkset.prims[0]!)
   }
 
   /** Find a script by inventory name. A script the owner is adding or recompiling is not found until the others have heard of it. */

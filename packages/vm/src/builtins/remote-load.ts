@@ -1,5 +1,5 @@
 import type { BuiltinImpl } from '../runtime.js'
-import { InventoryType, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
+import { InventoryType, queueInventoryChanged } from '../inventory.js'
 import { PERM_COPY, PERM_MODIFY } from '../generated/constants.js'
 import { llRemoveInventory } from './inventory.js'
 import { sayError } from './debug.js'
@@ -42,7 +42,5 @@ export const llRemoteLoadScriptPin: BuiltinImpl = (ctx, args) => {
   copy.running = Number(args[3]) !== 0
   copy.queueStart()
   if (!(item.permMask.owner & PERM_COPY)) llRemoveInventory(ctx, [name])
-  for (const script of target.scripts) {
-    if (script !== copy && hearsInventoryChange(script)) queueInventoryChanged(script)
-  }
+  for (const script of target.inventoryChangeListeners(copy)) queueInventoryChanged(script)
 }
