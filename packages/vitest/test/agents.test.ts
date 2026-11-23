@@ -287,7 +287,9 @@ it('compares same-group prims, World objects and the literal group key', async (
 it('does not turn missing or out-of-region entities into group members', async () => {
   const { script, world, linkset } = await fixture(`integer avatar;integer object;integer null;default{state_entry(){avatar=llSameGroup("${OTHER}");object=llSameGroup("44444444-4444-4444-4444-444444444444");null=llSameGroup(NULL_KEY);}}`)
   world.sensorProperties.set(linkset, { group: GROUP })
-  world.addAvatar({ region: 'away', key: OTHER, username: 'alice', group: GROUP })
+  // In-world (Aditi, 2026-11-23): an avatar in the next region still read llSameGroup TRUE, so this one is far away.
+  world.addRegion('far', { x: 25600, y: 25600 })
+  world.addAvatar({ region: 'far', key: OTHER, username: 'alice', group: GROUP })
   world.addObject({ region: 'away', key: '44444444-4444-4444-4444-444444444444', group: GROUP })
   script.start()
   expect(script.global('avatar')).toBe(0)
