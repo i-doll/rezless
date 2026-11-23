@@ -585,6 +585,8 @@ export class ScriptClockView {
   timerPassedAt: number | undefined
   /** Whether the owed tick leaves a lag when it fires. */
   private owedTickLags = false
+  /** For a tick a start owes: the next tick on the schedule the timer had at the start. */
+  private owedNextMs = 0
   /** Whether an llSetTimerEvent call made the owed tick due, so a later call replaces it. */
   private owedBySet = false
   /** Virtual time at which the script's last handler finished, when it took time (llSleep, delays). */
@@ -656,8 +658,9 @@ export class ScriptClockView {
     this.owedBySet = false
     this.timerNextFireMs = kept > at ? kept : at + this.timerIntervalMs
     if (late === undefined) this.timerLate((passed ?? at) - due)
-    // A start that missed more than one tick leaves no lag; a tick a call made due always does.
-    else this.timerLagMs = (kept > at || bySet) && this.owedTickLags ? at - late : 0
+    // A start that missed more than one tick, or whose tick ran after the next was due on the
+    // schedule it had, leaves no lag; a tick a call made due always does.
+    else this.timerLagMs = (bySet || at < this.owedNextMs) && this.owedTickLags ? at - late : 0
   }
 
   /** A tick ran `ms` after it was due. */
@@ -681,7 +684,8 @@ export class ScriptClockView {
     // none. An SLua script's LLTimers timer had none, and neither had a crashed script that came
     // back in a rez.
     this.owedBySet = false
-    this.owedTickLags = lag && this.lags && this.timerLateDueMs + this.timerIntervalMs > this.now
+    this.owedNextMs = this.timerLateDueMs + this.timerIntervalMs
+    this.owedTickLags = lag && this.lags && this.owedNextMs > this.now
     this.timerLagMs = this.owedTickLags ? this.now - this.timerLateDueMs : 0
   }
 
