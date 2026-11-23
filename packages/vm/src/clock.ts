@@ -60,10 +60,18 @@ interface DetectedTouch { readonly key?: string }
  * a sit and a stand gave one changed(35). `held` is in the order the events came up; the
  * touch events become one event of each kind, in that order, where the first of them was,
  * and an event that merges into an earlier one takes its place.
+ *
+ * In-world: a prim dropped onto the platform twice in one sleep gave one collision_start, one
+ * collision and one collision_end, each detecting the platform once. Dropped onto the platform
+ * and then onto another prim gave one of each listing both, in the order they were first hit.
+ * A collision event merges into the first held one of its kind, and a key it detects again
+ * takes the place of the earlier entry: the other prim, moved between the drops, read where
+ * it was for the second.
  */
 function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   const merged: QueuedEvent[] = []
   const parts: { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }[] = []
+  const collisions = new Map<string, number>()
   let changed: number | undefined
   let touches: number | undefined
   let gameControl: number | undefined
@@ -89,7 +97,24 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       continue
     }
     const detected = e.payload['detected'] as ReadonlyArray<DetectedTouch> | undefined
-    if (!TOUCH_EVENTS.has(e.event) || !detected?.length || detected.some((entry) => entry.key === undefined)) {
+    const keyed = !!detected?.length && detected.every((entry) => entry.key !== undefined)
+    if (COLLISION_EVENTS.has(e.event) && keyed) {
+      const at = collisions.get(e.event)
+      if (at === undefined) {
+        collisions.set(e.event, merged.push(e) - 1)
+        continue
+      }
+      const first = merged[at]!
+      const entries = [...first.payload['detected'] as DetectedTouch[]]
+      for (const entry of detected!) {
+        const same = entries.findIndex((x) => x.key!.toLowerCase() === entry.key!.toLowerCase())
+        if (same < 0) entries.push(entry)
+        else entries[same] = entry
+      }
+      merged[at] = { ...first, payload: { ...first.payload, num_detected: entries.length, detected: entries } }
+      continue
+    }
+    if (!TOUCH_EVENTS.has(e.event) || !keyed) {
       merged.push(e)
       continue
     }
@@ -121,12 +146,18 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
 }
 
 const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
+const SENSOR_EVENTS: ReadonlySet<string> = new Set(['sensor', 'no_sensor'])
+const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'collision', 'collision_end'])
 
 /** Events that wait behind one llMinEventDelay holds back. */
 const WAITS_BEHIND: ReadonlySet<string> = new Set([...TOUCH_EVENTS, 'timer'])
 
-/** Events llMinEventDelay spaces out; other events are not delayed. */
-export const DELAYED_EVENTS: ReadonlySet<string> = new Set(['timer', 'touch_start'])
+/**
+ * Events llMinEventDelay spaces out; other events are not delayed. In-world: with
+ * llMinEventDelay(4.0) and a 1 s repeating sensor, sensor events ran 4, 8 and 12 s after the
+ * call, and a timer due at 16 s waited behind a no_sensor that ran 15.1 s in under a 3 s delay.
+ */
+export const DELAYED_EVENTS: ReadonlySet<string> = new Set(['timer', 'touch_start', 'sensor', 'no_sensor'])
 
 /** Events a script can hold in its queue; more are dropped, as in Second Life. */
 export const MAX_PENDING_EVENTS = 64
@@ -298,7 +329,7 @@ export class LinksetClock {
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
       const until = delayedUntil(e)
-      if (until > e.at && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
+      if (until > e.at && WAITS_BEHIND.has(e.event) && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
     }
     let bestIdx = -1
     let bestAt = Infinity
@@ -358,7 +389,18 @@ export class LinksetClock {
       return 'task'
     }
 
-    if (bestIdx !== -1 && bestAt <= bestTimerAt && bestAt <= wakeAt) {
+    // In-world: a sensor result and a timer tick that both waited for llMinEventDelay ran the
+    // timer first.
+    const waiting = bestIdx === -1 ? undefined : this.queue[bestIdx]!
+    const own = waiting && SENSOR_EVENTS.has(waiting.event) ? waiting.target : undefined
+    const ownTimer = own?.clockView
+    const sensorWaits = !!own?.running && !!ownTimer && ownTimer.timerIntervalMs > 0 && bestAt <= bestTimerAt && bestAt === ownTimer.delayedUntilMs &&
+      bestAt === Math.max(ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs)
+    if (sensorWaits) {
+      bestTimerScript = own
+      bestTimerAt = bestAt
+    }
+    if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
       return bestAt > ev.at ? { ...ev, at: bestAt } : ev
