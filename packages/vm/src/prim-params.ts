@@ -256,12 +256,12 @@ function clearGltfOverrides(g: PrimFace['gltf']): void {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const findItem = (prim: Prim, type: number, name: string) =>
-  prim.inventory.find((it) => it.type === type && it.name === name)
-
+// An item of another type with the name hides a key with the same text.
 const assetKey = (prim: Prim, type: number, name: string): string | null => {
   if (name === '') return NULL_KEY
-  return findItem(prim, type, name)?.key.toLowerCase() ?? (UUID.test(name) ? name.toLowerCase() : null)
+  const item = prim.inventory.find((it) => it.name === name)
+  if (item) return item.type === type ? item.key.toLowerCase() : null
+  return UUID.test(name) ? name.toLowerCase() : null
 }
 
 /**
@@ -279,9 +279,9 @@ export const soundKey = (prim: Prim, sound: string) => assetKey(prim, InventoryT
 const mapType = (prim: Prim, key: string): LslType => (textureName(prim, key) === key ? 'key' : 'string')
 
 const itemName = (prim: Prim, type: number, key: string): string =>
-  key === NULL_KEY ? key : (prim.inventory.find((it) => it.type === type && it.key.toLowerCase() === key)?.name ?? key)
+  prim.inventory.find((it) => it.type === type && it.key.toLowerCase() === key)?.name ?? key
 
-export const textureName = (prim: Prim, key: string): string => itemName(prim, InventoryType.TEXTURE, key)
+export const textureName = (prim: Prim, key: string): string => (key === NULL_KEY ? key : itemName(prim, InventoryType.TEXTURE, key))
 
 const SCULPT_MAP_DEFAULT = 'be293869-d0d9-0a69-5989-ad27f1946fd4'
 
@@ -315,7 +315,11 @@ export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean 
   return false
 }
 
-export const materialName = (prim: Prim, key: string): string => itemName(prim, InventoryType.MATERIAL, key)
+/** A material reads back as its item's name. No material reads as the name of an empty notecard, which holds no asset. */
+export const materialName = (prim: Prim, key: string): string =>
+  key === NULL_KEY
+    ? (prim.inventory.find((it) => it.type === InventoryType.NOTECARD && it.key === NULL_KEY && !it.notecardLines?.length)?.name ?? key)
+    : itemName(prim, InventoryType.MATERIAL, key)
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
   [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: 'vector',
