@@ -162,6 +162,22 @@ describe('sensor results under llMinEventDelay', () => {
     expect(log).toEqual(['go@0', 's:m3@4', 's:m7@8', 's:m11@12', 'stop@16', 's:00000000-0000-0000-0000-000000000000@16'])
   })
 
+  it('leaves another script\'s earlier timer on time', async () => {
+    const m = await make(`list log;
+      default {
+        state_entry() { llMinEventDelay(4.0); llSensorRepeat("m", NULL_KEY, ACTIVE | PASSIVE | SCRIPTED, 10.0, PI, 1.0); llSetTimerEvent(4.0); }
+        sensor(integer n) { log += "sensor"; }
+        timer() { log += "timer"; llSetTimerEvent(0.0); }
+      }`)
+    m.world.addObject({ region: 'home', name: 'm', position: { x: 2, y: 0, z: 0 }, scripted: true, active: true })
+    const made = await loadLinkset({ world: m.world, region: 'home', owner: OWNER,
+      prims: [{ scripts: [{ name: 'other', source: { source: 'float at; default { state_entry() { llSetTimerEvent(2.0); } timer() { at = llGetTime(); llSetTimerEvent(0.0); } }' } }] }] })
+    made.scripts.other!.start()
+    m.linkset.advanceTime(5_000)
+    expect(made.scripts.other!.global('at')).toBeCloseTo(2, 5)
+    expect(m.script.global('log')).toEqual(['timer'])
+  })
+
   it('runs every scan with no delay', async () => {
     const log = await scan('0.0', true, (i) => (i % 2 ? 'x' : 'm')) as string[]
     expect(log.slice(0, 5)).toEqual(['go@0', 'ns@1', 's:m@2', 'ns@3', 's:m@4'])

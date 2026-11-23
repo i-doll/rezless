@@ -383,7 +383,7 @@ export class LinksetClock {
     const waiting = bestIdx === -1 ? undefined : this.queue[bestIdx]!
     const own = waiting && SENSOR_EVENTS.has(waiting.event) ? waiting.target : undefined
     const ownTimer = own?.clockView
-    const sensorWaits = !!own?.running && !!ownTimer && ownTimer.timerIntervalMs > 0 && bestAt === ownTimer.delayedUntilMs &&
+    const sensorWaits = !!own?.running && !!ownTimer && ownTimer.timerIntervalMs > 0 && bestAt <= bestTimerAt && bestAt === ownTimer.delayedUntilMs &&
       bestAt === Math.max(ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs)
     if (sensorWaits) {
       bestTimerScript = own
