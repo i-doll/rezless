@@ -225,6 +225,15 @@ export class LinksetClock {
     if (held === undefined && at <= this.now && wakeAt !== undefined && wakeAt > this.now) held = true
     held &&= HELD_ORDER.has(event)
     const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }) }
+    // In-world: a release in the first sleep of a game_control handler and a press in its second
+    // gave one event, for the press.
+    if (held && event === 'game_control') {
+      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && e.at <= this.now)
+      if (waiting >= 0) {
+        this.queue[waiting] = { ...this.queue[waiting]!, payload }
+        return
+      }
+    }
     if (held && at <= this.now) {
       // A click or a change that merges into one already held back takes no room of its own.
       if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
@@ -474,7 +483,12 @@ export class LinksetClock {
       v.timerLateDueMs = undefined
       v.timerNextFireMs = kept > this.now ? kept : this.now + v.timerIntervalMs
     }
-    held.sort((a, b) => HELD_ORDER.get(a.event)! - HELD_ORDER.get(b.event)!)
+    // In-world: a box that fell onto land and was lifted off it while asleep woke to
+    // land_collision_start, one land_collision, the game_control that waited, the other
+    // land_collision events and land_collision_end. A single land_collision ran behind changed.
+    const first = held.find((e) => e.event === 'land_collision')
+    const rank = (e: QueuedEvent) => e === first ? HELD_ORDER.get('changed')! + 0.5 : HELD_ORDER.get(e.event)!
+    held.sort((a, b) => rank(a) - rank(b))
     this.queue.push(...held)
   }
 
@@ -488,6 +502,13 @@ export class LinksetClock {
       const e = this.queue[i]!
       if (e.target === script && e.at <= upTo && e.event !== keep) this.queue.splice(i, 1)
     }
+  }
+
+  /** Remove and return the queued `event`s due by now whose target is `script`, in queue order. */
+  takeDue(script: Script, event: string): QueuedEvent[] {
+    const taken = this.queue.filter((e) => e.target === script && e.event === event && e.at <= this.now)
+    this.purgeWhere((e) => taken.includes(e))
+    return taken
   }
 
   /** Remove every queued `event` whose target is `script`. */

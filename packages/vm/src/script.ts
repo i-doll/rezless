@@ -204,6 +204,8 @@ export class Script {
   private inGameControl = false
   /** The event of a sleeping SLua game_control handler whose values a rez cleared. */
   private clearedGameControl: Record<string, unknown> | undefined
+  /** Input that waited through a state change into a state with no game_control handler. */
+  private waitingGameControl: Record<string, unknown> | undefined
   /** Events that were already queued when the script stopped; delivered when it runs again. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
@@ -822,8 +824,9 @@ export class Script {
     if (sameGameControl(avatars.get(key), state)) return
     avatars.set(key, state)
     const linksets = this.linkset.peers.length ? this.linkset.peers : [this.linkset]
+    // In-world: input sent to a script in a state with no game_control handler never ran.
     const targets = linksets.flatMap(l => l.allScripts()).filter(s => s.running && !s.dead && !s.clockView.inInventory
-      && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
+      && s.handles('game_control') && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
     for (const s of targets) {
       // In-world: a script that slept in another handler, or in a game_control handler worn
       // again since, read new input at once. One asleep in its game_control handler kept that
@@ -834,7 +837,7 @@ export class Script {
         axes: typedList([...state.axes], state.axes.map(() => 'float')),
         gameControlSnapshot: state.mode,
       })
-      if (s.handles('game_control') && !s.inGameControl) s.state.gameControlSnapshot = state.mode
+      if (!s.inGameControl) s.state.gameControlSnapshot = state.mode
     }
     // Runs the handlers up to their first sleep, so more input can come while they sleep.
     this.linkset.advanceTime(0)
@@ -1224,6 +1227,9 @@ export class Script {
     for (const e of waiting) {
       // A copy that came back without its controls has no use for a waiting control event.
       if (e.event === 'control' && !(copy.state.permissions.granted & PERMISSION_TAKE_CONTROLS)) continue
+      // In-world: a release waiting for a game_control handler asleep at a take never ran in the
+      // rezzed copy.
+      if (e.event === 'game_control') continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
       // changed(CHANGED_LINK) in the copy, the one `unseated` brings. An earlier stand event
       // keeps only the other changes that were merged into it.
@@ -1412,6 +1418,7 @@ export class Script {
     this.clockView.resetReference()
     this.linkset.clock.purgeTarget(this)
     this.parkedEvents.length = 0
+    this.waitingGameControl = undefined
     this.started = false
     // Returning to default counts as a state entry. The constructor records
     // the first one; runHandler records each `state foo;` transition. A
@@ -1673,9 +1680,17 @@ export class Script {
         }
         stopSensors(this)
         this.state.listens.length = 0
+        // In-world: input that waited for a game_control handler that then changed state ran in
+        // the next state with a game_control handler, after its state_entry.
+        const input = this.linkset.clock.takeDue(this, 'game_control').at(-1)?.payload
+        if (input) this.waitingGameControl = input
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
         forgetHeldTouches(this, false)
         this.state.currentState = target
+        if (this.waitingGameControl && this.handlersByState.get(target)?.has('game_control')) {
+          this.clockView.schedule(this.now, 'game_control', this.waitingGameControl)
+          this.waitingGameControl = undefined
+        }
         if (this.state.coverage) this.state.coverage.hitState(target)
         const entry = this.handlersByState.get(target)?.get('state_entry')
         if (entry) {
