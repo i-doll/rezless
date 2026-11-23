@@ -106,6 +106,9 @@ describe('target motion ownership', () => {
     second.fire('touch_start', { num_detected: 1 })
     first.advanceTime(300)
     const saved = second.linkset.copy(), root = saved.prims[0]!
+    const rezzed = root.params.position.x
+    saved.advanceTime(300)
+    expect(root.params.position.x).toBeGreaterThan(rezzed)
     root.findScript('a')!.fire('link_message', { sender_num: 0, num: 0, str: '', id: '' })
     const stopped = root.params.position.x
     saved.advanceTime(1000)
