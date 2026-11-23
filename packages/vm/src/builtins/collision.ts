@@ -37,7 +37,7 @@ export const llSetRemoteScriptAccessPin: BuiltinImpl = (ctx, args) => {
 
 /** Whether REZ_FLAG_NO_COLLIDE_FAMILY on either object hides this collision: same rezzer, or one rezzed the other. */
 function sameFamily(linkset: Linkset, key: string): boolean {
-  const other = linkset.world?.linksets.find(l => l.prims.some(p => p.key.toLowerCase() === key))
+  const other = linkset.peers.find(l => l.prims.some(p => p.key.toLowerCase() === key))
   if (!other) return false
   if (!(((linkset.rez?.flags ?? 0) | (other.rez?.flags ?? 0)) & REZ_FLAG_NO_COLLIDE_FAMILY)) return false
   const root = (l: Linkset) => l.prims[0]!.key.toLowerCase()

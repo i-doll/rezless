@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { loadLinkset, World, makeInventoryItem, InventoryType, type Script } from '../src/index.js'
+import { loadLinkset, World, makeInventoryItem, InventoryType, type Linkset, type Script } from '../src/index.js'
 import * as C from '@rezless/vm'
 
 // https://wiki.secondlife.com/wiki/llRezObjectWithParams
@@ -221,4 +221,19 @@ it('hides an object from what it rezzes when it was rezzed with the no-collide-f
   hit(g, objectEntry(middle.prims[0]!.key))
   hit(f.scripts[0]!, objectEntry(grandchild.linkset.prims[0]!.key))
   expect([g.global('seen'), f.scripts[0]!.global('seen')]).toEqual([[], []])
+})
+
+it('finds family among objects rezzed outside a world', async () => {
+  const payload = (await loadLinkset({ prims: [{ name: 'payload', scripts: [{ name: 'child', source: { source: CHILD } }] }] })).linkset
+  const item = makeInventoryItem({ name: 'payload', type: InventoryType.OBJECT })
+  Object.assign(item, { object: payload })
+  const flags = C.REZ_FLAG_NO_COLLIDE_FAMILY | C.REZ_FLAG_DIE_ON_COLLIDE
+  const rezzer = await loadLinkset({ owner: OWNER, prims: [{ name: 'rezzer', inventory: [item], scripts: [{ name: 'rezzer', source: { source:
+    `default { state_entry() { llRezObjectWithParams("payload", [REZ_FLAGS, ${flags}]); llRezObjectWithParams("payload", []); } }` } }] }] })
+  rezzer.scripts['rezzer']!.start()
+  const [one, two] = rezzer.linkset.peers.filter(l => l !== rezzer.linkset) as [Linkset, Linkset]
+  hit(one.allScripts()[0]!, objectEntry(two.prims[0]!.key))
+  hit(one.allScripts()[0]!, objectEntry(rezzer.linkset.prims[0]!.key))
+  expect(one.dead).toBe(false)
+  expect(one.allScripts()[0]!.global('seen')).toEqual([])
 })
