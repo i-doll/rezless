@@ -98,6 +98,24 @@ describe('a remote script load into a child prim', () => {
     expect(seen('r')).toEqual([])
   })
 
+  it('tells the root before the loaded script starts', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const target = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [
+      { name: 'R', scripts: [script('r', 'default { changed(integer c) { llLinksetDataWrite("heard", "yes"); } }')] },
+      { name: 'C1' },
+    ] })
+    target.prims[1]!.remoteScriptAccessPin = 4231
+    const giver = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [
+      script('loaded', 'string read; default { state_entry() { read = llLinksetDataRead("heard"); } }'),
+      script('give', `default { touch_start(integer n) { llRemoteLoadScriptPin("${target.prims[1]!.key}", "loaded", 4231, TRUE, 0); } }`),
+    ] }] })
+    for (const s of [...Object.values(target.scripts), ...Object.values(giver.scripts)]) s.start()
+    giver.linkset.touch(1)
+    giver.linkset.advanceTime(4_000)
+    expect(target.prims[1]!.findScript('loaded')!.global('read')).toBe('yes')
+  })
+
   // In-world: a script with a changed handler loaded into the child with no script -> the root's
   // script said changed(1); the loaded script said state_entry and no changed.
   it('does not count the loaded script as the child\'s handler, nor tell it', async () => {
@@ -331,6 +349,27 @@ describe('a stopped script through other trips to inventory', () => {
     copy.running = true
     copy.linkset.advanceTime(30_000)
     expect(copy.global('log')).toEqual(['entry'])
+  })
+
+  it('lets a detached SLua script use the default memory limit when worn again', async () => {
+    const source = [
+      'if ll.LinksetDataRead("grow") == "1" then big = string.rep("x", 60000) end',
+      'LLEvents:on("touch_start", function() llcompat.SetMemoryLimit(40000) ll.LinksetDataWrite("grow", "1") end)',
+    ].join('\n')
+    const made = await loadLinkset({ owner: OWNER, prims: [{ scripts: [{ name: 'm', source: { source, filename: 'm.luau' }, memoryLimit: true }] }] })
+    const s = made.scripts['m']!
+    s.start()
+    s.fire('touch_start', { num_detected: 1 })
+    expect(s.state.memory.limit).toBe(40000)
+    s.running = false
+    made.linkset.attachToAvatar(OWNER, 1)
+    made.linkset.detachFromAvatar()
+    made.linkset.attachToAvatar(OWNER, 1)
+    s.running = true
+    made.linkset.advanceTime(100)
+    expect(s.crashed).toBe(false)
+    expect(s.state.memory.limit).toBe(131072)
+    expect((s.global('big') as string).length).toBe(60000)
   })
 
   it('brings an SLua script back at the default memory limit', async () => {
