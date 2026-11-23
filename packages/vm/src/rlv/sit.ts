@@ -234,6 +234,15 @@ export function cancelPendingGroundSit(avatar: WorldAvatar): void {
   takePendingGroundSit(avatar)?.close('refused', 'world-constraint')
 }
 
+// In-world: llTeleportAgent within the region during a force ground sit stood the avatar on arrival,
+// and the ground sit followed at the destination 0.02 to 0.29 s later; llTeleportAgentGlobalCoords
+// to the next region left it standing there.
+/** A script teleport to another region drops the force seating requests the viewer still waits on. */
+export function leaveRegionSeatRequests(avatar: WorldAvatar): void {
+  cancelSeatRequests(avatar)
+  cancelPendingGroundSit(avatar)
+}
+
 /** Both viewers use float prefixes; only RLVa rejects conversion range errors. */
 export function seatingDistance(profile: 'rlv' | 'rlva', option: string): number | undefined {
   return !option ? 1.5 : profile === 'rlv' ? rlvAtof(option) : rlvStof(option)

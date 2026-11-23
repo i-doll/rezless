@@ -7,8 +7,12 @@ import { loadRlvPair } from '../src/index.js'
 // sees the stand. The ground sit lands about 300 ms after the stand.
 
 const seatSource = `default {
-  state_entry() { llSitTarget(<0,0,0.6>, ZERO_ROTATION); }
-  link_message(integer sender, integer num, string message, key id) { llOwnerSay(message); }
+  state_entry() { llSitTarget(<0,0,0.6>, ZERO_ROTATION); llRequestPermissions(llGetOwner(), PERMISSION_TELEPORT); }
+  link_message(integer sender, integer num, string message, key id) {
+    if (num == 1) llTeleportAgent(llGetOwner(), "", <120,60,23>, ZERO_VECTOR);
+    else if (num == 2) llTeleportAgentGlobalCoords(llGetOwner(), <0,256,0>, <128,128,23>, ZERO_VECTOR);
+    else llOwnerSay(message);
+  }
 }`
 const LANDED_MS = 250
 const profiles = ['rlv', 'rlva'] as const
@@ -17,7 +21,8 @@ async function fixture(profile: typeof profiles[number]) {
   const { script, avatar, world } = (await loadRlvPair({ source: seatSource }))[profile]
   world.addRegion('north', { x: 0, y: 256 })
   script.start()
-  const say = (message: string) => script.fire('link_message', { sender_num: 1, num: 0, str: message, id: NULL_KEY })
+  script.grantPermissions()
+  const say = (message: string, num = 0) => script.fire('link_message', { sender_num: 1, num, str: message, id: NULL_KEY })
   const wait = (ms: number) => script.linkset.advanceTime(ms)
   const outcomes = (from: number) => avatar.viewer.commandLog.slice(from)
     .map(entry => 'actionOutcome' in entry ? [entry.action, entry.actionOutcome, entry.reason] : [])
@@ -192,5 +197,57 @@ describe('a teleport while a force ground sit waits for its stand', () => {
     f.wait(LANDED_MS)
     expect(f.seat()).toBe(AGENT_SITTING)
     expect(f.avatar.position).toMatchObject({ x: 10, y: 20 })
+  })
+})
+
+describe('a script teleport while a force ground sit waits', () => {
+  // In-world: a seat said "@sitground=force" and called llTeleportAgent within SLua Tideland after 0
+  // to 0.35 s: the avatar arrived standing and the ground sit followed at the destination 0.02 to
+  // 0.29 s later, five runs. llTeleportAgentGlobalCoords to SLua Tombolo after 0 to 0.2 s arrived
+  // standing, three runs (Aditi, Firestorm RLVa 2.4.2, 2026-11-23).
+  it.each(profiles)('%s sits the avatar on the ground at the destination after llTeleportAgent', async profile => {
+    const f = await fixture(profile)
+    f.say('@sit:' + f.script.host.key + '=force')
+    f.wait(LANDED_MS)
+    const from = f.avatar.viewer.commandLog.length
+    f.say('@sitground=force')
+    f.say('', 1)
+    expect(f.avatar.position).toEqual({ x: 120, y: 60, z: 23 })
+    f.wait(1000)
+    expect(f.seat()).toBe(AGENT_SITTING)
+    expect(f.avatar.position).toEqual({ x: 120, y: 60, z: 23 })
+    expect(f.outcomes(from).filter(entry => entry.length)).toEqual([
+      ['sitground', 'pending', undefined],
+      ['sitground', 'applied', undefined],
+    ])
+  })
+
+  it.each(profiles)('%s leaves the avatar standing after llTeleportAgentGlobalCoords to another region', async profile => {
+    const f = await fixture(profile)
+    f.say('@sit:' + f.script.host.key + '=force')
+    f.wait(LANDED_MS)
+    const from = f.avatar.viewer.commandLog.length
+    f.say('@sitground=force')
+    f.say('', 2)
+    f.wait(1000)
+    expect(f.avatar.region).toBe('north')
+    expect(f.seat()).toBe(0)
+    expect(f.outcomes(from).filter(entry => entry.length)).toEqual([
+      ['sitground', 'pending', undefined],
+      ['sitground', 'refused', 'world-constraint'],
+    ])
+  })
+
+  it.each(profiles)('%s drops a ground sit waiting after its stand when llTeleportAgentGlobalCoords leaves the region', async profile => {
+    const f = await fixture(profile)
+    const from = f.waiting()
+    f.say('', 2)
+    f.wait(1000)
+    expect(f.avatar.region).toBe('north')
+    expect(f.seat()).toBe(0)
+    expect(f.outcomes(from)).toEqual([
+      ['sitground', 'pending', undefined],
+      ['sitground', 'refused', 'world-constraint'],
+    ])
   })
 })
