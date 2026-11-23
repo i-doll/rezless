@@ -308,7 +308,7 @@ class Checker {
       case 'EmptyStatement':
         return []
       case 'ExpressionStatement':
-        this.expr(s.expression.kind === 'PrintExpression' ? s.expression.argument : s.expression)
+        this.discarded(s.expression)
         return []
       case 'IfStatement': {
         this.condition(s.test)
@@ -327,9 +327,9 @@ class Checker {
         this.condition(s.test)
         return []
       case 'ForStatement':
-        for (const e of s.init) this.expr(e)
+        for (const e of s.init) this.discarded(e)
         if (s.test) this.condition(s.test)
-        for (const e of s.update) this.expr(e)
+        for (const e of s.update) this.discarded(e)
         this.stmt(s.body, 'allowed')
         return []
       case 'ReturnStatement': {
@@ -446,6 +446,9 @@ class Checker {
         const target = this.lvalue(e.target)
         const value = this.expr(e.value)
         if (e.operator === '=') {
+          if (target === 'key' && e.value.kind === 'PrintExpression' && value === 'key') {
+            this.error(e, 'Internal server compile error')
+          }
           this.expectAssignable(e, target, value)
           return target
         }
@@ -485,6 +488,11 @@ class Checker {
         return t
       }
     }
+  }
+
+  /** An expression whose value is thrown away, where a print's value goes unused. */
+  private discarded(e: Expression): void {
+    this.expr(e.kind === 'PrintExpression' ? e.argument : e)
   }
 
   private component(e: Expression): void {

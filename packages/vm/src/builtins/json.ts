@@ -18,8 +18,9 @@ import {
 } from '../generated/constants.js'
 
 // Internal AST. `empty` represents the implicit-null slots LSL JSON allows
-// in `{"k":,}` and `[,,]` (`{"k":}` is invalid); on Get/Type these
-// short-circuit to JSON_NULL regardless of remaining specifiers.
+// in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
+// regardless of remaining specifiers. The `missing` value of `{"k":}` reads
+// as JSON_INVALID instead, and only the read functions accept it.
 type JNode =
   | { t: 'null' }
   | { t: 'true' }
@@ -28,7 +29,7 @@ type JNode =
   | { t: 'str'; v: string; raw?: string }
   | { t: 'arr'; items: JNode[]; raw?: string }
   | { t: 'obj'; entries: Array<[string, JNode]>; raw?: string }
-  | { t: 'empty' }
+  | { t: 'empty'; missing?: true }
 
 const SENTINEL_STRINGS: ReadonlySet<string> = new Set([
   JSON_INVALID,
@@ -44,7 +45,7 @@ const SENTINEL_STRINGS: ReadonlySet<string> = new Set([
 
 class Parser {
   private i = 0
-  constructor(private readonly src: string) {}
+  constructor(private readonly src: string, private readonly lenient: boolean) {}
 
   parseRoot(): JNode | null {
     this.ws()
@@ -107,8 +108,10 @@ class Parser {
       this.ws()
       const nc = this.src[this.i]
       let v: JNode
-      if (nc === '}') return null
-      if (nc === ',') {
+      if (nc === '}') {
+        if (!this.lenient) return null
+        v = { t: 'empty', missing: true }
+      } else if (nc === ',') {
         v = { t: 'empty' }
       } else {
         const parsed = this.parseValue()
@@ -240,8 +243,9 @@ class Parser {
   }
 }
 
-function parseJson(src: string): JNode | null {
-  return new Parser(src).parseRoot()
+/** `lenient` accepts an object member with no value before the closing brace, as the read functions do. */
+function parseJson(src: string, lenient = false): JNode | null {
+  return new Parser(src, lenient).parseRoot()
 }
 
 function escapeJsonString(s: string): string {
@@ -304,7 +308,7 @@ type WalkResult =
 function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
   let cur: JNode = root
   for (const [i, spec] of specs.entries()) {
-    if (cur.t === 'empty') return { kind: 'null' }
+    if (cur.t === 'empty') return cur.missing ? { kind: 'invalid' } : { kind: 'null' }
     if (typeof spec === 'string' && cur.t === 'arr') {
       const item = cur.items[parseLslInteger(spec)]
       if (item === undefined || item.t === 'empty') return { kind: 'invalid' }
@@ -326,7 +330,7 @@ function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
       return { kind: 'invalid' }
     }
   }
-  if (cur.t === 'empty') return { kind: 'null' }
+  if (cur.t === 'empty') return cur.missing ? { kind: 'invalid' } : { kind: 'null' }
   return { kind: 'node', node: cur }
 }
 
@@ -532,7 +536,7 @@ function jsonNodeListType(n: JNode): LslType {
 export const llJson2List: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''
   if (src === '') return []
-  const root = parseJson(src)
+  const root = parseJson(src, true)
   if (root === null) return typedList([src], ['string'])
   const values: LslValue[] = []
   const types: LslType[] = []
@@ -556,7 +560,7 @@ export const llJsonGetValue: BuiltinImpl = (_ctx, args) => {
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (json === '') return JSON_INVALID
   if (SENTINEL_STRINGS.has(json)) return specs.length === 0 ? json : JSON_INVALID
-  const root = parseJson(json)
+  const root = parseJson(json, true)
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)
   if (r.kind === 'invalid') return JSON_INVALID
@@ -569,7 +573,7 @@ export const llJsonValueType: BuiltinImpl = (_ctx, args) => {
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (json === '') return JSON_INVALID
   if (SENTINEL_STRINGS.has(json)) return JSON_INVALID
-  const root = parseJson(json)
+  const root = parseJson(json, true)
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)
   if (r.kind === 'invalid') return JSON_INVALID
