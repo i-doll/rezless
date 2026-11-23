@@ -123,6 +123,8 @@ function raiseFor(clock: LinksetClock, script: Script, event: MovingEvent, at: n
  */
 export function queueMoving(clock: LinksetClock, script: Script, event: MovingEvent, at: number): void {
   if (script.dead) return
+  // A change queued now replaces one the script was still to be told of.
+  held.delete(script)
   given.set(script, event)
   if (event === 'moving_start' && script.running) clock.purgeWhere((e) => e.target === script && e.event === 'moving_end')
   if (!clock.hasPending(script, event)) clock.schedule(script, at, event)
@@ -295,13 +297,21 @@ export const SELECTION_MS = { edit: 400, copy: 700 } as const
  */
 export function selectMotion(linkset: Linkset, ms: number): boolean {
   const motion = linkset.prims[0]?.keyframedMotion
+  if (motion && selecting.has(motion)) return true
   if (!motion?.playing) return false
   motion.command(KFM_CMD_PAUSE)
+  selecting.add(motion)
   const stops = motion.stops
   linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0]?.keyframedMotion !== motion } },
-    linkset.clock.now + ms, () => { if (motion.stops === stops) motion.command(KFM_CMD_PLAY) })
+    linkset.clock.now + ms, () => {
+      selecting.delete(motion)
+      if (motion.stops === stops) motion.command(KFM_CMD_PLAY)
+    })
   return true
 }
+
+/** Motion a viewer selection has paused and not let go of yet. */
+const selecting = new WeakSet<KeyframedMotion>()
 
 /**
  * A copy taken of a selected object holds its motion paused and has been told of no motion:

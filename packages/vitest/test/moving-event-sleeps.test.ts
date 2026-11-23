@@ -442,6 +442,20 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     expect(b.linkset.prims[0]!.keyframedMotion!.playing).toBe(false)
   })
 
+  // A Take while an edit still holds the motion paused leaves the copy as still as a Take alone.
+  it('keeps a copy still when it is taken while an edit holds the motion paused', async () => {
+    const b = await box(looper)
+    send(b, 'go')
+    b.linkset.advanceTime(1_000)
+    b.world.attemptAvatarEdit(b.avatar, b.linkset.prims[0]!)
+    const taken = b.world.attemptAvatarTake(b.avatar, b.linkset.prims[0]!, { copy: true }).object!
+    const carried = logOf(taken).length
+    seedRlvInventory(b.avatar, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: taken, assetType: 'object' }] })
+    const rezzed = b.world.attemptAvatarRez(b.avatar, 'taken', { x: 128, y: 130, z: 100 }).object!
+    rezzed.advanceTime(1_000)
+    expect(logOf(rezzed).slice(carried).map((line) => line.split(' ')[0])).toEqual(['rez'])
+  })
+
   // A Duplicate's script starts from the top, so it has been told nothing of the original's motion.
   it('starts a Duplicate whose script plays the copied motion in a handler that sleeps', async () => {
     const b = await box(looper.replace('else if (m == "play") llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);',
