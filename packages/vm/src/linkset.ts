@@ -350,9 +350,10 @@ export class Linkset {
       script.detached()
       pauseSensors(script)
       pauseTargets(script)
-      // In-world: a chat line waiting for a handler that was asleep at the detach ran when the
-      // object was worn again, after on_rez and before the two attach events.
-      if (script.wakeAt === undefined) this.clock.purgeTarget(script)
+      // In-world: a chat line waiting for a handler that was asleep, or busy in a loop, at the
+      // detach ran when the object was worn again, after on_rez and before the two attach events.
+      if (script.handling) script.detachedInHandler = true
+      else if (script.wakeAt === undefined) this.clock.purgeTarget(script)
     }
     // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
     for (const script of this.allScripts()) {
@@ -363,7 +364,7 @@ export class Linkset {
   }
 
   private finishTemporaryDetach(): void {
-    if (!this.deleteAfterDetach || this.allScripts().some(s => s.running && s.wakeAt === undefined && this.clock.hasPending(s, 'attach'))) return
+    if (!this.deleteAfterDetach || this.allScripts().some(s => s.running && s.wakeAt === undefined && !s.detachedInHandler && this.clock.hasPending(s, 'attach'))) return
     this.deleteAfterDetach = false
     this.remove()
   }

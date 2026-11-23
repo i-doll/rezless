@@ -142,12 +142,14 @@ export interface ScriptState {
   /**
    * Lifecycle flags — `dead` is set when llDie runs or the script is removed
    * from inventory; `dying` when the script itself called llDie; `removed`
-   * when it removed itself.
+   * when it removed itself; `reset` when it was reset while one of its handlers was running, which
+   * then stops at its next call.
    */
   lifecycle: {
     dead: boolean
     dying: boolean
     removed: boolean
+    reset: boolean
   }
   /** Source filename used for coverage attribution. "<inline>" for inline-source loads. */
   readonly filename: string
