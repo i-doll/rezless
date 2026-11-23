@@ -42,6 +42,9 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['collision_end', 9], ['land_collision', 9], ['land_collision_end', 9],
 ])
 
+/** Changes to running state held from the rest of a handler that was busy at a detach; they take no event slot. */
+export const HELD_CONTROL: ReadonlySet<string> = new Set(['__running', '__scriptState'])
+
 /** `changed` and the events a rez raises that run as `changed`. */
 const CHANGED_EVENTS: ReadonlySet<string> = new Set(['changed', '__unseated', '__ownerChanged'])
 
@@ -284,9 +287,9 @@ export class LinksetClock {
       // A click or a change that merges into one already held back takes no room of its own.
       if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
     }
-    if (event !== '__reset' && event !== '__scriptState' && event !== '__running') {
-      let pending = target.parkedEvents.length
-      for (const e of this.queue) if (e.target === target) pending++
+    if (event !== '__reset' && !HELD_CONTROL.has(event)) {
+      let pending = target.parkedEvents.filter(e => !HELD_CONTROL.has(e.event)).length
+      for (const e of this.queue) if (e.target === target && !HELD_CONTROL.has(e.event)) pending++
       if (pending >= MAX_PENDING_EVENTS) return
     }
     this.queue.push(queued)
@@ -318,8 +321,8 @@ export class LinksetClock {
     if (!before.length) return false
     const after = mergeHeld([...before, queued])
     if (after.length > before.length) {
-      let pending = target.parkedEvents.length
-      for (const e of this.queue) if (e.target === target) pending++
+      let pending = target.parkedEvents.filter(e => !HELD_CONTROL.has(e.event)).length
+      for (const e of this.queue) if (e.target === target && !HELD_CONTROL.has(e.event)) pending++
       if (pending + after.length - before.length > MAX_PENDING_EVENTS) return true
     }
     const at = this.queue.indexOf(before[0]!)

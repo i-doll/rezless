@@ -54,10 +54,7 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
-
-/** Changes to running state held from the rest of a handler that was busy at a detach. */
-const HELD_CONTROL: ReadonlySet<string> = new Set(['__running', '__scriptState'])
+import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
 import type { QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'

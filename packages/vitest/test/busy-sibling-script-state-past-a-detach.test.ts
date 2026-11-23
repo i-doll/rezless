@@ -395,3 +395,27 @@ it('stops a script that had crashed before the detach, once the wear revives it'
   expect(t.crashed).toBe(false)
   expect(t.running).toBe(false)
 })
+
+it('takes no event slot from the busy sibling for the change it holds', async () => {
+  const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+    { name: 'T', source: { source: target } },
+    { name: 'C', source: { source: `list log; default {
+      attach(key id) { if (id) log += "worn"; }
+      link_message(integer s, integer i, string m, key id) {
+        if (m != "go") return;
+        integer k; for (k = 0; k < 61; ++k) llMessageLinked(LINK_THIS, k, "", "");
+        llOwnerSay("x"); llSetScriptState("T", FALSE); } }` } },
+  ] }] })
+  for (const s of Object.values(scripts)) s.start()
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(0)
+  const c = scripts['C']!
+  c.setGlobal('log', [])
+  c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+  c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+  linkset.advanceTime(0)
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(100)
+  expect(scripts['T']!.running).toBe(false)
+  expect(c.global('log')).toEqual(['worn'])
+})
