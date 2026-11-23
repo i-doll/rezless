@@ -1352,7 +1352,7 @@ Force `sit`, `sitground` and `unsit` update World seating 225 ms of virtual time
 command (the grid switched between 0.2 and 0.25 s) and expose action outcomes in the viewer
 command log. Until then the issuing script, `getsitid` and the rest of the message see the old
 seat, so tests must step virtual time after an RLV force sit or stand before reading the seat. A ground sit from a seat stands the
-avatar first and lands on the ground after a further short delay. `getsitid` reports the object root, null standing, or the avatar
+avatar first and lands on the ground after a further short delay. A teleport in that delay lands the ground sit at a destination in the same region and drops it for another region. `getsitid` reports the object root, null standing, or the avatar
 UUID for RLVa ground sitting. Profile-specific force lock checks are supported;
 explicit simulator sit responses supply surface poses at any same-region distance
 and timed autopilot outcomes. A refused response stands the avatar up from another object it sits on and changes nothing else.

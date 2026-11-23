@@ -8,7 +8,7 @@ import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } f
 import { playAvatarGesture, type AvatarGesture, type AvatarGestureAction } from './rlv/gesture.js'
 import { attemptAvatarIM, type AvatarIMAction } from './rlv/im-actions.js'
 import { deliverAvatarReceivedIM } from './rlv/received.js'
-import { cancelPendingGroundSit, cancelPendingSit, cancelSeatRequests, groundSitAfterStand, returnStandtpAvatar, userSitAvatar, userSitAvatarOnGround, userStandAvatar } from './rlv/sit.js'
+import { cancelPendingGroundSit, cancelPendingSit, cancelSeatRequests, groundSitAfterStand, returnStandtpAvatar, teleportPendingGroundSit, userSitAvatar, userSitAvatarOnGround, userStandAvatar } from './rlv/sit.js'
 import { sendAvatarChat, type AvatarChatAction, type AvatarChatVolume } from './rlv/chat-actions.js'
 import { canRlvEnterMouselook } from './rlv/camera.js'
 import { createViewerState, type ViewerConfig, type ViewerState } from './rlv/profiles.js'
@@ -1004,6 +1004,7 @@ export class World {
     cancelSeatRequests(avatar)
     const changes = CHANGED_TELEPORT | (avatar.region === region.name ? 0 : CHANGED_REGION)
     this.relocateAvatar(avatar, region.name, position)
+    teleportPendingGroundSit(avatar, !(changes & CHANGED_REGION))
     if (lookAt && (lookAt.x || lookAt.y)) {
       const half = Math.atan2(lookAt.y, lookAt.x) / 2
       avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
