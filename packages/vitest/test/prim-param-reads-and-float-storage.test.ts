@@ -78,7 +78,8 @@ describe('a rule a prim cannot read', () => {
     // In-world: the get error probe in two linked boxes. Each read stopped at the rule the prim
     // can't read and said the error on DEBUG_CHANNEL; a rule that is not an integer ended the
     // read without one. llGetLinkPrimitiveParams worded it as llGetPrimitiveParams too, and the
-    // prim its link argument named said it: link 2 for case 7, the root for case 8.
+    // prim its link argument named said it: link 2 for case 7, the root for case 8. Link 2's error
+    // ended with the root's name and position (pinned in prim-param-get-errors-and-rez-collision-sound.test.ts).
     expect(owner(s)).toEqual([
       '1 [<1.000000, 1.000000, 1.000000>, 1.000000]',
       '2 [Root, , 3]',
@@ -97,7 +98,7 @@ describe('a rule a prim cannot read', () => {
       [error(0), linkset.prims[0]!.key],
       [error(1), linkset.prims[0]!.key],
       [error(1), linkset.prims[0]!.key],
-      [error(1), linkset.prims[1]!.key],
+      [`${error(1)} {RootName Root, RootPosition { 0, 0, 0 }}`, linkset.prims[1]!.key],
       [error(4), linkset.prims[0]!.key],
       [error(1), linkset.prims[0]!.key],
     ])

@@ -81,9 +81,18 @@ async function linkProbe(prims: number, caller: number) {
   })
   const s = scripts.probe!
   s.start()
-  expect(said(s, DEBUG_CHANNEL)).toEqual([])
-  return said(s)
+  // Each link target error as its param number, marked when it ends with the root's name and position.
+  const errors = said(s, DEBUG_CHANNEL).map((text) => {
+    const error = /^llGetPrimitiveParams error: Param (\d+) error, PRIM_LINK_TARGET has missing or bad link number\.( \{RootName p1, RootPosition \{ 0, 0, 0 \}\})?$/.exec(text)
+    return error ? `${error[1]}${error[2] ? ' root' : ''}` : text
+  })
+  return [...said(s), errors.join(' ')]
 }
+
+// In-world (Aditi, SLua Tideland, 2026-11-23, read from the owner's chat history): a link target
+// that names no prim, or whose link is missing or not an integer, ended the read with an error
+// naming the link's param, and a read whose first link names no prim said nothing. Mono works out
+// the right side of a + first, so the errors of one line come last to first.
 
 describe('PRIM_LINK_TARGET in a read', () => {
   it('ends the read when it names no prim, in a lone prim', async () => {
@@ -96,6 +105,7 @@ describe('PRIM_LINK_TARGET in a read', () => {
       '[2][2][2][][][0, 2]',
       '[2][2][2][2]',
       '[][]',
+      [...Array(13).fill('2'), '3 1 2 2 2', '2 2 2 2', '1 1'].join(' '),
     ])
   })
 
@@ -111,6 +121,7 @@ describe('PRIM_LINK_TARGET in a read', () => {
       '[5][5][5][][][0, 5]',
       '[5][5][5][5]',
       '[5, 6][6, 6, 6]',
+      '2 2 2 2 3 1 2 2 2 2 2 2 2 7',
     ])
   })
 
@@ -126,6 +137,7 @@ describe('PRIM_LINK_TARGET in a read', () => {
         `[${m}][${m}][${m}][][][0, ${m}]`,
         `[${m}][${m}][${m}][${m}]`,
         '[5, 6][5, 5, 5]',
+        '2 2 2 3 1 2 2 2 2 2 2 2 7'.split(' ').map((n) => `${n} root`).join(' '),
       ])
     })
   }
