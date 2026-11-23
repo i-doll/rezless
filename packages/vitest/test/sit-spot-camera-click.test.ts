@@ -50,8 +50,10 @@ const CLICK: Row[] = [
 // In-world: a click low on the near side was refused with "There is no
 // suitable surface to sit on" from about 4.6 m away: 0.3 and 0.4 m below the
 // centre, and 0.4 m below at 0.3 m along Y. From 4.5 m a click 0.25 m below
-// seated the avatar, and from 3.1 m clicks 0.35 and 0.4 m below did. No rule
-// was found for which clicks the region refuses, so rezless seats them all.
+// seated the avatar, and from 3.1 m clicks 0.35 and 0.4 m below did.
+// sit-spot-clicks.test.ts holds 73 more clicks on a side, most of them low, on
+// three box sizes. No rule
+// fits which clicks the region refuses, so rezless seats them all.
 const LOW_REFUSED: Row[] = [
   ['click 0.4 m down the near side, from 4.8 m', v(118.187, 51.754, 1997.448), null, v(-0.5, 0, -0.4), v(0, 0, 0), AWAY],
   ['click 0.4 m down the near side, from 4.6 m', v(118.403, 51.975, 1997.448), null, v(-0.5, 0, -0.4), v(0, 0, 0), AWAY],
@@ -60,12 +62,10 @@ const LOW_REFUSED: Row[] = [
 ]
 
 // A click on the top: the line meets the top at the clicked spot, and the
-// avatar sat at one of the box's sides, in line with the spot. rezless takes
-// the side towards the camera, as for a request whose line meets the top
-// first; Second Life often took another. In every row where one side was
-// nearer the spot than the others among the sides towards and away from the
-// camera and the side towards the avatar, the avatar sat at that side; where
-// two of those were equally near, no rule was found.
+// avatar sat at one of the box's sides, in line with the spot. Rays across the
+// top from the spot towards the camera, away from it and towards the avatar
+// each reach a side; the avatar sits at the one nearest the spot.
+// sit-spot-clicks.test.ts holds more clicks.
 const TOP: Row[] = [
   ['camera 7 m along -X, click at -0.4, -0.4 on the top: -X side', v(119.276, 53.108, 1997.439), v(116, 52, 1999.37), v(-0.4, -0.4, 0.5), v(-0.59, -0.4, 1.13), AWAY],
   ['camera 7 m along -X, click at -0.4, 0.4 on the top: -X side', v(118.233, 52.577, 1997.448), v(116, 52, 1999.37), v(-0.4, 0.4, 0.5), v(-0.59, 0.4, 1.13), AWAY],
@@ -78,20 +78,23 @@ const TOP: Row[] = [
   ['avatar and camera along -Y, click at 0.3, -0.2 on the top: -Y side', v(123.062, 48.854, 1997.448), v(123, 45, 1999.37), v(0.3, -0.2, 0.5), v(0.3, -0.59, 1.13), [0, 0, -0.707, 0.707]],
   ['avatar and camera along -Y, click at -0.3, 0 on the top: -Y side', v(123.204, 48.762, 1997.448), v(123, 45, 1999.37), v(-0.3, 0, 0.5), v(-0.3, -0.59, 1.13), [0, 0, -0.707, 0.707]],
   ['avatar and camera along -Y, click at -0.3, -0.2 on the top: -Y side', v(123.218, 48.288, 1997.448), v(123, 45, 1999.37), v(-0.3, -0.2, 0.5), v(-0.3, -0.59, 1.13), [0, 0, -0.707, 0.707]],
-]
-const TOP_MISSED: Row[] = [
   ['camera 7 m along -X, click at 0.2, -0.4 on the top: +X side', v(118.06, 52.269, 1997.448), v(116, 52, 1999.37), v(0.2, -0.4, 0.5), v(0.59, -0.4, 1.13), [0, 0, 0, 1]],
   ['camera 7 m along -X, click at 0.4, 0.4 on the top: +X side', v(118.491, 51.893, 1997.448), v(116, 52, 1999.37), v(0.4, 0.4, 0.5), v(0.59, 0.4, 1.13), [0, 0, 0, 1]],
-  ['camera 7 m along -X, click at 0, 0 on the top: +X side', v(118.129, 52.289, 1997.448), v(116, 52, 1999.37), v(0, 0, 0.5), v(0.59, 0, 1.13), [0, 0, 0, 1]],
-  ['camera 4 m along -Y, click at -0.4, 0.4 on the top: -X side', v(118.142, 52.352, 1997.448), v(122.97, 48.016, 1999.37), v(-0.4, 0.4, 0.5), v(-0.59, 0.4, 1.13), AWAY],
   ['camera 4 m along -Y, click at 0.4, 0.4 on the top: +Y side', v(118.166, 52.174, 1997.448), v(122.97, 48.016, 1999.37), v(0.4, 0.4, 0.5), v(0.4, 0.59, 1.13), [0, 0, 0.707, 0.707]],
   ['camera 4 m along -Y, click at -0.1, 0 on the top: -X side', v(118.32, 51.612, 1997.448), v(122.97, 48.016, 1999.37), v(-0.1, 0, 0.5), v(-0.59, 0, 1.13), AWAY],
+  ['camera 4 m along +X, click at -0.3, 0.2 on the top: -X side', v(118.241, 52.0, 1997.448), v(126.956, 52, 1999.37), v(-0.3, 0.2, 0.5), v(-0.59, 0.2, 1.13), AWAY],
+  ['camera at rest, click at 0.3, 0.3 on the top: +X side', v(119.86, 52.098, 1997.448), null, v(0.3, 0.3, 0.5), v(0.59, 0.3, 1.13), [0, 0, 0, 1]],
+]
+// Where two of those sides were equally near, rezless takes the side the ray
+// towards the camera reaches, then the one away from it; Second Life took
+// another here. sit-spot-clicks.test.ts shows no order of the three fits.
+const TOP_MISSED: Row[] = [
+  ['camera 7 m along -X, click at 0, 0 on the top: +X side', v(118.129, 52.289, 1997.448), v(116, 52, 1999.37), v(0, 0, 0.5), v(0.59, 0, 1.13), [0, 0, 0, 1]],
+  ['camera 4 m along -Y, click at -0.4, 0.4 on the top: -X side', v(118.142, 52.352, 1997.448), v(122.97, 48.016, 1999.37), v(-0.4, 0.4, 0.5), v(-0.59, 0.4, 1.13), AWAY],
   ['camera 4 m along -Y, click at 0, 0 on the top: +Y side', v(118.002, 52.166, 1997.448), v(122.972, 48.015, 1999.37), v(0, 0, 0.5), v(0, 0.59, 1.13), [0, 0, 0.707, 0.707]],
   ['camera 4 m along +X, click at 0, 0 on the top: -X side', v(118.157, 52.142, 1997.448), v(126.956, 52, 1999.37), v(0, 0, 0.5), v(-0.59, 0, 1.13), AWAY],
-  ['camera 4 m along +X, click at -0.3, 0.2 on the top: -X side', v(118.241, 52.0, 1997.448), v(126.956, 52, 1999.37), v(-0.3, 0.2, 0.5), v(-0.59, 0.2, 1.13), AWAY],
   ['camera at rest, click at 0, 0.4 on the top: +X side', v(118.089, 52.001, 1997.448), null, v(0, 0.4, 0.5), v(0.59, 0.4, 1.13), [0, 0, 0, 1]],
   ['camera at rest, click at 0, -0.3 on the top: +X side', v(118.29, 52.002, 1997.448), null, v(0, -0.3, 0.5), v(0.59, -0.3, 1.13), [0, 0, 0, 1]],
-  ['camera at rest, click at 0.3, 0.3 on the top: +X side', v(119.86, 52.098, 1997.448), null, v(0.3, 0.3, 0.5), v(0.59, 0.3, 1.13), [0, 0, 0, 1]],
   ['camera at rest, click at 0, 0 on the top: +X side', v(118.341, 51.949, 1997.448), null, v(0, 0, 0.5), v(0.59, 0, 1.13), [0, 0, 0, 1]],
 ]
 

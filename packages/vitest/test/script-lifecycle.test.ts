@@ -747,12 +747,14 @@ describe('a crashed SLua script in an object rezzed from inventory', () => {
   // new prim said "<prim name> [script:<script name>] Script run-time error"
   // and then the same second line as the first time; the script ran neither
   // its top level nor on_rez, and a touch did nothing. The object renamed,
-  // taken and rezzed again said the error again under its new name.
+  // taken and rezzed again said the error again under its new name. The owner
+  // saw the same Lua message and traceback again where listeners heard
+  // "runtime error" (Aditi, SLua Tideland, 2026-11-23).
   it.each([
-    ['error("boom")', 'runtime error'],
-    ['error({})', 'Unknown runtime error'],
-    ['for i = 1, 70 do ll.Listen(i, "", NULL_KEY, "") end', 'Too Many Listens'],
-  ])('says the error again: %s', async (statement, said) => {
+    ['error("boom")', 'runtime error', 'lua_script:4: boom\n[C] function error\nlua_script:4\n[C] function _handleEvent\n'],
+    ['error({})', 'Unknown runtime error', 'Unknown runtime error'],
+    ['for i = 1, 70 do ll.Listen(i, "", NULL_KEY, "") end', 'Too Many Listens', 'Too Many Listens'],
+  ])('says the error again: %s', async (statement, said, shown) => {
     const payload = await loadLinkset({ prims: [{ name: 'crasher', scripts: [{ name: 'x', language: 'slua', source: { source: `
       rezzed = 0
       LLEvents:on("on_rez", function(p) rezzed += 1 end)
@@ -761,7 +763,7 @@ describe('a crashed SLua script in an object rezzed from inventory', () => {
     const saved = payload.scripts['x']!
     saved.start()
     expect(() => saved.fire('touch_start', { num_detected: 1, detected: [{ key: NULL_KEY, name: 'A' }] })).toThrow()
-    expect(saved.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual(['crasher [script:x] Script run-time error', said])
+    expect(saved.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual(['crasher [script:x] Script run-time error', shown])
     payload.prims[0]!.name = 'renamed'
     const { world, rez } = await rezzer(payload.linkset)
     const ear = (await loadLinkset({ world, region: 'rez region', position: { x: 100, y: 100, z: 33 }, prims: [{ scripts: [{ name: 'ear', source: { source: `list heard;
@@ -776,7 +778,7 @@ describe('a crashed SLua script in an object rezzed from inventory', () => {
     expect(ear.global('heard')).toEqual(['renamed', key, 'renamed [script:x] Script run-time error', 'renamed', key, said])
     expect(x.crashed).toBe(true)
     expect(x.running).toBe(false)
-    expect(x.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual(['renamed [script:x] Script run-time error', said])
+    expect(x.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual(['renamed [script:x] Script run-time error', shown])
   })
 
   it('says it again each time the object is rezzed', async () => {
@@ -786,7 +788,7 @@ describe('a crashed SLua script in an object rezzed from inventory', () => {
     const { rez } = await rezzer(payload.linkset)
     for (const _ of [1, 2]) {
       const x = rez()
-      expect(x.chat.map((c) => c.text)).toEqual(['crasher [script:x] Script run-time error', 'runtime error'])
+      expect(x.chat.map((c) => c.text)).toEqual(['crasher [script:x] Script run-time error', 'lua_script:1: top boom\n[C] function error\nlua_script:1\n'])
     }
   })
 
@@ -807,15 +809,15 @@ describe('a crashed SLua script in an object rezzed from inventory', () => {
     script.advanceTime(0)
     const object = world.linksets.find((l) => l.attachment)!
     const x = object.allScripts()[0]!
-    expect(x.chat.map((c) => c.text)).toEqual(['crasher [script:x] Script run-time error', 'runtime error'])
+    expect(x.chat.map((c) => c.text)).toEqual(['crasher [script:x] Script run-time error', 'lua_script:1: top boom\n[C] function error\nlua_script:1\n'])
     object.detachFromAvatar()
     script.advanceTime(0)
     script.fire('touch_start', { num_detected: 1 })
     script.advanceTime(0)
     expect(object.attachment).not.toBeNull()
     expect(x.chat.map((c) => c.text)).toEqual([
-      'crasher [script:x] Script run-time error', 'runtime error',
-      'crasher [script:x] Script run-time error', 'runtime error',
+      'crasher [script:x] Script run-time error', 'lua_script:1: top boom\n[C] function error\nlua_script:1\n',
+      'crasher [script:x] Script run-time error', 'lua_script:1: top boom\n[C] function error\nlua_script:1\n',
     ])
   })
 })

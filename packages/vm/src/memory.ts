@@ -21,6 +21,11 @@ export class RuntimeError extends Error {
   get said(): string {
     return this.message
   }
+
+  /** What the owner sees in its place. */
+  get shown(): string {
+    return this.said
+  }
 }
 
 /** A fatal Stack-Heap Collision: the script ran out of memory. */

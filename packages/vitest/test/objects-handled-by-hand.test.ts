@@ -247,9 +247,7 @@ describe('wearing a rezzed object and dropping it', () => {
 // for a seat 0.5 m from the avatar and another object 2.5 m away, under each restriction set by a
 // worn object, standing and sitting on the seat. @rez, @edit (with or without an exception for
 // the object) and an edit lock on the object turned Take off and left Take Copy on, as modelled
-// before. Under @editworld alone the menu-state tool also read Take as off, but Firestorm's menu
-// code (enable_take and rlvCanDeleteOrReturn) only checks the object while @edit, @rez, @unsit or
-// an edit lock is set, so Take stays on there.
+// before. Under @editworld alone Take stays on (drop-duplicate-take-reach.test.ts).
 describe('the menu\'s Take and Take Copy under RLVa restrictions', () => {
   const issuer = 'string command; default { touch_start(integer n) { llOwnerSay(command); } }'
   type Rlv = Awaited<ReturnType<typeof loadRlvPair>>['rlva']

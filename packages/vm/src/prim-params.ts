@@ -1,4 +1,4 @@
-import { mulRotation } from './values/ops.js'
+import { mulRotation, normalizeRotation } from './values/ops.js'
 import {
   CLICK_ACTION_IGNORE,
   CLICK_ACTION_TOUCH,
@@ -256,12 +256,12 @@ function clearGltfOverrides(g: PrimFace['gltf']): void {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const findItem = (prim: Prim, type: number, name: string) =>
-  prim.inventory.find((it) => it.type === type && it.name === name)
-
+// An item of another type with the name hides a key with the same text.
 const assetKey = (prim: Prim, type: number, name: string): string | null => {
   if (name === '') return NULL_KEY
-  return findItem(prim, type, name)?.key.toLowerCase() ?? (UUID.test(name) ? name.toLowerCase() : null)
+  const item = prim.inventory.find((it) => it.name === name)
+  if (item) return item.type === type ? item.key.toLowerCase() : null
+  return UUID.test(name) ? name.toLowerCase() : null
 }
 
 /**
@@ -279,9 +279,9 @@ export const soundKey = (prim: Prim, sound: string) => assetKey(prim, InventoryT
 const mapType = (prim: Prim, key: string): LslType => (textureName(prim, key) === key ? 'key' : 'string')
 
 const itemName = (prim: Prim, type: number, key: string): string =>
-  key === NULL_KEY ? key : (prim.inventory.find((it) => it.type === type && it.key.toLowerCase() === key)?.name ?? key)
+  prim.inventory.find((it) => it.type === type && it.key.toLowerCase() === key)?.name ?? key
 
-export const textureName = (prim: Prim, key: string): string => itemName(prim, InventoryType.TEXTURE, key)
+export const textureName = (prim: Prim, key: string): string => (key === NULL_KEY ? key : itemName(prim, InventoryType.TEXTURE, key))
 
 const SCULPT_MAP_DEFAULT = 'be293869-d0d9-0a69-5989-ad27f1946fd4'
 
@@ -315,7 +315,11 @@ export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean 
   return false
 }
 
-export const materialName = (prim: Prim, key: string): string => itemName(prim, InventoryType.MATERIAL, key)
+/** A material reads back as its item's name. No material reads as the name of an empty notecard, which holds no asset. */
+export const materialName = (prim: Prim, key: string): string =>
+  key === NULL_KEY
+    ? (prim.inventory.find((it) => it.type === InventoryType.NOTECARD && it.key === NULL_KEY && !it.notecardLines?.length)?.name ?? key)
+    : itemName(prim, InventoryType.MATERIAL, key)
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
   [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: 'vector',
@@ -447,6 +451,13 @@ export function normalizeRot(r: Rotation): Rotation {
   return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
 }
 
+/**
+ * A rotation as PRIM_ROTATION and PRIM_ROT_LOCAL store it: Second Life's normalise in single
+ * precision, which stores one of length 1e-7 or less as no rotation. One too long to square in
+ * single precision, which wasn't measured, keeps the rescale above.
+ */
+const storedRotation = (r: Rotation) => (Math.hypot(r.x, r.y, r.z, r.s) < 1.8e19 ? normalizeRotation(r) : normalizeRot(r))
+
 /** Face indexes a face argument names: every face for a negative face, none past the shape's face count. */
 export function faceIndices(p: PrimParams, face: number): number[] {
   if (face < 0) return p.faces.map((_, i) => i)
@@ -555,14 +566,14 @@ export function writePrimParam(
           Math.fround(requested.y) === Math.fround(p.rotation.y) &&
           Math.fround(requested.z) === Math.fround(p.rotation.z) &&
           Math.fround(requested.s) === Math.fround(p.rotation.s)) return 1
-      const rotation = normalizeRot(requested)
+      const rotation = storedRotation(requested)
       p.rotation = root && root !== prim
-        ? normalizeRot(mulRotation(rotation, root.params.rotation))
+        ? storedRotation(mulRotation(rotation, root.params.rotation))
         : rotation
       return 1
     }
     case PRIM_ROT_LOCAL:
-      p.rotation = normalizeRot(asRot(rules[cursor]))
+      p.rotation = storedRotation(asRot(rules[cursor]))
       return 1
     case PRIM_SIZE:
       p.size = clampVec(asVec(rules[cursor]), 0.01, 64)
@@ -1380,7 +1391,7 @@ function typeAccepts(param: number, expected: LslType, given: LslType): boolean 
 }
 
 /** `%g`-style number text, as the simulator prints it in error messages. */
-const formatG = (v: number): string => String(Number(v.toPrecision(6)))
+export const formatG = (v: number): string => String(Number(v.toPrecision(6)))
 
 const SHAPE_NAMES: Readonly<Record<number, string>> = {
   [PRIM_TYPE_BOX]: 'PRIM_TYPE_BOX', [PRIM_TYPE_CYLINDER]: 'PRIM_TYPE_CYLINDER', [PRIM_TYPE_PRISM]: 'PRIM_TYPE_PRISM',
@@ -1503,16 +1514,19 @@ export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number, rul
 }
 
 /**
- * Whether the rule at `rules[index]` of a get call can be read: the rule is
- * an integer, and a face or link it takes is there and an integer. A rule
- * that can't be read ends the result.
+ * Whether the rule at `rules[index]` of a get call can be read: `ok`, or why
+ * not. A rule that is not an integer ends the result without an error; a
+ * face or link that is missing or not an integer ends it with one.
  */
-export function primGetRuleRuns(rules: ReadonlyArray<LslValue>, index: number): boolean {
-  if (givenType(rules, index) !== 'integer') return false
+export function primGetRuleCheck(rules: ReadonlyArray<LslValue>, index: number): 'ok' | 'notRule' | 'badFace' | 'badLink' {
+  if (givenType(rules, index) !== 'integer') return 'notRule'
   const param = rules[index] as number
-  if (param !== PRIM_LINK_TARGET && !PER_FACE_RULES.has(param)) return true
-  return index + 1 < rules.length && givenType(rules, index + 1) === 'integer'
+  if (param !== PRIM_LINK_TARGET && !PER_FACE_RULES.has(param)) return 'ok'
+  if (index + 1 < rules.length && givenType(rules, index + 1) === 'integer') return 'ok'
+  return param === PRIM_LINK_TARGET ? 'badLink' : 'badFace'
 }
+
+export const isPerFaceRule = (param: number) => PER_FACE_RULES.has(param)
 
 /**
  * What a face is on its shape: a path end (top / bottom), the hollow's inner

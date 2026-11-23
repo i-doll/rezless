@@ -93,9 +93,9 @@ describe('coroutine.running() in SLua', () => {
     expect(texts(s)).toEqual([...each('once'), ...each('every'), ...each('touch'), ...each('touch')])
   })
 
-  it('stays nil in a handler that an event was fired into, and keeps that handler intact', async () => {
-    // Second Life queues events, so this has no measurement: only a mock that fires into the script it serves
-    // runs one handler inside another.
+  it('stays nil in a handler fired from inside another, which runs once that one returns', async () => {
+    // https://wiki.secondlife.com/wiki/Category:LSL_Events: a script runs one event at a time, so an event
+    // fired into a running handler waits behind it.
     const s = await slua(`
       LLEvents:on("touch_start", function()
         local keep = {}
@@ -120,7 +120,7 @@ describe('coroutine.running() in SLua', () => {
     })
     touch(s)
     touch(s)
-    expect(texts(s)).toEqual(['before nil', 'inside nil', 'after nil 692', 'before nil', 'after nil 692'])
+    expect(texts(s)).toEqual(['before nil', 'after nil 692', 'inside nil', 'before nil', 'after nil 692'])
   })
 
   it('carries on from a yield on the script thread, which returns nothing', async () => {
@@ -214,18 +214,19 @@ describe('SLua memory errors', () => {
   it('stops a script whose recursion nothing catches', async () => {
     // In-world: rec(1) at the top level put "Script run-time error" and then "not enough memory" on DEBUG_CHANNEL,
     // and the script answered no touch afterwards. The same from a touch_start handler: the first touch said the
-    // two lines, the next two touches nothing.
+    // two lines, the next two touches nothing. A listener heard those lines; the owner saw the Lua message and its
+    // traceback in place of "not enough memory" (slua-error-owner-text.test.ts, Aditi, SLua Tideland, 2026-11-23).
     const top = await slua(`${REC} LLEvents:on("touch_start", function() ll.OwnerSay("alive") end) rec(1)`, { memoryLimit: true })
     expect(() => top.start()).toThrow('not enough memory')
     touch(top)
-    expect(texts(top, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
+    expect(texts(top, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', expect.stringMatching(/^not enough memory\n(lua_script:3 function rec\n){10}\.\.\. \(\+\d+ frames\)\n/)])
     expect(texts(top)).toEqual([])
 
     const handler = await slua(`${REC} LLEvents:on("touch_start", function() ll.OwnerSay("alive") rec(1) end)`, { memoryLimit: true })
     handler.start()
     expect(() => touch(handler)).toThrow('not enough memory')
     touch(handler)
-    expect(texts(handler, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
+    expect(texts(handler, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', expect.stringMatching(/^not enough memory\n(lua_script:3 function rec\n){10}\.\.\. \(\+\d+ frames\)\n/)])
     expect(texts(handler)).toEqual(['alive'])
   })
 
@@ -448,7 +449,9 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
     // enough memory" on DEBUG_CHANNEL before the script, whose first line reads its description, said anything.
     // With the limit at that plus 64, the script said its first line after the reset and then failed the same way.
     // A script whose restart begins with calls that allocate nothing (ll.GetAlpha, ll.SetObjectDesc and ll.Say
-    // of constants) ran those with the limit at what it used, and failed at its first concatenation.
+    // of constants) ran those with the limit at what it used, and failed at its first concatenation. Those lines
+    // were heard by a listener; rezless shows the owner the traceback a memory error showed in-world
+    // (slua-error-owner-text.test.ts).
     const reset = (limit: string) =>
       slua(
         `if ll.GetObjectDesc() == "again" then
@@ -467,12 +470,12 @@ describe('llcompat.SetMemoryLimit in SLua', () => {
     const exact = await reset('0')
     expect(() => exact.start()).toThrow('not enough memory')
     expect(texts(exact)).toEqual([])
-    expect(texts(exact, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
+    expect(texts(exact, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory\n[C] function GetObjectDesc\nlua_script:1\n'])
 
     const close = await reset('64')
     expect(() => close.start()).toThrow('not enough memory')
     expect(texts(close)).toEqual(['restarted'])
-    expect(texts(close, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory'])
+    expect(texts(close, DEBUG_CHANNEL)).toEqual(['Object [script:lua_script] Script run-time error', 'not enough memory\nlua_script:4\n'])
 
     const frugal = await slua(
       `if ll.GetAlpha(0) < 0.5 then

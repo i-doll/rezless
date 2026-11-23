@@ -324,7 +324,7 @@ it('records the additional rez params on the new object before events', async ()
   expect(root.params.damage).toEqual({ amount: 7, type: 3 })
   expect(root.statusFlags & 14).toBe(4)
   expect(root.sound.current).toEqual({ sound: '00000000-0000-0000-0000-000000000001', volume: Math.fround(0.3), loop: true, sync: 'none' })
-  expect(child.rez!.collisionSound).toEqual({ sound: '00000000-0000-0000-0000-000000000002', volume: Math.fround(0.4) })
+  expect(root.collisionSound).toEqual({ sound: '00000000-0000-0000-0000-000000000002', volume: Math.fround(0.4) })
 })
 
 it('resolves a requested rez sound from the rezzer inventory', async () => {
