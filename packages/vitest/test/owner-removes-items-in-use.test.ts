@@ -195,11 +195,12 @@ describe('the owner deletes an item a prim is using', () => {
   it('tells the root of a child material when no child script handles changed, in one event', async () => {
     const { linkset, prims, scripts } = await loadLinkset({
       prims: [
-        { scripts: [{ name: 'quiet', source: { source: QUIET, filename: 'quiet.lsl' } }] },
-        { inventory: [item('mat', InventoryType.MATERIAL, MAT)] },
+        { inventory: [item('mat', InventoryType.MATERIAL, MAT)], scripts: [{ name: 'quiet', source: { source: QUIET, filename: 'quiet.lsl' } }] },
+        { inventory: [item('mat', InventoryType.MATERIAL, MAT)], scripts: [{ name: 'stopped', source: { source: QUIET, filename: 'stopped.lsl' } }] },
       ],
     })
     scripts['quiet']!.start()
+    prims[0]!.params.faces[3]!.renderMaterial = MAT
     prims[1]!.params.faces[3]!.renderMaterial = MAT
     linkset.advanceTime(1_000)
     prims[1]!.removeInventory('mat')
@@ -208,7 +209,20 @@ describe('the owner deletes an item a prim is using', () => {
     // child's only script stopped. Deleting the child's material cleared the child's face 3 only,
     // and the root's script got one changed(4097).
     expect(prims[1]!.params.faces[3]!.renderMaterial).toBe(NULL_KEY)
+    expect(prims[0]!.params.faces[3]!.renderMaterial).toBe(MAT)
     expect(scripts['quiet']!.chat.map((c) => c.text)).toEqual(['quiet changed 4097'])
+    expect(scripts['stopped']!.chat).toEqual([])
+  })
+
+  it('sends one event for a material and a script deleted in one call, and none to the deleted script', async () => {
+    const { prims, quiet, log, said, linkset } = await load()
+    prims[0]!.removeInventory('mat', 'quiet')
+    linkset.advanceTime(5_000)
+    // Combines the material delete above with the one-event rule for several items deleted in
+    // one request (owner-inventory-edits.test.ts).
+    expect(said()).toEqual([`L1 changed 4097 inv=9 ${ROOT_SET.replace('m3=mat;t3', `m3=${NULL_KEY};t3`)}`])
+    expect(quiet.dead).toBe(true)
+    expect(log.dead).toBe(false)
   })
 
   it('gives a script asleep in a handler one event for a notecard and a material deleted meanwhile', async () => {
