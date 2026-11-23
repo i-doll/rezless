@@ -4,6 +4,7 @@ import { rotateVector } from '../values/ops.js'
 import { llAxes2Rot } from './math.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
 import { NULL_KEY, vec, ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
+import { sayError } from './debug.js'
 import { LINK_ROOT, LINK_THIS, PERMISSION_CONTROL_CAMERA, PERMISSION_TRACK_CAMERA } from '../generated/constants.js'
 
 /** The permission agent's camera, as llGetCamera* report it. */
@@ -63,25 +64,38 @@ export function effectiveCamera(ctx: CallContext): Camera {
   return pose
 }
 
+// Without PERMISSION_TRACK_CAMERA a read returns zero. A script that holds a permission key tells
+// its owner; one with no key says nothing.
+function track(ctx: CallContext, what: string): boolean {
+  if (tracking(ctx)) return true
+  if (ctx.state.permissions.agent !== NULL_KEY) {
+    sayError(ctx, `Script trying to get camera ${what} but PERMISSION_TRACK_CAMERA permission not set!`, ctx.prim, false)
+  }
+  return false
+}
+
 /** llGetCameraPos() — ZERO_VECTOR without PERMISSION_TRACK_CAMERA. */
-export const llGetCameraPos: BuiltinImpl = (ctx) => (tracking(ctx) ? effectiveCamera(ctx).pos : ZERO_VECTOR)
+export const llGetCameraPos: BuiltinImpl = (ctx) => (track(ctx, 'position') ? effectiveCamera(ctx).pos : ZERO_VECTOR)
 
 /** llGetCameraRot() — ZERO_ROTATION without PERMISSION_TRACK_CAMERA. */
-export const llGetCameraRot: BuiltinImpl = (ctx) => (tracking(ctx) ? effectiveCamera(ctx).rot : ZERO_ROTATION)
+export const llGetCameraRot: BuiltinImpl = (ctx) => (track(ctx, 'rotation') ? effectiveCamera(ctx).rot : ZERO_ROTATION)
 
 /** llGetCameraFOV() — 0.0 without PERMISSION_TRACK_CAMERA. */
-export const llGetCameraFOV: BuiltinImpl = (ctx) => (tracking(ctx) ? effectiveCamera(ctx).fov : 0)
+export const llGetCameraFOV: BuiltinImpl = (ctx) => (track(ctx, 'FOV') ? effectiveCamera(ctx).fov : 0)
 
 /** llGetCameraAspect() — 0.0 without PERMISSION_TRACK_CAMERA. */
-export const llGetCameraAspect: BuiltinImpl = (ctx) => (tracking(ctx) ? ctx.state.camera.aspect : 0)
+export const llGetCameraAspect: BuiltinImpl = (ctx) => (track(ctx, 'aspect') ? ctx.state.camera.aspect : 0)
 
 /**
  * llSetCameraParams(list rules) — merges [rule, value, ...] pairs into the
  * recorded camera rules; a trailing rule without a value is dropped. Without
- * PERMISSION_CONTROL_CAMERA it does nothing and says nothing.
+ * PERMISSION_CONTROL_CAMERA it sets nothing and tells the owner.
  */
 export const llSetCameraParams: BuiltinImpl = (ctx, args) => {
-  if (!controlling(ctx)) return undefined
+  if (!controlling(ctx)) {
+    sayError(ctx, 'Script trying to set camera parameters but PERMISSION_CONTROL_CAMERA permission not set!', ctx.prim, false)
+    return undefined
+  }
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
   const agent = ctx.state.permissions.agent.toLowerCase()
   let camera = ctx.prim.scriptedCameras.get(agent)
@@ -95,9 +109,13 @@ export const llSetCameraParams: BuiltinImpl = (ctx, args) => {
 
 /**
  * llClearCameraParams() — forgets the camera rules set from this prim for the script's permission
- * avatar. It needs a permission key, not PERMISSION_CONTROL_CAMERA.
+ * avatar. It needs a permission key, not PERMISSION_CONTROL_CAMERA; without one it tells the owner.
  */
 export const llClearCameraParams: BuiltinImpl = (ctx) => {
+  if (ctx.state.permissions.agent === NULL_KEY) {
+    sayError(ctx, 'Script trying to clear camera parameters but PERMISSION_CONTROL_CAMERA permission not set!', ctx.prim, false)
+    return undefined
+  }
   // In-world: after a reset it did nothing until the script asked for 1024, or for nothing, and
   // then it put the camera back on the avatar. Another script in the same prim could do it; one
   // in a child prim or another object could not.

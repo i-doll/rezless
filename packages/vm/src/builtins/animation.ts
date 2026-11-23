@@ -289,7 +289,9 @@ export const llStopAnimation: BuiltinImpl = (ctx, args) => {
 export const llGetAnimation: BuiltinImpl = (ctx, args) => {
   const key = (args[0] as string).toLowerCase()
   const avatar = ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === key)
-  if (avatar && avatar.region !== ctx.linkset.region) return ''
+  if (avatar && avatar.region !== ctx.linkset.region) {
+    return ctx.linkset.world!.departingAvatarInfo(avatar, ctx.linkset.region ?? '') === undefined ? '' : 'Init'
+  }
   const state = ctx.state.animations.get(key)?.state
   if (state) return state
   if (!avatar) return ''

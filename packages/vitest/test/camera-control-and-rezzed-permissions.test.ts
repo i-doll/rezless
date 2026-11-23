@@ -35,7 +35,7 @@ const source = `
       sync += llGetPermissions();
     }
     run_time_permissions(integer p) { events += p; }
-    touch_end(integer n) { held = llGetPermissions(); holder = llGetPermissionsKey(); camera = llGetCameraPos(); }
+    touch_end(integer n) { held = llGetPermissions(); holder = llGetPermissionsKey(); if (held & PERMISSION_TRACK_CAMERA) camera = llGetCameraPos(); }
     on_rez(integer p) { rezzed += llGetPermissions(); rezzed += llGetPermissionsKey(); }
     attach(key id) { attached += llGetPermissions(); attached += llGetPermissionsKey(); }
     object_rez(key id) { last = id; }

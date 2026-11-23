@@ -108,14 +108,23 @@ it('limits rez requests to the inventory of the calling prim', async () => {
 })
 
 // In-world: errors.py -> missing name reports this error and adds 1s; malformed
-// params return NULL_KEY without DEBUG_CHANNEL output (Aditi, SLua Tideland, 2026-11-01).
-it.each(['[999,1]', '[REZ_TORQUE,<1,2,3>,TRUE]', '[REZ_POS]', '[REZ_PARAM,"x"]', '[REZ_POS,"x",TRUE,TRUE]', '[REZ_ROT,<0,0,0>,FALSE]'])('rejects malformed rez params %s atomically', async params => {
+// params return NULL_KEY without the extra second (Aditi, SLua Tideland, 2026-11-01). That probe's
+// DEBUG_CHANNEL listener heard nothing: the error goes to the owner only, as the owner's chat
+// history showed on 2026-11-23 (rez-option-errors-and-sound.test.ts).
+it.each([
+  ['[999,1]', 'Error running rule #1: unknown rule id 999.'],
+  ['[REZ_TORQUE,<1,2,3>,TRUE]', 'Error running rule #1: unknown rule id 6.'],
+  ['[REZ_POS]', 'Error running rule #1 (REZ_POS): Expecting vector parameter..'],
+  ['[REZ_PARAM,"x"]', 'Error running rule #1 (REZ_PARAM): Expecting integer parameter..'],
+  ['[REZ_POS,"x",TRUE,TRUE]', 'Error running rule #1 (REZ_POS): Expecting vector parameter..'],
+  ['[REZ_ROT,<0,0,0>,FALSE]', 'Error running rule #1 (REZ_ROT): Expecting rotation parameter..'],
+])('rejects malformed rez params %s atomically', async (params, error) => {
   const f = await fixture(`result=llRezObjectWithParams("payload", ${params});`)
   f.parent.start()
   expect(f.parent.global('result')).toBe(NULL_KEY)
   expect(f.parent.global('events')).toBe(0)
   expect(f.world.linksets).toHaveLength(1)
-  expect(f.parent.chat.filter(c => c.channel === DEBUG_CHANNEL)).toEqual([])
+  expect(f.parent.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)).toEqual([`llRezObjectWithParams ${error}`])
   expect(f.parent.global('elapsed')).toBeCloseTo(0.1)
 })
 
@@ -499,7 +508,7 @@ it('validates malformed options before reporting a missing item', async () => {
   const f = await fixture('result=llRezObjectWithParams("missing", [999,1]);')
   f.parent.start()
   expect(f.parent.global('result')).toBe(NULL_KEY)
-  expect(f.parent.chat).toEqual([])
+  expect(f.parent.chat.map(c => c.text)).toEqual(['llRezObjectWithParams Error running rule #1: unknown rule id 999.'])
   expect(f.parent.global('elapsed')).toBeCloseTo(0.1)
 })
 
