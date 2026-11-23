@@ -24,7 +24,7 @@ const zeroForNan = (v: number) => (Number.isNaN(v) ? 0 : v)
 function sayPrimParamError(ctx: CallContext, text: string, speaker: Link = ctx.prim): void {
   const root = ctx.linkset.prims[0]!
   const at = root.regionPosition()
-  const suffix = speaker === root ? '' : ` {RootName ${root.name}, RootPosition { ${formatG(at.x)}, ${formatG(at.y)}, ${formatG(at.z)} }}`
+  const suffix = speaker === root ? '' : ` {RootName ${root.name}, RootPosition { ${[at.x, at.y, at.z].map((v) => formatG(Math.fround(v))).join(', ')} }}`
   sayError(ctx, text + suffix, speaker, false)
 }
 

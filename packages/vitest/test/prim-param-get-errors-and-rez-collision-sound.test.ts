@@ -254,6 +254,16 @@ describe('the root suffix on prim parameter errors', () => {
   })
 })
 
+describe('the root position in the suffix', () => {
+  it('prints the single-precision position the region stores', async () => {
+    const f = await linked('default { touch_start(integer n) { llGetLinkPrimitiveParams(2, [PRIM_CAST_SHADOWS]); } }')
+    f.linkset.prims[0]!.params.position = { x: 119.3705, y: 50.71, z: 1998.234 }
+    f.run()
+    // The region keeps positions as floats: 119.3705 is held as 119.370499.
+    expect(debug(f.scripts.probe!.chat)).toEqual([`${error(0)}${SUFFIX}`])
+  })
+})
+
 describe('the shape type none error', () => {
   it('carries the root suffix when a child prim says it', async () => {
     const f = await linked('default { touch_start(integer n) { llMessageLinked(2, 0, "", NULL_KEY); } }', `
