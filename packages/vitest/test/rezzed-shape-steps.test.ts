@@ -253,4 +253,23 @@ describe('shape values on a rezzed copy', () => {
     const worn = world.linksets.find((l) => l.attachment && l !== rlv.script.linkset)!
     expect(shapeOf(worn)).toEqual(REZZED)
   })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): boxes set to cut <0.004011, 0.994011> and
+  // <0.005111, 0.995111> stored begins of 0.00401 and 0.00511 and had 8 faces, painted red 0.1
+  // to 0.8. Rezzed from inventory, the begins read 0.004 and 0.0051, so the cut spans reached
+  // 0.99, and the boxes had 6 faces, red 0.1 to 0.6.
+  it.each([[0.004011, 0.994011, 0.004], [0.005111, 0.995111, 0.0051]])('rebuilds the faces when the cut %d to %d crosses 0.99', async (begin, end, rezzedBegin) => {
+    const f = await fixture()
+    const { linkset, scripts } = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ name: 'box', scripts: [{ name: 'set',
+      source: { source: `default { state_entry() { llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, 0, <${begin}, ${end}, 0>, 0, ZERO_VECTOR, <1, 1, 0>, ZERO_VECTOR]);
+        integer i; for (i = 0; i < llGetNumberOfSides(); ++i) llSetColor(<(i + 1) / 10.0, 1, 1>, i); } }` } }] }] })
+    scripts.set!.start()
+    const reds = (object: Linkset) => object.prims[0]!.params.faces.map((face) => face.color.x)
+    expect(reds(linkset)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map((i) => Math.fround(i / 10)))
+    const saved = linkset.copy()
+    seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'box', kind: 'item', parentId: null, name: 'box', object: saved, assetType: 'object' }] })
+    const rezzed = f.world.attemptAvatarRez(f.avatar, 'box', { x: 116, y: 50, z: 20 }).object!
+    expect(shapeOf(rezzed)[0]).toBe(Math.fround(rezzedBegin))
+    expect(reds(rezzed)).toEqual([1, 2, 3, 4, 5, 6].map((i) => Math.fround(i / 10)))
+  })
 })

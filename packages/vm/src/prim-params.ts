@@ -931,13 +931,15 @@ function profileCut(v: Vector) {
  * so a value stored a little under its step comes back one step lower.
  */
 export function restepRezzedShape(p: PrimParams): void {
-  const shape = p.shape
-  if (shape.kind === SHAPE_SCULPT) return
+  const old = p.shape
+  if (old.kind === SHAPE_SCULPT) return
   const restep = (v: Vector) => ({ x: toHundredThousandths(v.x), y: toHundredThousandths(v.y), z: v.z })
-  shape.hollow = toHundredThousandths(shape.hollow)
+  const shape = { ...old, hollow: toHundredThousandths(old.hollow) }
   if ('topSize' in shape) shape.cut = restep(shape.cut)
   else if ('dimple' in shape) shape.dimple = restep(shape.dimple)
   else shape.advancedCut = restep(shape.advancedCut)
+  p.shape = shape
+  remapFaces(p, old)
 }
 
 const limitPair = (v: Vector, minX: number, maxX: number, minY = minX, maxY = maxX) =>
