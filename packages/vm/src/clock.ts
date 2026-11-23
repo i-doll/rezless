@@ -35,7 +35,10 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['at_target', 2], ['not_at_target', 2], ['at_rot_target', 2], ['not_at_rot_target', 2],
   ['collision_start', 3], ['collision', 3], ['land_collision_start', 3],
   ['touch_start', 4], ['touch', 5], ['touch_end', 6], ['changed', 7], ['__unseated', 7], ['__ownerChanged', 7],
-  ['collision_end', 8], ['land_collision', 8], ['land_collision_end', 8],
+  // In-world: game_control ran after a touch, a stand's changed and collision_start and before
+  // collision_end, whichever came first.
+  ['game_control', 8],
+  ['collision_end', 9], ['land_collision', 9], ['land_collision_end', 9],
 ])
 
 /** `changed` and the events a rez raises that run as `changed`. */
@@ -63,7 +66,15 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   const parts: { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }[] = []
   let changed: number | undefined
   let touches: number | undefined
+  let gameControl: number | undefined
   for (const e of held) {
+    // In-world: a release and a new press sent while the handler slept gave one game_control,
+    // for the press.
+    if (e.event === 'game_control') {
+      if (gameControl === undefined) gameControl = merged.push(e) - 1
+      else merged[gameControl] = { ...merged[gameControl]!, payload: e.payload }
+      continue
+    }
     if (CHANGED_EVENTS.has(e.event)) {
       if (changed === undefined) changed = merged.push(e) - 1
       else {
