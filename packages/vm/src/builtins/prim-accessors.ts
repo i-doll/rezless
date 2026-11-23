@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { faceIndices, gltfOverrideCodeError, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName, sitFlagsOf } from '../prim-params.js'
+import { faceIndices, numberOfSides, rejectGltfOverrides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName, sitFlagsOf } from '../prim-params.js'
 import { sayError } from './debug.js'
 import { physicsSwitched } from './motion.js'
 import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
@@ -330,9 +330,9 @@ export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
   const face = num(args[1]) | 0
   const params = args[2] as ReadonlyArray<LslValue>
-  const error = gltfOverrideCodeError(params)
-  if (error !== null) {
-    sayError(ctx, error)
+  const rejected = rejectGltfOverrides(params)
+  if (rejected) {
+    if (rejected.error !== null) sayError(ctx, rejected.error)
     return undefined
   }
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {

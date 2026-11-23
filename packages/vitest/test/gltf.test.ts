@@ -332,6 +332,7 @@ describe('llSetLinkGLTFOverrides codes', () => {
     ['a string code', '["1", "x", OVERRIDE_GLTF_METALLIC_FACTOR, 0.3]', 1],
     ['a float code', '[1.5, 0.2, OVERRIDE_GLTF_METALLIC_FACTOR, 0.3]', 1],
     ['a string code after a valid rule', '[OVERRIDE_GLTF_METALLIC_FACTOR, 0.3, "1", "x", OVERRIDE_GLTF_ROUGHNESS_FACTOR, 0.6]', 2],
+    ['a trailing string code with no value', '[OVERRIDE_GLTF_METALLIC_FACTOR, 0.3, "1"]', 2],
   ])('rejects the whole call for %s', async (_, rules, rule) => {
     const { lines, errors } = await probe(`
       setMat(MAT);
@@ -340,6 +341,18 @@ describe('llSetLinkGLTFOverrides codes', () => {
     `)
     expect(lines).toEqual([`mr=${UNSET_MR}`])
     expect(errors).toEqual([`llSetGLTFOverrides Error running rule #${rule}: non-integer rule.`])
+  })
+
+  // In-world: [OVERRIDE_GLTF_METALLIC_FACTOR, "bad", "1", 2] changed nothing and reported rule #1's
+  // bad value, not rule #2's code (Aditi, SLua Tideland, 2026-11-23).
+  it('stops at a bad value before a bad code', async () => {
+    const { lines, errors } = await probe(`
+      setMat(MAT);
+      llSetLinkGLTFOverrides(LINK_THIS, 0, [OVERRIDE_GLTF_METALLIC_FACTOR, "bad", "1", 2]);
+      out("mr", G(PRIM_GLTF_METALLIC_ROUGHNESS));
+    `)
+    expect(lines).toEqual([`mr=${UNSET_MR}`])
+    expect(errors.some((e) => e.includes('non-integer rule'))).toBe(false)
   })
 })
 
