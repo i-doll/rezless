@@ -374,17 +374,19 @@ const ftz = (n: number) => flushTiny(f32(n))
 
 /**
  * llAxisAngle2Rot(vector axis, float angle), in single precision as Second Life works it out:
- * the axis is made a unit vector (zero when its length is 1e-7 or less, or its squared length
- * overflows), each part is flushed below the smallest normal float, and the result is
- * normalised. So a zero axis still carries the angle's cosine: TWO_PI gives <-0, -0, -0, -1>.
+ * the axis is made a unit vector, or +0 when its length is 1e-7 or less or NaN, each part is
+ * flushed below the smallest normal float, and the result is normalised. So a zero axis still
+ * carries the angle's cosine: TWO_PI gives <-0, -0, -0, -1>. An axis whose squared length
+ * overflows has no direction either, and an infinite part gives ZERO_ROTATION.
  */
 export const llAxisAngle2Rot: BuiltinImpl = (_ctx, args) => {
   const a = toF32Vector((args[0] as Vector | undefined) ?? vec(0, 0, 0))
   const length = f32(Math.sqrt(ftz(ftz(ftz(a.x * a.x) + ftz(a.y * a.y)) + ftz(a.z * a.z))))
-  const k = length > NORMALISE_THRESHOLD ? ftz(1 / length) : 0
+  const k = f32(1 / length)
+  const u: Row = length > NORMALISE_THRESHOLD ? [ftz(a.x * k), ftz(a.y * k), ftz(a.z * k)] : [0, 0, 0]
   const half = f32(f32((args[1] as number | undefined) ?? 0) * 0.5)
   const s = f32(Math.sin(half))
-  const q = normalizeRotation(rot(ftz(ftz(a.x * k) * s), ftz(ftz(a.y * k) * s), ftz(ftz(a.z * k) * s), f32(Math.cos(half))))
+  const q = normalizeRotation(rot(ftz(u[0] * s), ftz(u[1] * s), ftz(u[2] * s), f32(Math.cos(half))))
   return rot(ftz(q.x), ftz(q.y), ftz(q.z), ftz(q.s))
 }
 

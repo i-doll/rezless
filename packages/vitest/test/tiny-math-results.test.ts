@@ -631,6 +631,87 @@ const AXIS_MEASURED_SLUA = [
     'neg=<-0,0.948984623,-0,0.315322369>',
 ]
 
+const AXIS_EDGE_PROBE = `string buf;
+string F(float f) {
+    if (f == 0.0) return llList2CSV([f]);
+    if (f > -1e-30 && f < 1e-30) return (string)(f * 1e38 * 1e7) + "e-45";
+    if (f > -1e-15 && f < 1e-15) return (string)(f * 1e30) + "e-30";
+    if (f > -1e-3 && f < 1e-3) return (string)(f * 1e15) + "e-15";
+    return (string)f;
+}
+string FV(vector v) { return "<" + F(v.x) + "," + F(v.y) + "," + F(v.z) + ">"; }
+string FR(rotation r) { return "<" + F(r.x) + "," + F(r.y) + "," + F(r.z) + "," + F(r.s) + ">"; }
+T(string name, string val) {
+    string item = name + "=" + val;
+    if (llStringLength(buf) + llStringLength(item) > 470) { llOwnerSay(buf); llSleep(0.5); buf = ""; }
+    buf += item + " | ";
+}
+rotation A(string axis, float angle) { return llAxisAngle2Rot((vector)axis, angle); }
+default {
+    state_entry() {
+        buf = "";
+        T("n1e-8", FR(A("<-1e-8,0,0>", (float)"1")));
+        T("nz", FR(A("<-0.0,0,-0.0>", (float)"1")));
+        T("nzpi", FR(A("<-0.0,0,0>", TWO_PI)));
+        T("nan4", FR(A("<nan,0,0>", (float)"4")));
+        T("nan2pi", FR(A("<nan,0,0>", TWO_PI)));
+        T("inf4", FR(A("<inf,0,0>", (float)"4")));
+        T("s15", FR(A("<1.5e19,1.5e19,0>", (float)"1")));
+        llOwnerSay(buf + "END");
+    }
+}
+`
+
+const AXIS_EDGE_MEASURED = [
+    'n1e-8=<0.000000,0.000000,0.000000,1.000000>',
+    'nz=<0.000000,0.000000,0.000000,1.000000>',
+    'nzpi=<-0.000000,-0.000000,-0.000000,-1.000000>',
+    'nan4=<0.000000,0.000000,0.000000,-1.000000>',
+    'nan2pi=<-0.000000,-0.000000,-0.000000,-1.000000>',
+    'inf4=<0.000000,0.000000,0.000000,1.000000>',
+    's15=<0.000000,0.000000,0.000000,1.000000>',
+]
+
+const AXIS_EDGE_PROBE_SLUA = `local function f(x) return string.format("%.9g", x) end
+local function s(x)
+  local t = typeof(x)
+  if t == "vector" then return \`<{f(x.x)},{f(x.y)},{f(x.z)}>\` end
+  if t == "quaternion" then return \`<{f(x.x)},{f(x.y)},{f(x.z)},{f(x.s)}>\` end
+  if t == "number" then return f(x) end
+  return tostring(x)
+end
+local N = tonumber
+local function V(a, b, c) return vector.create(N(a), N(b), N(c)) end
+local function Q(a, b, c, d) return quaternion(N(a), N(b), N(c), N(d)) end
+local buf = ""
+local function add(name, ok, val)
+  local item = name .. "=" .. (ok and s(val) or ("ERR " .. tostring(val)))
+  if #buf + #item > 470 then ll.OwnerSay(buf); ll.Sleep(0.5); buf = "" end
+  buf = buf .. item .. " | "
+end
+local function T(name, fn) add(name, pcall(fn)) end
+local function A(x, angle) return ll.AxisAngle2Rot(x, N(angle)) end
+local P = tostring(math.pi * 2)
+T("n1e-8", function() return A(tovector("<-1e-8,0,0>"), "1") end)
+T("nz", function() return A(tovector("<-0.0,0,-0.0>"), "1") end)
+T("nzpi", function() return A(tovector("<-0.0,0,0>"), P) end)
+T("nan4", function() return A(vector.create(N("0")/N("0"), 0, 0), "4") end)
+T("nan2pi", function() return A(vector.create(N("0")/N("0"), 0, 0), P) end)
+T("inf4", function() return A(vector.create(N("1")/N("0"), 0, 0), "4") end)
+T("s15", function() return A(tovector("<1.5e19,1.5e19,0>"), "1") end)
+ll.OwnerSay(buf .. "END")
+`
+
+const AXIS_EDGE_MEASURED_SLUA = [
+    'n1e-8=<0,0,0,1>',
+    'nz=<0,0,0,1>',
+    'nzpi=<-0,-0,-0,-1>',
+    'nan4=<0,0,0,-1>',
+    'nan2pi=<-0,-0,-0,-1>',
+    'inf4=<0,0,0,1>',
+    's15=<0,0,0,1>',
+]
+
 async function said(language: 'lsl' | 'slua', source: string) {
   const s = await loadScript(language === 'slua' ? { language, filename: 'probe.luau', source } : { source })
   s.start()
@@ -688,5 +769,14 @@ describe('results below the smallest normal value', () => {
   it('normalises the axis and the result of llAxisAngle2Rot in single precision', async () => {
     expect(await said('lsl', AXIS_PROBE)).toEqual(AXIS_MEASURED)
     expect(await said('slua', AXIS_PROBE_SLUA)).toEqual(AXIS_MEASURED_SLUA)
+  })
+
+  // In-world: a third pair, Mono and SLua alike. An axis with no direction becomes +0, whatever
+  // its signs: <-1e-8, 0, 0> and <-0, 0, -0> give <0, 0, 0, 1> at angle 1. A NaN axis has no
+  // direction either, so it keeps the cosine: angle 4 gives <0, 0, 0, -1>. An infinite part
+  // gives ZERO_ROTATION, and so does <1.5e19, 1.5e19, 0>, whose squared length overflows.
+  it('gives a +0 axis for a short, zero or NaN axis in llAxisAngle2Rot', async () => {
+    expect(await said('lsl', AXIS_EDGE_PROBE)).toEqual(AXIS_EDGE_MEASURED)
+    expect(await said('slua', AXIS_EDGE_PROBE_SLUA)).toEqual(AXIS_EDGE_MEASURED_SLUA)
   })
 })
