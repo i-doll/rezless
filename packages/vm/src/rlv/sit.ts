@@ -294,7 +294,7 @@ export function userSitAvatar(world: World, avatar: WorldAvatar, requested: Prim
   const seat = resolveSitRequest(world, avatar, requested)
   if (!seat || !Object.values(seat.regionPosition()).every(Number.isFinite) ||
     !Object.values(seat.params.sitTarget.offset).every(Number.isFinite)) return false
-  return requestViewerSit(world, avatar, seat) !== 'refused'
+  return requestViewerSit(world, avatar, seat, undefined, true, seat === requested ? offset : ZERO_VECTOR) !== 'refused'
 }
 
 /**
@@ -371,8 +371,8 @@ export function cancelPendingSit(avatar: WorldAvatar): void {
 
 /** The simulator chooses the pose; the viewer sends AgentSit only after a successful pilot. */
 function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
-  complete?: (outcome: 'applied' | 'unchanged' | 'refused') => void, saveOrigin = true): Action['actionOutcome'] {
-  const response = world.getSitResponse(avatar, seat)
+  complete?: (outcome: 'applied' | 'unchanged' | 'refused') => void, saveOrigin = true, offset = ZERO_VECTOR): Action['actionOutcome'] {
+  const response = world.getSitResponse(avatar, seat, offset)
   if (!response) {
     standFromAnotherObject(world, avatar, seat.linkset!)
     return 'refused'
@@ -405,6 +405,34 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   })
   pendingSits.set(lifetime, () => { cancel(); complete?.('refused') })
   return 'pending'
+}
+
+/**
+ * A ground sit from the viewer's own menu. RLVa refuses it under @sit, and
+ * under @unsit while the avatar sits, on an object or on the ground; no other
+ * seating restriction blocks it. From an object the avatar stands first and
+ * sits on the ground once the region has stood it up. Kokua takes the path
+ * of its @sitground=force, which asks the same sitDown.
+ */
+export function userSitAvatarOnGround(world: World, avatar: WorldAvatar): boolean {
+  if (!world.avatars.includes(avatar)) return false
+  const { viewer } = avatar
+  const sitting = !!(avatar.info & AGENT_SITTING)
+  if (viewer.profile !== 'disabled') {
+    const locked = (behaviour: string) => viewer.restrictions.snapshot().some(rule => rule.behaviour === behaviour && !rule.option)
+    if (sitting && locked('unsit')) return false
+    if (viewer.profile === 'rlva' && locked('sit')) return false
+  }
+  if (sitting && !avatar.sittingOn) return true
+  if (!avatar.sittingOn) {
+    if (viewer.profile === 'rlv' && !kokuaAskGroundSit(world, avatar)) return false
+    world.sitAvatarOnGround(avatar)
+    return true
+  }
+  cancelPendingSit(avatar)
+  world.standAvatar(avatar)
+  scheduleGroundSit(world, avatar)
+  return true
 }
 
 /** Simulator standAvatar and llUnSit bypass this explicit viewer action. */

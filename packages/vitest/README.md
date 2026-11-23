@@ -572,8 +572,9 @@ sitter on its own object. Land ownership also permits unsitting other sitters.
 `SIT_FLAG_SCRIPTED_ONLY` leaves scripted sits open; that was not measured,
 because `llSitOnLink` needs an experience. `world.userSitAvatar(avatar, prim)`
 is a viewer's sit request, and Second Life refuses it for
-`SIT_FLAG_SCRIPTED_ONLY`. The request passes over a scripted-only sit target
-and takes the next free one. With no sit target to take, one scripted-only
+`SIT_FLAG_SCRIPTED_ONLY`. The request takes the asked-for prim's sit target
+when it is free and not scripted-only, and otherwise the first such one in
+link order. With no sit target to take, one scripted-only
 prim anywhere in the object refuses it: the call returns `false` and no script
 in that object gets an event. An avatar sitting on another object stands up
 from it, and one sitting on the ground stays there. `@sit:<key>=force` is
@@ -609,12 +610,24 @@ upright, facing out from that side, and `PRIM_POS_LOCAL` and `PRIM_ROT_LOCAL`
 of its link read that spot. In Second Life this holds for boxes and round
 cylinders with an axis vertical. Spheres, tori, most prisms, cylinders with an
 oval top and tilted prims seat the avatar elsewhere; rezless seats it on them
-by the same rule. The rule was measured for sit requests with no click
-offset, as `@sit:<key>=force` sends them, with the avatar's camera at the
-viewer's default place. A click elsewhere on
-the prim and a moved camera are not modelled. `world.sitAvatar` without a
+by the same rule. The point 3 m behind and 1.94 m above is where a
+viewer's camera rests: `world.setAvatarCamera(avatar, position)` moves the
+camera to a region position, and the line then starts there;
+`world.setAvatarCamera(avatar)` puts it back. A click on the prim, the
+`offset` of `world.userSitAvatar` in the prim's frame from its centre, moves
+the line's end from the centre to that spot: a click on a box's side seats the
+avatar where the line first meets the box. Clicks were measured on boxes only, and
+a cylinder ignores the click. For a click on a box's top rezless takes the
+side towards the camera, where Second Life often takes another, and Second
+Life refuses some clicks low on a side, which rezless seats. `world.sitAvatar` without a
 placement seats the avatar on the prim's sit target, or at its centre when it
 has none.
+
+`world.userSitAvatarOnGround(avatar)` is a ground sit from the viewer's own
+menu. It returns `false` under `@sit`, and under `@unsit` while the avatar
+sits, on an object or on the ground; no other seating restriction blocks it.
+From an object the avatar stands first and sits on the ground once the region
+has stood it up.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
 `name`, `message` and the clock time `at`. A sit request refused for
