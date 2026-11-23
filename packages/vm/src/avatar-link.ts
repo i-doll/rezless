@@ -1,7 +1,7 @@
 import type { WorldAvatar } from './world.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR } from './values/types.js'
-import { mulRotation } from './values/ops.js'
+import { mulRotationF32 } from './values/ops.js'
 import { storedRotation } from './prim-params.js'
 import {
   PRIM_ALLOW_UNSIT, PRIM_CLICK_ACTION, PRIM_COLLISION_SOUND, PRIM_DAMAGE, PRIM_DESC, PRIM_FLEXIBLE, PRIM_HEALTH, PRIM_MATERIAL,
@@ -82,7 +82,7 @@ export function writeAvatarLinkParam(avatar: WorldAvatar, param: number, value: 
       // and any other is stored as PRIM_ROT_LOCAL stores it and taken times the root's.
       const same = (['x', 'y', 'z', 's'] as const).every((k) => Math.fround(value[k]) === Math.fround(placed.rotation[k]))
       const root = avatar.sittingOn!.linkset!.prims[0]!
-      if (!same) avatar.sitPlacement = { ...placed, rotation: mulRotation(storedRotation(value), root.params.rotation) }
+      if (!same) avatar.sitPlacement = { ...placed, rotation: mulRotationF32(storedRotation(value), root.params.rotation) }
       return 1
     }
     default:

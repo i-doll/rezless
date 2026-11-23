@@ -384,11 +384,12 @@ describe('llEuler2Rot', () => {
     // An SLua script gave the same for the 144 turns about one axis, negative zeros included.
     //
     // Each angle is stepped to 1e-7 degrees and the rotation goes through a matrix. Where a
-    // diagonal entry is within 1e-10 of 1 or -1, the rest of its row and column count as zero:
-    // <7e-6, 7e-6, 1.4e-5> keeps only the turn about z, though 1.4e-5 about z alone is dropped,
-    // and <1e-5, 1e-5, 1e-5> keeps all three, though <1e-5, 1e-5, 9e-6> keeps none. Every zero
-    // below comes out as measured, its sign too, with zeros signed as the arithmetic signs them:
-    // <-1.546875, 0, 0> gives <-0.69860, -0, 0, 0.71551>.
+    // matrix entry is within 1e-10 of 1 or -1 (for these small turns a diagonal one), the rest of
+    // its row and column count as zero: <7e-6, 7e-6, 1.4e-5> keeps only the turn about z, though
+    // 1.4e-5 about z alone is dropped, and <1e-5, 1e-5, 1e-5> keeps all three, though
+    // <1e-5, 1e-5, 9e-6> keeps none. Quarter turns are in
+    // euler2rot-quarter-turns-and-stored-rotations.test.ts. Every zero below comes out as
+    // measured, sign included: <-1.546875, 0, 0> gives <-0.69860, -0, 0, 0.71551>.
     for (const [i, [, q]] of EULER2ROT.entries()) {
       const r = got[i]!
       for (let k = 0; k < 4; k++) {

@@ -1,4 +1,4 @@
-import { mulRotation, normalizeRotation } from './values/ops.js'
+import { mulRotation, mulRotationF32, normalizeRotation } from './values/ops.js'
 import {
   CLICK_ACTION_IGNORE,
   CLICK_ACTION_TOUCH,
@@ -592,9 +592,8 @@ export function writePrimParam(
           Math.fround(requested.z) === Math.fround(p.rotation.z) &&
           Math.fround(requested.s) === Math.fround(p.rotation.s)) return 1
       const rotation = storedRotation(requested)
-      p.rotation = root && root !== prim
-        ? storedRotation(mulRotation(rotation, root.params.rotation))
-        : rotation
+      // A child stores it times the root's, without normalising the product again.
+      p.rotation = root && root !== prim ? mulRotationF32(rotation, root.params.rotation) : rotation
       return 1
     }
     case PRIM_ROT_LOCAL:

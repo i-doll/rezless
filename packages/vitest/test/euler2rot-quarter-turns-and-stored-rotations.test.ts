@@ -335,3 +335,56 @@ describe("a seated avatar's link", () => {
     expect(await seated(HUGE)).toEqual([...HUGE_STORED, ...throughRotation])
   })
 })
+
+const TURNED = ['<0, 0, 0, 5e-8>', '<0, 0, 0, 0>', '<0, 0.6, 0, 0.80001>', '<0.1, 0, 0, 0.1>', '<1.84e19, 0, 0, 0>', '<2e19, 0, 0, 0>',
+  '<-2e19, 1, 0, 0>', '<1.3e19, 1.3e19, 0, 0>']
+// In-world (2026-11-24, Mono): the same for a child prim and for a seated avatar's link, with the
+// root turned by llEuler2Rot(<0, 0, 0.5>), which the grid gave as <0, 0, 0.24740398, 0.9689124>.
+// The test sets that rotation directly, as rezless's llEuler2Rot is one float off for it.
+const TURNED_STORED = [
+  '0,0,0,8388608p-23', '0,0,0,8388608p-23', '0,10066250p-24,0,13421834p-24', '11863283p-24,0,0,11863283p-24',
+  '8388608p-23,0,0,0', '0,0,0,0', '-0,0,0,0', '11863284p-24,11863284p-24,0,0',
+  '0,0,16603000p-26,16255653p-24', '0,0,16603000p-26,16255653p-24', '-9961721p-26,9753315p-24,13282461p-26,13004582p-24',
+  '11494482p-24,11740094p-26,11740094p-26,11494482p-24', '16255653p-24,16603000p-26,0,0', '0,0,0,0', '0,0,0,0',
+  '8559459p-24,14429507p-24,0,0',
+]
+
+async function turnedRoot(cases: string[], seat: boolean) {
+  const world = new World()
+  world.addRegion('home', { x: 0, y: 0 })
+  const key = '00000000-0000-4000-8000-000000000557'
+  const avatar = world.addAvatar({
+    region: 'home', key, name: 'av', username: 'av', size: { x: 0.45, y: 0.6, z: 1.65 }, position: { x: 110, y: 50, z: 20 },
+  })
+  const { linkset, scripts } = await loadLinkset({
+    world, region: 'home', owner: key, position: { x: 116, y: 50, z: 20 },
+    prims: [{ name: 'root', scripts: [] }, { name: 'child', scripts: [{ name: 'probe', source: { source: EXACT +
+      CASES(cases, seat ? 'llGetNumberOfPrims()' : 'LINK_THIS') + `
+      default {
+        state_entry() { llSetLinkPrimitiveParamsFast(1, [PRIM_ROT_LOCAL, <0, 0, 0.24740398, 0.9689124>]); }
+        touch_start(integer n) { run(); }
+      }` } }] }],
+  })
+  linkset.prims[1]!.params.position = { x: 0, y: 0.6, z: 0 }
+  scripts.probe!.start()
+  if (seat) {
+    const root = linkset.prims[0]!
+    root.params.sitTarget = { enabled: true, offset: { x: 0, y: 0, z: 0.6 }, rotation: { x: 0, y: 0, z: 0, s: 1 } }
+    expect(world.sitAvatar(avatar, root)).toBe(true)
+    linkset.advanceTime(100)
+  }
+  linkset.touch(2, { avatar: { key, name: 'av' } })
+  linkset.advanceTime(600000)
+  return said(scripts.probe!)
+}
+
+describe('PRIM_ROTATION under a turned root', () => {
+  it('takes the stored rotation times the root without normalising it again, for a child prim and a seated avatar', async () => {
+    // In-world: through PRIM_ROTATION a tiny rotation became none and then the root's turn, and one
+    // too long to square stayed <0, 0, 0, 0>: the product isn't normalised again. It is worked out
+    // in single precision: <1.3e19, 1.3e19, 0, 0> gave x = 8559459p-24, where double precision
+    // rounds to 8559460p-24. The avatar's link gave the same as the child prim, to the last bit.
+    expect(await turnedRoot(TURNED, false)).toEqual(TURNED_STORED)
+    expect(await turnedRoot(TURNED, true)).toEqual(TURNED_STORED)
+  })
+})
