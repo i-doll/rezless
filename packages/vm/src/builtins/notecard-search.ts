@@ -9,18 +9,21 @@ import { own } from '../own.js'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_DEFAULT_MATCHES = 64
 
-type Notecard = { lines: ReadonlyArray<string> } | 'missing' | 'unknown-key'
+type Notecard = { lines: ReadonlyArray<string>; embedded: boolean } | 'missing' | 'unknown-key'
 
 /**
  * Find a notecard by name or asset key. A name that isn't a notecard says an error; a key that
- * matches no notecard here is silent, as an uncached notecard is in-world.
+ * matches no notecard here is silent, as an uncached notecard is in-world. A notecard with embedded
+ * items is searched as an empty text.
  */
 function findNotecard(ctx: CallContext, name: string): Notecard {
   const inventory = ctx.prim.inventory
   const byName = inventory.find((it) => it.name === name)
   const item =
     byName ?? (UUID.test(name) ? inventory.find((it) => it.type === InventoryType.NOTECARD && it.key.toLowerCase() === name.toLowerCase()) : undefined)
-  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) return { lines: item.notecardLines }
+  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) {
+    return item.hasEmbeddedItems ? { lines: [], embedded: true } : { lines: item.notecardLines, embedded: false }
+  }
   if (!byName && UUID.test(name)) return 'unknown-key'
   sayError(ctx, `Could not find notecard '${name}'.`)
   return 'missing'
@@ -318,7 +321,8 @@ function locator(bytes: Uint8Array): (index: number, length: number) => number[]
  * llFindNotecardTextSync(string name, string pattern, integer start, integer count, list options) —
  * [line, column, length] for each match after the first `start`. A count of 0 returns up to 64
  * matches, a negative count one. Returns [NAK] for a notecard that isn't here, and [] for an invalid
- * pattern. Notecards are always cached here. Options are ignored.
+ * pattern. A notecard with embedded items gives [] for any valid pattern, even one that matches
+ * empty text. Notecards are always cached here. Options are ignored.
  */
 export const llFindNotecardTextSync: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
@@ -328,7 +332,7 @@ export const llFindNotecardTextSync: BuiltinImpl = (ctx, args) => {
   const notecard = findNotecard(ctx, name)
   if (typeof notecard === 'string') return [NAK]
   const search = compile(ctx, notecard.lines, pattern)
-  if (!search) return []
+  if (!search || notecard.embedded) return []
   const limit = count === 0 ? MAX_DEFAULT_MATCHES : count < 0 ? 1 : count
   const locate = locator(search.bytes)
   const out: number[] = []

@@ -114,7 +114,7 @@ export const BUILTIN_SPECS = {
   "llExecCharacterCmd": { name: "llExecCharacterCmd", returnType: "void", delay: 0, status: "normal", params: [{ name: "command", type: "integer" }, { name: "options", type: "list" }] },
   "llFabs": { name: "llFabs", returnType: "float", delay: 0, status: "normal", params: [{ name: "val", type: "float" }] },
   "llFindNotecardTextCount": { name: "llFindNotecardTextCount", returnType: "key", delay: 0, status: "normal", params: [{ name: "name", type: "string" }, { name: "pattern", type: "string" }, { name: "options", type: "list" }] },
-  "llFindNotecardTextSync": { name: "llFindNotecardTextSync", returnType: "list", delay: 0, status: "normal", params: [{ name: "name", type: "string" }, { name: "pattern", type: "string" }, { name: "start", type: "integer" }, { name: "count", type: "integer" }, { name: "options", type: "list" }], slua: { returnIndex: true, indexParams: [2] } },
+  "llFindNotecardTextSync": { name: "llFindNotecardTextSync", returnType: "list", delay: 0, status: "normal", params: [{ name: "name", type: "string" }, { name: "pattern", type: "string" }, { name: "start", type: "integer" }, { name: "count", type: "integer" }, { name: "options", type: "list" }], slua: { returnIndex: true } },
   "llFleeFrom": { name: "llFleeFrom", returnType: "void", delay: 0, status: "normal", params: [{ name: "position", type: "vector" }, { name: "distance", type: "float" }, { name: "options", type: "list" }] },
   "llFloor": { name: "llFloor", returnType: "integer", delay: 0, status: "normal", params: [{ name: "val", type: "float" }] },
   "llForceMouselook": { name: "llForceMouselook", returnType: "void", delay: 0, status: "normal", params: [{ name: "mouselook", type: "integer" }] },

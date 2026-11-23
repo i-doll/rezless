@@ -105,6 +105,8 @@ export interface InventoryItem {
   script?: import('./script.js').Script
   /** Set when type === INVENTORY_NOTECARD. */
   notecardLines?: ReadonlyArray<string>
+  /** A notecard saved with embedded items: scripts read it as having no lines. */
+  hasEmbeddedItems?: boolean
   /** Saved object contents. Rezzing copies this linkset with fresh prim keys. */
   object?: import('./linkset.js').Linkset
   /** For type === INVENTORY_SETTING: what llReplaceEnvironment applies from it. */
@@ -145,6 +147,7 @@ export function makeInventoryItem(
   }
   if (partial.script !== undefined) item.script = partial.script
   if (partial.notecardLines !== undefined) item.notecardLines = partial.notecardLines
+  if (partial.hasEmbeddedItems !== undefined) item.hasEmbeddedItems = partial.hasEmbeddedItems
   if (partial.object !== undefined) item.object = partial.object
   if (partial.environment !== undefined) item.environment = partial.environment
   return item

@@ -581,6 +581,11 @@ export class SluaEngine {
       this.x.rz_pushboolean(L, (v as number) !== 0 ? 1 : 0)
       return 1
     }
+    // Each [line, column, length] match comes back with a 1-based line and column.
+    if (!compat && spec.name === 'llFindNotecardTextSync') {
+      this.push(L, (v as LslValue[]).map((x, i) => (typeof x === 'number' && i % 3 < 2 ? x + 1 : x)), 'list', compat)
+      return 1
+    }
     // The texture a face holds by key comes back as a uuid; an item's name stays a string, key-like or not.
     if (spec.name === 'llGetTexture' && isKey(v as string) && !this.host.faceTextureIsItem(args[0] as number)) this.push(L, (v as string).toLowerCase(), 'key', compat)
     else this.push(L, v, spec.returnType, compat)
