@@ -1,5 +1,5 @@
 import type { BuiltinImpl } from '../runtime.js'
-import { InventoryType, hearsInventoryChange, queueInventoryChanged } from '../inventory.js'
+import { InventoryType, queueInventoryChanged } from '../inventory.js'
 import { PERM_COPY, PERM_MODIFY } from '../generated/constants.js'
 import { llRemoveInventory } from './inventory.js'
 import { sayError } from './debug.js'
@@ -40,9 +40,8 @@ export const llRemoteLoadScriptPin: BuiltinImpl = (ctx, args) => {
   Object.assign(entry, { ...item, script: copy, acquireTimeMs: ctx.state.clock.now, permMask: { ...item.permMask } })
   copy.startParameter = Number(args[4])
   copy.running = Number(args[3]) !== 0
+  // In-world: the root's script heard of a load into a child before the loaded script started.
+  for (const script of target.inventoryChangeListeners(copy)) queueInventoryChanged(script)
   copy.queueStart()
   if (!(item.permMask.owner & PERM_COPY)) llRemoveInventory(ctx, [name])
-  for (const script of target.scripts) {
-    if (script !== copy && hearsInventoryChange(script)) queueInventoryChanged(script)
-  }
 }
