@@ -644,6 +644,34 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
   })
 
+  it('keeps the lag a waiting tick had when the handler that went ahead of it sets the timer again', async () => {
+    // Follows the measured rule above: the tick was 3 s late when the waiting handler started.
+    const { t, tell, linkset } = await rig({ source: timed })
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:7:')
+    linkset.advanceTime(500)
+    tell('msg:0:')
+    linkset.advanceTime(10_000)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    const start = linkset.clock.now
+    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
+  })
+
+  it('takes the lag of a tick a call made due at once, however late it was', async () => {
+    // Follows the measured rule: 3 s late, llSetTimerEvent(1) makes a tick due 2 s ago, and its
+    // lateness is the new lag.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    at(10_000)
+    tell('msg:1:1.0')
+    expect(ticks()).toBe(1)
+    at(10_500)
+    tell('msg:1:4.0')
+    expect(changes(linkset, ticks, 3000)).toEqual([12_500])
+  })
+
   it('has no lag after more than one missed tick, even when a waiting handler lengthens the interval', async () => {
     // In-world: a link message queued before the stop called llSetTimerEvent(10); started 8.5 s
     // after the stop, with the 4 s and 8 s ticks missed, the caught-up tick came 20 ms after

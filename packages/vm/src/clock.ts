@@ -651,11 +651,13 @@ export class ScriptClockView {
     const passed = this.timerPassedAt
     this.timerPassedAt = undefined
     const kept = late === undefined ? at : late + this.timerIntervalMs
+    const bySet = this.owedBySet
     this.timerLateDueMs = undefined
     this.owedBySet = false
     this.timerNextFireMs = kept > at ? kept : at + this.timerIntervalMs
     if (late === undefined) this.timerLate((passed ?? at) - due)
-    else this.timerLagMs = kept > at && this.owedTickLags ? at - late : 0
+    // A start that missed more than one tick leaves no lag; a tick a call made due always does.
+    else this.timerLagMs = (kept > at || bySet) && this.owedTickLags ? at - late : 0
   }
 
   /** A tick ran `ms` after it was due. */
@@ -691,7 +693,8 @@ export class ScriptClockView {
     // A tick that fell due and has not run yet still runs, and leaves how late it ran as the lag.
     if (this.timerIntervalMs > 0 && this.timerNextFireMs <= this.now && this.timerLateDueMs === undefined) {
       // Its due time is bookkeeping: a copy in inventory drops it, and with it the lag.
-      this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs })
+      const passed = this.timerPassedAt === undefined ? {} : { __passedAt: this.timerPassedAt }
+      this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs, ...passed })
     }
     this.timerIntervalMs = intervalMs
     this.timerPassedAt = undefined
