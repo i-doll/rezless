@@ -43,4 +43,19 @@ describe('a force ground sit dropped by a later sit request', () => {
       ['sit', 'applied', undefined],
     ])
   })
+
+  it.each(profiles)('%s records a ground sit that finds the avatar already sitting as unchanged', async profile => {
+    const f = await fixture(profile)
+    f.say('@sit:' + f.script.host.key + '=force')
+    f.wait(LANDED_MS)
+    const from = f.avatar.viewer.commandLog.length
+    f.say('@sitground=force')
+    f.wait(LANDED_MS + 50)
+    f.world.sitAvatarOnGround(f.avatar)
+    f.wait(1000)
+    expect(f.outcomes(from)).toEqual([
+      ['sitground', 'pending', undefined],
+      ['sitground', 'unchanged', undefined],
+    ])
+  })
 })
