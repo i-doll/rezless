@@ -7,7 +7,9 @@ import { loadScript } from '../src/index.js'
 // said the name, description and affected values. A second object listened
 // on DEBUG_CHANNEL and repeated what it heard, and a listener worn by the
 // avatar listened too. Both heard the llDialog error used as a control;
-// neither heard anything for any rule here.
+// neither heard anything for any rule here. On 2026-11-23 the owner's own
+// chat showed an error for each bad rule (owner-error-chat.test.ts has the
+// texts); scripts don't hear them.
 //
 // "Main grid" results are from the main-grid probes of 2026-10-29: a bad
 // rule said `llSetPrimitiveParams error running rule #1 (PRIM_SIZE): arg #1
@@ -15,8 +17,7 @@ import { loadScript } from '../src/index.js'
 // `... rule #1 (PRIM_GLOW): bounds error; 5 is not in (0, 1).`, and ended
 // the call, PRIM_GLOW 5 included.
 //
-// rezless follows the main grid where it was measured: it says those
-// errors, in the same form for the other wrong types, and PRIM_GLOW out of
+// rezless follows the main grid where it was measured: PRIM_GLOW out of
 // range ends the call. Everything else follows Aditi. The Aditi results
 // that differ are kept below as it.fails.
 
@@ -64,39 +65,41 @@ describe('a set rule that cannot run ends the call', () => {
   // In-world (LSL): each list left the name "before" and the description
   // "start", so the rule before the bad one applied and nothing after it did.
   // The string glow and the integer normal map were measured from glow 0.25.
-  // Main grid: the error said for each wrong type (only PRIM_SIZE "big" and
-  // an unknown rule were measured there). Nothing is said for a bad link
-  // target, which neither grid's probes heard an error for.
+  // The owner's chat showed each error (2026-11-23).
   it.each([
     ['an unknown rule', '999999, "x"', say(': unknown rule')],
-    ['a rule given as a float', '7.0, <0.6, 0.6, 0.6>', say(': unknown rule')],
-    ['a rule given as a string', '"7", <0.6, 0.6, 0.6>', say(': unknown rule')],
+    ['a rule given as a float', '7.0, <0.6, 0.6, 0.6>', say(': non-integer rule')],
+    ['a rule given as a string', '"7", <0.6, 0.6, 0.6>', say(': non-integer rule')],
     ['a string for a vector', 'PRIM_SIZE, "big"', say(' (PRIM_SIZE): arg #1 vector expected but string given')],
     ['an integer for a vector', 'PRIM_SIZE, 3', say(' (PRIM_SIZE): arg #1 vector expected but integer given')],
-    ['a string for a colour', 'PRIM_COLOR, 0, "red", 1.0', say(' (PRIM_COLOR): arg #2 vector expected but string given')],
+    ['a string for a colour', 'PRIM_COLOR, 0, "red", 1.0', say(' (PRIM_COLOR): arg #2 (color) vector expected but string given')],
     ['a float for an integer', 'PRIM_MATERIAL, 1.5', say(' (PRIM_MATERIAL): arg #1 integer expected but float given')],
     ['a whole float for an integer', 'PRIM_MATERIAL, 4.0', say(' (PRIM_MATERIAL): arg #1 integer expected but float given')],
     ['a float for an on/off value', 'PRIM_PHANTOM, 1.0', say(' (PRIM_PHANTOM): arg #1 integer expected but float given')],
-    ['a string for a face', 'PRIM_FULLBRIGHT, "0", TRUE', say(' (PRIM_FULLBRIGHT): arg #1 integer expected but string given')],
-    ['a float for a face', 'PRIM_GLOW, 1.5, 0.5', say(' (PRIM_GLOW): arg #1 integer expected but float given')],
-    ['a string for a float', 'PRIM_GLOW, ALL_SIDES, "0.5"', say(' (PRIM_GLOW): arg #2 float expected but string given')],
-    ['an integer for a key', 'PRIM_NORMAL, 0, 5, <1, 1, 0>, ZERO_VECTOR, 0.0', say(' (PRIM_NORMAL): arg #2 key expected but integer given')],
-    ['a string link target', 'PRIM_LINK_TARGET, "x"', null],
-    ['a float link target', 'PRIM_LINK_TARGET, 1.0', null],
+    ['a string for a face', 'PRIM_FULLBRIGHT, "0", TRUE', say(' (PRIM_FULLBRIGHT): arg #1 (face number) integer expected but string given')],
+    ['a float for a face', 'PRIM_GLOW, 1.5, 0.5', say(' (PRIM_GLOW): arg #1 (face number) integer expected but float given')],
+    ['a string for a float', 'PRIM_GLOW, ALL_SIDES, "0.5"', say(' (PRIM_GLOW): arg #2 (glow) float expected but string given')],
+    ['an integer for a key', 'PRIM_NORMAL, 0, 5, <1, 1, 0>, ZERO_VECTOR, 0.0', say(' (PRIM_NORMAL): arg #2 (normal texture name) string or key expected but integer given')],
+    ['a string link target', 'PRIM_LINK_TARGET, "x"', say(' (PRIM_LINK_TARGET): arg #1 integer expected but string given')],
+    ['a float link target', 'PRIM_LINK_TARGET, 1.0', say(' (PRIM_LINK_TARGET): arg #1 integer expected but float given')],
   ])('%s', async (_label, bad, error) => {
     const s = await lsl(`[PRIM_NAME, "before", ${bad}, PRIM_DESC, "after"]`)
     expect(s.global('out')).toEqual(['before', 'start', 0.25])
-    expect(debugChat(s).map((c) => c.text)).toEqual(error === null ? [] : [error])
+    expect(debugChat(s).map((c) => c.text)).toEqual([error])
   })
 
   // In-world (LSL): [PRIM_NAME, "before", PRIM_GLOW], [.., PRIM_SIZE] and
   // [.., PRIM_GLOW, ALL_SIDES] set the name and left the glow at 0.25. The
-  // main grid's probes had no cut-short list, so nothing is said.
-  it.each([['PRIM_GLOW'], ['PRIM_SIZE'], ['PRIM_GLOW, ALL_SIDES']])('a list cut short after %s', async (tail) => {
+  // owner's chat named the missing value (2026-11-23).
+  it.each([
+    ['PRIM_GLOW', ' (PRIM_GLOW): arg #1 (face number) is missing'],
+    ['PRIM_SIZE', ' (PRIM_SIZE): arg #1 is missing'],
+    ['PRIM_GLOW, ALL_SIDES', ' (PRIM_GLOW): arg #2 (glow) is missing'],
+  ])('a list cut short after %s', async (tail, rest) => {
     const s = await lsl(`[PRIM_NAME, "before", ${tail}]`)
     expect(s.global('out')).toEqual(['before', 'start', 0.25])
     expect(s.host.params.size).toEqual({ x: 0.5, y: 0.5, z: 0.5 })
-    expect(debugChat(s)).toEqual([])
+    expect(debugChat(s).map((c) => c.text)).toEqual([say(rest)])
   })
 
   // In-world: the same through llSetLinkPrimitiveParamsFast.
@@ -254,31 +257,12 @@ describe('a value out of range', () => {
 })
 
 describe('measured on Aditi, where the grids disagree', () => {
-  // In-world: none of these said anything a script could hear. The main grid
-  // said the error, which rezless does.
-  it.fails.each([['999999, "x"'], ['PRIM_SIZE, "big"'], ['PRIM_GLOW, ALL_SIDES, 5.0']])('[%s] says nothing', async (bad) => {
-    const s = await lsl(`[PRIM_NAME, "before", ${bad}, PRIM_DESC, "after"]`)
-    expect(debugChat(s)).toEqual([])
-  })
-
   // In-world: [PRIM_GLOW, ALL_SIDES, 5.0], -1.0 and 1.5 left the glow at 0.25
   // and set the description that followed, also through
   // llSetLinkPrimitiveParamsFast(LINK_THIS, ...). The main grid ended the call.
   it.fails.each([['5.0'], ['-1.0'], ['1.5']])('PRIM_GLOW %s skips only its rule', async (glow) => {
     const s = await lsl(`[PRIM_NAME, "before", PRIM_GLOW, ALL_SIDES, ${glow}, PRIM_DESC, "after"]`)
     expect(s.global('out')).toEqual(['before', 'after', 0.25])
-  })
-
-  // In-world: a bad rule on a seated avatar's link ([999999, "x"],
-  // [PRIM_POS_LOCAL, "bad"], [PRIM_GLOW, ALL_SIDES, 5.0], [PRIM_SIZE, "big"],
-  // [PRIM_DESC, 5]) or on LINK_SET said nothing either. Who says it on the
-  // main grid was not measured; rezless has the calling prim say it.
-  it.fails('llSetLinkPrimitiveParamsFast says nothing', async () => {
-    const s = await loadScript({
-      source: `default { state_entry() { llSetLinkPrimitiveParamsFast(LINK_THIS, [999999, "x"]); } }`,
-    })
-    s.start()
-    expect(debugChat(s)).toEqual([])
   })
 })
 

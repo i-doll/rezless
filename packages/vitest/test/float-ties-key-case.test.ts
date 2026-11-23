@@ -600,7 +600,9 @@ describe('the case of a stored key', () => {
       `nope 7 ${BOX}`, `nope 71 ${BOX}`, `nope 8 ${BOX}`, `nope 65 ${TORUS_START}`, `nope 0 ${TORUS_START}`, `nope 6 ${TORUS_START}`,
       `no type ${BOX}`, `nope, no type ${BOX}`,
     ])
-    expect(said(s, DEBUG_CHANNEL)).toEqual([])
+    // In-world (Aditi, 2026-11-23): a sculpt rule cut short after the map shows the owner the missing type.
+    const missing = 'llSetPrimitiveParams error running rule #1 (PRIM_TYPE_SCULPT): arg #2 (type) is missing.'
+    expect(said(s, DEBUG_CHANNEL)).toEqual([missing, missing])
   })
 
   it('PRIM_NORMAL and PRIM_SPECULAR without a texture drop the rule\'s other values for the defaults', async () => {

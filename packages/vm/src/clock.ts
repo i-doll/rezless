@@ -41,20 +41,28 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
 /** `changed` and the events a rez raises that run as `changed`. */
 const CHANGED_EVENTS: ReadonlySet<string> = new Set(['changed', '__unseated', '__ownerChanged'])
 
-const toucher = (payload: Record<string, unknown>) => (payload['detected'] as ReadonlyArray<{ key?: string }> | undefined)?.[0]?.key
+type TouchKind = 'touch_start' | 'touch' | 'touch_end'
+const TOUCH_KINDS: ReadonlyArray<TouchKind> = ['touch_start', 'touch', 'touch_end']
+interface DetectedTouch { readonly key?: string }
 
 /**
+ * Merge events that wait together: held back in a sleep, or behind llMinEventDelay.
+ *
  * In-world: three clicks by one avatar on faces 0, 2 and 4 while a handler slept gave one
  * touch_start that read face 0, and one touch and one touch_end that read face 4. A click
  * made while only the touch_end of the click before it was held back changed that touch_end
- * and added nothing. A colour change, an item dropped into the prim, and a sit and a stand
- * gave one changed(35). `held` is in the order the events came up; an event that merges
- * into an earlier one takes its place, and the others keep theirs.
+ * and added nothing. Clicks by i doll, fivebot and i doll in one sleep gave one touch_start(2)
+ * listing them in the order of each one's first click, and one touch(2) and one touch_end(2)
+ * in the order of each one's last click. A colour change, an item dropped into the prim, and
+ * a sit and a stand gave one changed(35). `held` is in the order the events came up; the
+ * touch events become one event of each kind, in that order, where the first of them was,
+ * and an event that merges into an earlier one takes its place.
  */
 function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
-  const clicks = new Map<string, { touch_start?: number; touch?: number; touch_end?: number }>()
   const merged: QueuedEvent[] = []
+  const parts: { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }[] = []
   let changed: number | undefined
+  let touches: number | undefined
   for (const e of held) {
     if (CHANGED_EVENTS.has(e.event)) {
       if (changed === undefined) changed = merged.push(e) - 1
@@ -69,29 +77,55 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       }
       continue
     }
-    const by = toucher(e.payload)
-    if (by === undefined || (e.event !== 'touch_start' && e.event !== 'touch' && e.event !== 'touch_end')) {
+    const detected = e.payload['detected'] as ReadonlyArray<DetectedTouch> | undefined
+    if (!TOUCH_EVENTS.has(e.event) || !detected?.length || detected.some((entry) => entry.key === undefined)) {
       merged.push(e)
       continue
     }
+    touches ??= merged.push(e) - 1
+    // When each click came up; an event merged before carries its clicks' own times.
+    const arrived = e.payload['__at'] as ReadonlyArray<number> | undefined
+    detected.forEach((entry, i) => parts.push({ kind: e.event as TouchKind, entry, at: arrived?.[i] ?? e.at, seq: parts.length }))
+  }
+  if (touches === undefined) return merged
+  const clicks = new Map<string, Partial<Record<TouchKind, (typeof parts)[number]>>>()
+  // The rules follow the order the events are in; the times only order each merged event's list.
+  for (const part of parts) {
+    const by = part.entry.key!.toLowerCase()
     const click = clicks.get(by) ?? {}
     clicks.set(by, click)
-    const same = click[e.event]
-    if (same !== undefined) {
-      if (e.event !== 'touch_start') merged[same] = e
-    } else if (e.event === 'touch_end' || click.touch_end === undefined && (e.event === 'touch' || click.touch === undefined)) {
-      click[e.event] = merged.length
-      merged.push(e)
-    }
+    if (part.kind === 'touch_start') {
+      if (!click.touch_start && !click.touch && !click.touch_end) click.touch_start = part
+    } else if (part.kind === 'touch_end' || click.touch || !click.touch_end) click[part.kind] = part
   }
+  const first = merged[touches]!
+  const group = TOUCH_KINDS.flatMap((kind): QueuedEvent[] => {
+    const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => x.at - y.at || x.seq - y.seq)
+    if (!kept.length) return []
+    const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at) }
+    return [{ ...first, at: Math.min(...kept.map((p) => p.at)), event: kind, payload }]
+  })
+  merged.splice(touches, 1, ...group)
   return merged
 }
+
+const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
+
+/** Events that wait behind one llMinEventDelay holds back. */
+const WAITS_BEHIND: ReadonlySet<string> = new Set([...TOUCH_EVENTS, 'timer'])
 
 /** Events llMinEventDelay spaces out; other events are not delayed. */
 export const DELAYED_EVENTS: ReadonlySet<string> = new Set(['timer', 'touch_start'])
 
 /** Events a script can hold in its queue; more are dropped, as in Second Life. */
 export const MAX_PENDING_EVENTS = 64
+
+/** When llMinEventDelay lets a queued event run, or 0 when it doesn't delay it. */
+function delayedUntil(e: QueuedEvent): number {
+  const v = e.target.clockView
+  if (DELAYED_EVENTS.has(e.event)) return v.delayedUntilMs
+  return e.event === 'touch' ? v.touchDelayUntil() : 0
+}
 
 /** Linkset-wide clock. One instance per Linkset. */
 export class LinksetClock {
@@ -151,12 +185,7 @@ export class LinksetClock {
     const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }) }
     if (held && at <= this.now) {
       // A click or a change that merges into one already held back takes no room of its own.
-      const before = this.queue.filter((e) => e.target === target && e.held && e.at <= this.now)
-      const after = mergeHeld([...before, queued])
-      if (after.length === before.length) {
-        before.forEach((e, i) => { if (after[i] !== e) this.queue[this.queue.indexOf(e)] = after[i]! })
-        return
-      }
+      if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
     }
     if (event !== '__reset') {
       let pending = target.parkedEvents.length
@@ -164,6 +193,42 @@ export class LinksetClock {
       if (pending >= MAX_PENDING_EVENTS) return
     }
     this.queue.push(queued)
+  }
+
+  /**
+   * Queue a touch event. Under llMinEventDelay touch events that wait merge as clicks held back
+   * in a sleep do. In-world, with llMinEventDelay(1.0) or (2.0), two or three 0.1 s clicks by
+   * one avatar on faces 1, 2 and 3 in a row gave touch_start and touch reading face 1, then one
+   * touch and one touch_end reading the last face, a full delay after touch_start. A 0.1 s
+   * click by i doll and then one by fivebot gave i doll's touch_start and touch, then a delay
+   * later fivebot's touch_start(1), and touch(2) and touch_end(2) listing both by last click.
+   */
+  scheduleTouch(target: Script, event: string, payload: Record<string, unknown>): void {
+    // A sleeping script's events go through the sleep's own merge in schedule().
+    if (target.clockView.minEventDelayMs > 0 && target.running && target.wakeAt === undefined) {
+      const before = this.queue.filter((e) => e.target === target && !e.held && TOUCH_EVENTS.has(e.event))
+      if (this.mergeWaiting(target, before, { at: this.now, target, event, payload })) return
+    }
+    this.schedule(target, this.now, event, payload)
+  }
+
+  /**
+   * Merge `queued` into the events `before` that wait for `target`, in place of the first of
+   * them. Returns false, leaving the queue alone, when nothing waits; and drops the event when
+   * the merge needs room the target's queue has run out of.
+   */
+  private mergeWaiting(target: Script, before: ReadonlyArray<QueuedEvent>, queued: QueuedEvent): boolean {
+    if (!before.length) return false
+    const after = mergeHeld([...before, queued])
+    if (after.length > before.length) {
+      let pending = target.parkedEvents.length
+      for (const e of this.queue) if (e.target === target) pending++
+      if (pending + after.length - before.length > MAX_PENDING_EVENTS) return true
+    }
+    const at = this.queue.indexOf(before[0]!)
+    for (const e of before) this.queue.splice(this.queue.indexOf(e), 1)
+    this.queue.splice(at, 0, ...after)
+    return true
   }
 
   /** Remove the queued events that `match`, leaving the others as they are. */
@@ -205,7 +270,8 @@ export class LinksetClock {
    * when it finishes, and the interval restarts from there.
    *
    * Under llMinEventDelay, a timer or touch_start waits until the delay since
-   * the last of them has passed, and the events queued behind it wait too.
+   * the last of them has passed, and a held click's touch until its own delay has;
+   * the touch events queued behind one that waits wait too.
    */
   takeNextDue(scripts: ReadonlyArray<Script>, horizon = this.now): QueuedEvent | null {
     for (;;) {
@@ -215,12 +281,13 @@ export class LinksetClock {
   }
 
   private takeNextEventOrTask(scripts: ReadonlyArray<Script>, horizon: number): QueuedEvent | 'task' | null {
-    const heldFrom = new Map<Script, number>()
+    // The first event of a script that llMinEventDelay holds back, and when it may run: the
+    // events queued behind it wait for it.
+    const heldFrom = new Map<Script, { index: number; until: number }>()
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
-      if (DELAYED_EVENTS.has(e.event) && e.target.clockView.delayedUntilMs > e.at && !heldFrom.has(e.target)) {
-        heldFrom.set(e.target, i)
-      }
+      const until = delayedUntil(e)
+      if (until > e.at && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
     }
     let bestIdx = -1
     let bestAt = Infinity
@@ -229,7 +296,10 @@ export class LinksetClock {
       const v = e.target.clockView
       // An event that waited for its target's handler is due when that handler finished.
       let due = Math.max(e.at, v.busyUntilMs)
-      if (e.event !== '__reset' && i >= (heldFrom.get(e.target) ?? Infinity)) due = Math.max(due, v.delayedUntilMs)
+      const held = heldFrom.get(e.target)
+      // In-world: a link message sent while a touch_start waited for llMinEventDelay ran at once,
+      // and the click's touch and touch_end waited behind the touch_start.
+      if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
       if (due <= horizon && due < bestAt && (e.event === '__reset' || e.target.wakeAt === undefined)) {
         bestAt = due
         bestIdx = i
@@ -399,6 +469,10 @@ export class ScriptClockView {
   minEventDelayMs = 0
   /** Earliest virtual time the next timer or touch_start may start, under llMinEventDelay. */
   delayedUntilMs = 0
+  /** Earliest virtual time a held click's next `touch` may be raised, under llMinEventDelay. */
+  private touchDelayedUntilMs = 0
+  /** The first `touch` after a `touch_start` is not delayed and leaves the delay where touch_start put it. */
+  private touchAfterStart = false
 
   constructor(
     private readonly linksetClock: LinksetClock,
@@ -460,10 +534,31 @@ export class ScriptClockView {
     if (this.timerLateDueMs === undefined) this.timerNextFireMs = this.now + intervalMs
   }
 
+  /**
+   * When llMinEventDelay lets the next `touch` run, or 0 when it doesn't delay it: the first
+   * touch after a touch_start is not delayed.
+   */
+  touchDelayUntil(): number {
+    return this.minEventDelayMs > 0 && !this.touchAfterStart ? this.touchDelayedUntilMs - 1e-6 : 0
+  }
+
+  /** Under llMinEventDelay, held `touch` events are spaced from `touch_start` and from each other. */
+  touchDelivered(event: string): void {
+    if (event === 'touch_start') {
+      this.touchDelayedUntilMs = this.now + this.minEventDelayMs
+      this.touchAfterStart = true
+    } else if (event === 'touch') {
+      if (!this.touchAfterStart) this.touchDelayedUntilMs = this.now + this.minEventDelayMs
+      this.touchAfterStart = false
+    }
+  }
+
   /** llMinEventDelay: `ms` below 0 counts as 0, and the delay starts now. */
   setMinEventDelay(ms: number): void {
     this.minEventDelayMs = Math.max(0, ms)
     this.delayedUntilMs = this.now + this.minEventDelayMs
+    // In-world: llMinEventDelay(1.0) in touch_start held a held click's second touch until 1.0 s after the call.
+    this.touchDelayedUntilMs = this.delayedUntilMs
   }
 
   /** Advances the linkset clock. */

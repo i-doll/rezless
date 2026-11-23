@@ -2,7 +2,6 @@ import { rlvIntegerPrefix } from './classifier.js'
 import { truncateUtf8 } from '../values/utf8.js'
 import { deliverAvatarReceivedChat } from './received.js'
 import type { World, WorldAvatar } from '../world.js'
-import type { Script } from '../script.js'
 import type { RlvRestriction } from './restrictions.js'
 
 export type AvatarChatVolume = 'whisper' | 'say' | 'shout'
@@ -29,6 +28,8 @@ export interface AvatarChatAction {
   readonly deliveredVolume?: AvatarChatVolume
   readonly status: 'sent' | 'blocked' | 'unsupported'
   readonly deliveredMessage?: string
+  /** The separate chat messages listeners got, when the viewer split `deliveredMessage`. */
+  readonly deliveredParts?: readonly string[]
   readonly redirected?: readonly Readonly<{ channel: number; message: string; volume: AvatarChatVolume; status: 'sent' | 'blocked'; restrictions: readonly RlvRestriction[] }>[]
   readonly reason?: 'redirchat' | 'rediremote' | 'sendchat' | 'sendchannel' | 'channel' | 'avatar'
   readonly restrictions: readonly RlvRestriction[]
@@ -76,7 +77,7 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
   const restrictions = channel === 0 ? Object.freeze(rules.filter(rule => chatRules.includes(rule) || volumeRules.includes(rule) || redirectRules.includes(rule) || emoteRules.includes(rule)))
     : channel === 2147483647 && (chatRules.length || debugRedirect) ? Object.freeze([...chatRules, ...(debugRedirect ? redirectRules : []), ...avatar.viewer.restrictions.channelDenials(channel)]) : avatar.viewer.restrictions.channelDenials(channel)
   const has = (behaviour: string) => volumeRules.some(rule => rule.behaviour === behaviour)
-  let deliveredVolume = volume
+  let deliveredVolume: AvatarChatVolume = channel < 0 ? 'say' : volume
   if (avatar.viewer.profile === 'rlv') {
     if (deliveredVolume === 'whisper' && has('chatwhisper')) deliveredVolume = 'say'
     if (deliveredVolume === 'shout' && has('chatshout')) deliveredVolume = 'say'
@@ -87,7 +88,7 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
     else if (volume === 'whisper' && has('chatwhisper')) deliveredVolume = 'say'
   }
   const reason = !world.avatars.includes(avatar) ? 'avatar'
-    : !Number.isInteger(channel) || channel < 0 || channel > 2147483647 ? 'channel'
+    : !Number.isInteger(channel) || channel < -2147483648 || channel > 2147483647 ? 'channel'
     : channel === 2147483647 && chatRules.length ? 'sendchat'
     : debugRedirect ? (isRlvaEmote(message) ? 'rediremote' : 'redirchat')
     : channel !== 0 && restrictions.length ? 'sendchannel' : undefined
@@ -130,12 +131,47 @@ export function sendAvatarChat(world: World, avatar: WorldAvatar, channel: numbe
       deliveredMessage = filterPublicChat(profile, message, emoteRules.length > 0)
   }
   const status = reason === 'sendchannel' || reason === 'sendchat' || reason === 'redirchat' || reason === 'rediremote' ? 'blocked' : reason ? 'unsupported' : 'sent'
+  const parts = chatParts(profile, channel, deliveredMessage)
   const record: AvatarChatAction = Object.freeze({ action: 'chat', channel, message, volume, status,
-    ...(status === 'sent' ? { deliveredMessage, deliveredVolume } : {}),
-    ...(reason ? { reason } : deliveredMessage !== message ? { reason: 'sendchat' as const } : {}), restrictions })
+    ...(status === 'sent' ? { deliveredMessage: parts.length > 1 ? deliveredMessage : parts[0]!, ...(parts.length > 1 ? { deliveredParts: Object.freeze(parts) } : {}), deliveredVolume } : {}),
+    ...(reason ? { reason } : channel === 0 && deliveredMessage !== message ? { reason: 'sendchat' as const } : {}), restrictions })
   logs.set(avatar, Object.freeze([...avatarChatLog(avatar), record]))
-  if (record.status === 'sent') deliverAvatarChat(world, avatar, channel, deliveredMessage, deliveredVolume)
+  if (record.status === 'sent') for (const part of parts) deliverAvatarChat(world, avatar, channel, part, deliveredVolume)
   return record
+}
+
+/**
+ * Firestorm sends chat in pieces of at most 1023 bytes, and a negative channel
+ * travels as a dialog reply that carries 254 bytes of each piece.
+ */
+function chatParts(profile: WorldAvatar['viewer']['profile'], channel: number, text: string): string[] {
+  const parts = profile === 'rlva' ? splitFirestormChat(text) : [text]
+  return channel < 0 ? parts.map(part => truncateUtf8(part, 254)) : parts
+}
+
+/**
+ * Firestorm's send_chat_from_viewer: each piece ends before the last space
+ * that fits in 1023 bytes, or else before a UTF-8 continuation byte. The space
+ * starts the next piece. A text of exactly 1023 bytes still looks for a space.
+ */
+function splitFirestormChat(text: string): string[] {
+  const bytes = new TextEncoder().encode(text)
+  const decoder = new TextDecoder('utf-8', { ignoreBOM: true })
+  const parts: string[] = []
+  for (let pos = 0; pos < bytes.length;) {
+    let next = Math.min(1023, bytes.length - pos)
+    if (pos + 1023 <= bytes.length) {
+      while (next > 0 && bytes[pos + next] !== 0x20) --next
+      if (next === 0) {
+        next = 1023
+        while (next > 0 && (bytes[pos + next] ?? 0) >= 0x80 && bytes[pos + next]! < 0xc0) --next
+      }
+      if (next === 0) next = 1023
+    }
+    parts.push(decoder.decode(bytes.subarray(pos, pos + next)))
+    pos += next
+  }
+  return parts.length ? parts : [text]
 }
 
 function isRlvaEmote(message: string): boolean {
@@ -150,20 +186,6 @@ function rlvaFiltersSpeech(message: string): boolean {
 
 function deliverAvatarChat(world: World, avatar: WorldAvatar, channel: number, deliveredMessage: string, deliveredVolume: AvatarChatVolume): void {
   deliverAvatarReceivedChat(world, avatar, channel, deliveredMessage, deliveredVolume)
-  const range = deliveredVolume === 'whisper' ? 10 : deliveredVolume === 'shout' ? 100 : 20
-  const corner = world.corner(avatar.region)
-  const origin = { x: corner.x + avatar.position.x, y: corner.y + avatar.position.y, z: avatar.position.z }
-  const matched: Script[] = []
-  for (const linkset of world.linksets) {
-    for (const prim of linkset.prims) {
-      const local = prim.regionPosition()
-      const region = world.corner(linkset.region)
-      const position = { x: region.x + local.x, y: region.y + local.y, z: local.z }
-      if ((position.x - origin.x) ** 2 + (position.y - origin.y) ** 2 + (position.z - origin.z) ** 2 > range ** 2) continue
-      for (const script of prim.scripts) {
-        if (script.matchChatListens({ channel, name: avatar.name, key: avatar.key, message: deliveredMessage })) matched.push(script)
-      }
-    }
-  }
+  const matched = world.linksets[0]?.routeViewerReply(avatar, channel, deliveredMessage, deliveredVolume) ?? []
   matched[0]?.linkset.settle(matched.filter(script => script.handles('listen')))
 }

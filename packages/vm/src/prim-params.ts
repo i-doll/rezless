@@ -1,5 +1,6 @@
 import { mulRotation } from './values/ops.js'
 import {
+  CLICK_ACTION_IGNORE,
   CLICK_ACTION_TOUCH,
   OVERRIDE_GLTF_BASE_ALPHA,
   OVERRIDE_GLTF_BASE_ALPHA_MASK,
@@ -17,6 +18,7 @@ import {
   PRIM_BUMP_SHINY,
   PRIM_CAST_SHADOWS,
   PRIM_CLICK_ACTION,
+  PRIM_COLLISION_SOUND,
   PRIM_COLOR,
   PRIM_DAMAGE,
   PRIM_DESC,
@@ -271,6 +273,8 @@ export const renderMaterialKey = (prim: Prim, material: string) => assetKey(prim
 
 export const textureKey = (prim: Prim, texture: string) => assetKey(prim, InventoryType.TEXTURE, texture)
 
+export const soundKey = (prim: Prim, sound: string) => assetKey(prim, InventoryType.SOUND, sound)
+
 /** A map reads back as a string when an inventory texture gives it a name, and as a key otherwise. */
 const mapType = (prim: Prim, key: string): LslType => (textureName(prim, key) === key ? 'key' : 'string')
 
@@ -307,6 +311,7 @@ export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean 
     if (face.specular.texture === key) face.specular = defaultFace().specular
   }
   if (p.shape.kind === SHAPE_SCULPT && p.shape.map === key) p.shape = { ...p.shape, map: SCULPT_MAP_DEFAULT }
+  if (p.projector.texture === key) p.projector = { ...p.projector, texture: NULL_KEY }
   return false
 }
 
@@ -428,7 +433,8 @@ const asRot = (v: LslValue | undefined): Rotation => {
   return identityRot()
 }
 const toByteChannel = (c: number): number => Math.floor(Math.min(1, Math.max(0, c)) * 255) / 255
-const roundToByte = (c: number) => Math.round(Math.min(1, Math.max(0, Math.fround(c))) * 255) / 255
+/** A light's colour and intensity are kept in 8 bits, rounded, and read back as a multiple of the float 1/255. */
+const lightByte = (c: number) => Math.fround(Math.round(Math.fround(Math.min(1, Math.max(0, Math.fround(c))) * 255)) * Math.fround(1 / 255))
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const clampVec = (v: Vector, lo: number, hi: number): Vector =>
   ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
@@ -477,6 +483,8 @@ export function writePrimParamSlots(
       return 3
     case PRIM_REFLECTION_PROBE: case PRIM_PROJECTOR:
       return 4
+    case PRIM_COLLISION_SOUND:
+      return 2
     case PRIM_POINT_LIGHT:
       return 5
     case PRIM_FLEXIBLE:
@@ -596,21 +604,30 @@ export function writePrimParam(
     case PRIM_SIT_FLAGS:
       p.sitFlags = num(rules[cursor]) & SETTABLE_SIT_FLAGS
       return 1
-    case PRIM_CLICK_ACTION:
-      p.clickAction = num(rules[cursor]) | 0
+    case PRIM_CLICK_ACTION: {
+      // In-world: a value outside CLICK_ACTION_TOUCH to CLICK_ACTION_IGNORE leaves the click action as it was.
+      const action = num(rules[cursor]) | 0
+      if (action >= CLICK_ACTION_TOUCH && action <= CLICK_ACTION_IGNORE) p.clickAction = action
       return 1
+    }
     case PRIM_HEALTH:
       p.health = num(rules[cursor])
       return 1
     case PRIM_DAMAGE:
       p.damage = { amount: num(rules[cursor]), type: num(rules[cursor + 1]) | 0 }
       return 2
+    case PRIM_COLLISION_SOUND:
+      // A sound's name stores its key, a key is kept, and any other name stores NULL_KEY.
+      prim.collisionSound = { sound: soundKey(caller, str(rules[cursor])) ?? NULL_KEY, volume: limit(f32(num(rules[cursor + 1])), 0, 1) }
+      return 2
     case PRIM_OMEGA: {
+      // The axis is normalised and its length moved into the spin rate, in float arithmetic.
       const axis = asVec(rules[cursor])
-      const length = Math.hypot(axis.x, axis.y, axis.z) || 1
+      const length = f32(Math.sqrt(f32(f32(f32(f32(axis.x) * f32(axis.x)) + f32(f32(axis.y) * f32(axis.y))) + f32(f32(axis.z) * f32(axis.z))))) || 1
+      const inverse = f32(1 / length)
       p.omega = {
-        axis: { x: axis.x / length, y: axis.y / length, z: axis.z / length },
-        spinrate: num(rules[cursor + 1]) * length,
+        axis: { x: f32(f32(axis.x) * inverse), y: f32(f32(axis.y) * inverse), z: f32(f32(axis.z) * inverse) },
+        spinrate: f32(f32(num(rules[cursor + 1])) * length),
         gain: num(rules[cursor + 2]),
       }
       return 3
@@ -620,8 +637,8 @@ export function writePrimParam(
       p.pointLight = num(rules[cursor]) !== 0
         ? {
             enabled: true,
-            color: { x: roundToByte(color.x), y: roundToByte(color.y), z: roundToByte(color.z) },
-            intensity: roundToByte(num(rules[cursor + 2])),
+            color: { x: lightByte(color.x), y: lightByte(color.y), z: lightByte(color.z) },
+            intensity: lightByte(num(rules[cursor + 2])),
             radius: clamp(num(rules[cursor + 3]), 0, 20),
             falloff: clamp(num(rules[cursor + 4]), 0, 2),
           }
@@ -639,21 +656,22 @@ export function writePrimParam(
         : { enabled: false, ambiance: 0, clipDistance: 0, flags: 0 }
       return 4
     case PRIM_PROJECTOR:
+      // A texture that names nothing in the prim's contents, and isn't a key, stores NULL_KEY.
       p.projector = {
-        texture: str(rules[cursor]),
-        fov: num(rules[cursor + 1]),
-        focus: num(rules[cursor + 2]),
-        ambiance: num(rules[cursor + 3]),
+        texture: textureKey(caller, str(rules[cursor])) ?? NULL_KEY,
+        fov: limit(f32(num(rules[cursor + 1])), 0, 3),
+        focus: limit(f32(num(rules[cursor + 2])), -20, 20),
+        ambiance: limit(f32(num(rules[cursor + 3])), -1, 1),
       }
       return 4
     case PRIM_FLEXIBLE:
       p.flexible = {
         enabled: num(rules[cursor]) !== 0,
-        softness: num(rules[cursor + 1]) | 0,
-        gravity: num(rules[cursor + 2]),
-        friction: num(rules[cursor + 3]),
-        wind: num(rules[cursor + 4]),
-        tension: num(rules[cursor + 5]),
+        softness: limit(num(rules[cursor + 1]) | 0, 0, 3),
+        gravity: flexGravity(num(rules[cursor + 2])),
+        friction: flexTenths(num(rules[cursor + 3])),
+        wind: flexTenths(num(rules[cursor + 4])),
+        tension: flexTenths(num(rules[cursor + 5])),
         force: asVec(rules[cursor + 6]),
       }
       return 7
@@ -742,16 +760,8 @@ export function writePrimParam(
       const key = textureKey(caller, tex) ?? NULL_KEY
       // Without a texture, the rule's other values are dropped for the defaults.
       const reset = key === NULL_KEY
-      const repeats = reset ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
-      const offsets = reset ? zero() : asVec(rules[cursor + 3])
-      const rot = reset ? 0 : num(rules[cursor + 4])
       for (const f of faces) {
-        p.faces[f]!.normal = {
-          texture: key,
-          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
-          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
-          textureRotation: rot,
-        }
+        p.faces[f]!.normal = { texture: key, ...(reset ? defaultMap() : storedMap(rules, cursor + 2)) }
       }
       return 5
     }
@@ -760,19 +770,14 @@ export function writePrimParam(
       const tex = str(rules[cursor + 1])
       const key = textureKey(caller, tex) ?? NULL_KEY
       const reset = key === NULL_KEY
-      const repeats = reset ? { x: 1, y: 1, z: 0 } : asVec(rules[cursor + 2])
-      const offsets = reset ? zero() : asVec(rules[cursor + 3])
-      const rot = reset ? 0 : num(rules[cursor + 4])
       const color = reset ? one() : asVec(rules[cursor + 5])
       const gloss = reset ? 51 : clamp(num(rules[cursor + 6]) | 0, 0, 255)
       const env = reset ? 0 : clamp(num(rules[cursor + 7]) | 0, 0, 255)
       for (const f of faces) {
         p.faces[f]!.specular = {
           texture: key,
-          textureRepeats: { x: repeats.x, y: repeats.y, z: repeats.z },
-          textureOffsets: { x: offsets.x, y: offsets.y, z: offsets.z },
-          // Second Life stores a negative rotation as 0 and the colour in 8 bits per channel
-          textureRotation: Math.max(0, rot),
+          ...(reset ? defaultMap() : storedMap(rules, cursor + 2)),
+          // Second Life stores the colour in 8 bits per channel
           color: { x: toByteChannel(color.x), y: toByteChannel(color.y), z: toByteChannel(color.z) },
           glossiness: gloss,
           environment: env,
@@ -865,6 +870,31 @@ const toInt32 = (v: number) => (v > -2147483649 && v < 2147483648 ? Math.trunc(v
 
 /** Profile cuts and hollow are kept in steps of 0.00001, cut off toward zero. */
 const toHundredThousandths = (v: number) => f32(toInt32(f32(v * 100000)) / 100000)
+
+/** Normal and specular map repeats, offsets and rotation are kept in steps of 0.0001, cut off toward zero. */
+const toTenThousandths = (v: number) => f32(toInt32(f32(v * 10000)) / 10000)
+
+const defaultMap = () => ({ textureRepeats: { x: 1, y: 1, z: 0 }, textureOffsets: zero(), textureRotation: 0 })
+
+/** A normal or specular map's repeats are -100 to 100, its offsets 0 to 1 and its rotation 0 to two pi. */
+function storedMap(rules: ReadonlyArray<LslValue>, cursor: number) {
+  const repeats = asVec(rules[cursor])
+  const offsets = asVec(rules[cursor + 1])
+  const repeat = (v: number) => toTenThousandths(limit(f32(v), -100, 100))
+  const offset = (v: number) => toTenThousandths(limit(f32(v), 0, 1))
+  return {
+    textureRepeats: { x: repeat(repeats.x), y: repeat(repeats.y), z: repeats.z },
+    textureOffsets: { x: offset(offsets.x), y: offset(offsets.y), z: offsets.z },
+    textureRotation: toTenThousandths(limit(f32(num(rules[cursor + 2])), 0, f32(2 * Math.PI))),
+  }
+}
+
+/**
+ * Flexible drag, wind and tension are kept in tenths, 0 to 10, and gravity in tenths from -10,
+ * each cut off after scaling by 10.01 in float arithmetic.
+ */
+const flexTenths = (v: number) => f32(Math.trunc(f32(limit(f32(v), 0, 10) * f32(10.01))) / 10)
+const flexGravity = (v: number) => f32(f32(Math.trunc(f32(f32(limit(f32(v), -10, 10) + 10) * f32(10.01))) / 10) - 10)
 
 const MIN_CUT = f32(0.02)
 
@@ -1045,8 +1075,6 @@ export function readPrimParam(
       return { values: [p.tempOnRez ? 1 : 0], consumed: 0 }
     case PRIM_PHYSICS_SHAPE_TYPE:
       return { values: [p.physicsShapeType], consumed: 0 }
-    case PRIM_CAST_SHADOWS:
-      return { values: [p.castShadows ? 1 : 0], consumed: 0 }
     case PRIM_ALLOW_UNSIT:
       return { values: [p.sitFlags & SIT_FLAG_ALLOW_UNSIT ? 1 : 0], consumed: 0 }
     case PRIM_SCRIPTED_SIT_ONLY:
@@ -1069,9 +1097,13 @@ export function readPrimParam(
       const r = p.reflectionProbe
       return { values: [r.enabled ? 1 : 0, r.ambiance, r.clipDistance, r.flags], consumed: 0 }
     }
-    // A projector can't be read: the rule gives nothing and ends the read.
-    case PRIM_PROJECTOR:
+    // A projector or shadow setting can't be read: the rule gives nothing and ends the read.
+    case PRIM_PROJECTOR: case PRIM_CAST_SHADOWS:
       return null
+    case PRIM_COLLISION_SOUND: {
+      const sound = prim.collisionSound
+      return { values: [sound?.sound ?? NULL_KEY, sound?.volume ?? 1], consumed: 0 }
+    }
     case PRIM_FLEXIBLE: {
       const f = p.flexible
       return {
@@ -1267,6 +1299,7 @@ const PRIM_PARAM_TYPES: Readonly<Record<number, ReadonlyArray<LslType>>> = {
   [PRIM_POINT_LIGHT]: ['integer', 'vector', 'float', 'float', 'float'],
   [PRIM_REFLECTION_PROBE]: ['integer', 'float', 'float', 'integer'],
   [PRIM_PROJECTOR]: ['string', 'float', 'float', 'float'],
+  [PRIM_COLLISION_SOUND]: ['key', 'float'],
   [PRIM_FLEXIBLE]: ['integer', 'integer', 'float', 'float', 'float', 'float', 'vector'],
   [PRIM_SIT_TARGET]: ['integer', 'vector', 'rotation'],
   [PRIM_COLOR]: ['vector', 'float'],
@@ -1319,7 +1352,7 @@ const RULE_CONSTANTS: Readonly<Record<string, number>> = {
   PRIM_REFLECTION_PROBE, PRIM_PROJECTOR, PRIM_FLEXIBLE, PRIM_SIT_TARGET, PRIM_TYPE, PRIM_COLOR,
   PRIM_TEXTURE, PRIM_RENDER_MATERIAL, PRIM_FULLBRIGHT, PRIM_GLOW, PRIM_BUMP_SHINY, PRIM_TEXGEN,
   PRIM_NORMAL, PRIM_SPECULAR, PRIM_ALPHA_MODE, PRIM_GLTF_BASE_COLOR, PRIM_GLTF_NORMAL,
-  PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE,
+  PRIM_GLTF_METALLIC_ROUGHNESS, PRIM_GLTF_EMISSIVE, PRIM_COLLISION_SOUND, PRIM_LINK_TARGET,
 }
 const RULE_NAMES = new Map(Object.entries(RULE_CONSTANTS).map(([name, value]) => [value, name]))
 
@@ -1347,35 +1380,122 @@ function typeAccepts(param: number, expected: LslType, given: LslType): boolean 
 /** `%g`-style number text, as the simulator prints it in error messages. */
 const formatG = (v: number): string => String(Number(v.toPrecision(6)))
 
+const SHAPE_NAMES: Readonly<Record<number, string>> = {
+  [PRIM_TYPE_BOX]: 'PRIM_TYPE_BOX', [PRIM_TYPE_CYLINDER]: 'PRIM_TYPE_CYLINDER', [PRIM_TYPE_PRISM]: 'PRIM_TYPE_PRISM',
+  [PRIM_TYPE_SPHERE]: 'PRIM_TYPE_SPHERE', [PRIM_TYPE_TORUS]: 'PRIM_TYPE_TORUS', [PRIM_TYPE_TUBE]: 'PRIM_TYPE_TUBE',
+  [PRIM_TYPE_RING]: 'PRIM_TYPE_RING', [PRIM_TYPE_SCULPT]: 'PRIM_TYPE_SCULPT',
+}
+
+const MAP_LABELS = ['texture repeat', 'texture offset', 'texture rotation']
+const PATH_LABELS = ['hole type', 'cut', 'hollow', 'twist']
+const LOOP_LABELS = [...PATH_LABELS, 'hole size', 'top shear', 'advanced cut', 'taper', 'revolutions', 'radius offset', 'skew']
+
+/** The name the simulator gives each value of a rule in its error messages; most rules give none. */
+const ARG_LABELS: Readonly<Record<number, ReadonlyArray<string>>> = {
+  [PRIM_TEXT]: ['text', 'color', 'alpha'],
+  [PRIM_COLOR]: ['face number', 'color', 'alpha'],
+  [PRIM_TEXTURE]: ['face number', 'texture name', ...MAP_LABELS],
+  [PRIM_RENDER_MATERIAL]: ['face number', 'render material name'],
+  [PRIM_FULLBRIGHT]: ['face number', 'fullbright'],
+  [PRIM_GLOW]: ['face number', 'glow'],
+  [PRIM_BUMP_SHINY]: ['face number', 'shininess', 'bump mapping'],
+  [PRIM_TEXGEN]: ['face number', 'generation mode'],
+  [PRIM_NORMAL]: ['face number', 'normal texture name', ...MAP_LABELS],
+  [PRIM_SPECULAR]: ['face number', 'specular texture name', ...MAP_LABELS, 'color', 'glossy', 'environment'],
+  [PRIM_ALPHA_MODE]: ['face number', 'alpha mode', 'alpha mask cutoff'],
+  [PRIM_GLTF_BASE_COLOR]: ['face number', 'texture name', ...MAP_LABELS, 'color', 'alpha', 'alpha mode', 'alpha mask cutoff', 'double sided'],
+  [PRIM_GLTF_NORMAL]: ['face number', 'normal texture name', ...MAP_LABELS],
+  [PRIM_GLTF_METALLIC_ROUGHNESS]: ['face number', 'normal texture name', ...MAP_LABELS, 'metallic factor', 'roughness factor'],
+  [PRIM_GLTF_EMISSIVE]: ['face number', 'emissive texture name', ...MAP_LABELS, 'color'],
+}
+
+function shapeLabels(kind: number): ReadonlyArray<string> {
+  if (kind === PRIM_TYPE_SCULPT) return ['texture', 'type']
+  if (kind === PRIM_TYPE_SPHERE) return [...PATH_LABELS, 'dimple']
+  if (kind === PRIM_TYPE_TORUS || kind === PRIM_TYPE_TUBE || kind === PRIM_TYPE_RING) return LOOP_LABELS
+  return [...PATH_LABELS, 'top size', 'top shear']
+}
+
+/** A type as the simulator names it in an error message. */
+function typeName(param: number, type: LslType): string {
+  if (type === 'rotation') return 'quaternion'
+  if (type === 'key' || (type === 'string' && !STRING_ONLY_RULES.has(param))) return 'string or key'
+  return type
+}
+
+/** The rules a set call can apply to a seated avatar. */
+const AGENT_RULES: ReadonlySet<number> = new Set([PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL])
+
+/** What the simulator says about a rule: an error that ends the call, or a bounds error that skips only the rule. */
+export interface PrimRuleError {
+  readonly text: string
+  readonly ends: boolean
+}
+
+const SET_ERROR = 'llSetPrimitiveParams error running rule #'
+
+function bounds(rule: number, name: string, value: number, high: number): PrimRuleError {
+  return { text: `${SET_ERROR}${rule} (${name}): bounds error; ${formatG(value)} is not in (0, ${high}).`, ends: false }
+}
+
 /**
- * Check the PRIM_* rule at `rules[index]` of a set call before it is applied.
- * Returns null if the rule can run. Otherwise the call ends there, and the
- * result is the error text that follows "rule #N" in the simulator's message
- * (e.g. " (PRIM_SIZE): arg #1 vector expected but string given"), or "" when
- * the call ends without one.
+ * Check the PRIM_* rule at `rules[index]` of a set call before it is applied,
+ * `rule` being its 1-based position. Returns null if the rule can run, or
+ * what the simulator says. Every set function words its errors as
+ * llSetPrimitiveParams. `toAgent` is set when the rule goes to a seated
+ * avatar, which takes only the position and rotation rules.
  */
-export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number): string | null {
-  if (givenType(rules, index) !== 'integer') return ': unknown rule'
+export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number, rule: number, toAgent = false): PrimRuleError | null {
+  const fail = (text: string): PrimRuleError => ({ text: `${SET_ERROR}${rule}${text}.`, ends: true })
+  if (givenType(rules, index) !== 'integer') return fail(': non-integer rule')
   const param = rules[index] as number
-  const cursor = index + 1
-  if (param === PRIM_LINK_TARGET) return cursor < rules.length && givenType(rules, cursor) === 'integer' ? null : ''
-  const name = RULE_NAMES.get(param)
-  if (name === undefined) return ': unknown rule'
-  const slots = writePrimParamSlots(param, rules, cursor)
-  if (slots === null) return param === PRIM_TYPE ? null : ': unknown rule'
-  if (cursor + slots > rules.length) return ''
-  const pattern = param === PRIM_TYPE ? primTypeTypes(rules[cursor]) : PRIM_PARAM_TYPES[param]!
-  const expected = PER_FACE_RULES.has(param) ? ['integer' as const, ...pattern] : pattern
-  for (let i = 0; i < expected.length; i++) {
+  let name = RULE_NAMES.get(param)
+  if (name === undefined) return fail(': unknown rule')
+  if (toAgent && param !== PRIM_LINK_TARGET && !AGENT_RULES.has(param)) {
+    return { text: `llSetPrimitiveParams warning running rule #${rule} (${name}): ${name} disallowed on agent.`, ends: true }
+  }
+  let cursor = index + 1
+  let pattern: ReadonlyArray<LslType>
+  let labels: ReadonlyArray<string>
+  if (param === PRIM_TYPE) {
+    if (cursor >= rules.length) return fail(': missing prim type')
+    if (givenType(rules, cursor) !== 'integer') return fail(': need integer prim type')
+    const kind = rules[cursor] as number
+    if (SHAPE_NAMES[kind] === undefined) return null
+    name = SHAPE_NAMES[kind]!
+    pattern = primTypeTypes(kind).slice(1)
+    labels = shapeLabels(kind)
+    cursor++
+  } else if (param === PRIM_LINK_TARGET) {
+    pattern = ['integer']
+    labels = []
+  } else {
+    pattern = PER_FACE_RULES.has(param) ? ['integer', ...PRIM_PARAM_TYPES[param]!] : PRIM_PARAM_TYPES[param]!
+    labels = ARG_LABELS[param] ?? []
+  }
+  for (let i = 0; i < pattern.length; i++) {
+    const arg = ` (${name}): arg #${i + 1}${labels[i] ? ` (${labels[i]})` : ''}`
+    if (cursor + i >= rules.length) return fail(`${arg} is missing`)
     if (i > 0 && GLTF_RULES.has(param) && rules[cursor + i] === '') continue
     const given = givenType(rules, cursor + i)
-    if (!typeAccepts(param, expected[i]!, given)) {
-      return ` (${name}): arg #${i + 1} ${expected[i]} expected but ${given} given`
+    if (!typeAccepts(param, pattern[i]!, given)) {
+      return fail(`${arg} ${typeName(param, pattern[i]!)} expected but ${given === 'rotation' ? 'quaternion' : given} given`)
     }
   }
-  if (param === PRIM_GLOW) {
-    const glow = num(rules[cursor + 1])
-    if (glow < 0 || glow > 1) return ` (${name}): bounds error; ${formatG(glow)} is not in (0, 1)`
+  const value = (i: number) => num(rules[cursor + i])
+  if (param === PRIM_GLOW && (value(1) < 0 || value(1) > 1)) return { ...bounds(rule, name, value(1), 1), ends: true }
+  if (param === PRIM_MATERIAL && (value(0) < PRIM_MATERIAL_STONE || value(0) > PRIM_MATERIAL_LIGHT)) {
+    return bounds(rule, name, value(0), PRIM_MATERIAL_LIGHT)
+  }
+  if (param === PRIM_FULLBRIGHT && value(1) !== 0 && value(1) !== 1) return bounds(rule, name, value(1), 1)
+  if (param === PRIM_TEXT) {
+    const color = rules[cursor + 1] as Vector
+    const wrong = [color.x, color.y, color.z, value(2)].find((v) => v < 0 || v > 1)
+    if (wrong !== undefined) return bounds(rule, name, wrong, 1)
+  }
+  if (param === PRIM_PHYSICS_SHAPE_TYPE) {
+    if (value(0) < PRIM_PHYSICS_SHAPE_PRIM) return { text: 'ERROR: Failed to set physics shape type. Unexpected behavior may result.', ends: false }
+    if (value(0) > PRIM_PHYSICS_SHAPE_CONVEX) return { text: 'Invalid physics shape type requested.', ends: false }
   }
   return null
 }

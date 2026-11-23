@@ -1,6 +1,8 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslValue, Vector } from '../values/types.js'
-import { PRIM_DESC, PRIM_TEXT } from '../generated/constants.js'
+import { PAY_DEFAULT, PAY_HIDE, PRIM_DESC, PRIM_TEXT } from '../generated/constants.js'
+import { listElementType } from '../values/list-types.js'
+import { truncateUtf8 } from '../values/utf8.js'
 
 /**
  * Builtins that read or mutate the prim's appearance / lifecycle. We
@@ -33,24 +35,37 @@ export const llSetObjectDesc: BuiltinImpl = (ctx, args) => {
 /** llGetObjectDesc() */
 export const llGetObjectDesc: BuiltinImpl = (ctx) => ctx.prim.description
 
-/** llSetTouchText(string text) */
+const MENU_TEXT_BYTES = 9
+const PAY_BUTTON_DEFAULTS = [1, 5, 10, 20]
+
+/** llSetTouchText(string text) — the region keeps the first 9 bytes. */
 export const llSetTouchText: BuiltinImpl = (ctx, args) => {
-  ctx.prim.touchText = (args[0] as string | undefined) ?? ''
+  ctx.prim.touchText = truncateUtf8((args[0] as string | undefined) ?? '', MENU_TEXT_BYTES)
   return undefined
 }
 
-/** llSetSitText(string text) */
+/** llSetSitText(string text) — the region keeps the first 9 bytes. */
 export const llSetSitText: BuiltinImpl = (ctx, args) => {
-  ctx.prim.sitText = (args[0] as string | undefined) ?? ''
+  ctx.prim.sitText = truncateUtf8((args[0] as string | undefined) ?? '', MENU_TEXT_BYTES)
   return undefined
 }
 
-/** llSetPayPrice(integer price, list quick_pay_buttons) */
+/**
+ * llSetPayPrice(integer price, list quick_pay_buttons) — stores the four
+ * buttons the pay dialog gets: PAY_DEFAULT takes that button's default,
+ * anything but an integer and any missing button is PAY_HIDE, and an empty
+ * list gives the defaults.
+ */
 export const llSetPayPrice: BuiltinImpl = (ctx, args) => {
-  ctx.prim.payPrice = {
-    price: (args[0] as number | undefined) ?? 0,
-    buttons: [...((args[1] as LslValue[] | undefined) ?? [])],
-  }
+  const list = (args[1] as LslValue[] | undefined) ?? []
+  const buttons = PAY_BUTTON_DEFAULTS.map((fallback, i) => {
+    if (list.length === 0) return fallback
+    const value = list[i]
+    const type = listElementType(list, i)
+    if (typeof value !== 'number' || (type ?? 'integer') !== 'integer' || !Number.isInteger(value)) return PAY_HIDE
+    return value === PAY_DEFAULT ? fallback : value
+  })
+  ctx.prim.payPrice = { price: (args[0] as number | undefined) ?? 0, buttons }
   return undefined
 }
 

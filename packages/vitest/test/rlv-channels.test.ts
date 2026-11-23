@@ -32,7 +32,11 @@ describe('paired viewer reply channels', () => {
 // A listener 7 m across the SLua Tideland / SLua Tombolo boundary hears it.
 // Firestorm RLVa 2.4.2, viewer 7.2.5.81978 (Aditi, 2026-11-01).
 // Viewer replies originate at the avatar's current global position, including
-// the issuing prim. Dialog replies use 20 m in the avatar's region.
+// the issuing prim. Negative-channel replies travel as dialog replies and reach
+// 20 m, across region borders too: avatar chat on -39603 from SLua Tideland was
+// heard by a prim 9.3 m and 15.4 m away in SLua Tombolo, not 25 m away
+// (Aditi, Firestorm RLVa 2.4.2, 2026-11-23). Kokua sends its negative replies as
+// the same dialog reply from the avatar (RRInterface.cpp, Kokua-MKRLV).
 describe('avatar reply origin', () => {
   it('recomputes position and region for every reply and uses the profile transport range', async () => {
     const pair = await loadRlvPair({ source: `integer replies; default {
@@ -57,7 +61,7 @@ describe('avatar reply origin', () => {
       avatar.region = 'neighbour'
       avatar.position = { x: 1, y: 0, z: 0 }
       script.fire('touch_start', { num_detected: 1 })
-      expect(script.global('replies')).toBe(profile === 'rlv' ? 4 : 3)
+      expect(script.global('replies')).toBe(profile === 'rlv' ? 5 : 3)
     }
   })
 })

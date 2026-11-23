@@ -1225,7 +1225,7 @@ Comparison: confirmed difference. Wiki allows nonzero channels and describes 255
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Object queries reject zero. Positive replies use avatar-origin shout across regions within 100 m and take a raw 1023-byte prefix. Negative replies use avatar-origin dialog chat within 20 m in the current region and take a raw 254-byte prefix. Partial UTF-8 becomes U+FFFD in VM strings. DEBUG_CHANNEL replies use the positive-channel shout path.
+Support depth: enforced. Object queries reject zero. Positive replies use avatar-origin shout across regions within 100 m and take a raw 1023-byte prefix. Negative replies use avatar-origin dialog chat within 20 m across regions and take a raw 254-byte prefix. Partial UTF-8 becomes U+FFFD in VM strings. DEBUG_CHANNEL replies use the positive-channel shout path.
 
 - Signed nonzero version-query channels
 - sendViewerReply: single-message payload truncation and avatar-origin routing
@@ -1540,9 +1540,9 @@ Comparison: confirmed difference. Both profiles share ordinary cross-prim except
 
 #### Kokua RLV 2.09.35.00
 
-Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs an ordinary or secure exception on that same prim. With permissive=n every restricting issuer needs its own exception. Options match the literal decimal outgoing channel. Other permissive command families remain unsupported.
+Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs an ordinary or secure exception on that same prim. With permissive=n every restricting issuer needs its own exception. Options match the literal decimal outgoing channel, negative channels included. Other permissive command families remain unsupported.
 
-- Positive private-channel avatar say via sendAvatarChat
+- Private-channel avatar chat via sendAvatarChat, negative channels included
 - No-option sendchannel/sendchannel_sec blocks and literal channel exceptions
 - No-option permissive scoped to sendchannel
 - Channel zero bypasses sendchannel; denied attempts are logged without delivery
@@ -1551,9 +1551,9 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs its own exception; with permissive=n every restricting issuer does. Exceptions accept positive signed 32-bit decimal prefixes; zero, negative and invalid options are rejected. Ordinary and secure option forms grant the same channel exception. Other permissive command families remain unsupported.
+Support depth: enforced. Ordinary restrictions accept an exception from any prim. Every secure issuer needs its own exception; with permissive=n every restricting issuer does. Exceptions accept positive signed 32-bit decimal prefixes; zero, negative and invalid options are rejected, so a no-option block also closes every negative channel. Ordinary and secure option forms grant the same channel exception. Other permissive command families remain unsupported.
 
-- Positive private-channel avatar say via sendAvatarChat
+- Private-channel avatar chat via sendAvatarChat, negative channels included
 - No-option sendchannel/sendchannel_sec blocks and numeric channel exceptions
 - No-option permissive scoped to sendchannel
 - Channel zero bypasses sendchannel; denied attempts are logged without delivery

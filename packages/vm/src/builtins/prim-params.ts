@@ -5,7 +5,8 @@ import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import { readAvatarLinkParam, writeAvatarLinkParam } from '../avatar-link.js'
 import {
-  LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET, PRIM_TYPE, PRIM_TYPE_PRISM,
+  LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_CLICK_ACTION, PRIM_LINK_TARGET, PRIM_PHYSICS_SHAPE_NONE,
+  PRIM_PHYSICS_SHAPE_TYPE, PRIM_TYPE, PRIM_TYPE_PRISM,
 } from '../generated/constants.js'
 import { checkPrimRule, primGetRuleRuns, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
@@ -34,19 +35,24 @@ function sluaShapeRules(rules: ReadonlyArray<LslValue>, cursor: number) {
  * llSetLinkPrimitiveParams behavior, available inside
  * llSetPrimitiveParams too).
  *
- * A rule that can't run (see checkPrimRule) stops the walk, saying the
- * simulator's error on DEBUG_CHANNEL where it has one; rules before it stay
- * applied.
+ * A rule that can't run (see checkPrimRule) stops the walk; rules before it
+ * stay applied. After a bounds error that doesn't end the call the rule is
+ * still handed to its writer, which ignores the value. The simulator's
+ * message goes to the owner on DEBUG_CHANNEL; scripts listening there don't
+ * hear it.
  */
-function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyArray<LslValue>, sitter?: WorldAvatar): void {
+function walkSet(ctx: CallContext, target: Prim[], rules: ReadonlyArray<LslValue>, sitter?: WorldAvatar): void {
   const { linkset, prim: caller } = ctx
   let cur = target
   let i = 0
   for (let ruleNumber = 1; i < rules.length; ruleNumber++) {
-    const error = checkPrimRule(rules, i)
+    const error = checkPrimRule(rules, i, ruleNumber, sitter !== undefined && cur.length === 0)
     if (error !== null) {
-      if (error !== '') sayError(ctx, `${fn} error running rule #${ruleNumber}${error}.`)
-      return
+      sayError(ctx, error.text, ctx.prim, false)
+      if (error.ends) return
+    }
+    if (rules[i] === PRIM_PHYSICS_SHAPE_TYPE && rules[i + 1] === PRIM_PHYSICS_SHAPE_NONE && cur.includes(linkset.prims[0]!)) {
+      sayError(ctx, 'ERROR: Root prim may not be set to shape type none.', ctx.prim, false)
     }
     const rule = rules[i] as number
     if (rule === PRIM_LINK_TARGET) {
@@ -84,14 +90,19 @@ function walkSet(ctx: CallContext, fn: string, target: Prim[], rules: ReadonlyAr
  * Read a PRIM_* rules list from the link `start`. A read is on one link at a
  * time. PRIM_LINK_TARGET counts from `start`, not from the calling prim: there
  * LINK_THIS is `start` and every other negative number is the first link that
- * is not `start`. A read on no link returns nothing more.
+ * is not `start`. A read on no link returns nothing more. A rule a prim can't
+ * read, PRIM_PROJECTOR and PRIM_CAST_SHADOWS among them, ends the read with an
+ * error said by `start`, counting rules from 0 and a PRIM_LINK_TARGET as two.
+ * A read that starts on a seated avatar says none.
  */
-function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
+function walkGet(ctx: CallContext, start: Link | undefined, rules: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
+  const linkset = ctx.linkset
   const out: LslValue[] = []
   const types: Array<LslType | undefined> = []
   const kinds: LuaResultKind[] = []
   let cur = start
   let i = 0
+  let param = 0
   while (cur && i < rules.length) {
     if (!primGetRuleRuns(rules, i)) break
     const rule = rules[i] as number
@@ -101,10 +112,12 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
       if (type ? type !== 'integer' : !Number.isInteger(link)) break
       cur = linkset.oneLink(start!, (link as number) | 0)
       i += 2
+      param += 2
       continue
     }
     if (rule === PRIM_CLICK_ACTION && i !== rules.length - 1) {
       i++
+      param++
       continue
     }
     let consumed = 0
@@ -112,7 +125,10 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
     let valueTypes: ReadonlyArray<LslType> | undefined
     if (isPrim(cur)) {
       const r = cur.getPrimParam(rule, rules, i + 1)
-      if (r === null) break
+      if (r === null) {
+        if (isPrim(start)) sayError(ctx, `llGetPrimitiveParams error: Param ${param} error, unknown parameter`, start)
+        break
+      }
       values = r.values
       valueTypes = r.types
       consumed = r.consumed
@@ -125,6 +141,7 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
     types.push(...(valueTypes ?? primParamTypes(rule, values)))
     kinds.push(...primParamLuaKinds(isPrim(cur) ? cur : undefined, rule, rules, i + 1, values))
     i += 1 + consumed
+    param++
   }
   return markLuaResult(typedList(out, types), kinds)
 }
@@ -132,7 +149,7 @@ function walkGet(linkset: Linkset, start: Link | undefined, rules: ReadonlyArray
 /** llSetPrimitiveParams(list rules) — caller's prim only (until PRIM_LINK_TARGET redirects). */
 export const llSetPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
-  walkSet(ctx, 'llSetPrimitiveParams', [ctx.prim], rules)
+  walkSet(ctx, [ctx.prim], rules)
   return undefined
 }
 
@@ -141,7 +158,7 @@ export const llSetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const { prims, sitter } = ctx.linkset.linksFrom(ctx.prim, link)
-  walkSet(ctx, 'llSetLinkPrimitiveParams', prims, rules, sitter)
+  walkSet(ctx, prims, rules, sitter)
   return undefined
 }
 
@@ -150,14 +167,14 @@ export const llSetLinkPrimitiveParamsFast: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   const { prims, sitter } = ctx.linkset.linksFrom(ctx.prim, link)
-  walkSet(ctx, 'llSetLinkPrimitiveParamsFast', prims, rules, sitter)
+  walkSet(ctx, prims, rules, sitter)
   return undefined
 }
 
 /** llGetPrimitiveParams(list params) — caller's prim. */
 export const llGetPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
-  return walkGet(ctx.linkset, ctx.prim, rules)
+  return walkGet(ctx, ctx.prim, rules)
 }
 
 /** llGetLinkPrimitiveParams(integer link, list params). The group flags return []. */
@@ -165,5 +182,5 @@ export const llGetLinkPrimitiveParams: BuiltinImpl = (ctx, args) => {
   const link = ((args[0] as number | undefined) ?? 0) | 0
   if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return []
   const rules = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
-  return walkGet(ctx.linkset, ctx.linkset.oneLink(ctx.prim, link), rules)
+  return walkGet(ctx, ctx.linkset.oneLink(ctx.prim, link), rules)
 }

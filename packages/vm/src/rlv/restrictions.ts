@@ -163,7 +163,7 @@ export class RlvRestrictions {
     if (!option) return 'enforced'
     const channel = channelOption(option)
     if (this.profile === 'rlv' && String(channel) !== option) return 'unsupported'
-    return channel !== undefined && channel > 0 ? 'enforced' : 'unsupported'
+    return channel !== undefined && (this.profile === 'rlv' ? channel !== 0 : channel > 0) ? 'enforced' : 'unsupported'
   }
 
   /** Rules whose issuing prims have not granted this private channel. */

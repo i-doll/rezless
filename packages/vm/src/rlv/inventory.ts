@@ -92,6 +92,16 @@ export class RlvInventory {
       Object.freeze({ itemId, rootKey })])
   }
 
+  /** An object dropped from the avatar leaves inventory, and its item with it. */
+  forgetAttachment(object: Linkset): void {
+    const rootKey = object.prims[0]!.key.toLowerCase()
+    const items = new Set([...this.attachments.filter(entry => entry.rootKey === rootKey).map(entry => entry.itemId),
+      ...[...this.objects].filter(([, value]) => value === object).map(([id]) => id)])
+    for (const id of items) this.objects.delete(id)
+    this.attachments = Object.freeze(this.attachments.filter(entry => entry.rootKey !== rootKey))
+    this.entries = Object.freeze(this.entries.filter(entry => !items.has(entry.id)))
+  }
+
   get sharedRootId(): string | null { return this.rootId }
   snapshot(): readonly RlvInventoryEntry[] { return this.entries }
   wornWearables(): readonly string[] { return this.wearables }

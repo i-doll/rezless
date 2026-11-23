@@ -191,7 +191,7 @@ it('reports unsupported action channels instead of coercing or routing them', as
   const pair = await loadRlvPair({ source: listener })
   for (const f of Object.values(pair)) {
     f.script.start()
-    for (const channel of [-1, NaN, 1.5, 2147483648]) {
+    for (const channel of [-2147483649, NaN, 1.5, 2147483648]) {
       expect(f.sendChat(channel, 'unsupported')).toMatchObject({ status: 'unsupported', reason: 'channel' })
     }
     expect(f.script.global('heard')).toBe(0)

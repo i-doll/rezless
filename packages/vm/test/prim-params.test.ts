@@ -115,8 +115,10 @@ describe('prim-params helpers', () => {
       ['HEALTH', PRIM_HEALTH, [0.5], [0.5]],
       ['DAMAGE', PRIM_DAMAGE, [10, 1], [10, 1]],
       ['OMEGA', PRIM_OMEGA, [v(0, 0, 1), 1.5, 0.8], [v(0, 0, 1), 1.5, 0.8]],
-      ['POINT_LIGHT', PRIM_POINT_LIGHT, [1, v(1, 0, 0), 0.8, 12, 0.5], [1, v(1, 0, 0), 0.8, 12, 0.5]],
-      ['FLEXIBLE', PRIM_FLEXIBLE, [1, 2, 0.3, 0.4, 0.5, 0.6, v(0, 0, -1)], [1, 2, 0.3, 0.4, 0.5, 0.6, v(0, 0, -1)]],
+      // In-world: light intensity is kept in 8 bits and read back as a multiple of the float 1/255.
+      ['POINT_LIGHT', PRIM_POINT_LIGHT, [1, v(1, 0, 0), 0.8, 12, 0.5], [1, v(1, 0, 0), Math.fround(204 * Math.fround(1 / 255)), 12, 0.5]],
+      // In-world: flexible gravity 0.3 reads back 0.3000001907; drag, wind and tension are kept in tenths.
+      ['FLEXIBLE', PRIM_FLEXIBLE, [1, 2, 0.3, 0.4, 0.5, 0.6, v(0, 0, -1)], [1, 2, 0.3000001907348633, Math.fround(0.4), 0.5, Math.fround(0.6), v(0, 0, -1)]],
       ['SIT_TARGET', PRIM_SIT_TARGET, [1, v(0, 0, 1), r(0, 0, 0, 1)], [1, v(0, 0, 1), r(0, 0, 0, 1)]],
       // In-world: SIT_FLAG_SIT_TARGET (1) follows the sit target; a script cannot set it (flags 17 read back 16).
       ['SIT_FLAGS', PRIM_SIT_FLAGS, [3], [2]],
@@ -135,8 +137,9 @@ describe('prim-params helpers', () => {
 
   it('PRIM_PROJECTOR is stored but cannot be read', () => {
     const p = freshPrim()
-    expect(writePrimParam(p, PRIM_PROJECTOR, ['tex-key', 1.2, 0.7, 0.3], 0)).toBe(4)
-    expect(p.params.projector).toEqual({ texture: 'tex-key', fov: 1.2, focus: 0.7, ambiance: 0.3 })
+    const key = '89556747-24cb-43ed-920b-47caed15465f'
+    expect(writePrimParam(p, PRIM_PROJECTOR, [key, 1.2, 0.7, 0.3], 0)).toBe(4)
+    expect(p.params.projector).toEqual({ texture: key, fov: Math.fround(1.2), focus: Math.fround(0.7), ambiance: Math.fround(0.3) })
     expect(readPrimParam(p, PRIM_PROJECTOR, [], 0)).toBeNull()
   })
 

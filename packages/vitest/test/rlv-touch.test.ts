@@ -31,7 +31,8 @@ it('delivers normal touch events with avatar identity, face, link and hold durat
     const t = await target(f)
     const before = f.world.clock.now
     expect(f.world.attemptAvatarTouch(f.avatar, t.prim, { face: 3, hold: 250 })).toMatchObject({ status: 'touched', distance: 2, restrictions: [] })
-    expect(t.scripts.receiver!.global('events')).toEqual(['start', f.avatar.key, 0, 3, 'touch', 'end'])
+    // A held click raises touch every 2000/45 ms: six times in 250 ms.
+    expect(t.scripts.receiver!.global('events')).toEqual(['start', f.avatar.key, 0, 3, ...Array(6).fill('touch'), 'end'])
     expect(f.world.clock.now - before).toBe(250)
   }
 })

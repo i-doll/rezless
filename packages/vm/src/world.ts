@@ -18,8 +18,9 @@ import { sitSpot } from './sit-spot.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
+import { startRegeneration } from './builtins/damage.js'
 import type { Linkset } from './linkset.js'
-import type { Prim } from './prim.js'
+import type { Prim, PrimSoundState } from './prim.js'
 import { AGENT_ATTACHMENTS, AGENT_SCRIPTED, AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
@@ -124,6 +125,8 @@ export interface WorldAvatar extends WorldEntity {
   /** A rotation requested while seated, applied when the avatar stands. */
   standingRotation: Rotation | null
   home: AvatarDestination | null
+  /** Sound the link sound calls of the object it sits on gave it. */
+  readonly sound: PrimSoundState
 }
 
 export interface WorldEntity {
@@ -364,7 +367,11 @@ export class World {
     return playAvatarGesture(this, avatar, gesture)
   }
 
-  /** Simulate avatar local chat; restrictions apply only through this action. */
+  /**
+   * Make `avatar` chat on `channel`. Whisper, say and shout reach 10, 20 and
+   * 100 m; a negative channel reaches 20 m in its region. RLV restrictions
+   * apply only through this action.
+   */
   sendAvatarChat(avatar: WorldAvatar, channel: number, message: string, volume: AvatarChatVolume = 'say'): AvatarChatAction {
     return sendAvatarChat(this, avatar, channel, message, volume)
   }
@@ -526,10 +533,12 @@ export class World {
         seatOrientation = { ...value.rotation }
       },
       standingRotation: null,
+      sound: { current: null, queueing: false, radius: 0, triggers: [], preloads: [] },
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
     }
     avatar.owner = avatar.key
     this.avatars.push(avatar)
+    startRegeneration(avatar, this.clock)
     return avatar
   }
 

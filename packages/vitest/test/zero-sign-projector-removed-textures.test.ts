@@ -260,7 +260,9 @@ describe('PRIM_PROJECTOR', () => {
       '000 [] [3] []',
       '000 [] [5] []',
     ])
-    expect(said(s, DEBUG_CHANNEL)).toEqual([])
+    // In-world (Aditi, 2026-11-23): each read that reached PRIM_PROJECTOR said a get error,
+    // pinned in prim-param-reads-and-float-storage.test.ts; the setter said none.
+    expect(said(s, DEBUG_CHANNEL).filter((t) => !t.startsWith('llGetPrimitiveParams error:'))).toEqual([])
   })
 
   it('reads back nothing in SLua', async () => {
