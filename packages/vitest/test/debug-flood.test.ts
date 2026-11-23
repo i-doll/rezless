@@ -372,7 +372,7 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
     it('does not carry errors said before the teleport', async () => {
       const o = await worn()
       o.run('0,9,0/12,4,1')
-      o.s.advanceTime(4_500)
+      o.s.advanceTime(3_500)
       expect(o.away()).toBe(true)
       o.s.advanceTime(60_000)
       expect(arrivals(o.said(), 13)).toBe('13D')

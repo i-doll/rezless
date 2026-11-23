@@ -2182,8 +2182,9 @@ falls through to a typed stub that returns the documented default
 and records the call. Use `s.mock(name, fn)` to provide your own
 behaviour for any function the script under test calls. Builtin
 function delays (e.g. the 0.2s delay on `llSetLinkPrimitiveParams`) are
-honored centrally in the dispatcher. A call that fails to find a sound, texture,
-object or script by name takes 1 s more. Pass `stubs: 'warn'` or
+honored centrally in the dispatcher. The sound calls, `llSetTexture`, `llSetLinkTexture`,
+the rez calls and `llSetScriptState`, `llResetOtherScript` and
+`llGetScriptState` take 1 s more when they can't find the item they name. Pass `stubs: 'warn'` or
 `stubs: 'throw'` to `loadScript` to see when a test leans on a stub.
 
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`

@@ -15,7 +15,8 @@ const floods = new WeakMap<object, { region: string | undefined; throttle: Windo
 // limit it is shown as it is. An error said by another link, such as a media error
 // on a child prim or a get error on a seated avatar, counts for the link that says
 // it, and both lines of a script crash count. A worn object that teleports or
-// crosses into another region starts that region's count afresh.
+// crosses into another region starts that region's count afresh. Every region here
+// shares the one clock, so their periods line up, where in-world each has its own.
 export function flood(link: Link, now: number): 'open' | 'shuts' | 'refused' {
   const region = isPrim(link) ? link.linkset?.region : link.region
   let state = floods.get(link)
