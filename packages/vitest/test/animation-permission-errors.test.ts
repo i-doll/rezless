@@ -16,6 +16,7 @@ const OTHER = '00000000-0000-0000-0000-00000000000b'
 const DEBUG_CHANNEL = 2147483647
 const START = 'Script trying to trigger animations but PERMISSION_TRIGGER_ANIMATION permission not set'
 const STOP = 'Script trying to stop animations but PERMISSION_TRIGGER_ANIMATION permission not set'
+const SUFFIX = ' {RootName probe issue-578 root, RootPosition { 116, 50, 1997.5 }}'
 
 const probe = `
   string call;
@@ -55,7 +56,7 @@ async function scene(child = false) {
   const other = world.addAvatar({ region: 'home', key: OTHER, username: 'other', position: { x: 117, y: 50, z: 1997.5 } })
   const scripts = [{ name: 'probe', source: { source: probe } }]
   const made = await loadLinkset({ world, region: 'home', owner: OWNER, position: { x: 116, y: 50, z: 1997.5 },
-    prims: child ? [{ name: 'root' }, { position: { x: 0.6, y: 0, z: 0 }, scripts }] : [{ scripts }] })
+    prims: child ? [{ name: 'probe issue-578 root' }, { position: { x: 0.6, y: 0, z: 0 }, scripts }] : [{ scripts }] })
   const heard = await loadLinkset({ world, region: 'home', owner: OWNER, position: { x: 116, y: 51, z: 1997.5 },
     prims: [{ scripts: [{ name: 'listener', source: { source: listener } }] }] })
   const s = made.scripts['probe']!
@@ -101,11 +102,11 @@ describe('animation calls without PERMISSION_TRIGGER_ANIMATION', () => {
   // In-world: in the child prim, each message ended with
   // " {RootName probe issue-578 root, RootPosition { 116, 50, 1997.5 }}".
   it('name the root and its position when said by a child prim', async () => {
-    const { call, errors } = await scene(true)
+    const { call, errors, heard } = await scene(true)
     call('start')
     call('stop')
-    const suffix = ' {RootName root, RootPosition { 116, 50, 1997.5 }}'
-    expect(errors()).toEqual([[START + suffix, undefined], [STOP + suffix, undefined]])
+    expect(errors()).toEqual([[START + SUFFIX, undefined], [STOP + SUFFIX, undefined]])
+    expect(heard()).toEqual([])
   })
 
   // In-world: another avatar sat on the child prim and granted PERMISSION_TAKE_CONTROLS. After
@@ -119,8 +120,9 @@ describe('animation calls without PERMISSION_TRIGGER_ANIMATION', () => {
     call('release take')
     call('start')
     call('stop')
-    expect(errors().filter(([, to]) => to === OTHER)).toHaveLength(1)
-    expect(errors().slice(-2).map(([text, to]) => [text.slice(0, 30), to])).toEqual([[START.slice(0, 30), undefined], [STOP.slice(0, 30), undefined]])
+    // The llTakeControls copy shows the key holder is the other avatar.
+    expect(errors().filter(([, to]) => to === OTHER).map(([text]) => text.startsWith('Script trying to take controls'))).toEqual([true])
+    expect(errors().slice(-2)).toEqual([[START + SUFFIX, undefined], [STOP + SUFFIX, undefined]])
   })
 
   it('stays quiet once the permission is granted', async () => {
