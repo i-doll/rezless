@@ -3,18 +3,20 @@ import type { WorldAvatar } from '../world.js'
 import { NULL_KEY, ZERO_VECTOR, type LslValue, type LslType } from '../values/types.js'
 import { ruleElementType, typedList, uniformList } from '../values/list-types.js'
 import { nextDataserverKey } from './dataserver.js'
-import { findObjectPrim } from './object-reads.js'
+import { findObjectPrim, lingeringAvatar } from './object-reads.js'
 import { sayError } from './debug.js'
 import { WindowThrottle } from '../throttle.js'
 
 const sameKey = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const localAvatars = (ctx: CallContext): WorldAvatar[] =>
-  (ctx.linkset.world?.avatars ?? []).filter(a => a.region === ctx.linkset.region)
+  (ctx.linkset.world?.avatars ?? []).filter(a => ctx.linkset.world!.avatarInRegion(a, ctx.linkset.region))
 const avatar = (ctx: CallContext, key: string): WorldAvatar | undefined =>
   localAvatars(ctx).find(a => sameKey(a.key, key))
 
-export const llGetUsername: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.username ?? ''
-export const llGetDisplayName: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.displayName ?? ''
+const named = (ctx: CallContext, key: string) => avatar(ctx, key) ?? lingeringAvatar(ctx, key)
+
+export const llGetUsername: BuiltinImpl = (ctx, args) => named(ctx, args[0] as string)?.username ?? ''
+export const llGetDisplayName: BuiltinImpl = (ctx, args) => named(ctx, args[0] as string)?.displayName ?? ''
 
 /** An avatar that has just teleported out of the script's region, which still reads it for a moment. */
 function departed(ctx: CallContext, key: string): { agent: WorldAvatar, info: number } | undefined {
@@ -26,7 +28,12 @@ function departed(ctx: CallContext, key: string): { agent: WorldAvatar, info: nu
 
 export const llGetAgentInfo: BuiltinImpl = (ctx, args) =>
   avatar(ctx, args[0] as string)?.info ?? departed(ctx, args[0] as string)?.info ?? 0
-export const llGetAgentLanguage: BuiltinImpl = (ctx, args) => avatar(ctx, args[0] as string)?.language ?? ''
+const departing = (ctx: CallContext, key: string) => {
+  const agent = ctx.linkset.world?.avatars.find(a => sameKey(a.key, key))
+  return agent && ctx.linkset.world!.lingeringAvatar(agent, ctx.linkset.region)?.mode === 'departing' ? agent : undefined
+}
+export const llGetAgentLanguage: BuiltinImpl = (ctx, args) =>
+  (avatar(ctx, args[0] as string) ?? departing(ctx, args[0] as string))?.language ?? ''
 export const llGetAgentSize: BuiltinImpl = (ctx, args) =>
   ({ ...(avatar(ctx, args[0] as string) ?? departed(ctx, args[0] as string)?.agent)?.size ?? ZERO_VECTOR })
 
@@ -96,6 +103,8 @@ export const llGetAgentList: BuiltinImpl = (ctx, args) => {
     if (scope === 1) return target === parcel
     return sameKey(target?.owner ?? NULL_KEY, parcel?.owner ?? NULL_KEY)
   })
+  // In-world: an avatar that teleported out stayed in the region's list until one frame after its "Init".
+  if (scope === 4) agents.push(...(world?.avatars ?? []).filter(a => !agents.includes(a) && departing(ctx, a.key)))
   return uniformList(agents.slice(0, 100).map(a => a.key), 'key')
 }
 

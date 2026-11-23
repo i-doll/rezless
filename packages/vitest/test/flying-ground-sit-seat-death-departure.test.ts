@@ -178,15 +178,15 @@ describe('a seat that dies under the avatar', () => {
   // a zero size; then 262 "Striding" from 0.04 s to 0.26-0.28 s, then 6 "Standing" in four runs and
   // 134 "Walking" until 0.35 s in one. Two earlier runs (2026-11-14) read "Striding" until 0.29 and
   // 0.33 s, then "Walking" until 0.38 and 0.40 s. rezless reads "Striding" for 270 ms, then
-  // "Standing", and leaves out the one-sample gap.
+  // "Standing". The gap is pinned in departed-avatar-reads.test.ts.
   it('reads "Striding" in the air for about a quarter of a second, then "Standing"', async () => {
     const f = await fixture()
     f.sit()
     f.seat.send('die')
     const w = watch(f.watcher, f.advance, 1500)
-    expect(steps(w)).toEqual([[AGENT_IN_AIR, 'Striding'], [0, 'Standing']])
-    expect(w[0]!.to).toBeGreaterThanOrEqual(240)
-    expect(w[0]!.to).toBeLessThan(330)
+    expect(steps(w)).toEqual([[0, ''], [AGENT_IN_AIR, 'Striding'], [0, 'Standing']])
+    expect(w[1]!.to).toBeGreaterThanOrEqual(240)
+    expect(w[1]!.to).toBeLessThan(330)
   })
 
   it('stays sitting when the avatar sits down again during the fall', async () => {

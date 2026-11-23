@@ -6,7 +6,7 @@ import { rotateVector, mulRotation } from '../values/ops.js'
 import { ruleElementType } from '../values/list-types.js'
 import { truncateUtf8 } from '../values/utf8.js'
 import { requestKey } from '../keys.js'
-import { InventoryType } from '../inventory.js'
+import { InventoryType, isEmptyNotecard } from '../inventory.js'
 import * as C from '../generated/constants.js'
 import { sayError, sayOwnerError } from './debug.js'
 import { soundKey } from '../prim-params.js'
@@ -152,7 +152,8 @@ function findSound(ctx: CallContext, name: string): string | undefined {
 
 function rez(ctx: CallContext, name: string, o: Options): string {
   const item = ctx.prim.inventory.find(i => i.name === name)
-  if (!item) {
+  // In-world: an empty notecard holds no asset and is refused as a missing object.
+  if (!item || isEmptyNotecard(item)) {
     sayError(ctx, `Could not find object '${name}'.`)
     ctx.sleep(1000)
     return ''

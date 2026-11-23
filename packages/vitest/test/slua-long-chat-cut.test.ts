@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset } from '../src/index.js'
+import { loadLinkset, World } from '../src/index.js'
 
 // Measured on the Aditi beta grid, region SLua Tideland, 2026-11-23. A probe prim with a 63-byte name said a
 // 1100-byte text per chat command (1060 for "n8"), about 7 s apart. The owner's copy was read from nearby chat in the
@@ -9,6 +9,9 @@ import { loadLinkset } from '../src/index.js'
 // The owner's copy of a crash error is cut so the prim's name and the text come to 1151 bytes
 // (slua-error-owner-text.test.ts). Chat a script says is cut to 1024 bytes first, for the owner and for listeners
 // alike, so that cut never applies to it. It does apply to the owner's copy of an error the simulator says.
+//
+// rezless cuts that copy after the error flood cap (flood-cap tests) has had its say, so the flood notice, which is
+// short, is never cut, and an error the cap drops is never shown at all.
 
 const DEBUG_CHANNEL = 2147483647
 const NAME = `probe issue-456 chat${'x'.repeat(43)}`
@@ -82,28 +85,67 @@ describe('long chat from an SLua script under a 63-byte name', () => {
   })
 
   it.each([
-    // In-world: 1024 bytes each.
+    // In-world: 1024 bytes each, and the listener heard nothing.
     ['ll.OwnerSay', 'n4', 'ownerSay', body('N4:', 1024)],
     ['ll.RegionSayTo the owner on channel 0', 'n6', 'regionSayTo', body('N6:', 1024)],
   ])('is cut to 1024 bytes for the owner: %s', async (_what, msg, type, text) => {
-    const { shown } = await say(msg)
+    const { shown, heard } = await say(msg)
     expect(shown.map(({ type, text }) => ({ type, text }))).toEqual([{ type, text }])
+    expect(heard).toEqual([])
   })
 
   // In-world: "Could not find object '<1100 bytes>'." came to 1125 bytes; the listener heard all of them, and the
-  // owner saw the first 1088, so the prim's name and the text came to 1151 bytes as for a crash error. rezless doesn't
-  // cut the owner's copy of a simulator error yet.
-  it.fails("cuts the owner's copy of a simulator error to fit the prim name", async () => {
+  // owner saw the first 1088, so the prim's name and the text came to 1151 bytes as for a crash error.
+  it("cuts the owner's copy of a simulator error to fit the prim name", async () => {
     const { shown, heard } = await say('n5')
     const error = `Could not find object '${body('N5:', 1100)}'.`
     expect(heard).toEqual([{ channel: DEBUG_CHANNEL, text: error }])
     expect(shown).toEqual([{ channel: DEBUG_CHANNEL, type: 'say', text: error.slice(0, 1088) }])
   })
 
-  // In-world: print showed the owner 1024 bytes as an owner-say from the prim. rezless keeps what a script prints
-  // out of its chat.
-  it.fails('shows the owner what print prints, cut to 1024 bytes', async () => {
-    const { shown } = await say('n7')
+  // In-world: print showed the owner 1024 bytes as an owner-say from the prim, and the listener heard nothing.
+  it('shows the owner what print prints, cut to 1024 bytes', async () => {
+    const { shown, heard } = await say('n7')
     expect(shown).toEqual([{ channel: 0, type: 'ownerSay', text: body('N7:', 1024) }])
+    expect(heard).toEqual([])
+  })
+
+  it('cuts each simulator error until the flood notice replaces them', async () => {
+    const { scripts, linkset } = await loadLinkset({
+      prims: [{ name: NAME, scripts: [{ source: { source: 'for i = 1, 10 do ll.RezObject(string.rep("e", 1100) .. i, ll.GetPos(), ZERO_VECTOR, ZERO_ROTATION, 0) end', filename: 'p.luau', language: 'slua' }, name: 'p', start: false }] }],
+    })
+    scripts.p!.start()
+    linkset.advanceTime(1000)
+    const shown = scripts.p!.chat.map((c) => c.text)
+    expect(shown.length).toBe(9)
+    expect(shown.slice(0, 8)).toEqual(Array.from({ length: 8 }, (_, i) => `Could not find object '${'e'.repeat(1100)}${i + 1}'.`.slice(0, 1088)))
+    expect(shown[8]).toBe('Too many errors... dropping further messages until the flood stops')
+  })
+
+  it('sends what print prints to the owner\'s viewer, as ll.OwnerSay does', async () => {
+    // In-world (Firestorm RLVa 2.4.2, a second probe that day): this script's print("@versionnum=4571") and
+    // ll.OwnerSay("@versionnum=4572") were each answered on their channel with the viewer's version, 3040300.
+    const source = `LLEvents:on("listen", function(ch, name, id, msg)
+  ll.OwnerSay("RHEARD ch=" .. ch .. " " .. msg)
+end)
+ll.Listen(4571, "", "", "")
+ll.Listen(4572, "", "", "")
+ll.Sleep(2)
+print("@versionnum=4571")
+ll.Sleep(3)
+ll.OwnerSay("@versionnum=4572")
+ll.Sleep(3)
+ll.OwnerSay("R done")
+`
+    const world = new World()
+    world.addRegion('r', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ username: 'owner', region: 'r', viewer: { profile: 'rlva', ready: true } })
+    const { scripts } = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{ scripts: [{ name: 'p', source: { source, filename: 'p.luau', language: 'slua' } }] }] })
+    scripts.p!.start()
+    world.clock.advance(20000)
+    const heard = scripts.p!.chat.map((c) => c.text).filter((t) => t.startsWith('RHEARD'))
+    expect(heard).toHaveLength(2)
+    expect(heard[0]).toMatch(/^RHEARD ch=4571 \d+$/)
+    expect(heard[1]).toBe(heard[0]!.replace('4571', '4572'))
   })
 })

@@ -187,7 +187,7 @@ describe('AGENT_WALKING after a stand from an object', () => {
     const f = await fixture()
     f.sit()
     f.seat.send('die')
-    expect(steps(watch(f.watcher, f.advance, 800))).toEqual([[AGENT_IN_AIR, 'Striding'], [0, 'Standing']])
+    expect(steps(watch(f.watcher, f.advance, 800))).toEqual([[0, ''], [AGENT_IN_AIR, 'Striding'], [0, 'Standing']])
   })
 
   // In-world: two viewer stands and one "@unsit=force" from the ground (after "@sitground=force")

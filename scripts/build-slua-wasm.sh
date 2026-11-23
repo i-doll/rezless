@@ -10,7 +10,9 @@
 # development branch has a different API and library layout. The build runs
 # on a copy of the sources whose VM/src/mono_strings.cpp has its case tables
 # replaced by packages/vm/native/case-tables.inc, generated from Unicode data
-# by scripts/gen-case-tables.ts.
+# by scripts/gen-case-tables.ts, and with packages/vm/native/slua-float-flush.patch
+# applied, which flushes single-precision results below the smallest normal float
+# to zero as Second Life does.
 set -euo pipefail
 
 SLUA_COMMIT="${SLUA_COMMIT:-728d25f17f75bf1ebcf68c91e54450cbed4bba34}" # v0.710.12
@@ -45,6 +47,7 @@ if [[ "$(grep -c 'static const uint16_t To' "$STRINGS")" != 4 ]] || ! grep -q 'g
   echo "could not replace the case tables in mono_strings.cpp" >&2
   exit 1
 fi
+patch -d "$SRC" -p1 --quiet < "$ROOT/packages/vm/native/slua-float-flush.patch"
 
 # Source paths stay out of the module: assert messages name files as slua/...
 FLAGS="-O2 -fwasm-exceptions -ffile-prefix-map=$SRC=slua -ffile-prefix-map=$ROOT=rezless"

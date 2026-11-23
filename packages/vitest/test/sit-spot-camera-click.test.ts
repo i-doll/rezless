@@ -126,7 +126,7 @@ function check(row: Row, { pos, rot }: { pos: Vector; rot: { x: number; y: numbe
   // Where the camera rests is known to a few centimetres, and the avatar's
   // heading to a degree, so those rows allow 1.5 cm.
   expect(Math.hypot(pos.x - want.x, pos.y - want.y, pos.z - want.z)).toBeLessThan(row[2] ? 0.005 : 0.015)
-  expect(Math.abs(rot.x * qx + rot.y * qy + rot.z * qz + rot.s * qs)).toBeGreaterThan(0.999)
+  expect(rot.x * qx + rot.y * qy + rot.z * qz + rot.s * qs).toBeGreaterThan(0.999)
 }
 
 describe('where a sit request seats an avatar on a prim without a sit target', () => {

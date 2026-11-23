@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Linkset } from '../linkset.js'
 import { AGENT_FLYING, AGENT_ON_OBJECT, AGENT_SITTING, INVENTORY_ANIMATION, PERMISSION_TRIGGER_ANIMATION, PERMISSION_OVERRIDE_ANIMATIONS } from '../generated/constants.js'
 import { uniformList } from '../values/list-types.js'
-import { sayError } from './debug.js'
+import { sayError, sayOwnerError } from './debug.js'
 
 // https://wiki.secondlife.com/wiki/Internal_Animations
 // In-world: builtins.lsl tried all 139 viewer names on Aditi, SLua Tideland,
@@ -244,9 +244,11 @@ export function playingAnimations(avatars: Map<string, AvatarAnimations>, agent:
   return [...(avatars.get(agent.toLowerCase())?.playing ?? [])].sort()
 }
 
-function permitted(ctx: CallContext, permission: number): boolean {
-  // In-world: permission failures are silent, including invalid arguments.
-  return (ctx.state.permissions.granted & permission) !== 0
+/** Whether the script holds the permission, telling the owner alone when it doesn't. */
+function permitted(ctx: CallContext, permission: number, error: string): boolean {
+  if (ctx.state.permissions.granted & permission) return true
+  sayOwnerError(ctx, error)
+  return false
 }
 
 function permissionAvatar(ctx: CallContext): AvatarAnimations {
@@ -265,7 +267,7 @@ function knownState(ctx: CallContext, state: string): state is AnimationState {
 }
 
 export const llStartAnimation: BuiltinImpl = (ctx, args) => {
-  if (!permitted(ctx, PERMISSION_TRIGGER_ANIMATION)) return undefined
+  if (!permitted(ctx, PERMISSION_TRIGGER_ANIMATION, 'Script trying to trigger animations but PERMISSION_TRIGGER_ANIMATION permission not set')) return undefined
   const name = args[0] as string
   const key = resolveAnimation(ctx, name)
   if (key === undefined) sayError(ctx, `Could not find animation '${name}'`)
@@ -276,7 +278,7 @@ export const llStartAnimation: BuiltinImpl = (ctx, args) => {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const llStopAnimation: BuiltinImpl = (ctx, args) => {
-  if (!permitted(ctx, PERMISSION_TRIGGER_ANIMATION)) return undefined
+  if (!permitted(ctx, PERMISSION_TRIGGER_ANIMATION, 'Script trying to stop animations but PERMISSION_TRIGGER_ANIMATION permission not set')) return undefined
   const name = args[0] as string
   // In-world: review-uuid-confirmed.lsl -> UUID-shaped inventory name stops
   // its asset, not the raw UUID (Aditi, SLua Tideland, 2026-10-31).
@@ -292,6 +294,7 @@ export const llGetAnimation: BuiltinImpl = (ctx, args) => {
   if (avatar && avatar.region !== ctx.linkset.region) {
     return ctx.linkset.world!.departingAvatarInfo(avatar, ctx.linkset.region ?? '') === undefined ? '' : 'Init'
   }
+  if (avatar && !ctx.linkset.world!.avatarInRegion(avatar, ctx.linkset.region)) return ''
   const state = ctx.state.animations.get(key)?.state
   if (state) return state
   if (!avatar) return ''
@@ -304,7 +307,8 @@ export const llGetAnimationList: BuiltinImpl = (ctx, args) =>
   uniformList(playingAnimations(ctx.state.animations, args[0] as string), 'key')
 
 export const llGetAnimationOverride: BuiltinImpl = (ctx, args) => {
-  if (!permitted(ctx, PERMISSION_TRIGGER_ANIMATION | PERMISSION_OVERRIDE_ANIMATIONS)) return ''
+  if (!permitted(ctx, PERMISSION_TRIGGER_ANIMATION | PERMISSION_OVERRIDE_ANIMATIONS,
+    'llGetAnimationOverride error: neither PERMISSION_OVERRIDE_ANIMATIONS or PERMISSION_TRIGGER_ANIMATION permissions are set')) return ''
   const state = args[0] as string
   if (!knownState(ctx, state)) return ''
   const key = permissionAvatar(ctx).overrides.get(state)
@@ -316,7 +320,7 @@ export const llGetAnimationOverride: BuiltinImpl = (ctx, args) => {
 }
 
 export const llSetAnimationOverride: BuiltinImpl = (ctx, args) => {
-  if (!permitted(ctx, PERMISSION_OVERRIDE_ANIMATIONS)) return undefined
+  if (!permitted(ctx, PERMISSION_OVERRIDE_ANIMATIONS, 'llSetAnimationOverride error: PERMISSION_OVERRIDE_ANIMATIONS permission not set')) return undefined
   const state = args[0] as string
   if (!knownState(ctx, state)) return undefined
   const name = args[1] as string
@@ -336,7 +340,7 @@ export const llSetAnimationOverride: BuiltinImpl = (ctx, args) => {
 }
 
 export const llResetAnimationOverride: BuiltinImpl = (ctx, args) => {
-  if (!permitted(ctx, PERMISSION_OVERRIDE_ANIMATIONS)) return undefined
+  if (!permitted(ctx, PERMISSION_OVERRIDE_ANIMATIONS, 'llResetAnimationOverride error: PERMISSION_OVERRIDE_ANIMATIONS permission not set')) return undefined
   const state = args[0] as string
   if (state !== 'ALL' && !knownState(ctx, state)) return undefined
   const avatar = permissionAvatar(ctx)

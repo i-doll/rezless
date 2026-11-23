@@ -22,14 +22,18 @@ import type { Script } from './script.js'
  * handler that already waits for one gets no second event, unless it has woken
  * since that one was queued and no other is waiting behind it.
  */
-export function queueInventoryChanged(script: Script): void {
+export function queueInventoryChanged(script: Script, changes = CHANGED_INVENTORY): void {
   const clock = script.linkset.clock
   if (script.wakeAt !== undefined) {
     const waiting = clock.pendingEvents().filter((e) => e.target === script && e.event === 'changed'
       && ((e.payload['changes'] as number) & CHANGED_INVENTORY) !== 0)
-    if (waiting.some((e) => e.at >= script.resumedAt) || waiting.length >= 2) return
+    const merge = waiting.find((e) => e.at >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
+    if (merge) {
+      merge.payload['changes'] = (merge.payload['changes'] as number) | changes
+      return
+    }
   }
-  clock.schedule(script, clock.now, 'changed', { changes: CHANGED_INVENTORY })
+  clock.schedule(script, clock.now, 'changed', { changes })
 }
 
 /**
@@ -132,6 +136,11 @@ export interface InventoryItem {
   object?: import('./linkset.js').Linkset
   /** For type === INVENTORY_SETTING: what llReplaceEnvironment applies from it. */
   environment?: import('./world.js').EnvironmentAsset
+}
+
+/** A notecard that was never saved holds no asset. */
+export function isEmptyNotecard(item: InventoryItem): boolean {
+  return item.type === InventoryType.NOTECARD && item.key === NULL_KEY && !item.notecardLines?.length
 }
 
 /** The masks an item or prim has once it reaches its next owner. */

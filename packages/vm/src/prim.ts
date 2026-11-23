@@ -6,13 +6,13 @@ import { rememberNotecardAsset } from './builtins/notecard-search.js'
 import type { Script } from './script.js'
 import type { InventoryItem, PermMask } from './inventory.js'
 import { InventoryType, freeInventoryName, hearsInventoryChange, inventoryItemName, queueInventoryChanged, renamedInventoryName, renamedItemName } from './inventory.js'
-import { defaultPrimParams, readPrimParam, writePrimParam, type PrimParams } from './prim-params.js'
+import { defaultPrimParams, readPrimParam, releaseInventoryAsset, writePrimParam, type PrimParams } from './prim-params.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 import { mulRotation } from './values/ops.js'
 import { NULL_KEY, ZERO_VECTOR } from './values/types.js'
 import { deterministicKey } from './keys.js'
 import {
-  PERM_ALL, PERM_MOVE, PERM_TRANSFER, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SIZE,
+  CHANGED_INVENTORY, CHANGED_RENDER_MATERIAL, PERM_ALL, PERM_MOVE, PERM_TRANSFER, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SIZE,
   PRIM_TEMP_ON_REZ, PRIM_TYPE, STATUS_CAST_SHADOWS, STATUS_DIE_ON_NO_REZZER, STATUS_PHANTOM, STATUS_PHYSICS, STATUS_ROTATE_X, STATUS_ROTATE_Y, STATUS_ROTATE_Z,
 } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
@@ -263,15 +263,19 @@ export class Prim {
 
   /**
    * Delete items as the owner does in the object's contents. Deleted scripts
-   * stop. The prim's remaining scripts get one `changed(CHANGED_INVENTORY)`
-   * for the call, however many items it names.
+   * stop. The prim stops using a deleted texture or material, as after
+   * `llRemoveInventory`, and a playing sound or animation goes on. The
+   * prim's remaining scripts get one `changed(CHANGED_INVENTORY)` for the call, however many
+   * items it names, with CHANGED_RENDER_MATERIAL when a face lost its material.
    */
   removeInventory(...names: string[]): void {
     const indexes = [...new Set(names)].map((name) => this.#inventoryIndex('removeInventory', name))
     let removedScript = false
+    let changes = CHANGED_INVENTORY
     for (const item of indexes.map((index) => this.inventory[index]!)) {
       this.inventory.splice(this.inventory.indexOf(item), 1)
       if (this.linkset) rememberNotecardAsset(this.linkset.peers, item)
+      if (releaseInventoryAsset(this, item)) changes |= CHANGED_RENDER_MATERIAL
       if (!item.script) continue
       const running = this.scripts.indexOf(item.script)
       if (running >= 0) this.scripts.splice(running, 1)
@@ -279,7 +283,7 @@ export class Prim {
       removedScript = true
     }
     if (removedScript) this.linkset?.recountScripts()
-    if (names.length) this.#ownerEditedInventory()
+    if (names.length) this.#ownerEditedInventory(changes)
   }
 
   /**
@@ -387,8 +391,8 @@ export class Prim {
     return script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined
   }
 
-  #ownerEditedInventory(): void {
-    const hearing = this.#queueOwnerEdit()
+  #ownerEditedInventory(changes = CHANGED_INVENTORY): void {
+    const hearing = this.#queueOwnerEdit(changes)
     if (hearing.length) this.linkset!.settle(hearing.filter((script) => script.wakeAt === undefined))
   }
 
@@ -396,9 +400,9 @@ export class Prim {
    * Queue `changed(CHANGED_INVENTORY)` for an owner edit and return the
    * scripts that get it.
    */
-  #queueOwnerEdit(): Script[] {
+  #queueOwnerEdit(changes = CHANGED_INVENTORY): Script[] {
     const scripts = this.inventoryChangeListeners()
-    for (const script of scripts) queueInventoryChanged(script)
+    for (const script of scripts) queueInventoryChanged(script, changes)
     return scripts
   }
 

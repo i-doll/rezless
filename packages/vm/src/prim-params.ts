@@ -90,7 +90,7 @@ import type { LslType, LslValue, Rotation, Vector } from './values/types.js'
 import { NULL_KEY, isRotation, isVector } from './values/types.js'
 import { listElementType } from './values/list-types.js'
 import type { InventoryItem } from './inventory.js'
-import { InventoryType } from './inventory.js'
+import { InventoryType, isEmptyNotecard } from './inventory.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { Prim } from './prim.js'
 import { physicsSwitched } from './builtins/motion.js'
@@ -319,7 +319,7 @@ export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean 
 /** A material reads back as its item's name. No material reads as the name of an empty notecard, which holds no asset. */
 export const materialName = (prim: Prim, key: string): string =>
   key === NULL_KEY
-    ? (prim.inventory.find((it) => it.type === InventoryType.NOTECARD && it.key === NULL_KEY && !it.notecardLines?.length)?.name ?? key)
+    ? (prim.inventory.find(isEmptyNotecard)?.name ?? key)
     : itemName(prim, InventoryType.MATERIAL, key)
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
@@ -336,17 +336,30 @@ const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
 const overrideType = (code: LslValue): LslType | undefined => (typeof code === 'number' ? OVERRIDE_TYPES[code] : undefined)
 
 /**
- * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs. The base
- * colour and alpha form one factor that "" leaves alone; "" clears the others.
- * One wrong-typed value rejects the whole call; an unknown code is skipped.
+ * Check llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs in order. The
+ * first bad pair rejects the whole call: a code that isn't an integer, even one
+ * with no value after it, says why; a wrong-typed value is rejected without the
+ * error here. Returns null when the call can run.
+ */
+export function rejectGltfOverrides(params: ReadonlyArray<LslValue>): { error: string | null } | null {
+  for (let i = 0; i < params.length; i += 2) {
+    if (givenType(params, i) !== 'integer') {
+      return { error: `llSetGLTFOverrides Error running rule #${i / 2 + 1}: non-integer rule.` }
+    }
+    const expected = overrideType(params[i]!)
+    if (expected === undefined || i + 1 >= params.length || params[i + 1] === '') continue
+    const given = givenType(params, i + 1)
+    if (given !== expected && !(expected === 'float' && given === 'integer')) return { error: null }
+  }
+  return null
+}
+
+/**
+ * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs, already
+ * checked by rejectGltfOverrides. The base colour and alpha form one factor
+ * that "" leaves alone; "" clears the others. An unknown code is skipped.
  */
 export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslValue>): void {
-  for (let i = 0; i + 1 < params.length; i += 2) {
-    const expected = overrideType(params[i]!)
-    if (expected === undefined || params[i + 1] === '') continue
-    const given = givenType(params, i + 1)
-    if (given !== expected && !(expected === 'float' && given === 'integer')) return
-  }
   const bc = g.baseColor
   for (let i = 0; i + 1 < params.length; i += 2) {
     const v = params[i + 1]!
@@ -924,6 +937,22 @@ function pathCut(v: Vector) {
 function profileCut(v: Vector) {
   const cut = pathCut(v)
   return { x: toHundredThousandths(cut.x), y: toHundredThousandths(cut.y), z: 0 }
+}
+
+/**
+ * Rezzing an object from inventory cuts its profile cuts and hollow to steps of 0.00001 again,
+ * so a value stored a little under its step comes back one step lower.
+ */
+export function restepRezzedShape(p: PrimParams): void {
+  const old = p.shape
+  if (old.kind === SHAPE_SCULPT) return
+  const restep = (v: Vector) => ({ x: toHundredThousandths(v.x), y: toHundredThousandths(v.y), z: v.z })
+  const shape = { ...old, hollow: toHundredThousandths(old.hollow) }
+  if ('topSize' in shape) shape.cut = restep(shape.cut)
+  else if ('dimple' in shape) shape.dimple = restep(shape.dimple)
+  else shape.advancedCut = restep(shape.advancedCut)
+  p.shape = shape
+  remapFaces(p, old)
 }
 
 const limitPair = (v: Vector, minX: number, maxX: number, minY = minX, maxY = maxX) =>
@@ -1596,7 +1625,7 @@ function faceRoles(shape: PrimShape): FaceRole[] {
   if (ends) roles.push('bottom')
   if (cutFaces) roles.push('cutStart', 'cutEnd')
   // Measured only as a count on a cut, hollow box with a NaN top size x: 3 faces, not 7. Keeping
-  // the outer sides and the inner face, on every box, is a choice: it can't be probed safely.
+  // the outer sides and the inner face, on every box, is a choice that isn't measured.
   if (shape.kind === SHAPE_BOX && Number.isNaN(shape.topSize.x)) return roles.filter((r) => typeof r === 'number' || r === 'inner')
   // The count is a byte. Only a NaN cut, which is kept as -21474.83648, gets that far.
   return roles.slice(0, (roles.length - Math.min(sideCount, 255) + sideCount) & 0xff)

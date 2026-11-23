@@ -626,9 +626,9 @@ describe('print', () => {
   })
 
   it('halts on entering a user function that uses the value of a key print', async () => {
-    // In-world: a user function holding the value of an integer *= float failed on entry the
-    // same way, as `gfn (int)`, with the handler that called it in the stack (Aditi, SLua
-    // Tideland, 2026-11-23; mono-invalid-program.test.ts pins the measured text).
+    // In-world: the line before the call was said, f's first line never ran, and DEBUG_CHANNEL got "Script run-time error"
+    // and "System.InvalidProgramException: Invalid IL code in LSL :gf (): IL_00cd: ..." (Aditi, SLua Tideland, 2026-11-23).
+    // The stack after it is as measured for integer *= float in mono-invalid-program.test.ts.
     const s = await loadScript({
       source: `
         integer r;
@@ -644,6 +644,26 @@ describe('print', () => {
       'System.InvalidProgramException: Invalid IL code in LSL :gf ()\n\n\n' +
         '  at LSL .state_entry () \n  at UserScript.OnStateEntry () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ',
     ])
+  })
+
+  // In-world: the message names a user function's parameters by their Mono types, as
+  // "gcheck (int,string)", "gh (single,Key,Vector,Quaternion,System.Collections.ArrayList)" and
+  // "gh (string)" for a function returning integer (Aditi, SLua Tideland, 2026-11-23).
+  it.each([
+    ['check(integer a, string b)', 'check(1, "x")', 'gcheck (int,string)'],
+    ['h(float a, key b, vector c, rotation d, list e)', 'h(1.0, NULL_KEY, ZERO_VECTOR, ZERO_ROTATION, [])', 'gh (single,Key,Vector,Quaternion,System.Collections.ArrayList)'],
+    ['integer h(string s)', 'h("")', 'gh (string)'],
+  ])('names a failing %s by its Mono signature', async (decl, call, name) => {
+    const s = await loadScript({
+      source: `
+        integer r;
+        ${decl} { if (r == 3) r = ((key)"x" == print((key)"k")); ${decl.startsWith('integer') ? 'return 1;' : ''} }
+        default { state_entry() { ${call}; } }
+      `,
+    })
+    expect(() => s.start()).toThrow(`Invalid IL code in LSL :${name}`)
+    expect(s.chat.at(-1)?.text).toBe(`System.InvalidProgramException: Invalid IL code in LSL :${name}\n\n\n` +
+      '  at LSL .state_entry () \n  at UserScript.OnStateEntry () \n  at Script.UserEvent (ScriptEvent e) \n  at Script.Run (ScriptEvent evt) ')
   })
 
   it('still runs a key print used as a statement', async () => {

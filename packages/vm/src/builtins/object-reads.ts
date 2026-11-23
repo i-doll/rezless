@@ -100,8 +100,19 @@ export function findObjectPrim(ctx: CallContext, id: string): Prim | undefined {
 /** The avatar with key `id` in the caller's region, matched without regard to case. */
 function findObjectAvatar(ctx: CallContext, id: string): WorldAvatar | undefined {
   if (!KEY_PATTERN.test(id) || id === NULL_KEY) return undefined
-  return ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === id.toLowerCase() && a.region === ctx.linkset.region)
+  return ctx.linkset.world?.avatars.find(a => a.key.toLowerCase() === id.toLowerCase() && ctx.linkset.world!.avatarInRegion(a, ctx.linkset.region))
 }
+
+/** An avatar that is not in the caller's region, which still knows it, and how. */
+function lingering(ctx: CallContext, id: string) {
+  const world = ctx.linkset.world
+  const avatar = world?.avatars.find(a => a.key.toLowerCase() === id.toLowerCase())
+  const known = avatar && world!.lingeringAvatar(avatar, ctx.linkset.region)
+  return known ? { avatar: avatar!, ...known } : undefined
+}
+
+/** An avatar that has left the caller's region, which still knows its names for a while. */
+export const lingeringAvatar = (ctx: CallContext, id: string): WorldAvatar | undefined => lingering(ctx, id)?.avatar
 
 const keyArg = (args: Parameters<BuiltinImpl>[1]) => (args[0] as string | undefined) ?? ''
 const rootOf = (prim: Prim): Prim => prim.linkset?.prims[0] ?? prim
@@ -210,7 +221,7 @@ function boundingBox(prim: Prim): [Vector, Vector] {
 /** llKey2Name(key id) returns the local prim or avatar's legacy name, or "". */
 export const llKey2Name: BuiltinImpl = (ctx, args) => {
   const id = keyArg(args)
-  return findObjectPrim(ctx, id)?.name ?? findObjectAvatar(ctx, id)?.name ?? ''
+  return findObjectPrim(ctx, id)?.name ?? (findObjectAvatar(ctx, id) ?? lingeringAvatar(ctx, id))?.name ?? ''
 }
 
 /** llGetObjectPrimCount(key id) — prims in the linkset holding `id`, or 0. An attachment reads 0. */
@@ -416,7 +427,27 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
 }
 
 /** Avatar details use the live placement and explicit resource totals. */
-function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number): Entry[] | undefined {
+function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number, left?: NonNullable<ReturnType<typeof lingering>>): Entry[] | undefined {
+  if (left) {
+    switch (flag) {
+      case OBJECT_POS: return [[left.position!, 'vector']]
+      case OBJECT_ROT: return [[left.rotation, 'rotation']]
+    }
+  }
+  if (left && left.mode !== 'departing') {
+    // In-world: once the avatar had left, the region read these, and the rest as before.
+    switch (flag) {
+      case OBJECT_RUNNING_SCRIPT_COUNT:
+      case OBJECT_TOTAL_SCRIPT_COUNT:
+      case OBJECT_SCRIPT_MEMORY:
+      case OBJECT_PRIM_COUNT:
+      case OBJECT_TOTAL_INVENTORY_COUNT: return [[0, 'integer']]
+      case OBJECT_STREAMING_COST: return [[0, 'float']]
+      case OBJECT_MASS: return [[1, 'float']]
+      case OBJECT_ATTACHED_SLOTS_AVAILABLE: return [[38, 'integer']]
+      case OBJECT_ACCOUNT_LEVEL: return [[-1, 'integer']]
+    }
+  }
   const stats = avatar.objectDetails
   const seat = avatar.sittingOn
   const root = seat && rootOf(seat)
@@ -509,9 +540,13 @@ export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
   const id = keyArg(args)
   // A detached object still reads its own prims while its attach event runs.
   const prim = findObjectPrim(ctx, id) ?? ctx.linkset.prims.find((p) => p.key.toLowerCase() === id.toLowerCase())
-  const avatar = prim ? undefined : findObjectAvatar(ctx, id)
+  const local = prim ? undefined : findObjectAvatar(ctx, id)
+  const left = prim || local ? undefined : lingering(ctx, id)
+  const avatar = local ?? left?.avatar
   if (!prim && !avatar) return []
   const flags = (args[1] as LslValue[] | undefined) ?? []
+  // In-world: when the region had not seen where the avatar went, any list asking for its position read [].
+  if (left && !left.position && flags.some((flag, i) => flag === OBJECT_POS && (ruleElementType(flags, i) ?? 'integer') === 'integer')) return []
   const out: Entry[] = []
   const kinds: LuaResultKind[] = []
   flags.forEach((flag, i) => {
@@ -523,7 +558,7 @@ export const llGetObjectDetails: BuiltinImpl = (ctx, args) => {
       }
       return
     }
-    const known = prim ? detail(prim, flag as number) : avatarDetail(ctx, avatar!, flag as number)
+    const known = prim ? detail(prim, flag as number) : avatarDetail(ctx, avatar!, flag as number, left)
     out.push(...(known ?? [[OBJECT_UNKNOWN_DETAIL, 'integer']]))
     if (known) kinds[out.length - 1] = objectDetailLuaKind(flag as number)
   })

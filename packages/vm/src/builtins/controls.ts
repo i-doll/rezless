@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { PERMISSION_TAKE_CONTROLS } from '../generated/constants.js'
 import { NULL_KEY } from '../values/types.js'
-import { sayError } from './debug.js'
+import { sayOwnerError } from './debug.js'
 
 /** Controls held by llTakeControls. */
 export interface TakenControls {
@@ -18,8 +18,8 @@ export interface TakenControls {
 export const llTakeControls: BuiltinImpl = (ctx, args) => {
   const { granted, agent } = ctx.state.permissions
   if (!(granted & PERMISSION_TAKE_CONTROLS)) {
-    sayError(ctx, 'Script trying to take controls from owner but PERMISSION_TAKE_CONTROLS permission not set!',
-      ctx.prim, false, agent === NULL_KEY ? undefined : agent)
+    sayOwnerError(ctx, 'Script trying to take controls from owner but PERMISSION_TAKE_CONTROLS permission not set!',
+      ctx.prim, agent === NULL_KEY ? undefined : agent)
     return undefined
   }
   ctx.state.controls.taken = {

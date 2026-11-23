@@ -116,6 +116,7 @@ describe('llGetObjectDetails avatars', () => {
     f.avatar.sittingOn = seat.linkset.prims[0]!
     expect(f.read()).toEqual([ROOT, 2, 0.75, expect.closeTo(281.1691, 5)])
     seat.linkset.remove()
+    seat.linkset.advanceTime(30)
     expect(f.read()).toEqual([AVATAR, 0, 0, 156.1691])
   })
 

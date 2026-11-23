@@ -212,8 +212,9 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     const f = await fixture()
     f.sit()
     f.seat.send('die')
+    f.advance(30)
     expect(f.watcher.read()).toEqual([AGENT_IN_AIR, 'Striding'])
-    f.advance(300)
+    f.advance(270)
     expect(f.watcher.read()).toEqual([0, 'Standing'])
   })
 

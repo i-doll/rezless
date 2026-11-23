@@ -695,7 +695,17 @@ export class World {
 
   /** @internal A seat that is deleted drops its sitter, which reads "Striding" in the air longer. */
   dropFromRemovedSeat(avatar: WorldAvatar): void {
+    // In-world: for one region frame after the seat died, in eight of ten runs, every read of the
+    // sitter came back empty, as if it had left the region.
+    this.hiddenUntil.set(avatar, this.clock.now + 22)
     this.unseat(avatar, 'Striding', true)
+  }
+
+  private readonly hiddenUntil = new WeakMap<WorldAvatar, number>()
+
+  /** @internal Whether scripts in `region` see `avatar` there now. */
+  avatarInRegion(avatar: WorldAvatar, region: string | undefined): boolean {
+    return avatar.region === region && !(this.clock.now < (this.hiddenUntil.get(avatar) ?? 0))
   }
 
   private unseat(avatar: WorldAvatar, motion: AnimationState | null, removed = false): void {
@@ -828,7 +838,7 @@ export class World {
   }
 
   private readonly arrivals = new WeakMap<WorldAvatar, { bits: number }>()
-  private readonly departures = new WeakMap<WorldAvatar, Map<string, { info: number, until: number }>>()
+  private readonly departures = new WeakMap<WorldAvatar, Map<string, { info: number, until: number, position: Vector, rotation: Rotation }>>()
 
   /**
    * @internal The llGetAgentInfo bits `region` still reads for an avatar that has just teleported
@@ -843,6 +853,61 @@ export class World {
     return departure && this.clock.now < departure.until && avatar.region !== region ? departure.info : undefined
   }
 
+  private readonly lingering = new WeakMap<WorldAvatar, Map<string, { until: number, position: Vector | null, rotation: Rotation }>>()
+
+  /**
+   * @internal How `region` still knows an avatar that is not in it: 'departing' for the moment it
+   * reads "Init", 'neighbour' while the avatar is in a region that shares an edge with it, 'away'
+   * for a while after it went further, or undefined. 'away' carries the position (in `region`'s
+   * frame) and rotation it last knew, with a null position when it never saw the avatar move on.
+   *
+   * In-world (watches in SLua Tideland): through "Init" every read but llGetAgentInfo,
+   * llGetAnimation and llGetAgentSize stayed as before, and llGetAgentList dropped the avatar one
+   * frame after "Init" ended. While the avatar was in SLua Tombolo, the next region north, the names
+   * and its live position and rotation lasted the whole 25 and 75 s watches, also when it came there
+   * from a distant region. After it left for a distant region, or for diagonal SLua Yardang, the
+   * names lasted 50.34 and 50.36 s past the llGetAgentList drop, with no position; after it went on
+   * from SLua Tombolo to a distant region they lasted about 49 s past that teleport (the drop itself
+   * wasn't timed), with the position and rotation it last had in SLua Tombolo.
+   */
+  lingeringAvatar(avatar: WorldAvatar, region: string | undefined):
+    { mode: 'departing' | 'neighbour' | 'away', position: Vector | null, rotation: Rotation } | undefined {
+    if (region === undefined || avatar.region === region || !this.avatars.includes(avatar)) return undefined
+    const departure = this.departures.get(avatar)?.get(region)
+    if (departure && this.clock.now < departure.until + 22) {
+      return { mode: 'departing', position: departure.position, rotation: departure.rotation }
+    }
+    if (this.neighbours(region, avatar.region)) return { mode: 'neighbour', position: this.inFrame(avatar.position, avatar.region, region), rotation: avatar.rotation }
+    const known = this.lingering.get(avatar)?.get(region)
+    return known && this.clock.now < known.until ? { mode: 'away', position: known.position, rotation: known.rotation } : undefined
+  }
+
+  /** Regions that share an edge; diagonal ones don't count. */
+  private neighbours(a: string, b: string): boolean {
+    const ca = this.regions.get(a)?.corner, cb = this.regions.get(b)?.corner
+    if (!ca || !cb || a === b) return false
+    const dx = Math.abs(ca.x - cb.x), dy = Math.abs(ca.y - cb.y)
+    return dx + dy === 256 && (dx === 0 || dy === 0)
+  }
+
+  private inFrame(position: Vector, from: string, to: string): Vector {
+    const a = this.corner(from), b = this.corner(to)
+    return { x: position.x + a.x - b.x, y: position.y + a.y - b.y, z: position.z }
+  }
+
+  private leave(avatar: WorldAvatar, from: string, to: string): void {
+    let known = this.lingering.get(avatar)
+    if (!known) this.lingering.set(avatar, known = new Map())
+    const until = this.clock.now + 200 + 22 + 50_350
+    const rotation = { ...avatar.rotation }
+    if (!this.neighbours(from, to)) known.set(from, { until, position: null, rotation })
+    for (const region of this.regions.keys()) {
+      if (region !== to && this.neighbours(region, from) && !this.neighbours(region, to)) {
+        known.set(region, { until, position: this.inFrame(avatar.position, from, region), rotation })
+      }
+    }
+  }
+
   /** @internal A teleport: stand the avatar, move it with its animations, and let it fall unless it flies. */
   relocateAvatar(avatar: WorldAvatar, region: string, position: Vector): void {
     this.unseat(avatar, null)
@@ -851,7 +916,9 @@ export class World {
     if (avatar.region !== region) {
       let departures = this.departures.get(avatar)
       if (!departures) this.departures.set(avatar, departures = new Map())
-      departures.set(avatar.region, { info: avatar.info & ~CLEARED_ON_DEPARTURE, until: this.clock.now + 200 })
+      departures.set(avatar.region, { info: avatar.info & ~CLEARED_ON_DEPARTURE, until: this.clock.now + 200,
+        position: { ...avatar.position }, rotation: { ...avatar.rotation } })
+      this.leave(avatar, avatar.region, region)
       this.arrive(avatar)
     }
     avatar.region = region
