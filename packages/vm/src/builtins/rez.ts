@@ -209,6 +209,7 @@ function rez(ctx: CallContext, name: string, o: Options): string {
     for (const s of ctx.prim.scripts) if (s.running) ctx.linkset.clock.schedule(s, ctx.linkset.clock.now, 'changed', { changes: C.CHANGED_INVENTORY })
   }
   for (const script of object.allScripts()) script.queueRez()
+  object.applyStoppedPastWearChanges()
   for (const script of ctx.prim.scripts) {
     if (script.running) ctx.linkset.clock.schedule(script, ctx.linkset.clock.now, 'object_rez', { id: key })
   }

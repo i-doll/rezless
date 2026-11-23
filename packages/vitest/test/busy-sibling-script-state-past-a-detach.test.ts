@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset } from '../src/index.js'
+import { loadLinkset, seedRlvInventory, World } from '../src/index.js'
 import type { Script } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LlSetScriptState
@@ -341,4 +341,57 @@ it('restarts a script that crashed in its on_rez after the wear, when the held c
   expect(t.crashed).toBe(false)
   expect(t.running).toBe(true)
   expect(t.global('log')).toEqual(['entry'])
+})
+
+describe('held changes in an object rezzed from the detached item', () => {
+  const OWNER_KEY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const setUp = async (cBody: string, beforeGo?: (t: Script) => void) => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ region: 'home', key: OWNER_KEY, username: 'owner' })
+    const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: OWNER_KEY, prims: [{ scripts: [
+      { name: 'T', source: { source: target } },
+      { name: 'C', source: { source: `default { link_message(integer s, integer i, string m, key id) {
+        if (m != "go") return; llOwnerSay("x"); ${cBody} } }` } },
+    ] }] })
+    for (const s of Object.values(scripts)) s.start()
+    linkset.attachToAvatar(OWNER_KEY, 5)
+    linkset.advanceTime(0)
+    beforeGo?.(scripts['T']!)
+    const c = scripts['C']!
+    c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+    c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+    linkset.advanceTime(0)
+    return { world, avatar, linkset, scripts }
+  }
+
+  it('applies a stop held by a sibling that then stopped itself', async () => {
+    const f = await setUp('llSetScriptState("T", FALSE); llSetScriptState("C", FALSE);')
+    seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'item-1', kind: 'item', parentId: null, name: 'probe', object: f.linkset.copy(), assetType: 'object' }] })
+    const rezzed = f.world.attemptAvatarRez(f.avatar, 'item-1', { x: 1, y: 2, z: 3 }).object!
+    rezzed.advanceTime(100)
+    expect(rezzed.prims[0]!.findScript('T')!.running).toBe(false)
+  })
+})
+
+// A crashed LSL script comes back running from inventory, so a held stop is judged after that.
+it('stops a script that had crashed before the detach, once the wear revives it', async () => {
+  const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+    { name: 'T', source: { source: `integer zero; default { link_message(integer s, integer i, string m, key id) { if (m == "boom") zero = 1 / zero; } }` } },
+    { name: 'C', source: { source: `default { link_message(integer s, integer i, string m, key id) {
+      if (m != "go") return; llOwnerSay("x"); llSetScriptState("T", FALSE); } }` } },
+  ] }] })
+  for (const s of Object.values(scripts)) s.start()
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(0)
+  const t = scripts['T']!, c = scripts['C']!
+  try { t.fire('link_message', { sender_num: 0, num: 0, str: 'boom', id: '' }); linkset.advanceTime(0) } catch { /* T crashes */ }
+  expect(t.crashed).toBe(true)
+  c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+  c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+  linkset.advanceTime(0)
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(100)
+  expect(t.crashed).toBe(false)
+  expect(t.running).toBe(false)
 })

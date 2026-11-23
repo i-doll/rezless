@@ -51,8 +51,9 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
     ctx.sleep(1000)
     return undefined
   }
-  if (target.crashed) return undefined
+  // Held changes are judged after the wear, when a crashed LSL script may be running again.
   if (target !== ctx.script && pastWear(ctx, name, { running })) return undefined
+  if (target.crashed) return undefined
   target.running = running
   if (target === ctx.script && !running) ctx.sleep(0)
   return undefined

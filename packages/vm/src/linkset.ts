@@ -339,9 +339,16 @@ export class Linkset {
     for (const script of this.allScripts()) {
       script.clockView.resumeFromInventory()
       resumeHeldTouches(script)
-      // A script that stopped itself after them still made the changes it held for its siblings.
-      if (!script.running) script.applyPastWearChanges()
     }
+    this.applyStoppedPastWearChanges()
+  }
+
+  /**
+   * Once an object out of inventory has queued its rez: a script that stopped itself after the
+   * changes it held for its siblings still made them.
+   */
+  applyStoppedPastWearChanges(): void {
+    for (const script of this.allScripts()) if (!script.running) script.applyPastWearChanges()
   }
 
   /** Detach into inventory, preserving script state and the remembered point. */
