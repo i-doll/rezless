@@ -422,9 +422,9 @@ describe('a change of owner', () => {
 })
 
 describe('controls across a hand-over', () => {
-  // Not measured: control input needs key presses, which the viewer tools here can't make. The
-  // input of a script that was stopped when its object changed owner belonged to the old owner's
-  // permission, which the hand-over took away, so it does not run when the script starts again.
+  // In-world: keys held while a script was stopped gave no control event once it ran again
+  // (Aditi, SLua Tideland, 2026-11-23; see control-input.test.ts). Here the hand-over has also
+  // taken the old owner's permission away.
   it('drops the control input a stopped script was holding back', async () => {
     const f = await fixture()
     f.s2.ask(CONTROLS, OWNER)
