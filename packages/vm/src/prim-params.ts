@@ -93,6 +93,7 @@ import type { InventoryItem } from './inventory.js'
 import { InventoryType } from './inventory.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { Prim } from './prim.js'
+import { physicsSwitched } from './builtins/motion.js'
 
 /**
  * Backing store for the PRIM_* family of llSetPrimitiveParams /
@@ -586,9 +587,12 @@ export function writePrimParam(
       if (material >= PRIM_MATERIAL_STONE && material <= PRIM_MATERIAL_LIGHT) p.material = material
       return 1
     }
-    case PRIM_PHYSICS:
+    case PRIM_PHYSICS: {
+      const physical = !!(prim.statusFlags & STATUS_PHYSICS)
       prim.setStatus(STATUS_PHYSICS, num(rules[cursor]) !== 0)
+      if (prim.linkset) physicsSwitched(prim.linkset, physical)
       return 1
+    }
     case PRIM_PHANTOM:
       prim.setStatus(STATUS_PHANTOM, num(rules[cursor]) !== 0)
       return 1

@@ -70,6 +70,7 @@ interface DetectedTouch { readonly key?: string }
  */
 function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   const merged: QueuedEvent[] = []
+  const land = new Map<string, number>()
   const parts: { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }[] = []
   const collisions = new Map<string, number>()
   let changed: number | undefined
@@ -93,6 +94,14 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
           event: e.event === 'changed' ? first.event : e.event,
           payload: { changes: (first.payload['changes'] as number) | (e.payload['changes'] as number) },
         }
+      }
+      continue
+    }
+    if (LAND_EVENTS.has(e.event)) {
+      const kept = land.get(e.event) ?? 0
+      if (kept < (e.event === 'land_collision' ? HELD_LAND_COLLISIONS : 1)) {
+        land.set(e.event, kept + 1)
+        merged.push(e)
       }
       continue
     }
@@ -148,6 +157,15 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
 const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
 const SENSOR_EVENTS: ReadonlySet<string> = new Set(['sensor', 'no_sensor'])
 const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'collision', 'collision_end'])
+
+/**
+ * In-world: a box dropped onto bare land once or twice in sleeps of 6, 10 and 16 s, six runs,
+ * got one land_collision_start and one land_collision_end each time, and four land_collision in
+ * five of them (one in the other), where a drop without the sleep gave about 27. Every one read
+ * the box's position when it ran, back where it had been lifted to, not where it touched down.
+ */
+const LAND_EVENTS: ReadonlySet<string> = new Set(['land_collision_start', 'land_collision', 'land_collision_end'])
+const HELD_LAND_COLLISIONS = 4
 
 /** Events that wait behind one llMinEventDelay holds back. */
 const WAITS_BEHIND: ReadonlySet<string> = new Set([...TOUCH_EVENTS, 'timer'])
@@ -458,7 +476,8 @@ export class LinksetClock {
   /** Queue held-back events behind the others, merged and in the held order. */
   private release(script: Script, events: QueuedEvent[], timerWaits: boolean): void {
     const held = mergeHeld(events.sort((a, b) => a.at - b.at))
-      .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, payload, held: false }))
+      .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false,
+        payload: LAND_EVENTS.has(event) ? { ...payload, pos: target.host.regionPosition() } : payload }))
     const v = script.clockView
     // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first
     // click, timer, the second click. The ticks that fell due during one sleep give one event,
