@@ -7,7 +7,8 @@ import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
   leaveDamageEvent,
-  combatAvatars,
+  leaveDamageOnStateChange,
+  registerCombatAvatar,
   type CombatAvatar,
 } from './builtins/damage.js'
 import type {
@@ -366,15 +367,21 @@ export class Script {
     }
   }
 
-  /** A state transition leaves on_damage before lifecycle handlers execute. */
+  /**
+   * A state transition leaves on_damage before lifecycle handlers execute.
+   * In-world (main grid, 2026-11-23): state_exit and state_entry read no llDetectedDamage.
+   */
   private clearDamageAdjustment(): void {
-    const context = this.state.detectedStack.at(-1)
-    if (context?.event === 'on_damage') context.event = ''
+    const stack = this.state.detectedStack
+    const context = stack.at(-1)
+    if (context?.event !== 'on_damage') return
+    stack[stack.length - 1] = { event: '', entries: context.entries.map(({ damage: _, ...rest }) => rest) }
+    leaveDamageOnStateChange(this)
   }
 
   /** Configure an avatar's combat health, parcel and attachment scripts. */
   setCombatAvatar(id: string, avatar: CombatAvatar): void {
-    combatAvatars(this).set(id.toLowerCase(), { ...avatar, region: this.linkset.region })
+    registerCombatAvatar(this, id, avatar)
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
