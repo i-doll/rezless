@@ -68,6 +68,29 @@ describe('an owner edit made inside a running handler', () => {
     expect(log('a').at(-1)).toBe('lm m')
   })
 
+  it('returns from a reset inside the handler whose state_entry sleeps, and wakes it afterwards', async () => {
+    const { prims, scripts, linkset } = await loadLinkset({
+      prims: [{
+        scripts: [{
+          source: {
+            source: `list log; default {
+              state_entry() { log += "se"; llSleep(1.0); log += "woke"; }
+              touch_start(integer n) { llOwnerSay("x"); log += "t2"; } }`,
+            filename: 'a.lsl',
+          },
+          name: 'a',
+        }],
+      }],
+    })
+    const a = scripts['a']!
+    a.start()
+    linkset.advanceTime(2000)
+    a.mock('llOwnerSay', () => { a.reset(); return undefined })
+    a.fire('touch_start', { num_detected: 1 })
+    expect(a.global('log')).toEqual(['se', 't2', 'woke'])
+    expect(prims[0]!.scripts).toContain(a)
+  })
+
   it('queues changed behind a handler the clock runs, past a sleep after the edit', async () => {
     const { prims, scripts, linkset } = await loadLinkset({
       prims: [{
