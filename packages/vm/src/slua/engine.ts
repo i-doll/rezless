@@ -60,17 +60,20 @@ export class SluaCompileError extends Error {
 export class SluaRuntimeError extends RuntimeError {
   /** Luau's traceback of the failed thread, for an error raised with a string. */
   readonly trace: string
+  /** Whether the script ran out of memory, rather than raised an error that says so. */
+  readonly outOfMemory: boolean
 
-  constructor(message: string, trace = '') {
+  constructor(message: string, trace = '', outOfMemory = false) {
     super(message)
     this.name = 'SluaRuntimeError'
     this.trace = trace
+    this.outOfMemory = outOfMemory
   }
 
   // Listeners hear one of three texts, not the Lua message. The VM words an
   // error value that isn't a string as "error object is a <type> value".
   override get said(): string {
-    if (this.message === 'not enough memory') return this.message
+    if (this.outOfMemory) return 'not enough memory'
     return this.message.startsWith('error object is a ') ? 'Unknown runtime error' : 'runtime error'
   }
 
@@ -97,6 +100,7 @@ export type SluaPlanEntry =
 const enum Status {
   Ok = 0,
   Yield = 1,
+  OutOfMemory = 4,
   Break = 6,
 }
 
@@ -310,7 +314,7 @@ export class SluaEngine {
     // A script whose code alone is past its limit can't run at all. (SLua's
     // host only checks as the script allocates; rezless refuses it up front, as
     // it does an LSL script whose code is past its limit.)
-    if (this.memoryLimit > 0 && this.usedMemory() > this.memoryLimit) throw new SluaRuntimeError('not enough memory')
+    if (this.memoryLimit > 0 && this.usedMemory() > this.memoryLimit) throw new SluaRuntimeError('not enough memory', '', true)
     yield* this.drive(this.x.rz_main_thread(this.s), 0)
   }
 
@@ -455,7 +459,7 @@ export class SluaEngine {
         }
         break
       }
-      if (status !== Status.Ok) throw new SluaRuntimeError(this.scratch(), this.trace())
+      if (status !== Status.Ok) throw new SluaRuntimeError(this.scratch(), this.trace(), status === Status.OutOfMemory)
       // A sleep the script never reached a yieldable point for.
       yield* this.sleep()
   }

@@ -1036,7 +1036,8 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
 * **Crashes and resets**: a run-time error crashes the script as in LSL. The
   prim says the same first line on `DEBUG_CHANNEL`, then `runtime error`
   (`Unknown runtime error` when the error value is not a string or a number,
-  `not enough memory` when memory runs out, `Too Many Listens` for the 66th
+  `not enough memory` when memory runs out, but not for a script's own
+  `error("not enough memory")`, `Too Many Listens` for the 66th
   listen, which `pcall` can't catch). The call that ran it throws the Lua message.
   The owner's chat (`s.chat`) shows the Lua message and its traceback in
   place of `runtime error` and `not enough memory`, cut so that the prim's
@@ -1082,7 +1083,12 @@ Not modelled yet:
 
 * `ll.GetUsedMemory()` reads 71 bytes more than in Second Life from the
   start of a script.
-* `print()` goes to `s.printed`, not chat.
+* A script's globals table starts with two entries, where Second Life's
+  starts with four, so new globals grow it at different points.
+* `print()` goes to `s.printed`, not chat. In Second Life the owner sees it
+  as an owner-say, cut to 1024 bytes.
+* The owner's copy of an error the simulator says on `DEBUG_CHANNEL` isn't
+  cut to fit the prim's name, as a script's crash error is.
 * A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
   would in SLua.
