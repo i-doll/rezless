@@ -48,7 +48,7 @@ describe('a key print in a for clause', () => {
     // In-world: k = print((key)"k"); as a statement, and in a for init or step, failed to compile
     // with "Internal server compile error" (Aditi, SLua Tideland, 2026-11-23).
     for (const body of ['k = print((key)"k");', 'integer i; for (k = print((key)"k"); i < 1; ++i) ;', 'integer i; for (; i < 1; k = print((key)"k")) ++i;']) {
-      await expect(loadScript({ source: `key k; default { timer() { ${body} } }` }), body).rejects.toThrow()
+      await expect(loadScript({ source: `key k; default { timer() { ${body} } }` }), body).rejects.toThrow(/Internal server compile error/)
     }
   })
 })
@@ -75,7 +75,7 @@ describe('an object member with no value', () => {
     expect(await evaluate('llList2CSV(llJson2List("[{\\"a\\":}]"))')).toBe('{"a":}')
   })
 
-  it('leaves the object an object in llJsonValueType', async () => {
+  it('keeps the object an object and reads the member as JSON_INVALID', async () => {
     // In-world: the object is JSON_OBJECT, and so is the nested one; only reading the member
     // itself gives JSON_INVALID.
     expect(await evaluate('llJsonValueType("{\\"a\\":}", [])')).toBe('﷑')
@@ -85,6 +85,19 @@ describe('an object member with no value', () => {
     expect(await evaluate('llJsonValueType("{\\"a\\":{\\"b\\":}}", ["a"])')).toBe('﷑')
     expect(await evaluate('llJsonGetValue("[1,{\\"a\\":}]", [1])')).toBe('{"a":}')
     expect(await evaluate('llJsonValueType("{\\"a\\":}", ["a"])')).toBe('﷐')
+  })
+})
+
+describe('a JSON value with an object member with no value', () => {
+  it('goes in verbatim through llList2Json and llJsonSetValue', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-23): each writer embedded the object text as it was.
+    const s = await run(`
+      list out;
+      default { state_entry() {
+        string v = "{\\"a\\":}";
+        out = [llList2Json(JSON_ARRAY, [v]), llList2Json(JSON_OBJECT, ["k", v]), llJsonSetValue("[]", [0], v), llJsonSetValue("{}", ["k"], v)];
+      } }`)
+    expect(s.global('out')).toEqual(['[{"a":}]', '{"k":{"a":}}', '[{"a":}]', '{"k":{"a":}}'])
   })
 })
 

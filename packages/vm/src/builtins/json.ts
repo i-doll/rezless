@@ -20,7 +20,7 @@ import {
 // Internal AST. `empty` represents the implicit-null slots LSL JSON allows
 // in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
 // regardless of remaining specifiers. The `missing` value of `{"k":}` reads
-// as JSON_INVALID instead, and only the read functions accept it.
+// as JSON_INVALID instead.
 type JNode =
   | { t: 'null' }
   | { t: 'true' }
@@ -243,7 +243,7 @@ class Parser {
   }
 }
 
-/** `lenient` accepts an object member with no value before the closing brace, as the read functions do. */
+/** `lenient` accepts an object member with no value before the closing brace. */
 function parseJson(src: string, lenient = false): JNode | null {
   return new Parser(src, lenient).parseRoot()
 }
@@ -399,7 +399,7 @@ function valueToNode(value: string): JNode | 'delete' {
       ch === '-' ||
       (ch >= '0' && ch <= '9')
     ) {
-      const parsed = parseJson(trimmed)
+      const parsed = parseJson(trimmed, true)
       if (parsed !== null) return parsed
     }
   }
@@ -615,7 +615,7 @@ function lslStringToJsonElement(raw: string): string {
     return trimmed
   }
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    const parsed = parseJson(trimmed)
+    const parsed = parseJson(trimmed, true)
     if (parsed !== null) return trimmed
   }
   return '"' + escapeJsonString(trimmed) + '"'

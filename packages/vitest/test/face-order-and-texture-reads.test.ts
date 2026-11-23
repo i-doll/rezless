@@ -56,7 +56,7 @@ const SHAPES = `
 `
 
 describe('the faces of each prim shape', () => {
-  it('counts the faces of every shape in the measured face order', async () => {
+  it('counts the faces of every shape', async () => {
     const s = await run(SHAPES + `
       default {
         state_entry() {
@@ -79,6 +79,8 @@ describe('the faces of each prim shape', () => {
     //   ends. Then face 0 and the face after the sides and hollow are the two path ends.
     // - A sphere's dimple faces and a torus's profile-cut faces come last, as a box's cut faces do.
     // - A hollow sphere has two more faces after its hollow that a touch reads with a zero normal.
+    // That is the role order faceRoles builds, which the shape-change tests pin through the faces
+    // each role keeps.
     expect(said(s)).toEqual(['6, 7, 6, 6, 3, 4, 5, 6, 5, 6, 7, 1, 3, 4, 3, 6, 1, 3, 2, 3, 4, 5, 6, 3, 5, 3, 3, 7, 4, 4'])
   })
 })

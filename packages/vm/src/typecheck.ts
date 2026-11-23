@@ -75,6 +75,14 @@ function assignable(dst: Ty, src: Ty): boolean {
 }
 
 const isNum = (t: Ty): boolean => t === 'integer' || t === 'float'
+
+/**
+ * Where Mono can compile a print's value, as measured: the left operand of
+ * + - * / % (not a list), or the right operand of *, == and !=, or of + after
+ * a list. Anywhere else, or in parentheses, the script fails to compile.
+ */
+const ARITHMETIC: ReadonlySet<BinaryOp> = new Set(['+', '-', '*', '/', '%'])
+const bare = (e: Expression): boolean => e.kind === 'PrintExpression' && !e.parens
 const isText = (t: Ty): boolean => t === 'string' || t === 'key'
 
 /** Result type of `l op r`, or null when SL rejects the operand types. */
@@ -156,6 +164,9 @@ class Checker {
   /** The function or handler being checked. */
   private owner: Node | null = null
   readonly invalid = new Set<Node>()
+  /** Prints in the few places Mono can compile their value. */
+  private readonly usablePrints = new Set<Expression>()
+  private readonly backendErrors: Diagnostic[] = []
 
   constructor(
     private readonly ast: Ast,
@@ -238,7 +249,7 @@ class Checker {
         this.body(h.params, h.body)
       }
     }
-    return this.diagnostics
+    return this.diagnostics.length > 0 ? this.diagnostics : this.backendErrors.slice(0, 1)
   }
 
   private error(node: Node, message: string): void {
@@ -297,11 +308,7 @@ class Checker {
         return this.block(s, mode)
       case 'VariableDeclaration':
         if (s.init) {
-          const t = this.expr(s.init)
-          if (s.typeName === 'key' && s.init.kind === 'PrintExpression' && t === 'key') {
-            this.error(s, 'Internal server compile error')
-          }
-          this.expectAssignable(s, s.typeName, t)
+          this.expectAssignable(s, s.typeName, this.expr(s.init))
         }
         this.declare(this.scopes[this.scopes.length - 1]!, s, s.name, s.typeName)
         return []
@@ -435,7 +442,12 @@ class Checker {
         return 'unknown'
       }
       case 'BinaryExpression': {
+        if (bare(e.left) && ARITHMETIC.has(e.operator)) this.usablePrints.add(e.left)
         const l = this.expr(e.left)
+        if (bare(e.left) && l === 'list') this.backendError(e.left)
+        if (bare(e.right) && (e.operator === '*' || e.operator === '==' || e.operator === '!=' || (e.operator === '+' && l === 'list'))) {
+          this.usablePrints.add(e.right)
+        }
         const r = this.expr(e.right)
         const t = binaryType(e.operator, l, r)
         if (t) return t
@@ -446,9 +458,6 @@ class Checker {
         const target = this.lvalue(e.target)
         const value = this.expr(e.value)
         if (e.operator === '=') {
-          if (target === 'key' && e.value.kind === 'PrintExpression' && value === 'key') {
-            this.error(e, 'Internal server compile error')
-          }
           this.expectAssignable(e, target, value)
           return target
         }
@@ -484,6 +493,7 @@ class Checker {
       }
       case 'PrintExpression': {
         const t = this.expr(e.argument)
+        if (!this.usablePrints.has(e)) this.backendError(e)
         if (t === 'key' && this.owner) this.invalid.add(this.owner)
         return t
       }
@@ -492,7 +502,16 @@ class Checker {
 
   /** An expression whose value is thrown away, where a print's value goes unused. */
   private discarded(e: Expression): void {
-    this.expr(e.kind === 'PrintExpression' ? e.argument : e)
+    if (e.kind !== 'PrintExpression') {
+      this.expr(e)
+    } else if (this.expr(e.argument) === 'void') {
+      this.backendError(e)
+    }
+  }
+
+  /** Mono's code generator fails after the front end has passed the script. */
+  private backendError(node: Node): void {
+    this.backendErrors.push({ severity: 'error', message: 'Internal server compile error', filename: this.filename, loc: node.loc })
   }
 
   private component(e: Expression): void {
@@ -528,6 +547,7 @@ class Checker {
   }
 
   private call(e: CallExpression): Ty {
+    for (const a of e.args) if (bare(a)) this.usablePrints.add(a)
     const args = e.args.map((a) => this.expr(a))
     const builtin = own(BUILTIN_SPECS as Record<string, BuiltinSpec>, e.callee)
     const declared = own(CONSTANT_TABLE, e.callee) ? undefined : own(this.declared, e.callee)
@@ -541,7 +561,8 @@ class Checker {
       this.error(e, `Name not defined within scope: ${e.callee}${named ? ' is not a function' : ''}`)
       return 'unknown'
     }
-    if (sig.params.length !== args.length || sig.params.some((p, i) => !assignable(p, args[i]!))) {
+    const mismatched = sig.params.length !== args.length || sig.params.some((p, i) => !assignable(p, args[i]!))
+    if (mismatched || e.args.some(bare)) {
       const want = sig.params.join(', ')
       this.error(e, `Function call mismatches type or number of arguments: ${e.callee}(${want})`)
     }
