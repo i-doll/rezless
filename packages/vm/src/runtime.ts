@@ -168,6 +168,8 @@ export type BuiltinImpl = (ctx: CallContext, args: ReadonlyArray<LslValue>) => L
 
 export interface Suspension {
   readonly until: number
+  /** Busy computing rather than asleep: events that come up meanwhile are not held back as in a sleep. */
+  readonly busy?: boolean
 }
 
 export type Run<T> = Generator<Suspension, T, unknown>
@@ -180,4 +182,6 @@ export interface CallContext {
   readonly linkset: Linkset
   /** Suspend the calling script for `ms` virtual milliseconds once the builtin returns. */
   sleep(ms: number): void
+  /** Keep the calling script busy in its handler for `ms` virtual milliseconds once the builtin returns, as a loop that never sleeps does. */
+  busy(ms: number): void
 }

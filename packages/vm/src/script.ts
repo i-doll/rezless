@@ -1562,6 +1562,11 @@ export class Script {
     return this.task?.wakeAt
   }
 
+  /** Whether the handler is busy computing until `wakeAt`, as a loop that never sleeps is, rather than asleep. */
+  get busy(): boolean {
+    return this.task?.busy === true
+  }
+
   /** Virtual time the running handler began at, or undefined when the script is idle. */
   get handlerStartedAt(): number | undefined {
     return this.task?.startedAt
@@ -1637,7 +1642,7 @@ export class Script {
       if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {
-      this.task = { ...task, wakeAt: r.value.until }
+      this.task = { ...task, wakeAt: r.value.until, busy: r.value.busy === true }
       this.linkset.clock.releaseAtWake(this, task.startedAt)
       return
     }
@@ -1837,7 +1842,7 @@ export class Script {
   }
 
   /** An `ll.*` call from SLua: the same builtin, mock or stub an LSL script would reach. */
-  private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null } {
+  private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null; busyMs: number | null } {
     const spec = BUILTIN_SPECS[name as keyof typeof BUILTIN_SPECS] as BuiltinSpec
     const engine = this.slua!
     // SLua passes floats to LSL functions as 32-bit floats.
@@ -1846,9 +1851,9 @@ export class Script {
     // Memory is the VM's own count, answered through the usual dispatch (logging, llDie, removal).
     const vmMemory = this.sluaMemoryBuiltin(name, lslArgs)
     if (!mocks[name] && vmMemory) mocks = { ...mocks, [name]: vmMemory }
-    const { result, delayMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
+    const { result, delayMs, busyMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
-    return { value, delayMs }
+    return { value, delayMs, busyMs }
   }
 
   /** The VM-backed implementation of a memory builtin, or undefined for the rest. */
@@ -2001,6 +2006,8 @@ interface Task {
   readonly run: Generator<Suspension, boolean, unknown>
   readonly startedAt: number
   readonly wakeAt: number
+  /** Busy computing until `wakeAt` rather than asleep. */
+  readonly busy?: boolean
   /** For SLua code: the event it runs for and that event's payload, so a copy can carry it on. */
   readonly slua?: { readonly event: string; readonly payload: Record<string, unknown> }
   /** For an LSL handler: what a copy needs to run it again up to where it sleeps. */
