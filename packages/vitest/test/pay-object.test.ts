@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, World } from '../src/index.js'
+import { loadLinkset, loadRlvPair, World } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/Money
 // Measured on the Aditi beta grid, SLua Tideland, 2026-11-24: fivebot paid L$1 to objects
@@ -7,6 +7,7 @@ import { loadLinkset, World } from '../src/index.js'
 const handler = 'list log; default { money(key id, integer n) { log += [llGetLinkNumber(), id, n]; } }'
 const plain = 'default { touch_start(integer n) { } }'
 const payPrice = 'default { state_entry() { llSetPayPrice(5, [1, 2, 3, 4]); } }'
+const otherState = 'default { state_entry() { state other; } money(key id, integer n) { } } state other { touch_start(integer n) { } }'
 
 async function setup(prims: { scripts?: { name: string; source: string; running?: boolean }[] }[]) {
   const world = new World()
@@ -36,11 +37,12 @@ describe('paying an object directly', () => {
     }
   })
 
-  // In-world: a child with no script, a child whose script has no money handler, and a child
-  // whose money handler was stopped, each linked to a root with a money handler; paying the
+  // In-world: a child with no script, a child whose script has no money handler, a child
+  // whose money handler was stopped, and a child whose script had moved to a state without
+  // a money handler, each linked to a root with a money handler; paying the
   // child -> the root's money event (link 1, the payer, 1).
   it('sends a payment to a child without a running handler to the root', async () => {
-    for (const child of [[], [{ name: 'c', source: plain }], [{ name: 'c', source: handler, running: false }]]) {
+    for (const child of [[], [{ name: 'c', source: plain }], [{ name: 'c', source: handler, running: false }], [{ name: 'c', source: otherState }]]) {
       const { payer, pay, log } = await setup([{ scripts: [{ name: 'root', source: handler }] }, { scripts: child }])
       expect(pay(2).status).toBe('paid')
       expect(log('root')).toEqual([1, payer.key, 1])
@@ -72,9 +74,10 @@ describe('paying through the Pay menu', () => {
   // In-world (object details, the region's takes-money flag the viewer's Pay menu follows):
   // set on a prim with a running money handler and on every child of a root that has one;
   // clear on a prim with no script, a script without a money handler, a script that only
-  // called llSetPayPrice, a stopped money handler, and a root whose only handler is in a child.
+  // called llSetPayPrice, a stopped money handler, a script in a state without a money
+  // handler, and a root whose only handler is in a child.
   it('is not offered where the prim and its root have no running money handler', async () => {
-    for (const scripts of [[], [{ name: 's', source: plain }], [{ name: 's', source: payPrice }], [{ name: 's', source: handler, running: false }]]) {
+    for (const scripts of [[], [{ name: 's', source: plain }], [{ name: 's', source: payPrice }], [{ name: 's', source: handler, running: false }], [{ name: 's', source: otherState }]]) {
       const { pay } = await setup([{ scripts }])
       expect(pay(1, true)).toMatchObject({ status: 'unsupported', reason: 'not-payable' })
     }
@@ -85,4 +88,16 @@ describe('paying through the Pay menu', () => {
     expect(rooted.pay(2, true).status).toBe('paid')
     expect(rooted.log('root')).toEqual([1, rooted.payer.key, 1])
   })
+})
+
+// Firestorm's enable_pay_object checks the takes-money flag before RLVa's @buy, so a prim
+// that takes no money reports the menu's refusal, not the restriction.
+it('checks the Pay menu before an RLVa buy restriction', async () => {
+  const f = (await loadRlvPair({ source: 'default { touch_start(integer n) { llOwnerSay("@buy=n"); } }' })).rlva
+  f.script.start()
+  f.script.fire('touch_start', { num_detected: 1 })
+  const loaded = await loadLinkset({ world: f.world, region: f.avatar.region, prims: [{}] })
+  const prim = loaded.linkset.prims[0]!
+  expect(f.pay(prim, 1, { menu: true }).reason).toBe('not-payable')
+  expect(f.pay(prim, 1).status).toBe('blocked')
 })

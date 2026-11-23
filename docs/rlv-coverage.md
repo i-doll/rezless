@@ -957,7 +957,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. No-option buy denies payments to objects and purchase requests for original, copy and contents sale types at every price. Allowed injected object payments deliver money to the selected prim. Purchases capture sale type and price without money events; balances, settlement and inventory transfers are external. Options, secure variants and force forms are unsupported.
+Support depth: enforced. No-option buy denies payments to objects and purchase requests for original, copy and contents sale types at every price. Allowed injected object payments deliver money to the running handlers of the paid prim, or of the root when the paid prim has none. Purchases capture sale type and price without money events; balances, settlement and inventory transfers are external. Options, secure variants and force forms are unsupported.
 
 - @buy=n|add|y|rem
 

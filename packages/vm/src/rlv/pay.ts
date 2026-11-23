@@ -31,7 +31,7 @@ export interface AvatarBuyAction {
   readonly reason?: string
   readonly restrictions: readonly RlvRestriction[]
 }
-/** `menu: true` models paying through the viewer's Pay menu, which isn't offered for a prim that takes no money. */
+/** `menu: true` models paying through the viewer's Pay menu, offered only when the prim or its root has a running money handler. */
 export interface AvatarPayOptions {
   readonly menu?: boolean
 }
@@ -92,8 +92,6 @@ export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim
       kind = 'object'
     }
   }
-  const blocks = denials(avatar, kind === 'avatar' ? 'pay' : 'buy')
-  if (blocks.length) return record('blocked', blocks[0]!.behaviour, blocks)
   const handlers = (p: Prim) => p.scripts.filter(s => s.running && s.handles('money'))
   let scripts: Script[] = []
   if (prim) {
@@ -102,6 +100,8 @@ export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim
     if (!scripts.length && prim !== root) scripts = handlers(root)
     if (options.menu && !scripts.length) return record('unsupported', 'not-payable')
   }
+  const blocks = denials(avatar, kind === 'avatar' ? 'pay' : 'buy')
+  if (blocks.length) return record('blocked', blocks[0]!.behaviour, blocks)
   const result = record('paid')
   if (prim) {
     // Queue every recipient before settling so a sleeping handler cannot reorder delivery.
