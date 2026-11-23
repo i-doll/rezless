@@ -601,6 +601,24 @@ describe('hits in one moment keep their own targets', () => {
     expect(world.avatars.map((a) => a.objectDetails.health)).toEqual([90, 70])
   })
 
+  it('let each sitter\'s worn scripts adjust only that sitter\'s damage', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
+    world.addAvatar({ region: 'arena', key: BOT2, username: 'bot2' })
+    const seat = await loadLinkset({ world, region: 'arena', owner: OWNER, prims: [{}, {}] })
+    world.sitAvatar(world.avatars[0]!, seat.linkset.prims[0]!)
+    world.sitAvatar(world.avatars[1]!, seat.linkset.prims[1]!)
+    const armor = await object(world, { a: `default { on_damage(integer n) { llAdjustDamage(0, 2.0); } }` }, BOT)
+    armor.linkset.attachToAvatar(BOT, 1)
+    const plain = await object(world, { w: recorder }, BOT2)
+    plain.linkset.attachToAvatar(BOT2, 1)
+    const shooter = await object(world, { gun: gun(seat.linkset.prims[0]!.key, 10) })
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    expect(world.avatars.map((a) => a.objectDetails.health)).toEqual([98, 90])
+    expect(plain.scripts.w!.global('log')).toEqual(['on 1 10,0,10', 'final 1 10,0,10 10,0,10'])
+  })
+
   it('keep the avatar\'s own hit out of an outside hit in flight', async () => {
     const world = combatWorld()
     world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })

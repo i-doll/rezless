@@ -139,7 +139,8 @@ interface Damage {
   /** Who may adjust it: nobody for an avatar's own attachment, nobody when the region forbids it. */
   readonly adjust: boolean
   readonly seatEntries: DetectedEntry[]
-  riderEntries: DetectedEntry[]
+  /** What each rider's worn scripts see and adjust, in the order of `riders`. */
+  riderEntries: DetectedEntry[][]
   phase: 'seat' | 'riders' | 'done'
   /** The phase whose handlers were asked first; a new hit can join only while it lasts. */
   joinPhase: 'seat' | 'riders' | 'done'
@@ -186,13 +187,18 @@ export function flushDamageEvents(clock: LinksetClock): void {
   }
 }
 
-/** Ask every handler in `scripts` to adjust; true when there is someone to wait for. */
-function askToAdjust(damage: Damage, scripts: readonly Script[], entries: DetectedEntry[]): boolean {
-  const adjusters = damage.adjust ? scripts.filter((s) => live(s) && s.handles('on_damage')) : []
+/**
+ * Ask every on_damage handler in each group of scripts to adjust that group's entries; true
+ * when there is someone to wait for.
+ */
+function askToAdjust(damage: Damage, groups: readonly (readonly [readonly Script[], DetectedEntry[]])[]): boolean {
+  const adjusters = damage.adjust
+    ? groups.flatMap(([scripts, entries]) => scripts.filter((s) => live(s) && s.handles('on_damage')).map((s) => [s, entries] as const))
+    : []
   let pending = deliveries.get(damage.clock)
   if (!pending) deliveries.set(damage.clock, pending = new Set())
   let remaining = adjusters.length
-  damage.pending = adjusters.map((script) => {
+  damage.pending = adjusters.map(([script, entries]) => {
     const payload: Record<string, unknown> = { num_detected: entries.length, detected: entries }
     let done = false
     const delivery: Delivery = {
@@ -213,6 +219,10 @@ function askToAdjust(damage: Damage, scripts: readonly Script[], entries: Detect
   return damage.pending.length > 0
 }
 
+function riderGroups(damage: Damage): [readonly Script[], DetectedEntry[]][] {
+  return damage.riders.map((rider, i) => [rider.attachments, damage.riderEntries[i]!])
+}
+
 /** The avatars' scripts see the damage as the seat left it: adjusted, with that as its original. */
 function forRiders(entry: DetectedEntry): DetectedEntry {
   const amount = entry.damage!.amount
@@ -223,19 +233,19 @@ function forRiders(entry: DetectedEntry): DetectedEntry {
 function advance(damage: Damage): void {
   if (damage.phase === 'seat') {
     damage.phase = 'riders'
-    damage.riderEntries = damage.seatEntries.map(forRiders)
-    if (askToAdjust(damage, damage.riders.flatMap((r) => r.attachments), damage.riderEntries)) return
+    damage.riderEntries = damage.riders.map(() => damage.seatEntries.map(forRiders))
+    if (askToAdjust(damage, riderGroups(damage))) return
   }
   damage.phase = 'done'
   if (inFlight.get(damage.clock)?.get(damage.key) === damage) inFlight.get(damage.clock)!.delete(damage.key)
   for (const rider of damage.riders) {
-    for (const entry of damage.riderEntries) applyToAvatar(damage.clock, rider, entry.damage!.amount)
+    for (const entry of damage.riderEntries[damage.riders.indexOf(rider)]!) applyToAvatar(damage.clock, rider, entry.damage!.amount)
   }
   const tell = (scripts: readonly Script[], entries: readonly DetectedEntry[]) => {
     for (const s of scripts) if (!damage.noFinal.has(s)) queueFinal(damage.clock, s, entries, damage.at)
   }
   tell(damage.seatScripts, damage.seatEntries)
-  for (const rider of damage.riders) tell(rider.attachments, damage.riderEntries)
+  damage.riders.forEach((rider, i) => tell(rider.attachments, damage.riderEntries[i]!))
 }
 
 function applyToAvatar(clock: LinksetClock, avatar: Combatant, amount: number): void {
@@ -295,20 +305,19 @@ function start(ctx: CallContext, key: unknown, entry: DetectedEntry, seat: Links
     // objects in one moment, reached the target as one on_damage with num_detected 3 or 8.
     // A seat without on_damage handlers passes the hit straight on to what the avatar wears.
     if (current.seat) current.seatEntries.push(entry)
-    if (current.phase === 'riders') current.riderEntries.push(current.seat ? forRiders(entry) : entry)
-    const entries = current.phase === 'seat' ? current.seatEntries : current.riderEntries
-    for (const d of current.pending) d.payload['num_detected'] = entries.length
+    if (current.phase === 'riders') for (const entries of current.riderEntries) entries.push(current.seat ? forRiders(entry) : entry)
+    for (const d of current.pending) d.payload['num_detected'] = (d.payload['detected'] as DetectedEntry[]).length
     return
   }
   const damage: Damage = {
     key, at: clock.now, clock, seat, seatScripts: seat?.allScripts() ?? [], riders, adjust, noFinal: new Set(),
-    seatEntries: seat ? [entry] : [], riderEntries: seat ? [] : [entry], phase: seat ? 'seat' : 'riders',
+    seatEntries: seat ? [entry] : [], riderEntries: seat ? [] : riders.map(() => [entry]), phase: seat ? 'seat' : 'riders',
     joinPhase: 'done', pending: [],
   }
   byTarget.set(key, damage)
   const waiting = seat
-    ? askToAdjust(damage, damage.seatScripts, damage.seatEntries)
-    : askToAdjust(damage, riders.flatMap((r) => r.attachments), damage.riderEntries)
+    ? askToAdjust(damage, [[damage.seatScripts, damage.seatEntries]])
+    : askToAdjust(damage, riderGroups(damage))
   if (!waiting) advance(damage)
   damage.joinPhase = damage.phase
 }
