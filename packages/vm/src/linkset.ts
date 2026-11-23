@@ -340,6 +340,15 @@ export class Linkset {
       script.clockView.resumeFromInventory()
       resumeHeldTouches(script)
     }
+    this.applyStoppedPastWearChanges()
+  }
+
+  /**
+   * Once an object out of inventory has queued its rez: a script that stopped itself after the
+   * changes it held for its siblings still made them.
+   */
+  applyStoppedPastWearChanges(): void {
+    for (const script of this.allScripts()) if (!script.running) script.applyPastWearChanges()
   }
 
   /** Detach into inventory, preserving script state and the remembered point. */
@@ -423,6 +432,8 @@ export class Linkset {
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)
     // In-world: the copy of a stopped script was stopped too. Started, it ran state_entry.
     this.fill(copy, (script, prim) => Object.assign(script.copyTo(prim, { fresh: true }), { running: script.running }))
+    // The copy's scripts are new instances, so no stopped script owns its targets.
+    for (const request of [copy.prims[0]!.targetMotion.move, copy.prims[0]!.targetMotion.look]) delete request?.slack
     const root = copy.prims[0]!.params
     root.position = { x: root.position.x + offset.x, y: root.position.y + offset.y, z: root.position.z + offset.z }
     // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
@@ -1050,7 +1061,8 @@ export class Linkset {
       // `__reset` (from llResetOtherScript) was requested while the target
       // was running, so it applies even if the target was stopped since; the
       // target just stays stopped afterward.
-      if (!target.running && next.event !== '__reset') {
+      // A held running-state change, such as a start after a stop, reaches a stopped script too.
+      if (!target.running && next.event !== '__reset' && next.event !== '__running') {
         // Queued before it stopped: keep it for when the script runs again. A paused script
         // must not block other scripts' events, so we stash on the script
         // itself rather than holding a slot in the linkset queue.

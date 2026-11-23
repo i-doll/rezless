@@ -54,7 +54,7 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
+import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
 import type { QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
@@ -223,6 +223,11 @@ export class Script {
    * that handler runs on only after the wear, so the reset drops the wear's rez and attach events.
    */
   resetPastWear = false
+  /**
+   * Changes to siblings' running state made by the rest of a handler that was running at a
+   * detach. In-world that rest runs after the wear, so they apply after the wear's events.
+   */
+  readonly pastWearChanges: Array<{ name: string; running?: boolean; reset?: true }> = []
   /** Set when such a script came out of inventory: the attach event of that wear is dropped too. */
   quietAttach = false
   /** For an SLua script: its source, and the VM running it. */
@@ -1155,9 +1160,9 @@ export class Script {
     if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
-    if (reset) slackenTargetMotion(this, true)
     copy.detachedInHandler = this.detachedInHandler
     copy.resetPastWear = this.resetPastWear
+    copy.pastWearChanges.push(...this.pastWearChanges)
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1304,6 +1309,7 @@ export class Script {
       this.resetPastWear = false
       this.quietAttach = true
       this.rezQueued = true
+      this.queuePastWearChanges()
       return
     }
     if (!this.running) return
@@ -1348,6 +1354,36 @@ export class Script {
     if (unseated) this.clockView.schedule(this.now, '__unseated', { changes })
     else if (ownerChanged) this.clockView.schedule(this.now, '__ownerChanged', { changes })
     this.rezQueued = true
+    this.queuePastWearChanges()
+  }
+
+  private queuePastWearChanges(): void {
+    if (this.pastWearChanges.length) this.clockView.schedule(this.now, '__scriptState')
+  }
+
+  /** Apply the changes the rest of a handler made to siblings, in order, once worn or rezzed again. */
+  applyPastWearChanges(): void {
+    const changes = this.pastWearChanges.splice(0)
+    for (const name of new Set(changes.map(c => c.name))) {
+      const target = this.host.findScript(name)
+      if (!target) continue
+      const ops = changes.filter(c => c.name === name)
+      // Queued behind the events and the handler the script it changes already has.
+      if (target.running) target.clockView.schedule(this.now, '__running', { ops })
+      else target.applyHeldChanges(ops)
+    }
+  }
+
+  /** Each change is judged as it applies: a reset of a script stopped by then does nothing. */
+  private applyHeldChanges(ops: ReadonlyArray<{ running?: boolean; reset?: true }>): void {
+    for (const op of ops) {
+      if (this.dead) return
+      if (this.crashed) {
+        if (op.reset) this.recover()
+      } else if (op.reset) {
+        if (this.running) this.restart()
+      } else this.running = op.running!
+    }
   }
 
   private boot(): void {
@@ -1441,8 +1477,9 @@ export class Script {
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
     this.clockView.resetReference()
-    this.linkset.clock.purgeTarget(this)
-    this.parkedEvents.length = 0
+    // A held running-state change, from a sibling or for one, outlives the script's own events.
+    this.linkset.clock.purgeTarget(this, Infinity, ['__running', '__scriptState'])
+    for (let i = this.parkedEvents.length - 1; i >= 0; i--) if (!HELD_CONTROL.has(this.parkedEvents[i]!.event)) this.parkedEvents.splice(i, 1)
     this.waitingGameControl = undefined
     this.started = false
     // Returning to default counts as a state entry. The constructor records
@@ -1470,6 +1507,14 @@ export class Script {
       this.restart()
       // Stopped since the reset was asked for: state_entry waits for the start.
       if (!this.running) this.queueStart()
+      return
+    }
+    if (event === '__scriptState') {
+      this.applyPastWearChanges()
+      return
+    }
+    if (event === '__running') {
+      this.applyHeldChanges(payload['ops'] as Array<{ running?: boolean; reset?: true }>)
       return
     }
     if (event === '__unseated' || event === '__ownerChanged') {
@@ -1718,7 +1763,7 @@ export class Script {
         // for a listen handler that changed state never ran.
         const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
-        this.linkset.clock.purgeTarget(this, this.now, '__reset')
+        this.linkset.clock.purgeTarget(this, this.now, ['__reset', '__running', '__scriptState'])
         forgetHeldTouches(this, false)
         this.state.currentState = target
         const waiting = this.waitingGameControl
@@ -1852,9 +1897,10 @@ export class Script {
   }
 
   set running(value: boolean) {
-    const starting = value && !this.isRunning
+    const starting = value && !this.isRunning, stopping = !value && this.isRunning
     this.isRunning = value
     if (value) this.crashed = false
+    if (stopping && !this.crashed) slackenTargetMotion(this, true)
     if (starting) {
       slackenTargetMotion(this, false)
       this.catchUp()
@@ -1882,8 +1928,8 @@ export class Script {
     this.crashText = error.said
     this.crashShown = error.shown
     this.sayCrash()
-    this.running = false
     this.crashed = true
+    this.running = false
   }
 
   private sayCrash(): void {
