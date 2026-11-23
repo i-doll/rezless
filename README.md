@@ -382,7 +382,7 @@ captured requests; physical motion, contacts and audio are not simulated. The
 collision flags act on collisions a test fires. An object rezzed with
 `REZ_FLAG_DIE_ON_COLLIDE` is deleted at its first collision, with an object, an
 avatar or the ground, before its handler runs and whatever its collision
-filter; one that detects volume stays. `REZ_FLAG_NO_COLLIDE_OWNER` hides
+filter; one that detects volume is not deleted. `REZ_FLAG_NO_COLLIDE_OWNER` hides
 collisions with the owner. `REZ_FLAG_NO_COLLIDE_FAMILY` on either of two objects
 from one rezzer hides their collisions with each other, and on a rezzer or an
 object it rezzed hides their collisions with each other. A hidden collision

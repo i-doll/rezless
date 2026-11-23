@@ -48,7 +48,7 @@ it('defines the die-on-no-rezzer constants from the LSL definitions', () => {
 
 // In-world: the grid's compiler rejected REZ_FLAG_DIE_ON_NO_REZZER as "Name not defined within scope".
 // A child rezzed with 0x101 or 0x100 outlived its rezzer's llDie for 55 s (until temp-on-rez
-// removed the 0x101 ones, and until cleanup for 0x100); an unflagged control did the same.
+// removed the 0x101 ones, and until cleanup for 0x100); a control rezzed with only REZ_FLAG_TEMP did the same.
 it.each([0x101, 0x100, 0x1])('keeps a child rezzed with flags %s after its rezzer dies', async (flags) => {
   const f = await fixture([flags], 'default { state_entry() { REZ llDie(); } }')
   expect(f.rezzer.linkset.dead).toBe(true)
@@ -184,6 +184,16 @@ it('keeps a die-on-collide object that detects volume', async () => {
   hit(target, objectEntry(ball.linkset.prims[0]!.key))
   expect(alive(f.world, target)).toBe(true)
   expect(target.global('seen')).toEqual(['start', ball.linkset.prims[0]!.key])
+})
+
+// In-world: physical children with llVolumeDetect(TRUE), with and without REZ_FLAG_DIE_ON_COLLIDE,
+// fell through the ground with no land_collision_start and were gone together about 2.2 s after
+// the rez; a die-on-collide child without volume detect was deleted on the ground after 0.6 s.
+it('does not delete a die-on-collide object that detects volume at a land collision', async () => {
+  const f = await fixture([C.REZ_FLAG_DIE_ON_COLLIDE | C.REZ_FLAG_PHYSICAL])
+  f.scripts[0]!.linkset.prims[0]!.volumeDetect = true
+  f.scripts[0]!.fire('land_collision_start', { pos: { x: 100, y: 100, z: 22 } })
+  expect(alive(f.world, f.scripts[0]!)).toBe(true)
 })
 
 // In-world: the rezzer's collision_start ran when an unflagged child came to rest on it, and did

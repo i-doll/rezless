@@ -51,7 +51,9 @@ export function withCollisionFilter(script: Script, event: string, payload: Reco
   const flags = linkset.rez?.flags ?? 0
   // In-world, a die-on-collide object was deleted at its first collision, object, avatar or
   // ground, before its collision_start or land_collision_start handler ran.
-  if (event.startsWith('land_collision')) return flags & REZ_FLAG_DIE_ON_COLLIDE ? linkset.remove() : deliver(payload)
+  // A physical one that detected volume fell through the ground, with no land collision to die on.
+  const dies = !!(flags & REZ_FLAG_DIE_ON_COLLIDE) && !linkset.prims.some(p => p.volumeDetect)
+  if (event.startsWith('land_collision')) return dies ? linkset.remove() : deliver(payload)
   if (event !== 'collision_start' && event !== 'collision' && event !== 'collision_end') return deliver(payload)
   let entries = Array.isArray(payload['detected']) ? payload['detected'] as DetectedEntry[] : undefined
   if (entries) {
@@ -64,7 +66,7 @@ export function withCollisionFilter(script: Script, event: string, payload: Reco
   }
   // In-world, it was deleted however llCollisionFilter was set, but a die-on-collide object that
   // detected volume let an object fall through it, raised collision_start and stayed.
-  if (flags & REZ_FLAG_DIE_ON_COLLIDE && !linkset.prims.some(p => p.volumeDetect)) return linkset.remove()
+  if (dies) return linkset.remove()
   // In-world, an object that detects volume raised collision_start and
   // collision_end in its root's scripts only, even for a child it was entered through.
   if (script.host.volumeDetect && (event === 'collision' || script.host !== script.linkset.prims[0])) return
