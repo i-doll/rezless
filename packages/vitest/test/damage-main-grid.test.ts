@@ -674,6 +674,24 @@ describe('hits in one moment keep their own targets', () => {
     expect(log.map((l) => l.split(' ').slice(0, 2).join(' '))).toEqual(['on 1', 'on 1', 'final 1', 'final 1'])
   })
 
+  it('keep one final_damage per sitter when the hits alternate', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
+    world.addAvatar({ region: 'arena', key: BOT2, username: 'bot2' })
+    const seat = await loadLinkset({ world, region: 'arena', owner: OWNER, prims: [
+      { scripts: [{ name: 'seat', source: { source: `list counts; default { final_damage(integer n) { counts += n; } }` } }] }, {},
+    ] })
+    seat.scripts.seat!.start()
+    world.sitAvatar(world.avatars[0]!, seat.linkset.prims[0]!)
+    world.sitAvatar(world.avatars[1]!, seat.linkset.prims[1]!)
+    const shooter = await object(world, { gun: `default { touch_start(integer n) {
+      llDamage("${BOT}", 1.0, 0); llDamage("${BOT2}", 1.0, 0); llDamage("${BOT}", 1.0, 0);
+    } }` })
+    shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    expect(seat.scripts.seat!.global('counts')).toEqual([2, 1])
+  })
+
   it('let each sitter\'s worn scripts adjust only that sitter\'s damage', async () => {
     const world = combatWorld()
     world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })

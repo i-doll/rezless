@@ -264,7 +264,8 @@ function applyToAvatar(clock: LinksetClock, avatar: Combatant, amount: number): 
   }
 }
 
-const finals = new WeakMap<Script, { readonly payload: Record<string, unknown>, readonly target: unknown, readonly hitAt: number }>()
+/** Each script's final_damage events still waiting, by target. */
+const finals = new WeakMap<Script, Map<unknown, { readonly payload: Record<string, unknown>, readonly hitAt: number }>>()
 
 /**
  * Hits on one target in the same moment arrive at a script as one final_damage, with every hit
@@ -273,15 +274,17 @@ const finals = new WeakMap<Script, { readonly payload: Record<string, unknown>, 
  */
 function queueFinal(clock: LinksetClock, script: Script, entries: readonly DetectedEntry[], damage: Damage): void {
   if (!live(script) || !script.handles('final_damage')) return
-  const waiting = finals.get(script)
-  if (waiting?.hitAt === damage.at && waiting.target === damage.key && clock.pendingEvents().some((e) => e.payload === waiting.payload && e.at === clock.now && e.target === script)) {
+  let byTarget = finals.get(script)
+  if (!byTarget) finals.set(script, byTarget = new Map())
+  const waiting = byTarget.get(damage.key)
+  if (waiting?.hitAt === damage.at && clock.pendingEvents().some((e) => e.payload === waiting.payload && e.at === clock.now && e.target === script)) {
     const detected = waiting.payload['detected'] as DetectedEntry[]
     detected.push(...entries)
     waiting.payload['num_detected'] = detected.length
     return
   }
   const payload = { num_detected: entries.length, detected: [...entries] }
-  finals.set(script, { payload, target: damage.key, hitAt: damage.at })
+  byTarget.set(damage.key, { payload, hitAt: damage.at })
   clock.schedule(script, clock.now, 'final_damage', payload)
 }
 
