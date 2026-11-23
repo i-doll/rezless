@@ -142,7 +142,8 @@ const LOW: Click[] = [
 // line from the camera, but the line's slope at which it refused changed with
 // the box's size: on the 2 m tall box a click 0.1 m above the bottom was
 // refused at a slope where one on the 1 m box was taken, and on the 0.5 m box
-// every click was taken. No rule fits all of them, so rezless seats them all.
+// every click was taken. sit-spot-shapes.test.ts maps more sizes and camera
+// heights; no rule fits them either, so rezless seats them all.
 const LOW_MISSED: Click[] = [
   ['box, camera at rest, click at -0.5, 0, -0.35: refused', 'box', v(1, 1, 1), 1997.47, v(118.674, 52.165, 1997.421), -2.186, null, v(-0.5, 0, -0.35), null, null],
   ['box, camera at rest, click at -0.5, 0, -0.4: refused', 'box', v(1, 1, 1), 1997.47, v(119.365, 52.151, 1997.421), -2.381, null, v(-0.5, 0, -0.4), null, null],
@@ -173,9 +174,12 @@ const LOW_MISSED: Click[] = [
 ]
 // Clicks on a cylinder's side seat the avatar where the line from the camera
 // to the spot first meets the round side, 0.09 m out from it, as without a
-// click. An unturned prism seated the avatar at the side towards the camera,
-// as a box does, though about 2.5 cm lower in two of the clicks below. Where the camera rests these allow 3.5 cm, since its place
-// is known only from the avatar's heading, which moves the seat only across.
+// click. A click on a cylinder's top seats the avatar at the round edge
+// nearest the spot, by the rays a box's top uses (sit-spot-shapes.test.ts has
+// more). An unturned prism seated the avatar at the side towards the camera,
+// as a box does, though two clicks pinned further down sat about 2.5 cm
+// lower. Where the camera rests these allow 3.5 cm, since its place is known
+// only from the avatar's heading, which moves the seat only across.
 const SHAPE: Click[] = [
   ['cylinder, camera at rest, no click: -X', 'cylinder', v(1, 1, 1), 1997.47, v(118.665, 52.005, 1997.418), -3.898, null, null, v(-0.59, 0, 1.13), [0, 0, 1, 0]],
   ['cylinder, camera at rest, click at -0.4, 0.3, 0: at -0.472, 0.354', 'cylinder', v(1, 1, 1), 1997.47, v(118.806, 51.947, 1997.421), -5.197, null, v(-0.4, 0.3, 0), v(-0.472, 0.354, 1.13), [0, 0, 0.949, 0.316]],
@@ -187,16 +191,20 @@ const SHAPE: Click[] = [
   ['prism, camera at rest, click at -0.4, 0, -0.3: -X', 'prism', v(1, 1, 1), 1997.47, v(120.251, 52.025, 1997.421), 4.318, null, v(-0.4, 0, -0.3), v(-0.59, 0.002, 1.13), [0, 0, 1, 0]],
   ['cylinder, camera at rest, click at -0.3, 0, 0.5: -X', 'cylinder', v(1, 1, 1), 1997.47, v(118.813, 52.27, 1997.421), -1.617, null, v(-0.3, 0, 0.5), v(-0.59, 0.005, 1.13), [0, 0, 1, 0.009]],
   ['cylinder, camera at rest, click at -0.3, -0.3, 0: at -0.492, -0.325', 'cylinder', v(1, 1, 1), 1997.47, v(120.359, 52.374, 1997.421), -2.513, null, v(-0.3, -0.3, 0), v(-0.492, -0.325, 1.13), [0, 0, 0.958, -0.288]],
+  ['cylinder, camera at rest, click at 0, 0.3, 0.5: +Y', 'cylinder', v(1, 1, 1), 1997.47, v(120.451, 52.162, 1997.421), -6.212, null, v(0, 0.3, 0.5), v(-0.327, 0.546, 1.13), [0, 0, 0.948, 0.317]],
+  ['cylinder, camera at rest, click at 0.3, 0, 0.5: +X', 'cylinder', v(1, 1, 1), 1997.47, v(118.687, 52.003, 1997.421), -3.923, null, v(0.3, 0, 0.5), v(0.59, 0, 1.13), [0, 0, 0, 1]],
+  ['cylinder, camera at rest, click at 0, -0.3, 0.5: -Y', 'cylinder', v(1, 1, 1), 1997.47, v(118.734, 52.006, 1997.418), -4.237, null, v(0, -0.3, 0.5), v(0.309, -0.554, 1.13), [0, 0, -0.337, 0.942]],
+  ['cylinder, camera at rest, click at 0.2, 0.2, 0.5: +X', 'cylinder', v(1, 1, 1), 1997.47, v(118.792, 52.457, 1997.421), -7.133, null, v(0.2, 0.2, 0.5), v(0.506, 0.323, 1.13), [0, 0, 0.19, 0.982]],
+  ['cylinder, camera at rest, click at 0, 0.3, 0.5: +Y (2)', 'cylinder', v(1, 1, 1), 1997.47, v(120.656, 52.626, 1997.421), -9.486, null, v(0, 0.3, 0.5), v(-0.249, 0.572, 1.13), [0, 0, 0.915, 0.403]],
 ]
-// Clicks on a cylinder's top, and on spheres and prisms, where rezless does
-// not follow Second Life. A click on a cylinder's top seated the avatar on the
-// round side at places no rule tried here explains, a sphere seated it at
-// heights that follow its surface, and a prism twice seated it 2.5 cm lower. Three clicks were refused: two on a
-// sphere's sides across the line from the camera and one on a prism's ridge.
+// Clicks on spheres and prisms, where rezless does not follow Second Life. A
+// sphere seated the avatar at heights that follow its surface, and a prism
+// twice seated it 2.5 cm lower; sit-spot-shapes.test.ts has more of both.
+// Three clicks were refused: two on a sphere's sides across the line from the
+// camera and one on a prism's ridge.
 const SHAPE_MISSED: Click[] = [
   ['prism, camera at rest, no click: -X', 'prism', v(1, 1, 1), 1997.47, v(118.844, 52.156, 1997.421), 2.191, null, null, v(-0.59, 0.018, 1.105), [0, 0, 1, 0]],
   ['prism, camera at rest, click at 0, 0.5, 0: -X', 'prism', v(1, 1, 1), 1997.47, v(118.797, 52.091, 1997.421), -2.167, null, v(0, 0.5, 0), v(-0.59, 0.478, 1.104), [0, 0, 1, 0]],
-  ['cylinder, camera at rest, click at 0, 0.3, 0.5: +Y', 'cylinder', v(1, 1, 1), 1997.47, v(120.451, 52.162, 1997.421), -6.212, null, v(0, 0.3, 0.5), v(-0.327, 0.546, 1.13), [0, 0, 0.948, 0.317]],
   ['sphere, camera at rest, no click: -X', 'sphere', v(1, 1, 1), 1997.47, v(118.52, 52.002, 1997.421), -4.003, null, null, v(-0.509, 0, 1.132), [0, 0, 1, 0]],
   ['sphere, camera at rest, click at -0.4, 0.3, 0: +Y', 'sphere', v(1, 1, 1), 1997.47, v(118.672, 52.002, 1997.421), -3.975, null, v(-0.4, 0.3, 0), v(-0.405, 0.533, 0.931), [0, 0, 0.949, 0.316]],
   ['sphere, camera at rest, click at 0, 0.5, 0: refused', 'sphere', v(1, 1, 1), 1997.47, v(120.531, 52.334, 1997.421), -7.697, null, v(0, 0.5, 0), null, null],
@@ -204,10 +212,6 @@ const SHAPE_MISSED: Click[] = [
   ['sphere, camera at rest, click at 0, 0, 0.5: at -0.439, 0.047', 'sphere', v(1, 1, 1), 1997.47, v(120.687, 52.231, 1997.421), -9.827, null, v(0, 0, 0.5), v(-0.439, 0.047, 1.184), [0, 0, 0.999, 0.054]],
   ['sphere, camera at rest, click at -0.354, 0, 0.354: -X', 'sphere', v(1, 1, 1), 1997.47, v(118.789, 51.995, 1997.421), 4.909, null, v(-0.354, 0, 0.354), v(-0.641, 0, 0.992), [0, 0, 1, 0]],
   ['prism, camera at rest, click at 0, 0.3, 0.5: refused', 'prism', v(1, 1, 1), 1997.47, v(118.995, 52.155, 1997.403), -2.214, null, v(0, 0.3, 0.5), null, null],
-  ['cylinder, camera at rest, click at 0.3, 0, 0.5: +X', 'cylinder', v(1, 1, 1), 1997.47, v(118.687, 52.003, 1997.421), -3.923, null, v(0.3, 0, 0.5), v(0.59, 0, 1.13), [0, 0, 0, 1]],
-  ['cylinder, camera at rest, click at 0, -0.3, 0.5: -Y', 'cylinder', v(1, 1, 1), 1997.47, v(118.734, 52.006, 1997.418), -4.237, null, v(0, -0.3, 0.5), v(0.309, -0.554, 1.13), [0, 0, -0.337, 0.942]],
-  ['cylinder, camera at rest, click at 0.2, 0.2, 0.5: +X', 'cylinder', v(1, 1, 1), 1997.47, v(118.792, 52.457, 1997.421), -7.133, null, v(0.2, 0.2, 0.5), v(0.506, 0.323, 1.13), [0, 0, 0.19, 0.982]],
-  ['cylinder, camera at rest, click at 0, 0.3, 0.5: +Y (2)', 'cylinder', v(1, 1, 1), 1997.47, v(120.656, 52.626, 1997.421), -9.486, null, v(0, 0.3, 0.5), v(-0.249, 0.572, 1.13), [0, 0, 0.915, 0.403]],
   ['sphere, camera at rest, click at -0.5, 0, 0: -X', 'sphere', v(1, 1, 1), 1997.47, v(120.837, 51.835, 1997.421), 6.621, null, v(-0.5, 0, 0), v(-0.59, 0, 1.048), [0, 0, 1, 0]],
   ['sphere, camera at rest, click at -0.3, -0.4, 0: at -0.354, -0.472', 'sphere', v(1, 1, 1), 1997.47, v(118.665, 52.001, 1997.421), -3.93, null, v(-0.3, -0.4, 0), v(-0.354, -0.472, 0.876), [0, 0, 0.894, -0.447]],
   ['sphere, camera at rest, click at 0, -0.5, 0: refused', 'sphere', v(1, 1, 1), 1997.47, v(120.272, 51.784, 1997.421), 4.531, null, v(0, -0.5, 0), null, null],
@@ -235,7 +239,7 @@ async function check(row: Click) {
   expect(Math.hypot(position.x - want.x, position.y - want.y)).toBeLessThan(camera ? 0.005 : 0.035)
   expect(Math.abs(position.z - want.z)).toBeLessThan(0.005)
   const [qx, qy, qz, qs] = rotation!
-  expect(Math.abs(rot!.x * qx + rot!.y * qy + rot!.z * qz + rot!.s * qs)).toBeGreaterThan(0.999)
+  expect(rot!.x * qx + rot!.y * qy + rot!.z * qz + rot!.s * qs).toBeGreaterThan(0.999)
 }
 
 describe('where a click seats an avatar on a prim without a sit target', () => {
