@@ -20,14 +20,14 @@ describe('World.addNotecardAsset', () => {
     const { scripts } = await loadLinkset({
       world, region: 'Here', owner: OWNER,
       prims: [{ scripts: [{ name: 'p', source: { filename: 'p.lsl', source: `default {
-        state_entry() { llSay(1, "before " + llGetNotecardLineSync("${NC_KEY}", 0)); llGetNotecardLine("${NC_KEY}", 1); }
+        state_entry() { llSay(1, "before " + llGetNotecardLineSync("${NC_KEY}", 0)); llGetNotecardLine("${NC_KEY}", 1); llSay(1, "same " + llGetNotecardLineSync("${NC_KEY}", 0)); }
         dataserver(key q, string d) { llSay(1, d + " " + llGetNotecardLineSync("${NC_KEY}", 0)); }
       }` } }] }],
     })
     const p = scripts['p']!
     p.start()
     p.advanceTime(3000)
-    expect(said(p)).toEqual([`before ${NAK}`, `second apple ${LINE}`])
+    expect(said(p)).toEqual([`before ${NAK}`, `same ${LINE}`, `second apple ${LINE}`])
   })
 
   it('refuses a key that is not an asset key', () => {

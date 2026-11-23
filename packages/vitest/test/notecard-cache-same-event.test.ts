@@ -77,6 +77,20 @@ describe('a sync read in the same event as the first read of a notecard', () => 
     expect(said(p)).toEqual([`${LINE} [${FOUND}]`])
   })
 
+  it.each([
+    ['by name', 'nc'],
+    ['by key', NC_KEY],
+  ])('leaves the notecard uncached after llFindNotecardTextCount %s with an invalid pattern', async (_, name) => {
+    // In-world, Mono: llFindNotecardTextCount with pattern "(" by name, and on another notecard by key ->
+    // NULL_KEY, a regex error on DEBUG_CHANNEL and no dataserver event; after llSleep(3.0) and again
+    // three seconds later the sync reads still gave NAK and [NAK].
+    const p = await run(lsl(
+      `llFindNotecardTextCount("${name}", "(", []); llSleep(3.0); llSay(1, show("nc")); llSetTimerEvent(3);`,
+      `timer() { llSetTimerEvent(0); llSay(1, "later " + show("${NC_KEY}")); }`,
+    ))
+    expect(said(p)).toEqual([`${NAK} [${NAK}]`, `later ${NAK} [${NAK}]`])
+  })
+
   it('behaves the same in SLua', async () => {
     // In-world, SLua: ll.GetNumberOfNotecardLines(key) then ll.GetNotecardLineSync(..., 1) by key and
     // by name -> the line; ll.FindNotecardTextCount by name, and on another notecard by key, then the
