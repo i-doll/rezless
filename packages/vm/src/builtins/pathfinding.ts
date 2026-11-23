@@ -76,11 +76,12 @@ export const llDeleteCharacter: BuiltinImpl = (ctx) => {
   return undefined
 }
 
-function command(name: string): BuiltinImpl {
+/** `said` is the name the simulator's error gives the function; only the owner sees that error. */
+function command(name: string, said = name): BuiltinImpl {
   return (ctx, args) => {
     const character = characters.get(ctx.linkset.prims[0]!)
     if (!character) {
-      sayError(ctx, `You must call llCreateCharacter before ${name}.`)
+      sayError(ctx, `You must call llCreateCharacter before ${said}.`, ctx.prim, false)
       return undefined
     }
     character.commands.push({ name, args: structuredClone(args) })
@@ -89,7 +90,7 @@ function command(name: string): BuiltinImpl {
 }
 
 export const llEvade = command('llEvade')
-export const llExecCharacterCmd = command('llExecCharacterCmd')
+export const llExecCharacterCmd = command('llExecCharacterCmd', 'llExecPathingCmd')
 export const llFleeFrom = command('llFleeFrom')
 export const llNavigateTo = command('llNavigateTo')
 export const llPatrolPoints = command('llPatrolPoints')

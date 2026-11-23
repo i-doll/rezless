@@ -1271,11 +1271,17 @@ export class Script {
    * Reset the script as if `llResetScript` had been called: clear globals,
    * reseed them from the AST initializers, return to the default state,
    * cancel timers, and run state_entry. Used internally when llResetScript
-   * is invoked from inside a handler; tests can also call it directly.
-   * A sleeping handler is abandoned.
+   * is invoked from inside a handler; tests can also call it directly, as
+   * the owner's Reset does. A sleeping handler is abandoned, a stopped
+   * script stays stopped, and a crashed one runs again.
    */
   reset(): void {
-    this.restart()
+    if (this.crashed && !this.dead) this.recover()
+    else {
+      this.restart()
+      // Stopped: state_entry waits for the start.
+      if (!this.running) this.queueStart()
+    }
     this.linkset.settle([this])
   }
 
