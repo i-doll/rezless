@@ -2,6 +2,7 @@ import type { VehicleSettings } from './builtins/vehicles.js'
 import type { PhysicsState } from './builtins/physics.js'
 import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
+import { rememberRemovedNotecard } from './builtins/notecard-search.js'
 import type { Script } from './script.js'
 import type { InventoryItem, PermMask } from './inventory.js'
 import { InventoryType, freeInventoryName, hearsInventoryChange, inventoryItemName, queueInventoryChanged, renamedInventoryName, renamedItemName } from './inventory.js'
@@ -270,6 +271,7 @@ export class Prim {
     let removedScript = false
     for (const item of indexes.map((index) => this.inventory[index]!)) {
       this.inventory.splice(this.inventory.indexOf(item), 1)
+      if (this.linkset) rememberRemovedNotecard(this.linkset.peers, item)
       if (!item.script) continue
       const running = this.scripts.indexOf(item.script)
       if (running >= 0) this.scripts.splice(running, 1)

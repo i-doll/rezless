@@ -71,30 +71,39 @@ const said = (p: Awaited<ReturnType<typeof run>>, channel = 1) => p.chat.filter(
 describe('notecard line reads given an asset key', () => {
   it('read a notecard in the prim by its key, in any case', async () => {
     // In-world: the key upper-cased and as given -> count "3", lines 0 and 1 as written, line 99 EOF,
-    // with no error. The sync reads gave NAK before the first read and the lines after it; rezless
-    // holds a notecard in the prim as cached from the start, by name or by key.
+    // with no error. The sync reads gave NAK before the first read and the lines after it.
     const p = await run(`
+      sync("before", "${NC_KEY}");
       reads("up", llToUpper("${NC_KEY}"));
       reads("key", "${NC_KEY}");
+      llSetTimerEvent(1);
+    }
+    timer() {
+      llSetTimerEvent(0);
       sync("key", "${NC_KEY}");`)
     expect(said(p)).toEqual([
-      `key sync alpha|beta apple|${EOF}`,
+      `before sync ${NAK}|${NAK}|${NAK}`,
       'up count 3', 'up line0 alpha', 'up line1 beta apple', `up line99 ${EOF}`, 'up fcount 6',
       'key count 3', 'key line0 alpha', 'key line1 beta apple', `key line99 ${EOF}`, 'key fcount 6',
+      `key sync alpha|beta apple|${EOF}`,
     ])
     expect(said(p, DEBUG)).toEqual([])
   })
 
   it('read a notecard with embedded items by its key as no lines', async () => {
     // In-world: count "0", lines 0, 1 and 99 EOF, llFindNotecardTextCount("a") "0"; once read, the sync
-    // reads give EOF and llFindNotecardTextSync gives [] (rezless holds it as cached from the start).
+    // reads give EOF and llFindNotecardTextSync gives [].
     const p = await run(`
       reads("emb", "${EMB_KEY}");
+      llSetTimerEvent(1);
+    }
+    timer() {
+      llSetTimerEvent(0);
       sync("emb", "${EMB_KEY}");
       llSay(1, "emb fsync [" + llList2CSV(llFindNotecardTextSync("${EMB_KEY}", "a", 0, 0, [])) + "]");`)
     expect(said(p)).toEqual([
-      `emb sync ${EOF}|${EOF}|${EOF}`, 'emb fsync []',
       'emb count 0', `emb line0 ${EOF}`, `emb line1 ${EOF}`, `emb line99 ${EOF}`, 'emb fcount 0',
+      `emb sync ${EOF}|${EOF}|${EOF}`, 'emb fsync []',
     ])
   })
 

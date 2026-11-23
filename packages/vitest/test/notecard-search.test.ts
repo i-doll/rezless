@@ -13,15 +13,25 @@ function notecard(name: string, lines: ReadonlyArray<string>, key?: string) {
   return makeInventoryItem({ name, type: InventoryType.NOTECARD, notecardLines: lines, ...(key ? { key } : {}) })
 }
 
+// In-world, the probes read each notecard's line count before searching it, as a sync search gives
+// [NAK] for a notecard no dataserver read has cached yet (Aditi, SLua Tideland, 2026-11-23). The probe
+// below does the same and ignores those answers.
 async function run(body: string, inventory = [notecard('nc', LINES, NC_KEY)]) {
   const probe = `
     list r;
     key k;
     string data = "none";
     integer events = 0;
+    list warming;
     default {
-      state_entry() { ${body} }
-      dataserver(key id, string d) { events = events + 1; data = d; }
+      state_entry() {
+        integer i;
+        for (i = 0; i < llGetInventoryNumber(INVENTORY_NOTECARD); i++)
+          warming += llGetNumberOfNotecardLines(llGetInventoryName(INVENTORY_NOTECARD, i));
+        llSetTimerEvent(0.5);
+      }
+      timer() { llSetTimerEvent(0); ${body} }
+      dataserver(key id, string d) { if (llListFindList(warming, [id]) < 0) { events = events + 1; data = d; } }
     }
   `
   const { scripts } = await loadLinkset({
@@ -29,7 +39,7 @@ async function run(body: string, inventory = [notecard('nc', LINES, NC_KEY)]) {
   })
   const p = scripts['p']!
   p.start()
-  p.advanceTime(1000)
+  p.advanceTime(2000)
   return p
 }
 
