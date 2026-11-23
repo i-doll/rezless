@@ -249,7 +249,7 @@ export interface TargetMotionState { move: MoveRequest | null; look: LookRequest
 // In-world: tau-bound/rot-bound probes accepted .044444 and rejected .044.
 const MIN_RESPONSE = Math.fround(.044444)
 function owner(ctx: CallContext): TargetOwner {
-  return { prim: ctx.prim.key, script: ctx.script.scriptName }
+  return { prim: ctx.prim.key, script: ctx.script.instanceId }
 }
 
 function stopTargetMotion(prim: Prim, kind: 'move' | 'look', caller: TargetOwner): void {
@@ -259,7 +259,7 @@ function stopTargetMotion(prim: Prim, kind: 'move' | 'look', caller: TargetOwner
 
 /** The initiating script retains stop/reset ownership even when a sibling retargets it. */
 export function clearTargetMotion(script: Script): void {
-  const root = script.linkset.prims[0]!, caller = { prim: script.host.key, script: script.scriptName }
+  const root = script.linkset.prims[0]!, caller = { prim: script.host.key, script: script.instanceId }
   stopTargetMotion(root, 'move', caller)
   stopTargetMotion(root, 'look', caller)
 }
