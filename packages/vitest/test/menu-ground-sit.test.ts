@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NULL_KEY } from '@rezless/vm'
-import { loadRlvPair } from '../src/index.js'
+import { loadLinkset, loadRlvPair, World } from '../src/index.js'
 
 // A ground sit the user picks from the viewer's own menu, not one an RLV
 // command forces. https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI#Sitting
@@ -107,6 +107,27 @@ describe('a menu ground sit while an earlier one waits for its stand', () => {
     expect(f.world.userStandAvatar(f.avatar)).toBe(true)
     f.script.linkset.advanceTime(600)
     expect(f.sitting()).toBe(0)
+  })
+})
+
+describe('a menu ground sit waiting for its stand when the viewer session resets', () => {
+  // A new login clears what the viewer still had to do, though the first RLV
+  // command came after the ground sit was asked for.
+  it('is dropped', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ username: 'av', region: 'home', position: { x: 10, y: 10, z: 20 }, viewer: { profile: 'rlva' } })
+    const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: avatar.key, position: { x: 12, y: 10, z: 20 },
+      prims: [{ scripts: [{ name: 'seat', source: { source } }] }] })
+    scripts.seat!.start()
+    expect(world.userSitAvatar(avatar, linkset.prims[0]!)).toBe(true)
+    linkset.advanceTime(100)
+    expect(world.userSitAvatarOnGround(avatar)).toBe(true)
+    scripts.seat!.fire('link_message', { sender_num: 1, num: 0, str: '@versionnum=0', id: NULL_KEY })
+    linkset.advanceTime(0)
+    avatar.viewer.session.reset()
+    linkset.advanceTime(600)
+    expect(avatar.info & AGENT_SITTING).toBe(0)
   })
 })
 

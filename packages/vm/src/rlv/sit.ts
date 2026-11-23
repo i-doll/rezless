@@ -435,6 +435,7 @@ export function userSitAvatarOnGround(world: World, avatar: WorldAvatar): boolea
     return true
   }
   cancelPendingSit(avatar)
+  viewer.session.bind(avatar.sittingOn.linkset!, avatar)
   world.standAvatar(avatar)
   // In-world: under @standtp the return took the stand and the avatar ended up standing.
   if (viewer.profile !== 'rlva' || !standtpState(avatar).pending) scheduleGroundSit(world, avatar)
