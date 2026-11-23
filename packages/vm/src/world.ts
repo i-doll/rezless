@@ -1068,21 +1068,30 @@ export class World {
       position = landing.position
       lookAt = landing.lookAt ?? lookAt
     }
-    cancelSeatRequests(avatar)
-    const changes = CHANGED_TELEPORT | (avatar.region === region.name ? 0 : CHANGED_REGION)
+    const sameRegion = avatar.region === region.name
+    cancelSeatRequests(avatar, sameRegion)
     this.relocateAvatar(avatar, region.name, position)
-    teleportPendingGroundSit(avatar, !(changes & CHANGED_REGION))
+    teleportPendingGroundSit(avatar, sameRegion)
     if (lookAt && (lookAt.x || lookAt.y)) {
       const half = Math.atan2(lookAt.y, lookAt.x) / 2
       avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
     }
+    this.reportTeleport(avatar, !sameRegion)
+    return true
+  }
+
+  // In-world: after a teleport into another region the worn object's changed event came 577 to
+  // 834 ms after the avatar left, for viewer, @tpto and script teleports alike, mean 640-649 ms.
+  /** @internal Tell the avatar's attachments it arrived: at once in its region, after the handoff in another. */
+  reportTeleport(avatar: WorldAvatar, crossing: boolean): void {
+    const changes = CHANGED_TELEPORT | (crossing ? CHANGED_REGION : 0)
+    const at = this.clock.now + (crossing ? 640 : 0)
     for (const linkset of this.linksets) {
       if (linkset.dead || linkset.attachment?.avatar.toLowerCase() !== avatar.key.toLowerCase()) continue
       for (const script of linkset.allScripts()) {
-        if (script.running) this.clock.schedule(script, this.clock.now, 'changed', { changes })
+        if (script.running) this.clock.schedule(script, at, 'changed', { changes })
       }
     }
-    return true
   }
 
   /** Resolve forced location travel before changing seating or attachment state. */

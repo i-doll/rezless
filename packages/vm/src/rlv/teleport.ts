@@ -67,6 +67,12 @@ export function teleportSupport(profile: ViewerProfile, behaviour: string, optio
   return undefined
 }
 
+// In-world: the worn object's changed event came 199 to 245 ms after "@tpto" within the region, in
+// 22 ms frames, mean 220 ms over 40 runs, and the avatar left for another region after the same
+// delay (Aditi, SLua Tideland, 2026-11-23). The viewer sends the request and the region moves the
+// avatar a round trip after the script spoke.
+const TPTO_DELAY_MS = 220
+
 export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: WorldAvatar,
   parsed: RlvParsedCommand, command: string): boolean {
   if (parsed.kind !== 'force' || parsed.behaviour !== 'tpto') return false
@@ -141,8 +147,10 @@ export function dispatchTeleportCommand(linkset: Linkset, prim: Prim, avatar: Wo
     const angle = viewer.profile === 'rlva' ? destination.angle : undefined
     const lookAt = angle === undefined ? undefined : Number.isFinite(angle)
       ? { x: Math.cos(angle), y: Math.sin(angle), z: 0 } : { x: 0, y: 0, z: 0 }
-    if (!world.teleportAvatar(avatar, requested, lookAt, true)) return record('world-constraint', lookAt)
-    return record(undefined, lookAt)
+    const destinationGlobal = requested
+    world.clock.scheduleTask(viewer.session.lifetime, world.clock.now + TPTO_DELAY_MS, () =>
+      record(world.teleportAvatar(avatar, destinationGlobal, lookAt, true) ? undefined : 'world-constraint', lookAt))
+    return true
   } finally {
     // Named callbacks already have the restored locks.
     if (destination === 'invalid' || destination.region === undefined) setLifted('add')

@@ -139,7 +139,8 @@ it('moves attachments with normal teleport events and keeps disabled viewers man
     const from = sender(f)
     f.script.linkset.attachToAvatar(f.avatar.key, 39); f.script.advanceTime(0)
     issue(f.script, '@accepttp=n')
-    f.world.offerTeleport(from, f.avatar, destination); f.script.advanceTime(0)
+    // The changed event of a region crossing comes 640 ms after the avatar leaves.
+    f.world.offerTeleport(from, f.avatar, destination); f.script.advanceTime(640)
     expect(f.script.global('changes')).toEqual([CHANGED_TELEPORT | CHANGED_REGION])
   }
   const world = new World(); world.addRegion('Off', { x: 0, y: 0 })

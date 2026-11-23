@@ -182,7 +182,8 @@ describe('standtp return teleports', () => {
       avatar.region = 'destination'
       avatar.sittingOn = transported.prims[0]!
       fixture.userStand()
-      worn.linkset.advanceTime(0)
+      // The changed event of a region crossing comes 640 ms after the avatar leaves.
+      worn.linkset.advanceTime(640)
       expect(avatar.region).toBe('RLV fixture')
       expect(avatar.position).toEqual(origin)
       expect(worn.scripts.worn!.global('changes')).toBe(CHANGED_TELEPORT | CHANGED_REGION)
