@@ -92,6 +92,19 @@ describe('teleport travel time', () => {
     expect(f.changes()).toEqual([CHANGED_TELEPORT | CHANGED_REGION])
   })
 
+  // https://wiki.secondlife.com/wiki/LlSetScriptState: a stopped script gets no events raised while
+  // it is down. The region change is raised when the handoff ends.
+  it.each(profiles)('%s: a worn script stopped during the handoff never hears the region change', async profile => {
+    const f = await fixture(profile)
+    f.say('<118, 48, 30>', 2)
+    f.wait(100)
+    f.script.running = false
+    f.wait(900)
+    f.script.running = true
+    f.wait(100)
+    expect(f.changes()).toEqual([])
+  })
+
   it.each(profiles)('%s: llTeleportAgent within the region moves the avatar and reports it at once', async profile => {
     const f = await fixture(profile)
     f.say('<122, 60, 25>', 1)
@@ -179,6 +192,8 @@ describe('force seating sent with @tpto', () => {
       f.wait(2000)
       expect(f.avatar.info & (AGENT_SITTING | AGENT_ON_OBJECT)).toBe(0)
       expect(f.outcomes(from)).toEqual([['unsit', 'pending'], ['tpto', 'pending'], ['unsit', 'unchanged'], ['tpto', 'applied']])
+      expect(f.avatar.viewer.commandLog.slice(from).find(entry => 'actionOutcome' in entry && entry.actionOutcome === 'unchanged'))
+        .toMatchObject({ seat: NULL_KEY })
     }
   })
 
@@ -255,5 +270,18 @@ describe('force seating sent with a script teleport', () => {
     f.wait(1000)
     expect(f.avatar.sittingOn).toBeNull()
     expect(f.outcomes(from)).toEqual([['sit', 'pending'], ['sit', 'refused']])
+  })
+})
+
+describe('Kokua lock restoration', () => {
+  // Kokua lifts the issuer's own bare locks while it handles @tpto and restores them before the
+  // command returns, so they are back while the teleport is still on its way.
+  it('restores the issuer locks while the teleport is still on its way', async () => {
+    const f = await fixture('rlv')
+    f.say('@tploc=n|@unsit=n|@tpto:122/60/25=force')
+    expect(f.outcomes(0).at(-1)).toEqual(['tpto', 'pending'])
+    expect(f.avatar.viewer.restrictions.snapshot().map(rule => rule.behaviour).sort()).toEqual(['tploc', 'unsit'])
+    f.wait(220)
+    expect(f.avatar.position).toMatchObject({ x: 122, y: 60 })
   })
 })

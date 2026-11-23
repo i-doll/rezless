@@ -1445,7 +1445,8 @@ under `standtp`. RLVa ignores a zero global origin; Kokua can return there.
 
 The return uses `World.teleportAvatar`, preserves facing, and sends the normal
 `CHANGED_TELEPORT` and applicable `CHANGED_REGION` events to worn scripts. Advance
-virtual time to complete it. A return already queued survives removal of the rule. Viewer session reset cancels
+virtual time to complete it; a return to another region reaches worn scripts 640 ms
+after the avatar leaves. A return already queued survives removal of the rule. Viewer session reset cancels
 pending returns and clears saved origins.
 Kokua returns only with direct parcel teleport routing, the default when no parcel
 fixture is supplied. RLVa returns regardless of that setting. Return travel
@@ -1455,8 +1456,10 @@ Login persistence and Kokua's optional standtp defeat setting are outside the fi
 
 Inspect `avatar.viewer.commandLog` records with `status: 'action'`: `action`,
 `actionOutcome` (`applied`, `unchanged`, `refused` or `pending`), requested `target`, resulting
-`seat`, and an optional refusal `reason`. These are synchronous fixture outcomes,
-not confirmations from a network simulator. Unsupported forms retain diagnostics.
+`seat`, and an optional refusal `reason`. A force request logs `pending` and then
+its outcome once the region answers. A teleport that overtakes it closes a sit as
+`refused`, a stand as `unchanged`, and lands a ground sit at a destination in the
+same region (`refused` for another region). Unsupported forms retain diagnostics.
 The manifest includes `getsitid`, force `sit`/`sitground`/`unsit`, and add/remove
 `sit`/`unsit`/`sittp`/`standtp` forms in command discovery.
 
@@ -1741,12 +1744,15 @@ earlier origin can call `avatar.viewer.session.bind(linkset, avatar)` explicitly
 `tpto:<region>/<x>/<y>/<z>[;<angle>]=force` move the owner through explicit
 `world.addRegion` fixtures. Region names resolve case-insensitively; global
 coordinates use half-open 256 m region bounds. Unknown destinations refuse
-without changing the avatar. `fixture.teleportActions` exposes requested global
-coordinates, resolved destinations, resulting state and refusal reasons.
-Successful moves stand the avatar with normal link events and grant no script
-permissions. Worn objects move with the avatar: they report its region, keep
-hearing its viewer replies and get `changed(CHANGED_TELEPORT)`, with
-`CHANGED_REGION` added when the region changes. Simulator teleport builtins retain their permission and experience checks.
+without changing the avatar. An accepted move lands 220 ms after the command:
+`fixture.teleportActions` logs it `pending`, then `applied` or `refused` with the
+resulting state, and a later `tpto` replaces one still on its way, logging the
+first `refused`. Entries carry requested global coordinates, resolved destinations
+and refusal reasons. Successful moves stand the avatar with normal link events and
+grant no script permissions. Worn objects move with the avatar: they report its
+region, keep hearing its viewer replies and get `changed(CHANGED_TELEPORT)` on
+arrival. When the region changes they get `CHANGED_TELEPORT | CHANGED_REGION` 640 ms
+after the avatar leaves, as they do after viewer and script teleports. Simulator teleport builtins retain their permission and experience checks.
 
 Kokua truncates coordinate prefixes to integers, discards empty slash fields and
 pads missing global fields with zero. Supplied angles do not set facing. Global
