@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, rot, vec } from '../values/types.js'
-import { rotateVector } from '../values/ops.js'
+import { normalizeRotation, rotateVector } from '../values/ops.js'
 
 /** llAbs(integer val) — absolute value (integer). */
 export const llAbs: BuiltinImpl = (_ctx, args) => {
@@ -219,13 +219,23 @@ export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
   return vec(0, stepAngle(angleY), stepAngle(Math.atan2(fwd[1], left[1])))
 }
 
+/** A conversion to a signed integer of the given bits: a value that doesn't fit, NaN included, becomes the lowest one. */
+const toSigned = (n: number, bits: number) => (Math.abs(n) < 2 ** (bits - 1) ? n : -(2 ** (bits - 1)))
+
 /**
- * Second Life steps each llEuler2Rot angle to 1e-7 degrees through a 64-bit integer. A NaN or
- * infinite angle, or one too large for that, becomes its lowest value, a turn of about 25.07 degrees.
+ * Second Life takes the whole turns off each llEuler2Rot angle in degrees, counting them in a 32-bit
+ * integer and multiplying them back in a float, brings the rest within 180 degrees with one more turn,
+ * then steps it to 1e-7 degrees through a 64-bit integer. Past about 5e6 radians the float product is
+ * off by multiples of 8 degrees. A NaN or infinite angle, or one whose turns or steps don't fit,
+ * becomes the lowest step count, a turn of about 25.07 degrees.
  */
 function stepEuler(radians: number) {
-  const steps = Math.floor(radians * f32(RAD_TO_DEG) * 1e7 + 0.5)
-  return f32(f32((Math.abs(steps) < 2 ** 63 ? steps : -(2 ** 63)) / 1e7) * DEG_TO_RAD)
+  let degrees = radians * RAD_TO_DEG
+  degrees -= f32(360 * f32(toSigned(Math.trunc(degrees / 360), 32)))
+  if (degrees > 180) degrees -= 360
+  else if (degrees < -180) degrees += 360
+  const steps = toSigned(Math.round(degrees * 1e7), 64)
+  return f32(f32(steps / 1e7) * DEG_TO_RAD)
 }
 
 /** A matrix diagonal within this of 1 or -1 counts as exactly that, which clears the rest of its row and column. */
@@ -421,19 +431,6 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
 }
 
 const toF32 = (q: Rotation) => rot(f32(q.x), f32(q.y), f32(q.z), f32(q.s))
-
-/**
- * Second Life's quaternion normalise, in single precision: it leaves a
- * rotation within 1e-6 of unit length as it is, and turns a near-zero or NaN
- * one into ZERO_ROTATION.
- */
-function normalizeRotation(q: Rotation): Rotation {
-  const m = f32(Math.sqrt(f32(f32(f32(f32(q.x * q.x) + f32(q.y * q.y)) + f32(q.z * q.z)) + f32(q.s * q.s))))
-  if (!(m > f32(1e-7))) return rot(0, 0, 0, 1)
-  if (Math.abs(f32(1 - m)) <= 1e-6) return q
-  const k = f32(1 / m)
-  return rot(f32(q.x * k), f32(q.y * k), f32(q.z * k), f32(q.s * k))
-}
 
 const unitRotation = (q: LslValue | undefined) => normalizeRotation(toF32((q as Rotation | undefined) ?? rot(0, 0, 0, 1)))
 
