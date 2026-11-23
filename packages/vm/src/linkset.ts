@@ -476,7 +476,7 @@ export class Linkset {
   remove(): void {
     if (this.dead) return
     for (const avatar of this.world?.avatars ?? []) {
-      if (avatar.sittingOn?.linkset === this) this.world!.standAvatar(avatar)
+      if (avatar.sittingOn?.linkset === this) this.world!.dropFromRemovedSeat(avatar)
     }
     this.dead = true
     for (const script of this.allScripts()) {
