@@ -47,9 +47,10 @@ export function sitSpot(prim: Prim, camera: Vector, offset: Vector, avatar: Vect
     const pa = point[a]! / half[a]!, pb = point[b]! / half[b]!, la = local[a]! / half[a]!, lb = local[b]! / half[b]!
     const qa = la * la + lb * lb, qb = pa * la + pb * lb, qc = pa * pa + pb * pb - 1, d = qb * qb - qa * qc
     // A line that misses the round side runs from the centre instead.
-    const meets = qa > 0 && d >= 0, start = meets ? [pa, pb] : [0, 0]
+    // A spot on the edge seen from the side can round to just outside it.
+    const meets = qa > 0 && d >= -1e-4 * qa, start = meets ? [pa, pb] : [0, 0]
     const line = meets ? [la, lb] : [la + pa, lb + pb]
-    const root = meets ? (-qb + Math.sqrt(d)) / qa : 1 / (Math.hypot(line[0]!, line[1]!) || 1)
+    const root = meets ? (-qb + Math.sqrt(Math.max(d, 0))) / qa : 1 / (Math.hypot(line[0]!, line[1]!) || 1)
     const ea = (start[0]! + line[0]! * root) * half[a]!, eb = (start[1]! + line[1]! * root) * half[b]!
     const ga = ea / half[a]! ** 2, gb = eb / half[b]! ** 2, length = Math.hypot(ga, gb) || 1
     out[a] = ga / length; out[b] = gb / length
@@ -60,7 +61,7 @@ export function sitSpot(prim: Prim, camera: Vector, offset: Vector, avatar: Vect
     const meet = Math.min(...reach)
     const hit = local.map((v, i) => point[i]! + (Number.isFinite(meet) ? v * meet : 0))
     let side = reach[a]! <= reach[b]! ? a : b, sign = local[side]! < 0 ? -1 : 1
-    if (local[up]! > 0 && reach[up]! < Math.min(reach[a]!, reach[b]!)) {
+    if (local[up]! * axes[up]!.z > 0 && reach[up]! < Math.min(reach[a]!, reach[b]!)) {
       const at = rotateVector({ x: avatar.x - centre.x, y: avatar.y - centre.y, z: avatar.z - centre.z }, inverse)
       const to = [at.x, at.y, at.z]
       const rays: [number, number][] = [[local[a]!, local[b]!], [-local[a]!, -local[b]!], [to[a]! - hit[a]!, to[b]! - hit[b]!]]

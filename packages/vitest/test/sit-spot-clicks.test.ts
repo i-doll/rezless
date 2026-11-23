@@ -246,6 +246,36 @@ describe('where a click seats an avatar on a prim without a sit target', () => {
   it.each(SHAPE)('%s', async (...row) => { await check(row) })
   it.fails.each(SHAPE_MISSED)('%s', async (...row) => { await check(row) })
 
+  // Not measured: the same box turned over about X keeps its top facing up, so
+  // a click there takes the same side.
+  it('takes the same side on a box turned upside down', async () => {
+    const row = TOP.find(r => r[0].startsWith('box, camera at 0.0, -4.0, 1.9, click at 0.3, 0, 0.5'))!
+    const upright = await sit(row)
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const half = row[5] * Math.PI / 360
+    const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'av', username: 'av', position: row[4], rotation: { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) } })
+    const { linkset } = await loadLinkset({ world, region: 'home', owner: AVATAR, position: v(123, 52, row[3]), prims: [{}] })
+    linkset.prims[0]!.params.size = row[2]
+    linkset.prims[0]!.params.rotation = { x: 1, y: 0, z: 0, s: 0 }
+    world.setAvatarCamera(avatar, row[6]!)
+    const over = world.getSitResponse(avatar, linkset.prims[0]!, row[7]!)!
+    // The seat is in the prim's frame, so the turned box reads it with Y and Z flipped.
+    expect(over.position.x).toBeCloseTo(upright!.position.x, 3)
+    expect(over.position.y).toBeCloseTo(-upright!.position.y, 3)
+  })
+
+  // Not measured: a click on a cylinder's edge, seen from the side, seats the
+  // avatar there, though the spot rounds to just outside the round side.
+  it('seats a click on the edge of a cylinder seen from the side at that spot', async () => {
+    const plain = SHAPE.find(row => row[0] === 'cylinder, camera at rest, no click: -X')!
+    const edge: Click = [...plain]
+    edge[6] = v(123 - 3.7, 52 + 3.4, plain[3] + 1)
+    edge[7] = v(0.3, 0.4, 0)
+    const { position } = (await sit(edge))!
+    expect(Math.atan2(position.y, position.x)).toBeCloseTo(Math.atan2(0.4, 0.3), 2)
+  })
+
   // Not measured: a viewer only sends spots on the prim. A spot beside a
   // cylinder, off the line's way round it, takes the line to its centre.
   it('takes the line to a cylinder\'s centre when the line to the spot misses it', async () => {
