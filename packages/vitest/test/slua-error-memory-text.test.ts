@@ -80,4 +80,28 @@ describe('"not enough memory" raised by a script', () => {
     expect(shown).toEqual([HEADER, 'not enough memory\nlua_script:5\n[C] function _handleEvent\n'])
     expect(heard).toEqual([HEADER, 'not enough memory'])
   })
+
+  it('is "not enough memory" to listeners when a coroutine.wrap function runs out', async () => {
+    // In-world (a second probe that day): a script whose top level called a coroutine.wrap function that grew a table
+    // until it ran out showed the owner "not enough memory" with the wrapped frame, and the listener heard
+    // "not enough memory".
+    const { scripts, linkset } = await loadLinkset({
+      prims: [
+        {
+          name: 'probe issue-456 wrap',
+          scripts: [{ source: { source: 'll.OwnerSay("W start")\ncoroutine.wrap(function() local t = {} while true do t[#t + 1] = {} end end)()\n', filename: 'p.luau', language: 'slua' }, name: 'p', start: false, memoryLimit: true }],
+        },
+        {
+          name: 'listener',
+          scripts: [{ source: { source: 'list heard; default { state_entry() { llListen(DEBUG_CHANNEL, "", NULL_KEY, ""); } listen(integer c, string n, key id, string m) { heard += m; } }', filename: 'l.lsl' }, name: 'l' }],
+        },
+      ],
+    })
+    scripts.l!.start()
+    expect(() => scripts.p!.start()).toThrow('not enough memory')
+    linkset.advanceTime(1000)
+    const header = 'probe issue-456 wrap [script:p] Script run-time error'
+    expect(scripts.p!.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual([header, 'not enough memory\n[C] function <wrapped>\nlua_script:2\n'])
+    expect(scripts.l!.global('heard')).toEqual([header, 'not enough memory'])
+  })
 })

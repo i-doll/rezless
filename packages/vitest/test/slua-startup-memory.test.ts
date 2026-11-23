@@ -109,7 +109,10 @@ ll.OwnerSay("M10 " .. a .. " " .. b .. " " .. c)
 // new global, 128 at the third and 256 at the seventh. Setting LLEvents costs nothing in both. Twenty other names
 // (_G, ll, llcompat, _VERSION, uuid, vector, quaternion, integer, bit32, lljson, llbase64, print, require, rotation,
 // toquaternion, tovector, touuid, tostring, dangerouslyexecuterequiredmodule, _ENV) each cost 128 as a new global,
-// so the region's other two entries are not any of these, and rezless doesn't model them.
+// so the region's other two entries are not any of these, and rezless doesn't model them. They aren't the copies of
+// LLEvents and LLTimers that SLua's dangerouslyexecuterequiredmodule looks for under "/$ require_sandbox $ " names
+// either: in-world, after LLEvents = nil and LLTimers = nil, it failed with "cannot call
+// dangerouslyexecuterequiredmodule() without 'LLEvents' global".
 describe('the globals table of an SLua script', () => {
   it.fails('grows as in-world when a script sets new globals', async () => {
     // In-world: 2870, then 2998 after X1, the same through X4, 3254 after X5, the same through X9.

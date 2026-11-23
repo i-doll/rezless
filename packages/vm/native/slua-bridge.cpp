@@ -862,6 +862,7 @@ RZ_EXPORT lua_State* rz_event_thread(RzScript* s, const char* event)
         lua_resetthread(s->handler);
     else
     {
+        lua_checkstack(s->thread, 1);
         lua_newthread(s->thread);
         if (status == LUA_CONOR)
             // Fired from inside a handler that is still running: that one keeps
