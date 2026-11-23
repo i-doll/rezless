@@ -522,7 +522,7 @@ export class LinksetClock {
         tv.timerLate((typeof passed === 'number' ? passed : at) - due)
       } else {
         // In-world: a tick that waited behind another handler had the lag it had when that handler started.
-        if (tv.timerIntervalMs > 0 && tv.timerLateDueMs === undefined && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= at
+        if (tv.timerIntervalMs > 0 && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= at
         for (const e of this.queue) {
           if (e.target === ev.target && e.event === 'timer' && typeof e.payload['__due'] === 'number' && e.at <= bestAt) e.payload['__passedAt'] ??= at
         }
@@ -753,7 +753,7 @@ export class ScriptClockView {
     if (late === undefined) this.timerLate((passed ?? at) - due)
     // A start that missed more than one tick, or whose tick ran after the next was due on the
     // schedule it had, leaves no lag; a tick a call made due always does.
-    else this.timerLagMs = (bySet || at < this.owedNextMs) && this.owedTickLags ? at - late : 0
+    else this.timerLagMs = (bySet || at < this.owedNextMs) && this.owedTickLags ? (passed ?? at) - late : 0
   }
 
   /** A tick ran `ms` after it was due. */
@@ -777,6 +777,7 @@ export class ScriptClockView {
     // none. An SLua script's LLTimers timer had none, and neither had a crashed script that came
     // back in a rez.
     this.owedBySet = false
+    this.timerPassedAt = undefined
     this.owedNextMs = this.timerLateDueMs + this.timerIntervalMs
     this.owedTickLags = lag && this.lags && this.owedNextMs > this.now
     this.timerLagMs = this.owedTickLags ? this.now - this.timerLateDueMs : 0
@@ -794,9 +795,9 @@ export class ScriptClockView {
       this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs, ...passed })
     }
     this.timerIntervalMs = intervalMs
-    this.timerPassedAt = undefined
     // A tick still owed from before the script started keeps its place; only the interval changes.
     if (this.timerLateDueMs !== undefined && !this.owedBySet) return
+    this.timerPassedAt = undefined
     // A lag moves the first tick earlier. One that would be due already is owed: it fires once the
     // handler ends, unless a later call replaces it.
     const due = this.now + intervalMs - this.timerLagMs

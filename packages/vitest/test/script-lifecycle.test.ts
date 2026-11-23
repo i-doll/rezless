@@ -89,7 +89,7 @@ const timed = `list log;
       if (n == 1) { llSetTimerEvent((float)m); log += "set " + m; }
       else if (n == 2) { llSetTimerEvent(0.0); log += "off"; }
       else if (n == 3) { llSetTimerEvent(2.0); llSetTimerEvent(10.0); }
-      else if (n == 7) llSleep(5.0);
+      else if (n == 7) { float d = (float)m; if (d <= 0.0) d = 5.0; llSleep(d); }
       else if (n == 8) { integer z; z = 1 / z; }
       else if (n == 9) { llSleep(2.0); llSetTimerEvent(4.0); }
       else if (n == 0) { llSleep(5.0); llSetTimerEvent(10.0); }
@@ -679,6 +679,16 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     at(7500)
     tell('msg:1:10.0')
     expect(changes(linkset, ticks, 8000).filter((t) => t > 7500)).toEqual([14_500])
+  })
+
+  it('keeps the start\'s lag when a waiting handler runs before the caught-up tick', async () => {
+    // Follows the measured rule: the lag is the start's lateness, fixed when a waiting handler
+    // goes ahead of the tick.
+    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:7:0.5')
+    at(7600)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    expect(changes(linkset, ticks, 8000)).toEqual([14_600])
   })
 
   it('has no lag after more than one missed tick, even when a waiting handler lengthens the interval', async () => {
