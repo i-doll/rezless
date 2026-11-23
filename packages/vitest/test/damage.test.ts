@@ -332,8 +332,9 @@ it('ignores unknown and safe targets without interrupting the caller', async () 
   expect(s.chat).toEqual([])
 })
 
-// In-world (main grid, 2026-11-23): a physical source read ACTIVE (10 without damage handlers) and a
-// non-physical one with damage handlers read 44; damage-main-grid.test.ts has both.
+// In-world (main grid, 2026-11-23): a non-physical source with damage handlers read 44, and one
+// without them read 12, or 10 once physical (pinned in damage-main-grid.test.ts). This test's 42,
+// physical with damage handlers, combines those flags; that pairing itself was not probed.
 it('reports physical scripted damageable sources in llDetectedType', async () => {
   const s = await loadScript({ source: `integer detectedType; default {
     state_entry() { llSetStatus(STATUS_PHYSICS, TRUE); llDamage(llGetKey(), 1.0, 0); }

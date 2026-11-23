@@ -376,7 +376,9 @@ export class Script {
     const context = stack.at(-1)
     if (context?.event !== 'on_damage') return false
     stack[stack.length - 1] = { event: '', entries: context.entries.map(({ damage: _, ...rest }) => rest) }
-    return leaveDamageOnStateChange(this)
+    leaveDamageOnStateChange(this)
+    // A copy replaying this handler finds no damage to leave, so this must not depend on one.
+    return true
   }
 
   /** Configure an avatar's combat health, parcel and attachment scripts. */

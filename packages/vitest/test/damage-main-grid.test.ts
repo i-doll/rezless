@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript, loadLinkset, World, REGION_FLAG_ALLOW_DAMAGE, seedRlvInventory } from '../src/index.js'
+import { loadScript, loadLinkset, World, REGION_FLAG_ALLOW_DAMAGE, seedRlvInventory, makeInventoryItem, InventoryType } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LlDamage
 // https://wiki.secondlife.com/wiki/On_damage
@@ -159,8 +159,9 @@ describe('which key takes damage', () => {
 
   // In-world: a source with no damage handlers read type 12 (SCRIPTED | PASSIVE) while it was not
   // physical and 10 (SCRIPTED | ACTIVE) after llSetStatus(STATUS_PHYSICS, TRUE), in both
-  // on_damage and final_damage.
-  it.each([[false, 12], [true, 10]])('reports a source that is physical: %s as llDetectedType %i', async (physical, type) => {
+  // on_damage and final_damage. A non-physical source whose object handled damage read 44
+  // (SCRIPTED | PASSIVE | DAMAGEABLE).
+  it.each([[false, '', 12], [true, '', 10], [false, 'final_damage(integer n) {}', 44]])('reports a source that is physical: %s, with "%s", as llDetectedType %i', async (physical, handler, type) => {
     const world = combatWorld()
     const target = await object(world, { t: `integer onType; integer finalType; default {
       on_damage(integer n) { onType = llDetectedType(0); }
@@ -168,7 +169,7 @@ describe('which key takes damage', () => {
     }` })
     const shooter = await object(world, { gun: `default { touch_start(integer n) {
       llSetStatus(STATUS_PHYSICS, ${physical ? 'TRUE' : 'FALSE'}); llDamage("${target.linkset.prims[0]!.key}", 1.0, 0);
-    } }` })
+    } ${handler} }` })
     shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
     tick(world, 0)
     expect([target.scripts.t!.global('onType'), target.scripts.t!.global('finalType')]).toEqual([type, type])
@@ -290,6 +291,39 @@ describe('a state change inside on_damage', () => {
     shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
     tick(world, 1000)
     expect(ear.scripts.ear!.global('heard')).toEqual(['final', 'exit', 'entry'])
+  })
+
+  // Review regression: the changer is between its on_damage and its state_exit while the other
+  // scripts' final_damage runs, and a copy taken then must carry it on from the same place.
+  it('can be taken while the other scripts\' final_damage runs', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: OWNER, username: 'owner' })
+    const template = await object(world, {
+      changer: `default { on_damage(integer n) { state two; } state_exit() { llRegionSay(9, "exit"); } }
+        state two { state_entry() { llRegionSay(9, "entry"); } }`,
+      other: `default { final_damage(integer n) { llRegionSay(7, "take"); } }`,
+    })
+    const saved = template.linkset.copy()
+    template.linkset.remove()
+    const rezzer = await loadLinkset({ world, region: 'arena', owner: OWNER, prims: [{ scripts: [{ name: 'r', source: { source: `key made; default {
+      state_entry() { llListen(7, "", NULL_KEY, "take"); }
+      touch_start(integer n) { llRezObject("t", llGetPos() + <1, 0, 0>, ZERO_VECTOR, ZERO_ROTATION, 0); }
+      object_rez(key id) { made = id; }
+      touch_end(integer n) { llDamage(made, 12.0, 0); }
+      listen(integer c, string n, key id, string m) { llDerezObject(made, DEREZ_TO_INVENTORY); }
+    }` } }] }] })
+    rezzer.prims[0]!.addInventory(makeInventoryItem({ name: 't', type: InventoryType.OBJECT, key: saved.prims[0]!.key, object: saved }))
+    rezzer.scripts.r!.start()
+    const ear = await object(world, { ear: `list heard; default {
+      state_entry() { llListen(9, "", NULL_KEY, ""); }
+      listen(integer c, string n, key id, string m) { heard += m; }
+    }` })
+    rezzer.scripts.r!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    rezzer.scripts.r!.fire('touch_end', { num_detected: 1 })
+    expect(() => tick(world, 1000)).not.toThrow()
+    // The object left before its state_exit; the copy carries the rest.
+    expect(ear.scripts.ear!.global('heard')).toEqual([])
   })
 
   it('still applies the damage to the avatar', async () => {
