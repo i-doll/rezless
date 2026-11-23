@@ -381,8 +381,14 @@ export class LinksetClock {
     // In-world: a sensor result and a timer tick that both waited for llMinEventDelay ran the
     // timer first.
     const waiting = bestIdx === -1 ? undefined : this.queue[bestIdx]!
-    const sensorWaits = waiting !== undefined && bestAt === bestTimerAt && SENSOR_EVENTS.has(waiting.event) &&
-      waiting.target === bestTimerScript && bestAt === bestTimerScript.clockView.delayedUntilMs
+    const own = waiting && SENSOR_EVENTS.has(waiting.event) ? waiting.target : undefined
+    const ownTimer = own?.clockView
+    const sensorWaits = !!own?.running && !!ownTimer && ownTimer.timerIntervalMs > 0 && bestAt === ownTimer.delayedUntilMs &&
+      bestAt === Math.max(ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs)
+    if (sensorWaits) {
+      bestTimerScript = own
+      bestTimerAt = bestAt
+    }
     if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)

@@ -7,10 +7,11 @@ const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const PLATFORM = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const BLOCK = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
-async function make(source: string) {
+async function make(source: string, before?: (world: World) => Promise<void>) {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
+  await before?.(world)
   const made = await loadLinkset({ world, region: 'home', owner: OWNER,
     prims: [{ scripts: [{ name: 'main', source: { source } }] }] })
   const script = made.scripts.main!
@@ -122,8 +123,8 @@ describe('sensor results under llMinEventDelay', () => {
       timer() { llSensorRemove(); llSetTimerEvent(0.0); llMinEventDelay(0.0); add("stop"); }
     }`
 
-  async function scan(delay: string, byName: boolean, name: (second: number) => string) {
-    const m = await make(scanner)
+  async function scan(delay: string, byName: boolean, name: (second: number) => string, before?: (world: World) => Promise<void>) {
+    const m = await make(scanner, before)
     const mark = m.world.addObject({ region: 'home', name: name(0), position: { x: 2, y: 0, z: 0 }, scripted: true, active: true })
     queue(m, 'link_message', { sender_num: 0, num: byName ? 1 : 0, str: delay, id: mark.key })
     m.linkset.advanceTime(0)
@@ -148,6 +149,17 @@ describe('sensor results under llMinEventDelay', () => {
   it('lets the last scan replace a waiting result of the other kind', async () => {
     const log = await scan('3.0', true, (i) => (i % 2 ? 'x' : 'm'))
     expect(log).toEqual(['go@0', 'ns@3', 's:m@6', 'ns@9', 's:m@12', 'ns@15', 'stop@18', 's:00000000-0000-0000-0000-000000000000@18'])
+  })
+
+  it('runs its own timer first when another script has a timer due then too', async () => {
+    const log = await scan('4.0', false, (i) => `m${i - 1}`, async (world) => {
+      const made = await loadLinkset({ world, region: 'home', owner: OWNER,
+        prims: [{ scripts: [{ name: 'other', source: { source: 'default { link_message(integer f, integer n, string s, key id) { llSetTimerEvent(16.0); } timer() { llSetTimerEvent(0.0); } }' } }] }] })
+      const other = made.scripts.other!
+      other.start()
+      world.clock.schedule(other, 0, 'link_message', { sender_num: 0, num: 0, str: '', id: '' })
+    })
+    expect(log).toEqual(['go@0', 's:m3@4', 's:m7@8', 's:m11@12', 'stop@16', 's:00000000-0000-0000-0000-000000000000@16'])
   })
 
   it('runs every scan with no delay', async () => {
