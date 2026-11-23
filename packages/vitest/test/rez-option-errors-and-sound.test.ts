@@ -150,6 +150,16 @@ describe('llRezObjectWithParams option errors', () => {
     expect(f.sound(3)?.sound).toBe(SA)
   })
 
+  it('counts towards the error flood cap like other errors only the owner sees', async () => {
+    const f = await rezzer(`
+      integer i; for (i = 0; i < 12; ++i) r([9999]);
+      r([REZ_SOUND, "missing550", 1.0, FALSE]);`)
+    // The cap is pinned in debug-flood.test.ts: the owner sees 9 owner-only errors, then nothing
+    // until the flood stops, so the sound error that follows is dropped for listeners too.
+    expect(debug(f.chat)).toEqual(Array(9).fill(rule(1, ': unknown rule id 9999.')))
+    expect(f.heard).toEqual([])
+  })
+
   it('ends with the root suffix when a child prim says it', async () => {
     const f = await rezzer(`
       r([9999]);
