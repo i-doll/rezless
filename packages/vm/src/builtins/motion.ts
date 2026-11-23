@@ -33,6 +33,22 @@ function interpolate(a: Rotation, b: Rotation, t: number): Rotation {
   return normalize({x:a.x*u+b.x*v,y:a.y*u+b.y*v,z:a.z*u+b.z*v,s:a.s*u+b.s*v})
 }
 
+/**
+ * Raise `event` in every script of the prim's object, root and children alike.
+ * In-world: keyframed motion gave moving_start as it began or resumed, and moving_end as it
+ * finished, paused, stopped or was cleared; a script in a child prim got both as well.
+ * An llSetRegionPos that moved the object gave moving_start and moving_end together, and
+ * llSetPos gave neither. Two llSetRegionPos calls in one handler gave one of each: an event
+ * still waiting is not raised again (Aditi, SLua Tideland, 2026-11-23).
+ */
+function raiseMoving(prim: Prim, event: 'moving_start' | 'moving_end', at: number): void {
+  const linkset = prim.linkset
+  if (!linkset || linkset.dead) return
+  for (const script of linkset.allScripts()) {
+    if (!script.dead && !linkset.clock.hasPending(script, event)) linkset.clock.schedule(script, at, event)
+  }
+}
+
 /** Object-owned motion. Simulator frame drift and selection pauses are not simulated. */
 export class KeyframedMotion {
   playing = true
@@ -78,7 +94,13 @@ export class KeyframedMotion {
   }
 
   private observe(): void {
-    this.cancel ??= this.clock.onAdvance(now=>this.update(now))
+    if (this.cancel) return
+    const stop=this.clock.onAdvance(now=>this.update(now))
+    // The clock stops where a one-way motion ends, so its moving_end comes then.
+    const prim=this.prim
+    const end=this.mode===KFM_LOOP || this.mode===KFM_PING_PONG ? undefined
+      : this.clock.scheduleTask({get dead() { return !!prim.linkset?.dead }},this.startedAt+this.duration-this.elapsed,()=>this.update(this.clock.now))
+    this.cancel=()=>{stop();end?.()}
   }
 
   private shift(segments: Segment[], held: Transform): Segment[] {
@@ -121,6 +143,7 @@ export class KeyframedMotion {
     if (repeating && elapsed>=this.duration) this.restored=undefined
     if (repeating) elapsed%=this.duration
     else if (elapsed>=this.duration) {
+      raiseMoving(this.prim,'moving_end',this.startedAt+this.duration-this.elapsed)
       elapsed=this.duration
       this.elapsed=this.duration
       this.playing=false
@@ -147,6 +170,7 @@ export class KeyframedMotion {
         this.elapsed+=this.clock.now-this.startedAt
         if (this.mode===KFM_LOOP || this.mode===KFM_PING_PONG) this.elapsed%=this.duration
       }
+      if (this.playing) raiseMoving(this.prim,'moving_end',this.clock.now)
       this.playing=false
       this.completed=false
       this.held=this.transform()
@@ -168,6 +192,7 @@ export class KeyframedMotion {
       this.startedAt=this.clock.now
       this.playing=true
       this.observe()
+      raiseMoving(this.prim,'moving_start',this.clock.now)
     }
   }
 
@@ -206,6 +231,7 @@ export const llSetKeyframedMotion: BuiltinImpl = (ctx,args) => {
   }
   if (!frames.length) {
     if (options.length) return
+    if (root.keyframedMotion?.playing) raiseMoving(root,'moving_end',ctx.state.clock.now)
     root.keyframedMotion?.dispose();root.keyframedMotion=null
     return
   }
@@ -221,8 +247,10 @@ export const llSetKeyframedMotion: BuiltinImpl = (ctx,args) => {
     if (typeof seconds!=='number' || !Number.isFinite(seconds) || seconds<1/9 || Math.hypot(translation.x,translation.y,translation.z)/seconds>250) return
     parsed.push({translation,rotation:orientation,duration:seconds*1000})
   }
+  const moving=root.keyframedMotion?.playing
   root.keyframedMotion?.dispose()
   root.keyframedMotion=new KeyframedMotion(root,ctx.linkset.clock,parsed,mode)
+  if (!moving) raiseMoving(root,'moving_start',ctx.state.clock.now)
 }
 
 export const llSetRegionPos: BuiltinImpl = (ctx,args) => {
@@ -231,7 +259,13 @@ export const llSetRegionPos: BuiltinImpl = (ctx,args) => {
     || root.statusFlags&STATUS_PHYSICS || root.keyframedMotion?.playing) return 0
   const from=ctx.prim.regionPosition()
   const ground=Number(llGround(ctx,[subtract(target,from)]))
+  const before=root.params.position
   root.params.position={...target,z:Math.max(target.z,ground)}
+  const after=root.params.position
+  if (before.x!==after.x || before.y!==after.y || before.z!==after.z) {
+    raiseMoving(root,'moving_start',ctx.state.clock.now)
+    raiseMoving(root,'moving_end',ctx.state.clock.now)
+  }
   return Number(root.params.position.z-target.z<.1)
 }
 

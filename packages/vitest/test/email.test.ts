@@ -163,6 +163,9 @@ describe('llEmail', () => {
 
   // In-world: mail to <R key>@lsl.secondlife.com from Aditi never reached R,
   // and mail to <R key>@lsl.aditi.lindenlab.com did (Aditi, SLua Tideland, 2026-10-31)
+  // In-world: a root prim mailed its own key at lsl.secondlife.com and polled llGetNextEmail
+  // every 15 s; nothing came in 18 minutes. Another root prim's mail to its own key at
+  // lsl.aditi.lindenlab.com came at its first poll (Aditi, SLua Tideland, 2026-11-23)
   it("queues nothing for an address on another domain or a key no prim has", async () => {
     const t = await tideland(
       `llEmail("${RECEIVER_KEY}@lsl.aditi.lindenlab.com", "a", ""); ` +
@@ -207,6 +210,8 @@ describe('llEmail', () => {
 
   // In-world: the child prim mailed its own key and its own llGetNextEmail("", "self")
   // fired email(..., "<its key>@lsl.aditi.lindenlab.com", "self", ..., 0) (Aditi, SLua Tideland, 2026-10-31)
+  // In-world: a root prim's mail to its own key came at its first llGetNextEmail, called as
+  // soon as llEmail returned (Aditi, SLua Tideland, 2026-11-23)
   it('delivers mail a prim sends to itself', async () => {
     const s = await loadScript({
       source: `default { state_entry() {

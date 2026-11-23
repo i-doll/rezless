@@ -34,9 +34,22 @@ export function clearTargets(script: Script): void {
   targets.delete(script)
 }
 
+/** The event a target check raises when the object is on the other side of the target. */
+const OPPOSITE: Readonly<Record<string, string>> = {
+  at_target: 'not_at_target', not_at_target: 'at_target',
+  at_rot_target: 'not_at_rot_target', not_at_rot_target: 'at_rot_target',
+}
+
 function emit(script: Script, event: string, payload: Record<string, unknown> = {}): void {
+  const clock = script.linkset.clock
+  // In-world: a handler slept 12 s while its object moved into a position or rotation target
+  // and out again -> after the sleep, not_at_target or not_at_rot_target and no at event. One
+  // that moved in and stayed got the at event. What a sleeping handler gets is where the object
+  // was at the end of the sleep (Aditi, SLua Tideland, 2026-11-23).
+  const since = script.handlerStartedAt
+  if (since !== undefined) clock.purgeWhere((e) => e.target === script && e.event === OPPOSITE[event] && clock.heldBack(e, since))
   // A sleeping handler retains one completed event per target, even after removal.
-  const pending = script.linkset.clock.pendingEvents()
+  const pending = clock.pendingEvents()
   if (pending.some(e => e.target === script && e.event === event &&
     e.payload['tnum'] === payload['tnum'] && e.payload['handle'] === payload['handle'])) return
   script.clockView.schedule(script.clockView.now, event, payload)
