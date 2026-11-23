@@ -436,7 +436,7 @@ const clampVec = (v: Vector, lo: number, hi: number): Vector =>
 export function normalizeRot(r: Rotation): Rotation {
   const mag = Math.hypot(r.x, r.y, r.z, r.s)
   if (mag === 0) return identityRot()
-  // As Second Life's normalise: a rotation within 1e-6 of unit length stays as it is.
+  // Second Life keeps a rotation within 1e-6 of unit length as it is.
   if (Math.abs(1 - mag) <= 1e-6) return r
   return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
 }

@@ -418,7 +418,8 @@ describe('llEuler2Rot of NaN, infinite and huge angles', () => {
         }
       }`)
     // In-world: each gave a turn about its axis of 2 * atan(14565665p-26 / 16377273p-24), about
-    // 25.07 degrees, which no reduction of the angle tried explains.
+    // 25.07 degrees: the angle stepped to 1e-7 degrees through a 64-bit integer, which a NaN or
+    // infinite value turns into its lowest value, -2^63.
     const x = '14565665p-26'
     const s1 = '16377273p-24'
     expect(said(s)).toEqual([
@@ -431,16 +432,17 @@ describe('llEuler2Rot of NaN, infinite and huge angles', () => {
     return (2 * Math.atan2(x!, s!) * 180) / Math.PI
   }
 
-  it('reduces a large angle by whole turns', async () => {
-    // In-world: <1e6, 0, 0> turned -20.487 degrees, 1e6 radians less whole turns.
+  it('reduces a large angle by whole turns, and turns one too large for the step as a NaN one', async () => {
+    // In-world: <1e6, 0, 0> turned -20.487 degrees, 1e6 radians less whole turns, and 1e20, 1e29,
+    // 1e30 and 3e38 radians the 25.07 degrees of a NaN angle: in 1e-7 degree steps they don't fit
+    // a 64-bit integer.
     expect(await turn('1e6')).toBeCloseTo(-20.487, 3)
+    for (const angle of ['1e20', '1e29', '1e30', '3e38']) expect(await turn(angle)).toBeCloseTo(25.071, 3)
   })
 
-  // In-world: <1e10, 0, 0> turned 18.823 degrees, and <1e20, 0, 0> (and 1e29, 1e30 and 3e38) the
-  // 25.07 degrees of a NaN angle. The rule is not known; rezless reduces them by whole turns too.
-  it.fails('turns 1e10 and 1e20 radians as Second Life does', async () => {
+  // In-world: <1e10, 0, 0> turned 18.823 degrees. Its steps fit; why it turns that far is not known.
+  it.fails('turns 1e10 radians as Second Life does', async () => {
     expect(await turn('1e10')).toBeCloseTo(18.823, 3)
-    expect(await turn('1e20')).toBeCloseTo(25.071, 3)
   })
 })
 

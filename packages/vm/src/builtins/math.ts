@@ -220,15 +220,12 @@ export const llRot2Euler: BuiltinImpl = (_ctx, args) => {
 }
 
 /**
- * A NaN or infinite llEuler2Rot angle turns by this much, about 25.07 degrees, as measured; why is
- * unknown.
+ * Second Life steps each llEuler2Rot angle to 1e-7 degrees through a 64-bit integer. A NaN or
+ * infinite angle, or one too large for that, becomes its lowest value, a turn of about 25.07 degrees.
  */
-const NON_FINITE_EULER = f32(0.4375731945037842)
-
-/** Second Life steps each llEuler2Rot angle to 1e-7 degrees. */
-function stepEuler(angle: number) {
-  const radians = Number.isFinite(angle) ? angle : NON_FINITE_EULER
-  return f32(f32(Math.floor(radians * f32(RAD_TO_DEG) * 1e7 + 0.5) / 1e7) * DEG_TO_RAD)
+function stepEuler(radians: number) {
+  const steps = Math.floor(radians * f32(RAD_TO_DEG) * 1e7 + 0.5)
+  return f32(f32((Math.abs(steps) < 2 ** 63 ? steps : -(2 ** 63)) / 1e7) * DEG_TO_RAD)
 }
 
 /** A matrix diagonal within this of 1 or -1 counts as exactly that, which clears the rest of its row and column. */
