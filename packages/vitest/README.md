@@ -383,11 +383,14 @@ suspended handler continuations are not restored.
 `OBJECT_VELOCITY` reads initial velocity. `llGetForce` defaults to the
 force requested through `REZ_ACCEL`. Force, sound and no-entry flags are
 captured requests; physical motion, contacts and audio are not simulated.
-`REZ_SOUND_COLLIDE` sets the new root's collision sound, read back with
-`PRIM_COLLISION_SOUND`: the name of a sound in the rezzer or a key, with the
-volume clamped to 0..1. Only the last `REZ_SOUND_COLLIDE` counts. `""` leaves
-the sound the object was saved with. Any other name, or `NULL_KEY`, says
-`Could not find sound` and rezzes nothing. The
+`REZ_SOUND` sets the new root's attached sound and `REZ_SOUND_COLLIDE` its
+collision sound, read back with `PRIM_COLLISION_SOUND`. Each takes the name of a
+sound in the rezzer, or a key when no item has that name, with the volume
+clamped to 0..1. Only the last of each counts. `""` leaves the sound the object
+was saved with. Any other name, or `NULL_KEY`, says `Could not find sound` and
+rezzes nothing. A rule `llRezObjectWithParams` can't read (an unknown rule id,
+a missing value or one of the wrong type) tells the owner which one and rezzes
+nothing; scripts don't hear it. The
 collision flags act on collisions a test fires. An object rezzed with
 `REZ_FLAG_DIE_ON_COLLIDE` is deleted at its first collision, with an object, an
 avatar or the ground, before its handler runs and whatever its collision

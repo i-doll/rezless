@@ -287,10 +287,15 @@ export class Linkset {
     this.peers.push(this)
   }
 
+  /** The avatar wearing this object, if it is worn by one in its world. */
+  get wearer(): WorldAvatar | undefined {
+    const worn = this.attachment
+    return worn ? this.world?.avatars.find(avatar => avatar.key.toLowerCase() === worn.avatar.toLowerCase()) : undefined
+  }
+
   /** A worn object is in its wearer's region. */
   get region(): string | undefined {
-    const wearer = this.attachment && this.world?.avatars.find(avatar => avatar.key.toLowerCase() === this.attachment!.avatar.toLowerCase())
-    return wearer ? wearer.region : this.rezRegion
+    return this.wearer?.region ?? this.rezRegion
   }
 
   /** Add a prim to the linkset; assigns a 1-based linkNumber. */
