@@ -259,7 +259,7 @@ export class LinksetClock {
       // A click or a change that merges into one already held back takes no room of its own.
       if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
     }
-    if (event !== '__reset') {
+    if (event !== '__reset' && event !== '__scriptState') {
       let pending = target.parkedEvents.length
       for (const e of this.queue) if (e.target === target) pending++
       if (pending >= MAX_PENDING_EVENTS) return

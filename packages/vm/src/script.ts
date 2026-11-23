@@ -223,6 +223,11 @@ export class Script {
    * that handler runs on only after the wear, so the reset drops the wear's rez and attach events.
    */
   resetPastWear = false
+  /**
+   * Changes to siblings' running state made by the rest of a handler that was running at a
+   * detach. In-world that rest runs after the wear, so they apply after the wear's events.
+   */
+  readonly pastWearChanges: Array<{ name: string; running?: boolean; reset?: true }> = []
   /** Set when such a script came out of inventory: the attach event of that wear is dropped too. */
   quietAttach = false
   /** For an SLua script: its source, and the VM running it. */
@@ -1156,6 +1161,7 @@ export class Script {
     if (opts.fresh) return copy
     copy.detachedInHandler = this.detachedInHandler
     copy.resetPastWear = this.resetPastWear
+    copy.pastWearChanges.push(...this.pastWearChanges)
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1302,6 +1308,7 @@ export class Script {
       this.resetPastWear = false
       this.quietAttach = true
       this.rezQueued = true
+      this.queuePastWearChanges()
       return
     }
     if (!this.running) return
@@ -1313,7 +1320,7 @@ export class Script {
     const held = !!this.task || detachedInHandler
     const waiting = held ? clock.pendingEvents().filter(e => e.target === this) : []
     if (held) clock.purgeTarget(this)
-    const room = MAX_PENDING_EVENTS - waiting.filter(e => e.event !== '__scriptState').length
+    const room = MAX_PENDING_EVENTS - waiting.length
     // A start that had not run yet still comes first.
     for (const e of waiting) if (e.event === 'state_entry') clock.schedule(this, this.now, e.event, e.payload)
     if (!this.started) {
@@ -1346,6 +1353,42 @@ export class Script {
     if (unseated) this.clockView.schedule(this.now, '__unseated', { changes })
     else if (ownerChanged) this.clockView.schedule(this.now, '__ownerChanged', { changes })
     this.rezQueued = true
+    this.queuePastWearChanges()
+  }
+
+  private queuePastWearChanges(): void {
+    if (this.pastWearChanges.length) this.clockView.schedule(this.now, '__scriptState')
+  }
+
+  /** Apply the changes the rest of a handler made to siblings, in order, once worn or rezzed again. */
+  private applyPastWearChanges(): void {
+    const changes = this.pastWearChanges.splice(0)
+    for (const name of new Set(changes.map(c => c.name))) {
+      const target = this.host.findScript(name)
+      if (!target) continue
+      if (target.crashed) {
+        if (!target.dead && changes.some(c => c.name === name && c.reset)) target.recover()
+        continue
+      }
+      // A reset of a script stopped at that point does nothing, as llResetOtherScript does.
+      let running = target.running, reset = false
+      for (const c of changes) {
+        if (c.name !== name) continue
+        if (c.reset) reset ||= running
+        else running = c.running!
+      }
+      const change = { running, reset }
+      // Queued behind the wear's attach events of the script it changes.
+      if (target.running && this.linkset.clock.hasPending(target, 'attach')) target.clockView.schedule(this.now, '__running', change)
+      else target.applyRunningChange(change)
+    }
+  }
+
+  private applyRunningChange(change: { running: boolean; reset: boolean }): void {
+    this.running = change.running
+    if (!change.reset) return
+    this.restart()
+    if (!this.running) this.queueStart()
   }
 
   private boot(): void {
@@ -1384,6 +1427,8 @@ export class Script {
     if (this.running || this.crashed || this.dead) return
     // The new SLua VM takes its limit from the state when restart() builds it.
     if (this.slua) this.state.memory.limit = SLUA_MEMORY_LIMIT
+    // The rest of its handler never runs.
+    this.pastWearChanges.length = 0
     this.restart()
     this.queueStart()
   }
@@ -1471,20 +1516,11 @@ export class Script {
       return
     }
     if (event === '__scriptState') {
-      const target = this.host.findScript(payload['name'] as string)
-      if (!target) return
-      if (payload['reset']) {
-        if (target.crashed) { if (!target.dead) target.recover() }
-        // A reset goes behind the events the target already has.
-        else if (target.running) this.linkset.clock.schedule(target, this.now, '__reset', {})
-      }
-      // Queued behind the wear's attach events of the script it changes.
-      else if (target.running && this.linkset.clock.hasPending(target, 'attach')) target.clockView.schedule(this.now, '__running', payload)
-      else if (!target.crashed) target.running = payload['running'] as boolean
+      this.applyPastWearChanges()
       return
     }
     if (event === '__running') {
-      if (!this.crashed) this.running = payload['running'] as boolean
+      if (!this.crashed) this.applyRunningChange(payload as { running: boolean; reset: boolean })
       return
     }
     if (event === '__unseated' || event === '__ownerChanged') {

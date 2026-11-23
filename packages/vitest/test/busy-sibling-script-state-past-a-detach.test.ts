@@ -123,3 +123,42 @@ it('waits for an on_rez that sleeps before changing the script', async () => {
   expect(t.running).toBe(false)
   expect(t.global('log')).toEqual(['attach 0', 'rez 3', 'attach 1'])
 })
+
+describe('several changes from the rest of one busy handler', () => {
+  const run = async (body: string) => {
+    const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+      { name: 'T', source: { source: target } },
+      { name: 'C', source: { source: `default { link_message(integer s, integer i, string m, key id) {
+        if (m != "go") return; llOwnerSay("x"); ${body} } } state other { state_entry() {} }` } },
+    ] }] })
+    const t = scripts['T']!, c = scripts['C']!
+    for (const s of Object.values(scripts)) s.start()
+    linkset.attachToAvatar(OWNER, 5)
+    linkset.advanceTime(0)
+    t.fire('link_message', { sender_num: 0, num: 0, str: 'two', id: '' })
+    linkset.advanceTime(0)
+    c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+    c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+    linkset.advanceTime(0)
+    linkset.attachToAvatar(OWNER, 5)
+    linkset.advanceTime(100)
+    return t
+  }
+
+  it('apply in order: a stop and then a start leave the script running', async () => {
+    const t = await run('llSetScriptState("T", FALSE); llSetScriptState("T", TRUE);')
+    expect(t.running).toBe(true)
+    expect(t.global('n')).toBe(3)
+  })
+
+  it('apply in order: a reset of a script stopped just before does nothing', async () => {
+    const t = await run('llSetScriptState("T", FALSE); llResetOtherScript("T");')
+    expect(t.running).toBe(false)
+    expect(t.global('n')).toBe(3)
+  })
+
+  it.each([['llResetScript();'], ['state other;']])('survive %s later in the handler', async (end) => {
+    const t = await run(`llSetScriptState("T", FALSE); ${end}`)
+    expect(t.running).toBe(false)
+  })
+})

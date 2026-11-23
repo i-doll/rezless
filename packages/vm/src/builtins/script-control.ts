@@ -37,7 +37,7 @@ export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
  */
 function pastWear(ctx: CallContext, name: string, change: { running: boolean } | { reset: true }): boolean {
   if (!ctx.script.detachedInHandler || !ctx.script.clockView.inInventory) return false
-  ctx.linkset.clock.schedule(ctx.script, ctx.linkset.clock.now, '__scriptState', { name, ...change })
+  ctx.script.pastWearChanges.push({ name, ...change })
   return true
 }
 
