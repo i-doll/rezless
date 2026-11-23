@@ -222,6 +222,26 @@ describe('a contact whose held land_collision ran, through a reset or a state ch
     expect(f.log()).toEqual(['lcs', ...lcs(20), 'lce'])
   })
 
+  // Follows the measurement above: a contact that ended in the sleep and a second one still going
+  // on at the reset raise the new start too.
+  it('raises a new start for a reset in a sleep that holds an ended contact and one going on', async () => {
+    const f = await box()
+    f.linkset.clock.schedule(f.script, f.linkset.clock.now, 'link_message', { sender_num: 0, num: 3_000, str: 'sleep', id: '' })
+    f.linkset.advanceTime(100)
+    for (const ends of [true, false]) {
+      queued(f.script, f.linkset, 'land_collision_start')
+      for (let i = 0; i < 6; i++) {
+        f.linkset.advanceTime(44)
+        queued(f.script, f.linkset, 'land_collision')
+      }
+      f.linkset.advanceTime(44)
+      if (ends) queued(f.script, f.linkset, 'land_collision_end')
+    }
+    f.script.reset()
+    goOn(f, queued, 5)
+    expect(f.log()).toEqual(['lcs', ...lcs(5), 'lce'])
+  })
+
   // In-world: the sleeper reset itself in its first held land_collision -> a new
   // land_collision_start, then every live land_collision the other script got after the reset
   // (28 of 28, 27 of 27), and land_collision_end.
