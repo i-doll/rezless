@@ -154,7 +154,7 @@ function scheduleGroundSit(world: World, avatar: WorldAvatar, record?: GroundSit
     pendingGroundSits.delete(lifetime)
     if (world.avatars.includes(avatar) && !(avatar.info & AGENT_SITTING)) sitOnGround(world, avatar, record)
   })
-  pendingGroundSits.set(lifetime, cancel)
+  pendingGroundSits.set(lifetime, () => { cancel(); record?.('refused', 'world-constraint') })
 }
 
 /**
