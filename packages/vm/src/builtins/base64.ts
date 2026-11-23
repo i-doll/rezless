@@ -14,10 +14,53 @@ export const llStringToBase64: BuiltinImpl = (_ctx, args) => {
 
 export const llBase64ToString: BuiltinImpl = (_ctx, args) => {
   const s = (args[0] as string | undefined) ?? ''
-  return decodeUtf8Lenient(Buffer.from(s, 'base64'))
+  return decodeBase64Utf8(Buffer.from(s, 'base64'))
 }
 
-/** UTF-8 decode where NUL and each byte of an invalid sequence become `?`. */
+const MIN_CODE_POINT = [0, 0, 0x80, 0x800, 0x10000]
+
+/**
+ * UTF-8 decode as llBase64ToString does it: a sequence cut short, or an
+ * overlong one, becomes a single `?`; a surrogate or a code point past
+ * U+10FFFF becomes one `?` per byte. NUL becomes `?` too.
+ */
+function decodeBase64Utf8(bytes: Uint8Array): string {
+  let out = ''
+  let i = 0
+  while (i < bytes.length) {
+    const b = bytes[i]!
+    if (b < 0x80) {
+      out += b === 0 ? '?' : String.fromCharCode(b)
+      i += 1
+      continue
+    }
+    const len = b >= 0xc0 && b < 0xe0 ? 2 : b >= 0xe0 && b < 0xf0 ? 3 : b >= 0xf0 && b < 0xf8 ? 4 : 0
+    if (len === 0) {
+      out += '?'
+      i += 1
+      continue
+    }
+    let cp = b & (0x7f >> len)
+    let j = 1
+    while (j < len && i + j < bytes.length && (bytes[i + j]! & 0xc0) === 0x80) {
+      cp = (cp << 6) | (bytes[i + j]! & 0x3f)
+      j += 1
+    }
+    if (j < len || cp < MIN_CODE_POINT[len]!) {
+      out += '?'
+      i += j
+    } else if (cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+      out += '?'
+      i += 1
+    } else {
+      out += String.fromCodePoint(cp)
+      i += len
+    }
+  }
+  return out
+}
+
+/** UTF-8 decode as llUnescapeURL does it: NUL and each byte of an invalid sequence become `?`. */
 export function decodeUtf8Lenient(bytes: Uint8Array): string {
   const strict = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
   let out = ''
