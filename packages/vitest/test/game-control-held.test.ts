@@ -22,6 +22,7 @@ const probe = `list log; integer mode; integer secs; integer xs; integer tsleep;
       if (m == "perm") llRequestPermissions(llGetOwner(), PERMISSION_GAME_CONTROL);
       else if (m == "x") { if (!xs) log += "x1 " + fns(); ++xs; }
       else if (m == "nap") { log += "nap " + fns(); llSleep(40); log += "woke " + fns() + " xs " + (string)xs; }
+      else if (m == "nap2") { llSleep(5); log += "mid " + fns(); llSleep(5); log += "woke2 " + fns(); }
       else if (m == "nap10") { log += "nap " + fns(); llSleep(10); log += "woke " + fns(); }
       else if (m == "napgo") { log += "nap " + fns(); llSleep(10); log += "woke " + fns(); state two; }
       else if (m == "tsleep") tsleep = 1;
@@ -165,6 +166,18 @@ it('reads input that comes as a listen handler starts to sleep', async () => {
   f.gc.sendGameControl(OWNER, {})
   f.linkset.advanceTime(10_000)
   expect(f.log()).toEqual(['nap 0/0', 'woke 0/0', 'ev 0 0/0 xs 0'])
+})
+
+// Input in each of two sleeps of one handler is that handler's own, as in a game_control handler
+// above, even when the first comes at the instant the first sleep begins.
+it('reads and merges input from both sleeps of a listen handler that sleeps twice', async () => {
+  const f = await box()
+  f.say('nap2')
+  f.gc.sendGameControl(OWNER, { buttons: 1 })
+  f.linkset.advanceTime(6_000)
+  f.gc.sendGameControl(OWNER, { buttons: 2 })
+  f.linkset.advanceTime(10_000)
+  expect(f.log()).toEqual(['mid 0/1', 'woke2 0/2', 'ev 2 0/2 xs 0'])
 })
 
 // In-world: the probe, worn, slept 10 s in game_control and changed to the state with no

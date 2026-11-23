@@ -230,8 +230,8 @@ export class LinksetClock {
     // gave one event, for the press. A release that waited from a listen handler's sleep and a
     // press in the sleep of the touch_start handler that ran next gave two.
     if (held && event === 'game_control') {
-      const since = target.handlerStartedAt ?? this.now
-      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && (e.held || e.at > since) && e.at <= this.now)
+      const since = target.handlerStartedAt
+      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && e.payload['heldFor'] === since && e.at <= this.now)
       if (waiting >= 0) {
         this.queue[waiting] = { ...this.queue[waiting]!, payload }
         return
@@ -510,12 +510,9 @@ export class LinksetClock {
     }
   }
 
-  /**
-   * Remove and return the queued `event`s due by now whose target is `script` and that came up
-   * since `since`, or were held back, in queue order.
-   */
-  takeDue(script: Script, event: string, since: number): QueuedEvent[] {
-    const taken = this.queue.filter((e) => e.target === script && e.event === event && (e.held || e.at > since) && e.at <= this.now)
+  /** Remove and return the queued `event`s due by now whose target is `script` and that `match`, in queue order. */
+  takeDue(script: Script, event: string, match: (e: QueuedEvent) => boolean): QueuedEvent[] {
+    const taken = this.queue.filter((e) => e.target === script && e.event === event && e.at <= this.now && match(e))
     this.purgeWhere((e) => taken.includes(e))
     return taken
   }

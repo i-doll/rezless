@@ -842,12 +842,14 @@ export class Script {
       // reading what it read before. One asleep in touch_start while a release from an earlier
       // sleep waited read that release through a new press.
       const since = s.handlerStartedAt
-      const older = since !== undefined && s.linkset.clock.pendingEvents().some(e => e.target === s && e.event === 'game_control' && !e.held && e.at <= since)
+      const older = since !== undefined && s.linkset.clock.pendingEvents().some(e => e.target === s && e.event === 'game_control' && e.payload['heldFor'] !== since)
       if (s.handles('game_control') && !s.inGameControl && !older) s.state.gameControlSnapshot = state.mode
       s.clockView.schedule(s.now, 'game_control', {
         id: key, button_levels: state.buttons,
         axes: typedList([...state.axes], state.axes.map(() => 'float')),
         gameControlSnapshot: state.mode,
+        // The handler, by its start, that the input came during.
+        heldFor: since,
       })
     }
     // Runs the handlers up to their first sleep, so more input can come while they sleep.
@@ -1713,7 +1715,7 @@ export class Script {
         // In-world: input that waited for a game_control handler that then changed state ran in
         // the next state with a game_control handler, after its state_entry. Input that waited
         // for a listen handler that changed state never ran.
-        const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', this.gameControlSince).at(-1)?.payload : undefined
+        const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
         forgetHeldTouches(this, false)
