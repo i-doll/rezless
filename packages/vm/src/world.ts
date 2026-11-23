@@ -17,6 +17,7 @@ import { deterministicKey } from './keys.js'
 import { defaultCamera, sitSpot } from './sit-spot.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
+import { addNotecardAsset } from './builtins/notecard-search.js'
 import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
 import { startRegeneration } from './builtins/damage.js'
 import type { Linkset } from './linkset.js'
@@ -432,6 +433,14 @@ export class World {
   /** Copy an object with the viewer's Duplicate as the avatar's viewer allows. */
   attemptAvatarDuplicate(avatar: WorldAvatar, prim: Prim, offset?: Vector): AvatarDuplicateAction {
     return attemptAvatarDuplicate(this, avatar, prim, offset)
+  }
+
+  /**
+   * A notecard asset no prim holds, such as one in an avatar's inventory. Scripts in this world can
+   * read it by its key; the sync reads give NAK until a dataserver read fetches it.
+   */
+  addNotecardAsset(key: string, lines: ReadonlyArray<string>): void {
+    addNotecardAsset(this.linksets, key, lines)
   }
 
   addObject(opts: WorldObjectOptions): WorldEntity {
