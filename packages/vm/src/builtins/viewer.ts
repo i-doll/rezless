@@ -53,16 +53,11 @@ export const llLoadURL: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-function mapAgent(ctx: CallContext): string {
-  const detected = ctx.state.detectedStack.at(-1)
-  return (detected?.event?.startsWith('touch') ? (detected.entries[0]?.key ?? ctx.linkset.owner) : ctx.linkset.owner).toLowerCase()
-}
-
 const mapClicks = new WeakMap<object, WeakSet<object>>()
 
 // An attachment shows the map to its owner, unless someone else clicked it. A
 // rezzed object shows it only to whoever clicked it, once per click.
-function mapDestinationAgent(ctx: CallContext): string | undefined {
+function mapAgent(ctx: CallContext): string | undefined {
   const owner = ctx.linkset.owner.toLowerCase()
   const detected = ctx.state.detectedStack.at(-1)
   const touch = detected?.event?.startsWith('touch') ? detected : undefined
@@ -77,7 +72,7 @@ function mapDestinationAgent(ctx: CallContext): string | undefined {
 }
 
 export const llMapDestination: BuiltinImpl = (ctx, args) => {
-  const agent = mapDestinationAgent(ctx)
+  const agent = mapAgent(ctx)
   if (agent !== undefined && isAgentInRegion(ctx, agent)) ctx.state.viewerRequests.push({
     kind: 'mapDestination', agent, region: args[0] as string,
     position: { ...args[1] as Vector }, lookAt: { ...args[2] as Vector },
@@ -88,7 +83,7 @@ export const llMapDestination: BuiltinImpl = (ctx, args) => {
 export const llMapBeacon: BuiltinImpl = (ctx, args) => {
   const agent = mapAgent(ctx)
   const options = args[2] as ReadonlyArray<LslValue>
-  if (isAgentInRegion(ctx, agent)) ctx.state.viewerRequests.push({
+  if (agent !== undefined && isAgentInRegion(ctx, agent)) ctx.state.viewerRequests.push({
     kind: 'mapBeacon', agent, region: args[0] as string,
     position: { ...args[1] as Vector }, options: [...options],
   })
