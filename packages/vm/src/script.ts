@@ -1378,8 +1378,8 @@ export class Script {
         else running = c.running!
       }
       const change = { running, reset }
-      // Queued behind the wear's attach events of the script it changes.
-      if (target.running && this.linkset.clock.hasPending(target, 'attach')) target.clockView.schedule(this.now, '__running', change)
+      // Queued behind the events and the handler the script it changes already has.
+      if (target.running) target.clockView.schedule(this.now, '__running', change)
       else target.applyRunningChange(change)
     }
   }
@@ -1484,8 +1484,9 @@ export class Script {
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
     this.clockView.resetReference()
-    this.linkset.clock.purgeTarget(this)
-    this.parkedEvents.length = 0
+    // A sibling's held running-state change outlives the script's own events.
+    this.linkset.clock.purgeTarget(this, Infinity, ['__running'])
+    for (let i = this.parkedEvents.length - 1; i >= 0; i--) if (this.parkedEvents[i]!.event !== '__running') this.parkedEvents.splice(i, 1)
     this.waitingGameControl = undefined
     this.started = false
     // Returning to default counts as a state entry. The constructor records
@@ -1769,7 +1770,7 @@ export class Script {
         // for a listen handler that changed state never ran.
         const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
-        this.linkset.clock.purgeTarget(this, this.now, '__reset')
+        this.linkset.clock.purgeTarget(this, this.now, ['__reset', '__running'])
         forgetHeldTouches(this, false)
         this.state.currentState = target
         const waiting = this.waitingGameControl

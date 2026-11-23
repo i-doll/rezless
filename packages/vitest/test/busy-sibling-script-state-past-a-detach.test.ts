@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadLinkset } from '../src/index.js'
+import type { Script } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LlSetScriptState
 // https://wiki.secondlife.com/wiki/LlDetachFromAvatar
@@ -159,6 +160,51 @@ describe('several changes from the rest of one busy handler', () => {
 
   it.each([['llResetScript();'], ['state other;']])('survive %s later in the handler', async (end) => {
     const t = await run(`llSetScriptState("T", FALSE); ${end}`)
+    expect(t.running).toBe(false)
+  })
+})
+
+describe('a change held for a script that is busy after the wear', () => {
+  const run = async (tSource: string, body: string, setUp?: (t: Script) => void, cExtra = '') => {
+    const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+      { name: 'T', source: { source: tSource } },
+      { name: 'C', source: { source: `default { ${cExtra} link_message(integer s, integer i, string m, key id) {
+        if (m != "go") return; llOwnerSay("x"); ${body} } }` } },
+    ] }] })
+    const t = scripts['T']!, c = scripts['C']!
+    for (const s of Object.values(scripts)) s.start()
+    linkset.attachToAvatar(OWNER, 5)
+    linkset.advanceTime(0)
+    setUp?.(t)
+    c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+    c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+    linkset.advanceTime(0)
+    linkset.attachToAvatar(OWNER, 5)
+    linkset.advanceTime(3_000)
+    return t
+  }
+
+  it('waits for an attach handler that sleeps before resetting the script', async () => {
+    const said: string[] = []
+    const t = await run(`integer worn; default {
+      attach(key id) { if (id) { if (worn) { llSleep(1.0); llOwnerSay("attach"); } worn = TRUE; } }
+      state_entry() { llOwnerSay("entry"); } }`, 'llResetOtherScript("T");', s => {
+      s.mock('llOwnerSay', (_ctx: unknown, args: readonly unknown[]) => { said.push(String(args[0])); return undefined })
+    }, 'on_rez(integer p) { llSleep(0.2); }')
+    expect(said).toEqual(['attach', 'entry'])
+    expect(t.running).toBe(true)
+  })
+
+  it('outlives a state change in the script\'s on_rez', async () => {
+    const t = await run(`default { on_rez(integer p) { llSleep(0.5); state two; } } state two { state_entry() {} }`,
+      'llSetScriptState("T", FALSE);')
+    expect(t.running).toBe(false)
+  })
+
+  it('is not lost when the script has 64 events waiting', async () => {
+    const t = await run(`default { on_rez(integer p) {
+      integer i; for (i = 0; i < 70; ++i) llMessageLinked(LINK_THIS, i, "", ""); llSleep(0.5); }
+      link_message(integer s, integer n, string m, key id) {} }`, 'llSetScriptState("T", FALSE);')
     expect(t.running).toBe(false)
   })
 })

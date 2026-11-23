@@ -259,7 +259,7 @@ export class LinksetClock {
       // A click or a change that merges into one already held back takes no room of its own.
       if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
     }
-    if (event !== '__reset' && event !== '__scriptState') {
+    if (event !== '__reset' && event !== '__scriptState' && event !== '__running') {
       let pending = target.parkedEvents.length
       for (const e of this.queue) if (e.target === target) pending++
       if (pending >= MAX_PENDING_EVENTS) return
@@ -522,10 +522,10 @@ export class LinksetClock {
    * `upTo` (default: all of them), except events named `keep`. Used on reset
    * and state change.
    */
-  purgeTarget(script: Script, upTo = Infinity, keep?: string): void {
+  purgeTarget(script: Script, upTo = Infinity, keep: readonly string[] = []): void {
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const e = this.queue[i]!
-      if (e.target === script && e.at <= upTo && e.event !== keep) this.queue.splice(i, 1)
+      if (e.target === script && e.at <= upTo && !keep.includes(e.event)) this.queue.splice(i, 1)
     }
   }
 
