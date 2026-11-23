@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, loadRlvPair, loadScript, PERM_ALL, PERM_COPY, seedRlvInventory, World } from '../src/index.js'
+import { loadLinkset, loadRlvPair, loadScript, PERM_ALL, PERM_COPY, PERM_TRANSFER, seedRlvInventory, World } from '../src/index.js'
 import type { Linkset, Script } from '../src/index.js'
 
 // Every "In-world" note below was measured on the Aditi beta grid, SLua Tideland, 2026-11-23,
@@ -157,6 +157,10 @@ describe('a shift-drag copy', () => {
     const locked = await box(f)
     locked.linkset.prims[0]!.permMask = { ...locked.linkset.prims[0]!.permMask, owner: PERM_ALL & ~PERM_COPY }
     expect(() => locked.linkset.duplicate()).toThrow('no-copy')
+    const holding = await box(f)
+    const item = holding.linkset.prims[0]!.inventory[0]!
+    item.permMask = { ...item.permMask, owner: PERM_ALL & ~PERM_COPY }
+    expect(() => holding.linkset.duplicate()).toThrow('no-copy')
   })
 })
 
@@ -329,6 +333,11 @@ describe('Take Copy by another avatar', () => {
     const plain = await box(f)
     const objectOnly = await everyoneCopy(f, false)
     const both = await everyoneCopy(f)
+    // Everyone-copy on an item needs its owner's transfer permission too.
+    const noTransfer = await everyoneCopy(f)
+    const held = noTransfer.linkset.prims[0]!.inventory[0]!
+    held.permMask = { ...held.permMask, owner: PERM_ALL & ~PERM_TRANSFER }
+    expect(f.world.attemptAvatarTake(f.bob, noTransfer.linkset.prims[0]!, { copy: true }).reason).toBe('owner')
     expect(f.world.attemptAvatarTake(f.bob, plain.linkset.prims[0]!, { copy: true })).toMatchObject({ status: 'unsupported', reason: 'owner' })
     expect(f.world.attemptAvatarTake(f.bob, objectOnly.linkset.prims[0]!, { copy: true }).reason).toBe('owner')
     expect(f.world.attemptAvatarTake(f.bob, both.linkset.prims[0]!).reason).toBe('owner')

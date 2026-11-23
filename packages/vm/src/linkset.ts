@@ -295,7 +295,10 @@ export class Linkset {
    */
   duplicate(offset: Vector = ZERO_VECTOR): Linkset {
     if (this.dead || this.attachment || !this.prims.length || !this.peers.includes(this)) throw new Error('duplicate: only a rezzed object can be copied')
-    if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY))) throw new Error('duplicate: the object is no-copy')
+    // A no-copy item makes the object that holds it no-copy to its owner.
+    if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY) || prim.inventory.some(item => !(item.permMask.owner & PERM_COPY)))) {
+      throw new Error('duplicate: the object is no-copy')
+    }
     const region = this.region
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)

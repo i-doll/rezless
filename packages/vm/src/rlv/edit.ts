@@ -144,7 +144,7 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
 
 function copyableByEveryone(linkset: Linkset): boolean {
   return linkset.prims.every(prim => prim.permMask.everyone & PERM_COPY && prim.permMask.owner & PERM_TRANSFER &&
-    prim.inventory.every(item => item.permMask.everyone & PERM_COPY))
+    prim.inventory.every(item => item.permMask.everyone & PERM_COPY && item.permMask.owner & PERM_TRANSFER))
 }
 
 /** Drop a saved, copyable inventory object into the avatar's current region. */
