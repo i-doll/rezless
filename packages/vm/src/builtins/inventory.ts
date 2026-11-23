@@ -148,7 +148,7 @@ export const llGetInventoryPermMask: BuiltinImpl = (ctx, args) => {
  */
 function notecardLines(ctx: CallContext, name: string): ReadonlyArray<string> | undefined {
   const item = find(ctx.prim.inventory, name)
-  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) return item.hasEmbeddedItems ? [] : item.notecardLines
+  if (item && item.type === InventoryType.NOTECARD && (item.hasEmbeddedItems || item.notecardLines)) return item.hasEmbeddedItems ? [] : item.notecardLines
   sayError(ctx, `Could not find notecard '${name}'.`)
   return undefined
 }

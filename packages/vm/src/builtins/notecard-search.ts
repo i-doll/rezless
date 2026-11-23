@@ -21,9 +21,8 @@ function findNotecard(ctx: CallContext, name: string): Notecard {
   const byName = inventory.find((it) => it.name === name)
   const item =
     byName ?? (UUID.test(name) ? inventory.find((it) => it.type === InventoryType.NOTECARD && it.key.toLowerCase() === name.toLowerCase()) : undefined)
-  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) {
-    return item.hasEmbeddedItems ? { lines: [], embedded: true } : { lines: item.notecardLines, embedded: false }
-  }
+  if (item && item.type === InventoryType.NOTECARD && item.hasEmbeddedItems) return { lines: [], embedded: true }
+  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) return { lines: item.notecardLines, embedded: false }
   if (!byName && UUID.test(name)) return 'unknown-key'
   sayError(ctx, `Could not find notecard '${name}'.`)
   return 'missing'

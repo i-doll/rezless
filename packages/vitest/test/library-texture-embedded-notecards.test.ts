@@ -152,6 +152,14 @@ describe('a notecard with embedded items', () => {
     expect(said(p)).toEqual([...shown.map((pat) => `sync ${pat} 0`), ...shown.map((pat) => `count ${pat} 1`)])
   })
 
+  it('reads as no lines when the item gives only the flag and no text', async () => {
+    // The item stands for the same measured notecard; its text doesn't matter to a script.
+    const bare = makeInventoryItem({ name: 'emb', type: InventoryType.NOTECARD, hasEmbeddedItems: true })
+    const p = await run(reads('emb'), 'lsl', [bare])
+    expect(said(p)).toEqual([`sync ${EOF}|${EOF}`, 'find ', 'count 0', `line0 ${EOF}`, `line4 ${EOF}`, `line-1 ${EOF}`, 'fcount 0'])
+    expect(said(p, DEBUG)).toEqual([])
+  })
+
   it('reads as no lines in SLua too', async () => {
     // In-world, SLua: ll.GetNumberOfNotecardLines -> "0"; ll.GetNotecardLine 1..5 and 100 -> EOF;
     // ll.FindNotecardTextCount("o") -> "0"; once read, ll.GetNotecardLineSync 1..5 and 100 -> EOF
@@ -189,5 +197,36 @@ describe('SLua ll.FindNotecardTextSync', () => {
       'count 1: 3,8,1', 'count -1: 3,8,1', 'count 2: 3,8,1,3,9,1',
       'compat 0: 1,3,1,2,7,1,2,8,1', 'compat 1: 2,7,1,2,8,1', 'compat 2: 2,8,1',
     ])
+  })
+
+  it('takes a boolean, a fraction or a numeric string for start, and refuses other types', async () => {
+    // In-world, SLua, on "nc plain": start true, 1.5, 1.9, "1", "1.7" and 2^32+1 -> skip one match;
+    // false, -0.5 and 2^31 -> all three; with count true -> one match. "abc", a vector, a uuid and nil
+    // raise invalid argument #3 to 'FindNotecardTextSync' (number expected, got <type>).
+    // llcompat.FindNotecardTextSync takes each listed start value the same way, with LSL's 0-based results.
+    const p = await run(
+      `local function show(r) return table.concat(r, ",") end
+      local vals = {{"true", true}, {"false", false}, {"1.5", 1.5}, {"1.9", 1.9}, {"-0.5", -0.5}, {"'1'", "1"}, {"'1.7'", "1.7"},
+        {"2^31", 2 ^ 31}, {"2^32+1", 2 ^ 32 + 1}, {"'abc'", "abc"}, {"vector", vector(1, 0, 0)}, {"uuid", touuid("${CHERRY}")}}
+      for _, f in ipairs({{"ll", ll.FindNotecardTextSync}, {"compat", llcompat.FindNotecardTextSync}}) do
+        for _, v in ipairs(vals) do
+          local ok, r = pcall(f[2], "plain", "o", v[2], 0, {})
+          ll.Say(1, f[1] .. " " .. v[1] .. ": " .. (ok and show(r) or tostring(r)))
+        end
+      end
+      local ok, r = pcall(ll.FindNotecardTextSync, "plain", "o", nil, 0, {})
+      ll.Say(1, "ll nil: " .. tostring(r))
+      ll.Say(1, "ll true, true: " .. show(ll.FindNotecardTextSync("plain", "o", true, true, {})))`,
+      'slua',
+    )
+    const err = (type: string) => `invalid argument #3 to 'FindNotecardTextSync' (number expected, got ${type})`
+    const skip = { ll: '3,8,1,3,9,1', compat: '2,7,1,2,8,1' }
+    const all = { ll: '2,4,1,3,8,1,3,9,1', compat: '1,3,1,2,7,1,2,8,1' }
+    const expected = (['ll', 'compat'] as const).flatMap((f) => [
+      `${f} true: ${skip[f]}`, `${f} false: ${all[f]}`, `${f} 1.5: ${skip[f]}`, `${f} 1.9: ${skip[f]}`, `${f} -0.5: ${all[f]}`,
+      `${f} '1': ${skip[f]}`, `${f} '1.7': ${skip[f]}`, `${f} 2^31: ${all[f]}`, `${f} 2^32+1: ${skip[f]}`,
+      `${f} 'abc': ${err('string')}`, `${f} vector: ${err('vector')}`, `${f} uuid: ${err('uuid')}`,
+    ])
+    expect(said(p)).toEqual([...expected, `ll nil: ${err('nil')}`, 'll true, true: 3,8,1'])
   })
 })
