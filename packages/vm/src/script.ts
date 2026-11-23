@@ -68,7 +68,7 @@ import {
   XP_ERROR_NOT_PERMITTED,
 } from './generated/constants.js'
 import { own } from './own.js'
-import { deterministicKey } from './keys.js'
+import { deterministicKey, scriptInstanceId } from './keys.js'
 import { Memory, RuntimeError, codeBytes } from './memory.js'
 import { invalidPrograms } from './typecheck.js'
 import type { Experience } from './experience.js'
@@ -185,6 +185,7 @@ export class Script {
   readonly clockView: ScriptClockView
   readonly host: Prim
   readonly scriptName: string
+  readonly instanceId: string
   /** Clicks this script still counts as held, by avatar key. */
   readonly heldClicks = new Map<string, HeldTouch>()
   /** When false, drainQueue parks events instead of delivering them. */
@@ -363,6 +364,7 @@ export class Script {
 
     // Register with the prim only once the script is fully built, so a failed
     // construction (e.g. a Stack-Heap Collision in a global) leaves no trace.
+    this.instanceId = scriptInstanceId(host, this.scriptName)
     if (!host.scripts.includes(this)) {
       host.addScript(this)
     }
@@ -1143,6 +1145,9 @@ export class Script {
     if (!foreign) {
       copy.state.permissions.granted = this.state.permissions.granted
       copy.state.permissions.agent = this.state.permissions.agent
+      // In-world: a copy of an object nobody sat on or wore still sent control events for the
+      // controls the original took, without a new llTakeControls.
+      copy.state.controls.taken = this.state.controls.taken
       const agent = this.state.permissions.agent.toLowerCase()
       // A copy made while the permission avatar sits on the original holds what a stand leaves,
       // and one of an object that is worn or detached what a detach leaves.
@@ -1163,7 +1168,7 @@ export class Script {
     copyTargets(this, copy)
     for (const kind of ['move', 'look'] as const) {
       const request = host.linkset!.prims[0]!.targetMotion[kind]
-      if (request?.owner.prim === this.host.key && request.owner.script === this.scriptName) request.owner.prim = host.key
+      if (request?.owner.prim === this.host.key && request.owner.script === this.instanceId) request.owner = { prim: host.key, script: copy.instanceId }
     }
     // In-world: a chat line and a touch that were waiting for a sleeping handler came out of
     // inventory with the script and ran in the rezzed copy, after on_rez.
@@ -1271,11 +1276,17 @@ export class Script {
    * Reset the script as if `llResetScript` had been called: clear globals,
    * reseed them from the AST initializers, return to the default state,
    * cancel timers, and run state_entry. Used internally when llResetScript
-   * is invoked from inside a handler; tests can also call it directly.
-   * A sleeping handler is abandoned.
+   * is invoked from inside a handler; tests can also call it directly, as
+   * the owner's Reset does. A sleeping handler is abandoned, a stopped
+   * script stays stopped, and a crashed one runs again.
    */
   reset(): void {
-    this.restart()
+    if (this.crashed && !this.dead) this.recover()
+    else {
+      this.restart()
+      // Stopped: state_entry waits for the start.
+      if (!this.running) this.queueStart()
+    }
     this.linkset.settle([this])
   }
 
@@ -1729,7 +1740,8 @@ export class Script {
   }
 
   private sayCrash(): void {
-    for (const text of [`${this.host.name} [script:${this.scriptName}] Script run-time error`, this.crashText]) {
+    const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
+    for (const text of [`${this.host.name} [script:${name}] Script run-time error`, this.crashText]) {
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }

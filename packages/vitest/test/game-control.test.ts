@@ -7,7 +7,7 @@ import { loadLinkset, loadScript, World } from '../src/index.js'
 // In-world: probe.lsl and types.lsl -> mode -1, buttons 0, empty axes;
 // mode/buttons have TYPE_INTEGER. Same results with permissions 0 and 1048576.
 // Aditi, Morris, 2026-11-01, server 2026-10-21.39669442371.
-// SLua Tideland lacks these functions; probe sources: /tmp/issue-153-gc/.
+// In-world: these functions compiled in SLua Tideland too on 2026-11-23.
 it.each(['11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'bad', '22222222-2222-2222-2222-222222222222', 'object'])('returns unavailable snapshot defaults outside an event for %s', async key => {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
@@ -53,8 +53,10 @@ async function fixture(extra = '', tail = '') {
   return { script, world }
 }
 
-// Live semantic input cannot be produced with this Firestorm fork: it has no
-// GameControlData sender or MCP input/mode tool. Shapes follow the wiki above.
+// Not measured: the event never fired in-world. A worn probe granted PERMISSION_GAME_CONTROL
+// (1048608 with attach, granted without a dialog) got no game_control event while the viewer
+// sent game controller buttons and axes for 1-3 s, in SLua Tideland and in Morris, whose region
+// features say GameControlEnabled (Aditi, 2026-11-23). Shapes follow the wiki above.
 it.each([
   [0, [0, 0.25, -0.5, 1, -1]],
   [1, [1, 0, 0, 0, 0]],

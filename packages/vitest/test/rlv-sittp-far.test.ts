@@ -140,20 +140,23 @@ it.each(['reset', 'teleport', 'roundtrip', 'occupied', 'deleted', 'replacement',
     }
   })
 
-it('completes user autopilot and skips it when already seated on the response linkset', async () => {
+// In-world: a sitter's request on another prim of the same object left it where it was, so no
+// autopilot runs (Aditi, SLua Tideland, 2026-11-23; see control-input.test.ts).
+it('completes user autopilot, and a request on another prim of the seat leaves the avatar there', async () => {
   for (const fixture of Object.values(await loadRlvPair({ source }))) {
     const { world, avatar, script } = fixture
     const seat = await loadLinkset({ world, region: avatar.region, position: { x: 60, y: 0, z: 0 }, prims: [{}, {}] })
     world.setSitResponse(seat.prims[0]!, { position: { x: 0, y: 0, z: 1 }, autopilot: { durationMs: 1000, success: true } })
-    world.setSitResponse(seat.prims[1]!, { position: { x: 0, y: 0, z: 2 }, autopilot: { durationMs: 1000, success: false } })
+    world.setSitResponse(seat.prims[1]!, { position: { x: 0, y: 0, z: 2 }, autopilot: { durationMs: 1000, success: true } })
     script.start()
     expect(fixture.userSit(seat.prims[0]!)).toBe(true)
     expect(avatar.sittingOn).toBeNull()
     script.linkset.advanceTime(1000)
     expect(avatar.sittingOn).toBe(seat.prims[0])
     expect(fixture.userSit(seat.prims[1]!)).toBe(true)
-    expect(avatar.sittingOn).toBe(seat.prims[1])
-    expect(avatar.position).toEqual({ x: 60, y: 0, z: 2 })
+    script.linkset.advanceTime(1000)
+    expect(avatar.sittingOn).toBe(seat.prims[0])
+    expect(avatar.position).toEqual({ x: 60, y: 0, z: 1 })
   }
 })
 

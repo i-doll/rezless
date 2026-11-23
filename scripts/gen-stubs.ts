@@ -48,6 +48,12 @@ interface RawEvent {
 }
 
 /**
+ * Arguments the definitions mark as 1-based in SLua that Second Life takes 0-based. In-world:
+ * ll.FindNotecardTextSync(nc, "o", 1, 0, {}) skips the first match, and a start of 0 returns them all.
+ */
+const SLUA_ZERO_BASED: Record<string, ReadonlyArray<string>> = { llFindNotecardTextSync: ['start'] }
+
+/**
  * How SLua's `ll` table changes a function or event from LSL, as a TS object
  * literal, or '' when it doesn't: removed entirely, or an integer argument or
  * result that is a 0-based index (1-based in SLua) or a boolean. Boolean
@@ -56,13 +62,13 @@ interface RawEvent {
  */
 function sluaLiteral(
   args: RawArguments | undefined,
-  flags: { removed?: boolean; returnIndex?: boolean; returnBool?: boolean; event?: boolean },
+  flags: { removed?: boolean; returnIndex?: boolean; returnBool?: boolean; event?: boolean; zeroBased?: ReadonlyArray<string> },
 ): string {
   const indexParams: number[] = []
   const boolParams: number[] = []
   const stringParams: number[] = []
-  ;(args ?? []).flatMap((a) => Object.values(a)).forEach((p, i) => {
-    if (p['index-semantics']) indexParams.push(i)
+  ;(args ?? []).flatMap((a) => Object.entries(a)).forEach(([name, p], i) => {
+    if (p['index-semantics'] && !flags.zeroBased?.includes(name)) indexParams.push(i)
     if (flags.event && p['bool-semantics']) boolParams.push(i)
     // A key parameter SLua passes as a plain string (link_message's id).
     if (p.type === 'key' && p['slua-type'] === 'string') stringParams.push(i)
@@ -304,6 +310,7 @@ function emitFunctions(defs: RawDefs): string {
       removed: f['slua-removed'],
       returnIndex: f['index-semantics'],
       returnBool: f['bool-semantics'],
+      zeroBased: SLUA_ZERO_BASED[name],
     })
     lines.push(
       `  ${JSON.stringify(name)}: { name: ${JSON.stringify(name)}, returnType: ${tsTypeLiteral(ret)}, delay: ${delay}, status: ${JSON.stringify(status)}, params: [${paramsLit}]${slua} },`,

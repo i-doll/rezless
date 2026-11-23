@@ -104,8 +104,9 @@ it('shares a character between scripts and retains it over resets', async () => 
 // https://wiki.secondlife.com/wiki/LlEvade#Caveats documents this error form.
 // In-world: followup.lsl -> absent-character navigation kept running and did
 // not raise path_update (Aditi, SLua Tideland, 2026-10-31). The simulator's
-// diagnostics did not reach the MCP DEBUG_CHANNEL listener, though an explicit
-// llSay(DEBUG_CHANNEL) sentinel did. Error wording follows the wiki.
+// diagnostics did not reach a DEBUG_CHANNEL listener, though an explicit
+// llSay(DEBUG_CHANNEL) sentinel did. The owner's chat showed this text
+// (Aditi, 2026-11-23; owner-error-chat.test.ts has every function).
 it('rejects movement before creation and keeps running the handler', async () => {
   const s = await loadScript({ source: `default { state_entry() {
     llNavigateTo(<1,2,3>, []); llSay(0, "still running");

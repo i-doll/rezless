@@ -367,9 +367,9 @@ describe('controls and camera control taken back', () => {
     expect(owner.sittingOn).toBeNull()
   })
 
-  // Second Life can't be made to press a key for the probing avatar, so that control events stop
-  // is taken from the lost permission: llTakeControls needs the bit that is gone. A control event
-  // already queued is dropped the way llReleaseControls drops it.
+  // In-world: a seat holding 3076 with forward taken; after the stand it read 1024 and the forward
+  // key gave no event (Aditi, SLua Tideland, 2026-11-23). A control event already queued is
+  // dropped the way llReleaseControls drops it.
   it('stops delivering control events once controls are taken back', async () => {
     const f = await fixture('seated', [CONTROLS])
     f.ask()

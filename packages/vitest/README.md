@@ -167,7 +167,7 @@ s.sendGameControl(agent, { buttons?, axes? })    // deliver raw input plus a sem
 s.setCamera({ pos?, rot?, fov?, aspect? })      // set the camera llGetCameraPos / Rot / FOV / Aspect report
 s.setAnimationState(avatar, "Standing")          // register an avatar in this region and set its locomotion state
 s.mock(name, impl)                              // override any ll* function (real or stubbed) per-test
-s.reset()                                       // re-init globals + return to default + state_entry
+s.reset()                                       // the owner's Reset: re-init globals, default state, state_entry; a crashed script runs again, a stopped one waits for its start
 
 // Inspect
 s.currentState                                  // current LSL state name
@@ -278,7 +278,9 @@ working — they're just scoped to one script in a larger system.
 Chat a script sends reaches matching `listen` handlers in other prims, named
 and keyed after the sending prim. `llWhisper`, `llSay` and `llShout` reach
 prims within 10, 20 and 100 m of the sending prim, and so do its
-`DEBUG_CHANNEL` errors, which are said. `llRegionSay` reaches every prim in the
+`DEBUG_CHANNEL` errors, which are said. The errors of `llSetPrimitiveParams`
+and its link variants, and of the pathfinding calls made with no character, go
+to the owner only: they are in `s.chat`, but no script hears them. `llRegionSay` reaches every prim in the
 region. `llRegionSayTo` reaches only the prim with the target key, or, when
 targeting an avatar on a nonzero channel, matching listens in every attachment
 that avatar wears in the sender's region. Channel 0 to an avatar reaches no
@@ -294,15 +296,15 @@ scripts get the event instead. No other prim hears of it.
 
 ```ts
 prims[0].addInventory(makeInventoryItem({ name: 'Notes', type: InventoryType.NOTECARD }))
-prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, new key
-prims[0].renameInventory('Notes', 'Settings')
+prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, key of the new text
+prims[0].renameInventory('Notes', 'Settings')                        // a taken name becomes 'Settings 2'
 prims[0].removeInventory('Settings')                                 // a removed script stops
 prims[0].removeInventory('a', 'b')                                   // deleted together: one event
 
 const door = await addScript(prims[1], { source: 'door.lsl', name: 'door' })  // dropped in: runs state_entry
 await addScript(prims[1], { source: 'spare.lsl' }, { running: false })        // dropped in, not running
 prims[1].replaceInventory('door', {})                                         // recompiled: resets, new key
-prims[1].renameInventory('door', 'gate')                                      // keeps running
+prims[1].renameInventory('door', 'gate')                                      // keeps running and its state
 ```
 
 `addScript` takes a script as `loadLinkset` does and returns it, stopped when
@@ -2108,7 +2110,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **RSA**: `llSignRSA`, `llVerifyRSA` (sha1, sha224, sha256, sha384 or sha512; RSA keys only)
 * **base64**: `llStringToBase64`/`Base64ToString`, `llIntegerToBase64`/`Base64ToInteger`, `llXorBase64`
 * **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llSetTouchText`, `llSetSitText`, `llSetPayPrice` (stored on the prim for tests to read), `llDie` (kills every script in the linkset), `llResetScript`
-* **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; `llRemoveInventory` (a script that removes itself halts at once; faces, maps and a sculpt that used a removed texture go back to their defaults, and faces lose a removed material)
+* **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; a notecard item made with `hasEmbeddedItems: true` reads as one with no lines, as a notecard holding embedded items does in Second Life: 0 lines, EOF for every line, a search that counts matches in empty text and a sync search that finds nothing; `llRemoveInventory` (a script that removes itself halts at once; faces, maps and a sculpt that used a removed texture go back to their defaults, and faces lose a removed material)
 * **giving inventory**: `llGiveInventory`, `llGiveInventoryList`, `llGiveAgentInventory`; inspect `s.inventoryOffers`. World prim recipients receive items and `changed`. A prim owned by someone else, or one its owner cannot modify, takes gifts only after a script in that prim calls `llAllowInventoryDrop(TRUE)`, scripts included, and its scripts get `CHANGED_ALLOWED_DROP`. A gift to another owner gets the item's next-owner permissions; a no-transfer item is refused, and a no-copy item moves. List variants omit missing/no-copy items. Avatar offers are recorded without simulating acceptance or throttles. Attachment inventory restrictions and automatic child/recent avatar presence are not modeled.
 * **remote script loading**: `llRemoteLoadScriptPin` copies an executable inventory script into a prim its owner can modify, with a matching nonzero PIN, including negative PINs. It replaces the same inventory name, discards saved state, starts running or stopped with the supplied start parameter, and sleeps three seconds. Running scripts in the receiving prim get `CHANGED_INVENTORY` under the rule for editing a prim's contents: a script that has not started yet, or is stopped, gets no event, and a script asleep in a handler gets it when the handler ends, where a load with a gift, or with an owner drop, during one sleep gives one event. Scripts in the linkset's other prims get nothing. The fresh copy gets no `changed`; it starts with `state_entry`, without `on_rez`. Reset clears its start parameter. Missing/wrong-type names, mismatched PINs, targets owned by someone else or no-modify for the owner, and self-loads report the measured errors. Unknown targets are silent. A no-copy script moves out of the loading prim. Passive script assets without an executable `Script` instance cannot be loaded.
 * **viewer requests**: `llLoadURL`, `llMapDestination`, `llMapBeacon`; inspect `s.viewerRequests`. `llMapDestination` in a rezzed object reaches only the avatar who clicked it, once per click. Outside a click it reaches nobody, so fire clicks with `linkset.touch`. In an attachment it reaches only the owner, and nobody when someone else clicked. Region presence reads World avatar fixtures, with the owner or current detected avatar as defaults; override it with `s.setAgentInRegion`. `llOpenFloater` records arguments and returns `-1`: the fixture cannot represent a Linden-owned privileged experience. Requests record viewer instructions; they do not open UI.
@@ -2175,7 +2177,9 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   where it can yield. That is usually right away, even inside coroutines. A
   sleep inside a metamethod waits for the next such point.
 * **`ll` and `llcompat`**: `ll` uses SLua's native conventions. Indexes are
-  1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
+  1-based, and "not found" (-1) is `nil`, except that
+  `ll.FindNotecardTextSync` counts its start from 0, as in Second Life (the
+  lines and columns it returns are 1-based). Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
   Too few arguments raise `Fewer arguments than expected, 1 < 2`, before
   any argument's type is looked at, and extra arguments are ignored. That
