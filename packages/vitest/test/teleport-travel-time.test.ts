@@ -76,7 +76,7 @@ describe('teleport travel time', () => {
     f.wait(47)
     expect(f.avatar.position).toMatchObject({ x: 122, y: 60 })
     expect(f.changes()).toEqual([CHANGED_TELEPORT])
-    expect(f.outcomes(0)).toEqual([['tpto', 'applied']])
+    expect(f.outcomes(0)).toEqual([['tpto', 'pending'], ['tpto', 'applied']])
   })
 
   it.each(profiles)('%s: @tpto to another region leaves after about 220 ms and reports the change later', async profile => {
@@ -125,6 +125,33 @@ describe('teleport travel time', () => {
   })
 })
 
+describe('teleports that overlap a @tpto on its way', () => {
+  // In-world: two @tpto in the same event took the avatar to the second destination, with one
+  // changed event, three runs within SLua Tideland.
+  it.each(profiles)('%s: a later @tpto replaces one still on its way', async profile => {
+    const f = await fixture(profile)
+    f.say('@tpto:122/60/25=force|@tpto:140/84/25=force')
+    f.wait(1000)
+    expect(f.avatar.position).toMatchObject({ x: 140, y: 84 })
+    expect(f.changes()).toEqual([CHANGED_TELEPORT])
+    expect(f.outcomes(0)).toEqual([['tpto', 'pending'], ['tpto', 'refused'], ['tpto', 'pending'], ['tpto', 'applied']])
+  })
+
+  // In-world: @tpto, then llTeleportAgent 0.11 s later: the script teleport moved the avatar at once,
+  // and the @tpto landed afterwards and took it to its own destination, with two changed events,
+  // three runs.
+  it.each(profiles)('%s: a @tpto on its way still lands after llTeleportAgent', async profile => {
+    const f = await fixture(profile)
+    f.say('@tpto:122/60/25=force')
+    f.wait(110)
+    f.say('<100, 80, 25>', 1)
+    expect(f.avatar.position).toMatchObject({ x: 100, y: 80 })
+    f.wait(1000)
+    expect(f.avatar.position).toMatchObject({ x: 122, y: 60 })
+    expect(f.changes()).toEqual([CHANGED_TELEPORT, CHANGED_TELEPORT])
+  })
+})
+
 describe('force seating sent with @tpto', () => {
   // In-world: "@sit:<seat>=force" and "@tpto" in the same event, within the region: in six of seven
   // runs the avatar never sat; in one the sit landed in the frame the avatar left. Into SLua
@@ -136,7 +163,7 @@ describe('force seating sent with @tpto', () => {
       f.say(`@sit:${f.seat.key}=force|@tpto:${destination}=force`)
       f.wait(2000)
       expect(f.avatar.sittingOn).toBeNull()
-      expect(f.outcomes(from)).toEqual([['sit', 'pending'], ['sit', 'refused'], ['tpto', 'applied']])
+      expect(f.outcomes(from)).toEqual([['sit', 'pending'], ['tpto', 'pending'], ['sit', 'refused'], ['tpto', 'applied']])
     }
   })
 
@@ -151,7 +178,7 @@ describe('force seating sent with @tpto', () => {
       f.say(`@unsit=force|@tpto:${destination}=force`)
       f.wait(2000)
       expect(f.avatar.info & (AGENT_SITTING | AGENT_ON_OBJECT)).toBe(0)
-      expect(f.outcomes(from)).toEqual([['unsit', 'pending'], ['unsit', 'unchanged'], ['tpto', 'applied']])
+      expect(f.outcomes(from)).toEqual([['unsit', 'pending'], ['tpto', 'pending'], ['unsit', 'unchanged'], ['tpto', 'applied']])
     }
   })
 
@@ -165,7 +192,7 @@ describe('force seating sent with @tpto', () => {
     f.wait(2000)
     expect(f.avatar.position).toMatchObject({ x: 122, y: 60 })
     expect(f.avatar.info & (AGENT_SITTING | AGENT_ON_OBJECT)).toBe(AGENT_SITTING)
-    expect(f.outcomes(from)).toEqual([['sitground', 'pending'], ['tpto', 'applied'], ['sitground', 'applied']])
+    expect(f.outcomes(from)).toEqual([['sitground', 'pending'], ['tpto', 'pending'], ['tpto', 'applied'], ['sitground', 'applied']])
   })
 
   // In-world (#570): seated, "@sitground=force" and "@tpto" within the region in the same event: the
@@ -187,7 +214,7 @@ describe('force seating sent with @tpto', () => {
     f.wait(2000)
     expect(f.avatar.region).toBe('north')
     expect(f.avatar.info & AGENT_SITTING).toBe(0)
-    expect(f.outcomes(from)).toEqual([['sitground', 'pending'], ['sitground', 'refused'], ['tpto', 'applied']])
+    expect(f.outcomes(from)).toEqual([['sitground', 'pending'], ['tpto', 'pending'], ['sitground', 'refused'], ['tpto', 'applied']])
   })
 })
 
@@ -202,6 +229,22 @@ describe('force seating sent with a script teleport', () => {
     expect(f.avatar.position).toMatchObject({ x: 122, y: 60 })
     f.wait(1000)
     expect(f.avatar.sittingOn).toBe(f.seat)
+  })
+
+  // In-world: seated, "@unsit=force" and then a script teleport in the same event: the avatar stayed
+  // on the seat until it left and arrived standing, llTeleportAgentGlobalCoords to SLua Tombolo
+  // three runs and llTeleportAgent within the region two runs.
+  it.each(profiles)('%s: a script teleport stands the avatar before a force stand lands', async profile => {
+    for (const [num, destination] of [[1, '<122, 60, 25>'], [2, '<118, 48, 30>']] as const) {
+      const f = await fixture(profile)
+      f.sit()
+      const from = f.avatar.viewer.commandLog.length
+      f.say('@unsit=force')
+      f.say(destination, num)
+      f.wait(1000)
+      expect(f.avatar.info & (AGENT_SITTING | AGENT_ON_OBJECT)).toBe(0)
+      expect(f.outcomes(from)).toEqual([['unsit', 'pending'], ['unsit', 'unchanged']])
+    }
   })
 
   it.each(profiles)('%s: a force sit is refused after llTeleportAgentGlobalCoords to another region', async profile => {
