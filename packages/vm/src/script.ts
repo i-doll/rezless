@@ -1481,6 +1481,8 @@ export class Script {
       }
       event = 'changed'
     }
+    // Land collisions released from a sleep read where the prim is when they run.
+    if (payload['__here']) payload = { ...payload, pos: this.host.regionPosition() }
     if (this.slua) {
       // SLua has no states: the "first event" is running the script itself.
       if (event === 'state_entry') {
@@ -1937,7 +1939,8 @@ const isTouch = (event: string | undefined) => event === 'touch_start' || event 
 function eventData(event: string, payload: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(payload)) {
-    if (!key.startsWith('__')) data[key] = key === 'detected' && Array.isArray(value) ? throughInventory(event, value) : value
+    // A land collision released from a sleep reads the prim's position wherever it runs.
+    if (!key.startsWith('__') || key === '__here') data[key] = key === 'detected' && Array.isArray(value) ? throughInventory(event, value) : value
   }
   return data
 }

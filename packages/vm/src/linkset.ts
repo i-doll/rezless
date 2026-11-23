@@ -4,6 +4,7 @@ import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds } from './builtins/collision.js'
+import { copyPhysicalMotion, queueMoving, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
@@ -470,6 +471,7 @@ export class Linkset {
       }
     }
     for (const [key, value] of this.linksetData) copy.linksetData.set(key, { ...value })
+    copyPhysicalMotion(this, copy)
   }
 
   /** Remove the object and cancel all its scripts, including sleeping handlers. */
@@ -535,6 +537,11 @@ export class Linkset {
     if (other !== this) {
       // In-world: linking a mover as a child stops it but retains frames for play after unlink.
       other.prims[0]?.keyframedMotion?.command(KFM_CMD_STOP)
+      // In-world: a box linked as a child into an object playing keyframed motion got
+      // moving_start at the link, ahead of changed, and moving_end with the object.
+      if (this.prims[0]?.keyframedMotion?.playing) {
+        for (const script of other.allScripts()) queueMoving(this.clock, script, 'moving_start', this.clock.now)
+      }
       this.place([this.prims[0]!, ...other.prims, ...this.prims.slice(1)])
       mergeLinksetData(this.linksetData, other.linksetData)
       other.prims.length = 0
@@ -711,6 +718,15 @@ export class Linkset {
     if (group) return { prims: group, sitter: undefined }
     const one = this.oneLink(from, link)
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
+  }
+
+  /**
+   * Set the velocity llGetVel reads, as a push, a fall or the object coming to rest would.
+   * A physical object at rest raises moving_start when it gets a velocity, and moving_end a
+   * moment after its velocity becomes zero.
+   */
+  setVelocity(velocity: Vector): void {
+    setVelocity(this, velocity)
   }
 
   /** Play the collision sounds of this object landing on `struck` at `speed` m/s. Collision events are fired separately. */

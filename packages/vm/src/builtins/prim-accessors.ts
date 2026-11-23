@@ -3,6 +3,7 @@ import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName, sitFlagsOf } from '../prim-params.js'
 import { sayError } from './debug.js'
+import { physicsSwitched } from './motion.js'
 import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
@@ -372,7 +373,9 @@ export const llGetRenderMaterial: BuiltinImpl = (ctx, args) => {
 export const llSetStatus: BuiltinImpl = (ctx, args) => {
   const flag = num(args[0]) | 0
   const value = num(args[1]) !== 0
+  const physical = !!(ctx.prim.statusFlags & STATUS_PHYSICS)
   ctx.prim.setStatus(flag, value)
+  physicsSwitched(ctx.linkset, physical)
   return undefined
 }
 // In-world, a mask reads only its first flag in this order; other bits are ignored.
