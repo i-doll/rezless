@@ -357,6 +357,8 @@ export class Linkset {
       // detach ran when the object was worn again, after on_rez and before the two attach events.
       if (script.handling) script.detachedInHandler = true
       else if (script.wakeAt === undefined) this.clock.purgeTarget(script)
+      // In-world: a game_control waiting for a script asleep at the detach never ran.
+      if (script.wakeAt !== undefined) this.clock.purgeWhere((e) => e.target === script && e.event === 'game_control')
     }
     // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
     for (const script of this.allScripts()) {

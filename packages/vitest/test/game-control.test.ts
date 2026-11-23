@@ -247,8 +247,10 @@ it('starts every recipient handler at the same time', async () => {
   a.start(); b.start(); linkset.advanceTime(0)
   const at = linkset.clock.now
   script.sendGameControl(OWNER, { buttons: 1 })
-  expect(linkset.clock.now - at).toBeLessThan(1500)
+  expect(linkset.clock.now).toBe(at)
+  linkset.advanceTime(2_000)
   expect(a.global('began')).toBe(b.global('began'))
+  expect(a.global('began')).toBeGreaterThanOrEqual(0)
 })
 
 it('works in a standalone script and keeps its values through a hand-fired event', async () => {
