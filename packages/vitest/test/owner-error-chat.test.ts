@@ -462,6 +462,18 @@ describe('the owner resetting a script', () => {
     expect(ownerChat(s)).toEqual(['entry', 'entry'])
   })
 
+  // In-world: error("boom custom") showed the owner "lua_script:4: boom custom" followed by a traceback ("[C] function
+  // error", "lua_script:4", "[C] function _handleEvent"), and indexing nil showed its message the same way, while the
+  // listener heard "runtime error" for both. error({}) showed "Unknown runtime error" to both. rezless keeps what
+  // listeners hear: the owner's version names frames of the simulator's own event dispatch, which rezless doesn't run.
+  it('an SLua error says what listeners hear', async () => {
+    const { probe } = await withListener('LLEvents:on("touch_start", function() error("boom custom") end)', 'slua')
+    expect(() => probe.fire('touch_start', { num_detected: 1 })).toThrow()
+    probe.advanceTime(100)
+    expect(debugChat(probe)).toEqual(['probe [script:p] Script run-time error', 'runtime error'])
+    expect(probe.linkset.prims[1]!.scripts[0]!.global('heard')).toEqual(['probe [script:p] Script run-time error', 'runtime error'])
+  })
+
   // In-world: error("boom custom"), indexing nil and error({}) each crashed the SLua script; Reset ran it from the
   // top again with its memory limit kept.
   it('brings a crashed SLua script back', async () => {
