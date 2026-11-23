@@ -325,16 +325,21 @@ describe('llSetLinkGLTFOverrides', () => {
 })
 
 describe('llSetLinkGLTFOverrides codes', () => {
-  it('skips a code that is not an integer', async () => {
-    const { lines } = await probe(`
+  // In-world: a string or float code changed nothing, not even a valid rule before it, and
+  // DEBUG_CHANNEL got "llSetGLTFOverrides Error running rule #<n>: non-integer rule." with n
+  // counting code and value pairs from 1 (Aditi, SLua Tideland, 2026-11-23).
+  it.each([
+    ['a string code', '["1", "x", OVERRIDE_GLTF_METALLIC_FACTOR, 0.3]', 1],
+    ['a float code', '[1.5, 0.2, OVERRIDE_GLTF_METALLIC_FACTOR, 0.3]', 1],
+    ['a string code after a valid rule', '[OVERRIDE_GLTF_METALLIC_FACTOR, 0.3, "1", "x", OVERRIDE_GLTF_ROUGHNESS_FACTOR, 0.6]', 2],
+  ])('rejects the whole call for %s', async (_, rules, rule) => {
+    const { lines, errors } = await probe(`
       setMat(MAT);
-      llSetLinkGLTFOverrides(LINK_THIS, 0, ["1", "x", OVERRIDE_GLTF_METALLIC_FACTOR, 0.3]);
+      llSetLinkGLTFOverrides(LINK_THIS, 0, ${rules});
       out("mr", G(PRIM_GLTF_METALLIC_ROUGHNESS));
     `)
-    // Not measured in-world: modelled like the unknown code 99 in probe p3, which changed nothing.
-    expect(lines).toEqual([
-      'mr=[{}3{<1.000000, 1.000000, 0.000000>}5{<0.000000, 0.000000, 0.000000>}5{0.000000}2{0.300000}2{}3]',
-    ])
+    expect(lines).toEqual([`mr=${UNSET_MR}`])
+    expect(errors).toEqual([`llSetGLTFOverrides Error running rule #${rule}: non-integer rule.`])
   })
 })
 

@@ -335,6 +335,14 @@ const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
 
 const overrideType = (code: LslValue): LslType | undefined => (typeof code === 'number' ? OVERRIDE_TYPES[code] : undefined)
 
+/** The error llSetLinkGLTFOverrides says for a code that isn't an integer, which rejects the whole call. */
+export function gltfOverrideCodeError(params: ReadonlyArray<LslValue>): string | null {
+  for (let i = 0; i + 1 < params.length; i += 2) {
+    if (givenType(params, i) !== 'integer') return `llSetGLTFOverrides Error running rule #${i / 2 + 1}: non-integer rule.`
+  }
+  return null
+}
+
 /**
  * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs. The base
  * colour and alpha form one factor that "" leaves alone; "" clears the others.
