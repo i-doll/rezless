@@ -595,6 +595,14 @@ describe('prim behaviour measured in Second Life', () => {
     ])
   })
 
+  // In-world: llSetPhysicsMaterial(GRAVITY_MULTIPLIER | RESTITUTION, 50.0, 5.0, 0, 0) said the error once (Aditi, SLua Tideland, 2026-11-23).
+  it('llSetPhysicsMaterial says the error once for two out-of-range values', async () => {
+    const s = await run(`llSetPhysicsMaterial(GRAVITY_MULTIPLIER | RESTITUTION, 50.0, 5.0, 0, 0);`, '')
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual([
+      'ERROR: Failed to set material properties.',
+    ])
+  })
+
   it('llSetPhysicsMaterial ignores an out-of-range value outside the mask', async () => {
     const s = await run(`llSetPhysicsMaterial(FRICTION, 50.0, 0, 99.0, 0); out = llGetPhysicsMaterial();`, 'list out;')
     expect(s.global('out')).toEqual([1, 0.5, 99, 1000])

@@ -940,7 +940,7 @@ describe('multi-script linkset', () => {
 
     // In-world: the sibling counted to 2; the driver's llResetOtherScript then llSetScriptState FALSE
     // left llGetScriptState at 0; after llSetScriptState TRUE the sibling's state_entry said its counter
-    // was 0, after the driver's "resumed" line, and it still read 0 (Aditi, SLua Tideland, 2026-11-23).
+    // was 0, and it still read 0 (Aditi, SLua Tideland, 2026-11-23).
     it('llResetOtherScript then pausing the sibling still resets it, and it stays paused', async () => {
       const sibling = `
         integer counter = 0;
@@ -984,6 +984,7 @@ describe('multi-script linkset', () => {
       expect(scripts['sibling']!.running).toBe(true)
       expect(scripts['sibling']!.global('counter')).toBe(0)
       expect(scripts['sibling']!.chat.map((c) => c.text)).toEqual(['entry 0', 'entry 0'])
+      expect(scripts['driver']!.chat.map((c) => c.text)).toEqual(['resumed'])
     })
 
     it('llGetScriptState reflects running flag', async () => {

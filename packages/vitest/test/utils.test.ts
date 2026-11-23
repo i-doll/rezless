@@ -1065,6 +1065,8 @@ describe('in-world parity — math, strings, hashes', () => {
   // -2147483648 (Aditi, SLua Tideland, 2026-11-23).
   it.each([
     ['llCeil(llPow(10.0, 999.0))'],
+    ['llFloor(llPow(10.0, 999.0))'],
+    ['llCeil(llSqrt(-1.0))'],
     ['llFloor(llSqrt(-1.0))'],
   ])('%s is -2147483648', async (expr) => {
     expect(await evalExpr('integer', expr)).toBe(-2147483648)
