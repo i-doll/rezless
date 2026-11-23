@@ -315,13 +315,16 @@ export class Prim {
    * next free one; an item already numbered for that name keeps it. The
    * prim's scripts get `changed(CHANGED_INVENTORY)`, also when the name is
    * unchanged. A renamed script keeps running and its state, and hears the
-   * rename under its new name; a stopped one stays stopped.
+   * rename under its new name; a stopped one stays stopped. The renamed item
+   * moves behind the others, so a lookup by asset key finds it last.
    */
   renameInventory(from: string, to: string): void {
-    const item = this.inventory[this.#inventoryIndex('renameInventory', from)]!
+    const index = this.#inventoryIndex('renameInventory', from)
+    const item = this.inventory[index]!
     if (!to) throw new Error('renameInventory: the new name is empty')
     const name = renamedItemName(to)
     if (name) item.name = renamedInventoryName(this.inventory, item, name)
+    this.inventory.push(...this.inventory.splice(index, 1))
     this.#ownerEditedInventory()
   }
 

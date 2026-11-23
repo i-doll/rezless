@@ -631,7 +631,7 @@ export class World {
     const position = prim.regionPosition(), origin = avatar.position
     // The default plain-prim response covers nearby seats. Other surfaces use explicit responses.
     if (Math.hypot(position.x - origin.x, position.y - origin.y, position.z - origin.z) > 8) return null
-    return sitSpot(prim, this.avatarCameras.get(avatar) ?? defaultCamera(avatar), offset)
+    return sitSpot(prim, this.avatarCameras.get(avatar) ?? defaultCamera(avatar), offset, avatar.position)
   }
 
   private readonly avatarCameras = new WeakMap<WorldAvatar, Vector>()

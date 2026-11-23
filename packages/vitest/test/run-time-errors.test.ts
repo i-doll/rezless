@@ -422,20 +422,24 @@ describe('an SLua script', () => {
   })
 
   it.each([
-    ['error("boom")', 'err', /boom/],
-    ['indexing nil', 'nilidx', /attempt to index nil/],
-    ['error(42)', 'err42', /42/],
-    ['error("plain", 0)', 'errlvl0', /plain/],
-    ['an ll call that rejects its arguments', 'llerr', /1-based index/],
-  ])('crashes on %s and says "runtime error"', async (_what, op, thrown) => {
+    ['error("boom")', 'err', /boom/, 'lua_script:18: boom\n[C] function error\nlua_script:18'],
+    ['indexing nil', 'nilidx', /attempt to index nil/, "lua_script:27: attempt to index nil with 'x'\nlua_script:27"],
+    ['error(42)', 'err42', /42/, 'lua_script:22: 42\n[C] function error\nlua_script:22'],
+    ['error("plain", 0)', 'errlvl0', /plain/, 'plain\n[C] function error\nlua_script:23'],
+    ['an ll call that rejects its arguments', 'llerr', /1-based index/, 'lua_script:24: passed 0 when a 1-based index was expected\n[C] function GetSubString\nlua_script:24'],
+  ])('crashes on %s and says "runtime error"', async (_what, op, thrown, shown) => {
     // In-world: the prim said "<prim> [script:<name>] Script run-time error"
     // and "runtime error" on DEBUG_CHANNEL; no "post"; llGetScriptState 0; a
-    // later link message got no answer. The Lua message is not in the chat;
-    // rezless keeps it on the error it throws.
-    const { script, ctl, send, run, tell, debug } = await slua()
+    // later link message got no answer (Aditi, SLua Tideland, 2026-11-13).
+    // The owner saw the Lua message and a traceback in place of "runtime
+    // error" (Aditi, SLua Tideland, 2026-11-23); slua-error-owner-text.test.ts
+    // pins the traceback.
+    const { script, ctl, ears, send, run, tell, debug } = await slua()
     send(op)
     expect(run).toThrow(thrown)
-    expect(debug()).toEqual(['Target [script:a] Script run-time error', 'runtime error'])
+    expect(debug()).toEqual(['Target [script:a] Script run-time error', `${shown}\n[C] function _handleEvent\n`])
+    run()
+    expect(ears['near']!.global('heard')).toEqual(['Target', script.host.key, 'Target [script:a] Script run-time error', 'Target', script.host.key, 'runtime error'])
     expect(script.global('log')).toEqual(['entry', 'pre'])
     expect(script.running).toBe(false)
     tell('state')
@@ -464,13 +468,17 @@ describe('an SLua script', () => {
   it('says "not enough memory" when it runs out of memory', async () => {
     // In-world: unbounded recursion in an SLua script (and in LSL compiled to
     // Luau) -> "<prim> [script:<name>] Script run-time error" and "not enough
-    // memory"; llGetScriptState 0.
+    // memory"; llGetScriptState 0. The owner saw "not enough memory" and the
+    // traceback (Aditi, SLua Tideland, 2026-11-23).
     const s = await loadScript({
       source: 'local function f(d) return f(d + 1) + 1 end\nf(0)',
       language: 'slua', filename: 'deep.luau', scriptName: 'LK', memoryLimit: true,
     })
     expect(() => s.start()).toThrow('not enough memory')
-    expect(s.chat.map(c => c.text)).toEqual(['Object [script:LK] Script run-time error', 'not enough memory'])
+    expect(s.chat.map(c => c.text)).toEqual([
+      'Object [script:LK] Script run-time error',
+      expect.stringMatching(/^not enough memory\n(lua_script:1 function f\n){10}\.\.\. \(\+\d+ frames\)\n(lua_script:1 function f\n){9}lua_script:2\n$/),
+    ])
     expect(s.running).toBe(false)
   })
 
@@ -503,7 +511,8 @@ describe('an SLua script', () => {
     // error"; llGetScriptState 0.
     const s = await loadScript({ source: 'll.Say(5, "before")\nerror("top boom")', language: 'slua', filename: 'top.luau', scriptName: 'LTOP' })
     expect(() => s.start()).toThrow('top boom')
-    expect(s.chat.map(c => c.text)).toEqual(['before', 'Object [script:LTOP] Script run-time error', 'runtime error'])
+    // The owner saw the message and traceback in place of "runtime error" (Aditi, SLua Tideland, 2026-11-23).
+    expect(s.chat.map(c => c.text)).toEqual(['before', 'Object [script:LTOP] Script run-time error', 'lua_script:2: top boom\n[C] function error\nlua_script:2\n'])
     expect(s.running).toBe(false)
   })
 

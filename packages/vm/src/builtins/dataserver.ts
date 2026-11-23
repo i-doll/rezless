@@ -1,5 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { requestKey } from '../keys.js'
+import { InventoryType } from '../inventory.js'
+import { NULL_KEY } from '../values/types.js'
 
 /**
  * A pending dataserver request. LSL has a small zoo of llRequest*
@@ -35,9 +37,11 @@ function record(
 export const llRequestAgentData: BuiltinImpl = (ctx, args) =>
   record(ctx, 'agent_data', [args[0], args[1]])
 
-/** llRequestInventoryData(string name) → request key */
+/** llRequestInventoryData(string name) → request key, or NULL_KEY unless a landmark in the prim has that name */
 export const llRequestInventoryData: BuiltinImpl = (ctx, args) =>
-  record(ctx, 'inventory_data', [args[0]])
+  ctx.prim.inventory.some(item => item.name === args[0] && item.type === InventoryType.LANDMARK)
+    ? record(ctx, 'inventory_data', [args[0]])
+    : NULL_KEY
 
 /** llRequestSimulatorData(string region, integer data) → request key */
 export const llRequestSimulatorData: BuiltinImpl = (ctx, args) =>
