@@ -138,6 +138,9 @@ describe('llJsonSetValue on an object with a member with no value', () => {
     // A trailing comma adds a member "" with no value.
     ['{"a":,}', '["b"]', '"1"', '{"":,"a":,"b":1}'],
     ['{"a":1,}', '["a"]', '"2"', '{"":,"a":2}'],
+    // Duplicate keys whose last value is missing keep the key with no value.
+    ['{"a":1,"a":}', '["b"]', '"1"', '{"a":,"b":1}'],
+    ['{"a":,"a":}', '["b"]', '"1"', '{"a":,"b":1}'],
   ])('llJsonSetValue(%s, %s, %s)', async (json, path, value, want) => {
     expect(await set(json, path, value)).toBe(want)
   })
@@ -149,6 +152,15 @@ describe('llJsonSetValue on an object with a member with no value', () => {
       expect(await set(json!, path!, 'JSON_DELETE'), json).toBe(JSON_INVALID)
     }
     expect(await set('{"a":1}', '["a"]', 'JSON_DELETE')).toBe('{}')
+  })
+
+  it('deletes an array element, and gives JSON_INVALID for one past the end or a key in a non-object', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-23): deleting [0] of [1] returned []. Deleting [0]
+    // of [], [1] of [1], or a key of "", [1], 5 or [1] at [0] returned JSON_INVALID.
+    expect(await set('[1]', '[0]', 'JSON_DELETE')).toBe('[]')
+    for (const [json, path] of [['[]', '[0]'], ['[1]', '[1]'], ['', '["a"]'], ['[1]', '["a"]'], ['5', '["a"]'], ['[1]', '[0, "a"]']]) {
+      expect(await set(json!, path!, 'JSON_DELETE'), `${json} ${path}`).toBe(JSON_INVALID)
+    }
   })
 
   it('reads the member a trailing comma adds as JSON_INVALID', async () => {

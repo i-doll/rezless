@@ -457,7 +457,7 @@ function setIn(
     if (idx > arr.items.length) return { ok: false }
     if (idx === arr.items.length) {
       if (rest.length === 0) {
-        if (value === 'delete') return { ok: true, node: arr }
+        if (value === 'delete') return { ok: false }
         arr.items.push(value)
         return { ok: true, node: arr }
       }
@@ -467,11 +467,8 @@ function setIn(
       return { ok: true, node: arr }
     }
     if (rest.length === 0) {
-      if (value === 'delete') {
-        // Cannot delete from arrays per wiki — return invalid.
-        return { ok: false }
-      }
-      arr.items[idx] = value
+      if (value === 'delete') arr.items.splice(idx, 1)
+      else arr.items[idx] = value
       return { ok: true, node: arr }
     }
     const sub = setIn(arr.items[idx]!, rest, value)

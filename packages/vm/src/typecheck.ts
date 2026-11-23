@@ -79,7 +79,8 @@ const isNum = (t: Ty): boolean => t === 'integer' || t === 'float'
 /**
  * Where Mono can compile a print's value, as measured: the left operand of
  * + - * / % (not a list), or the right operand of *, == and !=, or of + after
- * a list. Anywhere else, or in parentheses, the script fails to compile.
+ * a list, including the right of *=. Anywhere else, or in parentheses, even
+ * as a statement, the script fails to compile.
  */
 const ARITHMETIC: ReadonlySet<BinaryOp> = new Set(['+', '-', '*', '/', '%'])
 const bare = (e: Expression): boolean => e.kind === 'PrintExpression' && !e.parens
@@ -456,6 +457,8 @@ class Checker {
       }
       case 'AssignmentExpression': {
         const target = this.lvalue(e.target)
+        // A compound assignment takes a print where its operator does on the right.
+        if (bare(e.value) && (e.operator === '*=' || (e.operator === '+=' && target === 'list'))) this.usablePrints.add(e.value)
         const value = this.expr(e.value)
         if (e.operator === '=') {
           this.expectAssignable(e, target, value)
@@ -502,7 +505,7 @@ class Checker {
 
   /** An expression whose value is thrown away, where a print's value goes unused. */
   private discarded(e: Expression): void {
-    if (e.kind !== 'PrintExpression') {
+    if (e.kind !== 'PrintExpression' || e.parens) {
       this.expr(e)
     } else if (this.expr(e.argument) === 'void') {
       this.backendError(e)

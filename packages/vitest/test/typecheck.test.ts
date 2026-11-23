@@ -152,10 +152,12 @@ describe('load-time type checking (SL compiler parity)', () => {
       'integer i = print(1) == 1;', 'integer i = print(1) < 2;', 'integer i = print(1) | 2;', 'integer i = print(1) << 2;',
       'integer i = print(1) && 1;', 'key k; integer i = print((key)"k") == k;', 'list l = print([1]) + [2];',
       'integer i = (print(1)) + 1;', 'integer i = 2 * (print(1));', 'integer i; i = i = print(1);',
+      'vector v = <print(1.0), 0, 0>;', '(print(1));', 'integer i; for ((print(1)); i < 1; ++i) ;',
     ].map((body): [string, string, RegExp] => [`print's value in ${body}`, inEntry(body), /Internal server compile error/]),
     ['print returning from a function', `integer f() { return print(1); } ${inEntry('f();')}`, /Internal server compile error/],
     // In-world: llOwnerSay(print("s")) failed with "Function call mismatches type or number of arguments".
     ['print passed to a function', inEntry('llOwnerSay(print("s"));'), /Function call mismatches type or number of arguments/],
+    ['print passed to a user function', `f(integer x) {} ${inEntry('f(print(1));')}`, /Function call mismatches type or number of arguments/],
     ['statement after the return', `integer f() { return 1; f(); } ${inEntry('')}`, /Not all code paths/],
   ]
 
@@ -219,6 +221,7 @@ describe('load-time type checking (SL compiler parity)', () => {
     ['print as the right operand of *, == and !=', inEntry('integer i = 2 * print(1); float f = 2.0 * print(1.0); vector v = <1,1,1> * print(2.0); string s; key k; list l; i = i == print(1); i = s == print("s"); i = s != print("s"); i = k != print((key)"k"); i = l == print([1]); i = v == print(<1,2,3>);')],
     ['print added after a list, and inside arithmetic on the right of ==', inEntry('list l = [1] + print([2]); integer i = 2 == print(1) + 1;')],
     ['print as a statement or a for clause', inEntry('integer i; print(i); for (print((key)"k"); i < 1; ++i) ; for (; i < 2; ++i, print((key)"k")) ;')],
+    ['print on the right of *= and left of + as a statement', inEntry('integer i; i *= print(2); print(1) + 1;')],
     ['a typed function ending in a nested block return', `integer f() { { return 1; } } ${inEntry('f();')}`],
   ]
 
