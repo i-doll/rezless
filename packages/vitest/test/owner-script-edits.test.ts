@@ -268,7 +268,7 @@ describe('owner drops a script in', () => {
     prims[0]!.replaceInventory('n', {})
     expect(added.printed).toEqual(['entry n', 'changed 1', 'entry n'])
     expect(scripts['a']!.global('seen')).toEqual(['changed 1 of 3', 'changed 1 of 4', 'changed 1 of 4'])
-    // The rename is not measured; see 'owner renames a script' below.
+    // An SLua rename follows the LSL one measured below.
     prims[0]!.renameInventory('n', 'm')
     prims[0]!.replaceInventory('m', {})
     expect(added.printed.slice(3)).toEqual(['changed 1', 'entry m'])
@@ -407,10 +407,8 @@ describe('a child prim with no script that handles changed', () => {
     expect(scripts['a']!.global('seen')).toEqual(['changed 1 of 2'])
   })
 
-  // Not measured: the viewer tools used for these probes cannot save or rename
-  // a notecard inside a prim, so replaceInventory and renameInventory on an
-  // item in such a child follow the rule measured for drops, deletes and
-  // recompiles.
+  // Saves and renames in a child whose only script is stopped are pinned in
+  // prim-contents-edits.test.ts.
   it('passes a delete to the root, also when the deleted script was the only one', async () => {
     // In-world: deleting a notecard from a child whose script has no changed
     // handler, then that script, and deleting the only logging script of a
@@ -603,16 +601,11 @@ describe('owner renames a script', () => {
   // https://wiki.secondlife.com/wiki/Changed: CHANGED_INVENTORY is "Prim inventory
   // has changed". https://wiki.secondlife.com/wiki/LlGetScriptName: "the name of
   // the script that called this function".
-  // Not measured: no tool of the viewer used for these probes renames an item
-  // inside a prim's contents (its rename and script tools answer "no such item"
-  // for the id of an item in a prim). That a rename sends the event follows the
-  // wiki. These are assumptions: one event per rename, the renamed script gets
-  // it too, the script is not reset, and llGetScriptName returns the new name.
-  // In-world, for another edit of a script item's details: the next-owner
-  // permissions of two scripts in the root's contents were changed, one request
-  // per script. Each of the two scripts logged changed(1) once per request, so
-  // also for its own item; neither reset (one stayed in its second state); no
-  // child script logged anything.
+  // In-world (Aditi beta grid, SLua Tideland, 2026-11-23): renaming a running
+  // script in the root's contents -> it logged changed(1) under its new name
+  // with its state kept, the other root script logged changed(1), no child
+  // script logged anything, and it kept running. More cases are pinned in
+  // prim-contents-edits.test.ts.
   it('keeps it running under the new name and tells every script in the prim, itself included', async () => {
     const { linkset, prims, scripts } = await load()
     linkset.touch(1)
@@ -628,8 +621,11 @@ describe('owner renames a script', () => {
     expect(scripts['a']!.global('seen')).toEqual(['entry renamed'])
   })
 
-  it('refuses a taken name', async () => {
-    const { prims } = await load()
-    expect(() => prims[0]!.renameInventory('a', 'b')).toThrow("renameInventory: an item named 'b' already exists")
+  it('numbers a taken name from 2', async () => {
+    // In-world: renaming a running script to the other script's name "a496" -> "a496 2".
+    const { prims, scripts } = await load()
+    prims[0]!.renameInventory('a', 'b')
+    expect(prims[0]!.findScript('b 2')).toBe(scripts['a'])
+    expect(prims[0]!.findScript('b')).toBe(scripts['b'])
   })
 })

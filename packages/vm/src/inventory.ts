@@ -43,9 +43,30 @@ export function hearsInventoryChange(script: Script): boolean {
 
 /** The name an arriving item gets: a taken name is cut to fit a number within 63 characters. */
 export function freeInventoryName(inventory: ReadonlyArray<InventoryItem>, name: string): string {
-  let free = name
-  for (let n = 1; inventory.some((item) => item.name === free); n++) free = `${name.slice(0, 63 - ` ${n}`.length)} ${n}`
-  return free
+  return numberedName(name, freeNumber(inventory, name, 0))
+}
+
+/**
+ * The name `item` gets when renamed to `name`. A name another item holds takes
+ * the number an arriving item would get plus one, then the next free one; an
+ * item already called by such a numbered name keeps it.
+ */
+export function renamedInventoryName(inventory: ReadonlyArray<InventoryItem>, item: InventoryItem, name: string): string {
+  const others = inventory.filter((it) => it !== item)
+  if (!others.some((it) => it.name === name)) return name
+  const first = freeNumber(others, name, 1)
+  if (numberedName(name, first) === item.name) return item.name
+  return numberedName(name, freeNumber(others, name, first + 1))
+}
+
+function freeNumber(inventory: ReadonlyArray<InventoryItem>, name: string, from: number): number {
+  let n = from
+  while (inventory.some((item) => item.name === numberedName(name, n))) n++
+  return n
+}
+
+function numberedName(name: string, n: number): string {
+  return n === 0 ? name : `${name.slice(0, 63 - ` ${n}`.length)} ${n}`
 }
 
 /**
@@ -131,6 +152,12 @@ export function forNextOwner(item: InventoryItem): InventoryItem {
 /** Second Life drops non-ASCII characters from an item's name when it enters a prim's inventory. */
 export function inventoryItemName(name: string): string {
   return name.replace(/[^\x00-\x7f]/g, '')
+}
+
+/** The name a rename asks for: each control character, each byte of a non-ASCII character and each `|` becomes a space, then it is cut to 63 characters and trimmed. */
+export function renamedItemName(name: string): string {
+  const bytes = [...new TextEncoder().encode(name)]
+  return bytes.map((b) => (b < 0x20 || b > 0x7f || b === 0x7c ? ' ' : String.fromCharCode(b))).join('').slice(0, 63).trim()
 }
 
 export function makeInventoryItem(

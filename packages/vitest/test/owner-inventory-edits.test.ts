@@ -193,15 +193,16 @@ describe('owner deletes an item', () => {
 
 describe('owner saves a notecard', () => {
   // https://wiki.secondlife.com/wiki/Changed: CHANGED_INVENTORY is "Prim inventory
-  // has changed". Not measured: the viewer tools used for these probes save a
-  // notecard only in the avatar's inventory and reject an item inside a prim,
-  // so the event for an in-prim save follows the wiki. Whether such a save
-  // sends one event or more is not measured either; replaceInventory sends one.
-  // In-world, for what could be measured: saving the notecard in the avatar's
-  // inventory gave it a new asset id; the copy already in the prim kept its
-  // key (f077...) until it was deleted and the saved one dropped in, when
-  // scripts logged the new key (41cb...). Recompiling a script inside the prim
-  // sent changed(1) to the prim's other scripts and to no other prim.
+  // has changed".
+  // In-world (2026-11-23): saving a notecard in the root's contents sent
+  // changed(1) once to each root script and nothing to the child, and changed
+  // its key to that of the new text; saving the same text again kept the key.
+  // More cases are pinned in prim-contents-edits.test.ts.
+  // In-world (2026-11-13): saving the notecard in the avatar's inventory gave it
+  // a new asset id; the copy already in the prim kept its key (f077...) until
+  // it was deleted and the saved one dropped in, when scripts logged the new
+  // key (41cb...). Recompiling a script inside the prim sent changed(1) to the
+  // prim's other scripts and to no other prim.
   it('keeps the name, changes the key and sends CHANGED_INVENTORY', async () => {
     const { prims, scripts } = await load()
     prims[0]!.replaceInventory('nc', { notecardLines: ['version two'] })
@@ -219,11 +220,11 @@ describe('owner saves a notecard', () => {
     expect(scripts['a']!.global('key4')).toBe('41cb')
   })
 
-  it('gives each save a different key', async () => {
+  it('gives each new text a different key', async () => {
     const { prims } = await load()
-    prims[0]!.replaceInventory('nc', {})
+    prims[0]!.replaceInventory('nc', { notecardLines: ['a'] })
     const first = prims[0]!.inventory.find((item) => item.name === 'nc')!.key
-    prims[0]!.replaceInventory('nc', {})
+    prims[0]!.replaceInventory('nc', { notecardLines: ['b'] })
     expect(prims[0]!.inventory.find((item) => item.name === 'nc')!.key).not.toBe(first)
   })
 
@@ -236,12 +237,10 @@ describe('owner saves a notecard', () => {
 describe('owner renames an item', () => {
   // https://wiki.secondlife.com/wiki/Changed: CHANGED_INVENTORY is "Prim inventory
   // has changed", and it "will also trigger when inventory permissions are
-  // changed". Not measured: the viewer tools used for these probes rename only
-  // items in the avatar's inventory and reject an item inside a prim, so the
-  // event for a rename follows the wiki. What a rename to a taken or empty name
-  // does cannot be measured either; renameInventory refuses both.
-  // In-world, for what could be measured: changing the permissions of the items
-  // in the root's contents sent changed(1) to each root script and to no other prim.
+  // changed".
+  // In-world (2026-11-23): renaming a notecard in the root's contents sent
+  // changed(1) once to each root script and nothing to the child; a taken name
+  // got " 2". More cases are pinned in prim-contents-edits.test.ts.
   it('sends CHANGED_INVENTORY to each script in that prim', async () => {
     const { prims, scripts } = await load()
     prims[0]!.renameInventory('v1', 'renamed')
@@ -251,13 +250,11 @@ describe('owner renames an item', () => {
     expect(scripts['c']!.global('seen')).toEqual([])
   })
 
-  it('refuses a taken name and a missing name', async () => {
+  it('refuses a missing item and an empty name', async () => {
+    // The viewer offers no way to rename an item to an empty name.
     const { prims, scripts } = await load()
-    expect(() => prims[0]!.renameInventory('v1', 'v2')).toThrow("renameInventory: an item named 'v2' already exists")
     expect(() => prims[0]!.renameInventory('missing', 'z')).toThrow("renameInventory: no item named 'missing'")
-    expect(() => prims[0]!.renameInventory('v1', 'v1')).toThrow("'v1' already has that name")
-    expect(() => prims[0]!.renameInventory('v1', '')).toThrow('the new name has no ASCII characters')
-    expect(() => prims[0]!.renameInventory('v1', 'é')).toThrow('the new name has no ASCII characters')
+    expect(() => prims[0]!.renameInventory('v1', '')).toThrow('renameInventory: the new name is empty')
     expect(scripts['a']!.global('seen')).toEqual([])
   })
 })

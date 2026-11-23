@@ -1719,7 +1719,8 @@ export class Script {
   }
 
   private sayCrash(): void {
-    for (const text of [`${this.host.name} [script:${this.scriptName}] Script run-time error`, this.crashText]) {
+    const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
+    for (const text of [`${this.host.name} [script:${name}] Script run-time error`, this.crashText]) {
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
