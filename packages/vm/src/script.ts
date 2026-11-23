@@ -82,6 +82,7 @@ import type { Journal } from './dispatch.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { parse } from '@rezless/parser'
+import { flood, FLOOD } from './builtins/debug.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -1831,7 +1832,11 @@ export class Script {
     const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
     const header = `${this.host.name} [script:${name}] Script run-time error`
     const room = OWNER_ERROR_BYTES - new TextEncoder().encode(this.host.name).length
-    for (const [text, shown] of [[header, header], [this.crashText, this.crashShown]] as const) {
+    for (const [line, lineShown] of [[header, header], [this.crashText, this.crashShown]] as const) {
+      const state = flood(this.host, this.state.clock.now)
+      if (state === 'refused') continue
+      const text = state === 'shuts' ? FLOOD : line
+      const shown = state === 'shuts' ? FLOOD : lineShown
       this.state.chat.push({ channel: DEBUG_CHANNEL, text: truncateUtf8(shown, room), type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
