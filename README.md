@@ -203,8 +203,8 @@ s.linksetData                                   // ReadonlyMap<string, { value, 
 s.seedLinksetData(entries)                      // pre-populate LSD without firing events
 s.text                                          // current llSetText: { text, color, alpha } or null
 s.objectDesc                                    // current llSetObjectDesc value
-s.touchText, s.sitText                          // current llSetTouchText / llSetSitText text, "" if unset
-s.payPrice                                      // llSetPayPrice arguments: { price, buttons } or null
+s.touchText, s.sitText                          // llSetTouchText / llSetSitText text, first 9 bytes, "" if unset
+s.payPrice                                      // { price, buttons } the Pay dialog gets (four buttons), or null
 s.dead                                          // true once llDie has run
 s.wakeAt                                        // virtual ms a sleeping handler wakes at, or undefined when idle
 
@@ -785,7 +785,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 
 * **chat**: `llSay`, `llShout`, `llWhisper`, `llOwnerSay`
 * **listen**: `llListen`, `llListenRemove`, `llListenControl`
-* **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it
+* **dialogs**: `llDialog`, `llTextBox` — answer them with `s.answerDialog`; the answer reaches listens within 20 m of the prim that showed it, and a text box answer is cut to 254 bytes
 * **time**: `llSetTimerEvent`, `llSleep` (other scripts keep running while one sleeps), `llGetTime`, `llGetAndResetTime`, `llResetTime`, `llGetUnixTime`, `llGetTimestamp`, `llGetDate`, `llGetGMTclock`, `llGetWallclock` (US Pacific time), `llGetTimeOfDay` (seconds into the region's day) (start at `startUnixTime` and move with the virtual clock), `llGetRegionTimeDilation` (always 1.0), `llMinEventDelay` (spaces out timer and touch events; a held click's first `touch` is not delayed, and the next ones come a delay after `touch_start` and after each other; touch events behind a delayed one wait for it, and other events don't; touch events that wait merge as clicks held back in a sleep do: one `touch_start`, `touch` and `touch_end` each, listing every avatar once, with each avatar's first click in `touch_start` and last click in `touch` and `touch_end`)
 * **region**: `llGetRegionName`, `llGetRegionCorner`, `llGetRegionFlags`, `llGetRegionFPS`, `llGetRegionAgentCount`, `llGetSimStats`, `llGetEnv`, `llGetSimulatorHostname`, `llEdgeOfWorld`, `llScriptDanger`
 * **parcel effects and payments**: `llSetParcelMusicURL`, the six land ban/pass list functions, `llEjectFromLand`, `llReturnObjectsByID`, `llReturnObjectsByOwner`, `llSetParcelForSale`, `llManageEstateAccess`, `llParcelMediaCommandList`, `llParcelMediaQuery`, `llGiveMoney`, `llTransferLindenDollars`, `llTransferOwnership`. See the fixture and record-only limits above.

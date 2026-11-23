@@ -876,7 +876,7 @@ export class Script {
    * Answer a dialog as its avatar: the most recent unanswered one, or
    * `opts.dialog`. The avatar says `text` on the dialog's channel, heard by
    * listens within 20 m of the prim that showed it. A llDialog answer must
-   * be one of its buttons; a text box takes any text.
+   * be one of its buttons; a text box takes any text and sends at most 254 bytes of it.
    */
   answerDialog(text: string, opts: { name?: string; dialog?: DialogEntry } = {}): void {
     const dialog = opts.dialog ?? [...this.state.dialogs].reverse().find((d) => !d.answered)
@@ -887,7 +887,8 @@ export class Script {
       throw new Error(`'${text}' is not a button on the dialog: ${dialog.buttons.join(', ')}`)
     }
     dialog.answered = true
-    const chat = { channel: dialog.channel, name: opts.name ?? '', key: dialog.agent, message: text }
+    const message = dialog.kind === 'textBox' ? truncateUtf8(text, 254) : text
+    const chat = { channel: dialog.channel, name: opts.name ?? '', key: dialog.agent, message }
     this.linkset.settle(this.linkset.routeAvatarChat(this.host, chat).filter((s) => s.handles('listen')))
   }
 
@@ -910,8 +911,8 @@ export class Script {
     return this.host.sitText
   }
 
-  /** The prim's llSetPayPrice arguments, null if unset. */
-  get payPrice(): { price: number; buttons: LslValue[] } | null {
+  /** The price and four quick pay buttons the prim's Pay dialog gets, null if llSetPayPrice never ran. */
+  get payPrice(): { price: number; buttons: number[] } | null {
     return this.host.payPrice
   }
 
