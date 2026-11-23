@@ -1,0 +1,609 @@
+diff --git a/VM/src/lbuiltins.cpp b/VM/src/lbuiltins.cpp
+index 52aae135..9c0bdfae 100644
+--- a/VM/src/lbuiltins.cpp
++++ b/VM/src/lbuiltins.cpp
+@@ -1457,9 +1457,9 @@ static int luauF_vectormagnitude(lua_State* L, StkId res, TValue* arg0, int nres
+         const float* v = vvalue(arg0);
+ 
+ #if LUA_VECTOR_SIZE == 4
+-        setnvalue(res, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]));
++        setnvalue(res, sqrtf(luai_dot4f(v, v)));
+ #else
+-        setnvalue(res, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]));
++        setnvalue(res, sqrtf(luai_dot3f(v, v)));
+ #endif
+ 
+         return 1;
+@@ -1475,11 +1475,11 @@ static int luauF_vectornormalize(lua_State* L, StkId res, TValue* arg0, int nres
+         const float* v = vvalue(arg0);
+ 
+ #if LUA_VECTOR_SIZE == 4
+-        float invSqrt = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]);
++        float invSqrt = luai_ftzf(1.0f / sqrtf(luai_dot4f(v, v)));
+ 
+         setvvalue(res, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt, v[3] * invSqrt);
+ #else
+-        float invSqrt = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
++        float invSqrt = luai_ftzf(1.0f / sqrtf(luai_dot3f(v, v)));
+ 
+         setvvalue(res, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt, 0.0f);
+ #endif
+@@ -1498,7 +1498,7 @@ static int luauF_vectorcross(lua_State* L, StkId res, TValue* arg0, int nresults
+         const float* b = vvalue(args);
+ 
+         // same for 3- and 4- wide vectors
+-        setvvalue(res, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0], 0.0f);
++        setvvalue(res, luai_subf(luai_mulf(a[1], b[2]), luai_mulf(a[2], b[1])), luai_subf(luai_mulf(a[2], b[0]), luai_mulf(a[0], b[2])), luai_subf(luai_mulf(a[0], b[1]), luai_mulf(a[1], b[0])), 0.0f);
+         return 1;
+     }
+ 
+@@ -1513,9 +1513,9 @@ static int luauF_vectordot(lua_State* L, StkId res, TValue* arg0, int nresults,
+         const float* b = vvalue(args);
+ 
+ #if LUA_VECTOR_SIZE == 4
+-        setnvalue(res, a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
++        setnvalue(res, luai_dot4f(a, b));
+ #else
+-        setnvalue(res, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]);
++        setnvalue(res, luai_dot3f(a, b));
+ #endif
+ 
+         return 1;
+@@ -1713,7 +1713,7 @@ static int luauF_vectorlerp(lua_State* L, StkId res, TValue* arg0, int nresults,
+     {
+         const float* a = vvalue(arg0);
+         const float* b = vvalue(args);
+-        const float t = static_cast<float>(nvalue(args + 1));
++        const float t = luai_ftzf(static_cast<float>(nvalue(args + 1)));
+ 
+ #if LUA_VECTOR_SIZE == 4
+         setvvalue(res, luai_lerpf(a[0], b[0], t), luai_lerpf(a[1], b[1], t), luai_lerpf(a[2], b[2], t), luai_lerpf(a[3], b[3], t));
+diff --git a/VM/src/lcommon.h b/VM/src/lcommon.h
+index 3878cdc7..6aff1642 100644
+--- a/VM/src/lcommon.h
++++ b/VM/src/lcommon.h
+@@ -2,7 +2,9 @@
+ // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
+ #pragma once
+ 
++#include <float.h>
+ #include <limits.h>
++#include <math.h>
+ #include <stdint.h>
+ 
+ #include "luaconf.h"
+@@ -21,6 +23,43 @@
+ #define cast_num(i) cast_to(double, (i))
+ #define cast_int(i) cast_to(int, (i))
+ 
++// rezless: Second Life's arithmetic flushes a result below the smallest normal
++// float or double to a zero of the same sign. A tiny operand is used as it is.
++inline float luai_ftzf(float v)
++{
++    return fabsf(v) < FLT_MIN ? copysignf(0.0f, v) : v;
++}
++
++inline double luai_ftz(double v)
++{
++    return fabs(v) < DBL_MIN ? copysign(0.0, v) : v;
++}
++
++inline float luai_mulf(float a, float b)
++{
++    return luai_ftzf(a * b);
++}
++
++inline float luai_addf(float a, float b)
++{
++    return luai_ftzf(a + b);
++}
++
++inline float luai_subf(float a, float b)
++{
++    return luai_ftzf(a - b);
++}
++
++inline float luai_dot3f(const float* a, const float* b)
++{
++    return luai_addf(luai_addf(luai_mulf(a[0], b[0]), luai_mulf(a[1], b[1])), luai_mulf(a[2], b[2]));
++}
++
++inline float luai_dot4f(const float* a, const float* b)
++{
++    return luai_addf(luai_dot3f(a, b), luai_mulf(a[3], b[3]));
++}
++
+ /*
+ ** type for virtual-machine instructions
+ ** must be an unsigned with (at least) 4 bytes (see details in lopcodes.h)
+diff --git a/VM/src/llsl.cpp b/VM/src/llsl.cpp
+index cddbf752..73ed56e9 100644
+--- a/VM/src/llsl.cpp
++++ b/VM/src/llsl.cpp
+@@ -78,20 +78,20 @@ static int lsl_quaternion_ctor(lua_State *L)
+     const auto z = luaL_checknumber(L, 3);
+     const auto s = luaL_checknumber(L, 4);
+     auto *quat = (float *)lua_newuserdatataggedwithmetatable(L, sizeof(float) * 4, UTAG_QUATERNION);
+-    quat[0] = (float)x;
+-    quat[1] = (float)y;
+-    quat[2] = (float)z;
+-    quat[3] = (float)s;
++    quat[0] = luai_ftzf((float)x);
++    quat[1] = luai_ftzf((float)y);
++    quat[2] = luai_ftzf((float)z);
++    quat[3] = luai_ftzf((float)s);
+     return 1;
+ }
+ 
+ int luaSL_pushquaternion(lua_State *L, double x, double y, double z, double s)
+ {
+     auto *quat = (float *)lua_newuserdatataggedwithmetatable(L, sizeof(float) * 4, UTAG_QUATERNION);
+-    quat[0] = (float)x;
+-    quat[1] = (float)y;
+-    quat[2] = (float)z;
+-    quat[3] = (float)s;
++    quat[0] = luai_ftzf((float)x);
++    quat[1] = luai_ftzf((float)y);
++    quat[2] = luai_ftzf((float)z);
++    quat[3] = luai_ftzf((float)s);
+     return 1;
+ }
+ 
+@@ -691,10 +691,10 @@ static int lsl_replace_axis(lua_State *L)
+ 
+ static void mul_quat(const float *a, const float *b, float *res)
+ {
+-    res[0] = b[3] * a[0] + b[0] * a[3] + b[1] * a[2] - b[2] * a[1];
+-    res[1] = b[3] * a[1] + b[1] * a[3] + b[2] * a[0] - b[0] * a[2];
+-    res[2] = b[3] * a[2] + b[2] * a[3] + b[0] * a[1] - b[1] * a[0];
+-    res[3] = b[3] * a[3] - b[0] * a[0] - b[1] * a[1] - b[2] * a[2];
++    res[0] = luai_subf(luai_addf(luai_addf(luai_mulf(b[3], a[0]), luai_mulf(b[0], a[3])), luai_mulf(b[1], a[2])), luai_mulf(b[2], a[1]));
++    res[1] = luai_subf(luai_addf(luai_addf(luai_mulf(b[3], a[1]), luai_mulf(b[1], a[3])), luai_mulf(b[2], a[0])), luai_mulf(b[0], a[2]));
++    res[2] = luai_subf(luai_addf(luai_addf(luai_mulf(b[3], a[2]), luai_mulf(b[2], a[3])), luai_mulf(b[0], a[1])), luai_mulf(b[1], a[0]));
++    res[3] = luai_subf(luai_subf(luai_subf(luai_mulf(b[3], a[3]), luai_mulf(b[0], a[0])), luai_mulf(b[1], a[1])), luai_mulf(b[2], a[2]));
+ }
+ 
+ void rot_vec(const float *vec, const float *rot, float *res)
+diff --git a/VM/src/lnumutils.h b/VM/src/lnumutils.h
+index c3f12234..34a45fc3 100644
+--- a/VM/src/lnumutils.h
++++ b/VM/src/lnumutils.h
+@@ -5,6 +5,8 @@
+ #include <math.h>
+ #include <stddef.h>
+ 
++#include "lcommon.h"
++
+ #define luai_numadd(a, b) ((a) + (b))
+ #define luai_numsub(a, b) ((a) - (b))
+ #define luai_nummul(a, b) ((a) * (b))
+@@ -61,7 +63,7 @@ LUAU_FASTMATH_END
+ 
+ inline float luai_lerpf(float a, float b, float t)
+ {
+-    return (t == 1.0) ? b : a + (b - a) * t;
++    return (t == 1.0) ? b : luai_addf(a, luai_mulf(luai_subf(b, a), t));
+ }
+ 
+ // ServerLua: Safe float-to-int with x86 semantics
+diff --git a/VM/src/lobject.h b/VM/src/lobject.h
+index 15e96451..1555d7cb 100644
+--- a/VM/src/lobject.h
++++ b/VM/src/lobject.h
+@@ -119,10 +119,10 @@ typedef struct lua_TValue
+     { \
+         TValue* i_o = (obj); \
+         float* i_v = i_o->value.v; \
+-        i_v[0] = (x); \
+-        i_v[1] = (y); \
+-        i_v[2] = (z); \
+-        i_v[3] = (w); \
++        i_v[0] = luai_ftzf(x); \
++        i_v[1] = luai_ftzf(y); \
++        i_v[2] = luai_ftzf(z); \
++        i_v[3] = luai_ftzf(w); \
+         i_o->tt = LUA_TVECTOR; \
+     }
+ #else
+@@ -130,9 +130,9 @@ typedef struct lua_TValue
+     { \
+         TValue* i_o = (obj); \
+         float* i_v = i_o->value.v; \
+-        i_v[0] = (x); \
+-        i_v[1] = (y); \
+-        i_v[2] = (z); \
++        i_v[0] = luai_ftzf(x); \
++        i_v[1] = luai_ftzf(y); \
++        i_v[2] = luai_ftzf(z); \
+         i_o->tt = LUA_TVECTOR; \
+     }
+ #endif
+diff --git a/VM/src/lveclib.cpp b/VM/src/lveclib.cpp
+index 30debf3b..e47e1956 100644
+--- a/VM/src/lveclib.cpp
++++ b/VM/src/lveclib.cpp
+@@ -42,9 +42,9 @@ static int vector_magnitude(lua_State* L)
+     const float* v = luaL_checkvector(L, 1);
+ 
+ #if LUA_VECTOR_SIZE == 4
+-    lua_pushnumber(L, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]));
++    lua_pushnumber(L, sqrtf(luai_dot4f(v, v)));
+ #else
+-    lua_pushnumber(L, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]));
++    lua_pushnumber(L, sqrtf(luai_dot3f(v, v)));
+ #endif
+ 
+     return 1;
+@@ -55,11 +55,11 @@ static int vector_normalize(lua_State* L)
+     const float* v = luaL_checkvector(L, 1);
+ 
+ #if LUA_VECTOR_SIZE == 4
+-    float invSqrt = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]);
++    float invSqrt = luai_ftzf(1.0f / sqrtf(luai_dot4f(v, v)));
+ 
+     lua_pushvector(L, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt, v[3] * invSqrt);
+ #else
+-    float invSqrt = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
++    float invSqrt = luai_ftzf(1.0f / sqrtf(luai_dot3f(v, v)));
+ 
+     lua_pushvector(L, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt);
+ #endif
+@@ -73,9 +73,9 @@ static int vector_cross(lua_State* L)
+     const float* b = luaL_checkvector(L, 2);
+ 
+ #if LUA_VECTOR_SIZE == 4
+-    lua_pushvector(L, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0], 0.0f);
++    lua_pushvector(L, luai_subf(luai_mulf(a[1], b[2]), luai_mulf(a[2], b[1])), luai_subf(luai_mulf(a[2], b[0]), luai_mulf(a[0], b[2])), luai_subf(luai_mulf(a[0], b[1]), luai_mulf(a[1], b[0])), 0.0f);
+ #else
+-    lua_pushvector(L, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]);
++    lua_pushvector(L, luai_subf(luai_mulf(a[1], b[2]), luai_mulf(a[2], b[1])), luai_subf(luai_mulf(a[2], b[0]), luai_mulf(a[0], b[2])), luai_subf(luai_mulf(a[0], b[1]), luai_mulf(a[1], b[0])));
+ #endif
+ 
+     return 1;
+@@ -87,9 +87,9 @@ static int vector_dot(lua_State* L)
+     const float* b = luaL_checkvector(L, 2);
+ 
+ #if LUA_VECTOR_SIZE == 4
+-    lua_pushnumber(L, a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
++    lua_pushnumber(L, luai_dot4f(a, b));
+ #else
+-    lua_pushnumber(L, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]);
++    lua_pushnumber(L, luai_dot3f(a, b));
+ #endif
+ 
+     return 1;
+@@ -102,15 +102,15 @@ static int vector_angle(lua_State* L)
+     const float* axis = luaL_optvector(L, 3, nullptr);
+ 
+     // cross(a, b)
+-    float cross[] = {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
++    float cross[] = {luai_subf(luai_mulf(a[1], b[2]), luai_mulf(a[2], b[1])), luai_subf(luai_mulf(a[2], b[0]), luai_mulf(a[0], b[2])), luai_subf(luai_mulf(a[0], b[1]), luai_mulf(a[1], b[0]))};
+ 
+-    double sinA = sqrt(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]);
+-    double cosA = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
++    double sinA = sqrt(luai_dot3f(cross, cross));
++    double cosA = luai_dot3f(a, b);
+     double angle = atan2(sinA, cosA);
+ 
+     if (axis)
+     {
+-        if (cross[0] * axis[0] + cross[1] * axis[1] + cross[2] * axis[2] < 0.0f)
++        if (luai_dot3f(cross, axis) < 0.0f)
+             angle = -angle;
+     }
+ 
+@@ -310,7 +310,7 @@ static int vector_mul(lua_State *L)
+     else
+     {
+         b = luaL_checkvector(L, 2);
+-        lua_pushnumber(L, a[0]*b[0] + a[1]*b[1] + a[2]*b[2]);
++        lua_pushnumber(L, luai_dot3f(a, b));
+     }
+     return 1;
+ }
+@@ -336,7 +336,7 @@ static int vector_div(lua_State *L)
+         if (rhs == 0.0)
+             luaG_runerrorL(L, "Math error: division by zero");
+ 
+-        float mul = 1.0f / (float)rhs;
++        float mul = luai_ftzf(1.0f / luai_ftzf((float)rhs));
+         lua_pushvector(L, a[0] * mul, a[1] * mul, a[2] * mul);
+     }
+     return 1;
+@@ -347,7 +347,7 @@ static int vector_mod(lua_State *L)
+     const auto* a = luaL_checkvector(L, 1);
+     const auto *b = luaL_checkvector(L, 2);
+ 
+-    lua_pushvector(L, a[1]*b[2] - b[1]*a[2], a[2]*b[0] - b[2]*a[0], a[0]*b[1] - b[0]*a[1]);
++    lua_pushvector(L, luai_subf(luai_mulf(a[1], b[2]), luai_mulf(a[2], b[1])), luai_subf(luai_mulf(a[2], b[0]), luai_mulf(a[0], b[2])), luai_subf(luai_mulf(a[0], b[1]), luai_mulf(a[1], b[0])));
+     return 1;
+ }
+ 
+@@ -384,7 +384,7 @@ static int vector_lerp(lua_State* L)
+ {
+     const float* a = luaL_checkvector(L, 1);
+     const float* b = luaL_checkvector(L, 2);
+-    const float t = static_cast<float>(luaL_checknumber(L, 3));
++    const float t = luai_ftzf(static_cast<float>(luaL_checknumber(L, 3)));
+ 
+ #if LUA_VECTOR_SIZE == 4
+     lua_pushvector(L, luai_lerpf(a[0], b[0], t), luai_lerpf(a[1], b[1], t), luai_lerpf(a[2], b[2], t), luai_lerpf(a[3], b[3], t));
+diff --git a/VM/src/lvmexecute.cpp b/VM/src/lvmexecute.cpp
+index b24d54ac..27cdc1fc 100644
+--- a/VM/src/lvmexecute.cpp
++++ b/VM/src/lvmexecute.cpp
+@@ -1610,7 +1610,7 @@ reentry:
+                 // fast-path
+                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                 {
+-                    setnvalue(ra, nvalue(rb) + nvalue(rc));
++                    setnvalue(ra, luai_ftz(nvalue(rb) + nvalue(rc)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(rc))
+@@ -1662,7 +1662,7 @@ reentry:
+                 // fast-path
+                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                 {
+-                    setnvalue(ra, nvalue(rb) - nvalue(rc));
++                    setnvalue(ra, luai_ftz(nvalue(rb) - nvalue(rc)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(rc))
+@@ -1714,7 +1714,7 @@ reentry:
+                 // fast-path
+                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                 {
+-                    setnvalue(ra, nvalue(rb) * nvalue(rc));
++                    setnvalue(ra, luai_ftz(nvalue(rb) * nvalue(rc)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(rc))
+@@ -1726,7 +1726,7 @@ reentry:
+                 else if (ttisvector(rb) && ttisnumber(rc))
+                 {
+                     const float* vb = vvalue(rb);
+-                    float vc = cast_to(float, nvalue(rc));
++                    float vc = luai_ftzf(cast_to(float, nvalue(rc)));
+                     setvvalue(ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
+                     VM_NEXT();
+                 }
+@@ -1740,7 +1740,7 @@ reentry:
+                 }
+                 else if (ttisnumber(rb) && ttisvector(rc))
+                 {
+-                    float vb = cast_to(float, nvalue(rb));
++                    float vb = luai_ftzf(cast_to(float, nvalue(rb)));
+                     const float* vc = vvalue(rc);
+                     setvvalue(ra, vb * vc[0], vb * vc[1], vb * vc[2], vb * vc[3]);
+                     VM_NEXT();
+@@ -1793,13 +1793,13 @@ reentry:
+                         VM_PROTECT(luaG_runerrorL(L, MATH_ERROR_STR));
+                     }
+ 
+-                    setnvalue(ra, res);
++                    setnvalue(ra, luai_ftz(res));
+                     VM_NEXT();
+                 }
+                 else if (ttisvector(rb) && ttisnumber(rc))
+                 {
+                     const float* vb = vvalue(rb);
+-                    float vc = cast_to(float, nvalue(rc));
++                    float vc = luai_ftzf(cast_to(float, nvalue(rc)));
+                     // ServerLua: In LSL (Mono), vector division by zero is a runtime error.
+                     if (LUAU_UNLIKELY(LUAU_IS_LSL_VM(L) && vc == 0.0))
+                     {
+@@ -1817,7 +1817,7 @@ reentry:
+                 }
+                 else if (ttisnumber(rb) && ttisvector(rc))
+                 {
+-                    float vb = cast_to(float, nvalue(rb));
++                    float vb = luai_ftzf(cast_to(float, nvalue(rb)));
+                     const float* vc = vvalue(rc);
+                     setvvalue(ra, vb / vc[0], vb / vc[1], vb / vc[2], vb / vc[3]);
+                     VM_NEXT();
+@@ -1859,7 +1859,7 @@ reentry:
+                 // fast-path
+                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                 {
+-                    setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(rc)));
++                    setnvalue(ra, luai_ftz(luai_numidiv(nvalue(rb), nvalue(rc))));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(rc))
+@@ -1888,7 +1888,7 @@ reentry:
+                 else if (ttisvector(rb) && ttisnumber(rc))
+                 {
+                     const float* vb = vvalue(rb);
+-                    float vc = cast_to(float, nvalue(rc));
++                    float vc = luai_ftzf(cast_to(float, nvalue(rc)));
+                     setvvalue(
+                         ra,
+                         float(luai_numidiv(vb[0], vc)),
+@@ -1937,7 +1937,7 @@ reentry:
+                 {
+                     double nb = nvalue(rb);
+                     double nc = nvalue(rc);
+-                    setnvalue(ra, luai_nummod(nb, nc));
++                    setnvalue(ra, luai_ftz(luai_nummod(nb, nc)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(rc))
+@@ -1979,7 +1979,7 @@ reentry:
+                 // fast-path
+                 if (ttisnumber(rb) && ttisnumber(rc))
+                 {
+-                    setnvalue(ra, pow(nvalue(rb), nvalue(rc)));
++                    setnvalue(ra, luai_ftz(pow(nvalue(rb), nvalue(rc))));
+                     VM_NEXT();
+                 }
+                 else
+@@ -2000,7 +2000,7 @@ reentry:
+                 // fast-path
+                 if (ttisnumber(rb))
+                 {
+-                    setnvalue(ra, nvalue(rb) + nvalue(kv));
++                    setnvalue(ra, luai_ftz(nvalue(rb) + nvalue(kv)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(kv))
+@@ -2027,7 +2027,7 @@ reentry:
+                 // fast-path
+                 if (ttisnumber(rb))
+                 {
+-                    setnvalue(ra, nvalue(rb) - nvalue(kv));
++                    setnvalue(ra, luai_ftz(nvalue(rb) - nvalue(kv)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(kv))
+@@ -2054,7 +2054,7 @@ reentry:
+                 // fast-path
+                 if (LUAU_LIKELY(ttisnumber(rb)))
+                 {
+-                    setnvalue(ra, nvalue(rb) * nvalue(kv));
++                    setnvalue(ra, luai_ftz(nvalue(rb) * nvalue(kv)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(kv))
+@@ -2066,7 +2066,7 @@ reentry:
+                 else if (ttisvector(rb))
+                 {
+                     const float* vb = vvalue(rb);
+-                    float vc = cast_to(float, nvalue(kv));
++                    float vc = luai_ftzf(cast_to(float, nvalue(kv)));
+                     setvvalue(ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
+                     VM_NEXT();
+                 }
+@@ -2114,7 +2114,7 @@ reentry:
+                         VM_PROTECT(luaG_runerrorL(L, MATH_ERROR_STR));
+                     }
+ 
+-                    setnvalue(ra, res);
++                    setnvalue(ra, luai_ftz(res));
+                     VM_NEXT();
+                 }
+                 // ServerLua: int intentionally not handled, it uses idivk
+@@ -2127,7 +2127,7 @@ reentry:
+                     }
+ 
+                     const float* vb = vvalue(rb);
+-                    float nc = cast_to(float, nvalue(kv));
++                    float nc = luai_ftzf(cast_to(float, nvalue(kv)));
+                     setvvalue(ra, vb[0] / nc, vb[1] / nc, vb[2] / nc, vb[3] / nc);
+                     VM_NEXT();
+                 }
+@@ -2167,7 +2167,7 @@ reentry:
+                 // fast-path
+                 if (LUAU_LIKELY(ttisnumber(rb)))
+                 {
+-                    setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(kv)));
++                    setnvalue(ra, luai_ftz(luai_numidiv(nvalue(rb), nvalue(kv))));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(kv))
+@@ -2196,7 +2196,7 @@ reentry:
+                 else if (ttisvector(rb))
+                 {
+                     const float* vb = vvalue(rb);
+-                    float vc = cast_to(float, nvalue(kv));
++                    float vc = luai_ftzf(cast_to(float, nvalue(kv)));
+                     setvvalue(
+                         ra,
+                         float(luai_numidiv(vb[0], vc)),
+@@ -2244,7 +2244,7 @@ reentry:
+                 {
+                     double nb = nvalue(rb);
+                     double nk = nvalue(kv);
+-                    setnvalue(ra, luai_nummod(nb, nk));
++                    setnvalue(ra, luai_ftz(luai_nummod(nb, nk)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(rb) && l_isinteger(kv))
+@@ -2292,7 +2292,7 @@ reentry:
+                     // pow is very slow so we specialize this for ^2, ^0.5 and ^3
+                     double r = (nk == 2.0) ? nb * nb : (nk == 0.5) ? sqrt(nb) : (nk == 3.0) ? nb * nb * nb : pow(nb, nk);
+ 
+-                    setnvalue(ra, r);
++                    setnvalue(ra, luai_ftz(r));
+                     VM_NEXT();
+                 }
+                 else
+@@ -3124,7 +3124,7 @@ reentry:
+                 // fast-path
+                 if (ttisnumber(rc))
+                 {
+-                    setnvalue(ra, nvalue(kv) - nvalue(rc));
++                    setnvalue(ra, luai_ftz(nvalue(kv) - nvalue(rc)));
+                     VM_NEXT();
+                 }
+                 else if (l_isinteger(kv) && l_isinteger(rc))
+@@ -3159,12 +3159,12 @@ reentry:
+                         VM_PROTECT(luaG_runerrorL(L, MATH_ERROR_STR));
+                     }
+ 
+-                    setnvalue(ra, res);
++                    setnvalue(ra, luai_ftz(res));
+                     VM_NEXT();
+                 }
+                 else if (ttisvector(rc))
+                 {
+-                    float nb = cast_to(float, nvalue(kv));
++                    float nb = luai_ftzf(cast_to(float, nvalue(kv)));
+                     const float* vc = vvalue(rc);
+                     setvvalue(ra, nb / vc[0], nb / vc[1], nb / vc[2], nb / vc[3]);
+                     VM_NEXT();
+diff --git a/VM/src/lvmutils.cpp b/VM/src/lvmutils.cpp
+index 7bb09e03..5dae3dc4 100644
+--- a/VM/src/lvmutils.cpp
++++ b/VM/src/lvmutils.cpp
+@@ -508,7 +508,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
+ 
+         if (c)
+         {
+-            float nc = cast_to(float, nvalue(c));
++            float nc = luai_ftzf(cast_to(float, nvalue(c)));
+ 
+             switch (op)
+             {
+@@ -534,7 +534,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
+ 
+         if (b)
+         {
+-            float nb = cast_to(float, nvalue(b));
++            float nb = luai_ftzf(cast_to(float, nvalue(b)));
+ 
+             switch (op)
+             {
+@@ -561,25 +561,25 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
+         switch (op)
+         {
+         case TM_ADD:
+-            setnvalue(ra, luai_numadd(nb, nc));
++            setnvalue(ra, luai_ftz(luai_numadd(nb, nc)));
+             break;
+         case TM_SUB:
+-            setnvalue(ra, luai_numsub(nb, nc));
++            setnvalue(ra, luai_ftz(luai_numsub(nb, nc)));
+             break;
+         case TM_MUL:
+-            setnvalue(ra, luai_nummul(nb, nc));
++            setnvalue(ra, luai_ftz(luai_nummul(nb, nc)));
+             break;
+         case TM_DIV:
+-            setnvalue(ra, luai_numdiv(nb, nc));
++            setnvalue(ra, luai_ftz(luai_numdiv(nb, nc)));
+             break;
+         case TM_IDIV:
+-            setnvalue(ra, luai_numidiv(nb, nc));
++            setnvalue(ra, luai_ftz(luai_numidiv(nb, nc)));
+             break;
+         case TM_MOD:
+-            setnvalue(ra, luai_nummod(nb, nc));
++            setnvalue(ra, luai_ftz(luai_nummod(nb, nc)));
+             break;
+         case TM_POW:
+-            setnvalue(ra, luai_numpow(nb, nc));
++            setnvalue(ra, luai_ftz(luai_numpow(nb, nc)));
+             break;
+         case TM_UNM:
+             setnvalue(ra, luai_numunm(nb));
