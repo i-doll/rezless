@@ -163,6 +163,20 @@ describe('teleports that overlap a @tpto on its way', () => {
     expect(f.avatar.position).toMatchObject({ x: 122, y: 60 })
     expect(f.changes()).toEqual([CHANGED_TELEPORT, CHANGED_TELEPORT])
   })
+
+  // In-world: @tpto, then a viewer teleport whose request reached the region 44 to 155 ms after the
+  // command: the viewer teleport arrived first, and the @tpto landed afterwards and took the avatar
+  // to its own destination, with two changed events, three runs.
+  it.each(profiles)('%s: a @tpto on its way still lands after a viewer teleport', async profile => {
+    const f = await fixture(profile)
+    f.say('@tpto:122/60/25=force')
+    f.wait(100)
+    f.world.userTeleportAvatarViaMap(f.avatar, { x: 140, y: 84, z: 25 })
+    expect(f.avatar.position).toMatchObject({ x: 140, y: 84 })
+    f.wait(1000)
+    expect(f.avatar.position).toMatchObject({ x: 122, y: 60 })
+    expect(f.changes()).toEqual([CHANGED_TELEPORT, CHANGED_TELEPORT])
+  })
 })
 
 describe('force seating sent with @tpto', () => {
