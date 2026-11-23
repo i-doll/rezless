@@ -12,7 +12,7 @@ import { NULL_KEY, ZERO_VECTOR } from './values/types.js'
 import { deterministicKey } from './keys.js'
 import {
   PERM_ALL, PERM_MOVE, PERM_TRANSFER, PRIM_PHYSICS_SHAPE_TYPE, PRIM_POSITION, PRIM_POS_LOCAL, PRIM_ROTATION, PRIM_ROT_LOCAL, PRIM_SIZE,
-  PRIM_TEMP_ON_REZ, PRIM_TYPE, STATUS_CAST_SHADOWS, STATUS_PHANTOM, STATUS_PHYSICS, STATUS_ROTATE_X, STATUS_ROTATE_Y, STATUS_ROTATE_Z,
+  PRIM_TEMP_ON_REZ, PRIM_TYPE, STATUS_CAST_SHADOWS, STATUS_DIE_ON_NO_REZZER, STATUS_PHANTOM, STATUS_PHYSICS, STATUS_ROTATE_X, STATUS_ROTATE_Y, STATUS_ROTATE_Z,
 } from './generated/constants.js'
 import type { Linkset } from './linkset.js'
 
@@ -484,8 +484,9 @@ export class Prim {
   /** llSetStatus seam. STATUS_* is a bit value; sets or clears it for the whole object. */
   setStatus(flag: number, value: boolean): void {
     const physical = this.statusFlags & STATUS_PHYSICS
-    // In-world, STATUS_CAST_SHADOWS read FALSE after TRUE was set from the root or a child.
-    if (value) this.statusFlags |= flag & ~STATUS_CAST_SHADOWS
+    // In-world, STATUS_CAST_SHADOWS read FALSE after TRUE was set from the root or a child,
+    // and so did STATUS_DIE_ON_NO_REZZER on a server that predates it.
+    if (value) this.statusFlags |= flag & ~(STATUS_CAST_SHADOWS | STATUS_DIE_ON_NO_REZZER)
     else this.statusFlags &= ~flag
     if (this.volumeDetect) this.statusFlags |= STATUS_PHANTOM
     if ((this.statusFlags & STATUS_PHYSICS) !== physical) this.linkset?.recountScripts()
