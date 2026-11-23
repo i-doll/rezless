@@ -552,6 +552,26 @@ in-world validation. The single-avatar queries, name parsing, dataserver replies
 visual parameters, group changes and standing/sitting/flying/type/away/busy flags
 were measured on Aditi in SLua Tideland on 2026-11-01.
 
+### Avatar chat
+
+`world.sendAvatarChat(avatar, channel, message, volume?)` makes a World avatar
+say `message` on any channel, as a person typing `/5 cleanup` would. Listens
+hear it with the avatar's name and key, and its `listen` events run before the
+call returns. `volume` is `whisper`, `say` (the default) or `shout`.
+
+```ts
+world.sendAvatarChat(bob, 5, 'cleanup')
+world.sendAvatarChat(bob, 0, 'hello', 'shout')
+```
+
+On channel 0 and positive channels, whisper reaches 10 m, say 20 m and shout
+100 m from the avatar, across region borders. On a negative channel the volume
+is ignored: the chat reaches 20 m inside the avatar's region and is cut to 254
+bytes. Objects the avatar wears always hear it. The call returns a
+record of what was sent; RLV restrictions can block or change the chat (see
+Paired RLV/RLVa fixtures). These ranges were measured on the Aditi beta grid in
+SLua Tideland on 2026-11-23.
+
 ### Sitting and teleporting
 
 Use `world.sitAvatar(avatar, prim)` and `world.standAvatar(avatar)` to simulate
@@ -923,9 +943,12 @@ The `sendchannel` family has `enforced` support through explicit avatar actions.
 `world.sendAvatarChat(avatar, channel, message, volume?)` sends avatar chat from
 the current avatar position. Volume is `whisper`, `say` or `shout`, defaulting
 to `say`, with hearing ranges of 10, 20 and 100 m through normal listener matching
-across regions. Public chat also reaches avatar received-chat records at that range. These actions support channel 0 and
-positive signed 32-bit channels. Negative and invalid action channels return
-`unsupported`; automatic query reply channel policy is separate. Payload limits are outside this action fixture.
+across regions. Public chat also reaches avatar received-chat records at that range.
+A negative channel reaches 20 m in the avatar's region whatever the volume. These actions support every
+signed 32-bit channel. Other channels return `unsupported`; automatic query reply
+channel policy is separate. `sendchannel` blocks negative channels too. RLVa
+ignores negative channel exceptions; Kokua matches them literally. Payload limits beyond the negative-channel
+254 bytes are outside this action fixture.
 
 ```ts
 const pair = await loadRlvPair({ source: `integer heard; default {
