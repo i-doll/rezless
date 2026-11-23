@@ -742,12 +742,7 @@ export class World {
   private hoverUp(avatar: WorldAvatar): void {
     avatar.info = (avatar.info & ~AGENT_WALKING) | AGENT_IN_AIR
     this.animate(avatar, 'Hovering Up')
-    const hover = {}
-    this.landings.set(avatar, hover)
-    // Like a flying sit's stand, the avatar falls from this hover when AGENT_FLYING clears.
-    const flyingSit = this.flyingSits.get(avatar) ?? {}
-    this.flyingSits.set(avatar, flyingSit)
-    flyingSit.hover = hover
+    const hover = this.hover(avatar)
     this.clock.scheduleTask(this.presence(avatar), this.clock.now + 60, () => {
       if (this.landings.get(avatar) !== hover || avatar.info & AGENT_SITTING) return
       const hovering = regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state === 'Hovering Up'
@@ -755,6 +750,16 @@ export class World {
       if (!hovering) this.landings.delete(avatar)
       else this.animate(avatar, 'Hovering')
     })
+  }
+
+  /** The avatar hovers until AGENT_FLYING clears, then falls as after a teleport. */
+  private hover(avatar: WorldAvatar): object {
+    const hover = {}
+    this.landings.set(avatar, hover)
+    const flyingSit = this.flyingSits.get(avatar) ?? {}
+    this.flyingSits.set(avatar, flyingSit)
+    flyingSit.hover = hover
+    return hover
   }
 
   /**
@@ -851,21 +856,13 @@ export class World {
     }
     avatar.region = region
     avatar.position = { ...position }
-    const flyingSit = this.flyingSits.get(avatar)
-    if (flyingSit && avatar.info & AGENT_FLYING) {
-      // In-world: llTeleportAgent from the changed event of a flying avatar's sit read AGENT_FLYING
-      // "Hovering" until the flag cleared.
-      avatar.info |= AGENT_IN_AIR
-      flyingSit.hover = {}
-      this.landings.set(avatar, flyingSit.hover)
-      this.animate(avatar, 'Hovering')
-      return
-    }
     if (avatar.info & AGENT_FLYING) {
-      // In-world: a viewer teleport of a flying avatar, and of one sitting on the ground with
-      // AGENT_FLYING, read 263 "Hovering" for the rest of a 4 s watch, two runs each.
+      // In-world: llTeleportAgent from the changed event of a flying avatar's sit read AGENT_FLYING
+      // "Hovering" until the flag cleared. A viewer teleport of a flying avatar, and of one sitting
+      // on the ground with AGENT_FLYING, read 263 "Hovering" for the rest of a 4 s watch, two runs
+      // each.
       avatar.info = (avatar.info & ~AGENT_WALKING) | AGENT_IN_AIR
-      this.landings.delete(avatar)
+      this.hover(avatar)
       this.animate(avatar, 'Hovering')
       return
     }

@@ -243,6 +243,16 @@ describe('a teleport while flying', () => {
     expect(steps(watch(f.watcher, f.advance, 2000))).toEqual([[AGENT_FLYING | AGENT_IN_AIR, 'Hovering']])
   })
 
+  it('falls when the avatar lands after the teleport', async () => {
+    const f = await fixture()
+    f.fly()
+    expect(f.world.teleportAvatar(f.avatar, { x: 120, y: 52, z: 30 })).toBe(true)
+    f.advance(500)
+    f.world.attemptAvatarMovement(f.avatar, 'land')
+    f.advance(0)
+    expect(steps(watch(f.watcher, f.advance, 1500))).toEqual([[AGENT_IN_AIR, 'Falling Down'], [0, 'Landing'], [0, 'Standing']])
+  })
+
   it('hovers after a teleport from a ground sit that kept AGENT_FLYING', async () => {
     const f = await fixture()
     f.fly()
