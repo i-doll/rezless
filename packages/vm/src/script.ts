@@ -1763,8 +1763,8 @@ export class Script {
         // for a listen handler that changed state never ran.
         const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
-        this.linkset.clock.purgeTarget(this, this.now, ['__reset', '__running', '__scriptState'])
         this.linkset.clock.landContactRestarted(this, false)
+        this.linkset.clock.purgeTarget(this, this.now, ['__reset', '__running', '__scriptState'])
         forgetHeldTouches(this, false)
         this.state.currentState = target
         const waiting = this.waitingGameControl

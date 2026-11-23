@@ -460,13 +460,12 @@ export class LinksetClock {
    */
   landContactRestarted(script: Script, reset: boolean): void {
     this.openContacts.delete(script)
-    if (!reset) return
     // In-world: a script reset while it slept through the start of a contact got the new start
     // too. Land events due but not taken yet count; ones still to come don't.
     const due = this.queue.filter((e) => e.target === script && e.at <= this.now && LAND_EVENTS.has(e.event)).at(-1)
     // A held end that a later contact reopened isn't the end of the contact going on.
     if (due) this.landEventCame(script, due.payload[REOPENED] ? 'land_collision' : due.event)
-    if (this.onLand.has(script)) this.restarted.add(script)
+    if (reset && this.onLand.has(script)) this.restarted.add(script)
   }
 
   /** Whether `event`, about to run, is the first land_collision of `script` since a reset during the contact. */

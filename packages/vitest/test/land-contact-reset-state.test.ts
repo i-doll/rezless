@@ -21,6 +21,7 @@ const source = `list log; integer mode;
       else if (s == "sleep reset") { mode = 1; llSleep(n / 1000.0); log += "woke"; }
       else if (s == "sleep state") { mode = 2; llSleep(n / 1000.0); log += "woke"; }
       else if (s == "sleep") { llSleep(n / 1000.0); log += "woke"; }
+      else if (s == "sleep then state") { llSleep(n / 1000.0); llLinksetDataWrite("again", "reset"); state two; }
       else if (s == "twice") mode = 3;
       else if (s == "reset then state") mode = 4;
     }
@@ -41,7 +42,10 @@ const source = `list log; integer mode;
     land_collision_end(vector p) { log += "lce"; }
   }
   state two {
-    state_entry() { log += "s2"; }
+    state_entry() {
+      log += "s2";
+      if (llLinksetDataRead("again") == "reset") { llLinksetDataDelete("again"); llResetScript(); }
+    }
     land_collision_start(vector p) { log += "lcs"; }
     land_collision(vector p) { log += "lc"; }
     land_collision_end(vector p) { log += "lce"; }
@@ -238,6 +242,22 @@ describe('a contact whose held land_collision ran, through a reset or a state ch
       if (ends) queued(f.script, f.linkset, 'land_collision_end')
     }
     f.script.reset()
+    goOn(f, queued, 5)
+    expect(f.log()).toEqual(['lcs', ...lcs(5), 'lce'])
+  })
+
+  // Follows the measurement above: a state change at the wake drops the held land events, and a
+  // reset in the new state's state_entry is still a reset during the contact.
+  it('raises a new start for a reset just after a state change dropped the held contact', async () => {
+    const f = await box()
+    f.linkset.clock.schedule(f.script, f.linkset.clock.now, 'link_message', { sender_num: 0, num: 1_000, str: 'sleep then state', id: '' })
+    f.linkset.advanceTime(500)
+    queued(f.script, f.linkset, 'land_collision_start')
+    for (let i = 0; i < 6; i++) {
+      f.linkset.advanceTime(44)
+      queued(f.script, f.linkset, 'land_collision')
+    }
+    f.linkset.advanceTime(1_000 - f.linkset.clock.now)
     goOn(f, queued, 5)
     expect(f.log()).toEqual(['lcs', ...lcs(5), 'lce'])
   })
