@@ -1,5 +1,5 @@
 import { clearTargetMotion } from './builtins/motion.js'
-import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
+import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
@@ -795,24 +795,27 @@ export class Script {
     this.linkset.settle(started)
   }
 
-  /** Set an avatar's semantic input fixture, shared by scripts in this World. */
-  setGameControl(agent: string, input: GameControlState | null): void {
+  /**
+   * The avatar's viewer sends this controller state. When it differs from what that viewer
+   * last sent, every running script in the World (or this linkset) that holds
+   * PERMISSION_GAME_CONTROL from the avatar gets game_control.
+   */
+  sendGameControl(agent: string, input: GameControlInput = {}): void {
+    const key = agent.toLowerCase()
+    const state = receiveGameControl(key, input)
     const avatars = gameControlAvatars(this.linkset)
-    if (input === null) avatars.delete(agent.toLowerCase())
-    else avatars.set(agent.toLowerCase(), copyGameControl(input))
-  }
-
-  /** Queue raw input and a copy of the avatar's semantic fixture for this script. */
-  sendGameControl(agent: string, raw: { buttons?: number; axes?: readonly number[] } = {}): void {
-    if (!(this.state.permissions.granted & PERMISSION_GAME_CONTROL)
-      || agent.toLowerCase() !== this.state.permissions.agent.toLowerCase()) return
-    const input = gameControlAvatars(this.linkset).get(agent.toLowerCase())
-    const snapshot = input ? { ...copyGameControl(input), agent: agent.toLowerCase() } : null
-    this.fire('game_control', {
-      id: agent, button_levels: (raw.buttons ?? 0) | 0,
-      axes: typedList((raw.axes ?? []).map(Math.fround), (raw.axes ?? []).map(() => 'float')),
-      gameControlSnapshot: snapshot,
+    // In-world: a held state the viewer kept sending raised one event when it began and one when it was let go.
+    if (sameGameControl(avatars.get(key), state)) return
+    avatars.set(key, state)
+    const linksets = this.linkset.peers.length ? this.linkset.peers : [this.linkset]
+    const targets = linksets.flatMap(l => l.allScripts()).filter(s => s.running && !s.dead && !s.clockView.inInventory
+      && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
+    for (const s of targets) s.clockView.schedule(s.now, 'game_control', {
+      id: key, button_levels: state.buttons,
+      axes: typedList([...state.axes], state.axes.map(() => 'float')),
+      gameControlSnapshot: state.mode,
     })
+    this.linkset.settle(targets.filter(s => s.handles('game_control')))
   }
 
   /**
@@ -1212,6 +1215,8 @@ export class Script {
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
     const detached = this.clockView.inInventory
+    // In-world: a worn script that was detached and worn again read -1 until its next game_control.
+    this.state.gameControlSnapshot = null
     if (detached) {
       this.dropSeatPermissions()
       this.state.detectedStack.forEach((context, i, stack) => {
@@ -1528,8 +1533,10 @@ export class Script {
     body: () => Generator<Suspension, boolean, unknown>,
     payload: Record<string, unknown>,
   ): Generator<Suspension, boolean, unknown> {
-    this.state.gameControlSnapshot = event === 'game_control'
-      ? (payload['gameControlSnapshot'] as GameControlSnapshot | null | undefined) ?? null : null
+    // In-world: outside game_control the functions still read the last event's values, after a
+    // state change or reset too.
+    const values = payload['gameControlSnapshot'] as GameControlSnapshot | undefined
+    if (event === 'game_control' && values) this.state.gameControlSnapshot = values
     enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
@@ -1544,7 +1551,6 @@ export class Script {
       throw e
     } finally {
       if (pushed) this.state.detectedStack.pop()
-      this.state.gameControlSnapshot = null
       leaveDamageEvent(payload)
     }
   }
@@ -1579,7 +1585,6 @@ export class Script {
         if (e instanceof ResetScriptSignal) return true
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
-        this.state.gameControlSnapshot = null
         // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
         if (this.clearDamageAdjustment()) yield { until: this.now }
         if (this.state.lifecycle.removed) return false
