@@ -115,3 +115,29 @@ it('keeps the targets of a script that crashed acting', async () => {
   f.linkset.advanceTime(4_000)
   expect(f.root.position.z).toBeCloseTo(GROUND + 1, 2)
 })
+
+// In-world (Aditi, SLua Tideland, 2026-11-23): i doll's box and both its scripts were everyone-copy.
+// With M running, fivebot's Take Copy left the original at its target. With M stopped the box had
+// already dropped; fivebot's Take Copy left it on the floor, and once M was started it went back up.
+describe('a Take Copy by another avatar', () => {
+  const OTHER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+  it('leaves the original at its target while the script runs', async () => {
+    const f = await box()
+    f.linkset.copy({ owner: OTHER })
+    f.linkset.advanceTime(3_000)
+    expect(f.root.position.z).toBeCloseTo(GROUND + 1, 2)
+  })
+
+  it('leaves the original slack while the script is stopped, until it starts', async () => {
+    const f = await box()
+    f.m.running = false
+    f.drop()
+    f.linkset.copy({ owner: OTHER })
+    f.linkset.advanceTime(3_000)
+    expect(f.root.position.z).toBe(GROUND)
+    f.m.running = true
+    f.linkset.advanceTime(3_000)
+    expect(f.root.position.z).toBeCloseTo(GROUND + 1, 2)
+  })
+})
