@@ -520,3 +520,29 @@ describe('the owner resetting a script', () => {
     expect(ownerChat(slua)).toEqual(['131072', '100000', '100000'])
   })
 })
+
+describe('a click action out of range', () => {
+  // In-world: from touch (0), sit (1) and pay (3), llSetClickAction and PRIM_CLICK_ACTION with -1, -2, -255, -256,
+  // -2147483648, 10, 11, 100, 255, 256, 257 and 2147483647 left the click action as it was, read back through
+  // PRIM_CLICK_ACTION and OBJECT_CLICK_ACTION; 8 and 9 set it. Nothing was shown, and a PRIM_DESC after a bad
+  // PRIM_CLICK_ACTION was set.
+  const values = [-1, -2, -255, -256, -2147483648, 10, 11, 100, 255, 256, 257, 2147483647]
+  it.each([[0], [1], [3]])('leaves the click action from %i', async (start) => {
+    const s = await loadScript({
+      source: `list out; default { state_entry() {
+        list values = [${values.join(', ')}, 8, 9];
+        integer i;
+        for (i = 0; i < llGetListLength(values); ++i) {
+          llSetClickAction(${start}); llSetClickAction(llList2Integer(values, i));
+          out += llList2Integer(llGetPrimitiveParams([PRIM_CLICK_ACTION]), 0);
+          llSetClickAction(${start}); llSetPrimitiveParams([PRIM_CLICK_ACTION, llList2Integer(values, i), PRIM_DESC, "after"]);
+          out += llList2Integer(llGetObjectDetails(llGetKey(), [OBJECT_CLICK_ACTION]), 0);
+        }
+      } }`,
+    })
+    s.start()
+    expect(s.global('out')).toEqual([...values.flatMap(() => [start, start]), 8, 8, 9, 9])
+    expect(debugChat(s)).toEqual([])
+    expect(s.host.description).toBe('after')
+  })
+})

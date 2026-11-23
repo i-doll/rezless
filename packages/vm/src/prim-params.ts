@@ -1,5 +1,6 @@
 import { mulRotation } from './values/ops.js'
 import {
+  CLICK_ACTION_IGNORE,
   CLICK_ACTION_TOUCH,
   OVERRIDE_GLTF_BASE_ALPHA,
   OVERRIDE_GLTF_BASE_ALPHA_MASK,
@@ -596,9 +597,12 @@ export function writePrimParam(
     case PRIM_SIT_FLAGS:
       p.sitFlags = num(rules[cursor]) & SETTABLE_SIT_FLAGS
       return 1
-    case PRIM_CLICK_ACTION:
-      p.clickAction = num(rules[cursor]) | 0
+    case PRIM_CLICK_ACTION: {
+      // In-world: a value outside CLICK_ACTION_TOUCH to CLICK_ACTION_IGNORE leaves the click action as it was.
+      const action = num(rules[cursor]) | 0
+      if (action >= CLICK_ACTION_TOUCH && action <= CLICK_ACTION_IGNORE) p.clickAction = action
       return 1
+    }
     case PRIM_HEALTH:
       p.health = num(rules[cursor])
       return 1
