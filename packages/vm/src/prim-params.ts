@@ -1558,7 +1558,8 @@ export const isPerFaceRule = (param: number) => PER_FACE_RULES.has(param)
  * What a face is on its shape: a path end (top / bottom), the hollow's inner
  * face, one of the two profile-cut faces, or the outer profile side with that
  * index. Faces are numbered top, outer sides, inner, bottom, cut faces, as
- * measured on a box in Second Life.
+ * measured on every shape in Second Life. A sphere, torus, tube or ring has
+ * a top and bottom only when a path cut or twist gives its path two ends.
  */
 type FaceRole = 'top' | 'inner' | 'bottom' | 'cutStart' | 'cutEnd' | number
 
