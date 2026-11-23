@@ -258,49 +258,8 @@ describe('link numbers below LINK_THIS in calls that take groups of links', () =
     expect(new Set(s.scripts.p1!.global('changes') as number[])).toEqual(new Set([CHANGED_COLOR]))
   })
 
-  // llLinkPlaySound, llLinkStopSound, llLinkAdjustSoundVolume, llLinkSetSoundQueueing,
-  // llLinkSetSoundRadius and llSetLinkTextureAnim are not measured: no script can read
-  // a prim's sound or texture animation back, and the viewer tools used for the
-  // probes do not report them. Their wiki pages document the LINK_* flags as
-  // groups, so they follow the rule every measured group call follows.
-  it.each([
-    [1, 1],
-    [3, 0],
-  ])('gives the sound and texture animation calls the shared group rule from link %i', async (caller, other) => {
-    const SOUND = 'caae27c6-6dd3-495e-9cc2-a3f94cb60568'
-    const s = await scene(3, `
-      if (step == 0) {
-        llLinkPlaySound(-5, "${SOUND}", 1.0, SOUND_LOOP);
-        llLinkAdjustSoundVolume(-100, 0.25);
-        llLinkSetSoundRadius(-100, 7.0);
-        llLinkSetSoundQueueing(0x80000000, TRUE);
-        llSetLinkTextureAnim(-5, ANIM_ON | LOOP, ALL_SIDES, 2, 2, 0.0, 4.0, 1.0);
-      } else llLinkStopSound(-5);
-      ++step;`)
-    s.run(caller)
-    s.linkset.prims.forEach((prim, i) => {
-      const hit = i === other
-      expect(prim.sound).toMatchObject({ current: hit ? { sound: SOUND, volume: 0.25 } : null, radius: hit ? 7 : 0, queueing: hit })
-      expect(prim.params.textureAnim).toMatchObject({ sizex: hit ? 2 : 0, sizey: hit ? 2 : 0 })
-    })
-    s.run(caller)
-    expect(s.linkset.prims[other]!.sound.current).toBeNull()
-  })
-
-  // Not measured either, for the same reason: on a lone prim there is no other link
-  // until someone sits, and then the other link is the avatar, which is taken to
-  // have no sound or texture animation to set.
-  it('gives the sound and texture animation calls no link below LINK_THIS on a lone prim', async () => {
-    for (const seat of [undefined, 'root'] as const) {
-      const s = await scene(1, `
-        llLinkPlaySound(-5, "caae27c6-6dd3-495e-9cc2-a3f94cb60568", 1.0, SOUND_LOOP);
-        llLinkSetSoundRadius(-100, 7.0);
-        llSetLinkTextureAnim(-5, ANIM_ON | LOOP, ALL_SIDES, 2, 2, 0.0, 4.0, 1.0);`, seat)
-      s.run()
-      expect(s.linkset.prims[0]!.sound).toMatchObject({ current: null, radius: 0 })
-      expect(s.linkset.prims[0]!.params.textureAnim).toMatchObject({ sizex: 0 })
-    }
-  })
+  // The link sound calls, llSetLinkTextureAnim and llLinkParticleSystem are in
+  // link-sound-calls.test.ts.
 })
 
 describe('negative link numbers in calls that take one link', () => {

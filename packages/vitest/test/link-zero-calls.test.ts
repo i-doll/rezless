@@ -216,33 +216,8 @@ describe('link 0 in calls that take groups of links', () => {
     expect(s.linkset.prims.map((prim) => prim.particles !== null)).toEqual(s.linkset.prims.map((_, i) => i === target))
   })
 
-  // The link sound calls and llSetLinkTextureAnim with link 0 are not measured. No
-  // script can read a prim's sound or texture animation back, a snapshot cannot
-  // show a sound, and the snapshots showed no texture animation even on a prim
-  // that animated itself. A person would have to watch the prims in a rendering
-  // viewer, with sound beacons on for the sound calls. They resolve links through
-  // the same resolver as every measured group call.
-  const SOUND = 'caae27c6-6dd3-495e-9cc2-a3f94cb60568'
-  const UNREAD = `
-    if (step == 0) {
-      llLinkPlaySound(0, "${SOUND}", 1.0, SOUND_LOOP);
-      llLinkAdjustSoundVolume(0, 0.25);
-      llLinkSetSoundRadius(0, 7.0);
-      llLinkSetSoundQueueing(0, TRUE);
-      llSetLinkTextureAnim(0, ANIM_ON | LOOP, ALL_SIDES, 2, 2, 0.0, 4.0, 1.0);
-    } else llLinkStopSound(0);
-    ++step;`
-  it.each(TARGETS)('gives the sound and texture animation calls the shared rule from link %i of %i prims, seated %s', async (caller, count, seated, target) => {
-    const s = await scene(count, UNREAD, seated)
-    s.run(caller)
-    s.linkset.prims.forEach((prim, i) => {
-      const hit = i === target
-      expect(prim.sound).toMatchObject({ current: hit ? { sound: SOUND, volume: 0.25 } : null, radius: hit ? 7 : 0, queueing: hit })
-      expect(prim.params.textureAnim).toMatchObject({ sizex: hit ? 2 : 0, sizey: hit ? 2 : 0 })
-    })
-    s.run(caller)
-    expect(s.linkset.prims.every((prim) => prim.sound.current === null)).toBe(true)
-  })
+  // The link sound calls and llSetLinkTextureAnim with link 0 are in
+  // link-sound-calls.test.ts.
 })
 
 describe('link 0 in calls that take one link', () => {

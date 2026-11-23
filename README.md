@@ -647,9 +647,11 @@ names the first link that is not the caller: link 2 from the root, the root
 from a child, and the sitter from a lone prim someone sits on. Calls that take
 `LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` as groups of prims read
 it that way. That was measured in Second Life for `llMessageLinked` and the
-calls that set prim parameters, colour, alpha, texture, material and sit flags.
-The link sound calls and `llSetLinkTextureAnim` follow the same rule without a
-measurement, because no script can read their effect back. Calls that take one
+calls that set prim parameters, colour, alpha, texture, material and sit flags,
+the link sound calls, `llSetLinkTextureAnim` and `llLinkParticleSystem`. The
+link sound calls also reach seated avatars: the three group flags take every
+sitter as well as their prims, and a link number that names a sitter gives that
+avatar the sound. Read it from `world.avatars[i].sound`. Calls that take one
 link (`llGetLinkKey`, `llGetLinkName`, `llGetLinkSitFlags`,
 `llAvatarOnLinkSitTarget`, `llLinkSitTarget`, `llSetLinkCamera`, the link media
 calls) read the three group flags as the first other link as well.
@@ -662,8 +664,7 @@ negative number as link 2, whichever prim calls it.
 
 Link 0 is the root when a child prim calls and names nothing when the root
 calls. A lone prim is link 0 until an avatar sits on it. That was measured for
-the calls above; the link sound calls and `llSetLinkTextureAnim` follow it
-without a measurement. `llGetObjectLinkKey` reads link 0 as the root from any
+the calls above. `llGetObjectLinkKey` reads link 0 as the root from any
 prim, `llBreakLink(0)` does nothing, and `llSitOnLink` keeps its own rule, which
 needs an experience to measure. `llGetLinkSitFlags` and
 `PRIM_SIT_FLAGS` report `SIT_FLAG_SIT_TARGET` while the prim has a sit target;
@@ -791,7 +792,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
 * **email**: `llEmail`, `llGetNextEmail`, `llTargetedEmail` (each send sleeps 20 seconds) — mail to `<key>@lsl.secondlife.com` reaches that prim's queue, which holds 101 mails; queue a test's mail with `s.deliverEmail`
 * **pathfinding**: `llCreateCharacter`, `llUpdateCharacter`, `llDeleteCharacter`, `llEvade`, `llExecCharacterCmd`, `llFleeFrom`, `llNavigateTo`, `llPatrolPoints`, `llPursue`, `llWanderWithin`, `llGetClosestNavPoint`, `llGetStaticPath`. Inspect `s.character.options` for explicit requested configuration and `s.character.commands` for command history. The character belongs to the object and survives script resets. `s.pathUpdate(type)` sends an event with an empty reserved list to the root prim's scripts. Movement, capsule fitting, option clamping and navmesh baking are not simulated. Set fixed query answers with `s.setNavigationResults({ closestNavPoint: [point], staticPath: [start, end, 0] })`, or use `s.mock` for answers that depend on query arguments. Without fixtures, closest-point queries return `[]` and static-path queries return `[PU_FAILURE_INVALID_GOAL]`; an out-of-range static-path radius returns `[]`.
-* **sound**: `llPlaySound`, `llLoopSound`, `llLoopSoundMaster`, `llLoopSoundSlave`, `llPlaySoundSlave`, `llTriggerSound`, `llTriggerSoundLimited`, `llStopSound`, `llPreloadSound`, `llAdjustSoundVolume`, `llSetSoundQueueing`, `llSetSoundRadius`, and the `llLinkPlaySound`, `llLinkStopSound`, `llLinkAdjustSoundVolume`, `llLinkSetSoundQueueing`, `llLinkSetSoundRadius` variants. Inspect `prims[i].sound` from `loadLinkset`: `current` holds the last attached request or `null` after stop, `queueing` and `radius` hold settings, and `triggers` and `preloads` record one-shot requests. Names resolve in the calling prim's sound inventory; UUIDs work without inventory. Volume records the documented 0–1 range, while radius records the requested value. Audio playback, duration, queue progression, synchronization and effective audibility limits are not simulated.
+* **sound**: `llPlaySound`, `llLoopSound`, `llLoopSoundMaster`, `llLoopSoundSlave`, `llPlaySoundSlave`, `llTriggerSound`, `llTriggerSoundLimited`, `llStopSound`, `llPreloadSound`, `llAdjustSoundVolume`, `llSetSoundQueueing`, `llSetSoundRadius`, and the `llLinkPlaySound`, `llLinkStopSound`, `llLinkAdjustSoundVolume`, `llLinkSetSoundQueueing`, `llLinkSetSoundRadius` variants. Inspect `prims[i].sound` from `loadLinkset`, or `world.avatars[i].sound` for an avatar a link variant reached: `current` holds the last attached request or `null` after stop, `queueing` and `radius` hold settings, and `triggers` and `preloads` record one-shot requests. Names resolve in the calling prim's sound inventory; UUIDs work without inventory. Volume records the documented 0–1 range, while radius records the requested value. Audio playback, duration, queue progression, synchronization and effective audibility limits are not simulated.
 * **prim media**: `llSetPrimMediaParams`, `llGetPrimMediaParams`, `llClearPrimMedia`, `llSetLinkMedia`, `llGetLinkMedia`, and `llClearLinkMedia`. Inspect `prims[i].media`, a map from face number to values indexed by `PRIM_MEDIA_*` constants. Setters validate atomically and return simulator status codes. Getters return values in requested order; clearing removes the face entry. Permission masks and URL whitelists are stored and validated, but browser rendering and avatar interaction are not simulated. Media link calls select one prim, including the measured first-other-prim behavior of negative selectors other than `LINK_THIS`.
 * **particles**: `llParticleSystem` and `llLinkParticleSystem`. Inspect `prims[i].particles` for the last accepted request, with its raw `rules` and resolved `texture` UUID. Empty lists and wrong value types clear it. Unknown rule ids, noninteger ids and trailing unpaired rules are silent. Texture names resolve in each target prim's inventory; missing names use the default particle texture. Numeric values retain their requested magnitude. Viewer clamping, quantization, particle motion and rendering are not simulated.
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
