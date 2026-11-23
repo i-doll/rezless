@@ -318,7 +318,7 @@ export class LinksetClock {
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
       const until = delayedUntil(e)
-      if (until > e.at && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
+      if (until > e.at && WAITS_BEHIND.has(e.event) && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
     }
     let bestIdx = -1
     let bestAt = Infinity
@@ -380,8 +380,9 @@ export class LinksetClock {
 
     // In-world: a sensor result and a timer tick that both waited for llMinEventDelay ran the
     // timer first.
-    const sensorWaits = bestIdx !== -1 && bestAt === bestTimerAt && SENSOR_EVENTS.has(this.queue[bestIdx]!.event) &&
-      this.queue[bestIdx]!.target === bestTimerScript && (bestTimerScript?.clockView.minEventDelayMs ?? 0) > 0
+    const waiting = bestIdx === -1 ? undefined : this.queue[bestIdx]!
+    const sensorWaits = waiting !== undefined && bestAt === bestTimerAt && SENSOR_EVENTS.has(waiting.event) &&
+      waiting.target === bestTimerScript && bestAt === bestTimerScript.clockView.delayedUntilMs
     if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)

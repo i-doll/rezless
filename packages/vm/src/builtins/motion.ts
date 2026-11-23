@@ -58,6 +58,8 @@ export class KeyframedMotion {
   private segments: Segment[] = []
   private duration = 0
   private cancel: (() => void) | undefined
+  /** When a one-way motion that is playing ends. */
+  private endsAt = Infinity
   private held: Transform
   /** A restored object's first cycle runs relative to its new rez pose. */
   private restored: { segments: Segment[]; anchor?: Transform } | undefined
@@ -98,8 +100,10 @@ export class KeyframedMotion {
     const stop=this.clock.onAdvance(now=>this.update(now))
     // The clock stops where a one-way motion ends, so its moving_end comes then.
     const prim=this.prim
-    const end=this.mode===KFM_LOOP || this.mode===KFM_PING_PONG ? undefined
-      : this.clock.scheduleTask({get dead() { return !!prim.linkset?.dead }},this.startedAt+this.duration-this.elapsed,()=>this.update(this.clock.now))
+    const repeating=this.mode===KFM_LOOP || this.mode===KFM_PING_PONG
+    this.endsAt=repeating ? Infinity : this.startedAt+this.duration-this.elapsed
+    const end=repeating ? undefined
+      : this.clock.scheduleTask({get dead() { return !!prim.linkset?.dead }},this.endsAt,()=>this.update(this.clock.now))
     this.cancel=()=>{stop();end?.()}
   }
 
@@ -124,8 +128,12 @@ export class KeyframedMotion {
     copy.elapsed=this.mode===KFM_LOOP || this.mode===KFM_PING_PONG ? saved.elapsed%copy.duration : saved.elapsed
     copy.held=saved.pose
     copy.restored={segments:first}
-    if (saved.playing) copy.restored.anchor=saved.pose
-    else copy.dispose()
+    if (saved.playing) {
+      copy.restored.anchor=saved.pose
+      // The end comes when the restored progress runs out.
+      copy.cancel?.();copy.cancel=undefined
+      copy.observe()
+    } else copy.dispose()
     return copy
   }
 
@@ -142,8 +150,8 @@ export class KeyframedMotion {
     // both repeating modes return to the original region path (Aditi, SLua Tideland, 2026-11-01).
     if (repeating && elapsed>=this.duration) this.restored=undefined
     if (repeating) elapsed%=this.duration
-    else if (elapsed>=this.duration) {
-      raiseMoving(this.prim,'moving_end',this.startedAt+this.duration-this.elapsed)
+    else if (elapsed>=this.duration || now>=this.endsAt) {
+      raiseMoving(this.prim,'moving_end',this.endsAt)
       elapsed=this.duration
       this.elapsed=this.duration
       this.playing=false

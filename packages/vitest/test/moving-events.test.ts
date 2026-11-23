@@ -102,4 +102,15 @@ describe('moving_start and moving_end', () => {
     o.linkset.advanceTime(2_000)
     expect(o.root.global('log')).toEqual([])
   })
+
+  it('ends a copy of a moving object when its remaining motion has run', async () => {
+    const o = await object()
+    o.send('long')
+    o.linkset.advanceTime(2_000)
+    const copy = o.linkset.copy()
+    const rezzed = copy.copy()
+    rezzed.advanceTime(1_000)
+    const log = rezzed.prims[0]!.scripts[0]!.global('log') as string[]
+    expect(log.at(-1)).toBe('moving_end 30')
+  })
 })
