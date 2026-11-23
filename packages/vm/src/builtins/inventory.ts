@@ -142,10 +142,13 @@ export const llGetInventoryPermMask: BuiltinImpl = (ctx, args) => {
   }
 }
 
-/** The named notecard's lines, or undefined after saying an error when there is no such notecard. */
+/**
+ * The named notecard's lines, or undefined after saying an error when there is no such notecard.
+ * A notecard with embedded items reads as having no lines.
+ */
 function notecardLines(ctx: CallContext, name: string): ReadonlyArray<string> | undefined {
   const item = find(ctx.prim.inventory, name)
-  if (item && item.type === InventoryType.NOTECARD && item.notecardLines) return item.notecardLines
+  if (item && item.type === InventoryType.NOTECARD && (item.hasEmbeddedItems || item.notecardLines)) return item.hasEmbeddedItems ? [] : item.notecardLines
   sayError(ctx, `Could not find notecard '${name}'.`)
   return undefined
 }
