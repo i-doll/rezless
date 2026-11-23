@@ -90,7 +90,7 @@ export function invokeBuiltin(
   if (removed && name !== 'llOwnerSay') throw new HaltSignal()
   const result = impl(ctx, args)
   dctx.state.calls.push({ name, args, returned: result })
-  if (dying) throw new HaltSignal()
+  if (dying || dctx.state.lifecycle.reset) throw new HaltSignal()
   // A call that moved the calling script away (a no-copy gift or load) leaves it nothing to sleep in.
   if (!removed && dctx.state.lifecycle.removed) return { result, delayMs: null }
   const delayMs = spec ? spec.delay * 1000 : 0

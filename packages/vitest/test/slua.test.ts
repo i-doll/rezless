@@ -61,8 +61,12 @@ describe('SLua scripts', () => {
     const s = await slua(`ll.OwnerSay(ll.GetSubString("abc", 0, 1))`)
     expect(() => s.start()).toThrow(/passed 0 when a 1-based index was expected/)
     // In-world: ll.GetSubString("abc", 0, 1) in an SLua script -> "<prim> [script:<name>] Script
-    // run-time error" and "runtime error" (Aditi, SLua Tideland, 2026-11-13).
-    expect(s.chat.map((c) => c.text)).toEqual(['Object [script:test] Script run-time error', 'runtime error'])
+    // run-time error" and "runtime error" (Aditi, SLua Tideland, 2026-11-13). The owner sees the Lua
+    // message and traceback instead of "runtime error" (Aditi, SLua Tideland, 2026-11-23).
+    expect(s.chat.map((c) => c.text)).toEqual([
+      'Object [script:test] Script run-time error',
+      'lua_script:1: passed 0 when a 1-based index was expected\n[C] function GetSubString\nlua_script:1\n',
+    ])
   })
 
   it('gives keys as uuids and lists as tables', async () => {
@@ -96,11 +100,12 @@ describe('SLua scripts', () => {
   it('crashes on a run-time error, as SL reports it', async () => {
     // In-world: indexing nil in an SLua script -> the prim said "<prim>
     // [script:<name>] Script run-time error" and "runtime error" on
-    // DEBUG_CHANNEL (Aditi, SLua Tideland, 2026-11-13). The Lua message stays
-    // on the error rezless throws.
+    // DEBUG_CHANNEL (Aditi, SLua Tideland, 2026-11-13). The owner sees the
+    // Lua message and traceback in place of "runtime error" (Aditi, SLua
+    // Tideland, 2026-11-23).
     const s = await slua(`local t = nil; ll.OwnerSay(t.x)`)
     expect(() => s.start()).toThrow(/attempt to index nil/)
-    expect(s.chat.map((c) => c.text)).toEqual(['Object [script:test] Script run-time error', 'runtime error'])
+    expect(s.chat.map((c) => c.text)).toEqual(['Object [script:test] Script run-time error', "lua_script:1: attempt to index nil with 'x'\nlua_script:1\n"])
   })
 
   it('reports a compile error when loading', async () => {

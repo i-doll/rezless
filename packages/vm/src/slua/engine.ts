@@ -58,16 +58,25 @@ export class SluaCompileError extends Error {
 
 /** A run-time error raised inside the VM: the script crashes, as in SL. */
 export class SluaRuntimeError extends RuntimeError {
-  constructor(message: string) {
+  /** Luau's traceback of the failed thread, for an error raised with a string. */
+  readonly trace: string
+
+  constructor(message: string, trace = '') {
     super(message)
     this.name = 'SluaRuntimeError'
+    this.trace = trace
   }
 
-  // Second Life says one of three texts, not the Lua message. The VM words an
+  // Listeners hear one of three texts, not the Lua message. The VM words an
   // error value that isn't a string as "error object is a <type> value".
   override get said(): string {
     if (this.message === 'not enough memory') return this.message
     return this.message.startsWith('error object is a ') ? 'Unknown runtime error' : 'runtime error'
+  }
+
+  // The owner sees the Lua message and the traceback of an error raised with a string.
+  override get shown(): string {
+    return this.trace ? `${this.message}\n${this.trace}` : this.said
   }
 }
 
@@ -129,6 +138,8 @@ interface Exports {
   rz_resume(s: number, t: number, nargs: number): number
   rz_string(s: number): number
   rz_string_len(s: number): number
+  rz_trace(s: number): number
+  rz_trace_len(s: number): number
   rz_used_memory(s: number): number
   rz_plan(s: number): number
   rz_plan_len(s: number): number
@@ -444,7 +455,7 @@ export class SluaEngine {
         }
         break
       }
-      if (status !== Status.Ok) throw new SluaRuntimeError(this.scratch())
+      if (status !== Status.Ok) throw new SluaRuntimeError(this.scratch(), this.trace())
       // A sleep the script never reached a yieldable point for.
       yield* this.sleep()
   }
@@ -728,6 +739,10 @@ export class SluaEngine {
 
   private scratch(): string {
     return this.readUtf8(this.x.rz_string(this.s), this.x.rz_string_len(this.s))
+  }
+
+  private trace(): string {
+    return this.readUtf8(this.x.rz_trace(this.s), this.x.rz_trace_len(this.s))
   }
 }
 

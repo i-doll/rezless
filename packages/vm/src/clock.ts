@@ -331,7 +331,8 @@ export class LinksetClock {
       // In-world: a link message sent while a touch_start waited for llMinEventDelay ran at once,
       // and the click's touch and touch_end waited behind the touch_start.
       if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
-      if (due <= horizon && due < bestAt && !e.target.handling && (e.event === '__reset' || e.target.wakeAt === undefined)) {
+      if (due <= horizon && due < bestAt && !e.target.handling &&
+          (e.event === '__reset' || (e.target.wakeAt === undefined && !e.target.detachedInHandler))) {
         bestAt = due
         bestIdx = i
       }
