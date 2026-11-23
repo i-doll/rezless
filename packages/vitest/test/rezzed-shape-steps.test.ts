@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, seedRlvInventory, World } from '../src/index.js'
+import { loadLinkset, loadRlvPair, makeInventoryItem, InventoryType, seedRlvInventory, World } from '../src/index.js'
 import type { Linkset } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/PRIM_TYPE
@@ -186,5 +186,71 @@ describe('shape values on a rezzed copy', () => {
       expect(heard(object, 'R'), `round ${i + 1} rezzed`).toEqual(round.rezzed)
       if (i === 0) duplicate(object, round.rezzed)
     }
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): a box set to cut <0.00475, 0.12505> and hollow
+  // 0.12505 read cut <0.00474, 0.12504> and hollow 0.12504. Rezzed from the avatar's inventory
+  // it read <0.00473, 0.12503> and 0.12503, and taken and rezzed again it kept those. The same
+  // box set again, taken and worn from inventory read 0.12503 in on_rez and attach, and so did
+  // one rezzed by llRezObject from another prim's contents.
+  const SET = 'default { state_entry() { llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, 0, <0.00475, 0.12505, 0>, 0.12505, ZERO_VECTOR, <1, 1, 0>, ZERO_VECTOR]); } }'
+  const shapeOf = (object: { prims: ReadonlyArray<{ params: { shape: unknown } }> }) => {
+    const shape = object.prims[0]!.params.shape as { cut: { x: number; y: number }; hollow: number }
+    return [shape.cut.x, shape.cut.y, shape.hollow]
+  }
+  const LIVE = [0.00474, 0.12504, 0.12504].map(Math.fround)
+  const REZZED = [0.00473, 0.12503, 0.12503].map(Math.fround)
+
+  async function box(world?: World) {
+    const { linkset, scripts } = await loadLinkset({ ...(world ? { world, region: 'home' } : {}), owner: OWNER,
+      prims: [{ name: 'box', scripts: [{ name: 'set', source: { source: SET } }] }] })
+    scripts.set!.start()
+    expect(shapeOf(linkset)).toEqual(LIVE)
+    return linkset
+  }
+
+  it('drops a value a step once, however often the object goes through inventory', async () => {
+    const f = await fixture()
+    let object = await box(f.world)
+    for (let i = 0; i < 2; i++) {
+      const saved = object.copy()
+      object.remove()
+      seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: `box${i}`, kind: 'item', parentId: null, name: 'box', object: saved, assetType: 'object' }] })
+      object = f.world.attemptAvatarRez(f.avatar, `box${i}`, { x: 116, y: 50, z: 20 }).object!
+      expect(shapeOf(object), `rez ${i + 1}`).toEqual(REZZED)
+    }
+  })
+
+  it.each(['in a world', 'without one'])('drops it on an object llRezObject rezzes, %s', async (where) => {
+    const world = where === 'in a world' ? (await fixture()).world : undefined
+    const saved = (await box(world)).copy()
+    const { linkset, scripts } = await loadLinkset({ ...(world ? { world, region: 'home' } : {}), owner: OWNER, prims: [{ name: 'rezzer', scripts: [{ name: 'rez',
+      source: { source: 'default { touch_start(integer n) { llRezObject("box", llGetPos() + <0, 0, 1>, ZERO_VECTOR, ZERO_ROTATION, 7); } object_rez(key id) { llOwnerSay((string)id); } }' } }] }] })
+    linkset.prims[0]!.addInventory(makeInventoryItem({ name: 'box', type: InventoryType.OBJECT, key: saved.prims[0]!.key, object: saved }))
+    scripts.rez!.start()
+    linkset.touch(0, AVATAR)
+    linkset.advanceTime(100)
+    const id = scripts.rez!.chat.at(-1)!.text
+    const rezzed = [...(world?.linksets ?? linkset.peers)].find((l) => l.prims[0]!.key === id)!
+    expect(shapeOf(rezzed)).toEqual(REZZED)
+  })
+
+  it('drops it on an object worn from inventory', async () => {
+    const { rlv } = await loadRlvPair({ source: 'default { touch_start(integer n) { llOwnerSay(llGetObjectDesc()); } }' })
+    const { world, avatar } = rlv
+    const { linkset, scripts } = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
+      prims: [{ name: 'box', scripts: [{ name: 'set', source: { source: SET } }] }] })
+    scripts.set!.start()
+    const saved = linkset.copy()
+    seedRlvInventory(avatar, { sharedRootId: 'root', entries: [
+      { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+      { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+      { id: 'box', parentId: 'folder', kind: 'item', name: 'Box (left hand)', assetType: 'object', object: saved },
+    ] })
+    rlv.script.start()
+    rlv.script.host.description = '@attach:direct=force'
+    rlv.script.fire('touch_start', { num_detected: 1 })
+    const worn = world.linksets.find((l) => l.attachment && l !== rlv.script.linkset)!
+    expect(shapeOf(worn)).toEqual(REZZED)
   })
 })

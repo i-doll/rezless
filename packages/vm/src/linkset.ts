@@ -400,7 +400,8 @@ export class Linkset {
     const unseated = sitters.length > 0
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
     this.fill(copy, (script, prim) => script.copyTo(prim, { unseated, waiting }))
-    if (opts.world) for (const prim of copy.prims) restepRezzedShape(prim.params)
+    // A copy that joins a world or a rezzer's clock is rezzed or worn; any other is a snapshot.
+    if (opts.world || from) for (const prim of copy.prims) restepRezzedShape(prim.params)
     copy.recountScripts()
     return copy
   }
