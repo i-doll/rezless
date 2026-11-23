@@ -12,15 +12,15 @@ const MAX_DEFAULT_MATCHES = 64
 export type NotecardText = { lines: ReadonlyArray<string>; embedded: boolean }
 export type Notecard = NotecardText | 'missing' | 'unknown-key'
 
-type Assets = { readonly removed: Map<string, NotecardText>; readonly fetched: Set<string> }
+type Assets = { readonly removed: Map<string, NotecardText>; readonly fetched: Map<string, NotecardText> }
 const assets = new WeakMap<object, Assets>()
 
 const isKey = (name: string) => UUID.test(name) && name !== NULL_KEY
 
-/** Notecards removed from the script's world, still readable by key, and the keys a dataserver read has fetched. */
+/** Notecards removed from the script's world, still readable by key, and the notecards a dataserver read has fetched, by key. */
 function worldAssets(ctx: CallContext): Assets {
   let known = assets.get(ctx.linkset.peers)
-  if (!known) assets.set(ctx.linkset.peers, (known = { removed: new Map(), fetched: new Set() }))
+  if (!known) assets.set(ctx.linkset.peers, (known = { removed: new Map(), fetched: new Map() }))
   return known
 }
 
@@ -55,17 +55,20 @@ export function findNotecard(ctx: CallContext, name: string, fetch = false): Not
     const here = inventory.find(withKey(key))
     const text = here && notecardText(here)
     if (text) {
-      if (fetch) known.fetched.add(key)
+      if (fetch) known.fetched.set(key, text)
       return text
     }
+    const cached = known.fetched.get(key)
+    if (cached || !fetch) return cached ?? 'unknown-key'
     const held = ctx.linkset.peers.flatMap((linkset) => linkset.prims).flatMap((prim) => prim.inventory).find(withKey(key))
     const elsewhere = (held && notecardText(held)) ?? known.removed.get(key)
-    if (elsewhere && fetch) known.fetched.add(key)
-    return elsewhere && known.fetched.has(key) ? elsewhere : 'unknown-key'
+    if (!elsewhere) return 'unknown-key'
+    known.fetched.set(key, elsewhere)
+    return elsewhere
   }
   const text = byName && notecardText(byName)
   if (text) {
-    if (fetch && byName.key !== NULL_KEY) known.fetched.add(byName.key.toLowerCase())
+    if (fetch && byName.key !== NULL_KEY) known.fetched.set(byName.key.toLowerCase(), text)
     return text
   }
   sayError(ctx, `Could not find notecard '${name}'.`)

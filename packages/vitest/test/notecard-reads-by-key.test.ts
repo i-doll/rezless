@@ -139,6 +139,24 @@ describe('notecard line reads given an asset key', () => {
     ])
   })
 
+  it('keep a fetched notecard cached after the object holding it lets it go', async () => {
+    // A notecard's asset doesn't change, so the cache keeps the text the read fetched.
+    const world = new World()
+    world.addRegion('Here', { x: 0, y: 0 })
+    const other = await loadLinkset({ world, region: 'Here', owner: OWNER, prims: [{ inventory: [notecard('gone', GONE_KEY, ['gone a', 'second'])] }] })
+    const source = `default {
+      state_entry() { llGetNotecardLine("${GONE_KEY}", 0); llSetTimerEvent(1); }
+      timer() { llSetTimerEvent(0); llSay(1, llGetNotecardLineSync("${GONE_KEY}", 1)); }
+    }`
+    const { scripts } = await loadLinkset({ world, region: 'Here', owner: OWNER, prims: [{ scripts: [{ source: { source, filename: 'p.lsl' }, name: 'p' }] }] })
+    const p = scripts['p']!
+    p.start()
+    p.advanceTime(500)
+    other.linkset.prims[0]!.removeInventory('gone')
+    p.advanceTime(1000)
+    expect(said(p)).toEqual(['second'])
+  })
+
   it('cache a notecard outside the prim after llFindNotecardTextCount alone', async () => {
     // In-world: a removed notecard read only by llFindNotecardTextCount ("2") then gave its first line
     // to llGetNotecardLineSync and its matches to llFindNotecardTextSync; another removed notecard that
