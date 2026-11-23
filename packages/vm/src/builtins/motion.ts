@@ -95,14 +95,15 @@ function settleLater(linkset: Linkset, state: PhysicalMotion): void {
 export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
   const root = linkset.prims[0]
   if (!root || !!(root.statusFlags & STATUS_PHYSICS) === wasPhysical) return
-  const before = physicalMotion.get(linkset)
-  before?.settle?.()
+  // A copy of a physical object has no state of its own yet: its velocity says whether it moves.
+  const before = physicalMotion.get(linkset) ?? { moving: !still(velocityOf(linkset)) }
+  before.settle?.()
   if (wasPhysical) {
     physicalMotion.delete(linkset)
     // In-world: a box floating at 0.5 m/s whose physics was switched off got moving_end, and
     // llGetVel read zero straight after.
     root.physics.velocity = { ...ZERO_VECTOR }
-    if (before?.moving) raiseMoving(root, 'moving_end', linkset.clock.now)
+    if (before.moving) raiseMoving(root, 'moving_end', linkset.clock.now)
     return
   }
   const state: PhysicalMotion = { moving: true }

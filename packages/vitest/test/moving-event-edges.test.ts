@@ -210,6 +210,17 @@ describe('moving events from physical motion', () => {
     expect((rezzed.prims[0]!.scripts[0]!.global('log') as string[]).at(-1)?.split(' ')[0]).toBe('moving_end')
   })
 
+  it('ends a copy of a moving physical object when its physics is switched off', async () => {
+    const b = await box(physical)
+    b.linkset.setVelocity({ x: 0.5, y: 0, z: 0 })
+    send(b, 'on')
+    b.linkset.advanceTime(1_000)
+    const rezzed = b.linkset.copy().copy()
+    rezzed.prims[0]!.scripts[0]!.fire('link_message', { sender_num: 0, num: 0, str: 'off', id: '' })
+    rezzed.advanceTime(1_000)
+    expect((rezzed.prims[0]!.scripts[0]!.global('log') as string[]).at(-1)?.split(' ')[0]).toBe('moving_end')
+  })
+
   it('raises nothing for a velocity set on an object that is not physical', async () => {
     const b = await box(physical)
     b.linkset.setVelocity({ x: 0.5, y: 0, z: 0 })
