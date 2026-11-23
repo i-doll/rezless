@@ -335,11 +335,15 @@ describe('@sit:<key>=force on another prim of the seat', () => {
   // In-world: seated on link 1 of the probe (sit target on link 1 only) holding 3076 with forward
   // taken, "@sit:<link 2>=force" from the seat's script left the avatar on link 1 with no changed
   // event, and forward still gave 1/1, 1/0..., 0/1 (Aditi, SLua Tideland, 2026-11-23, RLVa 2.4.2).
-  it('leaves the sitter where it was', async () => {
+  // The viewer sends it as the same sit request as a click, which left the sitter where it was
+  // with sit targets on both prims too.
+  it.each(['link 1', 'both'] as const)('leaves the sitter where it was (sit targets on %s)', async (targets) => {
     const pair = await loadRlvPair({ source: 'default { link_message(integer s, integer n, string m, key id) { llOwnerSay(m); } }' })
     for (const { world, avatar, script } of Object.values(pair)) {
       const seat = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{}, {}] })
-      seat.prims[0]!.params.sitTarget = { enabled: true, offset: { x: 0, y: 0, z: 0.7 }, rotation: { x: 0, y: 0, z: 0, s: 1 } }
+      for (const prim of targets === 'both' ? seat.prims : [seat.prims[0]!]) {
+        prim.params.sitTarget = { enabled: true, offset: { x: 0, y: 0, z: 0.7 }, rotation: { x: 0, y: 0, z: 0, s: 1 } }
+      }
       world.sitAvatar(avatar, seat.prims[0]!)
       script.start()
       tell(script, `@sit:${seat.prims[1]!.key}=force`)
