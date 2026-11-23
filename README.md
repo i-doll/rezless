@@ -1190,10 +1190,20 @@ direct editor selection. Inventory rezzing requires a saved copyable object defi
 
 `world.attemptAvatarTake(avatar, prim, { copy })` takes an object the avatar owns into
 inventory, or a copy of it, as the avatar's viewer allows; the fixture exposes `take` and
-`takeActions`. The result's `object` is the saved object. No viewer offers Take for the
-object its avatar sits on. Firestorm RLVa refuses a copy of that seat under `unsit`, and a
-take under `rez`, `edit` or an edit lock on the object. Kokua refuses a take under `rez`.
+`takeActions`. The result's `object` is the saved object. Another avatar may take a copy of
+an object whose prims and contents everyone may copy; the copy is theirs, with next-owner
+permissions, and the original's scripts get `changed(CHANGED_OWNER)`. No viewer offers Take
+for the object its avatar sits on. Firestorm RLVa offers neither Take nor Take Copy under
+`interact` or past the `fartouch` reach, refuses a copy of the seat under `unsit`, and a take
+under `rez`, `edit` or an edit lock on the object. Kokua refuses a take under `rez`.
 `linkset.copy()` and `llDerezObject` are the simulator's side and take no notice of the viewer.
+
+`linkset.duplicate(offset)` is a shift-drag copy: a new object at the original's place plus
+`offset`, whose scripts start from the top with `state_entry` and no `on_rez`. An avatar
+sitting on the original stays there. `linkset.dropFromAvatar(position)` drops a worn object
+to the ground, at `position` or where its wearer stands. It keeps its key and its scripts'
+state, they get `attach(NULL_KEY)`, the region counts its scripts again, and RLV
+restrictions it set stay in force.
 
 
 `acceptpermission` answers complete covered `llRequestPermissions` requests and

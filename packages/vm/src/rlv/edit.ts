@@ -1,10 +1,12 @@
-import { PERM_COPY } from '../generated/constants.js'
+import { CHANGED_OWNER, PERM_COPY, PERM_TRANSFER } from '../generated/constants.js'
+import { forNextOwner, nextOwnerMask } from '../inventory.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
 import type { Vector } from '../values/types.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { ViewerProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
+import { rlvaPieMenuDenials } from './touch.js'
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 const switches = new Set(['editworld', 'editattach', 'rez', 'interact'])
@@ -86,12 +88,13 @@ function editDenials(avatar: WorldAvatar, linkset: Linkset): RlvRestriction[] {
 
 /**
  * Take an object the avatar owns into inventory, or a copy of it. A taken object leaves the
- * world, and either way an avatar sitting on it is stood up.
+ * world, and either way an avatar sitting on it is stood up. Another avatar may take a copy
+ * of an object that everyone may copy, with its contents.
  *
  * The refusals are the viewers' own, read from their menu code. No viewer offers Take for the
- * object its avatar sits on. Firestorm RLVa refuses a copy of that object under `unsit`, and
- * a take under `rez`, `edit` or an edit lock on the object. Kokua RLV refuses a take under
- * `rez` and has no check on a copy.
+ * object its avatar sits on. Firestorm RLVa opens no menu on the object under `interact` or past
+ * the `fartouch` reach, refuses a copy of the seat under `unsit`, and a take under `rez`, `edit`
+ * or an edit lock on the object. Kokua RLV refuses a take under `rez` and has no check on a copy.
  */
 export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim, options: { copy?: boolean } = {}): AvatarTakeAction {
   const copy = !!options.copy
@@ -105,7 +108,10 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   if (!world.avatars.includes(avatar)) return record('unsupported', 'avatar')
   if (!linkset || linkset.dead || linkset.world !== world || !world.linksets.includes(linkset) || !linkset.prims.includes(prim)) return record('unsupported', 'target')
   if (linkset.attachment) return record('unsupported', 'worn')
-  if (linkset.owner.toLowerCase() !== avatar.key.toLowerCase()) return record('unsupported', 'owner')
+  // In-world: another avatar could take a copy once the object and the script in it could be
+  // copied by everyone. With the script left as it was, the object read as no-copy to them.
+  const foreign = linkset.owner.toLowerCase() !== avatar.key.toLowerCase()
+  if (foreign && !(copy && copyableByEveryone(linkset))) return record('unsupported', 'owner')
   const seated = avatar.sittingOn?.linkset === linkset
   if (seated && !copy) return record('unsupported', 'seated')
   const { profile } = avatar.viewer
@@ -113,14 +119,32 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   const named = (...behaviours: string[]) => rules.filter(rule => !rule.option && behaviours.includes(rule.behaviour))
   // RLVa looks at the object only while edit, rez or unsit is set, or any object is edit-locked.
   const checked = named('edit', 'rez', 'unsit').length > 0 || rules.some(rule => rule.behaviour === 'editobj')
-  const denials = copy
+  const pieMenu = profile === 'rlva' ? rlvaPieMenuDenials(world, avatar, linkset.prims[0]!) : []
+  const denials = pieMenu.length ? pieMenu : copy
     ? profile === 'rlva' && seated ? named('unsit') : []
     : profile !== 'rlva' ? named('rez')
       : checked ? [...new Set([...editDenials(avatar, linkset), ...named('edit', 'rez')])] : []
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
-  const object = linkset.copy()
-  if (!copy) linkset.remove()
+  if (!foreign) {
+    const object = linkset.copy()
+    if (!copy) linkset.remove()
+    return record('taken', undefined, [], object)
+  }
+  const object = linkset.copy({ owner: avatar.key })
+  for (const prim of object.prims) {
+    prim.permMask = nextOwnerMask(prim.permMask)
+    for (const item of prim.inventory) Object.assign(item, forNextOwner(item))
+  }
+  // In-world: the original's scripts got changed(CHANGED_OWNER) when another avatar took a copy,
+  // after the events already waiting, and still read their old owner. A copy taken by the owner
+  // raised nothing.
+  for (const script of linkset.allScripts()) linkset.clock.schedule(script, linkset.clock.now, 'changed', { changes: CHANGED_OWNER })
   return record('taken', undefined, [], object)
+}
+
+function copyableByEveryone(linkset: Linkset): boolean {
+  return linkset.prims.every(prim => prim.permMask.everyone & PERM_COPY && prim.permMask.owner & PERM_TRANSFER &&
+    prim.inventory.every(item => item.permMask.everyone & PERM_COPY))
 }
 
 /** Drop a saved, copyable inventory object into the avatar's current region. */

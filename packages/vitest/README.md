@@ -1177,13 +1177,23 @@ fixture. The supplied position is the new root position.
 an object the avatar owns into inventory, or a copy of it. Outcomes are `taken`, `blocked`
 or `unsupported`, with deciding restrictions and the saved `object` on success;
 `fixture.takeActions` records attempts. A taken object leaves the world, and an avatar
-sitting on the object is stood up either way. Worn objects, objects of another owner and
-a take of the seat the avatar sits on are `unsupported`: no viewer offers that Take. The
-refusals follow the viewers' menu code. Firestorm RLVa 2.4.2 blocks a copy of the seat its
+sitting on the object is stood up either way. Worn objects, a take of an object of another
+owner, a copy of one that everyone may not copy (prims and contents), and a take of the seat
+the avatar sits on are `unsupported`: no viewer offers that Take. A copy taken by another
+avatar is theirs, with next-owner permissions, and the original's scripts get
+`changed(CHANGED_OWNER)`. The refusals follow the viewers' menu code. Firestorm RLVa 2.4.2
+blocks both under `interact` and past the `fartouch` reach, blocks a copy of the seat its
 avatar sits on under `unsit`, and blocks a take under `rez`, under `edit` (even with an
 exception for the object) and under an edit lock on the object. Kokua RLV 2.09.35.00 blocks a
 take under `rez` and has no check on a copy. `linkset.copy()` and `llDerezObject` are the
 simulator's side and take no notice of the viewer's restrictions.
+
+`linkset.duplicate(offset)` is a shift-drag copy: a new object at the original's place plus
+`offset`, whose scripts start from the top with `state_entry` and no `on_rez`. An avatar
+sitting on the original stays there. `linkset.dropFromAvatar(position)` drops a worn object
+to the ground, at `position` or where its wearer stands. It keeps its key and its scripts'
+state, they get `attach(NULL_KEY)`, the region counts its scripts again, and RLV
+restrictions it set stay in force.
 
 `interact` blocks user click sitting and inventory drops in both profiles. HUD
 touches bypass it. RLVa applies it before `touchme`; Kokua applies it to world
