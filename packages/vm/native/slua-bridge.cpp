@@ -74,6 +74,7 @@ struct RzScript : lua_SLRuntimeState
     lua_OpaqueGCObjectSet freeObjects;
     std::string scratch;    // string results handed to JavaScript
     std::string trace;      // the call stack of the last run that failed with a string
+    bool coverage = false;  // the script calls the coverage counters
     std::string plan;       // coverage plan, JSON
     std::vector<int32_t> statementHits;
     std::vector<int32_t> branchHits; // [true, false] per branch
@@ -722,6 +723,7 @@ RZ_EXPORT int rz_load(RzScript* s, const char* name, const char* source, int sou
 {
     try
     {
+        s->coverage = coverage != 0;
         return load(s, name, source, sourceLen, coverage);
     }
     catch (std::exception& e)
@@ -886,6 +888,37 @@ RZ_EXPORT lua_State* rz_main_thread(RzScript* s)
     return s->handler;
 }
 
+// lua_debugtrace(L), without the coverage counters' frames: an error such as
+// running out of memory can be raised inside one.
+static std::string debug_trace(RzScript* s, lua_State* L)
+{
+    std::vector<std::string> frames;
+    lua_Debug ar;
+    for (int level = 0; lua_getinfo(L, level, "sln", &ar); ++level)
+    {
+        if (s->coverage && ar.name && strncmp(ar.name, "__rz_", 5) == 0)
+            continue;
+        std::string frame = ar.source ? ar.short_src : "";
+        if (ar.currentline > 0)
+            frame += ":" + std::to_string(ar.currentline);
+        if (ar.name)
+            frame += std::string(" function ") + ar.name;
+        frames.push_back(frame + "\n");
+    }
+    const size_t limit1 = 10, limit2 = 10;
+    std::string out;
+    for (size_t i = 0; i < frames.size(); ++i)
+    {
+        out += frames[i];
+        if (frames.size() > limit1 + limit2 && i == limit1 - 1)
+        {
+            out += "... (+" + std::to_string(frames.size() - limit1 - limit2) + " frames)\n";
+            i = frames.size() - limit2 - 1;
+        }
+    }
+    return out;
+}
+
 // Resume T with nargs values on its stack. Returns LUA_OK, LUA_YIELD, or an
 // error status with the message in rz_string and, for a string error, the call
 // stack in rz_trace.
@@ -905,7 +938,7 @@ RZ_EXPORT int rz_resume(RzScript* s, lua_State* T, int nargs)
         if (lua_type(T, -1) == LUA_TSTRING)
         {
             s->scratch = lua_tostring(T, -1);
-            s->trace = lua_debugtrace(T);
+            s->trace = debug_trace(s, T);
         }
         else
         {

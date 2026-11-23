@@ -25,13 +25,16 @@ const PROBE = "local function deep(n)\n  if n == 0 then error(\"deep boom\") end
 
 const PROBE3 = "local function f(d) return f(d + 1) + 1 end\nlocal function cases(c)\n  if c == \"1\" then f(0)\n  elseif c == \"2\" then for i = 1, 70 do ll.Listen(1000 + i, \"\", \"\", \"\") end\n  elseif c == \"3\" then error(string.rep(\"c\", 1131), 0)\n  elseif c == \"4\" then error(string.rep(\"\u00e9\", 700), 0)\n  elseif c == \"5\" then error(string.rep(\"d\", 1050), 0)\n  elseif c == \"6\" then error(string.rep(\"\u00e9\", 520), 0)\n  elseif c == \"7\" then error(\"rez again\")\n  end\nend\nLLEvents:on(\"listen\", function(ch, name, id, msg)\n  -- (the probe answered only its owner here)\n  cases(msg)\nend)\nll.Listen(4560, \"\", \"\", \"\")\nll.OwnerSay(\"ready\")\n"
 
+const MEMORY_TRACE = "not enough memory\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\n... (+1598 frames)\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:3 function cases\nlua_script:14\n[C] function _handleEvent\n"
+
 const PROBE2 = "local function deep(n)\n  if n == 0 then error(\"deep boom\") end\n  return deep(n - 1) + 0\nend\nlocal M = {}\nfunction M.f() error(\"in M.f\") end\nlocal g = function() error(\"in g\") end\nfunction globalfn() error(\"in global\") end\nlocal function cases(c)\n  if c == \"1\" then deep(40)\n  elseif c == \"2\" then M.f()\n  elseif c == \"3\" then g()\n  elseif c == \"4\" then globalfn()\n  elseif c == \"5\" then error(setmetatable({}, {__tostring = function() return \"ts\" end}))\n  elseif c == \"6\" then error(\"\")\n  elseif c == \"7\" then LLTimers:every(0.2, function() error(\"in every\") end)\n  elseif c == \"8\" then local ok, e = pcall(error, \"inner\"); error(e, 0)\n  elseif c == \"9\" then error(string.rep(\"b\", 2000), 0)\n  elseif c == \"10\" then coroutine.resume(coroutine.create(function() error(\"swallowed\") end)); error(\"after\")\n  end\nend\nLLEvents:on(\"touch_start\", function(events) error(\"in touch\") end)\nLLEvents:on(\"listen\", function(ch, name, id, msg)\n  -- (the probe answered only its owner here)\n  cases(msg)\nend)\nll.Listen(4560, \"\", \"\", \"\")\nll.OwnerSay(\"ready\")\n"
 
 /** Run `source` in a box with a listener 1 m away, then `trigger` it; what the owner saw and the listener heard. */
-async function crash(source: string, trigger: (probe: import('../src/index.js').Script) => void, name = 'probe') {
+async function crash(source: string, trigger: (probe: import('../src/index.js').Script) => void, name = 'probe', coverage = false) {
+  // Coverage counters take memory, so a covered script runs out at another depth.
   const { scripts, linkset } = await loadLinkset({
     prims: [
-      { name, scripts: [{ source: { source, filename: 'p.luau', language: 'slua' }, name: 'p', start: false, memoryLimit: true }] },
+      { name, scripts: [{ source: { source, filename: 'p.luau', language: 'slua' }, name: 'p', start: false, memoryLimit: true, coverage }] },
       {
         name: 'listener',
         scripts: [{ source: { source: 'list heard; default { state_entry() { llListen(DEBUG_CHANNEL, "", NULL_KEY, ""); } listen(integer c, string n, key id, string m) { heard += m; } }', filename: 'l.lsl' }, name: 'l' }],
@@ -158,11 +161,17 @@ describe('an uncaught SLua error', () => {
 // A third probe, measured the same way later that day, in a prim named "probe issue-456 err3".
 describe('what the owner sees of an SLua error that is not a plain error', () => {
   // In-world: unbounded recursion showed the owner "not enough memory" and the traceback, cut to the first and last
-  // ten frames around "... (+1598 frames)"; the listener heard "not enough memory".
+  // ten frames around "... (+1598 frames)"; the listener heard "not enough memory". rezless runs out at the same depth.
   it('shows the traceback of running out of memory', async () => {
     const { shown, heard } = await crash(PROBE3, command('1'), NAME3)
-    expect(shown).toEqual([HEADER3, "not enough memory\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\n... (+1598 frames)\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:1 function f\nlua_script:3 function cases\nlua_script:14\n[C] function _handleEvent\n"])
+    expect(shown).toEqual([HEADER3, MEMORY_TRACE])
     expect(heard).toEqual([HEADER3, 'not enough memory'])
+  })
+
+  it('leaves the coverage counters out of the traceback', async () => {
+    const { shown } = await crash(PROBE3, command('1'), NAME3, true)
+    expect(shown[1]).not.toContain('__rz_')
+    expect(shown[1]).toMatch(/^not enough memory\n(lua_script:1 function f\n){10}\.\.\. \(\+\d+ frames\)\n(lua_script:1 function f\n){7}lua_script:3 function cases\nlua_script:14\n\[C\] function _handleEvent\n$/)
   })
 
   // In-world: 70 ll.Listen calls showed "Too Many Listens" to the owner and the listener, with no traceback.
