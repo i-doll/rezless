@@ -177,6 +177,15 @@ describe('PRIM_COLLISION_SOUND', () => {
     ])
     expect(debug(s)).toEqual([])
   })
+  it('is skipped with its two values after a PRIM_LINK_TARGET that names no prim', async () => {
+    const { s } = await linked(`default { state_entry() {
+      llSetPrimitiveParams([PRIM_LINK_TARGET, 99, PRIM_COLLISION_SOUND, "${SOUND}", 0.5, PRIM_LINK_TARGET, LINK_THIS, PRIM_DESC, "after"]);
+      llOwnerSay(llGetObjectDesc() + " " + llList2CSV(llGetPrimitiveParams([PRIM_COLLISION_SOUND])));
+    }}`)
+    // Rules for a missing link are dropped and the call goes on with the next target, as
+    // measured for other rules in link-zero-calls.test.ts.
+    expect(owner(s)).toEqual([`after ${NULL_KEY}, 1.000000`])
+  })
 })
 
 describe('PRIM_SIT_FLAGS', () => {
