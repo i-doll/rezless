@@ -98,9 +98,8 @@ it.each([
 
 // In-world: an unworn prim of i doll's, and one i doll wore, each asked fivebot (standing next to
 // it) for PERMISSION_GAME_CONTROL -> fivebot's viewer got a permission question for each, with no
-// script error, and no run_time_permissions came while it went unanswered. The measuring viewer
-// does not know the game control permission and drops the question, so what an answer does was
-// not measured. The same prim asking fivebot for PERMISSION_TRIGGER_ANIMATION showed a dialog.
+// script error, and no run_time_permissions came while it went unanswered. The same prim asking
+// fivebot for PERMISSION_TRIGGER_ANIMATION showed a dialog.
 it.each([['an unworn object', false], ['an attachment', true]])('waits for an answer when %s asks an avatar who is not on it', async (_, worn) => {
   const f = await seat()
   if (worn) {
@@ -112,4 +111,51 @@ it.each([['an unworn object', false], ['an attachment', true]])('waits for an an
   expect(f.log().filter(line => line.startsWith('rtp'))).toEqual([])
   expect(f.script.state.permissions.waiting).toBe(true)
   expect(f.script.state.permissions.granted).toBe(0)
+})
+
+// In-world: an unworn box of i doll's asked fivebot, standing next to it, for
+// PERMISSION_GAME_CONTROL. fivebot's question offered Yes, No and Mute ("Use gamepad inputs").
+// Yes -> run_time_permissions(1048576), llGetPermissionsKey fivebot, and fivebot's press and
+// release raised two events carrying fivebot's key. Asked again and answered No ->
+// run_time_permissions(0), the key stayed fivebot's, and fivebot's input raised nothing. Granted
+// again, then asked again and left unanswered 30 s -> no event, the permission held and fivebot's
+// input still raised events; that question answered No then -> run_time_permissions(0). Asked
+// once more and left unanswered 15 s, input raised nothing; answered Yes then ->
+// run_time_permissions(1048576).
+it('answers a question to an avatar who is not on the object with Yes, No, or later', async () => {
+  const f = await seat()
+  const rtp = () => f.log().filter(line => line.startsWith('rtp'))
+  const events = () => f.log().filter(line => line.startsWith('ev'))
+  const input = () => { f.script.sendGameControl(SITTER, { buttons: 1 }); f.script.sendGameControl(SITTER, {}) }
+  const answer = (yes: boolean) => { if (yes) f.script.grantPermissions(); else f.script.denyPermissions(); f.linkset.advanceTime(0) }
+  f.say(SITTER)
+  f.linkset.advanceTime(0)
+  answer(true)
+  expect(rtp()).toEqual(['rtp 1048576'])
+  expect(f.script.state.permissions.agent).toBe(SITTER)
+  input()
+  expect(events()).toEqual(['ev bbbbbbbb 1 0/1 owner -1/0', 'ev bbbbbbbb 0 0/0 owner -1/0'])
+  f.say(SITTER)
+  f.linkset.advanceTime(0)
+  answer(false)
+  expect(rtp()).toEqual(['rtp 1048576', 'rtp 0'])
+  expect(f.script.state.permissions.agent).toBe(SITTER)
+  input()
+  expect(events()).toHaveLength(2)
+  f.say(SITTER)
+  f.linkset.advanceTime(0)
+  answer(true)
+  f.say(SITTER)
+  f.linkset.advanceTime(30_000)
+  expect(rtp()).toEqual(['rtp 1048576', 'rtp 0', 'rtp 1048576'])
+  input()
+  expect(events()).toHaveLength(4)
+  answer(false)
+  expect(rtp()).toEqual(['rtp 1048576', 'rtp 0', 'rtp 1048576', 'rtp 0'])
+  f.say(SITTER)
+  f.linkset.advanceTime(15_000)
+  input()
+  expect(events()).toHaveLength(4)
+  answer(true)
+  expect(rtp()).toEqual(['rtp 1048576', 'rtp 0', 'rtp 1048576', 'rtp 0', 'rtp 1048576'])
 })
