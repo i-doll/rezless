@@ -242,7 +242,7 @@ function advance(damage: Damage): void {
     for (const entry of damage.riderEntries[damage.riders.indexOf(rider)]!) applyToAvatar(damage.clock, rider, entry.damage!.amount)
   }
   const tell = (scripts: readonly Script[], entries: readonly DetectedEntry[]) => {
-    for (const s of scripts) if (!damage.noFinal.has(s)) queueFinal(damage.clock, s, entries, damage.at)
+    for (const s of scripts) if (!damage.noFinal.has(s)) queueFinal(damage.clock, s, entries, damage)
   }
   tell(damage.seatScripts, damage.seatEntries)
   damage.riders.forEach((rider, i) => tell(rider.attachments, damage.riderEntries[i]!))
@@ -264,24 +264,24 @@ function applyToAvatar(clock: LinksetClock, avatar: Combatant, amount: number): 
   }
 }
 
-const finals = new WeakMap<Script, { readonly payload: Record<string, unknown>, readonly hitAt: number }>()
+const finals = new WeakMap<Script, { readonly payload: Record<string, unknown>, readonly target: unknown, readonly hitAt: number }>()
 
 /**
- * Hits that landed on one script in the same moment arrive as one final_damage, with every hit
- * in num_detected, as long as that event has not started. Hits from different moments that
- * finish together keep their own final_damage.
+ * Hits on one target in the same moment arrive at a script as one final_damage, with every hit
+ * in num_detected, as long as that event has not started. Hits from different moments, or on
+ * different targets, that finish together keep their own final_damage.
  */
-function queueFinal(clock: LinksetClock, script: Script, entries: readonly DetectedEntry[], hitAt: number): void {
+function queueFinal(clock: LinksetClock, script: Script, entries: readonly DetectedEntry[], damage: Damage): void {
   if (!live(script) || !script.handles('final_damage')) return
   const waiting = finals.get(script)
-  if (waiting?.hitAt === hitAt && clock.pendingEvents().some((e) => e.payload === waiting.payload && e.at === clock.now && e.target === script)) {
+  if (waiting?.hitAt === damage.at && waiting.target === damage.key && clock.pendingEvents().some((e) => e.payload === waiting.payload && e.at === clock.now && e.target === script)) {
     const detected = waiting.payload['detected'] as DetectedEntry[]
     detected.push(...entries)
     waiting.payload['num_detected'] = detected.length
     return
   }
   const payload = { num_detected: entries.length, detected: [...entries] }
-  finals.set(script, { payload, hitAt })
+  finals.set(script, { payload, target: damage.key, hitAt: damage.at })
   clock.schedule(script, clock.now, 'final_damage', payload)
 }
 

@@ -670,6 +670,8 @@ describe('hits in one moment keep their own targets', () => {
     shooter.scripts.gun!.fire('touch_start', { num_detected: 1 })
     tick(world, 0)
     expect(world.avatars.map((a) => a.objectDetails.health)).toEqual([90, 70])
+    const log = seat.scripts.seat!.global('log') as string[]
+    expect(log.map((l) => l.split(' ').slice(0, 2).join(' '))).toEqual(['on 1', 'on 1', 'final 1', 'final 1'])
   })
 
   it('let each sitter\'s worn scripts adjust only that sitter\'s damage', async () => {
