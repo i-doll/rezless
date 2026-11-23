@@ -1478,6 +1478,7 @@ export class Script {
     this.startParameter = 0
     this.clockView.resetReference()
     // A held running-state change, from a sibling or for one, outlives the script's own events.
+    this.linkset.clock.landContactRestarted(this, true)
     this.linkset.clock.purgeTarget(this, Infinity, ['__running', '__scriptState'])
     for (let i = this.parkedEvents.length - 1; i >= 0; i--) if (!HELD_CONTROL.has(this.parkedEvents[i]!.event)) this.parkedEvents.splice(i, 1)
     this.waitingGameControl = undefined
@@ -1763,6 +1764,7 @@ export class Script {
         // for a listen handler that changed state never ran.
         const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
+        this.linkset.clock.landContactRestarted(this, false)
         this.linkset.clock.purgeTarget(this, this.now, ['__reset', '__running', '__scriptState'])
         forgetHeldTouches(this, false)
         this.state.currentState = target

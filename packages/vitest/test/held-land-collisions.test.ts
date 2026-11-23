@@ -178,9 +178,9 @@ describe('land_collision held through a sleep', () => {
 
   // In-world: the same with the sleeper resetting itself in its first land_collision after the
   // wake -> after the reset it got every live land_collision, 15 of 15 and 14 of 14, and
-  // land_collision_end. It also got a new land_collision_start, as a script reset during any
-  // contact does; rezless doesn't raise that one.
-  it('gives a script reset during the contact every live land_collision', async () => {
+  // land_collision_end. It also got a new land_collision_start first, as a script reset during
+  // any contact does.
+  it('gives a script reset during the contact a new start and every live land_collision', async () => {
     const f = await box()
     f.link('sleep reset', 2_000)
     f.linkset.advanceTime(1_500)
@@ -194,7 +194,7 @@ describe('land_collision held through a sleep', () => {
     f.linkset.advanceTime(44)
     f.at('land_collision_end')
     f.linkset.advanceTime(1_000)
-    expect(f.log()).toEqual([...Array(15).fill('lc'), 'lce'])
+    expect(f.log()).toEqual(['lcs', ...Array(15).fill('lc'), 'lce'])
   })
 
   // In-world: sleeps that ended 0.1 s before the physics went off, and 0.14 and 0.27 s after it
