@@ -388,6 +388,64 @@ describe('a stopped script through other trips to inventory', () => {
   })
 })
 
+// In-world, third session: a physical box whose script called llMoveToTarget (1 m up),
+// llRotLookAt (90 degrees about Z) or llLookAt hovered or turned to its target, and kept holding
+// it after the script was set not running. Taken and rezzed, or taken as a copy and the copy
+// rezzed, each copy dropped to the platform and kept the rotation it was rezzed with, before
+// and after its script was started. With the script running, a Take Copy's copy and a taken
+// box both went to the original's target. The box left behind by a Take Copy of a stopped
+// script went slack, and returned to its target once its script was started.
+describe('a move or look target of a stopped script through inventory', () => {
+  const mover = `default {
+    touch_start(integer t) {
+      llSetStatus(STATUS_PHYSICS, TRUE);
+      llMoveToTarget(llGetPos() + <0.0, 0.0, 1.0>, 0.3);
+      llRotLookAt(llEuler2Rot(<0.0, 0.0, PI_BY_TWO>), 0.5, 0.3);
+    }
+  }`
+  async function moving(running: boolean) {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
+    const made = await loadLinkset({ world, region: 'home', owner: OWNER, position: { x: 120, y: 51, z: 20 }, prims: [{ scripts: [script('m', mover)] }] })
+    const s = made.scripts['m']!
+    s.start()
+    s.fire('touch_start', { num_detected: 1 })
+    made.linkset.advanceTime(3_000)
+    s.running = running
+    return { world, avatar, linkset: made.linkset, script: s }
+  }
+  const held = (linkset: Linkset) => linkset.prims[0]!.targetMotion
+
+  it.each([
+    ['a take', (f: Awaited<ReturnType<typeof moving>>) => { const saved = f.linkset.copy(); f.linkset.remove(); return rez(f, saved) }],
+    ['a Take Copy', (f: Awaited<ReturnType<typeof moving>>) => rez(f, f.linkset.copy())],
+  ])('is gone from the copy after %s, before and after the start', async (_, copyOf) => {
+    const f = await moving(false)
+    expect(held(f.linkset).move).not.toBeNull()
+    const copy = copyOf(f)
+    expect(held(copy.linkset)).toEqual({ move: null, look: null })
+    copy.running = true
+    copy.linkset.advanceTime(3_000)
+    expect(held(copy.linkset)).toEqual({ move: null, look: null })
+  })
+
+  it('stays with the original of a Take Copy', async () => {
+    const f = await moving(false)
+    rez(f, f.linkset.copy())
+    f.script.running = true
+    expect(held(f.linkset).move).not.toBeNull()
+    expect(held(f.linkset).look).not.toBeNull()
+  })
+
+  it('goes with the copy when the script is running', async () => {
+    const f = await moving(true)
+    const copy = rez(f, f.linkset.copy())
+    expect(held(copy.linkset).move).not.toBeNull()
+    expect(held(copy.linkset).look).not.toBeNull()
+  })
+})
+
 describe('owner drops one after another', () => {
   // In-world: a notecard dropped twice into a prim with a logging script, the drops 0 to 2.5 s
   // apart over thirteen pairs -> one changed(1) per drop every time, each counting its own item;
