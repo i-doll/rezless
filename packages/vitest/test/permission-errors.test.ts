@@ -116,8 +116,9 @@ describe('permission errors with a permission key', () => {
     const f = await scene()
     f.world.sitAvatar(f.other, f.s.linkset.prims[0]!)
     f.ask(OTHER)
-    for (const name of ['take', 'set']) f.call(name)
-    expect(f.errors()).toEqual([TAKE, [TAKE, OTHER], SET])
+    for (const name of ['take', 'set', 'reads']) f.call(name)
+    expect(f.errors()).toEqual([TAKE, [TAKE, OTHER], SET, read('position'), read('rotation'), read('FOV'), read('aspect')])
+    expect(f.heard()).toEqual([])
   })
 
   // In-world: ten llTakeControls 0.3 s apart with the other avatar holding the key. The owner and

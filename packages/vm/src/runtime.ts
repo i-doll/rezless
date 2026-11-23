@@ -26,7 +26,10 @@ export interface ChatEntry {
   readonly channel: number
   readonly text: string
   readonly type: ChatType
-  /** For `regionSayTo` / `instantMessage`: the target avatar/object key. */
+  /**
+   * For `regionSayTo` / `instantMessage`: the target avatar/object key. On a DEBUG_CHANNEL error,
+   * the avatar sent a copy of what the owner sees.
+   */
   readonly to?: string
   /**
    * The key of the link that said it, when that is not the script's own prim:

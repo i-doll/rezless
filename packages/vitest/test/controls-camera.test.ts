@@ -157,8 +157,10 @@ describe('llReleaseControls', () => {
     s.linkset.touch(0)
     // In-world: llTakeControls after llReleaseControls left llGetPermissions() at 3072,
     // and a DEBUG_CHANNEL listener heard nothing (Aditi, SLua Tideland, 2026-10-31).
+    // The owner holds the key, so the owner gets the error twice (see permission-errors.test.ts).
     expect(s.controls).toBeNull()
     expect(perms(s)).toBe(PERMISSION_TRACK_CAMERA | PERMISSION_CONTROL_CAMERA)
+    expect(debugErrors(s).map(c => [c.text, c.to])).toEqual([['Script trying to take controls from owner but PERMISSION_TAKE_CONTROLS permission not set!', undefined], ['Script trying to take controls from owner but PERMISSION_TAKE_CONTROLS permission not set!', AGENT]])
   })
 
   it('without permission does nothing', async () => {
@@ -222,6 +224,9 @@ describe('camera reads', () => {
     // In-world: with no permissions, <0,0,0>, <0,0,0,1>, 0.0 and 0.0, and a DEBUG_CHANNEL
     // listener heard nothing (Aditi, SLua Tideland, 2026-10-31).
     expect(s.global('got')).toEqual([{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, s: 1 }, 0, 0])
+    // With a permission key each read tells the owner (Aditi, SLua Tideland, 2026-11-23).
+    expect(debugErrors(s).map(c => c.text)).toEqual(['position', 'rotation', 'FOV', 'aspect']
+      .map(what => `Script trying to get camera ${what} but PERMISSION_TRACK_CAMERA permission not set!`))
   })
 
   it('return the camera the test set', async () => {
@@ -276,6 +281,8 @@ describe('llSetCameraParams / llClearCameraParams', () => {
     // In-world: llSetCameraParams([CAMERA_ACTIVE, TRUE]) and llClearCameraParams() with no
     // permissions said nothing a DEBUG_CHANNEL listener heard (Aditi, SLua Tideland, 2026-10-31).
     expect(s.cameraParams).toEqual(new Map())
+    // The owner got the error (Aditi, SLua Tideland, 2026-11-23).
+    expect(debugErrors(s).map(c => c.text)).toEqual(['Script trying to set camera parameters but PERMISSION_CONTROL_CAMERA permission not set!'])
   })
 
   it('llClearCameraParams forgets every rule', async () => {

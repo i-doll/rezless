@@ -46,6 +46,8 @@ describe('the @fartouch reach for Duplicate', () => {
     expect(f.duplicate(prim).status).toBe('duplicated')
   })
 
+  // Kokua's selection has no @fartouch reach (lltoolselect.cpp); the headless viewer is Firestorm,
+  // so this is from Kokua's source.
   it('leaves Kokua\'s Duplicate alone', async () => {
     const { f, prim } = await scene('rlv')
     command(f, '@fartouch=n')
