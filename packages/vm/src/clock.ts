@@ -33,7 +33,8 @@ export interface QueuedEvent {
 const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['timer', 0], ['sensor', 1], ['no_sensor', 1],
   ['at_target', 2], ['not_at_target', 2], ['at_rot_target', 2], ['not_at_rot_target', 2],
-  ['collision_start', 3], ['collision', 3], ['land_collision_start', 3],
+  // In-world: land_collision_start ran ahead of a collision_start that came up before it.
+  ['land_collision_start', 2.5], ['collision_start', 3], ['collision', 3],
   ['touch_start', 4], ['touch', 5], ['touch_end', 6], ['changed', 7], ['__unseated', 7], ['__ownerChanged', 7],
   // In-world: game_control ran after a touch, a stand's changed and collision_start and before
   // collision_end, whichever came first.
@@ -226,9 +227,11 @@ export class LinksetClock {
     held &&= HELD_ORDER.has(event)
     const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }) }
     // In-world: a release in the first sleep of a game_control handler and a press in its second
-    // gave one event, for the press.
+    // gave one event, for the press. A release that waited from a listen handler's sleep and a
+    // press in the sleep of the touch_start handler that ran next gave two.
     if (held && event === 'game_control') {
-      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && e.at <= this.now)
+      const since = target.handlerStartedAt ?? this.now
+      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && e.at > since && e.at <= this.now)
       if (waiting >= 0) {
         this.queue[waiting] = { ...this.queue[waiting]!, payload }
         return
@@ -485,7 +488,10 @@ export class LinksetClock {
     }
     // In-world: a box that fell onto land and was lifted off it while asleep woke to
     // land_collision_start, one land_collision, the game_control that waited, the other
-    // land_collision events and land_collision_end. A single land_collision ran behind changed.
+    // land_collision events and land_collision_end. A box that slid down a prim onto land woke to
+    // land_collision_start, collision_start, collision, one land_collision, the game_control, and
+    // collision_end among the other land_collision events in the order they came. A single
+    // land_collision ran behind changed.
     const first = held.find((e) => e.event === 'land_collision')
     const rank = (e: QueuedEvent) => e === first ? HELD_ORDER.get('changed')! + 0.5 : HELD_ORDER.get(e.event)!
     held.sort((a, b) => rank(a) - rank(b))

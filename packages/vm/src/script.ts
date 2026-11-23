@@ -824,20 +824,22 @@ export class Script {
     if (sameGameControl(avatars.get(key), state)) return
     avatars.set(key, state)
     const linksets = this.linkset.peers.length ? this.linkset.peers : [this.linkset]
-    // In-world: input sent to a script in a state with no game_control handler never ran.
     const targets = linksets.flatMap(l => l.allScripts()).filter(s => s.running && !s.dead && !s.clockView.inInventory
-      && s.handles('game_control') && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
+      && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
     for (const s of targets) {
       // In-world: a script that slept in another handler, or in a game_control handler worn
       // again since, read new input at once. One asleep in its game_control handler kept that
       // event's values until the next game_control ran. One in a state with no handler kept
-      // reading what it read before.
+      // reading what it read before. One asleep in touch_start while a release from an earlier
+      // sleep waited read that release through a new press.
+      const since = s.handlerStartedAt
+      const older = since !== undefined && s.linkset.clock.pendingEvents().some(e => e.target === s && e.event === 'game_control' && e.at <= since)
+      if (s.handles('game_control') && !s.inGameControl && !older) s.state.gameControlSnapshot = state.mode
       s.clockView.schedule(s.now, 'game_control', {
         id: key, button_levels: state.buttons,
         axes: typedList([...state.axes], state.axes.map(() => 'float')),
         gameControlSnapshot: state.mode,
       })
-      if (!s.inGameControl) s.state.gameControlSnapshot = state.mode
     }
     // Runs the handlers up to their first sleep, so more input can come while they sleep.
     this.linkset.advanceTime(0)
@@ -1256,6 +1258,9 @@ export class Script {
     // An SLua copy enters its sleeping handler only when it wakes, after this.
     this.clearedGameControl = this.task?.slua?.payload
     if (detached) {
+      // In-world: input carried into a state with no game_control handler never ran after a
+      // detach and a wear.
+      this.waitingGameControl = undefined
       this.dropSeatPermissions()
       this.state.detectedStack.forEach((context, i, stack) => {
         if (isTouch(context.event)) stack[i] = { ...context, entries: throughInventory(context.event, context.entries) }
@@ -1656,6 +1661,7 @@ export class Script {
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
         // state_exit and state_entry run outside the game_control handler that changed state.
+        const fromGameControl = this.inGameControl
         this.inGameControl = false
         // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
         if (this.clearDamageAdjustment()) yield { until: this.now }
@@ -1681,14 +1687,17 @@ export class Script {
         stopSensors(this)
         this.state.listens.length = 0
         // In-world: input that waited for a game_control handler that then changed state ran in
-        // the next state with a game_control handler, after its state_entry.
-        const input = this.linkset.clock.takeDue(this, 'game_control').at(-1)?.payload
+        // the next state with a game_control handler, after its state_entry. Input that waited
+        // for a listen handler that changed state never ran.
+        const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control').at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
         forgetHeldTouches(this, false)
         this.state.currentState = target
-        if (this.waitingGameControl && this.handlersByState.get(target)?.has('game_control')) {
-          this.clockView.schedule(this.now, 'game_control', this.waitingGameControl)
+        const waiting = this.waitingGameControl
+        if (waiting && this.handlersByState.get(target)?.has('game_control')) {
+          const { granted, agent } = this.state.permissions
+          if (granted & PERMISSION_GAME_CONTROL && agent.toLowerCase() === waiting['id']) this.clockView.schedule(this.now, 'game_control', waiting)
           this.waitingGameControl = undefined
         }
         if (this.state.coverage) this.state.coverage.hitState(target)

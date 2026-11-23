@@ -12,15 +12,19 @@ import type { Linkset, Script } from '../src/index.js'
 // and could be armed by chat to sleep in its next game_control, or to sleep in a listen handler.
 const OWNER = 'abcdefab-1111-1111-1111-111111111111'
 
-const probe = `list log; integer mode; integer secs; integer xs;
+const probe = `list log; integer mode; integer secs; integer xs; integer tsleep;
   string fns() { key k = llGetOwner(); return (string)llGetGameControlMode(k) + "/" + (string)llGetGameControlModeButtons(k); }
   default {
     state_entry() { llListen(5, "", "", ""); log += "entry " + fns(); }
     on_rez(integer p) { log += "rez " + fns(); }
+    touch_start(integer n) { log += "ts " + fns(); if (tsleep) { tsleep = 0; llSleep(8); log += "tswoke " + fns(); } }
     listen(integer c, string n, key id, string m) {
       if (m == "perm") llRequestPermissions(llGetOwner(), PERMISSION_GAME_CONTROL);
       else if (m == "x") { if (!xs) log += "x1 " + fns(); ++xs; }
       else if (m == "nap") { log += "nap " + fns(); llSleep(40); log += "woke " + fns() + " xs " + (string)xs; }
+      else if (m == "nap10") { log += "nap " + fns(); llSleep(10); log += "woke " + fns(); }
+      else if (m == "napgo") { log += "nap " + fns(); llSleep(10); log += "woke " + fns(); state two; }
+      else if (m == "tsleep") tsleep = 1;
       else if (m == "back") state default;
       else { list l = llParseString2List(m, [" "], []); mode = llList2Integer(l, 0); secs = llList2Integer(l, 1); }
     }
@@ -40,6 +44,7 @@ const probe = `list log; integer mode; integer secs; integer xs;
   }
   state three {
     state_entry() { llListen(5, "", "", ""); log += "three entry " + fns(); }
+    attach(key id) { log += "three attach " + (string)(id != NULL_KEY) + " " + fns(); }
     listen(integer c, string n, key id, string m) { if (m == "back") state default; log += "three say " + m + " " + fns(); }
   }`
 
@@ -134,6 +139,61 @@ it.each([
   expect(f.log()).toEqual(['ev 1 0/1 xs 0', 'woke 0/1', ...after])
 })
 
+// In-world: the script slept 10 s in a listen handler, then changed to a state with a game_control
+// handler. Button 0 was pressed 2 s into the sleep and held 15 s -> the handler woke reading the
+// press (0/1), state_entry read 0/1, no event ran for the press, and the release ran in the new
+// state.
+it('drops the input that waited for a listen handler that changed state', async () => {
+  const f = await box()
+  f.say('napgo')
+  f.linkset.advanceTime(2_000)
+  f.gc.sendGameControl(OWNER, { buttons: 1 })
+  f.linkset.advanceTime(15_000)
+  f.gc.sendGameControl(OWNER, {})
+  f.linkset.advanceTime(1_000)
+  expect(f.log()).toEqual(['nap 0/0', 'woke 0/1', 'two entry 0/1', 'two ev 0 0/0'])
+})
+
+// In-world: the probe, worn, slept 10 s in game_control and changed to the state with no
+// game_control handler, with a release waiting. It detached itself there and was worn again ->
+// the attach events read -1/0, and back in default no event ran for the release.
+it('drops the input carried into a state with no game_control handler at a detach', async () => {
+  const f = await box()
+  f.linkset.attachToAvatar(OWNER, 5)
+  f.linkset.advanceTime(0)
+  f.say('4 10')
+  f.gc.sendGameControl(OWNER, { buttons: 1 })
+  f.linkset.advanceTime(1_500)
+  f.gc.sendGameControl(OWNER, {})
+  f.linkset.advanceTime(12_000)
+  f.linkset.detachFromAvatar()
+  f.linkset.advanceTime(4_000)
+  f.linkset.attachToAvatar(OWNER, 5)
+  f.linkset.advanceTime(0)
+  f.say('back')
+  f.linkset.advanceTime(1_000)
+  expect(f.log()).toEqual(['ev 1 0/1 xs 0', 'woke 0/1', 'three entry 0/1', 'three attach 0 0/1', 'three attach 1 -1/0', 'entry -1/0'])
+})
+
+// In-world: the script slept 10 s in a listen handler; a click and a 1 s press of button 0 came
+// during the sleep. After the wake touch_start ran and slept 8 s, and button 1 was pressed in that
+// sleep and held past it -> touch_start woke reading 0/0, then one event for the release that
+// waited from the first sleep and one for the new press.
+it('keeps apart a game_control that waited from an earlier handler and input in the next sleep', async () => {
+  const f = await box()
+  f.say('tsleep')
+  f.say('nap10')
+  f.linkset.advanceTime(1_000)
+  f.world.clock.schedule(f.gc, f.world.clock.now, 'touch_start', { num_detected: 1, detected: [{ key: OWNER, name: 'owner' }] })
+  f.gc.sendGameControl(OWNER, { buttons: 1 })
+  f.linkset.advanceTime(1_000)
+  f.gc.sendGameControl(OWNER, {})
+  f.linkset.advanceTime(10_000)
+  f.gc.sendGameControl(OWNER, { buttons: 2 })
+  f.linkset.advanceTime(15_000)
+  expect(f.log()).toEqual(['nap 0/0', 'woke 0/0', 'ts 0/0', 'tswoke 0/0', 'ev 0 0/0 xs 0', 'ev 2 0/2 xs 0'])
+})
+
 // In-world: armed to sleep 8 s twice, sent button 0 for 1.5 s (the release came in the first
 // sleep), then button 3 pressed in the second sleep and held past the wake -> one event, for 8,
 // then the release. Button 3 pressed and let go in the second sleep instead -> one event, for 0.
@@ -162,6 +222,9 @@ async function landBox() {
       state_entry() { llListen(5, "", "", ""); llRequestPermissions(llGetOwner(), PERMISSION_GAME_CONTROL); }
       listen(integer c, string n, key id, string m) { sleepy = 1; }
       game_control(key id, integer b, list a) { log += "ev " + (string)b; if (sleepy) { sleepy = 0; llSleep(15); log += "woke"; } }
+      collision_start(integer n) { log += "cs"; }
+      collision(integer n) { log += "c"; }
+      collision_end(integer n) { log += "ce"; }
       land_collision_start(vector p) { log += "lcs"; }
       land_collision(vector p) { log += "lc"; }
       land_collision_end(vector p) { log += "lce"; }
@@ -201,4 +264,35 @@ it.each([['before', true], ['after', false]])('runs a game_control that waited a
   if (!first) f.land.sendGameControl(OWNER, {})
   f.landLinkset.advanceTime(20_000)
   expect(f.land.global('log')).toEqual(['ev 1', 'woke', 'lcs', 'lc', 'ev 0', 'lc', 'lc', 'lc', 'lce'])
+})
+
+// In-world: the same box dropped onto a prim ramp sloping down onto the land, asleep 15 s in
+// game_control. It hit the ramp (collision_start, collision), slid onto the land
+// (land_collision_start, land_collision) and off the ramp (collision_end), and was made
+// non-physical before the wake. Four runs woke to land_collision_start, collision_start,
+// collision and one land_collision first. With the release sent during the sleep, game_control
+// ran next, then a land_collision, collision_end, the last land_collision and
+// land_collision_end, twice. With the press held past the wake, collision_end ran after the
+// first land_collision in one run and after the second in the other.
+it.each([['held during the sleep', true], ['held past the wake', false]])('runs land_collision_start first and collision_end with the later land collisions (release %s)', async (_, released) => {
+  const f = await landBox()
+  const { clock } = f.world
+  const at = (event: string, payload: Record<string, unknown>) => { clock.schedule(f.land, clock.now, event, payload); f.landLinkset.advanceTime(50) }
+  const ramp = { num_detected: 1, detected: [{ key: '99999999-9999-4999-8999-999999999999', name: 'ramp' }] }
+  const ground = { pos: { x: 1, y: 2, z: 22 } }
+  f.say('sleep', f.land)
+  f.land.sendGameControl(OWNER, { buttons: 1 })
+  f.landLinkset.advanceTime(1_000)
+  if (released) f.land.sendGameControl(OWNER, {})
+  at('collision_start', ramp)
+  at('collision', ramp)
+  at('land_collision_start', ground)
+  at('land_collision', ground)
+  at('collision', ramp)
+  at('land_collision', ground)
+  at('collision_end', ramp)
+  at('land_collision', ground)
+  at('land_collision_end', ground)
+  f.landLinkset.advanceTime(20_000)
+  expect(f.land.global('log')).toEqual(['ev 1', 'woke', 'lcs', 'cs', 'c', 'lc', ...released ? ['ev 0'] : [], 'lc', 'ce', 'lc', 'lce'])
 })
