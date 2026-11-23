@@ -186,10 +186,21 @@ describe('llTextBox', () => {
         answered: false,
       },
     ])
-    // The headless viewer can only submit the box empty, so a typed answer's length
-    // limit is not measured; rezless passes the text through whole.
     s.answerDialog('Bob')
     expect(s.global('heard')).toEqual([-5, '', OWNER, 'Bob'])
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): answering with 254 "a" -> listen heard 254
+  // characters, 254 bytes; with 127 "é" -> 127 characters, 254 bytes. The viewer sends at most
+  // 254 bytes, so longer typed text is cut before it reaches the region.
+  it.each([
+    ['254 one-byte characters', 'a'.repeat(254)],
+    ['254 bytes of two-byte characters', 'é'.repeat(127)],
+  ])('delivers an answer of %s whole', async (_name, answer) => {
+    const s = await load('llTextBox(llGetOwner(), "Your name?", -5);')
+    s.linkset.touch(0)
+    s.answerDialog(answer)
+    expect(s.global('heard')).toEqual([-5, '', OWNER, answer])
   })
 
   it('sends an empty answer as an empty message', async () => {

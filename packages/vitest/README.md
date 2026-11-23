@@ -203,8 +203,8 @@ s.linksetData                                   // ReadonlyMap<string, { value, 
 s.seedLinksetData(entries)                      // pre-populate LSD without firing events
 s.text                                          // current llSetText: { text, color, alpha } or null
 s.objectDesc                                    // current llSetObjectDesc value
-s.touchText, s.sitText                          // current llSetTouchText / llSetSitText text, "" if unset
-s.payPrice                                      // llSetPayPrice arguments: { price, buttons } or null
+s.touchText, s.sitText                          // llSetTouchText / llSetSitText text, first 9 bytes, "" if unset
+s.payPrice                                      // { price, buttons } the Pay dialog gets (four buttons), or null
 s.dead                                          // true once llDie has run
 s.wakeAt                                        // virtual ms a sleeping handler wakes at, or undefined when idle
 
