@@ -203,6 +203,8 @@ export class Script {
   private task: Task | null = null
   /** Virtual time this script last started a handler or woke from a sleep. */
   resumedAt = 0
+  /** True while a handler of this script is on the call stack; events for it wait until it returns or sleeps. */
+  handling = false
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
@@ -1048,8 +1050,8 @@ export class Script {
    * any state transitions triggered by `state foo;` (state_exit / change /
    * state_entry chain runs before fire() returns). A handler that sleeps
    * moves the clock to its wake time, running every other script's due
-   * events on the way. A script already sleeping handles the event after
-   * its current handler.
+   * events on the way. A script already in a handler, running or asleep,
+   * handles the event after that handler.
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events. An event
@@ -1074,7 +1076,7 @@ export class Script {
     }
     withCollisionFilter(this, eventName, payload, p => {
       const started = this.handles(eventName) ? [this] : []
-      if (this.task || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
+      if (this.task || this.handling || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
         this.clockView.schedule(this.now, eventName, p)
       } else this.deliver(eventName, p)
       this.linkset.settle(started)
@@ -1491,11 +1493,15 @@ export class Script {
   private step(task: Task): void {
     this.resumedAt = this.now
     let r: IteratorResult<Suspension, boolean>
+    const outer = this.handling
+    this.handling = true
     try {
       r = task.run.next()
     } catch (e) {
       this.finish(task)
       throw e
+    } finally {
+      this.handling = outer
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until }

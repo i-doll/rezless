@@ -300,7 +300,7 @@ export class LinksetClock {
       // In-world: a link message sent while a touch_start waited for llMinEventDelay ran at once,
       // and the click's touch and touch_end waited behind the touch_start.
       if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
-      if (due <= horizon && due < bestAt && (e.event === '__reset' || e.target.wakeAt === undefined)) {
+      if (due <= horizon && due < bestAt && !e.target.handling && (e.event === '__reset' || e.target.wakeAt === undefined)) {
         bestAt = due
         bestIdx = i
       }
@@ -313,7 +313,7 @@ export class LinksetClock {
       // Per LSL: dead and stopped scripts don't generate timer events. Skip
       // their timer state so we don't waste catch-up iterations or accumulate
       // back-logged events that flood the script on resume.
-      if (s.dead || !s.running) continue
+      if (s.dead || !s.running || s.handling) continue
       const w = s.wakeAt === undefined ? undefined : Math.max(s.wakeAt, this.now)
       if (w !== undefined) {
         if (w <= horizon && w < wakeAt) {

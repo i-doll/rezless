@@ -327,8 +327,8 @@ new name, while `script.scriptName` keeps the name the script was loaded with.
 Renaming inside a prim could not be probed, so those details are assumptions.
 
 A script that has not started yet, or is stopped, gets no event, so items added
-before `start()` set the object up quietly. A script busy in a handler gets the
-event when the handler ends, and edits made meanwhile are merged into one or
+before `start()` set the object up quietly. A script busy in a handler, including one
+whose mock makes the edit, gets the event when the handler ends, and edits made meanwhile are merged into one or
 two events. Like `linkset.touch`, an edit runs the handlers it starts to their
 end and delivers any other event that is due.
 
