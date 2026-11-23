@@ -87,6 +87,24 @@ describe('owner saves a notecard inside a prim', () => {
     expect(keyOf(prims[1]!, 'nc')).toBe(keyOf(prims[0]!, 'nc'))
   })
 
+  it('keeps a key the test supplied for later saves of the same text', async () => {
+    const { prims } = await load()
+    prims[0]!.replaceInventory('nc', { notecardLines: ['two'] })
+    prims[0]!.replaceInventory('nc', { key: '41cb99c8-11ce-6627-52ab-cc6b91981dce' })
+    prims[0]!.replaceInventory('nc', {})
+    expect(keyOf(prims[0]!, 'nc')).toBe('41cb99c8-11ce-6627-52ab-cc6b91981dce')
+    prims[0]!.replaceInventory('v', { notecardLines: ['two'] })
+    expect(keyOf(prims[0]!, 'v')).toBe('41cb99c8-11ce-6627-52ab-cc6b91981dce')
+  })
+
+  it('tells an empty notecard from one with an empty line', async () => {
+    const { prims } = await load()
+    prims[0]!.replaceInventory('nc', { notecardLines: [] })
+    const empty = keyOf(prims[0]!, 'nc')
+    prims[0]!.replaceInventory('nc', { notecardLines: [''] })
+    expect(keyOf(prims[0]!, 'nc')).not.toBe(empty)
+  })
+
   it('gives an emptied notecard a key', async () => {
     // In-world: saving an empty text over a notecard -> llGetInventoryKey gave
     // a key (7223...), not NULL_KEY, and the script logged changed(1).

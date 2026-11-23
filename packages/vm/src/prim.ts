@@ -27,6 +27,7 @@ let itemsSaved = 0
 
 /** The key each notecard text has had in a linkset, so saving a text again gives it the same key. */
 const notecardKeys = new WeakMap<object, Map<string, string>>()
+const notecardText = (lines: ReadonlyArray<string> | undefined) => JSON.stringify(lines ?? [])
 
 export interface AttachedSound {
   sound: string
@@ -291,10 +292,11 @@ export class Prim {
   replaceInventory(name: string, changes: Partial<Omit<InventoryItem, 'name' | 'type' | 'script'>>): void {
     const index = this.#inventoryIndex('replaceInventory', name)
     const old = this.inventory[index]!
-    this.inventory[index] = {
+    const saved = this.inventory[index] = {
       ...old, ...changes, name: old.name, type: old.type,
       key: changes.key ?? this.#savedKey(old, changes.notecardLines),
     }
+    if (saved.type === InventoryType.NOTECARD && saved.key !== NULL_KEY) this.#notecardKeys().set(notecardText(saved.notecardLines), saved.key)
     const script = old.script
     if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
     this.#ownerEditedScript(script, () => {
@@ -322,22 +324,26 @@ export class Prim {
     this.#ownerEditedInventory()
   }
 
-  /** A save gives a notecard the key its text has, as any notecard in the linkset showed it; other items get a new key at each save. */
+  /** A save gives a notecard the key its text has had in the linkset; other items get a new key at each save. */
   #savedKey(old: InventoryItem, lines: ReadonlyArray<string> | undefined): string {
     if (old.type !== InventoryType.NOTECARD) return deterministicKey(`inventory-save/${++itemsSaved}`)
+    const text = notecardText(lines ?? old.notecardLines)
+    if (old.key !== NULL_KEY && text === notecardText(old.notecardLines)) return old.key
+    return this.#notecardKeys().get(text) ?? deterministicKey(`notecard/${text}`)
+  }
+
+  /** The key each notecard text has had in the linkset, adding the notecards it holds now. */
+  #notecardKeys(): Map<string, string> {
     const owner = this.linkset ?? this
     const known = notecardKeys.get(owner) ?? new Map<string, string>()
     notecardKeys.set(owner, known)
     for (const prim of this.linkset?.prims ?? [this]) {
       for (const item of prim.inventory) {
-        const text = item.notecardLines?.join('\n')
-        if (item.type === InventoryType.NOTECARD && item.key !== NULL_KEY && text !== undefined && !known.has(text)) known.set(text, item.key)
+        const text = notecardText(item.notecardLines)
+        if (item.type === InventoryType.NOTECARD && item.key !== NULL_KEY && !known.has(text)) known.set(text, item.key)
       }
     }
-    const text = (lines ?? old.notecardLines ?? []).join('\n')
-    const key = known.get(text) ?? deterministicKey(`notecard/${text}`)
-    known.set(text, key)
-    return key
+    return known
   }
 
   #inventoryIndex(method: string, name: string): number {
