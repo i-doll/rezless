@@ -324,8 +324,9 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
 
   // In-world: a worn probe gave 8 errors and the notice, then its avatar teleported to the
   // neighbouring region, or flew across the border into it, and 4 errors 2 s apart from 12 s
-  // later all arrived. Without leaving the region the same 4 errors were dropped. 4 errors
-  // before a teleport and 9 after it, within 24 s, gave no notice.
+  // later all arrived. Without leaving the region the same 4 errors were dropped, and so they
+  // were after a teleport 92 m across the same region. 4 errors before a teleport and 9 after
+  // it, within 24 s, gave no notice.
   describe('across regions', () => {
     async function worn() {
       const w = new World()
@@ -339,13 +340,22 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
       // Scheduled rather than delivered, so the run is still going when the wearer moves.
       const run = (segments: string) => w.clock.schedule(s, w.clock.now, 'listen', { channel: 1, name: 'i doll', id: OWNER, msg: segments })
       const said = () => s.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)
-      const away = () => w.teleportAvatar(avatar, { x: 128, y: 300, z: 30 })
+      const away = (y = 300) => w.teleportAvatar(avatar, { x: 128, y, z: 30 })
       return { s, run, said, away }
     }
 
     it('drops errors after the notice while the wearer stays', async () => {
       const o = await worn()
       o.run('0,9,0/12,4,1')
+      o.s.advanceTime(60_000)
+      expect(arrivals(o.said(), 13)).toBe('8D T 4X')
+    })
+
+    it('keeps the count through a teleport within the region', async () => {
+      const o = await worn()
+      o.run('0,9,0/12,4,1')
+      o.s.advanceTime(10_000)
+      expect(o.away(158)).toBe(true)
       o.s.advanceTime(60_000)
       expect(arrivals(o.said(), 13)).toBe('8D T 4X')
     })
@@ -366,6 +376,73 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
       expect(o.away()).toBe(true)
       o.s.advanceTime(60_000)
       expect(arrivals(o.said(), 13)).toBe('13D')
+    })
+  })
+
+  // In-world, with a second avatar seated on a lone box owned by the probe's owner: media
+  // errors for faces the sitter lacks, said by the sitter, gave 8 and the notice when 12
+  // came 1 s apart. The sitter then moved to a second box, whose script's 3 sitter errors
+  // 2 s later were dropped too. 50 s later, 6 media errors for the second box's own faces
+  // and then 6 for the sitter's, 0.5 s apart, all arrived.
+  describe('on a seated avatar', () => {
+    const SITTER = '22222222-2222-2222-2222-222222222222'
+    const seatScript = `list heard;
+default {
+  state_entry() { llListen(1, "", NULL_KEY, ""); }
+  listen(integer c, string n, key id, string m) {
+    list p = llParseString2List(m, [" "], []);
+    integer link = llGetNumberOfPrims();
+    if (llList2String(p, 0) == "prim") link = 1;
+    integer i;
+    for (i = 0; i < llList2Integer(p, 1); ++i) {
+      if (i > 0) llSleep(llList2Float(p, 2));
+      llSetLinkMedia(link, 90 + i, [PRIM_MEDIA_HOME_URL, "http://example.com"]);
+    }
+  }
+}`
+
+    async function seats() {
+      const w = new World()
+      w.addRegion('home', { x: 0, y: 0 })
+      w.addAvatar({ region: 'home', key: OWNER, username: 'i.doll', position: { x: 116, y: 48, z: 20 } })
+      const sitter = w.addAvatar({ region: 'home', key: SITTER, username: 'fivebot', position: { x: 118, y: 48, z: 20 } })
+      const seat = async (x: number) => {
+        const { scripts, linkset } = await loadLinkset({ world: w, region: 'home', owner: OWNER, position: { x, y: 45, z: 20 },
+          prims: [{ scripts: [{ name: 's', source: { source: seatScript } }] }] })
+        scripts.s!.start()
+        const prim = linkset.prims[0]!
+        prim.params.sitTarget = { enabled: true, offset: { x: 0, y: 0, z: 0.6 }, rotation: { x: 0, y: 0, z: 0, s: 1 } }
+        const run = (message: string) => w.clock.schedule(scripts.s!, w.clock.now, 'listen', { channel: 1, name: 'i doll', id: OWNER, msg: message })
+        const said = (key: string) => scripts.s!.chat.filter(c => c.channel === DEBUG_CHANNEL && (c.from ?? prim.key) === key).map(c => c.text)
+        return { prim, linkset, run, said }
+      }
+      const p = await seat(117)
+      const q = await seat(119)
+      return { w, sitter, p, q }
+    }
+
+    it('counts errors said by the sitter for the sitter, wherever it sits', async () => {
+      const { w, sitter, p, q } = await seats()
+      expect(w.sitAvatar(sitter, p.prim)).toBe(true)
+      p.run('sitter 12 1')
+      p.linkset.advanceTime(14_000)
+      expect(w.sitAvatar(sitter, q.prim)).toBe(true)
+      p.linkset.advanceTime(2_000)
+      q.run('sitter 3 1')
+      q.linkset.advanceTime(10_000)
+      expect(p.said(SITTER)).toEqual([...Array.from({ length: 8 }, (_, i) => `PRIM_MEDIA error: face ${90 + i} on object ${SITTER} not found`), FLOOD])
+      expect(q.said(SITTER)).toEqual([])
+    })
+
+    it('keeps the seat prim and its sitter apart', async () => {
+      const { w, sitter, q } = await seats()
+      expect(w.sitAvatar(sitter, q.prim)).toBe(true)
+      q.run('prim 6 0.5')
+      q.linkset.advanceTime(4_000)
+      q.run('sitter 6 0.5')
+      q.linkset.advanceTime(10_000)
+      expect(q.said(q.prim.key)).toHaveLength(6)
+      expect(q.said(SITTER)).toHaveLength(6)
     })
   })
 })
