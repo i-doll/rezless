@@ -430,6 +430,34 @@ describe('a move or look target of a stopped script through inventory', () => {
     expect(held(copy.linkset)).toEqual({ move: null, look: null })
   })
 
+  // In-world (#556): the box left behind by a Take Copy of a stopped script went slack, and
+  // went back to its target once its script was started.
+  it('lets go of the original of a Take Copy until its script starts', async () => {
+    const f = await moving(false)
+    rez(f, f.linkset.copy())
+    const root = f.linkset.prims[0]!.params
+    const target = { ...held(f.linkset).move!.target }
+    root.position = { ...target, z: target.z - 1 }
+    root.rotation = { x: 0, y: 0, z: 0, s: 1 }
+    f.linkset.advanceTime(3_000)
+    expect(root.position.z).toBeCloseTo(target.z - 1, 5)
+    expect(root.rotation).toEqual({ x: 0, y: 0, z: 0, s: 1 })
+    f.script.running = true
+    f.linkset.advanceTime(3_000)
+    expect(root.position.z).toBeCloseTo(target.z, 2)
+    expect(root.rotation.z).toBeCloseTo(Math.SQRT1_2, 2)
+  })
+
+  it('keeps acting on the original of a shift-drag copy', async () => {
+    const f = await moving(false)
+    f.linkset.duplicate()
+    const root = f.linkset.prims[0]!.params
+    const target = { ...held(f.linkset).move!.target }
+    root.position = { ...target, z: target.z - 1 }
+    f.linkset.advanceTime(3_000)
+    expect(root.position.z).toBeCloseTo(target.z, 2)
+  })
+
   it('stays with the original of a Take Copy', async () => {
     const f = await moving(false)
     rez(f, f.linkset.copy())

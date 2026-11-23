@@ -324,12 +324,15 @@ export class Linkset {
     this.lastAttachmentPoint = point
     this.attachment = { avatar, point, temporary, order }
     for (const script of this.allScripts()) {
+      // In-world: a script that was stopped when its object was stored, even by a sibling's
+      // attach(NULL_KEY) during the detach, came back reset. One started there came back as it was.
+      if (script.clockView.inInventory) script.resetIntoInventory()
       // Viewer recovery may already have queued this inventory rez.
       if (fromInventory && !script.rezQueued) script.queueRez()
       resumeSensors(script)
       resumeTargets(script)
     }
-    this.broadcastAttach(avatar)
+    this.broadcastAttach(avatar, this.allScripts().filter(script => script.quietAttach))
     for (const script of this.allScripts()) {
       script.clockView.resumeFromInventory()
       resumeHeldTouches(script)
@@ -351,9 +354,6 @@ export class Linkset {
     // A detached object leaves region queries and recurring timers. The final
     // attach event still runs from the shared clock's explicit event queue.
     for (const script of this.allScripts()) {
-      // In-world: a stopped script detached and worn again, or rezzed from the item, ran
-      // state_entry of the default state with fresh globals once it was started.
-      script.resetIntoInventory()
       script.clockView.pauseForInventory()
       script.detached()
       pauseSensors(script)
@@ -379,9 +379,9 @@ export class Linkset {
     this.remove()
   }
 
-  private broadcastAttach(avatar: string): void {
+  private broadcastAttach(avatar: string, skip: readonly Script[] = []): void {
     for (const script of this.allScripts()) {
-      if (script.running && !script.dead) this.clock.schedule(script, this.clock.now, 'attach', { avatar })
+      if (!skip.includes(script) && script.running && !script.dead) this.clock.schedule(script, this.clock.now, 'attach', { avatar })
     }
   }
 

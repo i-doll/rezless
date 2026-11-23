@@ -1,4 +1,4 @@
-import { clearTargetMotion } from './builtins/motion.js'
+import { clearTargetMotion, slackenTargetMotion } from './builtins/motion.js'
 import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
@@ -216,6 +216,13 @@ export class Script {
   handling = false
   /** Set when the object was detached while a handler of this script was on the call stack. */
   detachedInHandler = false
+  /**
+   * Set when the handler that was running at a detach went on to call llResetScript. In-world
+   * that handler runs on only after the wear, so the reset drops the wear's rez and attach events.
+   */
+  resetPastWear = false
+  /** Set when such a script came out of inventory: the attach event of that wear is dropped too. */
+  quietAttach = false
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
@@ -1140,7 +1147,9 @@ export class Script {
     if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    if (reset) slackenTargetMotion(this, true)
     copy.detachedInHandler = this.detachedInHandler
+    copy.resetPastWear = this.resetPastWear
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1275,6 +1284,14 @@ export class Script {
     }
     const detachedInHandler = this.detachedInHandler
     this.detachedInHandler = false
+    // In-world: a handler that was running at the detach ran on after the wear and ended in
+    // llResetScript. The script then ran state_entry and got no on_rez, chat line or attach event.
+    if (this.resetPastWear) {
+      this.resetPastWear = false
+      this.quietAttach = true
+      this.rezQueued = true
+      return
+    }
     if (!this.running) return
     // In-world: the events a script brought out of inventory ran after on_rez. A script that
     // came out with 64 events waiting ran them all and got no on_rez; one with 63 got it.
@@ -1543,6 +1560,7 @@ export class Script {
 
   private step(task: Task): void {
     this.resumedAt = this.now
+    this.quietAttach = false
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
     this.handling = true
@@ -1562,7 +1580,10 @@ export class Script {
     }
     this.finish(task)
     this.clockView.finishHandler(r.value)
-    if (r.value) this.restart()
+    if (r.value) {
+      if (this.detachedInHandler && this.clockView.inInventory) this.resetPastWear = true
+      this.restart()
+    }
   }
 
   private finish(task: Task): void {
@@ -1799,6 +1820,7 @@ export class Script {
     this.isRunning = value
     if (value) this.crashed = false
     if (starting) {
+      slackenTargetMotion(this, false)
       this.catchUp()
       resumeHeldTouches(this)
     }
