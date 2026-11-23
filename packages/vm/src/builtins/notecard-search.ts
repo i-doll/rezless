@@ -18,7 +18,7 @@ const fetchedKeyless = new WeakSet<InventoryItem>()
 
 const isKey = (name: string) => UUID.test(name) && name !== NULL_KEY
 
-/** Notecards removed from the world, still readable by key, and the notecards a dataserver read has fetched, by key. */
+/** Notecard assets no item in the world holds any more, still readable by key, and the notecards a dataserver read has fetched, by key. */
 function worldAssets(peers: object): Assets {
   let known = assets.get(peers)
   if (!known) assets.set(peers, (known = { removed: new Map(), fetched: new Map() }))
@@ -33,8 +33,8 @@ function notecardText(item: InventoryItem): NotecardText | undefined {
 
 const withKey = (key: string) => (item: InventoryItem) => item.type === InventoryType.NOTECARD && item.key.toLowerCase() === key
 
-/** Keep a notecard that leaves the world readable by its key, as its asset outlives the item. */
-export function rememberRemovedNotecard(peers: object, item: InventoryItem): void {
+/** Keep a notecard readable by its key after its item leaves the world or gets new text: the asset outlives the item. */
+export function rememberNotecardAsset(peers: object, item: InventoryItem): void {
   const text = notecardText(item)
   if (text && item.key !== NULL_KEY) worldAssets(peers).removed.set(item.key.toLowerCase(), text)
 }

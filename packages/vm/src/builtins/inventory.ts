@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { nextDataserverKey } from './dataserver.js'
 import { sayError } from './debug.js'
-import { findNotecard, rememberRemovedNotecard } from './notecard-search.js'
+import { findNotecard, rememberNotecardAsset } from './notecard-search.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType } from '../inventory.js'
 import { NULL_KEY } from '../values/types.js'
@@ -205,7 +205,7 @@ export const llRemoveInventory: BuiltinImpl = (ctx, args) => {
     return undefined
   }
   const [item] = ctx.prim.inventory.splice(index, 1)
-  rememberRemovedNotecard(ctx.linkset.peers, item!)
+  rememberNotecardAsset(ctx.linkset.peers, item!)
   if (releaseInventoryAsset(ctx.prim, item!)) raisePrimChanged(ctx.prim, CHANGED_RENDER_MATERIAL)
   const script = item!.script
   if (script) {
