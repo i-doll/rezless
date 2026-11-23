@@ -19,12 +19,17 @@ const source = `list log; integer mode;
       else if (s == "sleep reset") { mode = 1; llSleep(n / 1000.0); log += "woke"; }
       else if (s == "sleep state") { mode = 2; llSleep(n / 1000.0); log += "woke"; }
       else if (s == "sleep") { llSleep(n / 1000.0); log += "woke"; }
+      else if (s == "twice") mode = 3;
     }
-    land_collision_start(vector p) { log += "lcs"; }
+    land_collision_start(vector p) {
+      log += "lcs";
+      if (llLinksetDataRead("again") == "1") { llLinksetDataDelete("again"); llResetScript(); }
+    }
     land_collision(vector p) {
       log += "lc";
       if (mode == 1) { mode = 0; llResetScript(); }
       if (mode == 2) { mode = 0; state two; }
+      if (mode == 3) { llLinksetDataWrite("again", "1"); llResetScript(); }
     }
     land_collision_end(vector p) { log += "lce"; }
   }
@@ -91,6 +96,32 @@ describe.each([['queued', queued], ['fired at the script', direct]] as const)('a
     fire(f.script, f.linkset, 'land_collision')
     goOn(f, fire, 28)
     expect(f.log()).toEqual(['lcs', 'lc', 's2', ...lcs(28), 'lce'])
+  })
+
+  // Follows the measurement above: a reset in the new land_collision_start is a reset during the
+  // contact too. It drops the land_collision that came with that start, as a reset drops every
+  // event waiting, and the next one waits for another start.
+  it('raises the start again for a script reset in the new start', async () => {
+    const f = await box()
+    f.script.fire('link_message', { sender_num: 0, num: 0, str: 'twice', id: '' })
+    fire(f.script, f.linkset, 'land_collision_start')
+    f.linkset.advanceTime(44)
+    fire(f.script, f.linkset, 'land_collision')
+    goOn(f, fire, 3)
+    expect(f.log()).toEqual(['lcs', ...lcs(2), 'lce'])
+  })
+
+  // Follows the measurement above: a reset from outside the script, here the owner's Reset, is
+  // a reset during the contact as well.
+  it('raises a new land_collision_start after the owner resets the script', async () => {
+    const f = await box()
+    fire(f.script, f.linkset, 'land_collision_start')
+    f.linkset.advanceTime(44)
+    fire(f.script, f.linkset, 'land_collision')
+    f.linkset.advanceTime(1)
+    f.script.reset()
+    goOn(f, fire, 3)
+    expect(f.log()).toEqual(['lcs', ...lcs(3), 'lce'])
   })
 
   // Follows the measurement above: the start comes back only for a contact going on at the reset.
