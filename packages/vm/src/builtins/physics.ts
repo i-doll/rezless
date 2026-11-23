@@ -47,13 +47,12 @@ export const llSetForceAndTorque = capture('llSetForceAndTorque')
 export const llSetVelocity = capture('llSetVelocity')
 export const llSetAngularVelocity = capture('llSetAngularVelocity')
 
-const still = (v: Vector) => v.x === 0 && v.y === 0 && v.z === 0
 const impulse = capture('llApplyImpulse'), push = capture('llPushObject')
 
 /** An impulse sets a physical object at rest moving (see setMoving). */
 export const llApplyImpulse: BuiltinImpl = (ctx, args) => {
   impulse(ctx, args)
-  if (!still(args[0] as Vector)) setMoving(ctx.linkset)
+  setMoving(ctx.linkset)
   return undefined
 }
 
@@ -62,7 +61,7 @@ export const llPushObject: BuiltinImpl = (ctx, args) => {
   push(ctx, args)
   const key = String(args[0]).toLowerCase()
   const target = ctx.linkset.peers.find(l => !l.dead && l.region === ctx.linkset.region && l.prims.some(p => p.key.toLowerCase() === key))
-  if (target && !still(args[1] as Vector)) setMoving(target)
+  if (target) setMoving(target)
   return undefined
 }
 

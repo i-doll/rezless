@@ -180,9 +180,9 @@ describe('pushes, impulses and move targets', () => {
   })
 
   // In-world: llMoveToTarget 0.5 m up -> moving_start at once and moving_end 2.04 to 2.07 s later,
-  // as the box hung at the target; llStopMoveToTarget 4 s in -> moving_start at once as it fell
-  // and moving_end 1.12 to 1.16 s later, two runs.
-  it('starts at llMoveToTarget, and again when the target is let go after the object came to rest', async () => {
+  // as the box hung at the target; llStopMoveToTarget 4 s in -> moving_start as it fell and
+  // moving_end 1.12 to 1.16 s later, two runs. The fall is the test's to set.
+  it('starts at llMoveToTarget, and again when the object falls from the target', async () => {
     const b = await resting()
     send(b, 'mtt')
     b.linkset.advanceTime(2_000)
@@ -190,11 +190,35 @@ describe('pushes, impulses and move targets', () => {
     b.linkset.advanceTime(2_000)
     send(b, 'stop')
     b.linkset.advanceTime(100)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 21', 'moving_start 0'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 21'])
+    b.linkset.setVelocity({ x: 0, y: 0, z: -1 })
+    b.linkset.advanceTime(100)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 21', 'moving_start 1'])
+  })
+
+  // In-world: llMoveToTarget to where the box rested -> moving_start, and moving_end 0.35 s later;
+  // llStopMoveToTarget on the resting box then gave nothing.
+  it('starts at a move target where the object already is, and raises nothing at the stop', async () => {
+    const b = await resting(physical.replace('llGetPos() + <0, 0, 0.5>', 'llGetPos()'))
+    send(b, 'mtt')
+    b.linkset.setVelocity({ x: 0, y: 0, z: 0 })
+    b.linkset.advanceTime(1_000)
+    send(b, 'stop')
+    b.linkset.advanceTime(1_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 1'])
+  })
+
+  // In-world: llApplyImpulse(ZERO_VECTOR, FALSE) on a box at rest -> moving_start 0.05 s later, then
+  // five start and end pairs within 0.7 s as it settled.
+  it('starts a physical object at rest for an impulse of ZERO_VECTOR', async () => {
+    const b = await resting(physical.replace('llApplyImpulse(<0, 0, llGetMass() * 1.5>, FALSE)', 'llApplyImpulse(ZERO_VECTOR, FALSE)'))
+    send(b, 'imp')
+    b.linkset.advanceTime(100)
+    expect(b.log()).toEqual(['moving_start 0'])
   })
 
   // In-world: a second box pushing a physical box at rest with llPushObject -> the pushed box got
-  // moving_start 0.05 to 0.1 s later and moving_end as it landed 0.6 to 1.1 s later, three runs.
+  // moving_start within 0.1 s and moving_end as it landed 0.64 to 1.07 s later, three runs.
   it('starts a physical object another object pushes', async () => {
     const target = await resting()
     const pusher = await box(`default { link_message(integer f, integer n, string m, key id) {
@@ -204,6 +228,7 @@ describe('pushes, impulses and move targets', () => {
     expect(target.log().map((line) => line.split(' ')[0])).toEqual(['moving_start'])
   })
 
+  // In-world: the three calls on a box that was not physical -> nothing.
   it.each(['imp', 'push', 'mtt'])('raises nothing for a %s on an object that is not physical', async (kind) => {
     const b = await box(`${logger} default { ${handlers}
       link_message(integer f, integer n, string m, key id) {
@@ -275,7 +300,8 @@ describe('moving events at a rez', () => {
     expect(logOf(f.rezzed)).toEqual(['rez', 'moving_start', 'moving_end'])
   })
 
-  // In-world: a still box the viewer rezzed, twice -> on_rez only.
+  // In-world: a still box the viewer rezzed, twice, and one holding paused keyframed motion, once
+  // -> on_rez only.
   it('raises neither for an object the viewer rezzes', async () => {
     const w = world()
     const payload = await loadLinkset({ prims: [{ name: 'payload', scripts: [{ name: 'child', source: { source: child } }] }] })
@@ -284,6 +310,42 @@ describe('moving events at a rez', () => {
     const rezzed = w.world.attemptAvatarRez(w.avatar, 'item', { x: 1, y: 2, z: 3 }).object!
     rezzed.advanceTime(1_000)
     expect(logOf(rezzed)).toEqual(['rez'])
+  })
+
+  // In-world: the viewer rezzing a physical item onto the platform -> on_rez, moving_start 0.07 s
+  // later and moving_end 0.26 s after that, two runs; rezzed 0.8 m above it, on_rez only, once.
+  it('starts a physical object the viewer rezzes', async () => {
+    const w = world()
+    const payload = await loadLinkset({ prims: [{ name: 'payload', scripts: [{ name: 'child', source: { source: child } }] }] })
+    payload.scripts.child!.start()
+    payload.linkset.prims[0]!.setStatus(1, true)
+    seedRlvInventory(w.avatar, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'payload', object: payload.linkset, assetType: 'object' }] })
+    const rezzed = w.world.attemptAvatarRez(w.avatar, 'item', { x: 1, y: 2, z: 3 }).object!
+    rezzed.advanceTime(1_000)
+    expect(logOf(rezzed)).toEqual(['rez', 'moving_start', 'moving_end'])
+  })
+
+  // In-world: a box whose looping keyframed motion its rezzer derezzed to inventory with
+  // llDerezObject, rezzed again with llRezObject -> on_rez only, and it moved on.
+  it('raises neither for a scripted rez of an object whose keyframed motion plays on', async () => {
+    const payload = await loadLinkset({ prims: [{ name: 'payload', scripts: [{ name: 'child', source: { source: `${child.replace('default {', `default {
+      state_entry() { llSetPrimitiveParams([PRIM_PHYSICS_SHAPE_TYPE, PRIM_PHYSICS_SHAPE_CONVEX]);
+        llSetKeyframedMotion([<0, 0, 0.3>, 1.0, <0, 0, -0.3>, 1.0], [KFM_MODE, KFM_LOOP, KFM_DATA, KFM_TRANSLATION]); }`)}` } }] }] })
+    payload.scripts.child!.start()
+    payload.linkset.advanceTime(100)
+    payload.scripts.child!.setGlobal('log', [])
+    const w = world()
+    const item = makeInventoryItem({ name: 'payload', type: InventoryType.OBJECT })
+    Object.assign(item, { object: payload.linkset.copy() })
+    const loaded = await loadLinkset({ owner: OWNER, world: w.world, region: 'home', position: { x: 100, y: 100, z: 30 },
+      prims: [{ name: 'rezzer', inventory: [item], scripts: [{ name: 'parent', source: { source:
+        'default { state_entry() { llRezObject("payload", llGetPos() + <1.2, 0, 0>, ZERO_VECTOR, ZERO_ROTATION, 1); } }' } }] }] })
+    loaded.scripts.parent!.start()
+    const rezzed = w.world.linksets.at(-1)!
+    const before = rezzed.prims[0]!.params.position.z
+    rezzed.advanceTime(500)
+    expect(logOf(rezzed)).toEqual(['rez'])
+    expect(rezzed.prims[0]!.params.position.z).not.toBe(before)
   })
 })
 
@@ -300,16 +362,16 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     }`
   const z = (linkset: Linkset) => linkset.prims[0]!.params.position.z
 
-  // In-world: a looping motion, Duplicate 4.3 s in, twice -> the original got moving_end at once
-  // and moving_start 0.64 and 0.86 s later; the copy's script started from the top, the copy
-  // stood still with no event, and KFM_CMD_PLAY started its motion with moving_start.
+  // In-world: a looping motion, Duplicate, three runs -> the original got moving_end at once and
+  // moving_start 0.54 to 0.86 s later; the copy's script started from the top, the copy stood
+  // still with no event, and KFM_CMD_PLAY started its motion with moving_start.
   it('pauses the original while the viewer holds it selected, and copies the motion paused', async () => {
     const b = await box(looper)
     send(b, 'go')
     b.linkset.advanceTime(4_300)
     const copy = b.linkset.duplicate({ x: 0, y: -1.5, z: 0 })
     b.linkset.advanceTime(1_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 43', 'moving_start 51'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 43', 'moving_start 50'])
     const still = z(copy)
     copy.advanceTime(1_000)
     expect(z(copy)).toBe(still)
@@ -320,24 +382,109 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     expect(logOf(copy).map((line) => line.split(' ')[0])).toEqual(['moving_start'])
   })
 
-  // In-world: Take of the moving box -> moving_end in the original; the box rezzed from the item
-  // got on_rez only and stood still until KFM_CMD_PLAY started it. Take Copy -> moving_end in the
-  // original, moving_start 0.78 s later, and the same still copy.
+  // In-world: Take of the moving box -> moving_end in the original before it went; the box rezzed
+  // from the item got on_rez only and stood still until KFM_CMD_PLAY started it, with
+  // moving_start. Take Copy -> moving_end in the original, moving_start 0.78 s later, and the
+  // same still copy.
   it.each([false, true])('saves the motion paused at a Take (copy: %s)', async (copy) => {
     const b = await box(looper)
     send(b, 'go')
     b.linkset.advanceTime(1_500)
     const taken = b.world.attemptAvatarTake(b.avatar, b.linkset.prims[0]!, { copy }).object!
     b.linkset.advanceTime(1_000)
-    // A taken object is gone before its moving_end can run.
+    // rezless removes a taken object at once, so its scripts never run that moving_end.
     expect(b.log().map((line) => line.split(' ')[0])).toEqual(copy ? ['moving_start', 'moving_end', 'moving_start'] : ['moving_start'])
     seedRlvInventory(b.avatar, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: taken, assetType: 'object' }] })
     const rezzed = b.world.attemptAvatarRez(b.avatar, 'taken', { x: 128, y: 130, z: 100 }).object!
     rezzed.advanceTime(1_000)
     expect(z(rezzed)).toBe(100)
-    expect(logOf(rezzed).slice(2).map((line) => line.split(' ')[0])).toEqual(['rez'])
+    const carried = logOf(taken).length
+    expect(logOf(rezzed).slice(carried).map((line) => line.split(' ')[0])).toEqual(['rez'])
     rezzed.allScripts()[0]!.fire('link_message', { sender_num: 0, num: 0, str: 'play', id: '' })
     rezzed.advanceTime(500)
     expect(z(rezzed)).not.toBe(100)
+    expect(logOf(rezzed).slice(carried).map((line) => line.split(' ')[0])).toEqual(['rez', 'moving_start'])
+  })
+
+  // In-world: an edit and an inspect selecting the moving box, five runs -> moving_end at once and
+  // moving_start 0.31 to 0.47 s later.
+  it('pauses the motion while the viewer edits the object', async () => {
+    const b = await box(looper)
+    send(b, 'go')
+    b.linkset.advanceTime(1_000)
+    expect(b.world.attemptAvatarEdit(b.avatar, b.linkset.prims[0]!).status).toBe('opened')
+    b.linkset.advanceTime(1_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 10', 'moving_start 14'])
+  })
+
+  // In-world: a script that paused the motion in its moving_end handler at a Duplicate still got
+  // moving_start 0.54 s later.
+  it('plays the motion again when the viewer lets go, after a script paused it', async () => {
+    const b = await box(looper.replace('moving_end() { add("moving_end"); }',
+      'moving_end() { add("moving_end"); llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PAUSE]); }'))
+    send(b, 'go')
+    b.linkset.advanceTime(1_000)
+    b.linkset.duplicate()
+    b.linkset.advanceTime(1_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 10', 'moving_start 17'])
+  })
+
+  // A Duplicate's script starts from the top, so it has been told nothing of the original's motion.
+  it('starts a Duplicate whose script plays the copied motion in a handler that sleeps', async () => {
+    const b = await box(looper.replace('else if (m == "play") llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);',
+      'else if (m == "play") { llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]); llSleep(0.5); }\n        else if (m == "nap") llSleep(3.0);'))
+    send(b, 'go')
+    b.linkset.advanceTime(500)
+    b.world.clock.schedule(b.script, b.world.clock.now, 'link_message', { sender_num: 0, num: 0, str: 'nap', id: '' })
+    b.linkset.advanceTime(100)
+    const copy = b.linkset.duplicate()
+    copy.advanceTime(500)
+    copy.allScripts()[0]!.fire('link_message', { sender_num: 0, num: 0, str: 'play', id: '' })
+    copy.advanceTime(500)
+    expect(logOf(copy).map((line) => line.split(' ')[0])).toEqual(['moving_start'])
+  })
+})
+
+describe('moving events across a reset and a state change', () => {
+  const mover = `${logger}
+    three() { llSetKeyframedMotion([<0, 0, 0.3>, 3.0], [KFM_DATA, KFM_TRANSLATION]); }
+    default {
+      ${handlers}
+      state_entry() { llSetPrimitiveParams([PRIM_PHYSICS_SHAPE_TYPE, PRIM_PHYSICS_SHAPE_CONVEX]); add("entry"); }
+      link_message(integer f, integer n, string m, key id) {
+        t0 = llGetTime();
+        if (m == "rs") { three(); llSleep(1.0); llResetScript(); }
+        else if (m == "rs0") { three(); llResetScript(); }
+        else if (m == "st") { three(); llSleep(1.0); state two; }
+        else if (m == "st0") { three(); state two; }
+      }
+    }
+    state two {
+      state_entry() { add("two entry"); }
+      moving_start() { add("two moving_start"); }
+      moving_end() { add("two moving_end"); }
+    }`
+  const names = (b: Box) => b.log().map((line) => line.replace(/ -?\d+$/, ''))
+
+  // In-world: a 3 s motion started in a handler that reset the script after a 1 s sleep, or at
+  // once -> state_entry, moving_start, and moving_end when the motion ended.
+  it.each(['rs', 'rs0'])('tells a reset script its object moves: %s', async (command) => {
+    const b = await box(mover)
+    b.world.clock.schedule(b.script, b.world.clock.now, 'link_message', { sender_num: 0, num: 0, str: command, id: '' })
+    b.linkset.advanceTime(5_000)
+    // The reset cleared the log of the handler that started the motion.
+    expect(names(b)).toEqual(['entry', 'moving_start', 'moving_end'])
+  })
+
+  // In-world: a 3 s motion started in a handler that changed state after a 1 s sleep -> the new
+  // state got moving_end only; changing state at once -> moving_start and moving_end.
+  it.each([
+    ['st', ['two entry', 'two moving_end']],
+    ['st0', ['two entry', 'two moving_start', 'two moving_end']],
+  ])('gives the new state what it has not seen: %s', async (command, expected) => {
+    const b = await box(mover)
+    b.world.clock.schedule(b.script, b.world.clock.now, 'link_message', { sender_num: 0, num: 0, str: command, id: '' })
+    b.linkset.advanceTime(5_000)
+    expect(names(b).slice(1)).toEqual(expected)
   })
 })
