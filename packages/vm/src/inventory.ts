@@ -138,6 +138,11 @@ export interface InventoryItem {
   environment?: import('./world.js').EnvironmentAsset
 }
 
+/** A notecard that was never saved holds no asset. */
+export function isEmptyNotecard(item: InventoryItem): boolean {
+  return item.type === InventoryType.NOTECARD && item.key === NULL_KEY && !item.notecardLines?.length
+}
+
 /** The masks an item or prim has once it reaches its next owner. */
 export function nextOwnerMask(mask: PermMask): PermMask {
   return { ...mask, base: mask.base & mask.next, owner: mask.owner & mask.next }

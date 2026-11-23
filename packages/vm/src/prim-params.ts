@@ -90,7 +90,7 @@ import type { LslType, LslValue, Rotation, Vector } from './values/types.js'
 import { NULL_KEY, isRotation, isVector } from './values/types.js'
 import { listElementType } from './values/list-types.js'
 import type { InventoryItem } from './inventory.js'
-import { InventoryType } from './inventory.js'
+import { InventoryType, isEmptyNotecard } from './inventory.js'
 import { truncateUtf8 } from './values/utf8.js'
 import type { Prim } from './prim.js'
 import { physicsSwitched } from './builtins/motion.js'
@@ -319,7 +319,7 @@ export function releaseInventoryAsset(prim: Prim, item: InventoryItem): boolean 
 /** A material reads back as its item's name. No material reads as the name of an empty notecard, which holds no asset. */
 export const materialName = (prim: Prim, key: string): string =>
   key === NULL_KEY
-    ? (prim.inventory.find((it) => it.type === InventoryType.NOTECARD && it.key === NULL_KEY && !it.notecardLines?.length)?.name ?? key)
+    ? (prim.inventory.find(isEmptyNotecard)?.name ?? key)
     : itemName(prim, InventoryType.MATERIAL, key)
 
 const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {

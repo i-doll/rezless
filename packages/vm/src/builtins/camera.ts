@@ -4,7 +4,7 @@ import { rotateVector } from '../values/ops.js'
 import { llAxes2Rot } from './math.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
 import { NULL_KEY, vec, ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
-import { sayError } from './debug.js'
+import { sayOwnerError } from './debug.js'
 import { LINK_ROOT, LINK_THIS, PERMISSION_CONTROL_CAMERA, PERMISSION_TRACK_CAMERA } from '../generated/constants.js'
 
 /** The permission agent's camera, as llGetCamera* report it. */
@@ -69,7 +69,7 @@ export function effectiveCamera(ctx: CallContext): Camera {
 function track(ctx: CallContext, what: string): boolean {
   if (tracking(ctx)) return true
   if (ctx.state.permissions.agent !== NULL_KEY) {
-    sayError(ctx, `Script trying to get camera ${what} but PERMISSION_TRACK_CAMERA permission not set!`, ctx.prim, false)
+    sayOwnerError(ctx, `Script trying to get camera ${what} but PERMISSION_TRACK_CAMERA permission not set!`)
   }
   return false
 }
@@ -93,7 +93,7 @@ export const llGetCameraAspect: BuiltinImpl = (ctx) => (track(ctx, 'aspect') ? c
  */
 export const llSetCameraParams: BuiltinImpl = (ctx, args) => {
   if (!controlling(ctx)) {
-    sayError(ctx, 'Script trying to set camera parameters but PERMISSION_CONTROL_CAMERA permission not set!', ctx.prim, false)
+    sayOwnerError(ctx, 'Script trying to set camera parameters but PERMISSION_CONTROL_CAMERA permission not set!')
     return undefined
   }
   const rules = (args[0] as ReadonlyArray<LslValue> | undefined) ?? []
@@ -113,7 +113,7 @@ export const llSetCameraParams: BuiltinImpl = (ctx, args) => {
  */
 export const llClearCameraParams: BuiltinImpl = (ctx) => {
   if (ctx.state.permissions.agent === NULL_KEY) {
-    sayError(ctx, 'Script trying to clear camera parameters but PERMISSION_CONTROL_CAMERA permission not set!', ctx.prim, false)
+    sayOwnerError(ctx, 'Script trying to clear camera parameters but PERMISSION_CONTROL_CAMERA permission not set!')
     return undefined
   }
   // In-world: after a reset it did nothing until the script asked for 1024, or for nothing, and
