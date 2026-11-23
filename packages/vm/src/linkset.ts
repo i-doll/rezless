@@ -1052,7 +1052,8 @@ export class Linkset {
       // `__reset` (from llResetOtherScript) was requested while the target
       // was running, so it applies even if the target was stopped since; the
       // target just stays stopped afterward.
-      if (!target.running && next.event !== '__reset') {
+      // A held running-state change, such as a start after a stop, reaches a stopped script too.
+      if (!target.running && next.event !== '__reset' && next.event !== '__running') {
         // Queued before it stopped: keep it for when the script runs again. A paused script
         // must not block other scripts' events, so we stash on the script
         // itself rather than holding a slot in the linkset queue.

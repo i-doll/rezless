@@ -208,3 +208,46 @@ describe('a change held for a script that is busy after the wear', () => {
     expect(t.running).toBe(false)
   })
 })
+
+it('applies held changes from two busy siblings in order: a stop and then a start leave the script running', async () => {
+  const busy = (call: string) => `default { link_message(integer s, integer i, string m, key id) {
+    if (m != "go") return; llOwnerSay("x"); ${call} } }`
+  const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+    { name: 'T', source: { source: target } },
+    { name: 'C', source: { source: busy('llSetScriptState("T", FALSE);') } },
+    { name: 'D', source: { source: busy('llSetScriptState("T", TRUE);') } },
+  ] }] })
+  for (const s of Object.values(scripts)) s.start()
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(0)
+  const c = scripts['C']!, d = scripts['D']!
+  c.mock('llOwnerSay', () => {
+    d.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+    d.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+    return undefined
+  })
+  c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+  linkset.advanceTime(0)
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(100)
+  expect(scripts['T']!.running).toBe(true)
+})
+
+it('keeps a held change when the busy sibling changes state in its on_rez after the wear', async () => {
+  const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+    { name: 'T', source: { source: target } },
+    { name: 'C', source: { source: `default { on_rez(integer p) { state other; }
+      link_message(integer s, integer i, string m, key id) { if (m != "go") return; llOwnerSay("x"); llSetScriptState("T", FALSE); } }
+      state other { state_entry() {} }` } },
+  ] }] })
+  for (const s of Object.values(scripts)) s.start()
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(0)
+  const c = scripts['C']!
+  c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+  c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+  linkset.advanceTime(0)
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(100)
+  expect(scripts['T']!.running).toBe(false)
+})

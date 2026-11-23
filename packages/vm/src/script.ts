@@ -55,6 +55,9 @@ import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
+
+/** Changes to running state held from the rest of a handler that was busy at a detach. */
+const HELD_CONTROL: ReadonlySet<string> = new Set(['__running', '__scriptState'])
 import type { QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
@@ -1484,9 +1487,9 @@ export class Script {
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
     this.clockView.resetReference()
-    // A sibling's held running-state change outlives the script's own events.
-    this.linkset.clock.purgeTarget(this, Infinity, ['__running'])
-    for (let i = this.parkedEvents.length - 1; i >= 0; i--) if (this.parkedEvents[i]!.event !== '__running') this.parkedEvents.splice(i, 1)
+    // A held running-state change, from a sibling or for one, outlives the script's own events.
+    this.linkset.clock.purgeTarget(this, Infinity, ['__running', '__scriptState'])
+    for (let i = this.parkedEvents.length - 1; i >= 0; i--) if (!HELD_CONTROL.has(this.parkedEvents[i]!.event)) this.parkedEvents.splice(i, 1)
     this.waitingGameControl = undefined
     this.started = false
     // Returning to default counts as a state entry. The constructor records
@@ -1770,7 +1773,7 @@ export class Script {
         // for a listen handler that changed state never ran.
         const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
-        this.linkset.clock.purgeTarget(this, this.now, ['__reset', '__running'])
+        this.linkset.clock.purgeTarget(this, this.now, ['__reset', '__running', '__scriptState'])
         forgetHeldTouches(this, false)
         this.state.currentState = target
         const waiting = this.waitingGameControl
