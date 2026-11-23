@@ -372,6 +372,28 @@ describe('avatar health', () => {
   })
 })
 
+describe('avatar health set by a test', () => {
+  it('starts regenerating from when it was set', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
+    const reader = await object(world, { r: `list seen; default { touch_start(integer n) { seen += llGetHealth("${BOT}"); } }` })
+    reader.scripts.r!.fire('touch_start', { num_detected: 1 })
+    tick(world, 59000)
+    world.avatars[0]!.objectDetails.health = 50
+    tick(world, 500)
+    reader.scripts.r!.fire('touch_start', { num_detected: 1 })
+    expect(reader.scripts.r!.global('seen')).toEqual([100, 50])
+  })
+
+  it('reads 0 for an avatar in another region', async () => {
+    const world = combatWorld()
+    world.addRegion('elsewhere', { x: 256, y: 0 })
+    world.addAvatar({ region: 'elsewhere', key: OWNER, username: 'owner' })
+    const reader = await object(world, { r: `float h = -1; default { state_entry() { h = llGetHealth(llGetOwner()); } }` })
+    expect(reader.scripts.r!.global('h')).toBe(0)
+  })
+})
+
 describe('a seated avatar', () => {
   async function seated(world: World, seatSource: string) {
     world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
@@ -591,6 +613,26 @@ describe('hits in one moment keep their own targets', () => {
     expect(log.filter((l) => l.startsWith('final')).map((l) => l.split(' ')[1]))
       .toEqual(log.filter((l) => l.startsWith('on')).map((l) => l.split(' ')[1]))
     expect(world.avatars[0]!.objectDetails.health).toBe(85)
+  })
+
+  it('keep the seat\'s own hit on its sitter out of the seat\'s on_damage', async () => {
+    const world = combatWorld()
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot' })
+    const seat = await object(world, { seat: `list log; default {
+      state_entry() { llListen(7, "", NULL_KEY, "go"); }
+      listen(integer c, string n, key id, string m) { llDamage("${BOT}", 10.0, 0); }
+      on_damage(integer n) { log += "on " + (string)n + " " + llDetectedName(0); }
+    }` }, BOT)
+    world.sitAvatar(world.avatars[0]!, seat.linkset.prims[0]!)
+    await loadLinkset({ world, region: 'arena', owner: OWNER, prims: [{ name: 'gun', scripts: [{ name: 'gun', source: { source: `default {
+      state_entry() { llListen(7, "", NULL_KEY, "go"); }
+      listen(integer c, string n, key id, string m) { llDamage("${BOT}", 1.0, 0); }
+    }` } }] }] }).then((made) => made.scripts.gun!.start())
+    const commander = await object(world, { c: `default { touch_start(integer n) { llRegionSay(7, "go"); } }` })
+    commander.scripts.c!.fire('touch_start', { num_detected: 1 })
+    tick(world, 0)
+    expect(seat.scripts.seat!.global('log')).toEqual(['on 1 gun'])
+    expect(world.avatars[0]!.objectDetails.health).toBe(89)
   })
 
   it('send on_death before the lethal hit\'s final_damage', async () => {

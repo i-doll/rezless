@@ -24,13 +24,13 @@ export function combatAvatars(script: Script): Map<string, RegisteredCombatAvata
   return result
 }
 
-/** When each avatar's health last caught up with regeneration. */
-const regeneratedAt = new WeakMap<object, number>()
+/** When each avatar's health last caught up with regeneration, and what it was then. */
+const regeneratedAt = new WeakMap<object, { at: number, health: number }>()
 
 export function registerCombatAvatar(script: Script, id: string, avatar: CombatAvatar): void {
   const registered = { ...avatar, region: script.linkset.region }
   combatAvatars(script).set(id.toLowerCase(), registered)
-  regeneratedAt.set(registered, script.linkset.clock.now)
+  regeneratedAt.set(registered, { at: script.linkset.clock.now, health: avatar.health })
 }
 
 // In-world (main grid, 2026-11-23): a damaged avatar's health rose by just over one point
@@ -48,10 +48,13 @@ interface Combatant {
 }
 
 function regenerate(holder: object, health: number, now: number, start: number): number {
-  const last = regeneratedAt.get(holder) ?? start
-  regeneratedAt.set(holder, now)
-  const ticks = Math.floor(now / REGENERATION_MS) - Math.floor(last / REGENERATION_MS)
-  return ticks > 0 && health > 0 ? Math.min(100, health + ticks) : health
+  const last = regeneratedAt.get(holder)
+  // Health that a test set since the last reading starts regenerating from now.
+  const since = !last ? start : last.health === health ? last.at : now
+  const ticks = Math.floor(now / REGENERATION_MS) - Math.floor(since / REGENERATION_MS)
+  const result = ticks > 0 && health > 0 ? Math.min(100, health + ticks) : health
+  regeneratedAt.set(holder, { at: now, health: result })
+  return result
 }
 
 function worldAvatar(ctx: CallContext, id: string): WorldAvatar | undefined {
@@ -69,7 +72,7 @@ function combatant(ctx: CallContext, id: string): Combatant | undefined {
       attachments: registered.scripts ?? [],
       seat,
       health: (now) => registered.health = regenerate(registered, registered.health, now, now),
-      setHealth: (health) => { registered.health = health },
+      setHealth: (health) => { registered.health = health; regeneratedAt.set(registered, { at: ctx.linkset.clock.now, health }) },
     }
   }
   if (!avatar) return undefined
@@ -82,7 +85,7 @@ function combatant(ctx: CallContext, id: string): Combatant | undefined {
       .flatMap((l) => l.allScripts()),
     seat,
     health: (now) => avatar.objectDetails.health = regenerate(avatar, avatar.objectDetails.health ?? 100, now, 0),
-    setHealth: (health) => { avatar.objectDetails.health = health },
+    setHealth: (health) => { avatar.objectDetails.health = health; regeneratedAt.set(avatar, { at: ctx.linkset.clock.now, health }) },
   }
 }
 
@@ -284,7 +287,7 @@ export const llGetHealth: BuiltinImpl = (ctx, args) => {
   const prim = findObjectPrim(ctx, id)
   if (prim) return prim.params.health
   const avatar = combatant(ctx, id)
-  if (avatar && avatar.region === ctx.linkset.region) return avatar.health(ctx.linkset.clock.now)
+  if (avatar) return avatar.region === ctx.linkset.region ? avatar.health(ctx.linkset.clock.now) : 0
   // The owner is the one implicit avatar, as with the other agent builtins.
   const ownerPresent = id !== NULL_KEY && ctx.linkset.peers.some(
     (l) => l.region === ctx.linkset.region && l.owner.toLowerCase() === id,
@@ -357,6 +360,7 @@ export const llDamage: BuiltinImpl = (ctx, args) => {
   // In-world (main grid, 2026-11-23): damage to a seated avatar reached the seat's scripts first,
   // unless the seat itself dealt it; then the avatar's worn scripts.
   const seat = own || avatar!.seat === ctx.linkset ? undefined : avatar!.seat
-  start(ctx, `${own ? 'own' : 'avatar'}:${id}`, entry, seat, [avatar!], adjustAllowed && !own)
+  // Hits that take different paths are kept apart: the avatar's own, ones the seat skips, and the rest.
+  start(ctx, `${own ? 'own' : seat ? 'seated' : 'avatar'}:${id}`, entry, seat, [avatar!], adjustAllowed && !own)
   return undefined
 }
