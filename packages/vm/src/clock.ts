@@ -589,6 +589,9 @@ export class LinksetClock {
    * and state change.
    */
   purgeTarget(script: Script, upTo = Infinity, keep?: string): void {
+    // In-world: a script reset during a contact it had held events of got every live
+    // land_collision after the reset.
+    if (upTo === Infinity) this.openContacts.delete(script)
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const e = this.queue[i]!
       if (e.target === script && e.at <= upTo && e.event !== keep) this.queue.splice(i, 1)

@@ -9,10 +9,11 @@ import type { Linkset } from '../src/index.js'
 // two scripts. One slept when told to by a link message and logged what ran after its wake. The
 // other switched the box's physics on 0.6 m above bare land, off again a set time later and moved
 // it back up, and logged the land collisions it got while running, about one every 44 ms.
-const sleeper = `list log;
+const sleeper = `list log; integer reset;
   default {
     link_message(integer f, integer n, string s, key id) {
       if (s == "sleep") { llSleep(n / 1000.0); log += "woke"; }
+      else if (s == "sleep reset") { reset = 1; llSleep(n / 1000.0); log += "woke"; }
       else if (s == "twice") { llSleep(n / 1000.0); log += "woke"; llSleep(10.0); log += "woke2"; }
       else if (s == "sleep stop") { llSleep(n / 1000.0); log += "woke"; llMessageLinked(LINK_THIS, 0, "stop", ""); }
       else if (s == "nap") { log += "link"; llSleep(0.1); }
@@ -22,7 +23,7 @@ const sleeper = `list log;
     collision(integer n) { log += "c"; }
     collision_end(integer n) { log += "ce"; }
     land_collision_start(vector p) { log += "lcs"; }
-    land_collision(vector p) { log += "lc"; }
+    land_collision(vector p) { log += "lc"; if (reset) llResetScript(); }
     land_collision_end(vector p) { log += "lce"; }
     on_rez(integer p) { log += "rez"; }
   }`
@@ -134,6 +135,27 @@ describe('land_collision held through a sleep', () => {
     expect(f.log().slice(0, 2)).toEqual(['woke', 'lcs'])
     expect(f.log().at(-1)).toBe('lce')
     expect(landed(f.log())).toBe(after - 1)
+  })
+
+  // In-world: the same with the sleeper resetting itself in its first land_collision after the
+  // wake -> after the reset it got every live land_collision, 15 of 15 and 14 of 14, and
+  // land_collision_end. It also got a new land_collision_start, as a script reset during any
+  // contact does; rezless doesn't raise that one.
+  it('gives a script reset during the contact every live land_collision', async () => {
+    const f = await box()
+    f.link('sleep reset', 2_000)
+    f.linkset.advanceTime(1_500)
+    contact(f, 6, false)
+    f.linkset.advanceTime(2_000 - f.linkset.clock.now)
+    expect(f.log()).toEqual([])
+    for (let i = 0; i < 15; i++) {
+      f.linkset.advanceTime(44)
+      f.at('land_collision')
+    }
+    f.linkset.advanceTime(44)
+    f.at('land_collision_end')
+    f.linkset.advanceTime(1_000)
+    expect(f.log()).toEqual([...Array(15).fill('lc'), 'lce'])
   })
 
   // In-world: sleeps that ended 0.1 s before the physics went off, and 0.14 and 0.27 s after it
