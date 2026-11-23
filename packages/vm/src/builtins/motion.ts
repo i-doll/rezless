@@ -288,16 +288,19 @@ export const SELECTION_MS = { edit: 400, copy: 700 } as const
  * The viewer selects an object to edit, Duplicate or Take it, which pauses its keyframed motion
  * until the viewer lets go of it. In-world: a looping motion gave moving_end at the selection and
  * moving_start again when the viewer let go, where the object stayed. A script that paused the
- * motion in its moving_end handler got the moving_start all the same. The copy, and the object
+ * motion in its moving_end handler got the moving_start all the same; one that stopped it got
+ * nothing more, and the motion stayed stopped. The copy, and the object
  * rezzed from a Take or Take Copy item, stood still with no event, and KFM_CMD_PLAY started its
  * motion again (Aditi, SLua Tideland, 2026-11-23).
  */
-export function selectMotion(linkset: Linkset, ms: number): void {
+export function selectMotion(linkset: Linkset, ms: number): boolean {
   const motion = linkset.prims[0]?.keyframedMotion
-  if (!motion?.playing) return
+  if (!motion?.playing) return false
   motion.command(KFM_CMD_PAUSE)
+  const stops = motion.stops
   linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0]?.keyframedMotion !== motion } },
-    linkset.clock.now + ms, () => motion.command(KFM_CMD_PLAY))
+    linkset.clock.now + ms, () => { if (motion.stops === stops) motion.command(KFM_CMD_PLAY) })
+  return true
 }
 
 /**
@@ -315,6 +318,8 @@ export function stillCopy(copy: Linkset): void {
 /** Object-owned motion. Simulator frame drift is not simulated. */
 export class KeyframedMotion {
   playing = true
+  /** How many times the motion was stopped. */
+  stops = 0
   private completed = false
   private elapsed = 0
   private startedAt: number
@@ -446,7 +451,7 @@ export class KeyframedMotion {
       this.completed=false
       this.held=this.transform()
       this.cancel?.();this.cancel=undefined
-      if (command===KFM_CMD_STOP) { this.elapsed=0;this.rebuild() }
+      if (command===KFM_CMD_STOP) { this.elapsed=0;this.stops++;this.rebuild() }
     } else if (command===KFM_CMD_PLAY && !this.playing) {
       if (this.completed) {
         this.completed=false

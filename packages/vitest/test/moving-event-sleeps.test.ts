@@ -429,6 +429,19 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     expect(b.log()).toEqual(['moving_start 0', 'moving_end 10', 'moving_start 17'])
   })
 
+  // In-world: a script that stopped the motion in its moving_end handler at a Duplicate got no
+  // moving_start, and the motion stayed stopped.
+  it('leaves the motion stopped when a script stopped it while the viewer held the object', async () => {
+    const b = await box(looper.replace('moving_end() { add("moving_end"); }',
+      'moving_end() { add("moving_end"); llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]); }'))
+    send(b, 'go')
+    b.linkset.advanceTime(1_000)
+    b.linkset.duplicate()
+    b.linkset.advanceTime(1_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 10'])
+    expect(b.linkset.prims[0]!.keyframedMotion!.playing).toBe(false)
+  })
+
   // A Duplicate's script starts from the top, so it has been told nothing of the original's motion.
   it('starts a Duplicate whose script plays the copied motion in a handler that sleeps', async () => {
     const b = await box(looper.replace('else if (m == "play") llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);',
@@ -442,6 +455,45 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     copy.allScripts()[0]!.fire('link_message', { sender_num: 0, num: 0, str: 'play', id: '' })
     copy.advanceTime(500)
     expect(logOf(copy).map((line) => line.split(' ')[0])).toEqual(['moving_start'])
+  })
+})
+
+describe('moving events carried by a copy', () => {
+  const sleeper = `${logger}
+    default {
+      ${handlers}
+      state_entry() { llSetPrimitiveParams([PRIM_PHYSICS_SHAPE_TYPE, PRIM_PHYSICS_SHAPE_CONVEX]); }
+      on_rez(integer p) { add("rez"); }
+      link_message(integer f, integer n, string m, key id) {
+        t0 = llGetTime();
+        if (m == "kfm") { llSetKeyframedMotion([<0, 0, 0.3>, 3.0], [KFM_DATA, KFM_TRANSLATION]); llSleep(1.0); }
+        else if (m == "jump") { llSetRegionPos(llGetPos() + <0, 0, 1>); llSleep(2.0); }
+      }
+    }`
+  const queue = (b: Box, m: string) => b.world.clock.schedule(b.script, b.world.clock.now, 'link_message', { sender_num: 0, num: 0, str: m, id: '' })
+  const names = (linkset: Linkset) => logOf(linkset).map((line) => line.split(' ')[0])
+
+  // A copy carries on the handler it was copied asleep in, with the change it had not been told of.
+  it('gives a copy taken asleep the change its handler had not been told of', async () => {
+    const b = await box(sleeper)
+    queue(b, 'kfm')
+    b.linkset.advanceTime(200)
+    const copy = b.linkset.copy({ world: b.world, region: 'home' })
+    copy.advanceTime(4_000)
+    expect(names(copy).filter((name) => name.startsWith('moving'))).toEqual(['moving_start', 'moving_end'])
+  })
+
+  // Only a selection that paused keyframed motion leaves the copy with no moving events: other
+  // events that waited for a sleeping handler come out with the copy.
+  it('keeps the moving events a Take Copy carries when nothing was paused', async () => {
+    const b = await box(sleeper)
+    queue(b, 'jump')
+    b.linkset.advanceTime(500)
+    const taken = b.world.attemptAvatarTake(b.avatar, b.linkset.prims[0]!, { copy: true }).object!
+    seedRlvInventory(b.avatar, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: taken, assetType: 'object' }] })
+    const rezzed = b.world.attemptAvatarRez(b.avatar, 'taken', { x: 128, y: 130, z: 100 }).object!
+    rezzed.advanceTime(3_000)
+    expect(names(rezzed)).toEqual(expect.arrayContaining(['moving_start', 'moving_end']))
   })
 })
 
@@ -474,6 +526,17 @@ describe('moving events across a reset and a state change', () => {
     b.linkset.advanceTime(5_000)
     // The reset cleared the log of the handler that started the motion.
     expect(names(b)).toEqual(['entry', 'moving_start', 'moving_end'])
+  })
+
+  // In-world: a script reset in a physical box floating at 0.1 m/s -> state_entry, then moving_start.
+  it('tells a script reset in a moving physical object that it moves', async () => {
+    const b = await box(mover)
+    b.linkset.prims[0]!.setStatus(1, true)
+    b.linkset.setVelocity({ x: 0.1, y: 0, z: 0 })
+    b.linkset.advanceTime(100)
+    b.script.reset()
+    b.linkset.advanceTime(100)
+    expect(names(b)).toEqual(['entry', 'moving_start'])
   })
 
   // In-world: a 3 s motion started in a handler that changed state after a 1 s sleep -> the new

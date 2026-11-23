@@ -158,16 +158,16 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
     : profile !== 'rlva' ? named('rez')
       : checked ? [...new Set([...editDenials(avatar, linkset), ...named('edit', 'rez')])] : []
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
-  selectMotion(linkset, SELECTION_MS.copy)
+  const paused = selectMotion(linkset, SELECTION_MS.copy)
   if (!foreign) {
     const object = linkset.copy()
-    stillCopy(object)
+    if (paused) stillCopy(object)
     if (!copy) linkset.remove()
     return record('taken', undefined, [], object)
   }
   const waiting = new Set(linkset.clock.pendingEvents())
   const object = linkset.copy({ owner: avatar.key })
-  stillCopy(object)
+  if (paused) stillCopy(object)
   for (const prim of object.prims) {
     prim.permMask = nextOwnerMask(prim.permMask)
     for (const item of prim.inventory) Object.assign(item, forNextOwner(item))
