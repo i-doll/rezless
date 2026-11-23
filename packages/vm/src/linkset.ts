@@ -318,7 +318,6 @@ export class Linkset {
     }
     this.lastAttachmentPoint = point
     this.attachment = { avatar, point, temporary, order }
-    const quiet = this.allScripts().filter(script => script.resetPastWear)
     for (const script of this.allScripts()) {
       // In-world: a script that was stopped when its object was stored, even by a sibling's
       // attach(NULL_KEY) during the detach, came back reset. One started there came back as it was.
@@ -328,7 +327,7 @@ export class Linkset {
       resumeSensors(script)
       resumeTargets(script)
     }
-    this.broadcastAttach(avatar, quiet)
+    this.broadcastAttach(avatar, this.allScripts().filter(script => script.quietAttach))
     for (const script of this.allScripts()) {
       script.clockView.resumeFromInventory()
       resumeHeldTouches(script)

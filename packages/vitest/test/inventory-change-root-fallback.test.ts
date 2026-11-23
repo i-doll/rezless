@@ -448,6 +448,16 @@ describe('a move or look target of a stopped script through inventory', () => {
     expect(root.rotation.z).toBeCloseTo(Math.SQRT1_2, 2)
   })
 
+  it('keeps acting on the original of a shift-drag copy', async () => {
+    const f = await moving(false)
+    f.linkset.duplicate()
+    const root = f.linkset.prims[0]!.params
+    const target = { ...held(f.linkset).move!.target }
+    root.position = { ...target, z: target.z - 1 }
+    f.linkset.advanceTime(3_000)
+    expect(root.position.z).toBeCloseTo(target.z, 2)
+  })
+
   it('stays with the original of a Take Copy', async () => {
     const f = await moving(false)
     rez(f, f.linkset.copy())

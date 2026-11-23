@@ -221,6 +221,8 @@ export class Script {
    * that handler runs on only after the wear, so the reset drops the wear's rez and attach events.
    */
   resetPastWear = false
+  /** Set when such a script came out of inventory: the attach event of that wear is dropped too. */
+  quietAttach = false
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
@@ -1140,12 +1142,12 @@ export class Script {
     // reset. Started, it ran state_entry of the default state with its globals back at their
     // start and the default memory limit, and no on_rez. A sleep it was stopped in never ended.
     const reset = !this.running && !this.crashed && !this.dead
-    if (reset) slackenTargetMotion(this, true)
     // In-world: an LSL handler that was asleep when the object was taken finished its sleep
     // after the rez, with its locals and llDetected* data, and ran to its end before on_rez.
     if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    if (reset) slackenTargetMotion(this, true)
     copy.detachedInHandler = this.detachedInHandler
     copy.resetPastWear = this.resetPastWear
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
@@ -1286,6 +1288,7 @@ export class Script {
     // llResetScript. The script then ran state_entry and got no on_rez, chat line or attach event.
     if (this.resetPastWear) {
       this.resetPastWear = false
+      this.quietAttach = true
       this.rezQueued = true
       return
     }
@@ -1557,6 +1560,7 @@ export class Script {
 
   private step(task: Task): void {
     this.resumedAt = this.now
+    this.quietAttach = false
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
     this.handling = true
