@@ -121,7 +121,12 @@ it('preserves collision event injection without detected data and leaves land co
 
 // In-world: last.py -> missing sound and a script inventory name did not report errors.
 // llPlaySound with the same missing name did, and the listener caught a deliberate math error.
-// These fields record requests. The viewer tools cannot inspect impact audio or its effective gain.
+// These fields record requests. The impact sound and its effective gain could not be read: on
+// Aditi (SLua Tideland, 2026-11-23) a physical box dropped onto a prim floor from 0.3 to 6 m, and
+// bumped by a walking avatar, raised collision_start each time, yet the viewer heard no collision
+// sound from it, with no llCollisionSound call or after llCollisionSound with a sound key at
+// volumes -1, 0.3, 1 and 2, "" at 0.5 and 0, "missing" and NULL_KEY. It heard the avatar's
+// footsteps, so triggered sounds did reach it.
 it.each(['"",-1','"",2','"missing",.5','(string)NULL_KEY,1','"ed124764-705d-d497-167a-182cd9fa2e6c",2'])('records collision sound request %s without a script error',async args=>{
   const s=await loadScript({source:`default{state_entry(){llCollisionSound(${args});}}`})
   s.start()
