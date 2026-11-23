@@ -926,6 +926,22 @@ function profileCut(v: Vector) {
   return { x: toHundredThousandths(cut.x), y: toHundredThousandths(cut.y), z: 0 }
 }
 
+/**
+ * Rezzing an object from inventory cuts its profile cuts and hollow to steps of 0.00001 again,
+ * so a value stored a little under its step comes back one step lower.
+ */
+export function restepRezzedShape(p: PrimParams): void {
+  const old = p.shape
+  if (old.kind === SHAPE_SCULPT) return
+  const restep = (v: Vector) => ({ x: toHundredThousandths(v.x), y: toHundredThousandths(v.y), z: v.z })
+  const shape = { ...old, hollow: toHundredThousandths(old.hollow) }
+  if ('topSize' in shape) shape.cut = restep(shape.cut)
+  else if ('dimple' in shape) shape.dimple = restep(shape.dimple)
+  else shape.advancedCut = restep(shape.advancedCut)
+  p.shape = shape
+  remapFaces(p, old)
+}
+
 const limitPair = (v: Vector, minX: number, maxX: number, minY = minX, maxY = maxX) =>
   ({ x: limit(f32(v.x), minX, maxX), y: limit(f32(v.y), minY, maxY), z: 0 })
 
@@ -1596,7 +1612,7 @@ function faceRoles(shape: PrimShape): FaceRole[] {
   if (ends) roles.push('bottom')
   if (cutFaces) roles.push('cutStart', 'cutEnd')
   // Measured only as a count on a cut, hollow box with a NaN top size x: 3 faces, not 7. Keeping
-  // the outer sides and the inner face, on every box, is a choice: it can't be probed safely.
+  // the outer sides and the inner face, on every box, is a choice that isn't measured.
   if (shape.kind === SHAPE_BOX && Number.isNaN(shape.topSize.x)) return roles.filter((r) => typeof r === 'number' || r === 'inner')
   // The count is a byte. Only a NaN cut, which is kept as -21474.83648, gets that far.
   return roles.slice(0, (roles.length - Math.min(sideCount, 255) + sideCount) & 0xff)

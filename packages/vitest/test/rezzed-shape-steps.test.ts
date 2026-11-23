@@ -1,0 +1,308 @@
+import { describe, expect, it } from 'vitest'
+import { loadLinkset, loadRlvPair, makeInventoryItem, InventoryType, seedRlvInventory, World } from '../src/index.js'
+import type { Linkset } from '../src/index.js'
+
+// https://wiki.secondlife.com/wiki/PRIM_TYPE
+// https://wiki.secondlife.com/wiki/LlGetLinkPrimitiveParams
+//
+// In-world: SLua Tideland on the Aditi beta grid, 2026-11-23. An eight-prim linkset made with
+// the build tools, links 1 to 8 a box, cylinder, prism, sphere, torus, tube, ring and box. Its
+// SLua script gave every link a PRIM_TYPE of random values inside each limit, read them
+// back, and read them again in on_rez. The linkset was taken into inventory and rezzed, three
+// rounds of new values in all. The viewer's Duplicate copied it in place once after the first
+// rez and once after the third round's values were set. Each line is one link's PRIM_TYPE,
+// printed with %.9g.
+const ROUNDS = [
+  {
+    input: [
+      '0 0 <0.444032997,0.595851004> 0.365624 <-0.112655997,0.597540021> <0.624705017,0.297387004> <-0.123963997,-0.0411409996>',
+      '1 0 <0.00714500016,0.643459976> 0.687603 <0.096183002,0.702570021> <0.0656379983,0.168405995> <0.255102009,-0.0227359999>',
+      '2 0 <0.101484999,0.591794014> 0.524521 <-0.869563997,-0.96629101> <0.301153988,1.52176297> <0.197968006,-0.223572999>',
+      '3 0 <0.0318490006,0.860903978> 0.135106 <-0.116916001,-0.968865991> <0.171045005,0.936770976>',
+      '4 0 <0.166272998,0.660817027> 0.228118 <-0.78362602,0.829795003> <0.700496972,0.452753991> <-0.34454301,-0.198641002> <0.363665998,0.884570003> <-0.278144985,-0.213470995> 1.716295 -0.180633 0.094758',
+      '5 0 <0.433351994,0.607756019> 0.20476 <-0.0166030005,0.889831007> <0.114448003,0.0998189971> <0.40180701,0.167766005> <0.211307004,0.686173975> <0.164517999,0.0438520014> 3.535958 0.140674 -0.444883',
+      '6 0 <0.269235998,0.989338994> 0.451736 <-0.276380986,-0.330563992> <0.267634988,0.177708> <0.433488995,-0.0218889993> <0.308182001,0.941929996> <-0.722624004,-0.899671972> 2.242377 -0.14459 0.606656',
+      '0 0 <0.234559998,0.80389601> 0.657493 <0.149581,-0.0857200027> <1.81998003,0.811212003> <-0.49791801,-0.424919993>',
+    ],
+    live: [
+      '0 0 <0.444029987,0.595849991> 0.365619987 <-0.112655997,0.597540021> <0.624705017,0.297387004> <-0.123963997,-0.0411409996>',
+      '1 0 <0.00713999989,0.643450022> 0.687600017 <0.096183002,0.702570021> <0.0656379983,0.168405995> <0.255102009,-0.0227359999>',
+      '2 0 <0.10148,0.59179002> 0.52451998 <-0.869563997,-0.96629101> <0.301153988,1.52176297> <0.197968006,-0.223572999>',
+      '3 0 <0.0318490006,0.860903978> 0.135100007 <-0.116916001,-0.968865991> <0.171039999,0.936770022>',
+      '4 0 <0.166272998,0.660817027> 0.22811 <-0.78362602,0.829795003> <0.700496972,0.452753991> <-0.34454301,-0.198641002> <0.363660008,0.884570003> <-0.278144985,-0.213470995> 1.716295 -0.180632994 0.545920908',
+      '5 0 <0.433351994,0.607756019> 0.20476 <-0.0166030005,0.889831007> <0.114448003,0.0998189971> <0.40180701,0.167766005> <0.211300001,0.686169982> <0.164517999,0.0438520014> 3.53595805 0.140673995 -0.444882989',
+      '6 0 <0.269235998,0.989338994> 0.451730013 <-0.276380986,-0.330563992> <0.267634988,0.177708> <0.433488995,-0.0218889993> <0.308180004,0.941929996> <-0.722624004,-0.899671972> 2.24237704 -0.144590005 0.606656015',
+      '0 0 <0.234559998,0.80388999> 0.657490015 <0.149581,-0.0857200027> <1.81998003,0.811212003> <-0.49791801,-0.424919993>',
+    ],
+    rezzed: [
+      '0 0 <0.444029987,0.595849991> 0.365619987 <-0.112655997,0.597540021> <0.624705017,0.297387004> <-0.123963997,-0.0411409996>',
+      '1 0 <0.00713999989,0.643450022> 0.687600017 <0.096183002,0.702570021> <0.0656379983,0.168405995> <0.255102009,-0.0227359999>',
+      '2 0 <0.10148,0.59179002> 0.524510026 <-0.869563997,-0.96629101> <0.301153988,1.52176297> <0.197968006,-0.223572999>',
+      '3 0 <0.0318490006,0.860903978> 0.135100007 <-0.116916001,-0.968865991> <0.171039999,0.936770022>',
+      '4 0 <0.166272998,0.660817027> 0.22811 <-0.78362602,0.829795003> <0.700496972,0.452753991> <-0.34454301,-0.198641002> <0.363660008,0.884570003> <-0.278144985,-0.213470995> 1.716295 -0.180632994 0.545920908',
+      '5 0 <0.433351994,0.607756019> 0.20476 <-0.0166030005,0.889831007> <0.114448003,0.0998189971> <0.40180701,0.167766005> <0.211300001,0.686169982> <0.164517999,0.0438520014> 3.53595805 0.140673995 -0.444882989',
+      '6 0 <0.269235998,0.989338994> 0.451730013 <-0.276380986,-0.330563992> <0.267634988,0.177708> <0.433488995,-0.0218889993> <0.308180004,0.941929996> <-0.722624004,-0.899671972> 2.24237704 -0.144590005 0.606656015',
+      '0 0 <0.234559998,0.80388999> 0.657490015 <0.149581,-0.0857200027> <1.81998003,0.811212003> <-0.49791801,-0.424919993>',
+    ],
+  },
+  {
+    input: [
+      '0 0 <0.294853985,0.684665024> 0.653361 <-0.675291002,0.88707> <0.440762013,1.567222> <0.444615006,-0.434879005>',
+      '1 0 <0.186531007,0.57890898> 0.408432 <0.648738027,-0.190026999> <0.50910598,1.76318097> <0.0503010005,-0.480304003>',
+      '2 0 <0.208180994,0.865526974> 0.101613 <-0.724919021,0.789802015> <1.29940796,0.561895013> <0.390446991,-0.0357990004>',
+      '3 0 <0.131098002,0.874026> 0.878137 <0.665965021,-0.605552018> <0.00470700022,0.577648997>',
+      '4 0 <0.30853501,0.77747798> 0.432794 <-0.943382978,0.442847997> <0.896443009,0.40022099> <-0.383188009,0.296907991> <0.373843014,0.871719003> <-0.491475999,0.898586988> 2.193485 0.019947 0.1837',
+      '5 0 <0.109857999,0.868287981> 0.464347 <-0.0968850031,-0.723544002> <0.853424013,0.403757989> <-0.392931998,0.386245996> <0.351505995,0.801222026> <-0.0952140018,0.398550004> 2.781776 0.134032 -0.047163',
+      '6 0 <0.232547,0.582105994> 0.093324 <-0.667357981,0.332585007> <0.851709008,0.0958790034> <0.38588801,0.356797993> <0.197080001,0.560220003> <0.247217,0.304289013> 1.695685 -0.004326 -0.768363',
+      '0 0 <0.204841003,0.984305978> 0.07967 <-0.953019977,0.871203005> <0.79797101,1.49350405> <0.203200996,-0.488970011>',
+    ],
+    live: [
+      '0 0 <0.294849992,0.684660017> 0.653360009 <-0.675291002,0.88707> <0.440762013,1.567222> <0.444615006,-0.434879005>',
+      '1 0 <0.186529994,0.57889998> 0.40843001 <0.648738027,-0.190026999> <0.50910598,1.76318097> <0.0503010005,-0.480304003>',
+      '2 0 <0.208179995,0.86552> 0.101609997 <-0.724919021,0.789802015> <1.29940796,0.561895013> <0.390446991,-0.0357990004>',
+      '3 0 <0.131098002,0.874026> 0.878130019 <0.665965021,-0.605552018> <0.00469999993,0.577639997>',
+      '4 0 <0.30853501,0.77747798> 0.432790011 <-0.943382978,0.442847997> <0.896443009,0.40022099> <-0.383188009,0.296907991> <0.373840004,0.871710002> <-0.491475999,0.898586988> 2.19348502 0.0199469998 0.66288358',
+      '5 0 <0.109857999,0.868287981> 0.464340001 <-0.0968850031,-0.723544002> <0.853424013,0.403757989> <-0.392931998,0.386245996> <0.351500005,0.80122> <-0.0952140018,0.398550004> 2.78177595 0.134031996 -0.703618884',
+      '6 0 <0.232547,0.582105994> 0.0933199972 <-0.667357981,0.332585007> <0.851709008,0.0958790034> <0.38588801,0.356797993> <0.197080001,0.560220003> <0.247217,0.304289013> 1.69568503 -0.00432599988 -0.768362999',
+      '0 0 <0.204840004,0.984300017> 0.0796599984 <-0.953019977,0.871203005> <0.79797101,1.49350405> <0.203200996,-0.488970011>',
+    ],
+    rezzed: [
+      '0 0 <0.294849992,0.684660017> 0.653360009 <-0.675291002,0.88707> <0.440762013,1.567222> <0.444615006,-0.434879005>',
+      '1 0 <0.186529994,0.578890026> 0.40843001 <0.648738027,-0.190026999> <0.50910598,1.76318097> <0.0503010005,-0.480304003>',
+      '2 0 <0.208179995,0.86552> 0.101609997 <-0.724919021,0.789802015> <1.29940796,0.561895013> <0.390446991,-0.0357990004>',
+      '3 0 <0.131098002,0.874026> 0.878130019 <0.665965021,-0.605552018> <0.00469999993,0.577639997>',
+      '4 0 <0.30853501,0.77747798> 0.432790011 <-0.943382978,0.442847997> <0.896443009,0.40022099> <-0.383188009,0.296907991> <0.373840004,0.871710002> <-0.491475999,0.898586988> 2.19348502 0.0199469998 0.66288358',
+      '5 0 <0.109857999,0.868287981> 0.464340001 <-0.0968850031,-0.723544002> <0.853424013,0.403757989> <-0.392931998,0.386245996> <0.351500005,0.80122> <-0.0952140018,0.398550004> 2.78177595 0.134031996 -0.703618884',
+      '6 0 <0.232547,0.582105994> 0.0933199972 <-0.667357981,0.332585007> <0.851709008,0.0958790034> <0.38588801,0.356797993> <0.197080001,0.560220003> <0.247217,0.304289013> 1.69568503 -0.00432599988 -0.768362999',
+      '0 0 <0.204840004,0.984300017> 0.0796599984 <-0.953019977,0.871203005> <0.79797101,1.49350405> <0.203200996,-0.488970011>',
+    ],
+  },
+  {
+    input: [
+      '0 0 <0.0664120018,0.626783013> 0.759633 <0.986778021,0.405777991> <0.480204999,1.09186196> <0.148543999,0.135637>',
+      '1 0 <0.246250004,0.633517027> 0.719523 <0.268344998,-0.196510002> <0.173961997,0.901906013> <0.409132004,0.259631991>',
+      '2 0 <0.137566,0.960703015> 0.02845 <-0.63865298,0.221071005> <1.01431799,1.53958702> <0.140265003,0.184553996>',
+      '3 0 <0.400436014,0.945289016> 0.819863 <-0.779760003,-0.272659004> <0.322869986,0.667460978>',
+      '4 0 <0.0540230013,0.848370016> 0.453628 <-0.288437992,0.0917920023> <0.864498973,0.445926994> <0.235754997,-0.364731997> <0.0185390003,0.807565987> <0.111717001,-0.978806973> 1.744898 0.137094 0.387151',
+      '5 0 <0.143718004,0.626295984> 0.126786 <-0.581173003,0.0813409984> <0.169047996,0.491371006> <0.472782999,-0.179262996> <0.260737985,0.898414016> <-0.778653979,0.915353> 3.52637 0.118879 -0.808638',
+      '6 0 <0.0348300003,0.959653974> 0.108525 <-0.877813995,-0.475710988> <0.887911022,0.0989229977> <-0.253527999,-0.0526200011> <0.373234987,0.638373971> <0.429185003,0.249489993> 2.482334 -0.117465 0.549205',
+      '0 0 <0.193875,0.580648005> 0.09727 <-0.964861989,0.128544003> <0.11411,1.58128798> <0.168733001,0.0872789994>',
+    ],
+    live: [
+      '0 0 <0.0664099976,0.626779974> 0.759630024 <0.986778021,0.405777991> <0.480204999,1.09186196> <0.148543999,0.135637>',
+      '1 0 <0.246250004,0.633509994> 0.719519973 <0.268344998,-0.196510002> <0.173961997,0.901906013> <0.409132004,0.259631991>',
+      '2 0 <0.137559995,0.960699975> 0.0284499992 <-0.63865298,0.221071005> <1.01431799,1.53958702> <0.140265003,0.184553996>',
+      '3 0 <0.400436014,0.945289016> 0.819859982 <-0.779760003,-0.272659004> <0.322860003,0.667460024>',
+      '4 0 <0.0540230013,0.848370016> 0.453619987 <-0.288437992,0.0917920023> <0.864498973,0.445926994> <0.235754997,-0.364731997> <0.01853,0.807560027> <0.111717001,-0.978806973> 1.74489796 0.137094006 0.601349413',
+      '5 0 <0.143718004,0.626295984> 0.126780003 <-0.581173003,0.0813409984> <0.169047996,0.491371006> <0.472782999,-0.179262996> <0.260729998,0.898410022> <-0.778653979,0.915353> 3.52637005 0.118878998 -0.808637977',
+      '6 0 <0.0348300003,0.959653974> 0.108520001 <-0.877813995,-0.475710988> <0.887911022,0.0989229977> <-0.253527999,-0.0526200011> <0.37323001,0.638369977> <0.429185003,0.249489993> 2.4823339 -0.117464997 0.687899053',
+      '0 0 <0.193869993,0.580640018> 0.097269997 <-0.964861989,0.128544003> <0.11411,1.58128798> <0.168733001,0.0872789994>',
+    ],
+    rezzed: [
+      '0 0 <0.0664099976,0.62677002> 0.759630024 <0.986778021,0.405777991> <0.480204999,1.09186196> <0.148543999,0.135637>',
+      '1 0 <0.246250004,0.633509994> 0.719519973 <0.268344998,-0.196510002> <0.173961997,0.901906013> <0.409132004,0.259631991>',
+      '2 0 <0.137549996,0.960699975> 0.0284499992 <-0.63865298,0.221071005> <1.01431799,1.53958702> <0.140265003,0.184553996>',
+      '3 0 <0.400436014,0.945289016> 0.819859982 <-0.779760003,-0.272659004> <0.322860003,0.667460024>',
+      '4 0 <0.0540230013,0.848370016> 0.453619987 <-0.288437992,0.0917920023> <0.864498973,0.445926994> <0.235754997,-0.364731997> <0.01853,0.807560027> <0.111717001,-0.978806973> 1.74489796 0.137094006 0.601349413',
+      '5 0 <0.143718004,0.626295984> 0.126780003 <-0.581173003,0.0813409984> <0.169047996,0.491371006> <0.472782999,-0.179262996> <0.260729998,0.898410022> <-0.778653979,0.915353> 3.52637005 0.118878998 -0.808637977',
+      '6 0 <0.0348300003,0.959653974> 0.108520001 <-0.877813995,-0.475710988> <0.887911022,0.0989229977> <-0.253527999,-0.0526200011> <0.37323001,0.638360023> <0.429185003,0.249489993> 2.4823339 -0.117464997 0.687899053',
+      '0 0 <0.193869993,0.580640018> 0.097269997 <-0.964861989,0.128544003> <0.11411,1.58128798> <0.168733001,0.0872789994>',
+    ],
+  },
+]
+
+const SCRIPT = `
+local K = 0
+local function g(x) return string.format("%.9g", x) end
+local function read(tag)
+  for link = 1, ll.GetNumberOfPrims() do
+    local parts = {}
+    for _, x in ll.GetLinkPrimitiveParams(link, {PRIM_TYPE}) do
+      table.insert(parts, if typeof(x) == "vector" then \`<{g(x.x)},{g(x.y)}>\` else g(x))
+    end
+    ll.OwnerSay(tag .. table.concat(parts, " "))
+  end
+end
+LLEvents:on("touch_start", function(events)
+  if events[1]:getLinkNumber() ~= 1 then read("D") return end
+  K += 1
+  for link, rule in ROUNDS[K] do ll.SetLinkPrimitiveParamsFast(link, rule) end
+  read("L")
+end)
+LLEvents:on("on_rez", function() read("R") end)
+`
+
+const OWNER = 'abcdefab-1234-1234-1234-abcdefabcdef'
+const AVATAR = { key: OWNER, name: 'Test Resident' }
+
+/** The input lines as SLua PRIM_TYPE rules, one table of eight links per round. */
+const luaRounds = () => `local ROUNDS = {${ROUNDS.map((r) => `{${r.input.map((line) =>
+  `{PRIM_TYPE, ${line.split(' ').map((t) => (t.startsWith('<') ? `vector(${t.slice(1, -1)}, 0)` : t)).join(', ')}}`).join(', ')}}`).join(', ')}}`
+
+async function fixture() {
+  const world = new World()
+  world.addRegion('home', { x: 0, y: 0 })
+  const avatar = world.addAvatar({ region: 'home', key: OWNER, name: 'Test Resident', username: 'test', position: { x: 110, y: 50, z: 20 } })
+  const { linkset, scripts } = await loadLinkset({
+    world, region: 'home', owner: OWNER, position: { x: 116, y: 50, z: 20 },
+    prims: Array.from({ length: 8 }, (_, i) => (i === 0
+      ? { name: 'shapes', scripts: [{ name: 'probe', language: 'slua' as const, filename: 'probe.luau', source: { source: luaRounds() + SCRIPT } }] }
+      : { name: `link ${i + 1}` })),
+  })
+  scripts.probe!.start()
+  return { world, avatar, linkset }
+}
+
+/** The eight links the probe in `object` last read for `tag`. */
+function heard(object: Linkset, tag: string) {
+  object.advanceTime(0)
+  return object.allScripts()[0]!.chat.filter((c) => c.text.startsWith(tag)).slice(-8).map((c) => c.text.slice(tag.length))
+}
+
+describe('shape values on a rezzed copy', () => {
+  // In-world: a profile cut, hollow or advanced cut stored as a float a little under its step
+  // of 0.00001 came back one step lower from inventory: hollow 0.52451998 as 0.52451, cut ends
+  // 0.57889998 as 0.57889 and 0.62677997 as 0.62677, a cut begin 0.13756 as 0.13755, and a
+  // ring's advanced cut end 0.63837 as 0.63836. Every other value came back the same, and
+  // the two copies made with Duplicate read exactly what the original read.
+  it('cuts profile values to steps of 0.00001 again when the object is rezzed', async () => {
+    const f = await fixture()
+    let object = f.linkset
+    const duplicate = (from: Linkset, expected: string[]) => {
+      const copy = from.duplicate({ x: 0, y: 2, z: 0 })
+      copy.advanceTime(0)
+      copy.touch(2, AVATAR)
+      expect(heard(copy, 'D')).toEqual(expected)
+      copy.remove()
+    }
+    for (const [i, round] of ROUNDS.entries()) {
+      object.touch(1, AVATAR)
+      expect(heard(object, 'L'), `round ${i + 1} live`).toEqual(round.live)
+      if (i === 2) duplicate(object, round.live)
+      const saved = object.copy()
+      object.remove()
+      seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: `item${i}`, kind: 'item', parentId: null, name: 'shapes', object: saved, assetType: 'object' }] })
+      object = f.world.attemptAvatarRez(f.avatar, `item${i}`, { x: 116, y: 50, z: 20 }).object!
+      expect(heard(object, 'R'), `round ${i + 1} rezzed`).toEqual(round.rezzed)
+      if (i === 0) duplicate(object, round.rezzed)
+    }
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): a box set to cut <0.00475, 0.12505> and hollow
+  // 0.12505 read cut <0.00474, 0.12504> and hollow 0.12504. Rezzed from the avatar's inventory
+  // it read <0.00473, 0.12503> and 0.12503, and taken and rezzed again it kept those. The same
+  // box set again, taken and worn from inventory read 0.12503 in on_rez and attach, and so did
+  // one rezzed by llRezObject from another prim's contents.
+  const SET = 'default { state_entry() { llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, 0, <0.00475, 0.12505, 0>, 0.12505, ZERO_VECTOR, <1, 1, 0>, ZERO_VECTOR]); } }'
+  const shapeOf = (object: { prims: ReadonlyArray<{ params: { shape: unknown } }> }) => {
+    const shape = object.prims[0]!.params.shape as { cut: { x: number; y: number }; hollow: number }
+    return [shape.cut.x, shape.cut.y, shape.hollow]
+  }
+  const LIVE = [0.00474, 0.12504, 0.12504].map(Math.fround)
+  const REZZED = [0.00473, 0.12503, 0.12503].map(Math.fround)
+
+  async function box(world?: World) {
+    const { linkset, scripts } = await loadLinkset({ ...(world ? { world, region: 'home' } : {}), owner: OWNER,
+      prims: [{ name: 'box', scripts: [{ name: 'set', source: { source: SET } }] }] })
+    scripts.set!.start()
+    expect(shapeOf(linkset)).toEqual(LIVE)
+    return linkset
+  }
+
+  it('drops a value a step once, however often the object goes through inventory', async () => {
+    const f = await fixture()
+    let object = await box(f.world)
+    for (let i = 0; i < 2; i++) {
+      const saved = object.copy()
+      object.remove()
+      seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: `box${i}`, kind: 'item', parentId: null, name: 'box', object: saved, assetType: 'object' }] })
+      object = f.world.attemptAvatarRez(f.avatar, `box${i}`, { x: 116, y: 50, z: 20 }).object!
+      expect(shapeOf(object), `rez ${i + 1}`).toEqual(REZZED)
+    }
+  })
+
+  it.each(['in a world', 'without one'])('drops it on an object llRezObject rezzes, %s', async (where) => {
+    const world = where === 'in a world' ? (await fixture()).world : undefined
+    const saved = (await box(world)).copy()
+    const { linkset, scripts } = await loadLinkset({ ...(world ? { world, region: 'home' } : {}), owner: OWNER, prims: [{ name: 'rezzer', scripts: [{ name: 'rez',
+      source: { source: 'default { touch_start(integer n) { llRezObject("box", llGetPos() + <0, 0, 1>, ZERO_VECTOR, ZERO_ROTATION, 7); } object_rez(key id) { llOwnerSay((string)id); } }' } }] }] })
+    linkset.prims[0]!.addInventory(makeInventoryItem({ name: 'box', type: InventoryType.OBJECT, key: saved.prims[0]!.key, object: saved }))
+    scripts.rez!.start()
+    linkset.touch(0, AVATAR)
+    linkset.advanceTime(100)
+    const id = scripts.rez!.chat.at(-1)!.text
+    const rezzed = [...(world?.linksets ?? linkset.peers)].find((l) => l.prims[0]!.key === id)!
+    expect(shapeOf(rezzed)).toEqual(REZZED)
+  })
+
+  it('drops it on an object worn from inventory', async () => {
+    const { rlv } = await loadRlvPair({ source: 'default { touch_start(integer n) { llOwnerSay(llGetObjectDesc()); } }' })
+    const { world, avatar } = rlv
+    const { linkset, scripts } = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
+      prims: [{ name: 'box', scripts: [{ name: 'set', source: { source: SET } }] }] })
+    scripts.set!.start()
+    const saved = linkset.copy()
+    seedRlvInventory(avatar, { sharedRootId: 'root', entries: [
+      { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+      { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+      { id: 'box', parentId: 'folder', kind: 'item', name: 'Box (left hand)', assetType: 'object', object: saved },
+    ] })
+    rlv.script.start()
+    rlv.script.host.description = '@attach:direct=force'
+    rlv.script.fire('touch_start', { num_detected: 1 })
+    const worn = world.linksets.find((l) => l.attachment && l !== rlv.script.linkset)!
+    expect(shapeOf(worn)).toEqual(REZZED)
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): boxes set to cut <0.004011, 0.994011> and
+  // <0.005111, 0.995111> stored begins of 0.00401 and 0.00511 and had 8 faces, painted red 0.1
+  // to 0.8. Rezzed from inventory, the begins read 0.004 and 0.0051, so the cut spans reached
+  // 0.99, and the boxes had 6 faces, red 0.1 to 0.6.
+  it.each([[0.004011, 0.994011, 0.004], [0.005111, 0.995111, 0.0051]])('rebuilds the faces when the cut %d to %d crosses 0.99', async (begin, end, rezzedBegin) => {
+    const f = await fixture()
+    const { linkset, scripts } = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ name: 'box', scripts: [{ name: 'set',
+      source: { source: `default { state_entry() { llSetPrimitiveParams([PRIM_TYPE, PRIM_TYPE_BOX, 0, <${begin}, ${end}, 0>, 0, ZERO_VECTOR, <1, 1, 0>, ZERO_VECTOR]);
+        integer i; for (i = 0; i < llGetNumberOfSides(); ++i) llSetColor(<(i + 1) / 10.0, 1, 1>, i); } }` } }] }] })
+    scripts.set!.start()
+    const reds = (object: Linkset) => object.prims[0]!.params.faces.map((face) => face.color.x)
+    expect(reds(linkset)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map((i) => Math.fround(i / 10)))
+    const saved = linkset.copy()
+    seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'box', kind: 'item', parentId: null, name: 'box', object: saved, assetType: 'object' }] })
+    const rezzed = f.world.attemptAvatarRez(f.avatar, 'box', { x: 116, y: 50, z: 20 }).object!
+    expect(shapeOf(rezzed)[0]).toBe(Math.fround(rezzedBegin))
+    expect(reds(rezzed)).toEqual([1, 2, 3, 4, 5, 6].map((i) => Math.fround(i / 10)))
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): a box worn from inventory set cut
+  // <0.00475, 0.12505> and hollow 0.12505 in its attach event, read 0.00474 and 0.12504, and
+  // detached itself. Worn again it read 0.00473 and 0.12503, and worn a third time the same.
+  it('drops a value set while worn when the object is worn again', async () => {
+    const { rlv } = await loadRlvPair({ source: 'default { touch_start(integer n) { llOwnerSay(llGetObjectDesc()); } }' })
+    const { world, avatar } = rlv
+    const once = SET.replace('default { state_entry() {', 'integer set; default { attach(key id) { if (id == NULL_KEY || set) return; set = TRUE;')
+    const { linkset } = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{ name: 'box', scripts: [{ name: 'set', source: { source: once } }] }] })
+    const saved = linkset.copy()
+    linkset.remove()
+    seedRlvInventory(avatar, { sharedRootId: 'root', entries: [
+      { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+      { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+      { id: 'box', parentId: 'folder', kind: 'item', name: 'Box (left hand)', assetType: 'object', object: saved },
+    ] })
+    rlv.script.start()
+    const wear = () => {
+      rlv.script.host.description = '@attach:direct=force'
+      rlv.script.fire('touch_start', { num_detected: 1 })
+      const worn = world.linksets.find((l) => l.attachment && l !== rlv.script.linkset)!
+      worn.advanceTime(0)
+      return worn
+    }
+    const first = wear()
+    expect(shapeOf(first)).toEqual(LIVE)
+    first.detachFromAvatar()
+    for (let i = 0; i < 2; i++) {
+      const again = wear()
+      expect(shapeOf(again), `wear ${i + 2}`).toEqual(REZZED)
+      again.detachFromAvatar()
+    }
+  })
+})

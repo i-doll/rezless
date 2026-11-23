@@ -7,6 +7,7 @@ import { playCollisionSounds } from './builtins/collision.js'
 import { copyPhysicalMotion, queueMoving, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
+import { restepRezzedShape } from './prim-params.js'
 import type { Script } from './script.js'
 import { mergeLinksetData, type LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
@@ -321,6 +322,7 @@ export class Linkset {
     if (fromInventory) {
       this.peers.push(this)
       this.recountScripts()
+      for (const prim of this.prims) restepRezzedShape(prim.params)
     }
     this.lastAttachmentPoint = point
     this.attachment = { avatar, point, temporary, order }
@@ -399,6 +401,8 @@ export class Linkset {
     const unseated = sitters.length > 0
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
     this.fill(copy, (script, prim) => script.copyTo(prim, { unseated, waiting }))
+    // A copy that joins a world or a rezzer's clock is rezzed or worn; any other is a snapshot.
+    if (opts.world || from) for (const prim of copy.prims) restepRezzedShape(prim.params)
     copy.recountScripts()
     return copy
   }

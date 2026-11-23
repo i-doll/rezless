@@ -828,8 +828,7 @@ describe('faces of a box with a NaN top size', () => {
     expect(said(s)).toEqual(['7', '3', '7'])
   })
 
-  // Not measured: llGetMass and OBJECT_MASS of a box with a NaN cut or hollow. Reading them would
-  // mean setting a NaN shape value in-world, which these probes don't do. rezless gives a
+  // Not measured: llGetMass and OBJECT_MASS of a box with a NaN cut or hollow. rezless gives a
   // large finite number.
   it.todo('llGetMass of a box with a NaN cut or hollow')
 })

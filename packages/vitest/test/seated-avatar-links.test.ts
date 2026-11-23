@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, NULL_KEY, World } from '../src/index.js'
+import { DEBUG_CHANNEL, loadLinkset, NULL_KEY, World } from '../src/index.js'
 
 const AVATAR = 'abcdefab-1234-1234-1234-abcdefabcdef'
 const ROOT = '11111111-2222-3333-4444-555555555555'
@@ -377,6 +377,20 @@ describe('reading an avatar link with llGetLinkPrimitiveParams', () => {
     const f = await fixture(`out = llGetLinkPrimitiveParams(a, [PRIM_NAME, ${rule}, PRIM_NAME]);`)
     f.sit()
     expect(f.touch()).toEqual(['Test Resident'])
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): fivebot seated on a lone box read
+  // [PRIM_NAME, r, PRIM_NAME, PRIM_DESC] and [PRIM_NAME, r] for the rule numbers no PRIM_*
+  // constant uses: 0, 1, 10, 16, 31, 54, 64 and -1. Each gave only the first name, on the box
+  // before and while seated and on the avatar link, with "Param 1 error, unknown parameter"
+  // on DEBUG_CHANNEL.
+  it.each([0, 1, 10, 16, 31, 54, 64, -1])('stops at the unknown rule %i, on the prim and on the avatar link', async (rule) => {
+    const f = await fixture(`out = llGetLinkPrimitiveParams(1, [PRIM_NAME, ${rule}, PRIM_NAME, PRIM_DESC]) + llGetLinkPrimitiveParams(1, [PRIM_NAME, ${rule}])
+      + llGetLinkPrimitiveParams(a, [PRIM_NAME, ${rule}, PRIM_NAME, PRIM_DESC]) + llGetLinkPrimitiveParams(a, [PRIM_NAME, ${rule}]);`)
+    f.sit()
+    expect(f.touch()).toEqual(['Root', 'Root', 'Test Resident', 'Test Resident'])
+    expect(f.script.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text.split(' {')[0]))
+      .toEqual(Array(4).fill('llGetPrimitiveParams error: Param 1 error, unknown parameter'))
   })
 
   // In-world: [PRIM_NAME, PRIM_LINK_TARGET, avatar link, PRIM_COLOR, 0,
