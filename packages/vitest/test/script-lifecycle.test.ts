@@ -581,12 +581,12 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     // In-world: a link message whose handler sleeps 5 s was queued and the
     // script stopped at 1 s; started at 7 s (3 s late), it slept to 12 s and
     // then got its timer events. llSetTimerEvent(4) at 13 s ticked at 17 s.
-    // In-world three timer events came within 0.1 s of the wake: the caught-up
-    // tick, the one due during the sleep and the one due just after it. rezless
-    // gives one there; this test pins only the missing lag.
+    // That run gave three timer events within 0.1 s of the wake. Three more runs of
+    // the same on 2026-11-23 gave two, the caught-up tick and the one due during
+    // the sleep, 45 ms apart (see timer-after-sleep.test.ts).
     const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:7:')
     at(12_100)
-    expect(ticks()).toBeGreaterThan(0)
+    expect(ticks()).toBe(2)
     at(13_000)
     tell('msg:1:4.0')
     expect(changes(linkset, ticks, 4500)).toEqual([17_000])
