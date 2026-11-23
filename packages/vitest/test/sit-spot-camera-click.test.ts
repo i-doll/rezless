@@ -12,7 +12,7 @@ import { loadLinkset, World } from '../src/index.js'
 // on a 1 m box without a sit target, unturned, centred at <123, 52, 1997.47>.
 // The avatar stood about 4 m from it along -X and turned to face its centre.
 // The viewer moved its own camera, which the region follows, or sent the sit
-// request with an offset from the box's centre in its frame, as a click on
+// request with an offset from the box's centre in region axes, as a click on
 // that spot of the box does. A script in the box read the avatar's link with
 // PRIM_POS_LOCAL and PRIM_ROT_LOCAL in changed(CHANGED_LINK). Each row gives
 // the avatar's region position, the camera's region position (none: where it
@@ -95,7 +95,7 @@ const TOP_MISSED: Row[] = [
   ['camera at rest, click at 0, 0 on the top: +X side', v(118.341, 51.949, 1997.448), null, v(0, 0, 0.5), v(0.59, 0, 1.13), [0, 0, 0, 1]],
 ]
 
-async function sit([, at, camera, offset]: Row) {
+async function sit([, at, camera, offset]: Row, turn = { x: 0, y: 0, z: 0, s: 1 }) {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   const half = Math.atan2(BOX.y - at.y, BOX.x - at.x) / 2
@@ -110,6 +110,7 @@ async function sit([, at, camera, offset]: Row) {
   })
   const prim = loaded.linkset.prims[0]!
   prim.params.size = v(1, 1, 1)
+  prim.params.rotation = turn
   loaded.scripts.seat!.start()
   if (camera) world.setAvatarCamera(avatar, camera)
   expect(world.userSitAvatar(avatar, prim, offset ?? undefined)).toBe(true)
@@ -139,6 +140,29 @@ describe('where a sit request seats an avatar on a prim without a sit target', (
     const { linkset } = await loadLinkset({ world, region: 'home', owner: AVATAR, position: BOX, prims: [{}] })
     linkset.prims[0]!.params.size = v(1, 1, 1)
     expect(world.userSitAvatar(avatar, linkset.prims[0]!, row[3]!)).toBe(false)
+  })
+
+  // In-world, the same box turned 90 degrees about Z: the offset is read in
+  // region axes from the prim's centre, as the viewer sends a click. Positions
+  // are in the box's frame: its +Y side faces region -X.
+  it.each([
+    ['no click', v(119.166, 52.624, 1997.448), null, null, v(0.085, 0.59, 1.13), [0, 0, 0.707, 0.707]],
+    ['click on the region +Y side', v(118.424, 51.992, 1997.448), null, v(0, 0.5, 0), v(0.467, 0.59, 1.13), [0, 0, 0.707, 0.707]],
+    ['click on the near region -X side', v(118.313, 52.247, 1997.448), null, v(-0.5, 0.3, 0), v(0.3, 0.59, 1.13), [0, 0, 0.707, 0.707]],
+  ] as Row[])('box turned 90 degrees, %s', async (...row) => {
+    check(row, await sit(row, { x: 0, y: 0, z: Math.SQRT1_2, s: Math.SQRT1_2 }))
+  })
+
+  it('puts the camera back behind the avatar after a teleport', async () => {
+    const { world, avatar, prim } = await sit(CAMERA[0]!)
+    world.teleportAvatar(avatar, { x: CLICK[0]![1].x, y: CLICK[0]![1].y, z: CLICK[0]![1].z })
+    expect(world.getSitResponse(avatar, prim)!.position).toMatchObject({ x: expect.closeTo(-0.59, 2), z: expect.closeTo(1.13, 2) })
+  })
+
+  it('takes only a finite camera position', async () => {
+    const { world, avatar } = await sit(CLICK[0]!)
+    expect(() => world.setAvatarCamera(avatar, v(Infinity, 0, 0))).toThrow(RangeError)
+    expect(() => world.setAvatarCamera(avatar, v(0, NaN, 0))).toThrow(RangeError)
   })
 
   it('goes back to the camera behind the avatar once the camera is cleared', async () => {

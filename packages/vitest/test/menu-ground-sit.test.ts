@@ -95,6 +95,25 @@ describe('a ground sit from the viewer menu', () => {
   })
 })
 
+describe('a ground sit from the viewer menu under @standtp', () => {
+  // In-world: with "@standtp=n", the avatar sat on the box from about 4.6 m
+  // away, then asked for the menu ground sit. The box's changed(CHANGED_LINK)
+  // read 16646, standing; the avatar was back near where it sat from, and
+  // dumps 3 s and 6 s later read 16390: standing, not on the ground.
+  it('stands a seated avatar up and leaves it standing where the return takes it', async () => {
+    const f = await rlva()
+    f.avatar.position = { x: 10, y: 10, z: 20 }
+    f.say('@standtp=n')
+    const from = { ...f.avatar.position }
+    expect(f.world.userSitAvatar(f.avatar, f.script.host)).toBe(true)
+    f.script.linkset.advanceTime(100)
+    expect(f.ground()).toBe(true)
+    f.script.linkset.advanceTime(3000)
+    expect(f.sitting()).toBe(0)
+    expect(f.avatar.position).toMatchObject({ x: expect.closeTo(from.x, 3), y: expect.closeTo(from.y, 3) })
+  })
+})
+
 describe('a ground sit from the viewer menu in Kokua', () => {
   // From Kokua's source: its sitDown refuses under @sit and @interact.
   it.each(['@sit=n', '@interact=n'])('is refused under %s', async (rule) => {

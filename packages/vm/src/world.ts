@@ -607,9 +607,11 @@ export class World {
   /**
    * Move the avatar's own viewer camera to `position` in its region, or put it
    * back behind the avatar. A sit request on a prim without a sit target
-   * seats the avatar where the line from this camera meets the prim.
+   * seats the avatar where the line from this camera meets the prim. A
+   * teleport puts the camera back.
    */
   setAvatarCamera(avatar: WorldAvatar, position?: Vector): void {
+    if (position && !Object.values(position).every(Number.isFinite)) throw new RangeError('The camera needs a finite position')
     if (position) this.avatarCameras.set(avatar, { ...position })
     else this.avatarCameras.delete(avatar)
   }
@@ -758,6 +760,7 @@ export class World {
   /** @internal A teleport: stand the avatar, move it with its animations, and let it fall. */
   relocateAvatar(avatar: WorldAvatar, region: string, position: Vector): void {
     this.unseat(avatar, null)
+    this.avatarCameras.delete(avatar)
     moveRegionAnimations(this.clock, avatar.region, region, avatar.key)
     if (avatar.region !== region) this.arrive(avatar)
     avatar.region = region

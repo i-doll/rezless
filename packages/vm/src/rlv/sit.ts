@@ -411,8 +411,10 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
  * A ground sit from the viewer's own menu. RLVa refuses it under @sit, and
  * under @unsit while the avatar sits, on an object or on the ground; no other
  * seating restriction blocks it. From an object the avatar stands first and
- * sits on the ground once the region has stood it up. Kokua takes the path
- * of its @sitground=force, which asks the same sitDown.
+ * sits on the ground once the region has stood it up, unless a standtp
+ * return takes it back. Kokua takes the path of its @sitground=force, which
+ * asks the same sitDown: it checks @unsit at once and @sit and @interact when
+ * it asks for the ground sit.
  */
 export function userSitAvatarOnGround(world: World, avatar: WorldAvatar): boolean {
   if (!world.avatars.includes(avatar)) return false
@@ -431,7 +433,8 @@ export function userSitAvatarOnGround(world: World, avatar: WorldAvatar): boolea
   }
   cancelPendingSit(avatar)
   world.standAvatar(avatar)
-  scheduleGroundSit(world, avatar)
+  // In-world: under @standtp the return took the stand and the avatar ended up standing.
+  if (viewer.profile !== 'rlva' || !standtpState(avatar).pending) scheduleGroundSit(world, avatar)
   return true
 }
 

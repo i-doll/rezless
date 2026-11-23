@@ -22,8 +22,8 @@ export function defaultCamera(avatar: { position: Vector; rotation: Rotation }):
 /**
  * Where a sit request seats an avatar on a prim without a sit target, and
  * its rotation, both in the prim's frame. The line runs from the avatar's
- * camera to the point the request names, `offset` in the prim's frame from
- * its centre. Measured on boxes and round cylinders with an axis vertical;
+ * camera to the spot the request names, `offset` from the prim's centre in
+ * region axes. Measured on boxes and round cylinders with an axis vertical;
  * Second Life seats an avatar elsewhere on tilted prims and other shapes.
  * Offsets were measured on boxes only, so a cylinder takes its centre.
  */
@@ -32,7 +32,8 @@ export function sitSpot(prim: Prim, camera: Vector, offset: Vector = { x: 0, y: 
   const centre = prim.regionPosition()
   const from = rotateVector({ x: camera.x - centre.x, y: camera.y - centre.y, z: camera.z - centre.z }, inverse)
   const cylinder = prim.params.shape.kind === PRIM_TYPE_CYLINDER
-  const point = cylinder ? [0, 0, 0] : [offset.x, offset.y, offset.z]
+  const spot = rotateVector(offset, inverse)
+  const point = cylinder ? [0, 0, 0] : [spot.x, spot.y, spot.z]
   const local = [from.x - point[0]!, from.y - point[1]!, from.z - point[2]!]
   const { size } = prim.params
   const half = [size.x, size.y, size.z].map(v => Math.max(v, 0.01) / 2)

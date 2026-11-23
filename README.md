@@ -617,9 +617,10 @@ oval top and tilted prims seat the avatar elsewhere; rezless seats it on them
 by the same rule. The point 3 m behind and 1.94 m above is where a
 viewer's camera rests: `world.setAvatarCamera(avatar, position)` moves the
 camera to a region position, and the line then starts there;
-`world.setAvatarCamera(avatar)` puts it back. A click on the prim, the
-`offset` of `world.userSitAvatar` in the prim's frame from its centre, moves
-the line's end from the centre to that spot: a click on a box's side seats the
+`world.setAvatarCamera(avatar)` and a teleport put it back. A click on the
+prim, the `offset` of `world.userSitAvatar` from its centre in region axes as
+a viewer sends it, moves the line's end from the centre to that spot on the
+prim's surface: a click on a box's side seats the
 avatar where the line first meets the box. Clicks were measured on boxes only, and
 a cylinder ignores the click. For a click on a box's top rezless takes the
 side towards the camera, where Second Life often takes another, and Second
@@ -628,10 +629,12 @@ placement seats the avatar on the prim's sit target, or at its centre when it
 has none.
 
 `world.userSitAvatarOnGround(avatar)` is a ground sit from the viewer's own
-menu. It returns `false` under `@sit`, and under `@unsit` while the avatar
-sits, on an object or on the ground; no other seating restriction blocks it.
-From an object the avatar stands first and sits on the ground once the region
-has stood it up.
+menu. In RLVa it returns `false` under `@sit`, and under `@unsit` while the
+avatar sits, on an object or on the ground; no other seating restriction
+blocks it. From an object the avatar stands first and sits on the ground once
+the region has stood it up; under `@standtp` the return takes the stand and
+the avatar stays standing. Kokua checks `@unsit` at once, and `@sit` and
+`@interact` when it asks for the ground sit, after any stand.
 
 `avatar.viewer.alerts` lists what the region had the viewer show, each with
 `name`, `message` and the clock time `at`. A sit request refused for
