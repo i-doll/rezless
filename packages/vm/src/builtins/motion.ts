@@ -410,9 +410,9 @@ function stopTargetMotion(prim: Prim, kind: 'move' | 'look', caller: TargetOwner
 }
 
 /**
- * Let go of, or take up again, the move and look targets `script` owns. In-world: the object
- * left behind by a Take Copy of a stopped script went slack, and went back to its target once
- * the script was started.
+ * Let go of, or take up again, the move and look targets `script` owns. In-world: a physical box
+ * dropped within about 2 s of its targeting script being set not running, and went back to its
+ * target once the script was started.
  */
 export function slackenTargetMotion(script: Script, slack: boolean): void {
   const root = script.linkset.prims[0]!
@@ -423,6 +423,10 @@ export function slackenTargetMotion(script: Script, slack: boolean): void {
     }
   }
 }
+
+// In-world: a sibling's new target, set while the script that owns the target was stopped, did
+// nothing until that script was started.
+const slackOf = (request: { slack?: boolean } | null) => request?.slack ? { slack: true } : {}
 
 const acting = <T extends { slack?: boolean }>(request: T | null) => request?.slack ? null : request
 
@@ -513,19 +517,19 @@ function advanceTargetMotion(prim: Prim, seconds: number): void {
 
 export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
   const root = ctx.linkset.prims[0]!, target = args[0] as Vector, tau = Number(args[1])
-  const initiator = root.targetMotion.move?.owner ?? owner(ctx)
+  const held = root.targetMotion.move, initiator = held?.owner ?? owner(ctx)
   stopTargetMotion(root, 'move', owner(ctx))
   if (!vector(target) || !Number.isFinite(tau) || tau < MIN_RESPONSE) return
   const delta = subtract(target, root.regionPosition())
   // In-world: edge-64 moved, edge-64.01 and distance-64.9 did not.
   if (Math.hypot(delta.x, delta.y, delta.z) > 64) return
-  root.targetMotion.move = { owner: initiator, target: { ...target }, tau }
+  root.targetMotion.move = { owner: initiator, target: { ...target }, tau, ...slackOf(held) }
 }
 export const llStopMoveToTarget: BuiltinImpl = ctx => { stopTargetMotion(ctx.linkset.prims[0]!, 'move', owner(ctx)) }
 
 function setLook(ctx: CallContext, target: LookRequest['target'], strength: number, damping: number): void {
   const root = ctx.linkset.prims[0]!
-  const initiator = root.targetMotion.look?.owner ?? owner(ctx)
+  const held = root.targetMotion.look, initiator = held?.owner ?? owner(ctx)
   stopTargetMotion(root, 'look', owner(ctx))
   const physical = !!(root.statusFlags & STATUS_PHYSICS)
   if (!Number.isFinite(strength) || !Number.isFinite(damping) || strength <= 0 || (physical && strength < MIN_RESPONSE)) return
@@ -534,7 +538,7 @@ function setLook(ctx: CallContext, target: LookRequest['target'], strength: numb
     ctx.prim.params.rotation = rotation
     return
   }
-  root.targetMotion.look = { owner: initiator, target, strength, damping: Math.max(MIN_RESPONSE, Math.min(1, damping)) }
+  root.targetMotion.look = { owner: initiator, target, strength, damping: Math.max(MIN_RESPONSE, Math.min(1, damping)), ...slackOf(held) }
 }
 export const llLookAt: BuiltinImpl = (ctx, args) => {
   if (!vector(args[0])) return

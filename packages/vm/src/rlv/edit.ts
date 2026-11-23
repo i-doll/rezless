@@ -283,5 +283,6 @@ export function attemptAvatarRez(world: World, avatar: WorldAvatar, itemId: stri
   object.prims[0]!.params.position = { ...position }
   object.setTemporary(object.prims[0]!.params.tempOnRez)
   for (const script of object.allScripts()) script.queueRez()
+  object.applyStoppedPastWearChanges()
   return record('rezzed', undefined, [], object)
 }

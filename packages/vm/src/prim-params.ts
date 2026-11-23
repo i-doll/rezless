@@ -322,34 +322,36 @@ export const materialName = (prim: Prim, key: string): string =>
     ? (prim.inventory.find(isEmptyNotecard)?.name ?? key)
     : itemName(prim, InventoryType.MATERIAL, key)
 
-const OVERRIDE_TYPES: Readonly<Record<number, LslType>> = {
-  [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: 'vector',
-  [OVERRIDE_GLTF_BASE_ALPHA]: 'float',
-  [OVERRIDE_GLTF_BASE_ALPHA_MODE]: 'integer',
-  [OVERRIDE_GLTF_BASE_ALPHA_MASK]: 'float',
-  [OVERRIDE_GLTF_BASE_DOUBLE_SIDED]: 'integer',
-  [OVERRIDE_GLTF_METALLIC_FACTOR]: 'float',
-  [OVERRIDE_GLTF_ROUGHNESS_FACTOR]: 'float',
-  [OVERRIDE_GLTF_EMISSIVE_FACTOR]: 'vector',
+const OVERRIDES: Readonly<Record<number, readonly [string, LslType]>> = {
+  [OVERRIDE_GLTF_BASE_COLOR_FACTOR]: ['OVERRIDE_GLTF_BASE_COLOR_FACTOR', 'vector'],
+  [OVERRIDE_GLTF_BASE_ALPHA]: ['OVERRIDE_GLTF_BASE_ALPHA', 'float'],
+  [OVERRIDE_GLTF_BASE_ALPHA_MODE]: ['OVERRIDE_GLTF_BASE_ALPHA_MODE', 'integer'],
+  [OVERRIDE_GLTF_BASE_ALPHA_MASK]: ['OVERRIDE_GLTF_BASE_ALPHA_MASK', 'float'],
+  [OVERRIDE_GLTF_BASE_DOUBLE_SIDED]: ['OVERRIDE_GLTF_BASE_DOUBLE_SIDED', 'integer'],
+  [OVERRIDE_GLTF_METALLIC_FACTOR]: ['OVERRIDE_GLTF_METALLIC_FACTOR', 'float'],
+  [OVERRIDE_GLTF_ROUGHNESS_FACTOR]: ['OVERRIDE_GLTF_ROUGHNESS_FACTOR', 'float'],
+  [OVERRIDE_GLTF_EMISSIVE_FACTOR]: ['OVERRIDE_GLTF_EMISSIVE_FACTOR', 'vector'],
 }
 
-const overrideType = (code: LslValue): LslType | undefined => (typeof code === 'number' ? OVERRIDE_TYPES[code] : undefined)
-
 /**
- * Check llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs in order. The
- * first bad pair rejects the whole call: a code that isn't an integer, even one
- * with no value after it, says why; a wrong-typed value is rejected without the
- * error here. Returns null when the call can run.
+ * Check llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs in order.
+ * The first bad pair rejects the whole call with the error the simulator
+ * gives for it. Returns null when the call can run.
  */
-export function rejectGltfOverrides(params: ReadonlyArray<LslValue>): { error: string | null } | null {
+export function rejectGltfOverrides(params: ReadonlyArray<LslValue>): string | null {
   for (let i = 0; i < params.length; i += 2) {
-    if (givenType(params, i) !== 'integer') {
-      return { error: `llSetGLTFOverrides Error running rule #${i / 2 + 1}: non-integer rule.` }
+    const rule = `llSetGLTFOverrides Error running rule #${i / 2 + 1}`
+    if (givenType(params, i) !== 'integer') return `${rule}: non-integer rule.`
+    const code = params[i] as number
+    const override = OVERRIDES[code]
+    if (override === undefined) return `${rule}: unknown rule id ${code}.`
+    const [name, expected] = override
+    if (i + 1 < params.length && params[i + 1] === '') continue
+    const given = i + 1 < params.length ? givenType(params, i + 1) : undefined
+    if (given === 'string' || given === 'key') return `${rule} (${name}): Must be empty string to clear override..`
+    if (given !== expected && !(expected === 'float' && given === 'integer')) {
+      return `${rule} (${name}): Expecting ${expected} parameter..`
     }
-    const expected = overrideType(params[i]!)
-    if (expected === undefined || i + 1 >= params.length || params[i + 1] === '') continue
-    const given = givenType(params, i + 1)
-    if (given !== expected && !(expected === 'float' && given === 'integer')) return { error: null }
   }
   return null
 }
@@ -357,7 +359,7 @@ export function rejectGltfOverrides(params: ReadonlyArray<LslValue>): { error: s
 /**
  * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs, already
  * checked by rejectGltfOverrides. The base colour and alpha form one factor
- * that "" leaves alone; "" clears the others. An unknown code is skipped.
+ * that "" leaves alone; "" clears the others.
  */
 export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslValue>): void {
   const bc = g.baseColor
@@ -1531,7 +1533,8 @@ export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number, rul
     if (i > 0 && GLTF_RULES.has(param) && rules[cursor + i] === '') continue
     const given = givenType(rules, cursor + i)
     if (!typeAccepts(param, pattern[i]!, given)) {
-      return fail(`${arg} ${typeName(param, pattern[i]!)} expected but ${given === 'rotation' ? 'quaternion' : given} given`)
+      const accepted = `${typeName(param, pattern[i]!)}${i > 0 && GLTF_RULES.has(param) ? ' or empty string' : ''}`
+      return fail(`${arg} ${accepted} expected but ${given === 'rotation' ? 'quaternion' : given} given`)
     }
   }
   const value = (i: number) => num(rules[cursor + i])
@@ -1571,7 +1574,8 @@ export const isPerFaceRule = (param: number) => PER_FACE_RULES.has(param)
  * What a face is on its shape: a path end (top / bottom), the hollow's inner
  * face, one of the two profile-cut faces, or the outer profile side with that
  * index. Faces are numbered top, outer sides, inner, bottom, cut faces, as
- * measured on a box in Second Life.
+ * measured on every shape in Second Life. A sphere, torus, tube or ring has
+ * a top and bottom only when a path cut or twist gives its path two ends.
  */
 type FaceRole = 'top' | 'inner' | 'bottom' | 'cutStart' | 'cutEnd' | number
 

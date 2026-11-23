@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { faceIndices, numberOfSides, rejectGltfOverrides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName, sitFlagsOf } from '../prim-params.js'
-import { sayError } from './debug.js'
+import { sayError, sayOwnerError } from './debug.js'
 import { physicsSwitched } from './motion.js'
 import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
 import { uniformList } from '../values/list-types.js'
@@ -201,17 +201,17 @@ export const llGetTexture: BuiltinImpl = (ctx, args) => {
   return textureName(ctx.prim, ctx.prim.params.faces[face]!.texture)
 }
 export const llGetTextureOffset: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
+  const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return ZERO_VECTOR
   return ctx.prim.params.faces[face]!.textureOffsets
 }
 export const llGetTextureScale: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
+  const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return ZERO_VECTOR
   return ctx.prim.params.faces[face]!.textureRepeats
 }
 export const llGetTextureRot: BuiltinImpl = (ctx, args) => {
-  const face = num(args[0], 0) | 0
+  const face = Math.max(0, num(args[0], 0) | 0)
   if (!hasFace(ctx.prim, face)) return 0
   return ctx.prim.params.faces[face]!.textureRotation
 }
@@ -330,9 +330,9 @@ export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
   const face = num(args[1]) | 0
   const params = args[2] as ReadonlyArray<LslValue>
-  const rejected = rejectGltfOverrides(params)
-  if (rejected) {
-    if (rejected.error !== null) sayError(ctx, rejected.error)
+  const error = rejectGltfOverrides(params)
+  if (error !== null) {
+    sayOwnerError(ctx, error)
     return undefined
   }
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
