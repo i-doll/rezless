@@ -112,8 +112,8 @@ describe('llSetPayPrice', () => {
   // In-world: llSetPayPrice(PAY_HIDE, [PAY_HIDE, PAY_DEFAULT, 5, PAY_HIDE]) -> price -1, buttons
   // [-1, 5, 5, -1]; (PAY_DEFAULT, [PAY_DEFAULT x4]) -> price -2, buttons [1, 5, 10, 20].
   it('keeps PAY_HIDE and gives PAY_DEFAULT buttons their default amount', async () => {
-    const s = await run('state_entry() { llSetPayPrice(PAY_HIDE, [150, PAY_HIDE, PAY_DEFAULT, PAY_HIDE]); }')
-    expect(s.payPrice).toEqual({ price: -1, buttons: [150, -1, 10, -1] })
+    const s = await run('state_entry() { llSetPayPrice(PAY_HIDE, [PAY_HIDE, PAY_DEFAULT, 5, PAY_HIDE]); }')
+    expect(s.payPrice).toEqual({ price: -1, buttons: [-1, 5, 5, -1] })
     const d = await run('state_entry() { llSetPayPrice(PAY_DEFAULT, [PAY_DEFAULT, PAY_DEFAULT, PAY_DEFAULT, PAY_DEFAULT]); }')
     expect(d.payPrice).toEqual({ price: -2, buttons: [1, 5, 10, 20] })
   })
@@ -141,7 +141,7 @@ describe('llSetPayPrice', () => {
     ['-7, [-9, 0, PAY_DEFAULT, PAY_HIDE]', { price: -7, buttons: [-9, 0, 10, -1] }],
     ['0, [0, 0, 0, 0]', { price: 0, buttons: [0, 0, 0, 0] }],
     ['PAY_HIDE, []', { price: -1, buttons: [1, 5, 10, 20] }],
-  ])('accepts llSetPayPrice(%s) without an error', async (args, expected) => {
+  ])('stores llSetPayPrice(%s) as the Pay dialog gets it, without an error', async (args, expected) => {
     const s = await run(`state_entry() { llSetPayPrice(${args}); out = ["after"]; }`)
     expect(s.payPrice).toEqual(expected)
     expect(s.global('out')).toEqual(['after'])
@@ -155,9 +155,12 @@ describe('llSetPayPrice', () => {
   })
 
   // In-world: an SLua script's ll.SetPayPrice(25, {1, 5, 10.5, 20}) -> [1, 5, -1, 20];
-  // (25, {PAY_DEFAULT, 2, 3, PAY_HIDE}) -> [1, 2, 3, -1]; (25, {}) -> [1, 5, 10, 20].
+  // (25, {PAY_DEFAULT, 2, 3, PAY_HIDE}) -> [1, 2, 3, -1]; (25, {}) -> [1, 5, 10, 20];
+  // (25, {true, false, 3, 4}) -> [1, 0, 3, 4]; (25, {3000000000, 2, -3000000000, 4}) -> [-1, 2, -1, 4].
   it.each([
     ['{1, 5, 10.5, 20}', [1, 5, -1, 20]],
+    ['{true, false, 3, 4}', [1, 0, 3, 4]],
+    ['{3000000000, 2, -3000000000, 4}', [-1, 2, -1, 4]],
     ['{PAY_DEFAULT, 2, 3, PAY_HIDE}', [1, 2, 3, -1]],
     ['{}', [1, 5, 10, 20]],
   ])('keeps whole Lua numbers from SLua ll.SetPayPrice(25, %s)', async (buttons, expected) => {

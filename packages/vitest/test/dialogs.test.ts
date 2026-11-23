@@ -191,8 +191,7 @@ describe('llTextBox', () => {
   })
 
   // In-world (Aditi, SLua Tideland, 2026-11-23): answering with 254 "a" -> listen heard 254
-  // characters, 254 bytes; with 127 "é" -> 127 characters, 254 bytes. The viewer sends at most
-  // 254 bytes, so longer typed text is cut before it reaches the region.
+  // characters, 254 bytes; with 127 "é" -> 127 characters, 254 bytes.
   it.each([
     ['254 one-byte characters', 'a'.repeat(254)],
     ['254 bytes of two-byte characters', 'é'.repeat(127)],
