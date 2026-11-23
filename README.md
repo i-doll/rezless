@@ -612,11 +612,14 @@ reach it would sit on a prim without a sit target (below), unless the object
 has a scripted-only prim. An avatar seated beside a sit target never takes it
 over when the avatar holding it stands. `world.sitAvatar` seats an avatar on a
 prim other avatars sit on; when the prim's sit target is taken, at the prim's
-centre or at the placement it is given. A sit request that would seat the
-avatar where another sitter already is gets refused with `CantSitNoRoom`, and
-an avatar sitting on another object stands up from it. Second Life often
-seats the avatar at another spot nearby instead of refusing it; rezless does
-not model that.
+centre or at the placement it is given. rezless refuses a sit request that
+would seat the avatar where another sitter already is with `CantSitNoRoom`, and
+an avatar sitting on another object stands up from it. It seats the avatar at
+its spot when the other sitter is anywhere else. Second Life, with another
+sitter within about half a metre to the side or above, or 1.2 m below, refuses
+the request or seats the avatar higher, lower, to one side or at the spot
+itself. The result changes with the camera, the sitter's rotation and from one
+try to the next, and no rule found yet fits it.
 
 A prim without a sit target is out of reach more than 8 m away, unless
 `world.setSitResponse` gives it a response. Second Life's rule for that reach
