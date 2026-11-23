@@ -8,25 +8,13 @@ import {
   LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, PRIM_BUMP_SHINY, PRIM_CLICK_ACTION, PRIM_COLOR, PRIM_FULLBRIGHT,
   PRIM_GLOW, PRIM_LINK_TARGET, PRIM_PHYSICS_SHAPE_NONE, PRIM_PHYSICS_SHAPE_TYPE, PRIM_TEXGEN, PRIM_TYPE, PRIM_TYPE_PRISM,
 } from '../generated/constants.js'
-import { checkPrimRule, formatG, isPerFaceRule, primGetRuleCheck, primParamTypes, writePrimParamSlots } from '../prim-params.js'
+import { checkPrimRule, isPerFaceRule, primGetRuleCheck, primParamTypes, writePrimParamSlots } from '../prim-params.js'
 import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
 import { primParamLuaKinds } from './slua-result-kinds.js'
-import { sayError } from './debug.js'
+import { sayOwnerError } from './debug.js'
 import { setPrimParamWithChanged } from '../prim-changed.js'
 
 const zeroForNan = (v: number) => (Number.isNaN(v) ? 0 : v)
-
-/**
- * Say a prim parameter error to the owner only. Said by any link but the
- * root, a child prim or a seated avatar, it ends with the root's name and
- * position.
- */
-function sayPrimParamError(ctx: CallContext, text: string, speaker: Link = ctx.prim): void {
-  const root = ctx.linkset.prims[0]!
-  const at = root.regionPosition()
-  const suffix = speaker === root ? '' : ` {RootName ${root.name}, RootPosition { ${[at.x, at.y, at.z].map((v) => formatG(Math.fround(v))).join(', ')} }}`
-  sayError(ctx, text + suffix, speaker, false)
-}
 
 /** Face rules an avatar link can't read, by the wording of their error. */
 const TEXTURE_INFO_RULES: ReadonlySet<number> = new Set([PRIM_COLOR, PRIM_BUMP_SHINY, PRIM_FULLBRIGHT, PRIM_TEXGEN, PRIM_GLOW])
@@ -65,11 +53,11 @@ function walkSet(ctx: CallContext, target: Prim[], rules: ReadonlyArray<LslValue
   for (let ruleNumber = 1; i < rules.length; ruleNumber++) {
     const error = checkPrimRule(rules, i, ruleNumber, sitter !== undefined && cur.length === 0)
     if (error !== null) {
-      sayPrimParamError(ctx, error.text)
+      sayOwnerError(ctx, error.text)
       if (error.ends) return
     }
     if (rules[i] === PRIM_PHYSICS_SHAPE_TYPE && rules[i + 1] === PRIM_PHYSICS_SHAPE_NONE && cur.includes(linkset.prims[0]!)) {
-      sayPrimParamError(ctx, 'ERROR: Root prim may not be set to shape type none.')
+      sayOwnerError(ctx, 'ERROR: Root prim may not be set to shape type none.')
     }
     const rule = rules[i] as number
     if (rule === PRIM_LINK_TARGET) {
@@ -119,7 +107,7 @@ function walkGet(ctx: CallContext, start: Link | undefined, rules: ReadonlyArray
   const types: Array<LslType | undefined> = []
   const kinds: LuaResultKind[] = []
   const fail = (param: number, reason: string) =>
-    sayPrimParamError(ctx, `llGetPrimitiveParams error: Param ${param} error, ${reason}`, start!)
+    sayOwnerError(ctx, `llGetPrimitiveParams error: Param ${param} error, ${reason}`, start!)
   let cur = start
   let i = 0
   let param = 0
