@@ -462,7 +462,8 @@ export class LinksetClock {
     this.openContacts.delete(script)
     // In-world: a script reset while it slept through the start of a contact got the new start
     // too. Land events due but not taken yet count; ones still to come don't.
-    const due = this.queue.filter((e) => e.target === script && e.at <= this.now && LAND_EVENTS.has(e.event)).at(-1)
+    const due = this.queue.filter((e) => e.target === script && e.at <= this.now && LAND_EVENTS.has(e.event))
+      .reduce<QueuedEvent | undefined>((last, e) => !last || e.at >= last.at ? e : last, undefined)
     // A held end that a later contact reopened isn't the end of the contact going on.
     if (due) this.landEventCame(script, due.payload[REOPENED] ? 'land_collision' : due.event)
     if (reset && this.onLand.has(script)) this.restarted.add(script)
