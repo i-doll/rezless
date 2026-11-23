@@ -6,7 +6,7 @@ import { sayError } from './debug.js'
 import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
 import { uniformList } from '../values/list-types.js'
 import type { Prim } from '../prim.js'
-import type { Linkset } from '../linkset.js'
+import { isPrim, type Linkset } from '../linkset.js'
 import {
   ALL_SIDES,
   CHANGED_COLOR,
@@ -26,6 +26,17 @@ import {
   PRIM_SIT_TARGET,
   PRIM_SIZE,
   RESTITUTION,
+  STATUS_BLOCK_GRAB,
+  STATUS_BLOCK_GRAB_OBJECT,
+  STATUS_DIE_AT_EDGE,
+  STATUS_DIE_AT_NO_ENTRY,
+  STATUS_PHANTOM,
+  STATUS_PHYSICS,
+  STATUS_RETURN_AT_EDGE,
+  STATUS_ROTATE_X,
+  STATUS_ROTATE_Y,
+  STATUS_ROTATE_Z,
+  STATUS_SANDBOX,
 } from '../generated/constants.js'
 
 /* ------------------------------------------------------------------ */
@@ -297,8 +308,10 @@ export const llSetLinkTextureAnim: BuiltinImpl = (ctx, args) => {
     length: num(args[6]),
     rate: num(args[7]),
   }
-  for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
-    p.params.textureAnim = { ...anim }
+  // In-world, texture animation reaches seated avatars as the link sound calls do.
+  for (const target of ctx.linkset.linksWithSitters(ctx.prim, link)) {
+    if (isPrim(target)) target.params.textureAnim = { ...anim }
+    else target.textureAnim = { ...anim }
   }
   return undefined
 }
@@ -360,9 +373,15 @@ export const llSetStatus: BuiltinImpl = (ctx, args) => {
   ctx.prim.setStatus(flag, value)
   return undefined
 }
+// In-world, a mask reads only its first flag in this order; other bits are ignored.
+const STATUS_READ_ORDER = [
+  STATUS_DIE_AT_NO_ENTRY, STATUS_BLOCK_GRAB_OBJECT, STATUS_DIE_AT_EDGE, STATUS_RETURN_AT_EDGE, STATUS_BLOCK_GRAB,
+  STATUS_SANDBOX, STATUS_ROTATE_Z, STATUS_ROTATE_Y, STATUS_ROTATE_X, STATUS_PHANTOM, STATUS_PHYSICS,
+]
 export const llGetStatus: BuiltinImpl = (ctx, args) => {
   const flag = num(args[0]) | 0
-  return (ctx.prim.statusFlags & flag) !== 0 ? 1 : 0
+  const first = STATUS_READ_ORDER.find((f) => (flag & f) !== 0)
+  return first !== undefined && (ctx.prim.statusFlags & first) !== 0 ? 1 : 0
 }
 export const llSetLinkStatus: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0

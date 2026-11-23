@@ -87,8 +87,12 @@ function touchDistance(world: World, avatar: WorldAvatar, prim: Prim, offset: Ve
     targetCorner.y + position.y + offset.y - avatarCorner.y - avatar.position.y, position.z + offset.z - avatar.position.z)
 }
 
-/** RLVa opens no pie menu on a world object under `interact`, or past the `fartouch` reach. */
-export function rlvaPieMenuDenials(world: World, avatar: WorldAvatar, prim: Prim): RlvRestriction[] {
+/**
+ * RLVa opens no pie menu on a world object under `interact`, or when the clicked prim's center
+ * is past the `fartouch` reach and the clicked point, `offset` from that center, is more than
+ * 1.5 m away whatever the reach (lltoolselect.cpp, handleObjectSelection).
+ */
+export function rlvaPieMenuDenials(world: World, avatar: WorldAvatar, prim: Prim, offset?: Vector): RlvRestriction[] {
   const rules = avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
   const interact = rules.filter(rule => rule.behaviour === 'interact' && !rule.option)
   if (interact.length) return interact
@@ -96,7 +100,9 @@ export function rlvaPieMenuDenials(world: World, avatar: WorldAvatar, prim: Prim
   if (!limits.length) return []
   const distance = touchDistance(world, avatar, prim)
   const limit = rlvaRadius(avatar, limits)
-  return distance * distance <= Math.fround(limit * limit) ? [] : limits
+  if (distance * distance <= Math.fround(limit * limit)) return []
+  const clicked = offset ? touchDistance(world, avatar, prim, offset) : Infinity
+  return clicked * clicked <= 2.25 ? [] : limits
 }
 
 /** One permission check shared by avatar touch actions and interaction consumers. */

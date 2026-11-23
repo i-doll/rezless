@@ -93,9 +93,9 @@ describe('coroutine.running() in SLua', () => {
     expect(texts(s)).toEqual([...each('once'), ...each('every'), ...each('touch'), ...each('touch')])
   })
 
-  it('stays nil in a handler that an event was fired into, and keeps that handler intact', async () => {
-    // Second Life queues events, so this has no measurement: only a mock that fires into the script it serves
-    // runs one handler inside another.
+  it('stays nil in a handler fired from inside another, which runs once that one returns', async () => {
+    // https://wiki.secondlife.com/wiki/Category:LSL_Events: a script runs one event at a time, so an event
+    // fired into a running handler waits behind it.
     const s = await slua(`
       LLEvents:on("touch_start", function()
         local keep = {}
@@ -120,7 +120,7 @@ describe('coroutine.running() in SLua', () => {
     })
     touch(s)
     touch(s)
-    expect(texts(s)).toEqual(['before nil', 'inside nil', 'after nil 692', 'before nil', 'after nil 692'])
+    expect(texts(s)).toEqual(['before nil', 'after nil 692', 'inside nil', 'before nil', 'after nil 692'])
   })
 
   it('carries on from a yield on the script thread, which returns nothing', async () => {

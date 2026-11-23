@@ -66,7 +66,7 @@ export type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 
 export type { TeleportRequest } from './builtins/sit.js'
 export type { AvatarDestination } from './world.js'
-export type { GameControlState } from './builtins/game-control.js'
+export type { GameControlInput } from './builtins/game-control.js'
 
 export type { PhysicsState, PhysicsRequest, PhysicsRequestName } from './builtins/physics.js'
 
@@ -129,8 +129,8 @@ export type { UserTeleportKind, UserTeleportAction } from './rlv/teleport.js'
 export { checkAvatarTouch, attemptAvatarTouch, avatarTouchLog } from './rlv/touch.js'
 export type { AvatarTouchAction, AvatarTouchOptions, AvatarTouchPermission } from './rlv/touch.js'
 
-export { attemptAvatarEdit, attemptAvatarRez, attemptAvatarTake, avatarEditLog, avatarRezLog, avatarTakeLog } from './rlv/edit.js'
-export type { AvatarEditAction, AvatarRezAction, AvatarTakeAction } from './rlv/edit.js'
+export { attemptAvatarDrop, attemptAvatarDuplicate, attemptAvatarEdit, attemptAvatarRez, attemptAvatarTake, avatarDropLog, avatarDuplicateLog, avatarEditLog, avatarRezLog, avatarTakeLog } from './rlv/edit.js'
+export type { AvatarDropAction, AvatarDuplicateAction, AvatarEditAction, AvatarRezAction, AvatarTakeAction, AvatarTakeOptions } from './rlv/edit.js'
 export { teleportOfferLog, teleportRequestLog } from './rlv/tpoffers.js'
 export type { TeleportOffer, TeleportOfferDecision, AvatarTeleportRequest } from './rlv/tpoffers.js'
 

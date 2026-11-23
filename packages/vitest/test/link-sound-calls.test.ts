@@ -167,11 +167,8 @@ describe('link sound calls reach a seated avatar', () => {
   // 0.8 then 0.25, with radius 7 and the queueing flag, triggered C from the
   // avatar, and llLinkStopSound stopped the avatar's sound. The box kept its
   // sound, texture animation and particles. LINK_SET did both the box and the
-  // avatar. Link 0 did neither, and LINK_THIS only the box. Whether the avatar
-  // took the texture animation or the particles could not be read: the viewer
-  // reports neither for an avatar, and with bright particles from -5,
-  // LINK_ALL_OTHERS and LINK_SET a snapshot showed none where the avatar sat,
-  // two metres from the box, though the snapshots draw no avatars.
+  // avatar. Link 0 did neither, and LINK_THIS only the box. What the avatar
+  // took of the texture animation and particles is in seated-avatar-effects.test.ts.
   it('on a lone prim', async () => {
     const s = await scene(1, true)
     const links = [-5, -100, MIN, 0, -1, -2, -3, -4]

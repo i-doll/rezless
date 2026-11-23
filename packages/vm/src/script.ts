@@ -1,5 +1,5 @@
 import { clearTargetMotion } from './builtins/motion.js'
-import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
+import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
@@ -203,6 +203,8 @@ export class Script {
   private task: Task | null = null
   /** Virtual time this script last started a handler or woke from a sleep. */
   resumedAt = 0
+  /** True while a handler of this script is on the call stack; events for it wait until it returns or sleeps. */
+  handling = false
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
@@ -651,6 +653,11 @@ export class Script {
     this.purgeControlEvents()
   }
 
+  /** The worn object was dropped to the ground: it keeps no controls or camera control. */
+  droppedFromAvatar(): void {
+    this.dropSeatPermissions()
+  }
+
   /** The object went into inventory: a dialog raised before that does nothing afterwards. */
   detached(): void {
     this.unseated = false
@@ -661,7 +668,8 @@ export class Script {
   /**
    * Second Life takes controls and camera control back, with no event, when
    * the avatar stops sitting on the object, when the object is taken from
-   * under its sitter, and by the time a detached attachment is rezzed again.
+   * under its sitter, when a worn object is dropped, and by the time a
+   * detached attachment is rezzed again.
    * The permission key goes with the last bit, and the avatar's camera goes
    * back to its own rules.
    */
@@ -789,24 +797,27 @@ export class Script {
     this.linkset.settle(started)
   }
 
-  /** Set an avatar's semantic input fixture, shared by scripts in this World. */
-  setGameControl(agent: string, input: GameControlState | null): void {
+  /**
+   * The avatar's viewer sends this controller state. When it differs from what that viewer
+   * last sent, every running script in the World (or this linkset) that holds
+   * PERMISSION_GAME_CONTROL from the avatar gets game_control.
+   */
+  sendGameControl(agent: string, input: GameControlInput = {}): void {
+    const key = agent.toLowerCase()
+    const state = receiveGameControl(key, input)
     const avatars = gameControlAvatars(this.linkset)
-    if (input === null) avatars.delete(agent.toLowerCase())
-    else avatars.set(agent.toLowerCase(), copyGameControl(input))
-  }
-
-  /** Queue raw input and a copy of the avatar's semantic fixture for this script. */
-  sendGameControl(agent: string, raw: { buttons?: number; axes?: readonly number[] } = {}): void {
-    if (!(this.state.permissions.granted & PERMISSION_GAME_CONTROL)
-      || agent.toLowerCase() !== this.state.permissions.agent.toLowerCase()) return
-    const input = gameControlAvatars(this.linkset).get(agent.toLowerCase())
-    const snapshot = input ? { ...copyGameControl(input), agent: agent.toLowerCase() } : null
-    this.fire('game_control', {
-      id: agent, button_levels: (raw.buttons ?? 0) | 0,
-      axes: typedList((raw.axes ?? []).map(Math.fround), (raw.axes ?? []).map(() => 'float')),
-      gameControlSnapshot: snapshot,
+    // In-world: a held state the viewer kept sending raised one event when it began and one when it was let go.
+    if (sameGameControl(avatars.get(key), state)) return
+    avatars.set(key, state)
+    const linksets = this.linkset.peers.length ? this.linkset.peers : [this.linkset]
+    const targets = linksets.flatMap(l => l.allScripts()).filter(s => s.running && !s.dead && !s.clockView.inInventory
+      && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
+    for (const s of targets) s.clockView.schedule(s.now, 'game_control', {
+      id: key, button_levels: state.buttons,
+      axes: typedList([...state.axes], state.axes.map(() => 'float')),
+      gameControlSnapshot: state.mode,
     })
+    this.linkset.settle(targets.filter(s => s.handles('game_control')))
   }
 
   /**
@@ -1039,8 +1050,8 @@ export class Script {
    * any state transitions triggered by `state foo;` (state_exit / change /
    * state_entry chain runs before fire() returns). A handler that sleeps
    * moves the clock to its wake time, running every other script's due
-   * events on the way. A script already sleeping handles the event after
-   * its current handler.
+   * events on the way. A script already in a handler, running or asleep,
+   * handles the event after that handler.
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events. An event
@@ -1065,7 +1076,7 @@ export class Script {
     }
     withCollisionFilter(this, eventName, payload, p => {
       const started = this.handles(eventName) ? [this] : []
-      if (this.task || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
+      if (this.task || this.handling || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
         this.clockView.schedule(this.now, eventName, p)
       } else this.deliver(eventName, p)
       this.linkset.settle(started)
@@ -1206,6 +1217,8 @@ export class Script {
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
     const detached = this.clockView.inInventory
+    // In-world: a worn script that was detached and worn again read -1 until its next game_control.
+    this.state.gameControlSnapshot = null
     if (detached) {
       this.dropSeatPermissions()
       this.state.detectedStack.forEach((context, i, stack) => {
@@ -1480,11 +1493,15 @@ export class Script {
   private step(task: Task): void {
     this.resumedAt = this.now
     let r: IteratorResult<Suspension, boolean>
+    const outer = this.handling
+    this.handling = true
     try {
       r = task.run.next()
     } catch (e) {
       this.finish(task)
       throw e
+    } finally {
+      this.handling = outer
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until }
@@ -1522,8 +1539,10 @@ export class Script {
     body: () => Generator<Suspension, boolean, unknown>,
     payload: Record<string, unknown>,
   ): Generator<Suspension, boolean, unknown> {
-    this.state.gameControlSnapshot = event === 'game_control'
-      ? (payload['gameControlSnapshot'] as GameControlSnapshot | null | undefined) ?? null : null
+    // In-world: outside game_control the functions still read the last event's values, after a
+    // state change or reset too.
+    const values = payload['gameControlSnapshot'] as GameControlSnapshot | undefined
+    if (event === 'game_control' && values) this.state.gameControlSnapshot = values
     enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
@@ -1538,7 +1557,6 @@ export class Script {
       throw e
     } finally {
       if (pushed) this.state.detectedStack.pop()
-      this.state.gameControlSnapshot = null
       leaveDamageEvent(payload)
     }
   }
@@ -1573,7 +1591,6 @@ export class Script {
         if (e instanceof ResetScriptSignal) return true
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
-        this.state.gameControlSnapshot = null
         // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
         if (this.clearDamageAdjustment()) yield { until: this.now }
         if (this.state.lifecycle.removed) return false

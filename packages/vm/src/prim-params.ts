@@ -1380,7 +1380,7 @@ function typeAccepts(param: number, expected: LslType, given: LslType): boolean 
 }
 
 /** `%g`-style number text, as the simulator prints it in error messages. */
-const formatG = (v: number): string => String(Number(v.toPrecision(6)))
+export const formatG = (v: number): string => String(Number(v.toPrecision(6)))
 
 const SHAPE_NAMES: Readonly<Record<number, string>> = {
   [PRIM_TYPE_BOX]: 'PRIM_TYPE_BOX', [PRIM_TYPE_CYLINDER]: 'PRIM_TYPE_CYLINDER', [PRIM_TYPE_PRISM]: 'PRIM_TYPE_PRISM',
@@ -1503,16 +1503,19 @@ export function checkPrimRule(rules: ReadonlyArray<LslValue>, index: number, rul
 }
 
 /**
- * Whether the rule at `rules[index]` of a get call can be read: the rule is
- * an integer, and a face or link it takes is there and an integer. A rule
- * that can't be read ends the result.
+ * Whether the rule at `rules[index]` of a get call can be read: `ok`, or why
+ * not. A rule that is not an integer ends the result without an error; a
+ * face or link that is missing or not an integer ends it with one.
  */
-export function primGetRuleRuns(rules: ReadonlyArray<LslValue>, index: number): boolean {
-  if (givenType(rules, index) !== 'integer') return false
+export function primGetRuleCheck(rules: ReadonlyArray<LslValue>, index: number): 'ok' | 'notRule' | 'badFace' | 'badLink' {
+  if (givenType(rules, index) !== 'integer') return 'notRule'
   const param = rules[index] as number
-  if (param !== PRIM_LINK_TARGET && !PER_FACE_RULES.has(param)) return true
-  return index + 1 < rules.length && givenType(rules, index + 1) === 'integer'
+  if (param !== PRIM_LINK_TARGET && !PER_FACE_RULES.has(param)) return 'ok'
+  if (index + 1 < rules.length && givenType(rules, index + 1) === 'integer') return 'ok'
+  return param === PRIM_LINK_TARGET ? 'badLink' : 'badFace'
 }
+
+export const isPerFaceRule = (param: number) => PER_FACE_RULES.has(param)
 
 /**
  * What a face is on its shape: a path end (top / bottom), the hollow's inner

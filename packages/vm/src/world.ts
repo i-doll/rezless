@@ -1,7 +1,7 @@
 import { attemptAvatarPay, attemptAvatarBuy, setObjectSale, type ObjectSale, type AvatarPayAction, type AvatarBuyAction } from './rlv/pay.js'
 import { userChangeAvatarGroup, type AvatarGroup } from './rlv/group.js'
 import { attemptAvatarMovement, type AvatarMovement, type AvatarMovementAction, type AvatarMovementState } from './rlv/movement.js'
-import { attemptAvatarEdit, attemptAvatarRez, attemptAvatarTake, type AvatarEditAction, type AvatarRezAction, type AvatarTakeAction } from './rlv/edit.js'
+import { attemptAvatarDrop, attemptAvatarDuplicate, attemptAvatarEdit, attemptAvatarRez, attemptAvatarTake, type AvatarDropAction, type AvatarDuplicateAction, type AvatarEditAction, type AvatarRezAction, type AvatarTakeAction, type AvatarTakeOptions } from './rlv/edit.js'
 import { requestTeleport, respondTeleportRequest, type AvatarTeleportRequest, offerTeleport, respondTeleportOffer, type TeleportOffer, type TeleportOfferDecision } from './rlv/tpoffers.js'
 import { attemptUserTeleport, type UserTeleportAction } from './rlv/teleport.js'
 import { attemptAvatarTouch, type AvatarTouchAction, type AvatarTouchOptions } from './rlv/touch.js'
@@ -22,6 +22,7 @@ import { moveRegionAnimations, regionAnimations, setAnimationState, type Animati
 import { startRegeneration } from './builtins/damage.js'
 import type { Linkset } from './linkset.js'
 import type { Prim, PrimSoundState } from './prim.js'
+import type { PrimParams } from './prim-params.js'
 import { AGENT_ATTACHMENTS, AGENT_SCRIPTED, AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
@@ -128,6 +129,8 @@ export interface WorldAvatar extends WorldEntity {
   home: AvatarDestination | null
   /** Sound the link sound calls of the object it sits on gave it. */
   readonly sound: PrimSoundState
+  /** Texture animation llSetLinkTextureAnim gave it while seated. It keeps it after standing. */
+  textureAnim: PrimParams['textureAnim']
 }
 
 export interface WorldEntity {
@@ -418,8 +421,18 @@ export class World {
   }
 
   /** Take an object, or a copy of it, into the avatar's inventory as their viewer allows. */
-  attemptAvatarTake(avatar: WorldAvatar, prim: Prim, options: { copy?: boolean } = {}): AvatarTakeAction {
+  attemptAvatarTake(avatar: WorldAvatar, prim: Prim, options: AvatarTakeOptions = {}): AvatarTakeAction {
     return attemptAvatarTake(this, avatar, prim, options)
+  }
+
+  /** Drop a worn object to the ground as the avatar's viewer allows. */
+  attemptAvatarDrop(avatar: WorldAvatar, linkset: Linkset, position?: Vector): AvatarDropAction {
+    return attemptAvatarDrop(this, avatar, linkset, position)
+  }
+
+  /** Copy an object with the viewer's Duplicate as the avatar's viewer allows. */
+  attemptAvatarDuplicate(avatar: WorldAvatar, prim: Prim, offset?: Vector): AvatarDuplicateAction {
+    return attemptAvatarDuplicate(this, avatar, prim, offset)
   }
 
   /**
@@ -543,6 +556,7 @@ export class World {
       },
       standingRotation: null,
       sound: { current: null, queueing: false, radius: 0, triggers: [], preloads: [] },
+      textureAnim: { mode: 0, face: 0, sizex: 0, sizey: 0, start: 0, length: 0, rate: 0 },
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
     }
     avatar.owner = avatar.key
