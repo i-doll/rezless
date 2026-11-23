@@ -643,10 +643,17 @@ camera to a region position, and the line then starts there;
 prim, the `offset` of `world.userSitAvatar` from its centre in region axes as
 a viewer sends it, moves the line's end from the centre to that spot on the
 prim's surface: a click on a box's side seats the
-avatar where the line first meets the box. Clicks were measured on boxes only, and
-a cylinder ignores the click. For a click on a box's top rezless takes the
-side towards the camera, where Second Life often takes another, and Second
-Life refuses some clicks low on a side, which rezless seats. `world.sitAvatar` without a
+avatar where the line first meets the box, and so does a click on a
+cylinder's side. Where the line from above meets a box's top first, with or
+without a click, the avatar sits at a side, in line with the spot where it
+met: rays across the top from that spot towards the camera, away
+from it and towards the avatar each reach a side, and the avatar sits at the
+one nearest the spot. Where two are equally near, rezless takes the side
+towards the camera, then the one away from it; Second Life follows no fixed
+order there. Second Life refuses some clicks low on a side, depending on the
+camera's angle and the prim's size, and rezless seats them. Clicks on a
+cylinder's top and on spheres seat the avatar elsewhere in Second Life, and
+on a prism it can sit about 2.5 cm lower. `world.sitAvatar` without a
 placement seats the avatar on the prim's sit target, or at its centre when it
 has none.
 
