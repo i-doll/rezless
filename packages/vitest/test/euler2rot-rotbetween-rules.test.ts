@@ -440,9 +440,27 @@ describe('llEuler2Rot of NaN, infinite and huge angles', () => {
     for (const angle of ['1e20', '1e29', '1e30', '3e38']) expect(await turn(angle)).toBeCloseTo(25.071, 3)
   })
 
-  // In-world: <1e10, 0, 0> turned 18.823 degrees. Its steps fit; why it turns that far is not known.
-  it.fails('turns 1e10 radians as Second Life does', async () => {
-    expect(await turn('1e10')).toBeCloseTo(18.823, 3)
+  it('steps each NaN or infinite angle the same way when there are several', async () => {
+    const got = await rotations([
+      'llEuler2Rot(<(float)"nan", (float)"nan", 0>)', 'llEuler2Rot(<(float)"nan", (float)"nan", (float)"nan">)',
+      'llEuler2Rot(<(float)"inf", (float)"inf", (float)"inf">)', 'llEuler2Rot(<(float)"nan", 0.5, 0>)',
+      'llEuler2Rot(<0.3, 0.2, (float)"nan">)', 'llEuler2Rot(<(float)"inf", -(float)"inf", 1.0>)',
+    ])
+    // In-world (2026-11-23, Mono), printed exactly.
+    const want = [
+      ['14218442p-26', '14218442p-26', '12645638p-28', '15986864p-24'], ['8482771p-25', '10793449p-26', '8482771p-25', '15434219p-24'],
+      ['8482771p-25', '10793449p-26', '8482771p-25', '15434219p-24'], ['14112855p-26', '16207211p-26', '14414415p-28', '15868143p-24'],
+      ['11178461p-26', '8601535p-27', '15307483p-26', '16058148p-24'], ['9647271p-25', '11322342p-27', '16716222p-25', '13650877p-24'],
+    ].map((q) => q.map(fromExact))
+    for (const [i, q] of want.entries()) for (const [k, v] of q.entries()) expect(Math.abs(got[i]![k]! - v)).toBeLessThan(6e-8)
+  })
+
+  // In-world: 1e7, 1e8 and 1e9 radians turned 163.131, -32.692 and 145.082 degrees, 1e10 radians
+  // 18.823 degrees, and 1.6e10 radians the 25.07 degrees of a NaN angle, though its steps fit a
+  // 64-bit integer (1.7e10 and 2e10 don't). The rule for these is not known.
+  it.fails('turns 1e7 to 1.6e10 radians as Second Life does', async () => {
+    const want: Array<[string, number]> = [['1e7', 163.131], ['1e8', -32.692], ['1e9', 145.082], ['1e10', 18.823], ['1.6e10', 25.071]]
+    for (const [angle, degrees] of want) expect(await turn(angle)).toBeCloseTo(degrees, 2)
   })
 })
 
