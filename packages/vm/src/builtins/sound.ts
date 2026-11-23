@@ -14,6 +14,7 @@ function resolve(ctx: CallContext, name: string): string | undefined {
   const id = soundKey(ctx.prim, name)
   if (id !== null && id !== NULL_KEY) return id
   sayError(ctx, `Could not find sound '${name}'.`)
+  ctx.sleep(1000)
   return undefined
 }
 

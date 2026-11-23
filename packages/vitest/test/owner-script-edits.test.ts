@@ -185,13 +185,15 @@ describe('owner drops a script in', () => {
     })
     scripts['a']!.start()
     const stopped = await addScript(prims[0]!, src(logger, 'n'), { running: false })
-    stopped.linkset.advanceTime(1000)
+    // Each failed lookup takes 1 s.
+    stopped.linkset.advanceTime(3000)
     expect(said(scripts['a']!)).toEqual(["Could not find script 'n'.", "Could not find script 'm'."])
     expect(stopped.running).toBe(false)
     expect(said(stopped)).toEqual([])
     const started = await addScript(prims[0]!, src(logger, 'm'))
-    started.linkset.advanceTime(1000)
-    expect(said(started)).toEqual(['entry m'])
+    started.linkset.advanceTime(3000)
+    // The failed lookup of "m" takes 1 s, so "m" is running when the message is sent.
+    expect(said(started)).toEqual(['entry m', 'message'])
     expect(said(stopped)).toEqual(['entry n', 'message'])
   })
 
