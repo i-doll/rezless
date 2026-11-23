@@ -910,6 +910,7 @@ export class ScriptClockView {
     this.timerLagMs = 0
     this.timerPassedAt = undefined
     this.followsOwed = false
+    this.owedWhileStopped = false
     for (const e of this.linksetClock.pendingEvents()) {
       if (e.target === this.self() && e.event === 'timer') {
         delete e.payload['__due']
