@@ -2363,6 +2363,10 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   (`Unknown runtime error` when the error value is not a string or a number,
   `not enough memory` when memory runs out, `Too Many Listens` for the 66th
   listen, which `pcall` can't catch). The call that ran it throws the Lua message.
+  The owner's chat (`s.chat`) shows the Lua message and its traceback in
+  place of `runtime error` and `not enough memory`, cut so that the prim's
+  name and the text come to 1151 bytes. Scripts listening on
+  `DEBUG_CHANNEL` hear the short text.
   `ll.ResetScript` starts a fresh VM and runs the script again. `pcall`
   can't catch `ll.ResetScript` or an error thrown by a mock. `ll.Die`
   returns, and the script stops at its next `ll` call (which still runs),

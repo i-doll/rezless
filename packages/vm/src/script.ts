@@ -165,6 +165,9 @@ export interface ScriptOptions {
   readonly experience?: Experience
 }
 
+/** The most bytes of prim name and text the owner sees of a crash. */
+const OWNER_ERROR_BYTES = 1151
+
 /**
  * Public handle for a loaded LSL script. Tests interact almost entirely
  * with this surface: drive events via fire(), inspect chat / calls,
@@ -193,8 +196,9 @@ export class Script {
   private isRunning = true
   /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
   crashed = false
-  /** What the run-time error said after its first line; a crashed SLua script says it again when rezzed. */
+  /** What the run-time error said after its first line, to listeners and to the owner; a crashed SLua script says it again when rezzed. */
   private crashText = ''
+  private crashShown = ''
   /** Events that were already queued when the script stopped; delivered when it runs again. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
@@ -1721,6 +1725,7 @@ export class Script {
     }
     copy.running = this.running && !this.dead
     copy.crashText = this.crashText
+    copy.crashShown = this.crashShown
     return copy
   }
 
@@ -1756,6 +1761,7 @@ export class Script {
     if (error.reported) return
     error.reported = true
     this.crashText = error.said
+    this.crashShown = error.shown
     this.sayCrash()
     this.running = false
     this.crashed = true
@@ -1763,8 +1769,10 @@ export class Script {
 
   private sayCrash(): void {
     const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
-    for (const text of [`${this.host.name} [script:${name}] Script run-time error`, this.crashText]) {
-      this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
+    const header = `${this.host.name} [script:${name}] Script run-time error`
+    const room = OWNER_ERROR_BYTES - new TextEncoder().encode(this.host.name).length
+    for (const [text, shown] of [[header, header], [this.crashText, this.crashShown]] as const) {
+      this.state.chat.push({ channel: DEBUG_CHANNEL, text: truncateUtf8(shown, room), type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
   }

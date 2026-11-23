@@ -73,6 +73,7 @@ struct RzScript : lua_SLRuntimeState
     int maxPossibleSize = 0;
     lua_OpaqueGCObjectSet freeObjects;
     std::string scratch;    // string results handed to JavaScript
+    std::string trace;      // the call stack of the last run that failed with a string
     std::string plan;       // coverage plan, JSON
     std::vector<int32_t> statementHits;
     std::vector<int32_t> branchHits; // [true, false] per branch
@@ -886,7 +887,8 @@ RZ_EXPORT lua_State* rz_main_thread(RzScript* s)
 }
 
 // Resume T with nargs values on its stack. Returns LUA_OK, LUA_YIELD, or an
-// error status with the message (and traceback) in rz_string.
+// error status with the message in rz_string and, for a string error, the call
+// stack in rz_trace.
 RZ_EXPORT int rz_resume(RzScript* s, lua_State* T, int nargs)
 {
     bool nested = s->inExecution;
@@ -901,9 +903,15 @@ RZ_EXPORT int rz_resume(RzScript* s, lua_State* T, int nargs)
     {
         // As SLua's host words a fault (Executor/src/Script.cpp).
         if (lua_type(T, -1) == LUA_TSTRING)
+        {
             s->scratch = lua_tostring(T, -1);
+            s->trace = lua_debugtrace(T);
+        }
         else
+        {
             s->scratch = std::string("error object is a ") + lua_typename(T, lua_type(T, -1)) + " value";
+            s->trace.clear();
+        }
         lua_pop(T, 1);
     }
     else if (status == LUA_OK)
@@ -930,6 +938,16 @@ RZ_EXPORT const char* rz_string(RzScript* s)
 RZ_EXPORT int rz_string_len(RzScript* s)
 {
     return (int)s->scratch.size();
+}
+
+RZ_EXPORT const char* rz_trace(RzScript* s)
+{
+    return s->trace.c_str();
+}
+
+RZ_EXPORT int rz_trace_len(RzScript* s)
+{
+    return (int)s->trace.size();
 }
 
 RZ_EXPORT int rz_used_memory(RzScript* s)
