@@ -152,7 +152,8 @@ function findSound(ctx: CallContext, name: string): string | undefined {
 
 function rez(ctx: CallContext, name: string, o: Options): string {
   const item = ctx.prim.inventory.find(i => i.name === name)
-  if (!item) {
+  // In-world: an empty notecard holds no asset and is refused as a missing object.
+  if (!item || (item.type === InventoryType.NOTECARD && item.key === NULL_KEY && !item.notecardLines?.length)) {
     sayError(ctx, `Could not find object '${name}'.`)
     ctx.sleep(1000)
     return ''
