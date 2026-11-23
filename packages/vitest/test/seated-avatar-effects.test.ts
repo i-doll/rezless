@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadLinkset, World } from '../src/index.js'
+import { loadLinkset, loadScript, World } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LlSetLinkTextureAnim and
 // https://wiki.secondlife.com/wiki/LlLinkParticleSystem don't say what a link
@@ -116,6 +116,11 @@ describe('particles never reach a seated avatar', () => {
   // particles as they do with nobody seated: on a lone box LINK_SET, LINK_THIS
   // and 1 set the box and the others nothing; on two boxes LINK_SET set both
   // and the avatar's link number set nothing.
+  // Re-checked on Aditi on 2026-11-23 with a viewer that keeps an avatar's particle
+  // system after it expires, read from the seated avatar's own viewer and from a second
+  // avatar's: llLinkParticleSystem(2, ...) on a lone box gave the avatar none without
+  // PSYS_SRC_MAX_AGE, with it at 4 s and at 60 s, while llSetLinkTextureAnim(2, ...) did
+  // reach it. LINK_SET set the box only.
   it('from a lone prim', async () => {
     const s = await scene(1)
     expect([-5, 0, -1, -2, -3, -4, 1, 2].map((link) => s.particles(1, link)))
@@ -126,4 +131,15 @@ describe('particles never reach a seated avatar', () => {
     const s = await scene(2)
     expect([3, -1].map((link) => s.particles(1, link))).toEqual(['--', 'xx'])
   })
+})
+
+// https://wiki.secondlife.com/wiki/LlSetLinkTextureAnim
+//
+// In-world (Aditi, SLua Tideland, 2026-11-23): a script calling
+// llSetLinkPrimitiveParamsFast(2, [PRIM_TEXTURE_ANIM, ...]) didn't compile ("Name not
+// defined within scope"). There is no texture animation rule, so a seated avatar's
+// link is animated only through llSetLinkTextureAnim.
+it('has no PRIM_TEXTURE_ANIM rule', async () => {
+  await expect(loadScript({ source: 'default{state_entry(){llSetLinkPrimitiveParamsFast(2,[PRIM_TEXTURE_ANIM,3,-1,2,2,0.0,4.0,1.0]);}}' }))
+    .rejects.toThrow(/Name not defined within scope/)
 })
