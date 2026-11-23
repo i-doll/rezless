@@ -16,9 +16,8 @@ import {
 // Measured on Aditi (SLua Tideland, 2026-10-31) with the headless viewer as i Doll,
 // sitting on a probe prim that requested the three permissions in changed()
 // (auto-granted, run_time_permissions(3076)) and a second prim listening on
-// DEBUG_CHANNEL. The headless viewer can't press keys, so control input itself
-// (when `control` fires, what level and edge hold) follows the wiki pages cited
-// below and isn't measured.
+// DEBUG_CHANNEL. Control input itself (held keys, level and edge) was measured
+// later with the viewer holding keys; see control-input.test.ts.
 
 const AGENT = '00000000-0000-0000-0000-00000000000a'
 const DEBUG_CHANNEL = 2147483647
@@ -83,8 +82,8 @@ describe('llTakeControls', () => {
     expect(s.global('got')).toEqual([])
   })
 
-  // Not measured: telling replace from merge needs key presses, which the
-  // headless viewer can't send.
+  // In-world: llTakeControls(CONTROL_FWD, ...) then llTakeControls(CONTROL_BACK, ...) -> the
+  // forward key gave no event and back did (Aditi, SLua Tideland, 2026-11-23).
   it('replaces the controls an earlier call took', async () => {
     const s = await load(`llTakeControls(${CONTROL_FWD}, TRUE, FALSE); llTakeControls(${CONTROL_BACK}, TRUE, TRUE);`)
     s.linkset.touch(0)

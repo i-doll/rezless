@@ -1140,6 +1140,9 @@ export class Script {
     if (!foreign) {
       copy.state.permissions.granted = this.state.permissions.granted
       copy.state.permissions.agent = this.state.permissions.agent
+      // In-world: a copy of an object nobody sat on or wore still sent control events for the
+      // controls the original took, without a new llTakeControls.
+      copy.state.controls.taken = this.state.controls.taken
       const agent = this.state.permissions.agent.toLowerCase()
       // A copy made while the permission avatar sits on the original holds what a stand leaves,
       // and one of an object that is worn or detached what a detach leaves.
