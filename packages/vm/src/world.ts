@@ -28,6 +28,8 @@ import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 
 const CLEARED_ON_DEPARTURE = AGENT_SITTING | AGENT_ON_OBJECT | AGENT_WALKING | AGENT_IN_AIR
+/** Milliseconds before a seated avatar's region rotation shows a new local rotation: 14 frames, the most common delay measured. */
+export const SEATED_TURN_DELAY = 311
 
 /** Prim-local simulator sit placement and an optional viewer autopilot outcome. */
 export interface AvatarSitResponse {
@@ -126,6 +128,8 @@ export interface WorldAvatar extends WorldEntity {
   readonly sittingCamera: { readonly eye: Vector; readonly at: Vector } | null
   /** Where a seated avatar is, relative to the root of the object it sits on. Null unless it sits on an object. */
   sitPlacement: { position: Vector; rotation: Rotation } | null
+  /** Give a seated avatar a new local rotation, as a script does; its region rotation follows {@link SEATED_TURN_DELAY} later. */
+  turnSeated(rotation: Rotation): void
   /** A rotation requested while seated, applied when the avatar stands. */
   standingRotation: Rotation | null
   home: AvatarDestination | null
@@ -462,11 +466,23 @@ export class World {
     let sittingOrder = 0
     let seatOffset = ZERO_VECTOR
     let seatOrientation = ZERO_ROTATION
+    // The local rotation the region shows, and the turns on their way to it.
+    let shownOrientation = ZERO_ROTATION
+    let turns: Array<{ at: number, orientation: Rotation }> = []
+    const shown = (): Rotation => {
+      while (turns.length && turns[0]!.at <= world.clock.now) shownOrientation = turns.shift()!.orientation
+      return shownOrientation
+    }
+    const showAt = (orientation: Rotation): void => {
+      shownOrientation = { ...orientation }
+      turns = []
+    }
     let sittingCamera: WorldAvatar['sittingCamera'] = null
     const snapshotSeat = (): void => {
       if (!seat) return
       position = this.seatPosition(seat, seatOffset)
-      rotation = this.seatRotation(seat, seatOrientation)
+      // The avatar stands at the local rotation the region showed, not turned by the root.
+      rotation = { ...shown() }
       region = seat.linkset?.region ?? region
     }
     const clearRemovedSeat = (): void => {
@@ -496,7 +512,7 @@ export class World {
       },
       get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat, seatOffset) : position },
       set position(value) { cancelPendingSit(avatar); position = value },
-      get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat, seatOrientation) : rotation },
+      get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat, shown()) : rotation },
       set rotation(value) { rotation = value },
       get region() { clearRemovedSeat(); return seat?.linkset?.region ?? region },
       set region(value) { cancelPendingSit(avatar); region = value },
@@ -545,6 +561,12 @@ export class World {
           ? { x: child.position.x + turned.x, y: child.position.y + turned.y, z: child.position.z + turned.z }
           : { ...offset }
         seatOrientation = child ? mulRotation(orientation, child.rotation) : { ...orientation }
+        // On a new seat the avatar keeps the rotation it stood at, or the local one it showed on the
+        // seat before, until the new seat's arrives.
+        if (seat && leaving) {
+          showAt(rotation)
+          turns.push({ at: world.clock.now + SEATED_TURN_DELAY, orientation: { ...seatOrientation } })
+        }
         if (value && changingSeat && avatar.viewer.profile === 'rlv') returnStandtpAvatar(world, avatar)
       },
       get sitPlacement() {
@@ -554,7 +576,21 @@ export class World {
       set sitPlacement(value) {
         if (!value || !avatar.sittingOn) return
         seatOffset = { ...value.position }
+        // A new root changes the frame of the local rotations still on their way, and the new local
+        // rotation arrives like a set. The one shown stays as it was until then.
+        if ((['x', 'y', 'z', 's'] as const).some((k) => value.rotation[k] !== seatOrientation[k])) {
+          const frame = mulRotation(conjugate(seatOrientation), value.rotation)
+          shown()
+          for (const turn of turns) turn.orientation = mulRotation(turn.orientation, frame)
+          turns.push({ at: world.clock.now + SEATED_TURN_DELAY, orientation: { ...value.rotation } })
+        }
         seatOrientation = { ...value.rotation }
+      },
+      turnSeated(value) {
+        if (!avatar.sittingOn) return
+        seatOrientation = { ...value }
+        shown()
+        turns.push({ at: world.clock.now + SEATED_TURN_DELAY, orientation: { ...value } })
       },
       standingRotation: null,
       sound: { current: null, queueing: false, radius: 0, triggers: [], preloads: [] },

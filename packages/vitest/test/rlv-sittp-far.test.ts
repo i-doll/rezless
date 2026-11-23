@@ -38,6 +38,8 @@ it.each(profiles)('%s applies a simulator surface pose beyond 8 m without a sitt
   expect(avatar.position.x).toBeCloseTo(115.61325, 5)
   expect(avatar.position.y).toBeCloseTo(49.91, 5)
   expect(avatar.position.z).toBeCloseTo(1998.29638, 5)
+  // The seat's rotation shows about 0.31 s after the sit.
+  seat.linkset.advanceTime(400)
   expect(avatar.rotation.z).toBeCloseTo(-0.70710678, 7)
   expect(avatar.rotation.s).toBeCloseTo(0.70710678, 7)
   expect(avatar.info & 48).toBe(48)
@@ -81,8 +83,9 @@ it.each(profiles)('%s completes successful autopilot before seating and changed 
   seat.linkset.advanceTime(1)
   expect(avatar.sittingOn).toBe(prim)
   expect(avatar.position).toEqual({ x: 61, y: 2, z: 3 })
-  expect(avatar.rotation).toEqual({ x: 0, y: 0, z: 1, s: 0 })
   expect(seat.scripts.seat!.global('changes')).toBe(1)
+  seat.linkset.advanceTime(400)
+  expect(avatar.rotation).toEqual({ x: 0, y: 0, z: 1, s: 0 })
   expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ actionOutcome: 'applied' })
   prim.params.position = { x: 1, y: 0, z: 0 }
   expect(avatar.position).toEqual({ x: 2, y: 2, z: 3 })

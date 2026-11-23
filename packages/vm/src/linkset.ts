@@ -631,7 +631,8 @@ export class Linkset {
     // A sitter stays where it is in the region when its object gets another root.
     const seated = (this.world?.avatars ?? [])
       .filter((a) => a.sittingOn !== null && prims.includes(a.sittingOn))
-      .map((a) => ({ a, pos: a.position, rot: a.rotation }))
+      // From the local rotation last set, which the region may not show yet.
+      .map((a) => ({ a, pos: a.position, rot: mulRotation(a.sitPlacement!.rotation, a.sittingOn!.linkset!.prims[0]!.regionRotation()) }))
     this.prims.splice(0, this.prims.length, ...prims)
     const root = placed[0]!
     const inverse = conjugate(root.rot)

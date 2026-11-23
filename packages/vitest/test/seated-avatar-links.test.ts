@@ -70,9 +70,10 @@ async function fixture(body: string, opts: { prims?: number; target?: 'root' | '
     linkset.touch(link, { avatar: { key: AVATAR, name: 'Test Resident' } })
     return script.global('out')
   }
+  // The probes touched the seat seconds after sitting, once its rotation had arrived.
   const sit = () => {
     expect(world.sitAvatar(avatar, seat)).toBe(true)
-    linkset.advanceTime(100)
+    linkset.advanceTime(1000)
   }
   const stand = () => {
     world.standAvatar(avatar)
@@ -447,9 +448,11 @@ describe('moving a sitter with llSetLinkPrimitiveParamsFast', () => {
 
   // In-world: PRIM_ROT_LOCAL llEuler2Rot(<0.3, 0.6, 0.9>) read back as set, with
   // PRIM_ROTATION and OBJECT_ROT <0.417917, 0.022162, 0.700254, 0.578359>: the
-  // local rotation times the root's. The position did not change.
+  // local rotation times the root's. The position did not change. Those two show
+  // a new rotation about 0.31 s after the set (see avatar-link-rotation-lag), so
+  // the reads here wait for it.
   it('turns the sitter with PRIM_ROT_LOCAL', async () => {
-    const f = await fixture(`llSetLinkPrimitiveParamsFast(a, [PRIM_ROT_LOCAL, llEuler2Rot(<0.3, 0.6, 0.9>)]); ${READ}`)
+    const f = await fixture(`llSetLinkPrimitiveParamsFast(a, [PRIM_ROT_LOCAL, llEuler2Rot(<0.3, 0.6, 0.9>)]); llSleep(0.5); ${READ}`)
     f.sit()
     const turned = near({ x: 0.417917, y: 0.022162, z: 0.700254, s: 0.578359 })
     const position = near({ x: 116.159808, y: 49.765499, z: 20.782285 })
@@ -470,7 +473,7 @@ describe('moving a sitter with llSetLinkPrimitiveParamsFast', () => {
   // root's becomes the local rotation, as for a child prim. Yawed roots agreed:
   // 180 degrees under a 30 degree root gave local 210, under 90 degrees 270.
   it('multiplies PRIM_ROTATION by the root rotation', async () => {
-    const f = await fixture(`llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, llEuler2Rot(<0.7, -0.4, 0.2>)]); ${READ}`)
+    const f = await fixture(`llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, llEuler2Rot(<0.7, -0.4, 0.2>)]); llSleep(0.5); ${READ}`)
     f.sit()
     const out = f.touch() as unknown[]
     expect([out[1], out[3]]).toEqual([near({ x: 0.642664, y: -0.211869, z: 0.201868, s: 0.708056 }), near({ x: 0.850914, y: -0.165375, z: 0.342326, s: 0.362505 })])
@@ -481,8 +484,8 @@ describe('moving a sitter with llSetLinkPrimitiveParamsFast', () => {
   // from the root's seat, and PRIM_ROTATION <0, 0, 0, 0> read back as
   // PRIM_ROT_LOCAL equal to the root's rotation: identity times the root's.
   it('multiplies PRIM_ROTATION by the root rotation on a child seat too', async () => {
-    const f = await fixture(`llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, llEuler2Rot(<0.7, -0.4, 0.2>)]); out = llGetLinkPrimitiveParams(a, [PRIM_ROT_LOCAL, PRIM_ROTATION]);
-      llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, <0, 0, 0, 0>]); out += llGetLinkPrimitiveParams(a, [PRIM_ROT_LOCAL, PRIM_ROTATION]);`, { prims: 3, target: 'child' })
+    const f = await fixture(`llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, llEuler2Rot(<0.7, -0.4, 0.2>)]); llSleep(0.5); out = llGetLinkPrimitiveParams(a, [PRIM_ROT_LOCAL, PRIM_ROTATION]);
+      llSetLinkPrimitiveParamsFast(a, [PRIM_ROTATION, <0, 0, 0, 0>]); llSleep(0.5); out += llGetLinkPrimitiveParams(a, [PRIM_ROT_LOCAL, PRIM_ROTATION]);`, { prims: 3, target: 'child' })
     f.sit()
     expect(f.touch()).toEqual([near({ x: 0.642664, y: -0.211869, z: 0.201868, s: 0.708056 }), near({ x: 0.850914, y: -0.165375, z: 0.342326, s: 0.362505 }),
       near(ROOT_ROT), near({ x: 0.599728, y: -0.160721, z: 0.441484, s: 0.647755 })])
@@ -893,10 +896,12 @@ describe('removing an avatar link', () => {
   // and PRIM_ROT_LOCAL became relative to the new root: <-2.044288, -0.487452,
   // 1.685298> and <0.241845, -0.241845, -0.243210, 0.907673>. OBJECT_ROOT read
   // the new root.
+  // PRIM_ROTATION shows a rotation set here, and the local rotation the new root gives, about
+  // 0.31 s later (see avatar-link-rotation-lag), so the test waits before linking and reading.
   it('keeps the sitter in place when the object gets another root', async () => {
     const f = await fixture(`if (llGetPermissions() & PERMISSION_CHANGE_LINKS) {
-        llSetLinkPrimitiveParamsFast(a, [PRIM_POS_LOCAL, <0, 0, 2.2>, PRIM_ROT_LOCAL, ZERO_ROTATION]);
-        llCreateLink("${EXTRA}", FALSE); a = llGetNumberOfPrims();
+        llSetLinkPrimitiveParamsFast(a, [PRIM_POS_LOCAL, <0, 0, 2.2>, PRIM_ROT_LOCAL, ZERO_ROTATION]); llSleep(0.5);
+        llCreateLink("${EXTRA}", FALSE); a = llGetNumberOfPrims(); llSleep(0.5);
         out = [llGetLinkNumber(), a, llGetLinkKey(a)] + llGetLinkPrimitiveParams(a, [PRIM_POS_LOCAL, PRIM_ROT_LOCAL, PRIM_POSITION, PRIM_ROTATION]) + llGetObjectDetails(A, [OBJECT_ROOT]); }
       else llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS);`, { prims: 3 })
     const extra = await loadLinkset({ world: f.world, region: 'home', owner: AVATAR, position: { x: 116.6, y: 50.6, z: 20 }, prims: [{ key: EXTRA, name: 'Extra' }] })

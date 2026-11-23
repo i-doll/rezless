@@ -712,8 +712,14 @@ lone prim is link 1 instead of 0 while someone sits on it. `llGetLinkKey`,
 avatar at its link number. `llSetLinkPrimitiveParams(Fast)` moves the sitter
 with `PRIM_POS_LOCAL`, `PRIM_ROT_LOCAL`, `PRIM_POSITION` and `PRIM_ROTATION`,
 all relative to the root; any other rule on an avatar link does nothing and
-ends the rule list. `LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` reach
-the prims only. Unlinking a prim stands everyone seated on the object; linking
+ends the rule list. A new rotation reads back at once through `PRIM_ROT_LOCAL`,
+but `PRIM_ROTATION`, `OBJECT_ROT` and the avatar's attachments show it 0.311 s
+later. Until then they give the old local rotation times the root's current one.
+On sitting down the old local rotation is the rotation the avatar stood at; on
+moving to another seat, or when relinking gives the object another root, it is
+the local rotation shown before. An avatar that stands faces the local rotation
+it showed, not turned by the root. `LINK_SET`, `LINK_ALL_OTHERS`
+and `LINK_ALL_CHILDREN` reach the prims only. Unlinking a prim stands everyone seated on the object; linking
 keeps them seated where they are. Media set through an avatar link with
 `llSetLinkMedia` stays with the avatar.
 
