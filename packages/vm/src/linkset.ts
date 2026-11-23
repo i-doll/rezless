@@ -322,6 +322,7 @@ export class Linkset {
     if (fromInventory) {
       this.peers.push(this)
       this.recountScripts()
+      for (const prim of this.prims) restepRezzedShape(prim.params)
     }
     this.lastAttachmentPoint = point
     this.attachment = { avatar, point, temporary, order }

@@ -272,4 +272,37 @@ describe('shape values on a rezzed copy', () => {
     expect(shapeOf(rezzed)[0]).toBe(Math.fround(rezzedBegin))
     expect(reds(rezzed)).toEqual([1, 2, 3, 4, 5, 6].map((i) => Math.fround(i / 10)))
   })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): a box worn from inventory set cut
+  // <0.00475, 0.12505> and hollow 0.12505 in its attach event, read 0.00474 and 0.12504, and
+  // detached itself. Worn again it read 0.00473 and 0.12503, and worn a third time the same.
+  it('drops a value set while worn when the object is worn again', async () => {
+    const { rlv } = await loadRlvPair({ source: 'default { touch_start(integer n) { llOwnerSay(llGetObjectDesc()); } }' })
+    const { world, avatar } = rlv
+    const once = SET.replace('default { state_entry() {', 'integer set; default { attach(key id) { if (id == NULL_KEY || set) return; set = TRUE;')
+    const { linkset } = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{ name: 'box', scripts: [{ name: 'set', source: { source: once } }] }] })
+    const saved = linkset.copy()
+    linkset.remove()
+    seedRlvInventory(avatar, { sharedRootId: 'root', entries: [
+      { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+      { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+      { id: 'box', parentId: 'folder', kind: 'item', name: 'Box (left hand)', assetType: 'object', object: saved },
+    ] })
+    rlv.script.start()
+    const wear = () => {
+      rlv.script.host.description = '@attach:direct=force'
+      rlv.script.fire('touch_start', { num_detected: 1 })
+      const worn = world.linksets.find((l) => l.attachment && l !== rlv.script.linkset)!
+      worn.advanceTime(0)
+      return worn
+    }
+    const first = wear()
+    expect(shapeOf(first)).toEqual(LIVE)
+    first.detachFromAvatar()
+    for (let i = 0; i < 2; i++) {
+      const again = wear()
+      expect(shapeOf(again), `wear ${i + 2}`).toEqual(REZZED)
+      again.detachFromAvatar()
+    }
+  })
 })
