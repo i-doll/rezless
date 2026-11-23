@@ -20,7 +20,8 @@ default {
   link_message(integer sender, integer num, string cmd, key id) {
     if (num != llGetLinkNumber()) return;
     integer L = (integer)((string)id);
-    if (cmd == "anim") llSetLinkTextureAnim(L, ANIM_ON | LOOP, ALL_SIDES, 2, 2, 0.0, 4.0, 1.0);
+    if (cmd == "anim3") llSetLinkTextureAnim(L, ANIM_ON | SMOOTH | LOOP, 2, 3, 3, 0.0, 0.0, 2.5);
+    else if (cmd == "anim") llSetLinkTextureAnim(L, ANIM_ON | LOOP, ALL_SIDES, 2, 2, 0.0, 4.0, 1.0);
     else if (cmd == "clear anim") llSetLinkTextureAnim(L, 0, ALL_SIDES, 0, 0, 0.0, 0.0, 0.0);
     else if (cmd == "particles") llLinkParticleSystem(L, [PSYS_PART_MAX_AGE, 2.0, PSYS_SRC_BURST_PART_COUNT, 7]);
   }
@@ -88,23 +89,24 @@ describe('texture animation on a seated avatar', () => {
   // In-world, lone box: after llSetLinkTextureAnim(LINK_SET, ANIM_ON | SMOOTH |
   // LOOP, 2, 3, 3, 0.0, 0.0, 2.5) the avatar stood and still carried the
   // animation. Standing, LINK_SET and LINK_ALL_OTHERS with mode 0 cleared the box
-  // only, and LINK_ALL_OTHERS with a new animation reached nothing. Seated again,
-  // the avatar still had the first animation, and LINK_ALL_OTHERS replaced it.
+  // only, and LINK_ALL_OTHERS with a new 2x2 animation reached nothing. Seated again,
+  // the avatar still had the 3x3 animation, and LINK_ALL_OTHERS replaced it.
   it('keeps the animation on an avatar that stands, out of reach until it sits again', async () => {
     const s = await scene(1)
-    s.send(1, 'anim', -1)
+    s.send(1, 'anim3', -1)
     s.world.standAvatar(s.avatar)
     s.linkset.advanceTime(100)
-    expect(s.avatar.textureAnim.sizex).toBe(2)
+    expect(s.avatar.textureAnim.sizex).toBe(3)
     s.send(1, 'clear anim', -1)
     s.send(1, 'clear anim', -2)
+    s.send(1, 'anim', -2)
     expect(s.linkset.prims[0]!.params.textureAnim.mode).toBe(0)
-    expect(s.avatar.textureAnim.sizex).toBe(2)
+    expect(s.avatar.textureAnim).toMatchObject({ mode: 19, sizex: 3 })
     expect(s.world.sitAvatar(s.avatar, s.linkset.prims[0]!)).toBe(true)
     s.linkset.advanceTime(100)
+    expect(s.avatar.textureAnim.sizex).toBe(3)
+    s.send(1, 'anim', -2)
     expect(s.avatar.textureAnim.sizex).toBe(2)
-    s.send(1, 'clear anim', -2)
-    expect(s.avatar.textureAnim.mode).toBe(0)
   })
 })
 

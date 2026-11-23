@@ -18,10 +18,6 @@ function resolve(ctx: CallContext, name: string): string | undefined {
   return undefined
 }
 
-function targets(ctx: CallContext, link: number): Link[] {
-  return ctx.linkset.linksWithSitters(ctx.prim, link)
-}
-
 function attach(state: PrimSoundState, sound: string, gain: number, loop: boolean, sync: AttachedSound['sync']): void {
   state.current = { sound, volume: volume(gain), loop, sync }
 }
@@ -50,7 +46,7 @@ export const llLinkPlaySound: BuiltinImpl = (ctx, args) => {
   const sound = resolve(ctx, args[1] as string)
   if (sound === undefined) return undefined
   const flags = args[3] as number
-  for (const prim of targets(ctx, args[0] as number)) {
+  for (const prim of ctx.linkset.linksWithSitters(ctx.prim, args[0] as number)) {
     if (flags & SOUND_TRIGGER) trigger(prim, sound, args[2] as number)
     else attach(prim.sound, sound, args[2] as number, !!(flags & SOUND_LOOP), flags & SOUND_SYNC ? 'slave' : 'none')
   }
@@ -83,7 +79,7 @@ export const llStopSound: BuiltinImpl = (ctx) => {
 }
 
 export const llLinkStopSound: BuiltinImpl = (ctx, args) => {
-  for (const prim of targets(ctx, args[0] as number)) prim.sound.current = null
+  for (const prim of ctx.linkset.linksWithSitters(ctx.prim, args[0] as number)) prim.sound.current = null
   return undefined
 }
 
@@ -93,7 +89,7 @@ export const llAdjustSoundVolume: BuiltinImpl = (ctx, args) => {
 }
 
 export const llLinkAdjustSoundVolume: BuiltinImpl = (ctx, args) => {
-  for (const prim of targets(ctx, args[0] as number)) {
+  for (const prim of ctx.linkset.linksWithSitters(ctx.prim, args[0] as number)) {
     if (prim.sound.current) prim.sound.current.volume = volume(args[1] as number)
   }
   return undefined
@@ -105,7 +101,7 @@ export const llSetSoundQueueing: BuiltinImpl = (ctx, args) => {
 }
 
 export const llLinkSetSoundQueueing: BuiltinImpl = (ctx, args) => {
-  for (const prim of targets(ctx, args[0] as number)) prim.sound.queueing = args[1] !== 0
+  for (const prim of ctx.linkset.linksWithSitters(ctx.prim, args[0] as number)) prim.sound.queueing = args[1] !== 0
   return undefined
 }
 
@@ -115,6 +111,6 @@ export const llSetSoundRadius: BuiltinImpl = (ctx, args) => {
 }
 
 export const llLinkSetSoundRadius: BuiltinImpl = (ctx, args) => {
-  for (const prim of targets(ctx, args[0] as number)) prim.sound.radius = args[1] as number
+  for (const prim of ctx.linkset.linksWithSitters(ctx.prim, args[0] as number)) prim.sound.radius = args[1] as number
   return undefined
 }

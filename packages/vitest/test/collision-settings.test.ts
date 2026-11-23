@@ -425,8 +425,9 @@ describe('collision sounds on impact', () => {
     }
   })
 
-  // In-world: "", NULL_KEY and the name of a missing item on either object
-  // silenced the whole impact, at any volume.
+  // In-world: "", NULL_KEY and the name of a missing item on the falling box, and ""
+  // (at 0, 0.5 and 1) and NULL_KEY on the target's root, silenced the whole impact.
+  // A missing name stores NULL_KEY as NULL_KEY does (read back with PRIM_COLLISION_SOUND).
   it.each(['""', 'NULL_KEY', '"missing"'])('silences the impact when either object\'s root sets %s', async sound => {
     expect(await impact(`${sound},1`, `"${S3}",1`)).toEqual([[], []])
     expect(await impact(`"${S}",1`, `${sound},.5`)).toEqual([[], []])

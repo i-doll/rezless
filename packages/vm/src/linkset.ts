@@ -705,7 +705,7 @@ export class Linkset {
    * The prims and seated avatars a link call reaches. In-world, the three group
    * flags take every sitter as well, and a link number naming an avatar takes that avatar.
    */
-  linksWithSitters(from: Prim, link: number): Link[] {
+  linksWithSitters(from: Prim, link: number) {
     const { prims, sitter } = this.linksFrom(from, link)
     if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return [...prims, ...this.sitters()]
     return sitter ? [sitter] : prims
