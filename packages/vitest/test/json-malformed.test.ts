@@ -60,7 +60,7 @@ describe('malformed JSON objects', () => {
     expect(await evaluate('llJsonGetValue("{\\"a\\"}", [""])')).toBe('a')
   })
 
-  it('gives JSON_INVALID for a doubled comma, a "" key before a comma, or two colons in a member', async () => {
+  it('gives JSON_INVALID for a doubled comma, a "" key before a comma, two colons in a member or a key that is not a string', async () => {
     // In-world: each of these is [JSON_INVALID] from llJson2List while llJsonValueType still
     // says JSON_OBJECT; {"a":1,"":1} reads as ["a", 1, "", 1].
     for (const json of ['{\\"a\\":1,,\\"b\\":2}', '{,}', '{\\"\\":1,\\"a\\":1}', '{\\"a\\":1:2}', '{a:1}', '{\\"a\\"b:1}']) {
@@ -100,11 +100,13 @@ describe('malformed JSON objects', () => {
     expect(await evaluate('llList2CSV(llJson2List("[1,{\\"a\\":1]"))')).toBe('1, {"a":1]')
     expect(await evaluate('llList2CSV(llJson2List("[1, {\\"a\\":1]") + ["end"])')).toBe('1, , end')
     expect(await evaluate('llList2CSV(llJson2List("{\\"a\\": [1,2}") + ["end"])')).toBe('a, , end')
+    // In-world: llJson2List("[1,[ [2]") is [1, "[ [2]"]: the text runs to the end of the input.
+    expect(await evaluate('llList2CSV(llJson2List("[1,[ [2]"))')).toBe('1, [ [2]')
   })
 })
 
 describe('malformed JSON arrays', () => {
-  it('stops at a closer followed by another value, and keeps other stray closers', async () => {
+  it('stops at a closer followed directly by another value, and keeps other stray closers', async () => {
     // In-world: llJson2List("[1][2]") is [1], "[1]]" is ["1]"] and "[1],[2]" is ["1]", "[2]"].
     expect(await evaluate('llList2CSV(llJson2List("[1][2]"))')).toBe('1')
     expect(await evaluate('llList2CSV(llJson2List("[1]]"))')).toBe('1]')
@@ -124,12 +126,14 @@ describe('malformed JSON arrays', () => {
     expect(await evaluate('llJsonValueType("[1E+]", [0])')).toBe(JSON_NUMBER)
   })
 
-  it('reads a string specifier on an array as decimal digits after spaces and a plus sign', async () => {
+  it('reads a string specifier on an array as decimal digits after whitespace and a plus sign', async () => {
     // In-world: on [10,11,12], [" 1"], ["+1"], ["1x"] and ["0x1"] read 11, 11, 11 and 10;
     // ["-0"], ["x1"], [""] and ["a"] read JSON_INVALID.
     for (const [spec, want] of [[' 1', '11'], ['+1', '11'], ['1x', '11'], ['0x1', '10'], ['-0', JSON_INVALID], ['x1', JSON_INVALID], ['', JSON_INVALID], ['a', JSON_INVALID]]) {
       expect(await evaluate(`llJsonGetValue("[10,11,12]", ["${spec}"])`), spec).toBe(want)
     }
+    // In-world: ["4294967297"] and ["2147483648"] read JSON_INVALID; a large index does not wrap.
+    expect(await evaluate('llJsonGetValue("[10,11,12]", ["4294967297"])')).toBe(JSON_INVALID)
   })
 
   it('writes to [ ] as to an empty array', async () => {
