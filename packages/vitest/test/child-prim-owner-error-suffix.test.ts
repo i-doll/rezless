@@ -16,6 +16,7 @@ const OTHER = '00000000-0000-0000-0000-00000000000b'
 const DEBUG_CHANNEL = 2147483647
 const ROOT = 'probe issue-587 root'
 const SUFFIX = ` {RootName ${ROOT}, RootPosition { 116, 50, 1997.5 }}`
+const FLOOD = 'Too many errors... dropping further messages until the flood stops'
 const TAKE = 'Script trying to take controls from owner but PERMISSION_TAKE_CONTROLS permission not set!'
 
 const probe = `
@@ -134,7 +135,7 @@ describe('camera errors from a child prim', () => {
 describe('pathfinding errors from a child prim', () => {
   // In-world: llNavigateTo, llExecCharacterCmd and llWanderWithin in the child prim with no
   // character each told the owner "You must call llCreateCharacter before <name>.", said by
-  // the root prim (its name and key), with no suffix.
+  // the root prim, under its name and key, with no suffix.
   it('are said by the root, without the suffix', async () => {
     const { made, s, call } = await scene()
     call('navigate')
@@ -146,5 +147,71 @@ describe('pathfinding errors from a child prim', () => {
       ['You must call llCreateCharacter before llExecPathingCmd.', root],
       ['You must call llCreateCharacter before llWanderWithin.', root],
     ])
+  })
+})
+
+describe('pathfinding errors from a child prim count for the root', () => {
+  const child = `
+    integer step;
+    default {
+      touch_start(integer n) { step = 0; llSetTimerEvent(6.0); }
+      timer() {
+        if (step == 0) llEvade(llGetOwner(), []);
+        else if (step == 1) llFleeFrom(llGetPos(), 5.0, []);
+        else if (step == 2) llPatrolPoints([llGetPos(), llGetPos() + <1, 0, 0>], []);
+        else if (step == 3) llPursue(llGetOwner(), []);
+        else if (step == 7) {
+          integer i;
+          for (i = 0; i < 8; ++i) llNavigateTo(llGetPos() + <1, 0, 0>, []);
+          llMessageLinked(LINK_ROOT, 0, "rez", "");
+        }
+        else if (step > 7) llSetTimerEvent(0);
+        ++step;
+      }
+    }
+  `
+  const root = `
+    default {
+      link_message(integer s, integer n, string m, key id) {
+        llRezObject("nosuch", llGetPos(), ZERO_VECTOR, ZERO_ROTATION, 0);
+        llRezObject("nosuch", llGetPos(), ZERO_VECTOR, ZERO_ROTATION, 0);
+      }
+      touch_start(integer n) { llRezObject("nosuch", llGetPos(), ZERO_VECTOR, ZERO_ROTATION, 0); }
+    }
+  `
+
+  // In-world: llEvade, llFleeFrom, llPatrolPoints and llPursue from the child prim, 6 s apart, were
+  // each said by the root with no suffix. 24 s later the child made eight llNavigateTo calls at
+  // once, all said by the root, and then the root's script tried to rez a missing item twice:
+  // neither "Could not find object" nor the flood notice came. 40 s later a single missing-item
+  // rez from the root said "Could not find object 'nosuch issue-587'.".
+  it('so a burst of them stops the root\'s own errors', async () => {
+    const world = new World({ autoGrantPermissions: 'none' })
+    world.addRegion('home', { x: 0, y: 0 })
+    world.addAvatar({ region: 'home', key: OWNER, username: 'owner', position: { x: 115, y: 50, z: 1997.5 } })
+    const made = await loadLinkset({ world, region: 'home', owner: OWNER, position: { x: 116, y: 50, z: 1997.5 },
+      prims: [{ name: ROOT, scripts: [{ name: 'root', source: { source: root } }] },
+        { position: { x: 0.6, y: 0, z: 0 }, scripts: [{ name: 'child', source: { source: child } }] }] })
+    const c = made.scripts['child']!
+    const r = made.scripts['root']!
+    c.start()
+    r.start()
+    made.linkset.touch(2, OWNER)
+    made.linkset.advanceTime(60_000)
+    const said = () => [...c.chat, ...r.chat].filter(l => l.channel === DEBUG_CHANNEL).map(l => l.text)
+    // In-world the flood notice did not come either; where it comes depends on when the region's
+    // 16 s periods start, which the model doesn't know.
+    expect(said().filter(t => t !== FLOOD)).toEqual([
+      'You must call llCreateCharacter before llEvade.',
+      'You must call llCreateCharacter before llFleeFrom.',
+      'You must call llCreateCharacter before llPatrolPoints.',
+      'You must call llCreateCharacter before llPursue.',
+      ...Array(8).fill('You must call llCreateCharacter before llNavigateTo.'),
+    ])
+    expect(made.linkset.prims[0]!.key).toBe(c.chat.find(l => l.text.includes('llEvade'))?.from)
+    made.linkset.advanceTime(40_000)
+    made.linkset.touch(1, OWNER)
+    made.linkset.advanceTime(2_000)
+    expect(said().at(-1)).toBe("Could not find object 'nosuch'.")
   })
 })
