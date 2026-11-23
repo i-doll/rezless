@@ -12,7 +12,7 @@ import { loadScript } from '../src/index.js'
 // sign, step by step: in vector.magnitude each square is flushed before the sum, so 1.1e-19 and
 // 1e-19 have the length of 1.1e-19 alone. A tiny value that is only read, compared, made
 // positive or square-rooted is kept: 1e-310 > 0 is true and math.sqrt(1e-310) is 1e-155.
-// A vector or quaternion keeps no part below the smallest normal float.
+// A vector or quaternion made from numbers keeps no part below the smallest normal float.
 const PROBE = `
 local function f(x) return string.format("%.9g", x) end
 local function s(x)
@@ -191,11 +191,106 @@ const MEASURED = [
     'll_fabs310=0',
 ]
 
+const PROBE2 = `local function f(x) return string.format("%.9g", x) end
+local function s(x)
+  local t = typeof(x)
+  if t == "vector" then return \`<{f(x.x)},{f(x.y)},{f(x.z)}>\` end
+  if t == "quaternion" then return \`<{f(x.x)},{f(x.y)},{f(x.z)},{f(x.s)}>\` end
+  if t == "number" then return f(x) end
+  return tostring(x)
+end
+local N = tonumber
+local function V(a, b, c) return vector.create(N(a), N(b), N(c)) end
+local function Q(a, b, c, d) return quaternion(N(a), N(b), N(c), N(d)) end
+local buf = ""
+local function add(name, ok, val)
+  local item = name .. "=" .. (ok and s(val) or ("ERR " .. tostring(val)))
+  if #buf + #item > 700 then ll.OwnerSay(buf); buf = "" end
+  buf = buf .. item .. " | "
+end
+local function T(name, fn) add(name, pcall(fn)) end
+T("qmag", function() return quaternion.magnitude(Q("1e-19","0","0","0")) end)
+T("qmag2", function() return quaternion.magnitude(Q("1.1e-19","1e-19","0","0")) end)
+T("qdot", function() return quaternion.dot(Q("1e-19","0","0","0"), Q("1e-19","0","0","0")) end)
+T("qdot2", function() return quaternion.dot(Q("1e-19","0","0","1"), Q("1e-19","0","0","1")) end)
+T("qnorm", function() return quaternion.normalize(Q("1e-19","0","0","0")) end)
+T("qnorm2", function() return quaternion.normalize(Q("1e-19","1","0","0")) end)
+T("qslerp", function() return quaternion.slerp(Q("0","0","0","1"), Q("1e-19","0","0","1"), N("1e-20")) end)
+T("qslerp2", function() return quaternion.slerp(Q("1e-37","0","0","1"), Q("0","0","0","1"), N("0.99")) end)
+T("qadd", function() return Q("1.5e-38","0","0","1") - Q("1.4e-38","0","0","1") end)
+T("rot1", function() return V("1e19","0","0") * Q("7e-20","7e-20","0","1") end)
+T("rot2", function() return V("1","0","0") * Q("1e-19","1e-19","0","1") end)
+T("rot3", function() return V("1e19","1e19","1e19") * Q("7e-20","0","7e-20","1") end)
+T("rot4", function() return V("1e19","0","0") / Q("7e-20","7e-20","0","1") end)
+T("idiv", function() return N("-1e-300") // N("1e10") end)
+T("mod", function() return N("-1e-300") % N("1e10") end)
+T("mod2", function() return N("1e-300") % N("-1e10") end)
+T("idiv2", function() return N("1e-300") // N("-1e10") end)
+T("lerp", function() return math.lerp(N("0"), N("1e-300"), N("1e-10")) end)
+T("map", function() return math.map(N("1e-300"), N("0"), N("1"), N("0"), N("1e-10")) end)
+T("unm", function() return -N("1e-310") end)
+T("pow", function() return N("1e-160") ^ N("2") end)
+T("pow3", function() return N("1e-110") ^ N("3") end)
+T("powh", function() return N("1e-310") ^ N("0.5") end)
+T("for", function() local out = {} for i = N("-2e-308"), N("1"), N("1e-308") do table.insert(out, f(i)) if #out >= 3 then break end end return table.concat(out, ",") end)
+T("tovec", function() return tovector("<1e-40, 0, 0>") end)
+T("toquat", function() return toquaternion("<1e-40, 0, 0, 1>") end)
+T("floor", function() return math.floor(N("-1e-310")) end)
+T("vfloordiv", function() return V("-1e-30","1","1") // N("1e10") end)
+T("vmodn", function() return V("-1e-30","1","1") % N("1e10") end)
+ll.OwnerSay(buf .. "END")
+`
+
+const MEASURED2 = [
+    'qmag=0',
+    'qmag2=1.10000003e-19',
+    'qdot=0',
+    'qdot2=1',
+    'qnorm=<0,0,0,1>',
+    'qnorm2=<9.99999968e-20,1,0,0>',
+    'qslerp=<0,0,0,1>',
+    'qslerp2=<0,0,0,1>',
+    'qadd=<0,0,0,0>',
+    'rot1=<9.99999998e+18,0,-1.39999998>',
+    'rot2=<1,1.99999987e-38,-1.99999994e-19>',
+    'rot3=<9.99999998e+18,9.99999998e+18,9.99999998e+18>',
+    'rot4=<9.99999998e+18,0,1.39999998>',
+    'idiv=-0',
+    'mod=-1e-300',
+    'mod2=1e-300',
+    'idiv2=-0',
+    'lerp=0',
+    'map=0',
+    'unm=-1e-310',
+    'pow=9.99988867e-321',
+    'pow3=0',
+    'powh=1e-155',
+    'for=-2e-308,-0,0',
+    'tovec=<9.9999461e-41,0,0>',
+    'toquat=<9.9999461e-41,0,0,1>',
+    'floor=-1',
+    'vfloordiv=<-1,0,0>',
+    'vmodn=ERR lua_script:47: invalid argument #2 to \'__mod\' (vector expected, got number)',
+]
+
 describe('SLua float and number arithmetic near zero', () => {
   it('flushes results below the smallest normal value to zero, as Second Life does', async () => {
     const s = await loadScript({ language: 'slua', filename: 'probe.luau', source: PROBE })
     s.start()
     const said = s.chat.map((c) => c.text).join('').split(' | ').filter((x) => x !== 'END')
     expect(said).toEqual(MEASURED)
+  })
+
+  // In-world: a second script, the same day and region, for quaternions, a vector times a
+  // rotation, //, %, math.lerp, math.map, powers, a for loop and string casts. Each step of
+  // quaternion.magnitude, quaternion.dot and a vector turned by a rotation is flushed, and so are
+  // the quotient inside // and %, the steps of math.lerp and math.map and the next index of a
+  // for loop. A power keeps a tiny result (1e-160 ^ 2 is 9.99988867e-321), and so does a float
+  // read from a string: tovector("<1e-40, 0, 0>") keeps 9.9999461e-41.
+  it('flushes quaternion, rotation, division and library steps, but not powers or string casts', async () => {
+    const s = await loadScript({ language: 'slua', filename: 'probe.luau', source: PROBE2 })
+    s.start()
+    const said = s.chat.map((c) => c.text).join('').split(' | ').filter((x) => x !== 'END')
+    expect(said).toEqual(MEASURED2)
   })
 })

@@ -927,8 +927,9 @@ measured in November 2026, has that release's libraries and gave its
 answers for the list, math and string helpers SLua runs itself. SLua's
 `main` branch is different: it has an `integer` library and more in `math`
 and `buffer`, which the region measured didn't have. Arithmetic on numbers,
-vectors and quaternions turns a result below the smallest normal value into
-zero, as Second Life's does: `vector.magnitude(vector(1e-19, 0, 0))` is 0.
+vectors and quaternions, other than a power, turns a result below the smallest
+normal value into zero, as Second Life's does:
+`vector.magnitude(vector(1e-19, 0, 0))` is 0.
 
 ```ts
 const s = await loadScript('./greeter.luau') // .lua / .luau files load as SLua
