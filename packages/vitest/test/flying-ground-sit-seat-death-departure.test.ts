@@ -201,9 +201,20 @@ describe('a teleport while flying', () => {
   it('keeps hovering after the teleport', async () => {
     const f = await fixture()
     f.fly()
+    f.watcher.script.setAnimationState(OWNER, 'Flying')
     expect(f.world.teleportAvatar(f.avatar, { x: 120, y: 52, z: 30 })).toBe(true)
     f.advance(0)
     expect(steps(watch(f.watcher, f.advance, 3000))).toEqual([[AGENT_FLYING | AGENT_IN_AIR, 'Hovering']])
+  })
+
+  it('keeps hovering when it takes off during the fall from an earlier teleport', async () => {
+    const f = await fixture()
+    expect(f.world.teleportAvatar(f.avatar, { x: 120, y: 52, z: 30 })).toBe(true)
+    f.advance(100)
+    f.fly()
+    expect(f.world.teleportAvatar(f.avatar, { x: 100, y: 52, z: 30 })).toBe(true)
+    f.advance(0)
+    expect(steps(watch(f.watcher, f.advance, 2000))).toEqual([[AGENT_FLYING | AGENT_IN_AIR, 'Hovering']])
   })
 
   it('hovers after a teleport from a ground sit that kept AGENT_FLYING', async () => {

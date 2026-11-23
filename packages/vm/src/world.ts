@@ -834,7 +834,7 @@ export class World {
     return departure && this.clock.now < departure.until && avatar.region !== region ? departure.info : undefined
   }
 
-  /** @internal A teleport: stand the avatar, move it with its animations, and let it fall. */
+  /** @internal A teleport: stand the avatar, move it with its animations, and let it fall unless it flies. */
   relocateAvatar(avatar: WorldAvatar, region: string, position: Vector): void {
     this.unseat(avatar, null)
     this.avatarCameras.delete(avatar)
