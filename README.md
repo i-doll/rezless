@@ -1199,11 +1199,12 @@ under `rez`, `edit` or an edit lock on the object. Kokua refuses a take under `r
 `linkset.copy()` and `llDerezObject` are the simulator's side and take no notice of the viewer.
 
 `linkset.duplicate(offset)` is a shift-drag copy: a new object at the original's place plus
-`offset`, whose scripts start from the top with `state_entry` and no `on_rez`. An avatar
-sitting on the original stays there. `linkset.dropFromAvatar(position)` drops a worn object
-to the ground, at `position` or where its wearer stands. It keeps its key and its scripts'
-state, they get `attach(NULL_KEY)`, the region counts its scripts again, and RLV
-restrictions it set stay in force.
+`offset`, whose scripts start from the top with `state_entry` and no `on_rez` (a stopped
+script stays stopped until it is started). An avatar sitting on the original stays there.
+`linkset.dropFromAvatar(position)` drops a worn object to the ground, at `position` or where
+its wearer stands. It keeps its key and its scripts' state, they get `attach(NULL_KEY)`, the
+region counts its scripts again, its inventory item is gone, and RLV restrictions it set stay
+in force. A temporary attachment has no item to drop, so it stays worn.
 
 
 `acceptpermission` answers complete covered `llRequestPermissions` requests and

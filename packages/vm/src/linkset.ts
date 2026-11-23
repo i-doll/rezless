@@ -292,11 +292,12 @@ export class Linkset {
    * copy. The copy's scripts start from the top, and an avatar sitting on the original stays.
    */
   duplicate(offset: Vector = ZERO_VECTOR): Linkset {
-    if (this.dead || this.attachment || !this.prims.length) throw new Error('duplicate: only a rezzed object can be copied')
+    if (this.dead || this.attachment || !this.prims.length || !this.peers.includes(this)) throw new Error('duplicate: only a rezzed object can be copied')
     const region = this.region
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)
-    this.fill(copy, (script, prim) => script.copyTo(prim, { fresh: true }))
+    // In-world: the copy of a stopped script was stopped too. Started, it ran state_entry.
+    this.fill(copy, (script, prim) => Object.assign(script.copyTo(prim, { fresh: true }), { running: script.running }))
     const root = copy.prims[0]!.params
     root.position = { x: root.position.x + offset.x, y: root.position.y + offset.y, z: root.position.z + offset.z }
     // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
@@ -309,13 +310,17 @@ export class Linkset {
   /**
    * Drop a worn object to the ground, as the viewer's Drop does: at `position`, or where its
    * wearer stands. It keeps its key, its scripts run on and get attach(NULL_KEY), the region
-   * counts its scripts again, and RLV restrictions it set stay in force.
+   * counts its scripts again, and RLV restrictions it set stay in force. Its inventory item is
+   * gone. The viewer offers no Drop for a temporary attachment, which has no item.
    */
   dropFromAvatar(position?: Vector): void {
     const attached = this.attachment
-    if (!attached) return
+    if (!attached || attached.temporary || this.dead) return
     const wearer = this.world?.avatars.find(avatar => avatar.key.toLowerCase() === attached.avatar.toLowerCase())
-    if (wearer) this.rezRegion = wearer.region
+    if (wearer) {
+      this.rezRegion = wearer.region
+      wearer.viewer.inventory.forgetAttachment(this)
+    }
     const at = position ?? wearer?.position
     if (at) this.prims[0]!.params.position = { ...at }
     this.attachment = null

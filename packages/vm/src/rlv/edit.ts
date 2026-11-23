@@ -2,7 +2,7 @@ import { CHANGED_OWNER, PERM_COPY, PERM_TRANSFER } from '../generated/constants.
 import { forNextOwner, nextOwnerMask } from '../inventory.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
-import type { Vector } from '../values/types.js'
+import { NULL_KEY, type Vector } from '../values/types.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { ViewerProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
@@ -111,7 +111,7 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   // In-world: another avatar could take a copy once the object and the script in it could be
   // copied by everyone. With the script left as it was, the object read as no-copy to them.
   const foreign = linkset.owner.toLowerCase() !== avatar.key.toLowerCase()
-  if (foreign && !(copy && copyableByEveryone(linkset))) return record('unsupported', 'owner')
+  if (foreign && !(copy && linkset.owner !== NULL_KEY && copyableByEveryone(linkset))) return record('unsupported', 'owner')
   const seated = avatar.sittingOn?.linkset === linkset
   if (seated && !copy) return record('unsupported', 'seated')
   const { profile } = avatar.viewer
@@ -119,7 +119,7 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   const named = (...behaviours: string[]) => rules.filter(rule => !rule.option && behaviours.includes(rule.behaviour))
   // RLVa looks at the object only while edit, rez or unsit is set, or any object is edit-locked.
   const checked = named('edit', 'rez', 'unsit').length > 0 || rules.some(rule => rule.behaviour === 'editobj')
-  const pieMenu = profile === 'rlva' ? rlvaPieMenuDenials(world, avatar, linkset.prims[0]!) : []
+  const pieMenu = profile === 'rlva' ? rlvaPieMenuDenials(world, avatar, prim) : []
   const denials = pieMenu.length ? pieMenu : copy
     ? profile === 'rlva' && seated ? named('unsit') : []
     : profile !== 'rlva' ? named('rez')

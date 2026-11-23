@@ -130,10 +130,28 @@ describe('a shift-drag copy', () => {
     expect(cost(copy.allScripts().find(s => s.scriptName === 's0')!)).toBe(0.75)
   })
 
+  // In-world: a copy of a box whose script had been set not running had a stopped script and
+  // logged nothing. Set running, it logged state_entry with its counter at 1.
+  it('keeps a stopped script stopped until it is started', async () => {
+    const f = await fixture()
+    const stopped = await box(f)
+    stopped.script.running = false
+    const copy = stopped.linkset.duplicate()
+    copy.advanceTime(100)
+    const script = copy.allScripts()[0]!
+    expect(script.running).toBe(false)
+    expect(log(script)).toEqual([])
+    script.running = true
+    copy.advanceTime(100)
+    expect(log(script)).toEqual(['start'])
+  })
+
   it('copies only a rezzed object', async () => {
     const f = await fixture()
     const worn = await box(f)
     worn.linkset.attachToAvatar(OWNER, 5)
+    expect(() => worn.linkset.duplicate()).toThrow('only a rezzed object')
+    worn.linkset.detachFromAvatar()
     expect(() => worn.linkset.duplicate()).toThrow('only a rezzed object')
   })
 })
@@ -189,12 +207,31 @@ describe('wearing a rezzed object and dropping it', () => {
     expect(f.avatar.viewer.restrictions.snapshot().map(r => r.behaviour)).toEqual(['fly', 'sendim'])
   })
 
-  it('does nothing to an object that is not worn', async () => {
+  // In-world: the item the object was worn from was gone from inventory after the drop.
+  it('takes the object out of its wearer\'s inventory', async () => {
+    const f = await fixture()
+    const worn = await box(f)
+    seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'worn', kind: 'item', parentId: null, name: 'probe', object: worn.linkset, assetType: 'object' }] })
+    worn.linkset.attachToAvatar(OWNER, 1)
+    f.avatar.viewer.inventory.rememberAttachment('worn', worn.linkset)
+    worn.linkset.dropFromAvatar()
+    expect(f.avatar.viewer.inventory.attachmentItem(worn.linkset.prims[0]!.key)).toBeUndefined()
+    expect(f.avatar.viewer.inventory.attachmentObject('worn')).toBeUndefined()
+    expect(f.avatar.viewer.inventory.snapshot()).toEqual([])
+  })
+
+  // Firestorm offers Drop only for an attachment with an inventory item, which a temporary
+  // attachment does not have (llviewermenu.cpp, LLAttachmentEnableDrop).
+  it('does nothing to an object that is not worn or is worn for now', async () => {
     const f = await fixture()
     const rezzed = await box(f)
     rezzed.linkset.dropFromAvatar()
-    rezzed.linkset.advanceTime(100)
+    const temporary = await box(f)
+    temporary.linkset.attachToAvatar(OWNER, 1, true)
+    temporary.linkset.dropFromAvatar()
+    f.world.clock.advance(100)
     expect(log(rezzed.script)).toEqual(['start'])
+    expect(temporary.linkset.attachment).not.toBeNull()
   })
 })
 
