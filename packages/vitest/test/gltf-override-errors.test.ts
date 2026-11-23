@@ -260,8 +260,8 @@ describe('llSetLinkGLTFOverrides from SLua with a boolean', () => {
     expect((await run('{OVERRIDE_GLTF_ROUGHNESS_FACTOR, false}')).global('after')).toBe(`${t}, 0`)
   })
 
-  // rezless reads the whole number back as 1; Second Life's SLua shows 1.000000.
-  it.fails('true reads back as 1.000000', async () => {
+  // Second Life stores a metallic factor of 1 as 1 - 2^-23, which prints as 1.000000 (gltf-override-defaults.test.ts).
+  it('true reads back as 1.000000', async () => {
     expect((await run(`{${M}, true}`)).global('after')).toBe(`${t}1.000000, `)
   })
 })

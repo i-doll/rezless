@@ -229,13 +229,13 @@ describe('prim-params helpers', () => {
       const p = freshPrim()
       writePrimParam(p, PRIM_RENDER_MATERIAL, [0, MAT], 0)
       writePrimParam(p, PRIM_GLTF_BASE_COLOR, [
-        0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.5, 1,
+        0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.25, 1,
       ], 0)
       writePrimParam(p, PRIM_GLTF_NORMAL, [0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0], 0)
       writePrimParam(p, PRIM_GLTF_METALLIC_ROUGHNESS, [0, KEY_B, v(1, 1, 0), v(0, 0, 0), 0, 0.4, 0.6], 0)
       writePrimParam(p, PRIM_GLTF_EMISSIVE, [0, KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(0.1, 0.2, 0.3)], 0)
       expect(readPrimParam(p, PRIM_GLTF_BASE_COLOR, [0], 0)?.values).toEqual([
-        KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.5, 1,
+        KEY_A, v(1, 1, 0), v(0, 0, 0), 0, v(1, 0, 0), 0.7, 0, 0.25, 1,
       ])
       expect(readPrimParam(p, PRIM_GLTF_METALLIC_ROUGHNESS, [0], 0)?.values).toEqual([
         KEY_B, v(1, 1, 0), v(0, 0, 0), 0, 0.4, 0.6,

@@ -356,6 +356,22 @@ export function rejectGltfOverrides(params: ReadonlyArray<LslValue>): string | n
   return null
 }
 
+/** FLT_EPSILON, 2^-23. */
+const EPSILON = 2 ** -23
+
+// An override equal to the material's default would read as no override, so Second Life moves it off the
+// default by FLT_EPSILON. Metallic and roughness stop that far short of 1 whatever the value.
+const unitFactor = (v: number) => clamp(v, 0, 1 - EPSILON)
+const alphaCutoff = (v: number) => {
+  const c = clamp(v, 0, 1)
+  return c === 0.5 ? 0.5 - EPSILON : c
+}
+const baseAlpha = (color: Vector, alpha: number) => (alpha === 1 && color.x === 1 && color.y === 1 && color.z === 1 ? 1 - EPSILON : alpha)
+const emissiveTint = (v: Vector): Vector => {
+  const c = clampVec(v, 0, 1)
+  return c.x === 0 && c.y === 0 && c.z === 0 ? { ...c, x: EPSILON } : c
+}
+
 /**
  * Apply llSetLinkGLTFOverrides' [OVERRIDE_GLTF_*, value, ...] pairs, already
  * checked by rejectGltfOverrides. The base colour and alpha form one factor
@@ -380,13 +396,14 @@ export function setGltfOverrides(g: PrimFace['gltf'], params: ReadonlyArray<LslV
         }
         break
       case OVERRIDE_GLTF_BASE_ALPHA_MODE: bc.alphaMode = n === '' ? '' : clamp(n, 0, 2); break
-      case OVERRIDE_GLTF_BASE_ALPHA_MASK: bc.alphaCutoff = n === '' ? '' : clamp(n, 0, 1); break
+      case OVERRIDE_GLTF_BASE_ALPHA_MASK: bc.alphaCutoff = n === '' ? '' : alphaCutoff(n); break
       case OVERRIDE_GLTF_BASE_DOUBLE_SIDED: bc.doubleSided = n === '' ? '' : clamp(n, 0, 1); break
-      case OVERRIDE_GLTF_METALLIC_FACTOR: g.metallicRoughness.metallic = n === '' ? '' : clamp(n, 0, 1); break
-      case OVERRIDE_GLTF_ROUGHNESS_FACTOR: g.metallicRoughness.roughness = n === '' ? '' : clamp(n, 0, 1); break
-      case OVERRIDE_GLTF_EMISSIVE_FACTOR: g.emissive.tint = isVector(v) ? clampVec(asVec(v), 0, 1) : ''; break
+      case OVERRIDE_GLTF_METALLIC_FACTOR: g.metallicRoughness.metallic = n === '' ? '' : unitFactor(n); break
+      case OVERRIDE_GLTF_ROUGHNESS_FACTOR: g.metallicRoughness.roughness = n === '' ? '' : unitFactor(n); break
+      case OVERRIDE_GLTF_EMISSIVE_FACTOR: g.emissive.tint = isVector(v) ? emissiveTint(asVec(v)) : ''; break
     }
   }
+  if (bc.color !== '' && bc.alpha !== '') bc.alpha = baseAlpha(bc.color, bc.alpha)
 }
 
 export function defaultShape(): PrimShape {
@@ -830,11 +847,12 @@ export function writePrimParam(
       const color = rules[cursor + 5]
       const alpha = rules[cursor + 6]
       const factor = color !== '' || alpha !== ''
+      const c = color === '' ? one() : clampVec(asVec(color), 0, 1)
       writeGltf(prim, caller, rules, cursor, 'baseColor', {
-        color: factor ? (color === '' ? one() : clampVec(asVec(color), 0, 1)) : '',
-        alpha: factor ? clamp(num(alpha, 1), 0, 1) : '',
+        color: factor ? c : '',
+        alpha: factor ? baseAlpha(c, clamp(num(alpha, 1), 0, 1)) : '',
         alphaMode: valueOverride(rules[cursor + 7], (v) => clamp(num(v) | 0, 0, 2)),
-        alphaCutoff: valueOverride(rules[cursor + 8], (v) => clamp(num(v), 0, 1)),
+        alphaCutoff: valueOverride(rules[cursor + 8], (v) => alphaCutoff(num(v))),
         doubleSided: valueOverride(rules[cursor + 9], (v) => clamp(num(v) | 0, 0, 1)),
       })
       return 10
@@ -844,12 +862,12 @@ export function writePrimParam(
       return 5
     case PRIM_GLTF_METALLIC_ROUGHNESS:
       writeGltf(prim, caller, rules, cursor, 'metallicRoughness', {
-        metallic: valueOverride(rules[cursor + 5], (v) => clamp(num(v), 0, 1)),
-        roughness: valueOverride(rules[cursor + 6], (v) => clamp(num(v), 0, 1)),
+        metallic: valueOverride(rules[cursor + 5], (v) => unitFactor(num(v))),
+        roughness: valueOverride(rules[cursor + 6], (v) => unitFactor(num(v))),
       })
       return 7
     case PRIM_GLTF_EMISSIVE:
-      writeGltf(prim, caller, rules, cursor, 'emissive', { tint: valueOverride(rules[cursor + 5], (v) => clampVec(asVec(v), 0, 1)) })
+      writeGltf(prim, caller, rules, cursor, 'emissive', { tint: valueOverride(rules[cursor + 5], (v) => emissiveTint(asVec(v))) })
       return 6
     case PRIM_LINK_TARGET:
       return null
