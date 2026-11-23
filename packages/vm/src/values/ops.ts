@@ -382,6 +382,18 @@ export function mulRotation(a: Rotation, b: Rotation): Rotation {
   return hamilton(b, a)
 }
 
+/** `a * b` in single precision, each product and sum rounded to a float, as a prim's rotation is turned by its root's. */
+export function mulRotationF32(a: Rotation, b: Rotation): Rotation {
+  const f = Math.fround
+  const p = (x: number, y: number) => f(f(x) * f(y))
+  return rot(
+    f(f(f(p(b.s, a.x) + p(b.x, a.s)) + p(b.y, a.z)) - p(b.z, a.y)),
+    f(f(f(p(b.s, a.y) - p(b.x, a.z)) + p(b.y, a.s)) + p(b.z, a.x)),
+    f(f(f(p(b.s, a.z) + p(b.x, a.y)) - p(b.y, a.x)) + p(b.z, a.s)),
+    f(f(f(p(b.s, a.s) - p(b.x, a.x)) - p(b.y, a.y)) - p(b.z, a.z)),
+  )
+}
+
 function hamilton(a: Rotation, b: Rotation): Rotation {
   return rot(
     a.s * b.x + a.x * b.s + a.y * b.z - a.z * b.y,
