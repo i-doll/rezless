@@ -6,6 +6,7 @@ import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds } from './builtins/collision.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
+import { restepRezzedShape } from './prim-params.js'
 import type { Script } from './script.js'
 import { mergeLinksetData, type LinksetDataEntry } from './builtins/linksetdata.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
@@ -398,6 +399,7 @@ export class Linkset {
     const unseated = sitters.length > 0
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
     this.fill(copy, (script, prim) => script.copyTo(prim, { unseated, waiting }))
+    if (opts.world) for (const prim of copy.prims) restepRezzedShape(prim.params)
     copy.recountScripts()
     return copy
   }
