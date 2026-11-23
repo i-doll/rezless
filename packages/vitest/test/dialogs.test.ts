@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset, loadScript, World, type Vector } from '../src/index.js'
 
-// Measured on Aditi (SLua Tideland, 2026-10-31) with the headless viewer as i Doll,
-// answering dialogs through notifications.respond.
+// Measured on Aditi (SLua Tideland, 2026-10-31) with a Firestorm viewer as i Doll,
+// answering each dialog the way a user would.
 
 const OWNER = '00000000-0000-0000-0000-00000000000a'
 const DEBUG_CHANNEL = 2147483647
@@ -200,6 +200,19 @@ describe('llTextBox', () => {
     s.linkset.touch(0)
     s.answerDialog(answer)
     expect(s.global('heard')).toEqual([-5, '', OWNER, answer])
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): answering with 300 "a" -> listen heard 254
+  // characters; with 253 "a" and an "é" (255 bytes) -> 253 characters. The viewer sends at
+  // most 254 bytes of a text box answer and cuts before a character that would not fit.
+  it.each([
+    ['300 one-byte characters', 'a'.repeat(300), 'a'.repeat(254)],
+    ['253 bytes and a two-byte character', 'a'.repeat(253) + 'é', 'a'.repeat(253)],
+  ])('cuts an answer of %s to 254 bytes', async (_name, answer, heard) => {
+    const s = await load('llTextBox(llGetOwner(), "Your name?", -5);')
+    s.linkset.touch(0)
+    s.answerDialog(answer)
+    expect(s.global('heard')).toEqual([-5, '', OWNER, heard])
   })
 
   it('sends an empty answer as an empty message', async () => {

@@ -145,8 +145,8 @@ export class Prim {
   cameraEyeOffset: Vector = { ...ZERO_VECTOR }
   cameraAtOffset: Vector = { ...ZERO_VECTOR }
   forceMouselook = false
-  /** llSetPayPrice arguments as the script passed them, or null if never called. */
-  payPrice: { price: number; buttons: LslValue[] } | null = null
+  /** The price and four quick pay buttons the Pay dialog gets, or null if llSetPayPrice never ran. */
+  payPrice: { price: number; buttons: number[] } | null = null
   /** UUIDs of the object animations this prim's scripts started. */
   readonly objectAnimations = new Set<string>()
   /** Shared media state per face; absent entries have no media. */
