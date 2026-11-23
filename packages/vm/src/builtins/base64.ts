@@ -14,15 +14,17 @@ export const llStringToBase64: BuiltinImpl = (_ctx, args) => {
 
 export const llBase64ToString: BuiltinImpl = (_ctx, args) => {
   const s = (args[0] as string | undefined) ?? ''
-  return decodeBase64Utf8(Buffer.from(s, 'base64'))
+  const bytes = Buffer.from(s, 'base64')
+  return decodeBase64Utf8(bytes.at(-1) === 0 ? bytes.subarray(0, -1) : bytes)
 }
 
 const MIN_CODE_POINT = [0, 0, 0x80, 0x800, 0x10000]
 
 /**
  * UTF-8 decode as llBase64ToString does it: a sequence cut short, or an
- * overlong one, becomes a single `?`; a surrogate or a code point past
- * U+10FFFF becomes one `?` per byte. NUL becomes `?` too.
+ * overlong one, becomes a single `?`; a surrogate, a code point past
+ * U+10FFFF, a stray continuation byte and a byte from F8 to FF become one
+ * `?` per byte. NUL becomes `?` too, except as the last byte, which is dropped.
  */
 function decodeBase64Utf8(bytes: Uint8Array): string {
   let out = ''

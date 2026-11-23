@@ -588,11 +588,31 @@ describe('llBase64ToString replacement characters', () => {
     ['9JCAgEE=', 'F4 90 80 80 41', '????A'],
     ['+IiAgIBB', 'F8 88 80 80 80 41', '?????A'],
     ['/kE=', 'FE 41', '?A'],
+    ['9YCAgEE=', 'F5 80 80 80 41', '????A'],
+    ['97+/vw==', 'F7 BF BF BF', '????'],
+    ['4gBB', 'E2 00 41', '??A'],
     ['4oKs', 'E2 82 AC', '€'],
     ['woBB', 'C2 80 41', '\u0080A'],
     ['77+/QQ==', 'EF BF BF 41', '\uFFFFA'],
     ['4p+/QQ==', 'E2 9F BF 41', '\u27FFA'],
   ])('llBase64ToString(%j), bytes %s, is %j', async (input, _bytes, want) => {
+    const s = await run(`string out; default { state_entry() { out = llBase64ToString("${input}"); } }`)
+    expect(s.global('out')).toBe(want)
+  })
+
+  // In-world: a NUL as the last byte is dropped, while one before it reads ?: "AA==" gave "",
+  // "YQA=" gave "a", "YQAA" gave "a?" and "4oIA" (E2 82 00) gave "?" (Aditi, SLua Tideland, 2026-11-23).
+  it.each([
+    ['AA==', '00', ''],
+    ['YQA=', '61 00', 'a'],
+    ['YQAA', '61 00 00', 'a?'],
+    ['AEE=', '00 41', '?A'],
+    ['wAA=', 'C0 00', '?'],
+    ['wABB', 'C0 00 41', '??A'],
+    ['4gA=', 'E2 00', '?'],
+    ['gAA=', '80 00', '?'],
+    ['4oIA', 'E2 82 00', '?'],
+  ])('llBase64ToString(%j), bytes %s, drops only a final NUL: %j', async (input, _bytes, want) => {
     const s = await run(`string out; default { state_entry() { out = llBase64ToString("${input}"); } }`)
     expect(s.global('out')).toBe(want)
   })
