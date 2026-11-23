@@ -2287,7 +2287,8 @@ answers for the list, math and string helpers SLua runs itself. SLua's
 and `buffer`, which the region measured didn't have. Arithmetic on numbers,
 vectors and quaternions, other than a power, turns a result below the smallest
 normal value into zero, as Second Life's does:
-`vector.magnitude(vector(1e-19, 0, 0))` is 0.
+`vector.magnitude(vector(1e-19, 0, 0))` is 0. Functions in the `math` library keep
+such a result: `math.exp(-710)` is 4.47628623e-309.
 
 ```ts
 const s = await loadScript('./greeter.luau') // .lua / .luau files load as SLua
