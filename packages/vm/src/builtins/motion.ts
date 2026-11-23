@@ -94,6 +94,16 @@ function settleLater(linkset: Linkset, state: PhysicalMotion): void {
   })
 }
 
+/**
+ * The object's motion state, which a velocity read now also counts as moving: an object made
+ * physical some other way, or a copy rezzed with a velocity, moves as its velocity says.
+ */
+function motionOf(linkset: Linkset): PhysicalMotion {
+  const state = physicalMotion.get(linkset) ?? { moving: false }
+  state.moving ||= !still(velocityOf(linkset))
+  return state
+}
+
 /** A copy keeps the original's motion state; a settle under way starts again in the copy. */
 export function copyPhysicalMotion(from: Linkset, to: Linkset): void {
   const state = physicalMotion.get(from)
@@ -110,8 +120,7 @@ export function copyPhysicalMotion(from: Linkset, to: Linkset): void {
 export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
   const root = linkset.prims[0]
   if (!root || !!(root.statusFlags & STATUS_PHYSICS) === wasPhysical) return
-  // A copy of a physical object has no state of its own yet: its velocity says whether it moves.
-  const before = physicalMotion.get(linkset) ?? { moving: !still(velocityOf(linkset)) }
+  const before = motionOf(linkset)
   before.settle?.()
   if (wasPhysical) {
     physicalMotion.delete(linkset)
@@ -136,13 +145,10 @@ export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
 export function setVelocity(linkset: Linkset, velocity: Vector): void {
   const root = linkset.prims[0]
   if (!root) return
-  const before = velocityOf(linkset)
+  if (!(root.statusFlags & STATUS_PHYSICS)) { root.physics.velocity = { ...velocity }; return }
+  const state = motionOf(linkset)
+  physicalMotion.set(linkset, state)
   root.physics.velocity = { ...velocity }
-  if (!(root.statusFlags & STATUS_PHYSICS)) return
-  // An object made physical some other way, or rezzed with a velocity, moves as its velocity says.
-  let state = physicalMotion.get(linkset)
-  if (!state) physicalMotion.set(linkset, state = { moving: false })
-  state.moving ||= !still(before)
   if (still(velocity)) { settleLater(linkset, state); return }
   state.settle?.()
   state.settle = undefined

@@ -251,6 +251,21 @@ it('keeps moving an object saved while it was settling and rezzed with a velocit
   expect((child.allScripts()[0]!.global('log') as string[]).at(-1)).toBe('end 0.000000')
 })
 
+it('ends a settled physical object rezzed with a velocity when its physics is switched off', async () => {
+  const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', source: { source: `
+    list log; default { state_entry() { llSetStatus(STATUS_PHYSICS, TRUE); }
+      on_rez(integer p) { llSetStatus(STATUS_PHYSICS, FALSE); }
+      moving_start() { log += "start"; } moving_end() { log += "end"; } }
+  ` } }] }] })
+  payload.scripts.child!.start()
+  payload.linkset.advanceTime(1_000)
+  const f = await fixture(`result=llRezObjectWithParams("payload", [REZ_POS,<0,0,2>,TRUE,TRUE,REZ_FLAGS,2,REZ_VEL,<3,0,0>,FALSE,FALSE]);`, payload.linkset)
+  f.parent.start()
+  const child = f.world.linksets[1]!
+  child.advanceTime(1_000)
+  expect(child.allScripts()[0]!.global('log')).toEqual(['start', 'end', 'end'])
+})
+
 // In-world: reliable.py cases 19-26 -> explicit flag bits, including unknown
 // bits, are accepted; source scripts saw physics/phantom before clearing physics.
 it.each([[0, false, 0, 0], [1, true, 0, 0], [2, false, 1, 0], [4, false, 0, 16], [128, false, 0, 0], [255, true, 1, 16], [256, false, 0, 0], [-1, true, 1, 16]])('sets flags %s before scripts start', async (flags, temp, physics, phantom) => {
