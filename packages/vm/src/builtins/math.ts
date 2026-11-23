@@ -225,10 +225,11 @@ const toSigned = (n: number, bits: number) => (Math.abs(n) < 2 ** (bits - 1) ? n
 /**
  * Second Life takes the whole turns off each llEuler2Rot angle in degrees, truncating them to a
  * 32-bit integer and multiplying them back as a float, takes one more turn off a rest past 180
- * degrees, then steps it to 1e-7 degrees through a 64-bit integer. Past about 5e6 radians the float
- * product is off by multiples of 8 degrees. A NaN or infinite angle, or one whose steps don't fit,
- * becomes the lowest step count, a turn of about 25.07 degrees. Turns that don't fit become -2^31,
- * which leaves too many steps for a positive angle but not for a negative one up to -2.7e10 radians.
+ * degrees either way, then steps it to 1e-7 degrees through a 64-bit integer. Past about 2.3e6
+ * radians the float product is off by multiples of 8 degrees. A NaN or infinite angle, or one whose
+ * steps don't fit, becomes the lowest step count, a turn of about 25.07 degrees. Turns that don't
+ * fit become -2^31, which leaves too many steps for a positive angle but not for a negative one
+ * down to about -2.9e10 radians.
  */
 function stepEuler(radians: number) {
   let degrees = radians * RAD_TO_DEG

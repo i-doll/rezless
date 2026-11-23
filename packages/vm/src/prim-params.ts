@@ -450,7 +450,7 @@ export function normalizeRot(r: Rotation): Rotation {
 /**
  * A rotation as PRIM_ROTATION and PRIM_ROT_LOCAL store it: Second Life's normalise in single
  * precision, which stores one of length 1e-7 or less as no rotation. One too long to square in
- * single precision keeps the rescale above.
+ * single precision, which wasn't measured, keeps the rescale above.
  */
 const storedRotation = (r: Rotation) => (Math.hypot(r.x, r.y, r.z, r.s) < 1.8e19 ? normalizeRotation(r) : normalizeRot(r))
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript } from '../src/index.js'
+import { loadLinkset, loadScript } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LlEuler2Rot
 // In-world: SLua Tideland on the Aditi beta grid, in 0.3 m boxes, with scripts compiled for Mono.
@@ -226,5 +226,86 @@ describe('PRIM_ROTATION and PRIM_ROT_LOCAL with a rotation near zero', () => {
     s.start()
     const want = cases.map(([, q]) => `${q}/${q}`)
     expect(said(s)).toEqual([...want, ...want])
+  })
+})
+
+describe('llEuler2Rot with a half turn and other turns', () => {
+  it('matches the grid to within a float', async () => {
+    // In-world (2026-11-23, Mono): PI is 180.0000025 degrees, past 180, so it comes out as a turn
+    // just short of -180 degrees and the rotation's sign follows from that: <PI, 1, PI_BY_TWO> gave
+    // the rotation rezless used to give negated. 2 of these match to the last bit and the rest
+    // within 1.2e-7, as other rotations do.
+    const want: Array<[string, string]> = [
+      ['<PI, 1, PI_BY_TWO>', '10411010p-24,-10411010p-24,11375123p-25,-11375123p-25'],
+      ['<0.5, 0.5, PI>', '16086854p-26,-16086853p-26,15750304p-24,-16430583p-28'],
+      ['<PI, PI, PI>', '0,0,0,8388608p-23'],
+      ['<-PI, 0.3, 0>', '16588826p-24,0,10028623p-26,0'],
+      ['<0.3, -PI, 0.2>', '13248952p-27,16505951p-24,9978521p-26,-16019117p-30'],
+      ['<PI, 0.2, 0.3>', '16505951p-24,-9978523p-26,13248955p-27,-16019022p-30'],
+      ['<0.2, 0.3, -PI>', '9978521p-26,-13248954p-27,16505951p-24,-16019117p-30'],
+      ['<3.1415925, 0.5, 0.5>', '15750304p-24,-16086853p-26,16086856p-26,-16430572p-28'],
+      ['<3.1415929, 0.5, 0.5>', '15750303p-24,-16086855p-26,16086852p-26,-16430612p-28'],
+      ['<1, PI, -2>', '12389308p-24,-15910163p-25,-8691762p-25,-13536623p-25'],
+      ['<-PI, -PI, 0.5>', '0,0,16255653p-24,-16603000p-26'],
+    ]
+    const got = (await euler2Rot(want.map(([v]) => v))).map((line) => line.split(',').map(fromExact))
+    const exact = want.filter(([, q], i) => q.split(',').map(fromExact).every((v, k) => Object.is(got[i]![k], v))).length
+    for (const [i, [v, q]] of want.entries()) {
+      for (const [k, x] of q.split(',').map(fromExact).entries()) expect(Math.abs(got[i]![k]! - x), v).toBeLessThan(1.2e-7)
+    }
+    expect(exact).toBe(2)
+  })
+
+  // In-world: <PI_BY_TWO, PI_BY_TWO, PI> gave <0.5, -0.5, 0.5, -0.5>. Every part is a half, so the
+  // matrix trace is about zero; rezless reads it as just positive, makes s positive and returns the
+  // same rotation negated. Which way the grid rounds the trace is open.
+  it.fails('gives the sign the grid gives when the trace is about zero', async () => {
+    expect(await euler2Rot(['<PI_BY_TWO, PI_BY_TWO, PI>'])).toEqual(['8388608p-24,-8388608p-24,8388608p-24,-8388608p-24'])
+  })
+})
+
+describe('a tiny rotation on a child prim', () => {
+  it('stores no rotation before PRIM_ROTATION turns it by the root, and llSetRot and llSetLocalRot do the same', async () => {
+    // In-world (2026-11-23, Mono, two linked 0.3 m boxes, the root turned 90 degrees about z): the
+    // child set each rotation from a turned start, through PRIM_ROTATION, PRIM_ROT_LOCAL, llSetRot
+    // and llSetLocalRot, and read llGetLocalRot and llGetRot. llSetRot gave what PRIM_ROTATION gave
+    // and llSetLocalRot what PRIM_ROT_LOCAL gave, so a tiny rotation is made none first and then
+    // turned by the root.
+    const cases: Array<[string, string, string]> = [
+      ['<0, 0, 0, 5e-8>', '0,0,11863283p-24,11863283p-24/0,0,16777215p-24,0', '0,0,0,8388608p-23/0,0,11863283p-24,11863283p-24'],
+      ['<5e-8, 5e-8, 5e-8, 5e-8>', '0,0,11863283p-24,11863283p-24/0,0,16777215p-24,0', '0,0,0,8388608p-23/0,0,11863283p-24,11863283p-24'],
+      ['<0, 0, 9e-8, 0>', '0,0,11863283p-24,11863283p-24/0,0,16777215p-24,0', '0,0,0,8388608p-23/0,0,11863283p-24,11863283p-24'],
+      ['<6e-8, 6e-8, 6e-8, 6e-8>', '0,11863283p-24,11863283p-24,0/-16777215p-25,16777215p-25,16777215p-25,-16777215p-25', '8388608p-24,8388608p-24,8388608p-24,8388608p-24/0,11863283p-24,11863283p-24,0'],
+      ['<0, 0, 1.1e-7, 0>', '0,0,11863283p-24,-11863283p-24/0,0,0,-16777215p-24', '0,0,8388608p-23,0/0,0,11863283p-24,-11863283p-24'],
+      ['<0, 0.6, 0, 0.80001>', '-14235827p-25,14235827p-25,9490670p-24,9490670p-24/-10066250p-24,0,13421834p-24,0', '0,10066250p-24,0,13421834p-24/-14235827p-25,14235827p-25,9490670p-24,9490670p-24'],
+      ['<0, 0, 0, 0>', '0,0,11863283p-24,11863283p-24/0,0,16777215p-24,0', '0,0,0,8388608p-23/0,0,11863283p-24,11863283p-24'],
+    ]
+    const { scripts } = await loadLinkset({ prims: [
+      { name: 'root', scripts: [] },
+      { name: 'child', scripts: [{ name: 'probe', source: { source: EXACT + `
+        list C = [${cases.map(([q]) => q).join(', ')}];
+        default {
+          state_entry() {
+            llSetLinkPrimitiveParamsFast(1, [PRIM_ROT_LOCAL, llEuler2Rot(<0, 0, PI_BY_TWO>)]);
+            integer mode;
+            for (mode = 0; mode < 4; ++mode) {
+              integer i;
+              for (i = 0; i < llGetListLength(C); ++i) {
+                llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_ROT_LOCAL, llEuler2Rot(<0.3, 0.2, 0.1>)]);
+                rotation q = llList2Rot(C, i);
+                if (mode == 0) llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_ROTATION, q]);
+                else if (mode == 1) llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_ROT_LOCAL, q]);
+                else if (mode == 2) llSetRot(q);
+                else llSetLocalRot(q);
+                llSay(0, BR(llGetLocalRot()) + "/" + BR(llGetRot()));
+              }
+            }
+          }
+        }` } }] },
+    ] })
+    scripts.probe!.start()
+    const global = cases.map(([, g]) => g)
+    const local = cases.map(([, , l]) => l)
+    expect(said(scripts.probe!)).toEqual([...global, ...local, ...global, ...local])
   })
 })
