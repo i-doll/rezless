@@ -76,12 +76,16 @@ export const llDeleteCharacter: BuiltinImpl = (ctx) => {
   return undefined
 }
 
-/** `said` is the name the simulator's error gives the function; only the owner sees that error. */
+/**
+ * `said` is the name the simulator's error gives the function; only the owner sees that error, and
+ * the root prim says it, whichever prim's script made the call.
+ */
 function command(name: string, said = name): BuiltinImpl {
   return (ctx, args) => {
-    const character = characters.get(ctx.linkset.prims[0]!)
+    const root = ctx.linkset.prims[0]!
+    const character = characters.get(root)
     if (!character) {
-      sayError(ctx, `You must call llCreateCharacter before ${said}.`, ctx.prim, false)
+      sayError(ctx, `You must call llCreateCharacter before ${said}.`, root, false)
       return undefined
     }
     character.commands.push({ name, args: structuredClone(args) })

@@ -61,12 +61,12 @@ export function sayError(ctx: CallContext, text: string, speaker: Link = ctx.pri
 /**
  * Say an error to the owner only. Said by any link but the root, a child
  * prim or a seated avatar, it ends with the root's name and position, or
- * the wearer's position for a worn object.
+ * the wearer's position for a worn object. `to` also sends it to that avatar.
  */
-export function sayOwnerError(ctx: CallContext, text: string, speaker: Link = ctx.prim): void {
+export function sayOwnerError(ctx: CallContext, text: string, speaker: Link = ctx.prim, to?: string): void {
   const root = ctx.linkset.prims[0]!
   // In-world: a worn object's suffix gives its wearer's position, whatever the root's offset.
   const at = ctx.linkset.wearer?.position ?? root.regionPosition()
   const suffix = speaker === root ? '' : ` {RootName ${root.name}, RootPosition { ${[at.x, at.y, at.z].map((v) => formatG(Math.fround(v))).join(', ')} }}`
-  sayError(ctx, text + suffix, speaker, false)
+  sayError(ctx, text + suffix, speaker, false, to)
 }
