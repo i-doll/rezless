@@ -250,4 +250,44 @@ describe('the owner deletes an item a prim is using', () => {
     // and then the material with face 3 using it. After waking it got one changed(4097).
     expect(sleeper.chat.map((c) => c.text)).toEqual(['woke', 'changed 4097'])
   })
+
+  it.each([
+    ['deleted before', 'the colour change', ['woke', 'changed 4099']],
+    ['deleted after', 'the colour change', ['woke', 'changed 4099']],
+  ])('merges a material %s %s during a sleep into one event', async (when, _what, expected) => {
+    const { linkset, prims, scripts } = await loadLinkset({
+      prims: [{
+        inventory: [item('mat', InventoryType.MATERIAL, MAT)],
+        scripts: [
+          {
+            name: 'sleeper',
+            source: { source: `default {
+              link_message(integer s, integer n, string m, key k) { llSleep(15.0); llSay(0, "woke"); }
+              changed(integer c) { llSay(0, "changed " + (string)c); }
+            }`, filename: 'sleeper.lsl' },
+          },
+          { name: 'col', source: { source: 'default { link_message(integer s, integer n, string m, key k) { llSetColor(<0.2, 0.4, 0.6>, ALL_SIDES); } }', filename: 'col.lsl' } },
+        ],
+      }],
+    })
+    const sleeper = scripts['sleeper']!
+    const col = scripts['col']!
+    sleeper.start()
+    col.start()
+    prims[0]!.params.faces[3]!.renderMaterial = MAT
+    linkset.clock.schedule(sleeper, linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
+    linkset.advanceTime(1_000)
+    const colour = () => {
+      linkset.clock.schedule(col, linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
+      linkset.advanceTime(1_000)
+    }
+    if (when === 'deleted after') colour()
+    prims[0]!.removeInventory('mat')
+    if (when === 'deleted before') colour()
+    linkset.advanceTime(20_000)
+    // In-world: a single prim whose script slept 15 s in a handler while the owner deleted the
+    // material on face 3 and a second script called llSetColor, in either order. After waking
+    // the sleeper got one changed(4099) both times.
+    expect(sleeper.chat.map((c) => c.text)).toEqual(expected)
+  })
 })
