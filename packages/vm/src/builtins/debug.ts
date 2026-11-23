@@ -25,13 +25,15 @@ export function flood(link: Link, now: number): 'open' | 'shuts' | 'refused' {
  * DEBUG_CHANNEL. `speaker` is the link that says it when that is not the
  * script's prim: another prim of the object, or an avatar seated on it.
  * With `heard` false only the owner sees it: scripts listening on
- * DEBUG_CHANNEL don't hear it.
+ * DEBUG_CHANNEL don't hear it. `to` also sends it to that avatar; the copy
+ * counts with the owner's towards the flood cap.
  */
-export function sayError(ctx: CallContext, text: string, speaker: Link = ctx.prim, heard = true): void {
+export function sayError(ctx: CallContext, text: string, speaker: Link = ctx.prim, heard = true, to?: string): void {
   const state = flood(speaker, ctx.state.clock.now)
   if (state === 'refused') return
   if (state === 'shuts' && heard) text = FLOOD
   ctx.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say', ...(speaker === ctx.prim ? {} : { from: speaker.key }) })
+  if (to) ctx.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say', to, ...(speaker === ctx.prim ? {} : { from: speaker.key }) })
   if (!heard) return
   if (isPrim(speaker)) ctx.linkset.routeChat(speaker, 'say', DEBUG_CHANNEL, text)
   else ctx.linkset.routeAvatarSay(speaker, DEBUG_CHANNEL, text)

@@ -16,7 +16,9 @@ import {
 // Measured on Aditi (SLua Tideland, 2026-10-31) with the headless viewer as i Doll,
 // sitting on a probe prim that requested the three permissions in changed()
 // (auto-granted, run_time_permissions(3076)) and a second prim listening on
-// DEBUG_CHANNEL. Control input itself (held keys, level and edge) was measured
+// DEBUG_CHANNEL. That prim heard none of the permission errors: they go to the owner only,
+// which a second run on 2026-11-23 read from the owner's chat (see permission-errors.test.ts).
+// Control input itself (held keys, level and edge) was measured
 // later with the viewer holding keys; see control-input.test.ts.
 
 const AGENT = '00000000-0000-0000-0000-00000000000a'
@@ -65,13 +67,14 @@ describe('llTakeControls', () => {
     expect(s.controls).toEqual({ controls: CONTROL_FWD | CONTROL_BACK, accept: true, passOn: false })
   })
 
-  it('does nothing, silently, without the permission', async () => {
+  it('takes nothing without the permission, and tells only the owner', async () => {
     const s = await load(`llTakeControls(${CONTROL_FWD}, TRUE, FALSE);`, null)
     s.linkset.touch(0)
-    // In-world: llTakeControls(CONTROL_FWD, TRUE, FALSE) with no permissions said
-    // nothing on DEBUG_CHANNEL, despite the wiki's "shout an error" (Aditi, SLua Tideland, 2026-10-31).
+    // In-world: llTakeControls(CONTROL_FWD, TRUE, FALSE) with no permissions said nothing a
+    // DEBUG_CHANNEL listener heard (Aditi, SLua Tideland, 2026-10-31); the owner got the error
+    // (Aditi, SLua Tideland, 2026-11-23).
     expect(s.controls).toBeNull()
-    expect(debugErrors(s)).toEqual([])
+    expect(debugErrors(s).map(c => c.text)).toEqual(['Script trying to take controls from owner but PERMISSION_TAKE_CONTROLS permission not set!'])
   })
 
   it('fires no control event when the controls are taken', async () => {
@@ -153,9 +156,9 @@ describe('llReleaseControls', () => {
     const s = await load(`llReleaseControls(); llTakeControls(${CONTROL_FWD}, TRUE, FALSE);`)
     s.linkset.touch(0)
     // In-world: llTakeControls after llReleaseControls left llGetPermissions() at 3072,
-    // silently (Aditi, SLua Tideland, 2026-10-31).
+    // and a DEBUG_CHANNEL listener heard nothing (Aditi, SLua Tideland, 2026-10-31).
     expect(s.controls).toBeNull()
-    expect(debugErrors(s)).toEqual([])
+    expect(perms(s)).toBe(PERMISSION_TRACK_CAMERA | PERMISSION_CONTROL_CAMERA)
   })
 
   it('without permission does nothing', async () => {
@@ -212,14 +215,13 @@ describe('camera reads', () => {
   // https://wiki.secondlife.com/wiki/LlGetCameraPos, LlGetCameraRot, LlGetCameraFOV, LlGetCameraAspect
   const reads = 'got = [llGetCameraPos(), llGetCameraRot(), llGetCameraFOV(), llGetCameraAspect()];'
 
-  it('return zero values, silently, without PERMISSION_TRACK_CAMERA', async () => {
+  it('return zero values without PERMISSION_TRACK_CAMERA', async () => {
     const s = await load(reads, PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA)
     s.setCamera({ pos: { x: 1, y: 2, z: 3 }, fov: 0.5 })
     s.linkset.touch(0)
-    // In-world: with no permissions, <0,0,0>, <0,0,0,1>, 0.0 and 0.0, no
-    // DEBUG_CHANNEL error (Aditi, SLua Tideland, 2026-10-31).
+    // In-world: with no permissions, <0,0,0>, <0,0,0,1>, 0.0 and 0.0, and a DEBUG_CHANNEL
+    // listener heard nothing (Aditi, SLua Tideland, 2026-10-31).
     expect(s.global('got')).toEqual([{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, s: 1 }, 0, 0])
-    expect(debugErrors(s)).toEqual([])
   })
 
   it('return the camera the test set', async () => {
@@ -268,13 +270,12 @@ describe('llSetCameraParams / llClearCameraParams', () => {
     expect(debugErrors(s)).toEqual([])
   })
 
-  it('does nothing, silently, without PERMISSION_CONTROL_CAMERA', async () => {
+  it('sets nothing without PERMISSION_CONTROL_CAMERA', async () => {
     const s = await load(`llSetCameraParams([${CAMERA_ACTIVE}, TRUE]);`, PERMISSION_TRACK_CAMERA)
     s.linkset.touch(0)
     // In-world: llSetCameraParams([CAMERA_ACTIVE, TRUE]) and llClearCameraParams() with no
-    // permissions said nothing on DEBUG_CHANNEL (Aditi, SLua Tideland, 2026-10-31).
+    // permissions said nothing a DEBUG_CHANNEL listener heard (Aditi, SLua Tideland, 2026-10-31).
     expect(s.cameraParams).toEqual(new Map())
-    expect(debugErrors(s)).toEqual([])
   })
 
   it('llClearCameraParams forgets every rule', async () => {

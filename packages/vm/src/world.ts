@@ -431,8 +431,8 @@ export class World {
   }
 
   /** Copy an object with the viewer's Duplicate as the avatar's viewer allows. */
-  attemptAvatarDuplicate(avatar: WorldAvatar, prim: Prim, offset?: Vector): AvatarDuplicateAction {
-    return attemptAvatarDuplicate(this, avatar, prim, offset)
+  attemptAvatarDuplicate(avatar: WorldAvatar, prim: Prim, offset?: Vector, clicked?: Vector): AvatarDuplicateAction {
+    return attemptAvatarDuplicate(this, avatar, prim, offset, clicked)
   }
 
   /**
