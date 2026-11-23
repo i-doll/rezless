@@ -4,7 +4,7 @@ import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds, playLandSound } from './builtins/collision.js'
-import { copyPhysicalMotion, queueMoving, setVelocity } from './builtins/motion.js'
+import { copyGivenMoving, copyPhysicalMotion, queueMoving, selectMotion, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import { restepRezzedShape } from './prim-params.js'
@@ -427,6 +427,7 @@ export class Linkset {
     if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY) || prim.inventory.some(item => !(item.permMask.owner & PERM_COPY)))) {
       throw new Error('duplicate: the object is no-copy')
     }
+    selectMotion(this)
     const region = this.region
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)
@@ -481,6 +482,7 @@ export class Linkset {
       for (const item of source.inventory) {
         if (item.script) {
           const script = copyScript(item.script, prim)
+          copyGivenMoving(item.script, script)
           Object.assign(prim.inventory.at(-1)!, { ...item, permMask: { ...item.permMask }, script })
         } else prim.placeInventory({ ...item, permMask: { ...item.permMask } })
       }

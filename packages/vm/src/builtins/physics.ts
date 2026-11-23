@@ -1,6 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector } from '../values/types.js'
 import { llGetVel as initialVelocity, llGetForce as rezForce } from './rez.js'
+import { setMoving } from './motion.js'
 
 export type PhysicsRequestName =
   | 'llSetBuoyancy' | 'llSetHoverHeight' | 'llGroundRepel' | 'llStopHover'
@@ -39,14 +40,31 @@ function capture(name: PhysicsRequestName): BuiltinImpl {
   }
 }
 
-export const llApplyImpulse = capture('llApplyImpulse')
 export const llApplyRotationalImpulse = capture('llApplyRotationalImpulse')
 export const llSetForce = capture('llSetForce')
 export const llSetTorque = capture('llSetTorque')
 export const llSetForceAndTorque = capture('llSetForceAndTorque')
 export const llSetVelocity = capture('llSetVelocity')
 export const llSetAngularVelocity = capture('llSetAngularVelocity')
-export const llPushObject = capture('llPushObject')
+
+const still = (v: Vector) => v.x === 0 && v.y === 0 && v.z === 0
+const impulse = capture('llApplyImpulse'), push = capture('llPushObject')
+
+/** An impulse sets a physical object at rest moving (see setMoving). */
+export const llApplyImpulse: BuiltinImpl = (ctx, args) => {
+  impulse(ctx, args)
+  if (!still(args[0] as Vector)) setMoving(ctx.linkset)
+  return undefined
+}
+
+/** A push sets the physical object it reaches moving, the pushing object's own too (see setMoving). */
+export const llPushObject: BuiltinImpl = (ctx, args) => {
+  push(ctx, args)
+  const key = String(args[0]).toLowerCase()
+  const target = ctx.linkset.peers.find(l => !l.dead && l.region === ctx.linkset.region && l.prims.some(p => p.key.toLowerCase() === key))
+  if (target && !still(args[1] as Vector)) setMoving(target)
+  return undefined
+}
 
 const root = (ctx: CallContext) => ctx.linkset.prims[0]!
 export const llGetForce: BuiltinImpl = (ctx, args) => ({ ...root(ctx).physics.force ?? rezForce(ctx, args) as Vector })

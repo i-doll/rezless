@@ -232,7 +232,8 @@ it('ends a settled physical object rezzed with a velocity when the test stops it
   const child = f.world.linksets[1]!
   child.setVelocity({ x: 0, y: 0, z: 0 })
   child.advanceTime(1_000)
-  expect(child.allScripts()[0]!.global('log')).toEqual(['start', 'end', 'end'])
+  // In-world: a box rezzed physical got moving_start after on_rez (Aditi, SLua Tideland, 2026-11-23).
+  expect(child.allScripts()[0]!.global('log')).toEqual(['start', 'end', 'start', 'end'])
 })
 
 it('keeps moving an object saved while it was settling and rezzed with a velocity', async () => {
@@ -263,7 +264,7 @@ it('ends a settled physical object rezzed with a velocity when its physics is sw
   f.parent.start()
   const child = f.world.linksets[1]!
   child.advanceTime(1_000)
-  expect(child.allScripts()[0]!.global('log')).toEqual(['start', 'end', 'end'])
+  expect(child.allScripts()[0]!.global('log')).toEqual(['start', 'end', 'start', 'end'])
 })
 
 // In-world: reliable.py cases 19-26 -> explicit flag bits, including unknown

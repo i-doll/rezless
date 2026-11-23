@@ -71,10 +71,7 @@ describe('moving events when an object is linked', () => {
   })
 })
 
-// Not modelled: a motion that started and came to rest inside one sleep or one call delay gave
-// neither event in-world (a 1 s keyframed motion in a 2.5 s sleep, four runs; physics switched
-// on for a box at rest in a 1.5 s sleep, and with llSetPrimitiveParams). A 0.5 s motion in a
-// 1.5 s sleep gave both once and neither once, so rezless raises both.
+// A motion that starts and comes to rest inside one sleep is in moving-event-sleeps.test.ts.
 describe('moving events raised while a handler sleeps', () => {
   // In-world: a 3 s motion, and 1 s in new keyframes for 2 s from the same handler -> one
   // moving_start after the handler and one moving_end 3 s after the first call, when the

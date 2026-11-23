@@ -255,6 +255,24 @@ export class LinksetClock {
     return () => { this.tasks.delete(task) }
   }
 
+  /** The last change in motion each script in a handler has not been told of yet. */
+  private readonly unseenMoving = new Map<Script, (at: number) => void>()
+
+  /**
+   * Keep a change in its object's motion from `script` while it is in a handler; `settle`
+   * runs when the script wakes or its handler ends. A later change replaces it.
+   */
+  holdMoving(script: Script, settle: (at: number) => void): void {
+    this.unseenMoving.set(script, settle)
+  }
+
+  private settleMoving(script: Script, at: number): void {
+    const settle = this.unseenMoving.get(script)
+    if (!settle) return
+    this.unseenMoving.delete(script)
+    if (!script.dead) settle(at)
+  }
+
   private readonly queue: QueuedEvent[] = []
 
   /**
@@ -432,6 +450,9 @@ export class LinksetClock {
   }
 
   private takeNextEventOrTask(scripts: ReadonlyArray<Script>, horizon: number): QueuedEvent | 'task' | null {
+    for (const script of this.unseenMoving.keys()) {
+      if (!script.handling && script.wakeAt === undefined) this.settleMoving(script, this.now)
+    }
     // The first event of a script that llMinEventDelay holds back, and when it may run: the
     // events queued behind it wait for it.
     const heldFrom = new Map<Script, { index: number; until: number }>()
@@ -524,6 +545,7 @@ export class LinksetClock {
       v.timerNextFireMs = kept > at ? kept : at + v.timerIntervalMs
       return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
+    if (waking) this.settleMoving(waking, wakeAt)
     return waking && { at: wakeAt, target: waking, event: '__wake', payload: {} }
   }
 
