@@ -1441,6 +1441,7 @@ export class Script {
     this.startParameter = 0
     this.clockView.resetReference()
     this.linkset.clock.purgeTarget(this)
+    this.linkset.clock.landContactRestarted(this, true)
     this.parkedEvents.length = 0
     this.waitingGameControl = undefined
     this.started = false
@@ -1718,6 +1719,7 @@ export class Script {
         const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', e => e.payload['heldFor'] === this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
+        this.linkset.clock.landContactRestarted(this, false)
         forgetHeldTouches(this, false)
         this.state.currentState = target
         const waiting = this.waitingGameControl

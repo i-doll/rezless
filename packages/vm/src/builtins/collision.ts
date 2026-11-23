@@ -170,7 +170,10 @@ export function withCollisionFilter(script: Script, event: string, payload: Reco
   if (event.startsWith('land_collision')) {
     if (dies) return linkset.remove()
     // An idle script gets the event at once, not through the clock's queue.
-    if (script.wakeAt === undefined && !script.handling && linkset.clock.dropsLiveLandEvent(script, event)) return
+    if (script.wakeAt === undefined && !script.handling) {
+      if (linkset.clock.dropsLiveLandEvent(script, event)) return
+      if (linkset.clock.owesLandStart(script, event)) script.fire('land_collision_start', payload)
+    }
     return deliver(payload)
   }
   if (event !== 'collision_start' && event !== 'collision' && event !== 'collision_end') return deliver(payload)
