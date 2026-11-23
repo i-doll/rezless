@@ -79,18 +79,33 @@ function rlvaRadius(avatar: WorldAvatar, limits: readonly RlvRestriction[]): num
   return state.values[0]?.value ?? 1.5
 }
 
+function touchDistance(world: World, avatar: WorldAvatar, prim: Prim, offset: Vector = { x: 0, y: 0, z: 0 }): number {
+  const position = prim.regionPosition()
+  const targetCorner = world.corner(prim.linkset!.region)
+  const avatarCorner = world.corner(avatar.region)
+  return Math.hypot(targetCorner.x + position.x + offset.x - avatarCorner.x - avatar.position.x,
+    targetCorner.y + position.y + offset.y - avatarCorner.y - avatar.position.y, position.z + offset.z - avatar.position.z)
+}
+
+/** RLVa opens no pie menu on a world object under `interact`, or past the `fartouch` reach. */
+export function rlvaPieMenuDenials(world: World, avatar: WorldAvatar, prim: Prim): RlvRestriction[] {
+  const rules = avatar.viewer.restrictions.snapshot().filter(rule => rule.support === 'enforced')
+  const interact = rules.filter(rule => rule.behaviour === 'interact' && !rule.option)
+  if (interact.length) return interact
+  const limits = rules.filter(rule => distances.has(rule.behaviour))
+  if (!limits.length) return []
+  const distance = touchDistance(world, avatar, prim)
+  const limit = rlvaRadius(avatar, limits)
+  return distance * distance <= Math.fround(limit * limit) ? [] : limits
+}
+
 /** One permission check shared by avatar touch actions and interaction consumers. */
 export function checkAvatarTouch(world: World, avatar: WorldAvatar, prim: Prim, options: AvatarTouchOptions = {}): AvatarTouchPermission {
   const linkset = prim.linkset
   const invalid = (reason: string): AvatarTouchPermission => Object.freeze({ status: 'unsupported', distance: NaN, reason, restrictions: Object.freeze([]) })
   if (!world.avatars.includes(avatar)) return invalid('avatar')
   if (!linkset || linkset.dead || linkset.world !== world || !world.linksets.includes(linkset) || !linkset.prims.includes(prim)) return invalid('target')
-  const position = prim.regionPosition()
-  const targetCorner = world.corner(linkset.region)
-  const avatarCorner = world.corner(avatar.region)
-  const offset = options.offset ?? { x: 0, y: 0, z: 0 }
-  const distance = Math.hypot(targetCorner.x + position.x + offset.x - avatarCorner.x - avatar.position.x,
-    targetCorner.y + position.y + offset.y - avatarCorner.y - avatar.position.y, position.z + offset.z - avatar.position.z)
+  const distance = touchDistance(world, avatar, prim, options.offset)
   const result = (status: AvatarTouchPermission['status'], reason?: string, restrictions: readonly RlvRestriction[] = []): AvatarTouchPermission =>
     Object.freeze({ status, distance, ...(reason ? { reason } : {}), restrictions: Object.freeze([...restrictions]) })
   if (!Number.isFinite(distance)) return result('unsupported', 'position')

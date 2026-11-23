@@ -11,7 +11,7 @@ import type { LinkedMessageEntry } from './builtins/linked.js'
 import { touchThroughInventory, type DetectedEntry } from './builtins/detected.js'
 import type { ChatType } from './runtime.js'
 import type { World, WorldAvatar } from './world.js'
-import { NULL_KEY, type Vector } from './values/types.js'
+import { NULL_KEY, ZERO_VECTOR, type Vector } from './values/types.js'
 import { conjugate, mulRotation, rotateVector } from './values/ops.js'
 import type { InventoryItem } from './inventory.js'
 import {
@@ -24,6 +24,7 @@ import {
   PASS_NEVER,
   CHANGED_LINK,
   KFM_CMD_STOP,
+  PERM_COPY,
   REGION_FLAG_ALLOW_DAMAGE,
   STATUS_PHANTOM,
   STATUS_PHYSICS,
@@ -251,7 +252,7 @@ export class Linkset {
   expiresAt: number | undefined
   rezCounter = 0
   readonly world?: World
-  private readonly rezRegion: string | undefined
+  private rezRegion: string | undefined
   readonly startParameter: number
   readonly startString: string
   readonly animesh: boolean
@@ -383,6 +384,58 @@ export class Linkset {
     for (const avatar of sitters) this.world!.standAvatar(avatar)
     const unseated = sitters.length > 0
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...opts }, from)
+    this.fill(copy, (script, prim) => script.copyTo(prim, { unseated, waiting }))
+    copy.recountScripts()
+    return copy
+  }
+
+  /**
+   * Copy a rezzed object where it stands, as a shift-drag in the viewer does, or `offset` from
+   * it, as the viewer's Duplicate does, and return the copy. The copy's scripts start from the
+   * top, and an avatar sitting on the original stays.
+   */
+  duplicate(offset: Vector = ZERO_VECTOR): Linkset {
+    if (this.dead || this.attachment || !this.prims.length || !this.peers.includes(this)) throw new Error('duplicate: only a rezzed object can be copied')
+    // A no-copy item makes the object that holds it no-copy to its owner.
+    if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY) || prim.inventory.some(item => !(item.permMask.owner & PERM_COPY)))) {
+      throw new Error('duplicate: the object is no-copy')
+    }
+    const region = this.region
+    const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
+      ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)
+    // In-world: the copy of a stopped script was stopped too. Started, it ran state_entry.
+    this.fill(copy, (script, prim) => Object.assign(script.copyTo(prim, { fresh: true }), { running: script.running }))
+    const root = copy.prims[0]!.params
+    root.position = { x: root.position.x + offset.x, y: root.position.y + offset.y, z: root.position.z + offset.z }
+    // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
+    // two scripts were both counted read 0.75: the region leaves out the copy's last script.
+    copy.countedScripts = Math.max(0, copy.allScripts().length - 1)
+    for (const script of copy.allScripts()) script.queueStart()
+    return copy
+  }
+
+  /**
+   * Drop a worn object to the ground, as the viewer's Drop does: at `position`, or where its
+   * wearer stands. It keeps its key, its scripts run on and get attach(NULL_KEY), the region
+   * counts its scripts again, and RLV restrictions it set stay in force. Its inventory item is
+   * gone. The viewer offers no Drop for a temporary attachment, which has no item.
+   */
+  dropFromAvatar(position?: Vector): void {
+    const attached = this.attachment
+    if (!attached || attached.temporary || this.dead) return
+    const wearer = this.world?.avatars.find(avatar => avatar.key.toLowerCase() === attached.avatar.toLowerCase())
+    if (wearer) {
+      this.rezRegion = wearer.region
+      wearer.viewer.inventory.forgetAttachment(this)
+    }
+    const at = position ?? wearer?.position
+    if (at) this.prims[0]!.params.position = { ...at }
+    this.attachment = null
+    this.recountScripts()
+    this.broadcastAttach(NULL_KEY)
+  }
+
+  private fill(copy: Linkset, copyScript: (script: Script, prim: Prim) => Script): void {
     copy.lastAttachmentPoint = this.lastAttachmentPoint
     for (const source of this.prims) {
       const prim = copy.addPrim(new Prim({ name: source.name }))
@@ -394,14 +447,12 @@ export class Linkset {
       prim.keyframedMotion = source.keyframedMotion?.copyTo(prim, copy.clock) ?? null
       for (const item of source.inventory) {
         if (item.script) {
-          const script = item.script.copyTo(prim, { unseated, waiting })
+          const script = copyScript(item.script, prim)
           Object.assign(prim.inventory.at(-1)!, { ...item, permMask: { ...item.permMask }, script })
         } else prim.placeInventory({ ...item, permMask: { ...item.permMask } })
       }
     }
     for (const [key, value] of this.linksetData) copy.linksetData.set(key, { ...value })
-    copy.recountScripts()
-    return copy
   }
 
   /** Remove the object and cancel all its scripts, including sleeping handlers. */
