@@ -153,6 +153,10 @@ describe('a shift-drag copy', () => {
     expect(() => worn.linkset.duplicate()).toThrow('only a rezzed object')
     worn.linkset.detachFromAvatar()
     expect(() => worn.linkset.duplicate()).toThrow('only a rezzed object')
+    // Firestorm's Duplicate needs an object its owner may copy (LLSelectMgr::canDuplicate).
+    const locked = await box(f)
+    locked.linkset.prims[0]!.permMask = { ...locked.linkset.prims[0]!.permMask, owner: PERM_ALL & ~PERM_COPY }
+    expect(() => locked.linkset.duplicate()).toThrow('no-copy')
   })
 })
 

@@ -24,6 +24,7 @@ import {
   PASS_NEVER,
   CHANGED_LINK,
   KFM_CMD_STOP,
+  PERM_COPY,
   REGION_FLAG_ALLOW_DAMAGE,
   STATUS_PHANTOM,
   STATUS_PHYSICS,
@@ -288,11 +289,13 @@ export class Linkset {
   }
 
   /**
-   * Copy a rezzed object where it stands, as a shift-drag in the viewer does, and return the
-   * copy. The copy's scripts start from the top, and an avatar sitting on the original stays.
+   * Copy a rezzed object where it stands, as a shift-drag in the viewer does, or `offset` from
+   * it, as the viewer's Duplicate does, and return the copy. The copy's scripts start from the
+   * top, and an avatar sitting on the original stays.
    */
   duplicate(offset: Vector = ZERO_VECTOR): Linkset {
     if (this.dead || this.attachment || !this.prims.length || !this.peers.includes(this)) throw new Error('duplicate: only a rezzed object can be copied')
+    if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY))) throw new Error('duplicate: the object is no-copy')
     const region = this.region
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)

@@ -1188,13 +1188,15 @@ exception for the object) and under an edit lock on the object. Kokua RLV 2.09.3
 take under `rez` and has no check on a copy. `linkset.copy()` and `llDerezObject` are the
 simulator's side and take no notice of the viewer's restrictions.
 
-`linkset.duplicate(offset)` is a shift-drag copy: a new object at the original's place plus
-`offset`, whose scripts start from the top with `state_entry` and no `on_rez` (a stopped
+`linkset.duplicate(offset)` is a shift-drag copy, or with an `offset` the viewer's Duplicate:
+a new object at the original's place plus `offset`, for an object in the world that its owner
+may copy. The region leaves the copy's last script out of its count. The copy's scripts start from the top with `state_entry` and no `on_rez` (a stopped
 script stays stopped until it is started). An avatar sitting on the original stays there.
 `linkset.dropFromAvatar(position)` drops a worn object to the ground, at `position` or where
 its wearer stands. It keeps its key and its scripts' state, they get `attach(NULL_KEY)`, the
 region counts its scripts again, its inventory item is gone, and RLV restrictions it set stay
-in force. A temporary attachment has no item to drop, so it stays worn.
+in force. A temporary attachment has no item to drop, so it stays worn. Like
+`attachToAvatar`, it applies no viewer refusals such as RLV attachment locks.
 
 `interact` blocks user click sitting and inventory drops in both profiles. HUD
 touches bypass it. RLVa applies it before `touchme`; Kokua applies it to world
