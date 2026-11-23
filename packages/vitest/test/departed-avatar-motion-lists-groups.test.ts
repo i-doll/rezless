@@ -179,7 +179,8 @@ describe('llName2Key, llGetVisualParams and llSameGroup for an avatar that left'
   // In-world: the three read as before through "Init", for the whole stay in SLua Tombolo and,
   // after a teleport to Cloud Sandbox 2, until the names went 50.33 s after the llGetAgentList drop.
   // Then llGetVisualParams read [] and llSameGroup FALSE, while llName2Key still returned the key
-  // at the end of the watch, 75 s after the avatar left.
+  // at the end of the watch, 75 s after the avatar left. A 7 min watch on a second avatar read the same: the
+  // names and llSameGroup went 51.9 s after it left, and llName2Key still held at the end, 7 min on.
   it('reads the avatar far away until the names go, and its key after', async () => {
     const f = await fixture()
     f.teleport('far')
@@ -188,7 +189,7 @@ describe('llName2Key, llGetVisualParams and llSameGroup for an avatar that left'
     expect(f.watcher.others()).toEqual([1, 1, '0.596079'])
     f.advance(1000)
     expect(f.watcher.others()).toEqual([1, 0, ''])
-    f.advance(24_000)
+    f.advance(370_000)
     expect(f.watcher.others()).toEqual([1, 0, ''])
   })
 
