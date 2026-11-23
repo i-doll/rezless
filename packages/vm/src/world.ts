@@ -27,6 +27,8 @@ import { AGENT_ATTACHMENTS, AGENT_SCRIPTED, AGENT_MOUSELOOK, AGENT_SITTING, AGEN
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
 
+const AVATAR_MOTION = AGENT_FLYING | AGENT_SITTING | AGENT_ON_OBJECT | AGENT_WALKING | AGENT_IN_AIR
+
 /** Prim-local simulator sit placement and an optional viewer autopilot outcome. */
 export interface AvatarSitResponse {
   readonly position: Vector
@@ -691,7 +693,12 @@ export class World {
     this.unseat(avatar, 'Striding')
   }
 
-  private unseat(avatar: WorldAvatar, motion: AnimationState | null): void {
+  /** @internal A seat that is deleted drops its sitter, which reads "Striding" in the air longer. */
+  dropFromRemovedSeat(avatar: WorldAvatar): void {
+    this.unseat(avatar, 'Striding', true)
+  }
+
+  private unseat(avatar: WorldAvatar, motion: AnimationState | null, removed = false): void {
     const sitting = !!(avatar.info & AGENT_SITTING)
     const previous = avatar.sittingOn?.linkset
     avatar.sittingOn = null
@@ -704,16 +711,20 @@ export class World {
       flyingSit.hover = {}
       this.landings.set(avatar, flyingSit.hover)
       this.animate(avatar, 'Hovering Up')
-    } else if (sitting && motion) this.landAvatar(avatar, motion, !!previous)
+    } else if (sitting && motion && !previous && avatar.info & AGENT_FLYING) this.hoverUp(avatar)
+    else if (sitting && motion) this.landAvatar(avatar, motion, removed ? 'removed' : previous ? 'object' : 'ground')
     if (previous) this.sitChanged(previous)
     if (sitting) returnStandtpAvatar(this, avatar)
     if (previous) groundSitAfterStand(this, avatar)
   }
 
-  /** Ground sitting has AGENT_SITTING but no object parent or new link. */
+  /**
+   * Ground sitting has AGENT_SITTING but no object parent or new link. A flying avatar keeps
+   * AGENT_FLYING, and flies again when it stands.
+   */
   sitAvatarOnGround(avatar: WorldAvatar): void {
     this.standAvatar(avatar)
-    avatar.info = (avatar.info & ~(AGENT_ON_OBJECT | AGENT_FLYING | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING
+    avatar.info = (avatar.info & ~(AGENT_ON_OBJECT | AGENT_IN_AIR | AGENT_WALKING)) | AGENT_SITTING
     this.animate(avatar, 'Sitting on Ground')
   }
 
@@ -725,10 +736,28 @@ export class World {
   }
 
   /**
-   * The avatar is in the air with `motion` until it lands and stands. A stand from an object
-   * walks for a moment after it lands.
+   * In-world: a stand from a ground sit that kept AGENT_FLYING read 263 "Hovering Up" for 0.05 to
+   * 0.07 s, then 263 "Hovering".
    */
-  private landAvatar(avatar: WorldAvatar, motion: AnimationState, walk = false): void {
+  private hoverUp(avatar: WorldAvatar): void {
+    avatar.info = (avatar.info & ~AGENT_WALKING) | AGENT_IN_AIR
+    this.animate(avatar, 'Hovering Up')
+    const hover = {}
+    this.landings.set(avatar, hover)
+    this.clock.scheduleTask(this.presence(avatar), this.clock.now + 60, () => {
+      if (this.landings.get(avatar) !== hover || avatar.info & AGENT_SITTING) return
+      const hovering = regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state === 'Hovering Up'
+      if (hovering && !(avatar.info & AGENT_FLYING)) return this.landAvatar(avatar, 'Falling Down')
+      this.landings.delete(avatar)
+      if (hovering) this.animate(avatar, 'Hovering')
+    })
+  }
+
+  /**
+   * The avatar is in the air with `motion` until it lands and stands. A stand from an object
+   * walks for a moment after it lands; a seat that is deleted drops its sitter for longer.
+   */
+  private landAvatar(avatar: WorldAvatar, motion: AnimationState, origin: 'ground' | 'object' | 'removed' = 'ground'): void {
     avatar.info = (avatar.info & ~AGENT_WALKING) | AGENT_IN_AIR
     this.animate(avatar, motion)
     const landing = {}
@@ -736,11 +765,13 @@ export class World {
     // In-world: a stand read AGENT_IN_AIR "Striding" for one 0.05 s sample, then "Standing"; a
     // stand from an object read AGENT_WALKING "Walking" from 0.29-0.40 s to 0.42-0.53 s. A
     // teleport read AGENT_IN_AIR "Falling Down" for the drop to the floor (0.6 s for 1.6 m), then
-    // "Landing" for 0.05-0.71 s.
+    // "Landing" for 0.05-0.71 s. A seat that died read AGENT_IN_AIR "Striding" until 0.24-0.33 s,
+    // then "Standing" in four of seven runs and "Walking" in three.
     const walking: [number, number, AnimationState][] = [[350, AGENT_WALKING, 'Walking'], [480, 0, 'Standing']]
     const steps: [number, number, AnimationState][] = motion === 'Falling Down'
       ? [[600, 0, 'Landing'], [850, 0, 'Standing']]
-      : [[50, 0, 'Standing'], ...walk ? walking : []]
+      : origin === 'removed' ? [[270, 0, 'Standing']]
+      : [[50, 0, 'Standing'], ...origin === 'object' ? walking : []]
     let expected = motion
     for (const [ms, flags, state] of steps) {
       const from = expected
@@ -788,13 +819,29 @@ export class World {
   }
 
   private readonly arrivals = new WeakMap<WorldAvatar, { bits: number }>()
+  private readonly departures = new WeakMap<WorldAvatar, { region: string, info: number, until: number }>()
+
+  /**
+   * @internal The llGetAgentInfo bits `region` still reads for an avatar that has just teleported
+   * out of it, or undefined.
+   *
+   * In-world: a watch in the region the avatar left read it with its motion bits cleared, "Init"
+   * and a non-zero llGetAgentSize for 0.04 to 0.37 s (0.04, 0.07, 0.09, 0.09, 0.20, 0.26, 0.37).
+   */
+  departingAvatarInfo(avatar: WorldAvatar, region: string): number | undefined {
+    const departure = this.departures.get(avatar)
+    return departure?.region === region && this.clock.now < departure.until && avatar.region !== region ? departure.info : undefined
+  }
 
   /** @internal A teleport: stand the avatar, move it with its animations, and let it fall. */
   relocateAvatar(avatar: WorldAvatar, region: string, position: Vector): void {
     this.unseat(avatar, null)
     this.avatarCameras.delete(avatar)
     moveRegionAnimations(this.clock, avatar.region, region, avatar.key)
-    if (avatar.region !== region) this.arrive(avatar)
+    if (avatar.region !== region) {
+      this.departures.set(avatar, { region: avatar.region, info: avatar.info & ~AVATAR_MOTION, until: this.clock.now + 100 })
+      this.arrive(avatar)
+    }
     avatar.region = region
     avatar.position = { ...position }
     const flyingSit = this.flyingSits.get(avatar)

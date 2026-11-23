@@ -357,7 +357,8 @@ it('clears seating when the object dies and refuses the dead seat', async () => 
   script.start(); world.sitAvatar(avatar, prims[0]!)
   script.fire('touch_start', { num_detected: 1 })
   expect(avatar.info).toBe(262)
-  script.linkset.advanceTime(100)
+  // In-world the sitter of a seat that died read 262 until 0.24-0.33 s.
+  script.linkset.advanceTime(300)
   expect(avatar.info).toBe(6)
   expect(avatar.sittingOn).toBe(null)
   expect(world.sitAvatar(avatar, prims[0]!)).toBe(false)

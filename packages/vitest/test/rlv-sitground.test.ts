@@ -68,11 +68,21 @@ describe('@sitground=force from standing', () => {
     expect(f.avatar.viewer.diagnostics).toEqual([])
   })
 
-  it.each(['rlv', 'rlva'] as const)('%s stops flying', async profile => {
-    const f = (await pair())[profile]
+  // Kokua's sitDown stops flying before it asks for the ground sit.
+  it('rlv stops flying', async () => {
+    const f = (await pair()).rlv
     f.avatar.info |= 0x1
     issue(f.script, '@sitground=force')
     expect(f.avatar.info & 0x1).toBe(0)
+    expect(f.sitting()).toBe(AGENT_SITTING)
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23): flying, "@sitground=force" -> 23, three runs.
+  it('rlva keeps flying', async () => {
+    const f = (await pair()).rlva
+    f.avatar.info |= 0x1
+    issue(f.script, '@sitground=force')
+    expect(f.avatar.info & 0x1).toBe(0x1)
     expect(f.sitting()).toBe(AGENT_SITTING)
   })
 })
