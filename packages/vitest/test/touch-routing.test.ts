@@ -506,6 +506,40 @@ describe('linkset.touch routes a click like Second Life', () => {
     expect(got('s')).toEqual(['entry', 'end', 'start', 'touch', 'end'])
   })
 
+  it('a state change in touch_start leaves the click with no touch, only touch_end', async () => {
+    // In-world: touch_start changed state during a 3 s hold -> no touch at all, and touch_end
+    // in the new state at the release.
+    const log = `
+      list got = [];
+      default {
+        touch_start(integer k) { got += "start"; state other; }
+        touch(integer k) { got += "touch"; }
+      }
+      state other {
+        touch(integer k) { got += "other touch"; }
+        touch_end(integer k) { got += "other end"; }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.touch(0, { hold: 3000 })
+    expect(got('s')).toEqual(['start', 'other end'])
+  })
+
+  it('llMinEventDelay called in touch_start holds the next touch of the click back', async () => {
+    // In-world: touch_start called llMinEventDelay(1.0) during a hold -> touch at 0.044, 1.022,
+    // 2.022, 3.022 and 4.045 after touch_start.
+    const log = `
+      list got = [];
+      default {
+        touch_start(integer k) { llResetTime(); llMinEventDelay(1.0); }
+        touch(integer k) { got += llRound(llGetTime() * 1000); }
+      }
+    `
+    const { linkset, got } = await setup([[script('s', log)]])
+    linkset.touch(0, { hold: 3500 })
+    expect(got('s')).toEqual([22, 1000, 2022, 3044])
+  })
+
   it('each held click starts its touch events half a beat after it, even right after another', async () => {
     const log = `list got = []; default { touch_start(integer k) { llResetTime(); } touch(integer k) { got += llRound(llGetTime() * 1000); } }`
     const { linkset, got } = await setup([[script('s', log)]])

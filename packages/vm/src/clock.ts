@@ -484,6 +484,8 @@ export class ScriptClockView {
   setMinEventDelay(ms: number): void {
     this.minEventDelayMs = Math.max(0, ms)
     this.delayedUntilMs = this.now + this.minEventDelayMs
+    // In-world: llMinEventDelay(1.0) in touch_start held a held click's second touch until 1.0 s after the call.
+    this.touchDelayedUntilMs = this.delayedUntilMs
   }
 
   /** Advances the linkset clock. */

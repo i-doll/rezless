@@ -842,8 +842,8 @@ export class Linkset {
         continue
       }
       if (s.heldClicks.get(by) === click) s.heldClicks.delete(by)
-      // In-world: every click, however short, raised one touch.
-      if (!click.touched) scheduleTouch(s, 'touch', click.detected)
+      // In-world: every click, however short, raised one touch, unless touch_start changed state.
+      if (!click.touched && click.repeating) scheduleTouch(s, 'touch', click.detected)
       scheduleTouch(s, 'touch_end', click.detected)
     }
     armTouches(this.clock)
