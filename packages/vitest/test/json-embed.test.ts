@@ -27,7 +27,7 @@ const evaluate = async (expr: string) => {
  * llList2Json(JSON_OBJECT, ["k", v]) (M), llList2Json(JSON_ARRAY, [" " + v + " "]) (P) and
  * llJsonSetValue("[]", [0], " " + v + " ") (Q). The whitespace rows are URL-escaped.
  *
- * In-world: Aditi, SLua Tideland, 2026-11-24. embed.lsl compiled to Mono and to Luau, and
+ * In-world: Aditi, SLua Tideland, 2026-11-24. whitespace.lsl ran in LSL Mono. embed.lsl compiled to Mono and to Luau, and
  * embed.luau, gave the same transcript.
  */
 describe('how Second Life writes JSON-shaped values', () => {
@@ -52,6 +52,25 @@ describe('how Second Life writes JSON-shaped values', () => {
 
   it('answers the padded sentinels script as Second Life did', async () => {
     expect(await said('sentinels-padded.lsl', 'lsl')).toEqual(fixture('sentinels-padded.txt').trimEnd().split('\n'))
+  })
+})
+
+/**
+ * paths.lsl sets JSON_INVALID and other values through deeper paths, appends and an empty
+ * path, then reads each result back with llJsonGetValue and llJsonValueType.
+ *
+ * In-world: Aditi, SLua Tideland, 2026-11-24, LSL Mono.
+ */
+describe('values written through other paths', () => {
+  it('writes what Second Life wrote on every row', async () => {
+    const written = (lines: string[]) => lines.map((l) => l.split(' G=')[0])
+    expect(written(await said('paths.lsl', 'lsl'))).toEqual(written(fixture('paths.txt').trimEnd().split('\n')))
+  })
+
+  // In-world: Z0 and Z14 read the empty member of {"a":,"z":1} and {"a":1,"m":,"z":1} as
+  // JSON_INVALID; the VM reads an empty member followed by a comma as JSON_NULL.
+  it.fails('reads back every row as Second Life did', async () => {
+    expect(await said('paths.lsl', 'lsl')).toEqual(fixture('paths.txt').trimEnd().split('\n'))
   })
 })
 
