@@ -25,10 +25,11 @@ const COST_RULES = new Set([
 let primsMade = 0
 let itemsSaved = 0
 
-/** A save gives a notecard the key of its new text and keeps the key of unchanged text; other items get a new key at each save. */
+/** A save gives a notecard the key of its text, keeping a key it already has when the text is unchanged; other items get a new key at each save. */
 function savedKey(old: InventoryItem, lines: ReadonlyArray<string> | undefined): string {
   if (old.type !== InventoryType.NOTECARD) return deterministicKey(`inventory-save/${++itemsSaved}`)
-  if (!lines || lines.join('\n') === old.notecardLines?.join('\n')) return old.key
+  if (old.key !== NULL_KEY && (!lines || lines.join('\n') === old.notecardLines?.join('\n'))) return old.key
+  if (!lines) lines = old.notecardLines ?? []
   return deterministicKey(`notecard/${lines.join('\n')}`)
 }
 
@@ -308,14 +309,15 @@ export class Prim {
   }
 
   /**
-   * Rename an item as the owner does in the object's contents. Each byte of a
-   * non-ASCII character and each `|` becomes a space, the name is trimmed and
-   * cut to 63 characters. A name another item holds takes the number an
-   * arriving item would get plus one, then the next free one. A name left
-   * empty keeps the old one. The prim's scripts get
-   * `changed(CHANGED_INVENTORY)`, also when the name is unchanged. A renamed
-   * script keeps running and its state, and hears the rename under its new
-   * name; a stopped one stays stopped.
+   * Rename an item as the owner does in the object's contents. Each control
+   * character, each byte of a non-ASCII character and each `|` becomes a
+   * space; the name is cut to 63 characters and trimmed, and if nothing is
+   * left the item keeps its old name. An empty `to` throws. A name another
+   * item holds takes the number an arriving item would get plus one, then the
+   * next free one; an item already numbered for that name keeps it. The
+   * prim's scripts get `changed(CHANGED_INVENTORY)`, also when the name is
+   * unchanged. A renamed script keeps running and its state, and hears the
+   * rename under its new name; a stopped one stays stopped.
    */
   renameInventory(from: string, to: string): void {
     const item = this.inventory[this.#inventoryIndex('renameInventory', from)]!

@@ -86,6 +86,16 @@ describe('owner saves a notecard inside a prim', () => {
     expect(seen(scripts['a']!)).toEqual(['a 1'])
   })
 
+  it('gives a notecard with no key the key of its text when saved unchanged', async () => {
+    // Every notecard saved in-world had a key, the same one for the same text.
+    const { prims } = await load()
+    expect(keyOf(prims[0]!, 'v')).toBe(NULL_KEY)
+    prims[0]!.replaceInventory('v', {})
+    prims[1]!.replaceInventory('nc', { notecardLines: ['one'] })
+    expect(keyOf(prims[0]!, 'v')).not.toBe(NULL_KEY)
+    expect(keyOf(prims[1]!, 'nc')).toBe(keyOf(prims[0]!, 'v'))
+  })
+
   it('reaches only the child for a notecard saved in the child', async () => {
     // In-world: saving the child's "nc" -> "c" logged changed(1) with the new
     // key; "a" and "b" logged nothing.
@@ -166,7 +176,7 @@ describe('owner renames an item inside a prim', () => {
     // In-world, in a one-prim object holding notecards named by renames: with
     // "x496" and "x496 1" there, a rename to "x496" -> "x496 3" (and "r", "r 1"
     // -> "r 3"); with "q" and "q 3" -> "q 2"; with "w" and "w 7" -> "w 2"; with
-    // "k", "k 1" and "k 3" -> "k 4".
+    // "k", "k 1" and "k 3" -> "k 4"; with only "k 1" there, a rename to "k" -> "k".
     const rename = async (taken: string[], want: string) => {
       const { prims: [prim] } = await loadLinkset({ prims: [{ inventory: [...taken, 'new'].map((name) => notecard(name)) }] })
       prim!.renameInventory('new', want)
