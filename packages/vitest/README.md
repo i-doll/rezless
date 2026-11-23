@@ -567,11 +567,15 @@ world.sendAvatarChat(bob, 0, 'hello', 'shout')
 ```
 
 On channel 0 and positive channels, whisper reaches 10 m, say 20 m and shout
-100 m from the avatar, across region borders. On a negative channel the volume
-is ignored: the chat reaches 20 m inside the avatar's region and is cut to 254
-bytes. Objects the avatar wears always hear it. The call returns a
+100 m from the avatar. On a negative channel the volume is ignored: the chat
+reaches 20 m and is cut to 254 bytes. Both cross region borders. Objects the
+avatar wears always hear it. With the `rlva` viewer profile, text over 1023
+bytes arrives as several messages, as Firestorm sends it: each piece ends before
+the last space that fits, or else at a character boundary, and that space starts
+the next piece. `deliveredParts` on the returned record lists them. The `rlv`
+(Kokua) and `disabled` profiles send the text as one message. The call returns a
 record of what was sent; RLV restrictions can block or change the chat (see
-Paired RLV/RLVa fixtures). These ranges were measured on the Aditi beta grid in
+Paired RLV/RLVa fixtures). These ranges and splits were measured on the Aditi beta grid in
 SLua Tideland on 2026-11-23.
 
 ### Sitting and teleporting
@@ -947,11 +951,12 @@ The `sendchannel` family has `enforced` support through explicit avatar actions.
 the current avatar position. Volume is `whisper`, `say` or `shout`, defaulting
 to `say`, with hearing ranges of 10, 20 and 100 m through normal listener matching
 across regions. Public chat also reaches avatar received-chat records at that range.
-A negative channel reaches 20 m in the avatar's region whatever the volume. These actions support every
+A negative channel reaches 20 m across regions whatever the volume. These actions support every
 signed 32-bit channel. Other channels return `unsupported`; automatic query reply
 channel policy is separate. `sendchannel` blocks negative channels too. RLVa
-ignores negative channel exceptions; Kokua matches them literally. Payload limits beyond the negative-channel
-254 bytes are outside this action fixture.
+ignores negative channel exceptions; Kokua matches them literally. RLVa splits text over 1023 bytes
+into several messages (see Avatar chat); other payload limits beyond the
+negative-channel 254 bytes are outside this action fixture.
 
 ```ts
 const pair = await loadRlvPair({ source: `integer heard; default {
@@ -1159,7 +1164,7 @@ commands or viewer actions. Per-object compatibility settings remain outside the
 Object replies use the avatar UUID, name and current position. Positive replies
 reach listeners within 100 m across region boundaries, including the issuing prim.
 Kokua accepts signed nonzero channels; its negative replies use dialog delivery
-within 20 m in the avatar's current region. RLVa rejects negative channels, zero
+within 20 m, across region boundaries too. RLVa rejects negative channels, zero
 and DEBUG_CHANNEL. Kokua permits DEBUG_CHANNEL and delivers it through the shout path.
 Rejected channels do not produce an empty reply; valid queries with empty results do.
 

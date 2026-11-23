@@ -77,19 +77,23 @@ describe('avatar chat ranges', () => {
     expect(world.sendAvatarChat(avatar, -39603, 'x'.repeat(253) + 'é').deliveredMessage).toBe('x'.repeat(253))
   })
 
-  // A dialog reply is heard only in the avatar's region (see rlv-channels.test.ts).
-  it('keeps negative-channel chat inside the avatar region', async () => {
-    const { world, avatar, heard } = await setup()
+  // In-world: chat from SLua Tideland to a listener just across the border in
+  // SLua Tombolo. On -39603 (say and shout) and 39603 (say and shout) it was
+  // heard at 9.3 m and 15.4 m; at 25 m neither channel's say was heard. Aditi,
+  // Firestorm RLVa 2.4.2, 2026-11-23.
+  it.each([-39603, 39603])('channel %s crosses a region border within 20 m', async channel => {
+    const { world, avatar } = await setup()
     avatar.region = 'SLua Tombolo'
-    avatar.position = { x: 1, y: 44, z: 1998 }
     const { scripts } = await loadLinkset({ world, region: 'SLua Tideland', owner: avatar.key,
       prims: [{ scripts: [{ name: 'edge', source: { source: listener } }] }] })
-    scripts.edge!.host.params.position = { x: 250, y: 44, z: 1998 }
-    scripts.edge!.start()
-    world.sendAvatarChat(avatar, -39603, 'across')
-    world.sendAvatarChat(avatar, 39603, 'across')
-    expect(scripts.edge!.global('log')).toBe('39603 Bob Resident across|')
-    expect(heard()).toBe('')
+    const edge = scripts.edge!
+    edge.host.params.position = { x: 250, y: 44, z: 1998 }
+    edge.start()
+    avatar.position = { x: 19, y: 44, z: 1998 }
+    world.sendAvatarChat(avatar, channel, 'far', 'shout')
+    avatar.position = { x: 3.3, y: 44, z: 1998 }
+    world.sendAvatarChat(avatar, channel, 'near', channel < 0 ? 'shout' : 'say')
+    expect(edge.global('log')).toBe(channel < 0 ? `${channel} Bob Resident near|` : `${channel} Bob Resident far|${channel} Bob Resident near|`)
   })
 
   it('reaches what the avatar wears wherever its fixture sits', async () => {
@@ -179,5 +183,91 @@ describe('Kokua sendchannel on negative channels', () => {
     expect(rlv.sendChat(-39603, 'blocked').status).toBe('blocked')
     expect(rlv.sendChat(-39605, 'open').status).toBe('sent')
     expect(rlv.script.global('heard')).toBe(1)
+  })
+})
+
+// Firestorm's send_chat_from_viewer (fsnearbychathub.cpp) sends text over 1023
+// bytes as several chat messages. Each piece ends before the last space that
+// fits, or else before a UTF-8 continuation byte, and the space starts the next
+// piece. In-world, one listen event per piece, as llStringLength and the first
+// characters of each message: 1023 a's -> 1023; 1024 a's -> 1023, 1; 1000 a's,
+// a space, 22 a's (1023 bytes) -> 1000, " aa..." 23; 500 a's, a space, 599 a's
+// -> 500, " aa..." 600; 1022 a's, "é", 10 a's -> 1022, "éaa..." 11; 3100 b's ->
+// 1023, 1023, 1023, 31; 1020 a's, a space, 5 a's -> 1020, " aaaaa"; 1023 a's,
+// a space, 5 a's -> 1023, " aaaaa". Whisper and shout on 39603 and a whisper on
+// channel 0 split the same way. Aditi, SLua Tideland, Firestorm RLVa 2.4.2,
+// 2026-11-23.
+describe('Firestorm splits long chat', () => {
+  const a = (n: number) => 'a'.repeat(n)
+  async function rlva() {
+    const world = new World()
+    world.addRegion('SLua Tideland', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ username: 'bob.resident', name: 'Bob Resident', region: 'SLua Tideland', viewer: { profile: 'rlva' } })
+    const { scripts } = await loadLinkset({ world, region: 'SLua Tideland', owner: avatar.key,
+      prims: [{ scripts: [{ name: 'listener', source: { source: `list got;
+      default {
+        state_entry() { llListen(0, "", NULL_KEY, ""); llListen(39603, "", NULL_KEY, ""); llListen(-39603, "", NULL_KEY, ""); }
+        listen(integer c, string n, key id, string m) { got += m; }
+      }` } }] }] })
+    const script = scripts.listener!
+    script.start()
+    return { world, avatar, got: () => script.global('got') as string[] }
+  }
+
+  it.each([
+    ['1023 bytes', a(1023), [a(1023)]],
+    ['1024 bytes', a(1024), [a(1023), 'a']],
+    ['1023 bytes with a space', a(1000) + ' ' + a(22), [a(1000), ' ' + a(22)]],
+    ['a space mid-way', a(500) + ' ' + a(599), [a(500), ' ' + a(599)]],
+    ['a character across the cut', a(1022) + 'é' + a(10), [a(1022), 'é' + a(10)]],
+    ['3100 bytes', 'b'.repeat(3100), ['b'.repeat(1023), 'b'.repeat(1023), 'b'.repeat(1023), 'b'.repeat(31)]],
+    ['a space before the cut', a(1020) + ' ' + a(5), [a(1020), ' ' + a(5)]],
+    ['a space at the cut', a(1023) + ' ' + a(5), [a(1023), ' ' + a(5)]],
+  ])('%s', async (_, text, parts) => {
+    const { world, avatar, got } = await rlva()
+    const action = world.sendAvatarChat(avatar, 39603, text)
+    expect(got()).toEqual(parts)
+    expect(action.deliveredMessage).toBe(text)
+    if (parts.length > 1) expect(action.deliveredParts).toEqual(parts)
+    else expect(action).not.toHaveProperty('deliveredParts')
+  })
+
+  it.each([[0, 'whisper'], [39603, 'whisper'], [39603, 'shout']] as const)('channel %s %s splits the same way', async (channel, volume) => {
+    const { world, avatar, got } = await rlva()
+    world.sendAvatarChat(avatar, channel, a(1024), volume)
+    expect(got()).toEqual([a(1023), 'a'])
+  })
+
+  // The test viewer refuses negative-channel chat over 254 bytes, so a piece
+  // over 254 bytes can't be sent there. From the source, each piece travels as
+  // a dialog reply that carries its first 254 bytes.
+  it('cuts each negative-channel piece to 254 bytes', async () => {
+    const { world, avatar, got } = await rlva()
+    world.sendAvatarChat(avatar, -39603, a(1024))
+    const action = world.sendAvatarChat(avatar, -39603, a(1024))
+    expect(got()).toEqual([a(254), 'a', a(254), 'a'])
+    expect(action).toMatchObject({ deliveredMessage: a(1024), deliveredParts: [a(254), 'a'] })
+  })
+
+  it('keeps a byte order mark and other characters intact', async () => {
+    const { world, avatar, got } = await rlva()
+    world.sendAvatarChat(avatar, 39603, '\uFEFFhi')
+    world.sendAvatarChat(avatar, 39603, a(1022) + '\uFEFF' + a(10))
+    expect(got()).toEqual(['\uFEFFhi', a(1022), '\uFEFF' + a(10)])
+  })
+
+  // Kokua's send_chat_from_viewer sends the text as one message (Kokua-MKRLV,
+  // llfloaterimnearbychat.cpp); it can't be run on the test grid.
+  it('leaves the rlv and disabled profiles unsplit', async () => {
+    for (const profile of ['rlv', 'disabled'] as const) {
+      const world = new World()
+      world.addRegion('SLua Tideland', { x: 0, y: 0 })
+      const avatar = world.addAvatar({ username: 'bob.resident', region: 'SLua Tideland', viewer: { profile } })
+      const { scripts } = await loadLinkset({ world, region: 'SLua Tideland', owner: avatar.key,
+        prims: [{ scripts: [{ name: 'l', source: { source: `integer n; default { state_entry() { llListen(39603, "", NULL_KEY, ""); } listen(integer c, string s, key id, string m) { n += llStringLength(m); } }` } }] }] })
+      scripts.l!.start()
+      world.sendAvatarChat(avatar, 39603, a(1500))
+      expect(scripts.l!.global('n')).toBe(1500)
+    }
   })
 })
