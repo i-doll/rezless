@@ -1,0 +1,38 @@
+R0 [1], [2] L=[s'1]',s''](2) T=<ARR> G='[1], [2]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9,]' Sa='{"a":9}'
+R1 [1]  [2] L=[s'1]'](1) T=<ARR> G='[1]  [2]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R2 {"a": [1,2} L=[s'a',s''](2) T=<OBJ> G='{"a": [1,2}' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R3 {"a":
+[1,2} L=[s'a',s''](2) T=<OBJ> G='{"a":
+[1,2}' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R4 [ {] L=[s''](1) T=<ARR> G='[ {]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R5 [1] ,[2] L=[s'1]',s'[2]'](2) T=<ARR> G='[1] ,[2]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1='[2]'/<ARR> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9,[2]]' Sa='{"a":9}'
+R6 [ [1,2] L=[s''](1) T=<ARR> G='[ [1,2]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R7 [1, {"a":1] L=[i1,s''](2) T=<ARR> G='[1, {"a":1]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0='1'/<NUM> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9,]' Sa='{"a":9}'
+R8 [1, "x] L=[i1,s'"x]'](2) T=<ARR> G='[1, "x]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0='1'/<NUM> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9,"x]]' Sa='{"a":9}'
+R9 {"a": {"b":1} L=[s'a',s''](2) T=<OBJ> G='{"a": {"b":1}' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R10 {"a":1, "b":{} L=[s'a',i1,s'b',s''](4) T=<OBJ> G='{"a":1, "b":{}' a='1'/<NUM> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"a":1,"b":,"z":9}' S0='[9]' Sa='{"a":9,"b":}'
+R11 [1,    [2] L=[i1,s''](2) T=<ARR> G='[1,    [2]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0='1'/<NUM> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9,]' Sa='{"a":9}'
+R12 [1,[2]  L=[i1,s'[2]'](2) T=<ARR> G='[1,[2]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0='1'/<NUM> 1='[2]'/<ARR> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9,[2]]' Sa='{"a":9}'
+R13 { "a":[1} L=[s'a',s''](2) T=<OBJ> G='{ "a":[1}' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R14 [99999999999999999999] L=[i2147483647](1) T=<ARR> G='[99999999999999999999]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0='99999999999999999999'/<NUM> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R15 [-99999999999999999999] L=[i-2147483648](1) T=<ARR> G='[-99999999999999999999]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0='-99999999999999999999'/<NUM> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+R16 {"a":1,
+"b"} L=[s'a',i1,s'',s'b'](4) T=<OBJ> G='{"a":1,
+"b"}' a='1'/<NUM> b=<INV>/<INV> e='b'/<STR> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"":"b","a":1,"z":9}' S0='[9]' Sa='{"":"b","a":9}'
+R17 [1,
+,2] L=[i1,s'',i2](3) T=<ARR> G='[1,
+,2]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0='1'/<NUM> 1=<INV>/<INV> 2='2'/<NUM> a0=<INV>/<INV> Sz='{"z":9}' S0='[9,,2]' Sa='{"a":9}'
+R18 {"a":1 ,} L=[s'a',i1,s'',s''](4) T=<OBJ> G='{"a":1 ,}' a='1'/<NUM> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"":,"a":1,"z":9}' S0='[9]' Sa='{"":,"a":9}'
+R19 [1 ]] L=[s'1 ]'](1) T=<ARR> G='[1 ]]' a=<INV>/<INV> b=<INV>/<INV> e=<INV>/<INV> 0=<INV>/<INV> 1=<INV>/<INV> 2=<INV>/<INV> a0=<INV>/<INV> Sz='{"z":9}' S0='[9]' Sa='{"a":9}'
+S0 [ ] -> '[9]'
+S1 [ ] -> <INV>
+S2 [,] -> '[,,9]'
+S3 [ ] -> '[9]'
+S4 { } -> '{"a":{"b":9}}'
+S5 [1, [2] -> '[1,9]'
+W0 %0D1 G='11'
+W1 %0B1 G='11'
+W2 %0C1 G='11'
+W3 %A01 G=<INV>
+W4  %0D1 G='11'
+DONE 49656
