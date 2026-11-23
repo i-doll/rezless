@@ -815,13 +815,8 @@ export class Linkset {
         ...(opts.binormal && { touchBinormal: opts.binormal }),
       },
     ]
-    // Under llMinEventDelay a script holds one waiting click; another avatar's click is dropped,
-    // and the same avatar's merges into it.
-    const waitingStart = (s: Script) => this.clock.pendingEvents().some((e) => e.target === s && e.event === 'touch_start' &&
-      (e.payload['detected'] as ReadonlyArray<DetectedEntry> | undefined)?.[0]?.key.toLowerCase() !== by)
-    const dropped = new Set(receivers.filter((s) => s.clockView.minEventDelayMs > 0 && waitingStart(s)))
     const live = (s: Script) => s.running && !s.dead
-    const clicked = receivers.filter((s) => !dropped.has(s) && live(s))
+    const clicked = receivers.filter(live)
     const clicks = new Map<Script, HeldTouch>()
     const firstAt = this.clock.now + Math.min(TOUCH_REPEAT_MS / 2, opts.hold ?? 0)
     for (const s of clicked) {

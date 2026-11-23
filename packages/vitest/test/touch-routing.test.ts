@@ -401,6 +401,162 @@ describe('linkset.touch routes a click like Second Life', () => {
     })
   })
 
+  it('under llMinEventDelay a link message does not wait behind a waiting touch_start', async () => {
+    // In-world: llMinEventDelay(1.0); a quick click on face 1, then a 0.4 s hold on face 2 whose
+    // touch_start a second script answered with a link message 0.2 s later -> S1@3045 T1@3089
+    // E1@3111 Lx@3333 S2@4067 T2@4089 E2@4111: the link message ran while touch_start waited,
+    // and the hold's touch and touch_end waited behind it.
+    const log = `
+      list got = [];
+      string at(string kind) { return kind + (string)llDetectedTouchFace(0) + "@" + (string)llRound(llGetTime() * 1000); }
+      default {
+        state_entry() { llMinEventDelay(1.0); llResetTime(); }
+        touch_start(integer n) { got += at("S"); }
+        touch(integer n) { got += at("T"); }
+        touch_end(integer n) { got += at("E"); }
+        link_message(integer s, integer k, string m, key id) { got += "L" + m + "@" + (string)llRound(llGetTime() * 1000); }
+      }
+    `
+    const sender = `default {
+      touch_start(integer n) { if (llDetectedTouchFace(0) == 2) llSetTimerEvent(0.2); }
+      timer() { llSetTimerEvent(0); llMessageLinked(LINK_THIS, 0, "x", ""); }
+    }`
+    const { linkset, got } = await setup([[script('s', log), script('r', sender)]])
+    linkset.advanceTime(3000)
+    linkset.touch(0, { face: 1 })
+    linkset.advanceTime(100)
+    linkset.touch(0, { face: 2, hold: 400 })
+    linkset.advanceTime(2000)
+    expect(got('s')).toEqual(['S1@3000', 'T1@3000', 'E1@3000', 'Lx@3300', 'S2@4000', 'T2@4000', 'E2@4000'])
+  })
+
+  describe('clicks held back in a sleep keep their own times when they merge', () => {
+    // From the measured rule: touch_start lists each avatar's first click and touch and
+    // touch_end each one's last, in the order those clicks came. A click scheduled for a time
+    // in the middle of the sleep counts at that time, among clicks queued as they happened.
+    const log = `
+      list got = [];
+      string at(string kind, integer n) {
+        string s = kind + (string)n + "[";
+        integer i;
+        for (i = 0; i < n; ++i) s += llGetSubString(llDetectedName(i), 0, 0) + (string)llDetectedTouchFace(i);
+        return s + "]";
+      }
+      default {
+        link_message(integer s, integer k, string m, key id) { llSleep(8.0); }
+        touch_start(integer n) { got += at("S", n); }
+        touch(integer n) { got += at("T", n); }
+        touch_end(integer n) { got += at("E", n); }
+      }
+    `
+    async function asleep() {
+      const made = await setup([[script('s', log)]])
+      made.linkset.deliverLinkMessage(0, -1, 0, '', '')
+      made.linkset.advanceTime(0)
+      const queue = (at: number, name: string, face: number) => {
+        const detected = [{ key: `${name}-0000-0000-0000-000000000000`, name, touchFace: face }]
+        for (const event of ['touch_start', 'touch', 'touch_end']) made.linkset.clock.schedule(made.scripts.s!, at, event, { num_detected: 1, detected })
+      }
+      return { ...made, queue }
+    }
+
+    it('one avatar: the last click wins even when an earlier one was scheduled ahead', async () => {
+      const { linkset, got, queue } = await asleep()
+      linkset.advanceTime(1000)
+      queue(linkset.clock.now, 'aaaaaaaa', 1)
+      queue(linkset.clock.now + 1000, 'aaaaaaaa', 3)
+      linkset.advanceTime(2000)
+      queue(linkset.clock.now, 'aaaaaaaa', 2)
+      linkset.advanceTime(10_000)
+      expect(got('s')).toEqual(['S1[a1]', 'T1[a2]', 'E1[a2]'])
+    })
+
+    it('three avatars: each list follows the times of the clicks', async () => {
+      const { linkset, got, queue } = await asleep()
+      linkset.advanceTime(1000)
+      queue(linkset.clock.now, 'aaaaaaaa', 1)
+      queue(linkset.clock.now + 1000, 'cccccccc', 3)
+      linkset.advanceTime(2000)
+      queue(linkset.clock.now, 'bbbbbbbb', 2)
+      linkset.advanceTime(10_000)
+      expect(got('s')).toEqual(['S3[a1c3b2]', 'T3[a1c3b2]', 'E3[a1c3b2]'])
+    })
+  })
+
+  describe('clicks by two avatars that wait together', () => {
+    // In-world probe: i doll clicked face 1 and fivebot face 2, each on their own viewer, one
+    // right after the other; the script logged each event's num_detected, and the first letter
+    // of each detected name with its face. Times from state_entry, which set the delay.
+    const IDOLL = { key: '11111111-1111-1111-1111-111111111111', name: 'i doll' }
+    const FIVEBOT = { key: '22222222-2222-2222-2222-222222222222', name: 'fivebot' }
+    const both = (delay: number) => `
+      list got = [];
+      string at(string kind, integer n) {
+        string s = kind + (string)n + "[";
+        integer i;
+        for (i = 0; i < n; ++i) s += llGetSubString(llDetectedName(i), 0, 0) + (string)llDetectedTouchFace(i);
+        return s + "]@" + (string)llRound(llGetTime() * 1000);
+      }
+      default {
+        state_entry() { if (${delay} > 0) llMinEventDelay(${delay}); llResetTime(); }
+        touch_start(integer n) { got += at("S", n); }
+        touch(integer n) { got += at("T", n); }
+        touch_end(integer n) { got += at("E", n); }
+      }
+    `
+    const click = (who: typeof IDOLL, hold: number) => ({ avatar: who, face: who === IDOLL ? 1 : 2, hold })
+    const run = async (delay: number, clicks: ReadonlyArray<ReturnType<typeof click>>) => {
+      const { linkset, got } = await setup([[script('s', both(delay))]])
+      linkset.advanceTime(3000)
+      for (const c of clicks) {
+        linkset.touch(0, c)
+        linkset.advanceTime(100)
+      }
+      linkset.advanceTime(5000)
+      return got('s')
+    }
+
+    it.each([[1, 4000], [2, 5000]])('with llMinEventDelay(%i) another avatar\'s click waits and joins the waiting touch events', async (delay, due) => {
+      // In-world, (1.0): S1[i1]@3067 T1[i1]@3178 S1[f2]@4067 T2[i1f2]@4089 E2[i1f2]@4111.
+      // (2.0): S1[i1]@3088 T1[i1]@3111 S1[f2]@5088 T2[i1f2]@5111 E2[i1f2]@5133.
+      expect(await run(delay, [click(IDOLL, 100), click(FIVEBOT, 100)])).toEqual(
+        ['S1[i1]@3000', 'T1[i1]@3022', `S1[f2]@${due}`, `T2[i1f2]@${due}`, `E2[i1f2]@${due}`])
+    })
+
+    it.each([[1, 4000], [2, 5000]])('with llMinEventDelay(%i) the merged touch and touch_end list avatars by their last click', async (delay, due) => {
+      // In-world, i doll, fivebot, i doll: (1.0) S1[i1]@3088 T1[i1]@3111 S1[f2]@4089
+      // T2[f2i1]@4111 E2[f2i1]@4133. (2.0) S1[i1]@3066 T1[i1]@3089 S1[f2]@5067 T2[f2i1]@5088
+      // E2[f2i1]@5111.
+      expect(await run(delay, [click(IDOLL, 100), click(FIVEBOT, 100), click(IDOLL, 100)])).toEqual(
+        ['S1[i1]@3000', 'T1[i1]@3022', `S1[f2]@${due}`, `T2[f2i1]@${due}`, `E2[f2i1]@${due}`])
+    })
+
+    it.each([[1, 4000], [2, 5000]])('with llMinEventDelay(%i) a click after another avatar\'s finished click waits a delay', async (delay, due) => {
+      // In-world, a quick click by i doll then a 0.4 s hold by fivebot: (1.0) S1[i1]@3067
+      // T1[i1]@3089 E1[i1]@3112 S1[f2]@4089 T1[f2]@4112 E1[f2]@4134. (2.0) the same with
+      // fivebot's events at 5111, 5133 and 5155.
+      expect(await run(delay, [click(IDOLL, 0), click(FIVEBOT, 400)])).toEqual(
+        ['S1[i1]@3000', 'T1[i1]@3000', 'E1[i1]@3000', `S1[f2]@${due}`, `T1[f2]@${due}`, `E1[f2]@${due}`])
+    })
+
+    it('during a sleep, each kind of touch event lists both avatars once', async () => {
+      // In-world, no delay, clicks by i doll, fivebot and i doll during an 8 s sleep -> after it
+      // S2[i1f2], T2[f2i1] and E2[f2i1].
+      const sleeper = both(0).replace('default {', 'default {\n        link_message(integer s, integer k, string m, key id) { llSleep(8.0); }')
+      const { linkset, got, scripts } = await setup([[script('s', sleeper)]])
+      linkset.deliverLinkMessage(0, -1, 0, '', '')
+      linkset.advanceTime(1000)
+      const target = scripts.s!
+      for (const who of [IDOLL, FIVEBOT, IDOLL]) {
+        const detected = [{ ...who, touchFace: who === IDOLL ? 1 : 2 }]
+        for (const event of ['touch_start', 'touch', 'touch_end']) linkset.clock.schedule(target, linkset.clock.now, event, { num_detected: 1, detected })
+        linkset.advanceTime(200)
+      }
+      linkset.advanceTime(10_000)
+      expect(got('s')).toEqual(['S2[i1f2]@8000', 'T2[f2i1]@8000', 'E2[f2i1]@8000'])
+    })
+  })
+
   it('under llMinEventDelay a click during a sleep is held back for the sleep, not merged into the waiting events', async () => {
     const log = `
       list got = [];
