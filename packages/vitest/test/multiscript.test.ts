@@ -938,19 +938,25 @@ describe('multi-script linkset', () => {
       expect(scripts['sibling']!.global('messages')).toBe(0)
     })
 
-    // Unmeasured: a reset requested while the sibling runs still applies if it is paused before the reset runs.
+    // In-world: the sibling counted to 2; the driver's llResetOtherScript then llSetScriptState FALSE
+    // left llGetScriptState at 0; after llSetScriptState TRUE the sibling's state_entry said its counter
+    // was 0, after the driver's "resumed" line, and it still read 0 (Aditi, SLua Tideland, 2026-11-23).
     it('llResetOtherScript then pausing the sibling still resets it, and it stays paused', async () => {
       const sibling = `
         integer counter = 0;
         default {
+          state_entry() { llSay(0, "entry " + (string)counter); }
           touch_start(integer n) { counter = counter + 1; }
         }
       `
       const driver = `
+        integer done;
         default {
           touch_start(integer n) {
+            if (done) { llSetScriptState("sibling", TRUE); llSay(0, "resumed"); return; }
             llResetOtherScript("sibling");
             llSetScriptState("sibling", FALSE);
+            done = TRUE;
           }
         }
       `
@@ -972,6 +978,12 @@ describe('multi-script linkset', () => {
       scripts['driver']!.fire('touch_start', { num_detected: 1 })
       expect(scripts['sibling']!.global('counter')).toBe(0)
       expect(scripts['sibling']!.running).toBe(false)
+      expect(scripts['sibling']!.chat.map((c) => c.text)).toEqual(['entry 0'])
+      scripts['driver']!.fire('touch_start', { num_detected: 1 })
+      scripts['driver']!.advanceTime(1000)
+      expect(scripts['sibling']!.running).toBe(true)
+      expect(scripts['sibling']!.global('counter')).toBe(0)
+      expect(scripts['sibling']!.chat.map((c) => c.text)).toEqual(['entry 0', 'entry 0'])
     })
 
     it('llGetScriptState reflects running flag', async () => {

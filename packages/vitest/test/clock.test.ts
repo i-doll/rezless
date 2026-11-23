@@ -301,9 +301,14 @@ describe('clock reads', () => {
     expect((await readAt(1_793_429_694.50619)).wall).toBe(86_094)
   })
 
-  // Not measured: the probe ran on 2026-10-31, before daylight time ended on
-  // 2026-11-01, so only the UTC-7 offset could be observed. This follows the
-  // US Pacific zone, which Second Life time is defined as.
+  // In-world: llGetTimestamp 2026-11-23T20:50:43.775218Z -> llGetUnixTime 1795467043,
+  // llGetGMTclock 75043.000000, llGetWallclock 46243.000000: eight hours behind UTC
+  // once daylight time has ended (SLua Tideland, Aditi).
+  it('llGetWallclock reads eight hours behind UTC in standard time', async () => {
+    const t = await readAt(1_795_467_043.775218)
+    expect([t.gmt, t.wall]).toEqual([75_043, 46_243])
+  })
+
   it('llGetWallclock reads Pacific standard time in winter', async () => {
     // 2026-11-15T12:00:00Z is 04:00 PST.
     expect((await readAt(1_794_744_000)).wall).toBe(14_400)

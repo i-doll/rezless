@@ -607,7 +607,7 @@ describe('llJsonSetValue', () => {
   })
 
   it('object with duplicate keys collapses to last when another key is set', async () => {
-    // Unmeasured as a whole: combines the measured last-duplicate-wins and sorted-rebuild rules.
+    // In-world: llJsonSetValue("{\"a\":1,\"a\":2,\"b\":3,\"a\":4}", ["b"], "9") = {"a":4,"b":9} (Aditi, SLua Tideland, 2026-11-23).
     const s = await run(`
       string out = "";
       default { state_entry() {
