@@ -441,13 +441,24 @@ describe('a timer tick that fell due while a handler slept', () => {
 
   // A stopped script's overdue tick, released with a click held back behind its first handler,
   // is the tick it was owed: an interval set in that tick's handler starts from there.
-  it('lets the overdue tick of a restarted script go once it has run', async () => {
+  // In-world (2026-11-23): a 1 s timer, stopped at 0.5 s with a 4 s sleep queued, started at
+  // 3.5 s and clicked 1 s later, woke to the caught-up tick, the click and a second tick, 22 ms
+  // apart, then ticked every second, in two runs. With llSetTimerEvent(20) in the first tick's
+  // handler it woke to the tick and the click, and no second tick came.
+  it.each([
+    [true, ['timer 8', 'touch']],
+    [false, ['timer 8', 'touch', 'timer 8', 'timer 9', 'timer 10', 'timer 11']],
+  ])('lets the overdue tick of a restarted script go once it has run (reset in its handler: %s)', async (reset, log) => {
     const f = await fixture()
     const made = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [
       { name: 'main', source: { source: `list log; integer armed; default {
         state_entry() { llListen(5, "", "", ""); llSetTimerEvent(1.0); }
         listen(integer c, string name, key id, string m) { armed = TRUE; llSleep(4.0); }
-        timer() { log += "timer " + (string)llRound(llGetTime()); if (armed) llSetTimerEvent(20.0); }
+        timer() {
+          log += "timer " + (string)llRound(llGetTime());
+          if (armed && ${reset ? 'TRUE' : 'FALSE'}) llSetTimerEvent(20.0);
+          if (llGetTime() > 9.5) llSetTimerEvent(0.0);
+        }
         touch_start(integer n) { log += "touch"; } }` } },
       { name: 'ctl', source: { source: 'default { link_message(integer from, integer n, string s, key id) { llSetScriptState("main", n); } }' } },
     ] }] })
@@ -462,7 +473,7 @@ describe('a timer tick that fell due while a handler slept', () => {
     made.linkset.advanceTime(1_000)
     queue(f, main, 'touch_start', click(0))
     made.linkset.advanceTime(15_000)
-    expect(main.global('log')).toEqual(['timer 8', 'touch'])
+    expect(main.global('log')).toEqual(log)
   })
 
   // In-world: a 3 s timer set as an 8 s sleep began, a click 1.5 s into the sleep and a chat

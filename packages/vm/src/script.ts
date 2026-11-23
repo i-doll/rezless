@@ -1900,6 +1900,7 @@ export class Script {
     const starting = value && !this.isRunning, stopping = !value && this.isRunning
     this.isRunning = value
     if (value) this.crashed = false
+    if (stopping) this.clockView.stopped()
     if (stopping && !this.crashed) slackenTargetMotion(this, true)
     if (starting) {
       slackenTargetMotion(this, false)
