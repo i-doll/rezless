@@ -439,8 +439,20 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
 const clampVec = (v: Vector, lo: number, hi: number): Vector =>
   ({ x: clamp(v.x, lo, hi), y: clamp(v.y, lo, hi), z: clamp(v.z, lo, hi) })
 
-/** A rotation as a prim stores it: Second Life's quaternion normalise. */
-export const normalizeRot = normalizeRotation
+export function normalizeRot(r: Rotation): Rotation {
+  const mag = Math.hypot(r.x, r.y, r.z, r.s)
+  if (mag === 0) return identityRot()
+  // Second Life keeps a rotation within 1e-6 of unit length as it is.
+  if (Math.abs(1 - mag) <= 1e-6) return r
+  return { x: r.x / mag, y: r.y / mag, z: r.z / mag, s: r.s / mag }
+}
+
+/**
+ * A rotation as PRIM_ROTATION and PRIM_ROT_LOCAL store it: Second Life's normalise in single
+ * precision, which stores one of length 1e-7 or less as no rotation. One too long to square in
+ * single precision keeps the rescale above.
+ */
+const storedRotation = (r: Rotation) => (Math.hypot(r.x, r.y, r.z, r.s) < 1.8e19 ? normalizeRotation(r) : normalizeRot(r))
 
 /** Face indexes a face argument names: every face for a negative face, none past the shape's face count. */
 export function faceIndices(p: PrimParams, face: number): number[] {
@@ -550,14 +562,14 @@ export function writePrimParam(
           Math.fround(requested.y) === Math.fround(p.rotation.y) &&
           Math.fround(requested.z) === Math.fround(p.rotation.z) &&
           Math.fround(requested.s) === Math.fround(p.rotation.s)) return 1
-      const rotation = normalizeRot(requested)
+      const rotation = storedRotation(requested)
       p.rotation = root && root !== prim
-        ? normalizeRot(mulRotation(rotation, root.params.rotation))
+        ? storedRotation(mulRotation(rotation, root.params.rotation))
         : rotation
       return 1
     }
     case PRIM_ROT_LOCAL:
-      p.rotation = normalizeRot(asRot(rules[cursor]))
+      p.rotation = storedRotation(asRot(rules[cursor]))
       return 1
     case PRIM_SIZE:
       p.size = clampVec(asVec(rules[cursor]), 0.01, 64)

@@ -457,9 +457,9 @@ describe('llEuler2Rot of NaN, infinite and huge angles', () => {
 
   // In-world: 1e7, 1e8 and 1e9 radians turned 163.131, -32.692 and 145.082 degrees, 1e10 radians
   // 18.823 degrees, and 1.6e10 radians the 25.07 degrees of a NaN angle, though its steps fit a
-  // 64-bit integer (1.7e10 and 2e10 don't). The whole turns come off in degrees, counted in a float
-  // and multiplied back in a float, which is off by multiples of 8 degrees here, and 1.6e10 radians
-  // is more turns than a 32-bit integer holds. More of these are in euler2rot-turns.test.ts.
+  // 64-bit integer (1.7e10 and 2e10 don't). The whole turns come off in degrees, truncated to a
+  // 32-bit integer and multiplied back as a float, which is off by multiples of 8 degrees here, and
+  // 1.6e10 radians is more turns than a 32-bit integer holds. More of these are in euler2rot-turns.test.ts.
   it('turns 1e7 to 1.6e10 radians as Second Life does', async () => {
     const want: Array<[string, number]> = [['1e7', 163.131], ['1e8', -32.692], ['1e9', 145.082], ['1e10', 18.823], ['1.6e10', 25.071]]
     for (const [angle, degrees] of want) expect(await turn(angle)).toBeCloseTo(degrees, 2)

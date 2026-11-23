@@ -114,10 +114,10 @@ const fromExact = (t: string) => {
 }
 
 describe('llEuler2Rot of huge angles', () => {
-  it('takes whole turns off in a float, losing multiples of 8 degrees, and turns past 2^31 of them as NaN', async () => {
+  it('takes whole turns off as a float, losing multiples of 8 degrees, and turns past 2^31 of them as NaN', async () => {
     // In-world: 30 angles from 5e5 to 1.6e10 radians. Each is the angle in degrees less 360 times
-    // its whole turns, truncated to a 32-bit integer and multiplied back in a float, brought within
-    // 180 degrees by one more turn: 5e6 radians turned 16 degrees short of 5e6 radians less whole
+    // its whole turns, truncated to a 32-bit integer and multiplied back as a float, less one more
+    // turn when the rest is past 180 degrees: 5e6 radians turned 16 degrees short of 5e6 radians less whole
     // turns, 2e7 radians 16 degrees past, and 3e8 radians 128 degrees short. 1.5e10 radians and up
     // have more turns than fit, and turn as a NaN angle does. 21 of the 30 match to the last bit
     // and 27 within 3e-7. 1e9 radians, which leaves 2015 degrees after the turns come off, is
@@ -132,6 +132,52 @@ describe('llEuler2Rot of huge angles', () => {
     }
     expect(want.filter((q, i) => q.every((v, k) => got[i]![k] === v)).length).toBe(21)
     expect(want.filter((q, i) => q.every((v, k) => Math.abs(got[i]![k]! - v) < 3e-7)).length).toBe(27)
+  })
+})
+
+/** In-world (2026-11-23, Mono): more huge angles from a second probe, printed exactly. */
+const HUGE_SIGNED: Array<[string, string]> = [
+  ['<-1.5e10, 0, 0>', '-10778538p-24,-0,0,12856831p-24'],
+  ['<-1.6e10, 0, 0>', '-9796455p-24,-0,0,13620003p-24'],
+  ['<-1.7e10, 0, 0>', '9731152p-24,0,0,13666735p-24'],
+  ['<-2e10, 0, 0>', '16417203p-24,0,0,13827767p-26'],
+  ['<-2.5e10, 0, 0>', '-10680476p-26,-0,0,16563376p-24'],
+  ['<-2.6e10, 0, 0>', '15395231p-24,0,0,13335942p-25'],
+  ['<-2.7e10, 0, 0>', '-10254874p-24,-0,0,13278273p-24'],
+  ['<-3e10, 0, 0>', '14565665p-26,0,0,16377273p-24'],
+  ['<-1e11, 0, 0>', '14565665p-26,0,0,16377273p-24'],
+  ['<-1e12, 0, 0>', '14565665p-26,0,0,16377273p-24'],
+  ['<-3e38, 0, 0>', '14565665p-26,0,0,16377273p-24'],
+  ['<2.2e10, 0, 0>', '14565665p-26,0,0,16377273p-24'],
+  ['<1.4e10, 0, 0>', '14565665p-26,0,0,16377273p-24'],
+  ['<1.45e10, 0, 0>', '14565665p-26,0,0,16377273p-24'],
+  ['<-1.45e10, 0, 0>', '16528645p-24,0,0,-11509226p-26'],
+
+]
+
+describe('llEuler2Rot of huge negative angles', () => {
+  it('turns a negative angle whose turns do not fit, as long as the rest fits the step', async () => {
+    // In-world: the turns of 1.4e10 radians and more don't fit a 32-bit integer, which leaves -2^31
+    // of them. Taking those off a positive angle leaves too many steps, so it turns as a NaN angle
+    // does; taking them off a negative one adds 7.7e11 degrees, which still fits the step up to
+    // -2.7e10 radians. -3e10 radians and more turn as a NaN angle does.
+    const got = (await euler2Rot(HUGE_SIGNED.map(([v]) => v))).map((line) => line.split(',').map(fromExact))
+    const want = HUGE_SIGNED.map(([, q]) => q.split(',').map(fromExact))
+    for (const [i, q] of want.entries()) {
+      for (const [k, v] of q.entries()) {
+        expect(Math.abs(got[i]![k]! - v), HUGE_SIGNED[i]![0]).toBeLessThan(6e-8)
+        if (v === 0) expect(Object.is(got[i]![k], v), HUGE_SIGNED[i]![0]).toBe(true)
+      }
+    }
+    expect(want.filter((q, i) => q.every((v, k) => got[i]![k] === v)).length).toBe(13)
+  })
+
+  // In-world: -1.4e10 radians gave 12380024p-24, 0, 0, 11322985p-24, a turn of 95.107 degrees.
+  // rezless turns it 128.572 degrees: the angle left is about -5e8 radians, where one float is 32
+  // radians, and the two differ by that one float. Which rounding the grid uses there is open.
+  it.fails('turns -1.4e10 radians as Second Life does', async () => {
+    const [line] = await euler2Rot(['<-1.4e10, 0, 0>'])
+    expect(line).toBe('12380024p-24,0,0,11322985p-24')
   })
 })
 
