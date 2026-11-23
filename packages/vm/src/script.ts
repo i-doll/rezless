@@ -209,6 +209,8 @@ export class Script {
   resumedAt = 0
   /** True while a handler of this script is on the call stack; events for it wait until it returns or sleeps. */
   handling = false
+  /** Set when the object was detached while a handler of this script was on the call stack. */
+  detachedInHandler = false
   /** For an SLua script: its source, and the VM running it. */
   private readonly sluaSource: string | undefined
   private slua: SluaEngine | null = null
@@ -334,6 +336,7 @@ export class Script {
       lifecycle: {
         dead: false,
         dying: false,
+        reset: false,
         removed: false,
       },
       filename,
@@ -1120,6 +1123,7 @@ export class Script {
     if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    copy.detachedInHandler = this.detachedInHandler
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
     for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
@@ -1247,13 +1251,17 @@ export class Script {
       // A worn object that was detached and is worn again runs on without state_entry.
       if (!this.clockView.inInventory) this.clockView.schedule(this.now, 'state_entry')
     }
+    const detachedInHandler = this.detachedInHandler
+    this.detachedInHandler = false
     if (!this.running) return
     // In-world: the events a script brought out of inventory ran after on_rez. A script that
     // came out with 64 events waiting ran them all and got no on_rez; one with 63 got it.
-    // A script that is not asleep has no such events: what it has queued stays ahead.
+    // A script that is not asleep, and was not in a handler at the detach, has no such events:
+    // what it has queued stays ahead.
     const clock = this.linkset.clock
-    const waiting = this.task ? clock.pendingEvents().filter(e => e.target === this) : []
-    if (this.task) clock.purgeTarget(this)
+    const held = !!this.task || detachedInHandler
+    const waiting = held ? clock.pendingEvents().filter(e => e.target === this) : []
+    if (held) clock.purgeTarget(this)
     const room = MAX_PENDING_EVENTS - waiting.length
     // A start that had not run yet still comes first.
     for (const e of waiting) if (e.event === 'state_entry') clock.schedule(this, this.now, e.event, e.payload)
@@ -1378,7 +1386,11 @@ export class Script {
     if (this.state.coverage) this.state.coverage.hitState('default')
     // Per LSL: if the script is stopped, reset just clears state — no
     // state_entry runs until it's restarted.
-    if (this.running) this.boot()
+    // A handler still running stops at its next call, and state_entry runs after it.
+    if (this.handling) this.state.lifecycle.reset = true
+    if (!this.running) return
+    if (this.handling) this.queueStart()
+    else this.boot()
   }
 
   /**
@@ -1426,7 +1438,8 @@ export class Script {
 
   /** Whether the script handles `event` now: a handler in the current LSL state, or an SLua LLEvents handler. */
   handles(event: string): boolean {
-    if (this.slua) return this.slua.handles(event)
+    // Until it starts, an SLua script's state_entry is its top level.
+    if (this.slua) return event === 'state_entry' ? !this.slua.started : this.slua.handles(event)
     return this.handlersByState.get(this.state.currentState)!.has(event)
   }
 
@@ -1506,6 +1519,7 @@ export class Script {
       throw e
     } finally {
       this.handling = outer
+      if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until }

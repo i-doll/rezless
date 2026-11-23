@@ -246,10 +246,10 @@ export const llDerezObject: BuiltinImpl = (ctx, args) => {
     const sat = !!target.world?.avatars.some(avatar => avatar.sittingOn?.linkset === target)
     provenance.item.object = target.copy()
     // In-world: the seat's script ran the stand's changed(CHANGED_LINK) before the object went.
-    // A script that is stopped or asleep cannot take it before then.
+    // A script that is stopped, asleep or still in a handler cannot take it before then.
     try {
       if (sat) for (const script of target.allScripts()) {
-        if (!script.running || script.wakeAt !== undefined) continue
+        if (!script.running || script.wakeAt !== undefined || script.handling) continue
         try {
           script.deliver('changed', { changes: C.CHANGED_LINK })
         } catch (e) {

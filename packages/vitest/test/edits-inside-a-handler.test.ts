@@ -68,7 +68,9 @@ describe('an owner edit made inside a running handler', () => {
     expect(log('a').at(-1)).toBe('lm m')
   })
 
-  it('returns from a reset inside the handler whose state_entry sleeps, and wakes it afterwards', async () => {
+  // In-world: an owner Reset stopped a handler busy in a loop; state_entry ran next (Aditi, SLua
+  // Tideland, 2026-11-23).
+  it('returns from a reset inside the handler, stops that handler and wakes the sleeping state_entry', async () => {
     const { prims, scripts, linkset } = await loadLinkset({
       prims: [{
         scripts: [{
@@ -87,7 +89,7 @@ describe('an owner edit made inside a running handler', () => {
     linkset.advanceTime(2000)
     a.mock('llOwnerSay', () => { a.reset(); return undefined })
     a.fire('touch_start', { num_detected: 1 })
-    expect(a.global('log')).toEqual(['se', 't2', 'woke'])
+    expect(a.global('log')).toEqual(['se', 'woke'])
     expect(prims[0]!.scripts).toContain(a)
   })
 
