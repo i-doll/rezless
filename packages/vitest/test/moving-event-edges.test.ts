@@ -69,12 +69,26 @@ describe('moving events when an object is linked', () => {
     root.linkset.advanceTime(4_000)
     expect(child.log().map((line) => line.split(' ')[0])).toEqual(['moving_start', 'moving_start', 'moving_end'])
   })
+
+  // The link's moving_start replaces the moving_end that stopping the incoming mover held back
+  // for its sleeping script.
+  it('gives a sleeping mover linked into a moving object no moving_end before the object stops', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const root = await box(mover, 128, world)
+    const child = await box(mover.replace('else if (m == "newkf")', 'else if (m == "nap") { up(4.0); llSleep(2.0); }\n      else if (m == "newkf")'), 130, world)
+    send(root, 'long')
+    world.clock.schedule(child.script, world.clock.now, 'link_message', { sender_num: 0, num: 0, str: 'nap', id: '' })
+    root.linkset.advanceTime(1_200)
+    root.linkset.absorb(child.linkset)
+    root.linkset.advanceTime(1_500)
+    expect(child.log().map((line) => line.split(' ')[0])).toEqual(['moving_start'])
+    root.linkset.advanceTime(3_000)
+    expect(child.log().map((line) => line.split(' ')[0])).toEqual(['moving_start', 'moving_end'])
+  })
 })
 
-// Not modelled: a motion that started and came to rest inside one sleep or one call delay gave
-// neither event in-world (a 1 s keyframed motion in a 2.5 s sleep, four runs; physics switched
-// on for a box at rest in a 1.5 s sleep, and with llSetPrimitiveParams). A 0.5 s motion in a
-// 1.5 s sleep gave both once and neither once, so rezless raises both.
+// A motion that starts and comes to rest inside one sleep is in moving-event-sleeps.test.ts.
 describe('moving events raised while a handler sleeps', () => {
   // In-world: a 3 s motion, and 1 s in new keyframes for 2 s from the same handler -> one
   // moving_start after the handler and one moving_end 3 s after the first call, when the

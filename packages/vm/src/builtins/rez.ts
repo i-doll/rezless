@@ -1,4 +1,5 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
+import { rezzedMoving } from './motion.js'
 import type { Linkset } from '../linkset.js'
 import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR, isVector, isRotation } from '../values/types.js'
@@ -209,6 +210,7 @@ function rez(ctx: CallContext, name: string, o: Options): string {
     for (const s of ctx.prim.scripts) if (s.running) ctx.linkset.clock.schedule(s, ctx.linkset.clock.now, 'changed', { changes: C.CHANGED_INVENTORY })
   }
   for (const script of object.allScripts()) script.queueRez()
+  rezzedMoving(object, true)
   object.applyStoppedPastWearChanges()
   for (const script of ctx.prim.scripts) {
     if (script.running) ctx.linkset.clock.schedule(script, ctx.linkset.clock.now, 'object_rez', { id: key })

@@ -9,6 +9,7 @@ import type { RlvRestriction } from './restrictions.js'
 import { isRlvDetachLocked } from './detach.js'
 import { isRlvInventoryWearLocked } from './outfit.js'
 import { rlvaPieMenuDenials } from './touch.js'
+import { rezzedMoving, SELECTION_MS, selectMotion, stillCopy } from '../builtins/motion.js'
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 const switches = new Set(['editworld', 'editattach', 'rez', 'interact'])
@@ -93,7 +94,9 @@ export function attemptAvatarEdit(world: World, avatar: WorldAvatar, prim: Prim)
   const linkset = prim.linkset
   if (!linkset || linkset.dead || linkset.world !== world || !world.linksets.includes(linkset) || !linkset.prims.includes(prim)) return record('unsupported', 'target')
   const denials = editDenials(avatar, linkset)
-  return denials.length ? record('blocked', denials[0]!.behaviour, denials) : record('opened')
+  if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
+  selectMotion(linkset, SELECTION_MS.edit)
+  return record('opened')
 }
 
 function editDenials(avatar: WorldAvatar, linkset: Linkset): RlvRestriction[] {
@@ -155,13 +158,16 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
     : profile !== 'rlva' ? named('rez')
       : checked ? [...new Set([...editDenials(avatar, linkset), ...named('edit', 'rez')])] : []
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
+  const paused = selectMotion(linkset, SELECTION_MS.copy)
   if (!foreign) {
     const object = linkset.copy()
+    if (paused) stillCopy(object)
     if (!copy) linkset.remove()
     return record('taken', undefined, [], object)
   }
   const waiting = new Set(linkset.clock.pendingEvents())
   const object = linkset.copy({ owner: avatar.key })
+  if (paused) stillCopy(object)
   for (const prim of object.prims) {
     prim.permMask = nextOwnerMask(prim.permMask)
     for (const item of prim.inventory) Object.assign(item, forNextOwner(item))
@@ -283,6 +289,7 @@ export function attemptAvatarRez(world: World, avatar: WorldAvatar, itemId: stri
   object.prims[0]!.params.position = { ...position }
   object.setTemporary(object.prims[0]!.params.tempOnRez)
   for (const script of object.allScripts()) script.queueRez()
+  rezzedMoving(object, false)
   object.applyStoppedPastWearChanges()
   return record('rezzed', undefined, [], object)
 }
