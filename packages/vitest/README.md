@@ -284,7 +284,8 @@ seconds, and for as long as they keep coming about every 2 seconds or faster. Th
 periods start every 16 seconds of the clock rather than at a prim's first
 error, so how a burst comes out depends on where in a period it starts. A
 seated avatar's errors count for the avatar, apart from the seat's, and a worn
-object that teleports or crosses into another region starts afresh there. The errors of `llSetPrimitiveParams`
+object that teleports or crosses into another region starts afresh there and
+finds its old count when it comes back. The errors of `llSetPrimitiveParams`
 and its link variants, and of the pathfinding calls made with no character, go
 to the owner only: they are in `s.chat`, but no script hears them. `llRegionSay` reaches every prim in the
 region. `llRegionSayTo` reaches only the prim with the target key, or, when

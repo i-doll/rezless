@@ -4,7 +4,7 @@ import { isPrim, type Link } from '../linkset.js'
 import { WindowThrottle } from '../throttle.js'
 
 export const FLOOD = 'Too many errors... dropping further messages until the flood stops'
-const floods = new WeakMap<object, { region: string | undefined; throttle: WindowThrottle }>()
+const floods = new WeakMap<object, Map<string | undefined, WindowThrottle>>()
 
 // In-world a prim gets 8 errors in 16 s, counted by a sliding window over periods
 // that start every 16 s on the region's clock, and shared by its scripts. The next
@@ -14,14 +14,17 @@ const floods = new WeakMap<object, { region: string | undefined; throttle: Windo
 // period. An error only the owner sees counts too, but when it is the one past the
 // limit it is shown as it is. An error said by another link, such as a media error
 // on a child prim or a get error on a seated avatar, counts for the link that says
-// it, and both lines of a script crash count. A worn object that teleports or
-// crosses into another region starts that region's count afresh. Every region here
+// it, and both lines of a script crash count. Each region keeps its own count for
+// a worn object: one that teleports or crosses into another region starts afresh
+// there, and finds its old count when it comes back. Every region here
 // shares the one clock, so their periods line up, where in-world each has its own.
 export function flood(link: Link, now: number): 'open' | 'shuts' | 'refused' {
   const region = isPrim(link) ? link.linkset?.region : link.region
-  let state = floods.get(link)
-  if (!state || state.region !== region) floods.set(link, state = { region, throttle: new WindowThrottle(16_000, 8, true) })
-  return state.throttle.take(now)
+  let regions = floods.get(link)
+  if (!regions) floods.set(link, regions = new Map())
+  let throttle = regions.get(region)
+  if (!throttle) regions.set(region, throttle = new WindowThrottle(16_000, 8, true))
+  return throttle.take(now)
 }
 
 /**

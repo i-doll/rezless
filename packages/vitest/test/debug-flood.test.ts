@@ -291,7 +291,7 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
   })
   // In-world, with the start of each call and each error's arrival logged by region time:
   // five prims rezzed up to 25 minutes apart and a worn object all fit periods starting at
-  // the same point of the region's clock. Runs were then started at chosen points of a
+  // the same point of the region's clock. Half an hour later that point had moved. Runs were then started at chosen points of a
   // period, giving 9 errors and one more later:
   // - 1.5 s in, the last one 22.3 s after the 9th ended: it arrived, twice.
   // - 8.2 s in, so the 9th fell in the next period, the last one 23.8 s after the 9th
@@ -341,7 +341,8 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
       const run = (segments: string) => w.clock.schedule(s, w.clock.now, 'listen', { channel: 1, name: 'i doll', id: OWNER, msg: segments })
       const said = () => s.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)
       const away = (y = 300) => w.teleportAvatar(avatar, { x: 128, y, z: 30 })
-      return { s, run, said, away }
+      const back = () => w.teleportAvatar(avatar, { x: 128, y: 250, z: 30 })
+      return { s, run, said, away, back }
     }
 
     it('drops errors after the notice while the wearer stays', async () => {
@@ -367,6 +368,33 @@ describe('the DEBUG_CHANNEL error flood cap', () => {
       expect(o.away()).toBe(true)
       o.s.advanceTime(60_000)
       expect(arrivals(o.said(), 13)).toBe('8D T 4D')
+    })
+
+    // In-world, twice: after the notice the wearer teleported to the next region and straight
+    // back, and the 4 errors 2 s apart from 12 s later were dropped.
+    it('finds the old count when the wearer comes straight back', async () => {
+      const o = await worn()
+      o.run('0,9,0/12,4,2')
+      o.s.advanceTime(9_600)
+      expect(o.away()).toBe(true)
+      o.s.advanceTime(500)
+      expect(o.back()).toBe(true)
+      o.s.advanceTime(60_000)
+      expect(arrivals(o.said(), 13)).toBe('8D T 4X')
+    })
+
+    // In-world, twice: after the notice the wearer teleported to the next region, where 2
+    // errors arrived, and back 3 s later. Of the 4 errors 2 s apart from 12 s after those,
+    // the first, or the first 3, were dropped, as the old count ran out at the end of a period.
+    it('keeps the count of each region apart when the object errs in both', async () => {
+      const o = await worn()
+      o.run('0,9,0/1.5,2,0/12,4,2')
+      o.s.advanceTime(9_600)
+      expect(o.away()).toBe(true)
+      o.s.advanceTime(3_000)
+      expect(o.back()).toBe(true)
+      o.s.advanceTime(60_000)
+      expect(arrivals(o.said(), 15)).toMatch(/^8D T 2D [1-4]X/)
     })
 
     it('does not carry errors said before the teleport', async () => {

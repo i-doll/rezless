@@ -288,7 +288,8 @@ seconds, and for as long as they keep coming about every 2 seconds or faster. Th
 periods start every 16 seconds of the clock rather than at a prim's first
 error, so how a burst comes out depends on where in a period it starts. A
 seated avatar's errors count for the avatar, apart from the seat's, and a worn
-object that teleports or crosses into another region starts afresh there.
+object that teleports or crosses into another region starts afresh there and
+finds its old count when it comes back.
 `llRegionSay` reaches every prim in the region. `llRegionSayTo` reaches only the prim with the target key, or, when
 targeting an avatar on a nonzero channel, matching listens in every attachment
 that avatar wears in the sender's region. Channel 0 to an avatar reaches no
