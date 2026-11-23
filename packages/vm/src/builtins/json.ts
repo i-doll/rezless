@@ -20,7 +20,8 @@ import {
 // in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
 // regardless of remaining specifiers. A `missing` value, as in `{"k":}` or
 // the extra "" member a trailing comma adds to an object, reads as
-// JSON_INVALID instead. A `raw` value is text that is not JSON, kept as written, and a `bad`
+// JSON_INVALID instead. A `raw` value is text printed exactly as stored: text read that is not
+// JSON, or a value llJsonSetValue writes. A `bad`
 // container is one whose first and last characters make it an object or array but whose
 // members could not be read.
 type JNode =
@@ -28,7 +29,7 @@ type JNode =
   | { t: 'true' }
   | { t: 'false' }
   | { t: 'num'; raw: string }
-  | { t: 'str'; v: string; raw?: string }
+  | { t: 'str'; v: string; raw: string }
   | { t: 'arr'; items: JNode[]; raw?: string }
   | { t: 'obj'; entries: Array<[string, JNode]>; raw?: string }
   | { t: 'empty'; missing?: true }
@@ -46,210 +47,6 @@ const SENTINEL_STRINGS: ReadonlySet<string> = new Set([
   JSON_FALSE,
   JSON_DELETE,
 ])
-
-class Parser {
-  private i = 0
-  constructor(private readonly src: string) {}
-
-  parseRoot(): JNode | null {
-    this.ws()
-    if (this.i >= this.src.length) return null
-    const v = this.parseValue()
-    if (v === null) return null
-    this.ws()
-    if (this.i !== this.src.length) return null
-    return v
-  }
-
-  private ws(): void {
-    while (this.i < this.src.length) {
-      const c = this.src[this.i]!
-      if (c === ' ' || c === '\t' || c === '\n' || c === '\r') this.i++
-      else break
-    }
-  }
-
-  private parseValue(): JNode | null {
-    this.ws()
-    if (this.i >= this.src.length) return null
-    const c = this.src[this.i]!
-    if (c === '{') return this.parseObject()
-    if (c === '[') return this.parseArray()
-    if (c === '"') return this.parseString()
-    if (c === 't' && this.src.startsWith('true', this.i)) {
-      this.i += 4
-      return { t: 'true' }
-    }
-    if (c === 'f' && this.src.startsWith('false', this.i)) {
-      this.i += 5
-      return { t: 'false' }
-    }
-    if (c === 'n' && this.src.startsWith('null', this.i)) {
-      this.i += 4
-      return { t: 'null' }
-    }
-    if (c === '-' || (c >= '0' && c <= '9')) return this.parseNumber()
-    return null
-  }
-
-  private parseObject(): JNode | null {
-    const start = this.i
-    this.i++
-    const entries: Array<[string, JNode]> = []
-    this.ws()
-    if (this.src[this.i] === '}') {
-      this.i++
-      return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
-    }
-    while (true) {
-      this.ws()
-      if (this.src[this.i] !== '"') return null
-      const k = this.parseString()
-      if (k === null || k.t !== 'str') return null
-      this.ws()
-      if (this.src[this.i] !== ':') return null
-      this.i++
-      this.ws()
-      const nc = this.src[this.i]
-      let v: JNode
-      if (nc === '}') {
-        v = { t: 'empty', missing: true }
-      } else if (nc === ',') {
-        v = { t: 'empty' }
-      } else {
-        const parsed = this.parseValue()
-        if (parsed === null) return null
-        v = parsed
-      }
-      entries.push([k.v, v])
-      this.ws()
-      if (this.src[this.i] === '}') {
-        this.i++
-        return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
-      }
-      if (this.src[this.i] === ',') {
-        this.i++
-        this.ws()
-        if (this.src[this.i] === '}') {
-          this.i++
-          entries.push(['', { t: 'empty', missing: true }])
-          return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
-        }
-        continue
-      }
-      return null
-    }
-  }
-
-  private parseArray(): JNode | null {
-    const start = this.i
-    this.i++
-    const items: JNode[] = []
-    this.ws()
-    if (this.src[this.i] === ']') {
-      this.i++
-      return { t: 'arr', items, raw: this.src.slice(start, this.i) }
-    }
-    while (true) {
-      this.ws()
-      const nc = this.src[this.i]
-      let v: JNode
-      if (nc === ',' || nc === ']') {
-        v = { t: 'empty' }
-      } else {
-        const parsed = this.parseValue()
-        if (parsed === null) return null
-        v = parsed
-      }
-      items.push(v)
-      this.ws()
-      if (this.src[this.i] === ']') {
-        this.i++
-        return { t: 'arr', items, raw: this.src.slice(start, this.i) }
-      }
-      if (this.src[this.i] === ',') {
-        this.i++
-        continue
-      }
-      return null
-    }
-  }
-
-  private parseString(): JNode | null {
-    if (this.src[this.i] !== '"') return null
-    const start = this.i
-    this.i++
-    let out = ''
-    while (this.i < this.src.length) {
-      const c = this.src[this.i]!
-      if (c === '"') {
-        this.i++
-        return { t: 'str', v: out, raw: this.src.slice(start, this.i) }
-      }
-      if (c === '\\') {
-        this.i++
-        const e = this.src[this.i]
-        if (e === undefined) return null
-        this.i++
-        if (e === '"') out += '"'
-        else if (e === '\\') out += '\\'
-        else if (e === '/') out += '/'
-        else if (e === 'n') out += '\n'
-        else if (e === 't') out += '\t'
-        else if (e === 'r') out += '\r'
-        else if (e === 'b') out += '\b'
-        else if (e === 'f') out += '\f'
-        else out += e
-      } else {
-        out += c
-        this.i++
-      }
-    }
-    return null
-  }
-
-  private parseNumber(): JNode | null {
-    const start = this.i
-    if (this.src[this.i] === '-') this.i++
-    const digitStart = this.i
-    while (
-      this.i < this.src.length &&
-      this.src[this.i]! >= '0' &&
-      this.src[this.i]! <= '9'
-    ) {
-      this.i++
-    }
-    if (this.i === digitStart) return null
-    if (this.src[this.i] === '.') {
-      this.i++
-      while (
-        this.i < this.src.length &&
-        this.src[this.i]! >= '0' &&
-        this.src[this.i]! <= '9'
-      ) {
-        this.i++
-      }
-    }
-    if (this.src[this.i] === 'e' || this.src[this.i] === 'E') {
-      this.i++
-      if (this.src[this.i] === '+' || this.src[this.i] === '-') this.i++
-      const expStart = this.i
-      while (
-        this.i < this.src.length &&
-        this.src[this.i]! >= '0' &&
-        this.src[this.i]! <= '9'
-      ) {
-        this.i++
-      }
-      if (this.i === expStart) return null
-    }
-    return { t: 'num', raw: this.src.slice(start, this.i) }
-  }
-}
-
-function parseJson(src: string): JNode | null {
-  return new Parser(src).parseRoot()
-}
 
 // The reader behind llJson2List, llJsonGetValue, llJsonValueType and llJsonSetValue's input,
 // modelled on how Second Life reads malformed JSON. A text is an object or array when its first
@@ -460,7 +257,7 @@ function printJson(n: JNode): string {
     case 'num':
       return n.raw
     case 'str':
-      return n.raw ?? '"' + escapeJsonString(n.v) + '"'
+      return n.raw
     case 'arr':
       return n.raw ?? '[' + n.items.map((i) => (i.t === 'empty' ? '' : printJson(i))).join(',') + ']'
     case 'obj':
@@ -563,35 +360,27 @@ function nodeType(n: ReadNode): string {
   }
 }
 
-// Convert an LSL string `value` argument into a JNode (or the 'delete'
-// sentinel). Mirrors the documented LSL coercion rules from the wiki:
-// FDDx sentinels become bare-word JSON; bare "true"/"false"/"null"
-// become bare-word JSON; literally double-quoted strings, JSON numbers,
-// and JSON object/array literals are parsed and embedded; everything
-// else becomes a JSON string.
+// How llJsonSetValue's value and llList2Json's string elements are written, as measured in
+// Second Life. The text is trimmed of space, tab, newline, CR, VT and FF. JSON_TRUE, JSON_FALSE
+// and JSON_NULL become bare words and JSON_INVALID becomes nothing. Text whose first and last
+// characters are a matching bracket pair or both a double quote is written as it is, however
+// malformed inside. llJsonSetValue also writes a number as Second Life reads one as it is;
+// llList2Json quotes it. Anything else is written as a JSON string.
+const trimValue = (s: string) => s.replace(/^[ \t\n\r\v\f]+|[ \t\n\r\v\f]+$/g, '')
+
+function embedValue(value: string, numbers: boolean): string {
+  const t = trimValue(value)
+  if (t === 'true' || t === JSON_TRUE) return 'true'
+  if (t === 'false' || t === JSON_FALSE) return 'false'
+  if (t === 'null' || t === JSON_NULL) return 'null'
+  if (t === JSON_INVALID) return ''
+  if (t.length >= 2 && (CLOSER[t[0]!] === t[t.length - 1] || (t[0] === '"' && t[t.length - 1] === '"'))) return t
+  if (numbers && isLooseNumber(t)) return t
+  return '"' + escapeJsonString(t) + '"'
+}
+
 function valueToNode(value: string): JNode | 'delete' {
-  if (value === JSON_DELETE) return 'delete'
-  if (value === JSON_NULL) return { t: 'null' }
-  if (value === JSON_TRUE) return { t: 'true' }
-  if (value === JSON_FALSE) return { t: 'false' }
-  const trimmed = value.trim()
-  if (trimmed === 'true') return { t: 'true' }
-  if (trimmed === 'false') return { t: 'false' }
-  if (trimmed === 'null') return { t: 'null' }
-  if (trimmed.length > 0) {
-    const ch = trimmed[0]!
-    if (
-      ch === '{' ||
-      ch === '[' ||
-      ch === '"' ||
-      ch === '-' ||
-      (ch >= '0' && ch <= '9')
-    ) {
-      const parsed = parseJson(trimmed)
-      if (parsed !== null) return parsed
-    }
-  }
-  return { t: 'str', v: value }
+  return trimValue(value) === JSON_DELETE ? 'delete' : { t: 'raw', v: embedValue(value, true) }
 }
 
 function collapseDuplicateKeys(
@@ -786,40 +575,12 @@ export const llJsonSetValue: BuiltinImpl = (_ctx, args) => {
   return printJson(r.node)
 }
 
-function lslStringToJsonElement(raw: string): string {
-  // Wiki-documented coercion: trim whitespace, then check (in order):
-  //   FDDx sentinels  → bare word
-  //   already-quoted  → emit verbatim
-  //   bare-word names → bare word
-  //   valid JSON object/array → emit verbatim (kept-as-is, allows nesting)
-  //   else → JSON-quoted string
-  const trimmed = raw.trim()
-  if (trimmed === JSON_TRUE) return 'true'
-  if (trimmed === JSON_FALSE) return 'false'
-  if (trimmed === JSON_NULL) return 'null'
-  if (
-    trimmed.length >= 2 &&
-    trimmed.startsWith('"') &&
-    trimmed.endsWith('"')
-  ) {
-    return trimmed
-  }
-  if (trimmed === 'true' || trimmed === 'false' || trimmed === 'null') {
-    return trimmed
-  }
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    const parsed = parseJson(trimmed)
-    if (parsed !== null) return trimmed
-  }
-  return '"' + escapeJsonString(trimmed) + '"'
-}
-
 function lslValueToJsonElement(v: LslValue, type?: LslType): string | null {
   if (typeof v === 'number') {
     if (type !== 'float' && Number.isInteger(v)) return String(v | 0)
     return formatFloatExact(v)
   }
-  if (typeof v === 'string') return lslStringToJsonElement(v)
+  if (typeof v === 'string') return embedValue(v, false)
   if (isVector(v as Vector)) return `"${formatVector(v as Vector, 6, formatFloatExact)}"`
   if (isRotation(v as Rotation)) return `"${formatRotation(v as Rotation, 6, formatFloatExact)}"`
   return null
