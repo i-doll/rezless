@@ -168,6 +168,22 @@ const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'colli
 const LAND_EVENTS: ReadonlySet<string> = new Set(['land_collision_start', 'land_collision', 'land_collision_end'])
 const HELD_LAND_COLLISIONS = 4
 
+/**
+ * Held land events released together, carried in their payload's `__here`: the script's events
+ * taken by then, and how many land_collision ran. A copy of the script keeps its own count.
+ */
+interface LandTail {
+  readonly script: Script; readonly since: number; limit?: number; ran: number; dropped: number
+  readonly copies: Map<Script, LandTail>
+}
+
+function landTailOf(tail: LandTail, script: Script): LandTail {
+  if (tail.script === script) return tail
+  let copy = tail.copies.get(script)
+  if (!copy) tail.copies.set(script, copy = { script, since: 0, ran: 0, dropped: 0, copies: tail.copies })
+  return copy
+}
+
 /** Events that wait behind one llMinEventDelay holds back. */
 const WAITS_BEHIND: ReadonlySet<string> = new Set([...TOUCH_EVENTS, 'timer'])
 
@@ -348,8 +364,51 @@ export class LinksetClock {
   takeNextDue(scripts: ReadonlyArray<Script>, horizon = this.now): QueuedEvent | null {
     for (;;) {
       const next = this.takeNextEventOrTask(scripts, horizon)
-      if (next !== 'task') return next
+      if (next !== 'task' && !(next && this.dropsLandCollision(next))) return next
     }
+  }
+
+  /** Events each script has run, other than land_collision_start, and the wakes of its handlers. */
+  private readonly ran = new WeakMap<Script, number>()
+  /** The released contact still going on, by script: its live land_collision events to drop. */
+  private readonly openContacts = new WeakMap<Script, LandTail>()
+
+  /**
+   * Whether `e`, just taken, is a land_collision the script doesn't get. In-world, a held
+   * contact's land_collision events ran one per physics step in about 0.2 s after the wake, so
+   * the events that ran first left room for fewer of them: four, one fewer for every two events
+   * ahead of them, at least one. A handler that slept ahead of them cut one, as its wake counts
+   * as an event here. When the contact went on past the wake, the next live land_collision
+   * events, one more than the held ones that ran, gave nothing. A copy rezzed from an object
+   * taken while they waited counts its own events from the rez: in-world it ran on_rez, then
+   * four, three or one land_collision as two link messages, six, or none waited with them.
+   */
+  private dropsLandCollision(e: QueuedEvent): boolean {
+    // A stopped script keeps the event for when it runs again; it is judged then.
+    if (!e.target.running) return false
+    const before = this.ran.get(e.target)
+    const ran = before ?? 0
+    // A copy taken asleep starts counting at the wake of the handler it was taken in. An event
+    // with no handler never runs.
+    const counts = e.event === '__wake' ? before !== undefined
+      : e.event !== 'land_collision_start' && e.target.handles(CHANGED_EVENTS.has(e.event) ? 'changed' : e.event)
+    this.ran.set(e.target, ran + (counts ? 1 : 0))
+    const released = e.payload['__here'] as LandTail | true | undefined
+    const tail = typeof released === 'object' ? landTailOf(released, e.target) : undefined
+    if (e.event !== 'land_collision') {
+      if (!tail && LAND_EVENTS.has(e.event)) this.openContacts.delete(e.target)
+      return false
+    }
+    if (tail) {
+      tail.limit ??= Math.max(1, HELD_LAND_COLLISIONS - Math.floor((ran - tail.since) / 2))
+      if (tail.ran >= tail.limit) return true
+      tail.ran++
+      return false
+    }
+    const open = this.openContacts.get(e.target)
+    if (!open?.ran || open.ran + 1 <= open.dropped) return false
+    open.dropped++
+    return true
   }
 
   private takeNextEventOrTask(scripts: ReadonlyArray<Script>, horizon: number): QueuedEvent | 'task' | null {
@@ -490,6 +549,13 @@ export class LinksetClock {
     const held = mergeHeld(events.sort((a, b) => a.at - b.at))
       .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false,
         payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
+    const lands = held.filter((e) => e.event === 'land_collision')
+    if (lands.length) {
+      const tail: LandTail = { script, since: this.ran.get(script) ?? 0, ran: 0, dropped: 0, copies: new Map() }
+      for (const e of held) if (LAND_EVENTS.has(e.event)) e.payload['__here'] = tail
+      if (held.some((e) => e.event === 'land_collision_end')) this.openContacts.delete(script)
+      else this.openContacts.set(script, tail)
+    }
     const v = script.clockView
     // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first
     // click, timer, the second click. The ticks that fell due during one sleep give one event,
@@ -508,11 +574,11 @@ export class LinksetClock {
     // In-world: a box that fell onto land and was lifted off it while asleep woke to
     // land_collision_start, one land_collision, the game_control that waited, the other
     // land_collision events and land_collision_end. A box that slid down a prim onto land woke to
-    // land_collision_start, collision_start, collision, one land_collision, the game_control, and
-    // collision_end among the other land_collision events in the order they came. A single
-    // land_collision ran behind changed.
-    const first = held.find((e) => e.event === 'land_collision')
-    const rank = (e: QueuedEvent) => e === first ? HELD_ORDER.get('changed')! + 0.5 : HELD_ORDER.get(e.event)!
+    // land_collision_start, collision_start, collision, one land_collision, the game_control, a
+    // second land_collision and collision_end: six of eight runs over two probes, three of them
+    // with collision_end come before the land contact. A single land_collision ran behind changed.
+    const rank = (e: QueuedEvent) => e === lands[0] ? HELD_ORDER.get('changed')! + 0.5
+      : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5 : HELD_ORDER.get(e.event)!
     held.sort((a, b) => rank(a) - rank(b))
     this.queue.push(...held)
   }
