@@ -3,6 +3,7 @@ import { retainRlvAttachment } from './rlv/attachments.js'
 import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
+import { playCollisionSounds } from './builtins/collision.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
@@ -700,6 +701,21 @@ export class Linkset {
     if (group) return { prims: group, sitter: undefined }
     const one = this.oneLink(from, link)
     return isPrim(one) ? { prims: [one], sitter: undefined } : { prims: [], sitter: one }
+  }
+
+  /** Play the collision sounds of this object landing on `struck` at `speed` m/s. Collision events are fired separately. */
+  collide(struck: Linkset, speed: number) {
+    playCollisionSounds(this, struck, speed)
+  }
+
+  /**
+   * The prims and seated avatars a link call reaches. In-world, the three group
+   * flags take every sitter as well, and a link number naming an avatar takes that avatar.
+   */
+  linksWithSitters(from: Prim, link: number) {
+    const { prims, sitter } = this.linksFrom(from, link)
+    if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return [...prims, ...this.sitters()]
+    return sitter ? [sitter] : prims
   }
 
   /** Resolve LINK_* / specific link number to the set of target prims. */

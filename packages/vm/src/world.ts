@@ -21,6 +21,7 @@ import { moveRegionAnimations, regionAnimations, setAnimationState, type Animati
 import { startRegeneration } from './builtins/damage.js'
 import type { Linkset } from './linkset.js'
 import type { Prim, PrimSoundState } from './prim.js'
+import type { PrimParams } from './prim-params.js'
 import { AGENT_ATTACHMENTS, AGENT_SCRIPTED, AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
 import type { Script } from './script.js'
 import type { LslValue, Rotation, Vector } from './values/types.js'
@@ -127,6 +128,8 @@ export interface WorldAvatar extends WorldEntity {
   home: AvatarDestination | null
   /** Sound the link sound calls of the object it sits on gave it. */
   readonly sound: PrimSoundState
+  /** Texture animation llSetLinkTextureAnim gave it while seated. It keeps it after standing. */
+  textureAnim: PrimParams['textureAnim']
 }
 
 export interface WorldEntity {
@@ -544,6 +547,7 @@ export class World {
       },
       standingRotation: null,
       sound: { current: null, queueing: false, radius: 0, triggers: [], preloads: [] },
+      textureAnim: { mode: 0, face: 0, sizex: 0, sizey: 0, start: 0, length: 0, rate: 0 },
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,
     }
     avatar.owner = avatar.key
