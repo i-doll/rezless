@@ -18,6 +18,7 @@ import { sitSpot } from './sit-spot.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from './values/types.js'
 import { LinksetClock } from './clock.js'
 import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
+import { startRegeneration } from './builtins/damage.js'
 import type { Linkset } from './linkset.js'
 import type { Prim } from './prim.js'
 import { AGENT_ATTACHMENTS, AGENT_SCRIPTED, AGENT_MOUSELOOK, AGENT_SITTING, AGENT_ON_OBJECT, AGENT_FLYING, AGENT_IN_AIR, AGENT_WALKING, CHANGED_LINK, CHANGED_REGION, CHANGED_TELEPORT } from './generated/constants.js'
@@ -530,6 +531,7 @@ export class World {
     }
     avatar.owner = avatar.key
     this.avatars.push(avatar)
+    startRegeneration(avatar, this.clock.now)
     return avatar
   }
 

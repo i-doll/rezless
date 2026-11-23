@@ -47,19 +47,24 @@ interface Combatant {
   setHealth(health: number): void
 }
 
-function regenerate(holder: object, health: number, now: number, start: number): number {
+function regenerate(holder: object, health: number, now: number): number {
   const last = regeneratedAt.get(holder)
   // Health that a test set since the last reading starts regenerating from now.
-  const since = !last ? start : last.health === health ? last.at : now
+  const since = last?.health === health ? last.at : now
   const ticks = Math.floor(now / REGENERATION_MS) - Math.floor(since / REGENERATION_MS)
   const result = ticks > 0 && health > 0 ? Math.min(100, health + ticks) : health
   regeneratedAt.set(holder, { at: now, health: result })
   return result
 }
 
+/** A world avatar regenerates from when it was added. */
+export function startRegeneration(avatar: WorldAvatar, now: number): void {
+  regeneratedAt.set(avatar, { at: now, health: avatar.objectDetails.health ?? 100 })
+}
+
 /** A world avatar's health, caught up with regeneration. */
 export function worldAvatarHealth(avatar: WorldAvatar, now: number): number {
-  return avatar.objectDetails.health = regenerate(avatar, avatar.objectDetails.health ?? 100, now, 0)
+  return avatar.objectDetails.health = regenerate(avatar, avatar.objectDetails.health ?? 100, now)
 }
 
 function worldAvatar(ctx: CallContext, id: string): WorldAvatar | undefined {
@@ -76,7 +81,7 @@ function combatant(ctx: CallContext, id: string): Combatant | undefined {
       damageEnabled: registered.damageEnabled,
       attachments: registered.scripts ?? [],
       seat,
-      health: (now) => registered.health = regenerate(registered, registered.health, now, now),
+      health: (now) => registered.health = regenerate(registered, registered.health, now),
       setHealth: (health) => { registered.health = health; regeneratedAt.set(registered, { at: ctx.linkset.clock.now, health }) },
     }
   }

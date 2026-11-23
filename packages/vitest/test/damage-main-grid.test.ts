@@ -398,6 +398,17 @@ describe('avatar health set by a test', () => {
     expect(reader.scripts.r!.global('seen')).toEqual([91])
   })
 
+  it('regenerates only from when the avatar was added', async () => {
+    const world = combatWorld()
+    const reader = await object(world, { r: `list seen; default { touch_start(integer n) { seen += llGetHealth("${BOT}"); } }` })
+    tick(world, 60000)
+    world.addAvatar({ region: 'arena', key: BOT, username: 'bot', objectDetails: { health: 50 } })
+    reader.scripts.r!.fire('touch_start', { num_detected: 1 })
+    tick(world, 6000)
+    reader.scripts.r!.fire('touch_start', { num_detected: 1 })
+    expect(reader.scripts.r!.global('seen')).toEqual([50, 51])
+  })
+
   it('reads 0 for an avatar in another region', async () => {
     const world = combatWorld()
     world.addRegion('elsewhere', { x: 256, y: 0 })
