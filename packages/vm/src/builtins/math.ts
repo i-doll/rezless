@@ -240,17 +240,18 @@ function stepEuler(radians: number) {
   return f32(f32(steps / 1e7) * DEG_TO_RAD)
 }
 
-/** A matrix diagonal within this of 1 or -1 counts as exactly that, which clears the rest of its row and column. */
+/** A matrix entry within this of 1 or -1 counts as exactly that, which clears the rest of its row and column. */
 const AXIS_SNAP = 1e-10
 
 /**
  * llEuler2Rot(vector v) → rotation. Measured in Second Life: each angle is
- * stepped to 1e-7 degrees and the rotation goes through a matrix. A diagonal
- * entry within 1e-10 of 1 or -1 (a turn of 1.414e-5 radians or less about the
- * other two axes, or that close to a half turn) clears its row and column, so
- * the small turns about those axes are dropped. The matrix is single
- * precision when it is turned back into a rotation, which makes s positive,
- * or when |s| <= 0.5 the largest of x, y, z.
+ * stepped to 1e-7 degrees and the rotation goes through a matrix. Any entry
+ * within 1e-10 of 1 or -1 clears the rest of its row and column: on the
+ * diagonal that drops turns of 1.414e-5 radians or less about the other two
+ * axes, or that close to a half turn, and off it a turn that close to a
+ * quarter turn becomes exactly one. The matrix is single precision when it is
+ * turned back into a rotation, which makes s positive, or when |s| <= 0.5 the
+ * largest of x, y, z. Zeros keep the sign the arithmetic gives them.
  */
 export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
   const v = args[0] as Vector | undefined
@@ -273,12 +274,12 @@ export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
     [2 * (x * y - z * s), 1 - 2 * (x * x + z * z), 2 * (y * z + x * s)],
     [2 * (x * z + y * s), 2 * (y * z - x * s), 1 - 2 * (x * x + y * y)],
   ]
-  for (let i = 0; i < 3; i++) {
-    if (!(1 - Math.abs(m[i]![i]!) < AXIS_SNAP)) continue
-    for (let j = 0; j < 3; j++) {
-      if (j === i) continue
-      m[i]![j] = 0
-      m[j]![i] = 0
+  const units: Array<[number, number]> = []
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (1 - Math.abs(m[i]![j]!) < AXIS_SNAP) units.push([i, j])
+  for (const [i, j] of units) {
+    for (let k = 0; k < 3; k++) {
+      if (k !== j) m[i]![k] = 0
+      if (k !== i) m[k]![j] = 0
     }
   }
   // Single precision from here, with the rows made orthogonal as llRot2Euler makes them.
@@ -292,13 +293,7 @@ export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
     f32(f32(fwd[0] * left[1]) - f32(fwd[1] * left[0])),
   ]
   const q = matrixToRotation([fwd, left, up])
-  const rx = f32(q.x) + 0
-  const rz = f32(q.z) + 0
-  const rs = f32(q.s) + 0
-  let ry = f32(q.y) + 0
-  // When s is the largest part, a zero y takes the sign of x * z: <-1.546875, 0, 0> gives y = -0.
-  if (ry === 0 && Math.abs(rs) > Math.max(Math.abs(rx), Math.abs(rz)) && Object.is(rx * rz, -0)) ry = -0
-  return rot(rx, ry, rz, rs)
+  return rot(f32(q.x), f32(q.y), f32(q.z), f32(q.s))
 }
 
 /**

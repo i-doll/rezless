@@ -387,8 +387,8 @@ describe('llEuler2Rot', () => {
     // diagonal entry is within 1e-10 of 1 or -1, the rest of its row and column count as zero:
     // <7e-6, 7e-6, 1.4e-5> keeps only the turn about z, though 1.4e-5 about z alone is dropped,
     // and <1e-5, 1e-5, 1e-5> keeps all three, though <1e-5, 1e-5, 9e-6> keeps none. Every zero
-    // below comes out as measured, its sign too: when s is the largest part, a zero y takes the
-    // sign of x * z, so <-1.546875, 0, 0> gives <-0.69860, -0, 0, 0.71551>.
+    // below comes out as measured, its sign too, with zeros signed as the arithmetic signs them:
+    // <-1.546875, 0, 0> gives <-0.69860, -0, 0, 0.71551>.
     for (const [i, [, q]] of EULER2ROT.entries()) {
       const r = got[i]!
       for (let k = 0; k < 4; k++) {

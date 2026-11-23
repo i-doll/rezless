@@ -257,9 +257,11 @@ describe('llEuler2Rot with a half turn and other turns', () => {
   })
 
   // In-world: <PI_BY_TWO, PI_BY_TWO, PI> gave <0.5, -0.5, 0.5, -0.5>. Every part is a half, so the
-  // matrix trace is about zero; rezless reads it as just positive, makes s positive and returns the
-  // same rotation negated. Which way the grid rounds the trace is open.
-  it.fails('gives the sign the grid gives when the trace is about zero', async () => {
+  // matrix trace is about zero. Its three entries within 1e-10 of 1 or -1 each clear the rest of
+  // their row and column, which leaves the trace exactly 0, so the rotation comes from the largest
+  // diagonal entry rather than from the trace. Turns near a quarter turn are in
+  // euler2rot-quarter-turns-and-stored-rotations.test.ts.
+  it('gives the sign the grid gives when the trace is about zero', async () => {
     expect(await euler2Rot(['<PI_BY_TWO, PI_BY_TWO, PI>'])).toEqual(['8388608p-24,-8388608p-24,8388608p-24,-8388608p-24'])
   })
 })
