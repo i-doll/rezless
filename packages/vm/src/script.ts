@@ -1369,29 +1369,23 @@ export class Script {
     for (const name of new Set(changes.map(c => c.name))) {
       const target = this.host.findScript(name)
       if (!target) continue
-      if (target.crashed) {
-        if (!target.dead && changes.some(c => c.name === name && c.reset)) target.recover()
-        continue
-      }
-      // A reset of a script stopped at that point does nothing, as llResetOtherScript does.
-      let running = target.running, reset = false
-      for (const c of changes) {
-        if (c.name !== name) continue
-        if (c.reset) reset ||= running
-        else running = c.running!
-      }
-      const change = { running, reset }
+      const ops = changes.filter(c => c.name === name)
       // Queued behind the events and the handler the script it changes already has.
-      if (target.running) target.clockView.schedule(this.now, '__running', change)
-      else target.applyRunningChange(change)
+      if (target.running) target.clockView.schedule(this.now, '__running', { ops })
+      else target.applyHeldChanges(ops)
     }
   }
 
-  private applyRunningChange(change: { running: boolean; reset: boolean }): void {
-    this.running = change.running
-    if (!change.reset) return
-    this.restart()
-    if (!this.running) this.queueStart()
+  /** Each change is judged as it applies: a reset of a script stopped by then does nothing. */
+  private applyHeldChanges(ops: ReadonlyArray<{ running?: boolean; reset?: true }>): void {
+    for (const op of ops) {
+      if (this.dead) return
+      if (this.crashed) {
+        if (op.reset) this.recover()
+      } else if (op.reset) {
+        if (this.running) this.restart()
+      } else this.running = op.running!
+    }
   }
 
   private boot(): void {
@@ -1524,7 +1518,7 @@ export class Script {
       return
     }
     if (event === '__running') {
-      if (!this.crashed) this.applyRunningChange(payload as { running: boolean; reset: boolean })
+      this.applyHeldChanges(payload['ops'] as Array<{ running?: boolean; reset?: true }>)
       return
     }
     if (event === '__unseated' || event === '__ownerChanged') {
