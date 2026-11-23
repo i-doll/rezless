@@ -141,8 +141,6 @@ export class Linkset {
   }
   /** Whether this object is on damage-enabled land. Defaults to the region damage flag. */
   damageEnabled = false
-  /** Parcel-owner/group sources bypass the llDamage throttle. */
-  damageThrottleExempt = false
   owner: string
   /** Null while rezzed or detached; tests may attach fixtures with attachToAvatar. */
   attachment: Attachment | null = null
@@ -187,7 +185,6 @@ export class Linkset {
     }
     this.damageEnabled = from?.damageEnabled
       ?? (((opts.world?.region(opts.region).flags ?? 0) & REGION_FLAG_ALLOW_DAMAGE) !== 0)
-    this.damageThrottleExempt = from?.damageThrottleExempt ?? false
     this.peers.push(this)
   }
 

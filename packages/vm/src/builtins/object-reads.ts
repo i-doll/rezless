@@ -8,6 +8,7 @@ import { mulRotation, rotateVector } from '../values/ops.js'
 import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
 import { objectDetailLuaKind } from './slua-result-kinds.js'
 import { formatTimestamp } from './time.js'
+import { worldAvatarHealth } from './damage.js'
 import {
   LINK_THIS,
   PRIM_HOLE_CIRCLE,
@@ -453,7 +454,7 @@ function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number): Entr
     case OBJECT_ANIMATED_SLOTS_AVAILABLE: return int(stats.animatedSlotsAvailable ?? 3)
     case OBJECT_ACCOUNT_LEVEL: return int(stats.accountLevel ?? 0)
     case OBJECT_MASS: return float((stats.mass ?? 0) + (root ? linksetMass(root) : 0))
-    case OBJECT_HEALTH: return float(stats.health ?? 100)
+    case OBJECT_HEALTH: return float(worldAvatarHealth(avatar, ctx.linkset.clock.now))
     case OBJECT_HOVER_HEIGHT: return float(avatar.movement?.hoverOffset ?? 0)
     case OBJECT_BODY_SHAPE_TYPE: return float(avatar.visualParams[80] ?? 0)
     case OBJECT_PRIM_EQUIVALENCE: return int(root ? primsOf(root).length : 1)

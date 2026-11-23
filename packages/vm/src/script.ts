@@ -7,7 +7,8 @@ import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
   leaveDamageEvent,
-  combatAvatars,
+  leaveDamageOnStateChange,
+  registerCombatAvatar,
   type CombatAvatar,
 } from './builtins/damage.js'
 import type {
@@ -368,15 +369,23 @@ export class Script {
     }
   }
 
-  /** A state transition leaves on_damage before lifecycle handlers execute. */
-  private clearDamageAdjustment(): void {
-    const context = this.state.detectedStack.at(-1)
-    if (context?.event === 'on_damage') context.event = ''
+  /**
+   * A state transition leaves on_damage before lifecycle handlers execute.
+   * In-world (main grid, 2026-11-23): state_exit and state_entry read no llDetectedDamage.
+   */
+  private clearDamageAdjustment(): boolean {
+    const stack = this.state.detectedStack
+    const context = stack.at(-1)
+    if (context?.event !== 'on_damage') return false
+    stack[stack.length - 1] = { event: '', entries: context.entries.map(({ damage: _, ...rest }) => rest) }
+    leaveDamageOnStateChange(this)
+    // A copy replaying this handler finds no damage to leave, so this must not depend on one.
+    return true
   }
 
   /** Configure an avatar's combat health, parcel and attachment scripts. */
   setCombatAvatar(id: string, avatar: CombatAvatar): void {
-    combatAvatars(this).set(id.toLowerCase(), { ...avatar, region: this.linkset.region })
+    registerCombatAvatar(this, id, avatar)
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
@@ -1556,7 +1565,8 @@ export class Script {
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
         this.state.gameControlSnapshot = null
-        this.clearDamageAdjustment()
+        // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
+        if (this.clearDamageAdjustment()) yield { until: this.now }
         if (this.state.lifecycle.removed) return false
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
