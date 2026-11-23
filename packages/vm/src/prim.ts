@@ -25,13 +25,8 @@ const COST_RULES = new Set([
 let primsMade = 0
 let itemsSaved = 0
 
-/** A save gives a notecard the key of its text, keeping a key it already has when the text is unchanged; other items get a new key at each save. */
-function savedKey(old: InventoryItem, lines: ReadonlyArray<string> | undefined): string {
-  if (old.type !== InventoryType.NOTECARD) return deterministicKey(`inventory-save/${++itemsSaved}`)
-  if (old.key !== NULL_KEY && (!lines || lines.join('\n') === old.notecardLines?.join('\n'))) return old.key
-  if (!lines) lines = old.notecardLines ?? []
-  return deterministicKey(`notecard/${lines.join('\n')}`)
-}
+/** The key each notecard text has had in a linkset, so saving a text again gives it the same key. */
+const notecardKeys = new WeakMap<object, Map<string, string>>()
 
 export interface AttachedSound {
   sound: string
@@ -298,7 +293,7 @@ export class Prim {
     const old = this.inventory[index]!
     this.inventory[index] = {
       ...old, ...changes, name: old.name, type: old.type,
-      key: changes.key ?? savedKey(old, changes.notecardLines),
+      key: changes.key ?? this.#savedKey(old, changes.notecardLines),
     }
     const script = old.script
     if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
@@ -325,6 +320,24 @@ export class Prim {
     const name = renamedItemName(to)
     if (name) item.name = renamedInventoryName(this.inventory, item, name)
     this.#ownerEditedInventory()
+  }
+
+  /** A save gives a notecard the key its text has, as any notecard in the linkset showed it; other items get a new key at each save. */
+  #savedKey(old: InventoryItem, lines: ReadonlyArray<string> | undefined): string {
+    if (old.type !== InventoryType.NOTECARD) return deterministicKey(`inventory-save/${++itemsSaved}`)
+    const owner = this.linkset ?? this
+    const known = notecardKeys.get(owner) ?? new Map<string, string>()
+    notecardKeys.set(owner, known)
+    for (const prim of this.linkset?.prims ?? [this]) {
+      for (const item of prim.inventory) {
+        const text = item.notecardLines?.join('\n')
+        if (item.type === InventoryType.NOTECARD && item.key !== NULL_KEY && text !== undefined && !known.has(text)) known.set(text, item.key)
+      }
+    }
+    const text = (lines ?? old.notecardLines ?? []).join('\n')
+    const key = known.get(text) ?? deterministicKey(`notecard/${text}`)
+    known.set(text, key)
+    return key
   }
 
   #inventoryIndex(method: string, name: string): number {

@@ -76,6 +76,17 @@ describe('owner saves a notecard inside a prim', () => {
     expect(keyOf(prims[0]!, 'v')).toBe(saved)
   })
 
+  it('gives a text back the key it had', async () => {
+    // Follows the measured rule that the same text has the same key.
+    const { prims } = await load()
+    prims[0]!.replaceInventory('nc', { notecardLines: ['two'] })
+    prims[0]!.replaceInventory('nc', { notecardLines: ['one'] })
+    expect(keyOf(prims[0]!, 'nc')).toBe('6e8d8309-2899-9383-7052-559c2d84ff11')
+    prims[1]!.replaceInventory('nc', { notecardLines: ['two'] })
+    prims[0]!.replaceInventory('nc', { notecardLines: ['two'] })
+    expect(keyOf(prims[1]!, 'nc')).toBe(keyOf(prims[0]!, 'nc'))
+  })
+
   it('gives an emptied notecard a key', async () => {
     // In-world: saving an empty text over a notecard -> llGetInventoryKey gave
     // a key (7223...), not NULL_KEY, and the script logged changed(1).
