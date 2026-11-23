@@ -504,11 +504,11 @@ describe('what an SLua script keeps through inventory', () => {
   // The original's event may carry the host's own record of that delivery (a damage event's does).
   // The copy must not finish or change it: only the original's handler ends the original's event.
   //
-  // Not measured: what a copy does with a damage event that was in flight, such as whether a
-  // copied on_damage handler's llAdjustDamage counts or the copy gets final_damage. on_damage
-  // and final_damage only fire on damage-enabled land, and the probes had none: llDamage on the
-  // sandbox parcel fired neither event. The model lets the copied handler run to its end and
-  // gives the copy no part in the original's attack.
+  // Not measured for SLua: damage events need damage-enabled land, the Aditi regions that run
+  // SLua have none, and the main-grid parcel with damage refused to compile SLua (2026-11-23).
+  // For LSL the main grid showed the copied on_damage handler finishing, its llAdjustDamage
+  // silent, and no final_damage for the copy (damage-main-grid.test.ts). The model does the same
+  // for SLua: the copied handler runs to its end and the copy has no part in the original's attack.
   it('gives the copy of a sleeping handler the event\'s data but not the original\'s delivery', async () => {
     const source = `done = 0
       LLEvents:on("touch_start", function() ll.Sleep(30); done += 1; who = ll.DetectedName(1) end)`

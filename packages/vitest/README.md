@@ -167,7 +167,7 @@ s.sendGameControl(agent, { buttons?, axes? })    // deliver raw input plus a sem
 s.setCamera({ pos?, rot?, fov?, aspect? })      // set the camera llGetCameraPos / Rot / FOV / Aspect report
 s.setAnimationState(avatar, "Standing")          // register an avatar in this region and set its locomotion state
 s.mock(name, impl)                              // override any ll* function (real or stubbed) per-test
-s.reset()                                       // re-init globals + return to default + state_entry
+s.reset()                                       // the owner's Reset: re-init globals, default state, state_entry; a crashed script runs again, a stopped one waits for its start
 
 // Inspect
 s.currentState                                  // current LSL state name
@@ -278,7 +278,9 @@ working — they're just scoped to one script in a larger system.
 Chat a script sends reaches matching `listen` handlers in other prims, named
 and keyed after the sending prim. `llWhisper`, `llSay` and `llShout` reach
 prims within 10, 20 and 100 m of the sending prim, and so do its
-`DEBUG_CHANNEL` errors, which are said. `llRegionSay` reaches every prim in the
+`DEBUG_CHANNEL` errors, which are said. The errors of `llSetPrimitiveParams`
+and its link variants, and of the pathfinding calls made with no character, go
+to the owner only: they are in `s.chat`, but no script hears them. `llRegionSay` reaches every prim in the
 region. `llRegionSayTo` reaches only the prim with the target key, or, when
 targeting an avatar on a nonzero channel, matching listens in every attachment
 that avatar wears in the sender's region. Channel 0 to an avatar reaches no
@@ -294,15 +296,15 @@ scripts get the event instead. No other prim hears of it.
 
 ```ts
 prims[0].addInventory(makeInventoryItem({ name: 'Notes', type: InventoryType.NOTECARD }))
-prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, new key
-prims[0].renameInventory('Notes', 'Settings')
+prims[0].replaceInventory('Notes', { notecardLines: ['new text'] })  // saved: same name, key of the new text
+prims[0].renameInventory('Notes', 'Settings')                        // a taken name becomes 'Settings 2'
 prims[0].removeInventory('Settings')                                 // a removed script stops
 prims[0].removeInventory('a', 'b')                                   // deleted together: one event
 
 const door = await addScript(prims[1], { source: 'door.lsl', name: 'door' })  // dropped in: runs state_entry
 await addScript(prims[1], { source: 'spare.lsl' }, { running: false })        // dropped in, not running
 prims[1].replaceInventory('door', {})                                         // recompiled: resets, new key
-prims[1].renameInventory('door', 'gate')                                      // keeps running
+prims[1].renameInventory('door', 'gate')                                      // keeps running and its state
 ```
 
 `addScript` takes a script as `loadLinkset` does and returns it, stopped when
@@ -641,9 +643,11 @@ names the first link that is not the caller: link 2 from the root, the root
 from a child, and the sitter from a lone prim someone sits on. Calls that take
 `LINK_SET`, `LINK_ALL_OTHERS` and `LINK_ALL_CHILDREN` as groups of prims read
 it that way. That was measured in Second Life for `llMessageLinked` and the
-calls that set prim parameters, colour, alpha, texture, material and sit flags.
-The link sound calls and `llSetLinkTextureAnim` follow the same rule without a
-measurement, because no script can read their effect back. Calls that take one
+calls that set prim parameters, colour, alpha, texture, material and sit flags,
+the link sound calls, `llSetLinkTextureAnim` and `llLinkParticleSystem`. The
+link sound calls also reach seated avatars: the three group flags take every
+sitter as well as their prims, and a link number that names a sitter gives that
+avatar the sound. Read it from `world.avatars[i].sound`. Calls that take one
 link (`llGetLinkKey`, `llGetLinkName`, `llGetLinkSitFlags`,
 `llAvatarOnLinkSitTarget`, `llLinkSitTarget`, `llSetLinkCamera`, the link media
 calls) read the three group flags as the first other link as well.
@@ -656,8 +660,7 @@ negative number as link 2, whichever prim calls it.
 
 Link 0 is the root when a child prim calls and names nothing when the root
 calls. A lone prim is link 0 until an avatar sits on it. That was measured for
-the calls above; the link sound calls and `llSetLinkTextureAnim` follow it
-without a measurement. `llGetObjectLinkKey` reads link 0 as the root from any
+the calls above. `llGetObjectLinkKey` reads link 0 as the root from any
 prim, `llBreakLink(0)` does nothing, and `llSitOnLink` keeps its own rule, which
 needs an experience to measure. `llGetLinkSitFlags` and
 `PRIM_SIT_FLAGS` report `SIT_FLAG_SIT_TARGET` while the prim has a sit target;
@@ -2085,7 +2088,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **HTTP**: `llHTTPRequest`, `llHTTPResponse`, `llRequestURL`, `llRequestSecureURL`, `llReleaseURL`, `llGetFreeURLs` (20000 per region), `llGetHTTPHeader`, `llSetContentType` — send requests to a script's URL with `s.sendHttpRequest`; one it doesn't answer gets a 504 after 25 seconds
 * **email**: `llEmail`, `llGetNextEmail`, `llTargetedEmail` (each send sleeps 20 seconds) — mail to `<key>@lsl.secondlife.com` reaches that prim's queue, which holds 101 mails; queue a test's mail with `s.deliverEmail`
 * **pathfinding**: `llCreateCharacter`, `llUpdateCharacter`, `llDeleteCharacter`, `llEvade`, `llExecCharacterCmd`, `llFleeFrom`, `llNavigateTo`, `llPatrolPoints`, `llPursue`, `llWanderWithin`, `llGetClosestNavPoint`, `llGetStaticPath`. Inspect `s.character.options` for explicit requested configuration and `s.character.commands` for command history. The character belongs to the object and survives script resets. `s.pathUpdate(type)` sends an event with an empty reserved list to the root prim's scripts. Movement, capsule fitting, option clamping and navmesh baking are not simulated. Set fixed query answers with `s.setNavigationResults({ closestNavPoint: [point], staticPath: [start, end, 0] })`, or use `s.mock` for answers that depend on query arguments. Without fixtures, closest-point queries return `[]` and static-path queries return `[PU_FAILURE_INVALID_GOAL]`; an out-of-range static-path radius returns `[]`.
-* **sound**: `llPlaySound`, `llLoopSound`, `llLoopSoundMaster`, `llLoopSoundSlave`, `llPlaySoundSlave`, `llTriggerSound`, `llTriggerSoundLimited`, `llStopSound`, `llPreloadSound`, `llAdjustSoundVolume`, `llSetSoundQueueing`, `llSetSoundRadius`, and the `llLinkPlaySound`, `llLinkStopSound`, `llLinkAdjustSoundVolume`, `llLinkSetSoundQueueing`, `llLinkSetSoundRadius` variants. Inspect `prims[i].sound` from `loadLinkset`: `current` holds the last attached request or `null` after stop, `queueing` and `radius` hold settings, and `triggers` and `preloads` record one-shot requests. Names resolve in the calling prim's sound inventory; UUIDs work without inventory. Volume records the documented 0–1 range, while radius records the requested value. Audio playback, duration, queue progression, synchronization and effective audibility limits are not simulated.
+* **sound**: `llPlaySound`, `llLoopSound`, `llLoopSoundMaster`, `llLoopSoundSlave`, `llPlaySoundSlave`, `llTriggerSound`, `llTriggerSoundLimited`, `llStopSound`, `llPreloadSound`, `llAdjustSoundVolume`, `llSetSoundQueueing`, `llSetSoundRadius`, and the `llLinkPlaySound`, `llLinkStopSound`, `llLinkAdjustSoundVolume`, `llLinkSetSoundQueueing`, `llLinkSetSoundRadius` variants. Inspect `prims[i].sound` from `loadLinkset`, or `world.avatars[i].sound` for an avatar a link variant reached: `current` holds the last attached request or `null` after stop, `queueing` and `radius` hold settings, and `triggers` and `preloads` record one-shot requests. Names resolve in the calling prim's sound inventory; UUIDs work without inventory. Volume records the documented 0–1 range, while radius records the requested value. Audio playback, duration, queue progression, synchronization and effective audibility limits are not simulated.
 * **prim media**: `llSetPrimMediaParams`, `llGetPrimMediaParams`, `llClearPrimMedia`, `llSetLinkMedia`, `llGetLinkMedia`, and `llClearLinkMedia`. Inspect `prims[i].media`, a map from face number to values indexed by `PRIM_MEDIA_*` constants. Setters validate atomically and return simulator status codes. Getters return values in requested order; clearing removes the face entry. Permission masks and URL whitelists are stored and validated, but browser rendering and avatar interaction are not simulated. Media link calls select one prim, including the measured first-other-prim behavior of negative selectors other than `LINK_THIS`.
 * **particles**: `llParticleSystem` and `llLinkParticleSystem`. Inspect `prims[i].particles` for the last accepted request, with its raw `rules` and resolved `texture` UUID. Empty lists and wrong value types clear it. Unknown rule ids, noninteger ids and trailing unpaired rules are silent. Texture names resolve in each target prim's inventory; missing names use the default particle texture. Numeric values retain their requested magnitude. Viewer clamping, quantization, particle motion and rendering are not simulated.
 * **linked**: `llMessageLinked` (full `LINK_THIS` / `LINK_SET` / `LINK_ALL_OTHERS` / `LINK_ALL_CHILDREN` / `LINK_ROOT` / specific-link routing across the linkset, with correct `sender_num`)
@@ -2094,7 +2097,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **object animations**: `llStartObjectAnimation`, `llStopObjectAnimation`, `llGetObjectAnimationNames` (each prim keeps its own list; animations play only when the linkset is loaded with `animesh: true`)
 * **avatar names and info**: `llGetDisplayName`, `llGetUsername`, `llName2Key`, `llRequestUserKey`, `llGetAgentInfo`, `llGetAgentLanguage`, `llGetAgentList`, `llGetAgentSize`, `llGetVisualParams`, `llIsFriend`, `llSameGroup`. Configure avatars with `world.addAvatar` as described above.
 * **dataserver**: `llRequestAgentData`, `llRequestInventoryData`, `llRequestSimulatorData`, `llRequestUsername`, `llRequestDisplayName`
-* **combat**: `llDamage`, `llAdjustDamage`, `llSetDamage`, `llGetHealth`. Set `linkset.damageEnabled` for the object's parcel; it defaults to the region's damage flag. `s.setCombatAvatar(id, { health, damageEnabled, scripts })` supplies an avatar and its attachment scripts. Damage waits for all `on_damage` handlers, including sleepers, before applying avatar health changes and queuing `final_damage`. `on_death` notifies attachments when avatar health reaches zero. Object health stays under script control through `PRIM_HEALTH`. Set `linkset.damageThrottleExempt` for a parcel-owner or land-group source. Physics contacts, seated-avatar redistribution, regeneration and death teleports are not simulated.
+* **combat**: `llDamage`, `llAdjustDamage`, `llSetDamage`, `llGetHealth`. Set `linkset.damageEnabled` for the object's parcel; it defaults to the region's damage flag. Damage reaches the root of an object, a world avatar in a region with the damage flag, or an avatar supplied with `s.setCombatAvatar(id, { health, damageEnabled, scripts })`. A world avatar's health is `objectDetails.health`, and the objects it wears receive its damage events. Hits on one target in the same moment arrive as one event with every hit in `num_detected`. Damage waits for every `on_damage` handler, including sleepers: a seated avatar's seat first, then what the avatar wears, before health changes and `final_damage` is queued. `llAdjustDamage` outside `on_damage` says an error on `DEBUG_CHANNEL`, as the main grid does. A lethal hit sends `on_death` to what the avatar wears and sets its health back to 100, and a damaged avatar regains one point every 6 seconds. Object health stays under script control through `PRIM_HEALTH`. Hits are never throttled, as measured on the main grid. Physics contacts and death teleports are not simulated.
 * **rezzing**: `llRezObject`, `llRezAtRoot`, `llRezObjectWithParams`, `llDerezObject`, `llGetVel`, `llGetForce`. Supply inventory objects through a prim fixture's `objects` definitions and inspect rezzed linksets in `world.linksets`, as described above.
 * **sensors**: `llSensor`, `llSensorRepeat`, `llSensorRemove` fire `sensor` / `no_sensor` with detected data. Sensors find other loaded linksets and targets placed with `world.addObject({ region, name, position, scripted, active, physical })` or `world.addAvatar({ region, key, name, username, position })`. Targets also accept `owner`, `group`, `rotation` and `velocity`; returned targets can be moved between scans. `world.sensorProperties.set(linkset, { group, velocity, active })` supplies these properties for loaded linksets. Without an activity override, a loaded script with a timer, active listener or sleeping handler counts as active. Scans use exact name/key filters, a strict radius capped at 96 m, and the nearest 32 results. Positive repeats use virtual time at the requested interval; simulator frame cadence and lag are not modeled. An LSL script in an object rezzed from inventory keeps its repeating sensor, its `llTarget` and `llRotTarget` targets, its listens and its timer, with the time that was left to the next scan or tick. The measured Aditi simulator returned no matches for `DAMAGEABLE`, including targets with damage handlers and health 100, so this VM does the same. Attachment and seated-avatar sensor geometry are not simulated.
 * **raycasts**: `llCastRay` queries loaded prims and `world.addObject` / `world.addAvatar` fixtures in the same region. Prims and avatars use oriented boxes; object fixtures accept `size` and `phantom`. Hits are nearest first, with the requested cap, rejection mask, phantom detection and data flags. Linked roots report link 0 and children their link number. Rays starting inside a box miss it; entry-face starts hit, and the endpoint is excluded. Terrain uses the region's bilinear `ground` grid. Supply a measured terrain index with `groundLinkNumber`, a number or `(x, y) => number`; its fixture default is 0. Actual prim/mesh shapes, avatar capsules, simulator load errors and raycast quotas are not simulated.
@@ -2108,7 +2111,7 @@ honored centrally in the dispatcher. Pass `stubs: 'warn'` or
 * **RSA**: `llSignRSA`, `llVerifyRSA` (sha1, sha224, sha256, sha384 or sha512; RSA keys only)
 * **base64**: `llStringToBase64`/`Base64ToString`, `llIntegerToBase64`/`Base64ToInteger`, `llXorBase64`
 * **object**: `llSetText`, `llSetObjectDesc`, `llGetObjectDesc`, `llSetTouchText`, `llSetSitText`, `llSetPayPrice` (stored on the prim for tests to read), `llDie` (kills every script in the linkset), `llResetScript`
-* **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; `llRemoveInventory` (a script that removes itself halts at once; faces, maps and a sculpt that used a removed texture go back to their defaults, and faces lose a removed material)
+* **inventory**: `llGetInventoryNumber`/`Name`/`Type`/`Key`/`Creator`/`Desc`/`AcquireTime`/`PermMask` against the host prim's inventory; notecards via `llGetNotecardLine` / `llGetNumberOfNotecardLines` (correct EOF / NAK semantics, ISO 8601 UTC acquire-time strings); regex search in notecards via `llFindNotecardTextSync` / `llFindNotecardTextCount`; a notecard item made with `hasEmbeddedItems: true` reads as one with no lines, as a notecard holding embedded items does in Second Life: 0 lines, EOF for every line, a search that counts matches in empty text and a sync search that finds nothing; `llRemoveInventory` (a script that removes itself halts at once; faces, maps and a sculpt that used a removed texture go back to their defaults, and faces lose a removed material)
 * **giving inventory**: `llGiveInventory`, `llGiveInventoryList`, `llGiveAgentInventory`; inspect `s.inventoryOffers`. World prim recipients receive items and `changed`. A prim owned by someone else, or one its owner cannot modify, takes gifts only after a script in that prim calls `llAllowInventoryDrop(TRUE)`, scripts included, and its scripts get `CHANGED_ALLOWED_DROP`. A gift to another owner gets the item's next-owner permissions; a no-transfer item is refused, and a no-copy item moves. List variants omit missing/no-copy items. Avatar offers are recorded without simulating acceptance or throttles. Attachment inventory restrictions and automatic child/recent avatar presence are not modeled.
 * **remote script loading**: `llRemoteLoadScriptPin` copies an executable inventory script into a prim its owner can modify, with a matching nonzero PIN, including negative PINs. It replaces the same inventory name, discards saved state, starts running or stopped with the supplied start parameter, and sleeps three seconds. Running scripts in the receiving prim get `CHANGED_INVENTORY` under the rule for editing a prim's contents: a script that has not started yet, or is stopped, gets no event, and a script asleep in a handler gets it when the handler ends, where a load with a gift, or with an owner drop, during one sleep gives one event. Scripts in the linkset's other prims get nothing. The fresh copy gets no `changed`; it starts with `state_entry`, without `on_rez`. Reset clears its start parameter. Missing/wrong-type names, mismatched PINs, targets owned by someone else or no-modify for the owner, and self-loads report the measured errors. Unknown targets are silent. A no-copy script moves out of the loading prim. Passive script assets without an executable `Script` instance cannot be loaded.
 * **viewer requests**: `llLoadURL`, `llMapDestination`, `llMapBeacon`; inspect `s.viewerRequests`. `llMapDestination` in a rezzed object reaches only the avatar who clicked it, once per click. Outside a click it reaches nobody, so fire clicks with `linkset.touch`. In an attachment it reaches only the owner, and nobody when someone else clicked. Region presence reads World avatar fixtures, with the owner or current detected avatar as defaults; override it with `s.setAgentInRegion`. `llOpenFloater` records arguments and returns `-1`: the fixture cannot represent a Linden-owned privileged experience. Requests record viewer instructions; they do not open UI.
@@ -2175,7 +2178,9 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   where it can yield. That is usually right away, even inside coroutines. A
   sleep inside a metamethod waits for the next such point.
 * **`ll` and `llcompat`**: `ll` uses SLua's native conventions. Indexes are
-  1-based, and "not found" (-1) is `nil`. Boolean-like integers are booleans.
+  1-based, and "not found" (-1) is `nil`, except that
+  `ll.FindNotecardTextSync` counts its start from 0, as in Second Life (the
+  lines and columns it returns are 1-based). Boolean-like integers are booleans.
   Keys are `uuid`s and lists are tables. `llcompat` keeps LSL's values.
   Too few arguments raise `Fewer arguments than expected, 1 < 2`, before
   any argument's type is looked at, and extra arguments are ignored. That

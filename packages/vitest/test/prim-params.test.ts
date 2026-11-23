@@ -406,8 +406,9 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('out')).toEqual(['', { x: 0, y: 0, z: 0 }, 1])
   })
 
-  // In-world: PRIM_TEXT "t2" with alpha -3.0 left the text, colour and alpha unchanged, with no error shout.
-  it('PRIM_TEXT with an out-of-range alpha changes nothing and says no error', async () => {
+  // In-world: PRIM_TEXT "t2" with alpha -3.0 left the text, colour and alpha unchanged, and no script heard an error.
+  // The owner's chat shows a bounds error for an alpha of -1.0 or 5.0 (owner-error-chat.test.ts).
+  it('PRIM_TEXT with an out-of-range alpha changes nothing and shows the owner a bounds error', async () => {
     const s = await run(
       `llSetText("t", <1,0,0.5>, 0.5);
        llSetPrimitiveParams([PRIM_TEXT, "t2", <0,1,0>, -3.0]);
@@ -415,19 +416,20 @@ describe('prim behaviour measured in Second Life', () => {
       'list out;',
     )
     expect(s.global('out')).toEqual(['t', { x: 1, y: 0, z: 0.5 }, 0.5])
-    expect(debugErrors(s)).toEqual([])
+    expect(debugErrors(s)).toEqual(['llSetPrimitiveParams error running rule #1 (PRIM_TEXT): bounds error; -3 is not in (0, 1).'])
   })
 
-  // In-world: PRIM_TEXT with a colour channel or alpha outside [0, 1] is ignored silently (text, colour and
-  // alpha unchanged) and later rules still apply; <1,0,1> with alpha 1.0 and <0.1,0.2,0.3> with 0.4 apply.
+  // In-world: PRIM_TEXT with a colour channel or alpha outside [0, 1] is ignored (text, colour and alpha unchanged)
+  // and later rules still apply; <1,0,1> with alpha 1.0 and <0.1,0.2,0.3> with 0.4 apply. No script heard an error;
+  // the owner's chat named the first value out of bounds: 2 for <2,-1,0.5> and 1.01 for <1.01,0,0> (2026-11-23).
   it.each([
-    ['[PRIM_TEXT, "c", <2,-1,0.5>, 0.5]'],
-    ['[PRIM_TEXT, "d", <0.1,0.2,0.3>, 1.5]'],
-    ['[PRIM_TEXT, "x", <1.01,0,0>, 1.0]'],
-  ])('PRIM_TEXT %s is ignored without an error', async (rule) => {
+    ['[PRIM_TEXT, "c", <2,-1,0.5>, 0.5]', '2'],
+    ['[PRIM_TEXT, "d", <0.1,0.2,0.3>, 1.5]', '1.5'],
+    ['[PRIM_TEXT, "x", <1.01,0,0>, 1.0]', '1.01'],
+  ])('PRIM_TEXT %s is ignored', async (rule, shown) => {
     const s = await run(`llSetText("t", <1,0,0.5>, 0.5); llSetPrimitiveParams(${rule}); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
     expect(s.global('out')).toEqual(['t', { x: 1, y: 0, z: 0.5 }, 0.5])
-    expect(debugErrors(s)).toEqual([])
+    expect(debugErrors(s)).toEqual([`llSetPrimitiveParams error running rule #1 (PRIM_TEXT): bounds error; ${shown} is not in (0, 1).`])
   })
 
   it('an ignored PRIM_TEXT rule does not stop later rules', async () => {
@@ -855,10 +857,11 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.host.name).toBe('Object')
   })
 
-  it('rule numbers count from 1 and errors name the calling function', async () => {
+  // In-world (Aditi, 2026-11-23): llSetLinkPrimitiveParamsFast words its errors as llSetPrimitiveParams.
+  it('rule numbers count from 1 and errors name llSetPrimitiveParams', async () => {
     const s = await run(`llSetLinkPrimitiveParamsFast(LINK_THIS, [PRIM_NAME, "a", PRIM_COLOR, 0, "red", 1.0]);`)
     expect(debugErrors(s)).toEqual([
-      'llSetLinkPrimitiveParamsFast error running rule #2 (PRIM_COLOR): arg #2 vector expected but string given.',
+      'llSetPrimitiveParams error running rule #2 (PRIM_COLOR): arg #2 (color) vector expected but string given.',
     ])
   })
 
@@ -943,8 +946,8 @@ describe('llSetPrimitiveParams rule type errors on untyped lists', () => {
     ['string', [PRIM_SIZE, 'abc'], 'arg #1 vector expected but string given'],
     ['integer', [PRIM_SIZE, 3], 'arg #1 vector expected but integer given'],
     ['float', [PRIM_SIZE, 1.5], 'arg #1 vector expected but float given'],
-    ['rotation', [PRIM_SIZE, ZERO_ROTATION], 'arg #1 vector expected but rotation given'],
-    ['vector', [PRIM_TEXT, { x: 1, y: 1, z: 1 }, { x: 1, y: 1, z: 1 }, 1], 'arg #1 string expected but vector given'],
+    ['rotation', [PRIM_SIZE, ZERO_ROTATION], 'arg #1 vector expected but quaternion given'],
+    ['vector', [PRIM_TEXT, { x: 1, y: 1, z: 1 }, { x: 1, y: 1, z: 1 }, 1], 'arg #1 (text) string expected but vector given'],
     ['list', [PRIM_SIZE, []], 'arg #1 vector expected but list given'],
   ])('reports a %s argument', async (_label, rules, message) => {
     const s = await loadScript({

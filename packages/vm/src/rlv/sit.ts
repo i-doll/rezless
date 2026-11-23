@@ -380,6 +380,9 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   cancelPendingSit(avatar)
   cancelPendingGroundSit(avatar)
   const previous = avatar.sittingOn
+  // In-world: a sitter's request on another prim of its seat's object, with or without a sit
+  // target, left it where it was.
+  if (previous && previous !== seat && previous.linkset === seat.linkset) return 'unchanged'
   if (saveOrigin) rememberStandtpSit(world, avatar)
   const sit = (): 'applied' | 'unchanged' | 'refused' => {
     // In-world a repeated request on the seat the avatar sits on leaves it where it is.
@@ -390,7 +393,7 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
     }
     return !world.sitAvatar(avatar, seat, response) ? 'refused' : previous === seat ? 'unchanged' : 'applied'
   }
-  if (!response.autopilot || previous?.linkset === seat.linkset) return sit()
+  if (!response.autopilot || previous === seat) return sit()
   avatar.info &= ~AGENT_FLYING
   const { durationMs, success } = response.autopilot
   avatar.viewer.session.bind(seat.linkset!, avatar)

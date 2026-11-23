@@ -1,9 +1,10 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
-import type { AttachedSound, Prim, SoundTrigger } from '../prim.js'
+import type { AttachedSound, PrimSoundState, SoundTrigger } from '../prim.js'
 import type { Vector } from '../values/types.js'
+import { isPrim, type Link } from '../linkset.js'
 import { NULL_KEY } from '../values/types.js'
 import { InventoryType } from '../inventory.js'
-import { SOUND_LOOP, SOUND_SYNC, SOUND_TRIGGER } from '../generated/constants.js'
+import { LINK_ALL_CHILDREN, LINK_ALL_OTHERS, LINK_SET, SOUND_LOOP, SOUND_SYNC, SOUND_TRIGGER } from '../generated/constants.js'
 import { sayError } from './debug.js'
 
 const KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -17,23 +18,28 @@ function resolve(ctx: CallContext, name: string): string | undefined {
   return undefined
 }
 
-function targets(ctx: CallContext, link: number): Prim[] {
-  return ctx.linkset.resolveTargets(ctx.prim.linkNumber, link)
+// In-world, the link sound calls also reach seated avatars: the three group
+// flags take every sitter, and a link number naming an avatar takes that avatar.
+function targets(ctx: CallContext, link: number): Link[] {
+  const { prims, sitter } = ctx.linkset.linksFrom(ctx.prim, link)
+  if (link === LINK_SET || link === LINK_ALL_OTHERS || link === LINK_ALL_CHILDREN) return [...prims, ...ctx.linkset.sitters()]
+  return sitter ? [sitter] : prims
 }
 
-function attach(prim: Prim, sound: string, gain: number, loop: boolean, sync: AttachedSound['sync']): void {
-  prim.sound.current = { sound, volume: volume(gain), loop, sync }
+function attach(state: PrimSoundState, sound: string, gain: number, loop: boolean, sync: AttachedSound['sync']): void {
+  state.current = { sound, volume: volume(gain), loop, sync }
 }
 
-function trigger(prim: Prim, sound: string, gain: number, bounds?: { topNorthEast: Vector; bottomSouthWest: Vector }): void {
-  const entry: SoundTrigger = { sound, volume: volume(gain), position: { ...prim.regionPosition() }, ...bounds }
-  prim.sound.triggers.push(entry)
+function trigger(link: Link, sound: string, gain: number, bounds?: { topNorthEast: Vector; bottomSouthWest: Vector }): void {
+  const position = isPrim(link) ? link.regionPosition() : link.position
+  const entry: SoundTrigger = { sound, volume: volume(gain), position: { ...position }, ...bounds }
+  link.sound.triggers.push(entry)
 }
 
 function attached(loop: boolean, sync: AttachedSound['sync']): BuiltinImpl {
   return (ctx, args) => {
     const sound = resolve(ctx, args[0] as string)
-    if (sound !== undefined) attach(ctx.prim, sound, args[1] as number, loop, sync)
+    if (sound !== undefined) attach(ctx.prim.sound, sound, args[1] as number, loop, sync)
     return undefined
   }
 }
@@ -50,7 +56,7 @@ export const llLinkPlaySound: BuiltinImpl = (ctx, args) => {
   const flags = args[3] as number
   for (const prim of targets(ctx, args[0] as number)) {
     if (flags & SOUND_TRIGGER) trigger(prim, sound, args[2] as number)
-    else attach(prim, sound, args[2] as number, !!(flags & SOUND_LOOP), flags & SOUND_SYNC ? 'slave' : 'none')
+    else attach(prim.sound, sound, args[2] as number, !!(flags & SOUND_LOOP), flags & SOUND_SYNC ? 'slave' : 'none')
   }
   return undefined
 }

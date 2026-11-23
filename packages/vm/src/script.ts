@@ -1,13 +1,14 @@
 import { clearTargetMotion } from './builtins/motion.js'
 import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
-import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY, TOUCH_INVALID_FACE } from './generated/constants.js'
+import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
   leaveDamageEvent,
-  combatAvatars,
+  leaveDamageOnStateChange,
+  registerCombatAvatar,
   type CombatAvatar,
 } from './builtins/damage.js'
 import type {
@@ -30,7 +31,7 @@ import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
 import type { DataserverRequestEntry } from './builtins/dataserver.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
-import type { DetectedEntry } from './builtins/detected.js'
+import { touchThroughInventory, type DetectedEntry } from './builtins/detected.js'
 import type { AutoGrantPermissions, PermissionRequestEntry } from './builtins/permissions.js'
 import type { DialogEntry } from './builtins/dialog.js'
 import type { TakenControls } from './builtins/controls.js'
@@ -55,7 +56,7 @@ import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
 import type { QueuedEvent } from './clock.js'
-import { Linkset } from './linkset.js'
+import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
@@ -68,7 +69,7 @@ import {
   XP_ERROR_NOT_PERMITTED,
 } from './generated/constants.js'
 import { own } from './own.js'
-import { deterministicKey } from './keys.js'
+import { deterministicKey, scriptInstanceId } from './keys.js'
 import { Memory, RuntimeError, codeBytes } from './memory.js'
 import { invalidPrograms } from './typecheck.js'
 import type { Experience } from './experience.js'
@@ -185,6 +186,9 @@ export class Script {
   readonly clockView: ScriptClockView
   readonly host: Prim
   readonly scriptName: string
+  readonly instanceId: string
+  /** Clicks this script still counts as held, by avatar key. */
+  readonly heldClicks = new Map<string, HeldTouch>()
   /** When false, drainQueue parks events instead of delivering them. */
   private isRunning = true
   /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
@@ -361,20 +365,29 @@ export class Script {
 
     // Register with the prim only once the script is fully built, so a failed
     // construction (e.g. a Stack-Heap Collision in a global) leaves no trace.
+    this.instanceId = scriptInstanceId(host, this.scriptName)
     if (!host.scripts.includes(this)) {
       host.addScript(this)
     }
   }
 
-  /** A state transition leaves on_damage before lifecycle handlers execute. */
-  private clearDamageAdjustment(): void {
-    const context = this.state.detectedStack.at(-1)
-    if (context?.event === 'on_damage') context.event = ''
+  /**
+   * A state transition leaves on_damage before lifecycle handlers execute.
+   * In-world (main grid, 2026-11-23): state_exit and state_entry read no llDetectedDamage.
+   */
+  private clearDamageAdjustment(): boolean {
+    const stack = this.state.detectedStack
+    const context = stack.at(-1)
+    if (context?.event !== 'on_damage') return false
+    stack[stack.length - 1] = { event: '', entries: context.entries.map(({ damage: _, ...rest }) => rest) }
+    leaveDamageOnStateChange(this)
+    // A copy replaying this handler finds no damage to leave, so this must not depend on one.
+    return true
   }
 
   /** Configure an avatar's combat health, parcel and attachment scripts. */
   setCombatAvatar(id: string, avatar: CombatAvatar): void {
-    combatAvatars(this).set(id.toLowerCase(), { ...avatar, region: this.linkset.region })
+    registerCombatAvatar(this, id, avatar)
   }
 
   /** Current virtual time in milliseconds since linkset construction. */
@@ -1092,7 +1105,10 @@ export class Script {
     if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
+    for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
+    resumeHeldTouches(copy)
     if (this.slua) {
       // In-world: an SLua script comes out of inventory as it went in.
       const carryOn = copy.slua!.adopt(this.slua)
@@ -1139,6 +1155,9 @@ export class Script {
     if (!foreign) {
       copy.state.permissions.granted = this.state.permissions.granted
       copy.state.permissions.agent = this.state.permissions.agent
+      // In-world: a copy of an object nobody sat on or wore still sent control events for the
+      // controls the original took, without a new llTakeControls.
+      copy.state.controls.taken = this.state.controls.taken
       const agent = this.state.permissions.agent.toLowerCase()
       // A copy made while the permission avatar sits on the original holds what a stand leaves,
       // and one of an object that is worn or detached what a detach leaves.
@@ -1159,7 +1178,7 @@ export class Script {
     copyTargets(this, copy)
     for (const kind of ['move', 'look'] as const) {
       const request = host.linkset!.prims[0]!.targetMotion[kind]
-      if (request?.owner.prim === this.host.key && request.owner.script === this.scriptName) request.owner.prim = host.key
+      if (request?.owner.prim === this.host.key && request.owner.script === this.instanceId) request.owner = { prim: host.key, script: copy.instanceId }
     }
     // In-world: a chat line and a touch that were waiting for a sleeping handler came out of
     // inventory with the script and ran in the rezzed copy, after on_rez.
@@ -1267,11 +1286,17 @@ export class Script {
    * Reset the script as if `llResetScript` had been called: clear globals,
    * reseed them from the AST initializers, return to the default state,
    * cancel timers, and run state_entry. Used internally when llResetScript
-   * is invoked from inside a handler; tests can also call it directly.
-   * A sleeping handler is abandoned.
+   * is invoked from inside a handler; tests can also call it directly, as
+   * the owner's Reset does. A sleeping handler is abandoned, a stopped
+   * script stays stopped, and a crashed one runs again.
    */
   reset(): void {
-    this.restart()
+    if (this.crashed && !this.dead) this.recover()
+    else {
+      this.restart()
+      // Stopped: state_entry waits for the start.
+      if (!this.running) this.queueStart()
+    }
     this.linkset.settle([this])
   }
 
@@ -1306,6 +1331,7 @@ export class Script {
       if (e instanceof RuntimeError) this.crash(e)
       throw e
     }
+    forgetHeldTouches(this, true)
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
     this.state.lifecycle.dying = false
@@ -1368,6 +1394,7 @@ export class Script {
       }
       if (!this.slua.handles(event)) return
       if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+      this.clockView.touchDelivered(event)
       const engine = this.slua
       const args = bindPayload(event, payload)
       this.step({ run: this.runHandler(event, () => this.sluaRun(engine.dispatch(event, args)), payload), startedAt: this.now, wakeAt: 0, slua: { event, payload } })
@@ -1376,6 +1403,7 @@ export class Script {
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
     if (!handler) return
     if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+    this.clockView.touchDelivered(event)
     this.begin(handler, bindPayload(event, payload), payload)
   }
 
@@ -1546,7 +1574,8 @@ export class Script {
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
         this.state.gameControlSnapshot = null
-        this.clearDamageAdjustment()
+        // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
+        if (this.clearDamageAdjustment()) yield { until: this.now }
         if (this.state.lifecycle.removed) return false
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
@@ -1569,6 +1598,7 @@ export class Script {
         stopSensors(this)
         this.state.listens.length = 0
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
+        forgetHeldTouches(this, false)
         this.state.currentState = target
         if (this.state.coverage) this.state.coverage.hitState(target)
         const entry = this.handlersByState.get(target)?.get('state_entry')
@@ -1691,7 +1721,10 @@ export class Script {
     const starting = value && !this.isRunning
     this.isRunning = value
     if (value) this.crashed = false
-    if (starting) this.catchUp()
+    if (starting) {
+      this.catchUp()
+      resumeHeldTouches(this)
+    }
   }
 
   /**
@@ -1718,7 +1751,8 @@ export class Script {
   }
 
   private sayCrash(): void {
-    for (const text of [`${this.host.name} [script:${this.scriptName}] Script run-time error`, this.crashText]) {
+    const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
+    for (const text of [`${this.host.name} [script:${name}] Script run-time error`, this.crashText]) {
       this.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
@@ -1757,19 +1791,9 @@ export class Script {
   }
 }
 
-/**
- * What a detected list reads once its object has been through inventory.
- * In-world: a click on face 3 read llDetectedTouchFace -1 after a take and rez, and after a
- * detach and wear, in the touch handler that slept through it and in the touch events that
- * waited. The toucher's key stayed. The probe's clicks carried no surface point, so the rest
- * of the click's surface data goes with the face here unmeasured.
- */
+/** What a detected list reads once its object has been through inventory. */
 function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>): DetectedEntry[] {
-  return detected.map(entry => {
-    if (!isTouch(event)) return { ...entry }
-    const { touchPos, touchST, touchUV, touchNormal, touchBinormal, ...kept } = entry
-    return { ...kept, touchFace: TOUCH_INVALID_FACE }
-  })
+  return isTouch(event) ? touchThroughInventory(detected) : detected.map(entry => ({ ...entry }))
 }
 
 const isTouch = (event: string | undefined) => event === 'touch_start' || event === 'touch' || event === 'touch_end'

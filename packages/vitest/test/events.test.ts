@@ -315,8 +315,8 @@ describe('llDetectedDamage', () => {
   })
 
   it('reads the damage passed to fire() as [float damage, integer type, float original]', async () => {
-    // Not measured: llDamage only raises on_damage on damage-enabled land, and
-    // no damage-enabled parcel on Aditi was reachable from the probe avatar. The shape follows the LSL portal.
+    // In-world (main grid, 2026-11-23): in on_damage, llDetectedDamage(0) for 12 fire damage gave
+    // three entries typed float, integer, float: [12, 5, 12]; index 1 and -1 gave empty lists.
     const s = await load(src)
     s.fire('on_damage', {
       num_detected: 1,
