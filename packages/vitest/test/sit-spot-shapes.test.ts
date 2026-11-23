@@ -9,9 +9,10 @@ import { loadLinkset, World } from '../src/index.js'
 // side.
 //
 // Measured on the Aditi beta grid (SLua Tideland, Firestorm 7.3.0 with RLVa,
-// 2026-11-23) with one avatar, on an unturned prim without a sit target whose
-// bottom rested at z 1996.97, centred at <123, 52> unless the label says
-// otherwise (those rows are given as if it stood at <123, 52>). Before each
+// 2026-11-23) with one avatar at a time, on a prim without a sit target,
+// unturned unless its block says so, whose bottom rested at z 1996.97,
+// centred at <123, 52> unless the label says otherwise (those rows are given
+// as if it stood at <123, 52>). Before each
 // click the avatar stood near the prim facing it; the viewer moved its own
 // camera, aimed at the prim's centre, and waited for it to settle, then sent
 // the sit request with an offset from the prim's centre, as a click on that
@@ -33,7 +34,7 @@ const v = (x: number, y: number, z: number) => ({ x, y, z })
 // the clicked spot towards the camera, away from it and towards the avatar.
 // Each leaves the edge at a point; the avatar sits at the tangent there
 // nearest the spot, 0.09 m out from it and in line with the spot along it,
-// facing out along the edge's normal. On a round top this held in 33 of 34
+// facing out along the edge's normal. On a round top this held in 34 of 35
 // clicks from two cameras and two avatar places, and in the six clicks on a
 // cylinder's top in sit-spot-clicks.test.ts. An oval top's edge is the
 // nine-sided polygon through the oval at every 40 degrees from +X; three of
@@ -95,10 +96,10 @@ const CYLINDER_TIE: Click[] = [
 ]
 
 // Clicks near a round top's rim every few degrees, to find where Second Life
-// writes the turn as more than 180 degrees. Turned from the prim's heading by
-// -116 degrees and more, the avatar's rotation read as that turn; by -120.7
-// degrees and less, as the turn plus 360 degrees. Every turn in these files
-// reads in (-120, 240] degrees.
+// writes the avatar's heading as more than 180 degrees. A heading of -116
+// degrees and more read as itself, one of -120.7 degrees and less as itself
+// plus 360 degrees: Second Life writes the heading in the region in
+// (-120, 240] degrees, and PRIM_ROT_LOCAL is that rotation over the prim's.
 const CYLINDER_TURN: Click[] = [
   ['cylinder, camera at -6.00, 0.00, 1.90, click at -0.078, -0.443, 0.5: at -0.164, -0.589, 1.13', 'cylinder', v(1, 1, 1), 1997.47, v(118.447, 52.376, 1997.421), -4.723, v(117, 52, 1999.37), v(-0.078, -0.443, 0.5), v(-0.164, -0.589, 1.13), [0, 0, 0.869, -0.495]],
   ['cylinder, camera at -6.00, 0.00, 1.90, click at -0.124, -0.433, 0.5: at -0.18, -0.565, 1.13', 'cylinder', v(1, 1, 1), 1997.47, v(120.896, 50.893, 1997.421), 27.745, v(117, 52, 1999.37), v(-0.124, -0.433, 0.5), v(-0.18, -0.565, 1.13), [0, 0, -0.834, 0.551]],
@@ -119,7 +120,8 @@ const CYLINDER_TURN: Click[] = [
 ]
 // Plain requests and a click on cylinders slightly oval. Up to 1% longer one
 // way (1 x 1.001, 1 x 1.01 and 2 x 2.02 m) the avatar sat against the round
-// side; from 1.25% (1 x 1.0125 and 0.5 x 0.51 m) against the polygon's.
+// side; from 1.1% (1 x 1.011, 1 x 1.0115, 1 x 1.0125 and 0.5 x 0.51 m)
+// against the polygon's.
 const OVAL_SWITCH: Click[] = [
   ['1 x 1.01 x 1 m cylinder, camera at -6.00, 0.00, 1.90, click at 0.3, 0.4, 0.5: at 0.354, 0.472, 1.13', 'cylinder', v(1, 1.01, 1), 1997.47, v(119.813, 52.672, 1997.421), -11.899, v(117, 52, 1999.37), v(0.3, 0.4, 0.5), v(0.354, 0.472, 1.13), [0, 0, 0.447, 0.894]],
   ['1 x 1.001 x 1 m cylinder, camera at rest, no click: at -0.59, -0.009, 1.13', 'cylinder', v(1, 1.001, 1), 1997.47, v(118.222, 51.838, 1997.421), 1.94, null, null, v(-0.59, -0.009, 1.13), [0, 0, 1, -0.008]],
@@ -134,7 +136,25 @@ const OVAL_SWITCH: Click[] = [
   ['0.5 x 0.51 x 1 m cylinder (prim at 123, 56), camera at -6.00, 0.00, 1.90, no click: at -0.325, 0, 1.13', 'cylinder', v(0.5, 0.51, 1), 1997.47, v(118.16, 52, 1997.42), -0.003, v(117, 52, 1999.37), null, v(-0.325, 0, 1.13), [0, 0, 1, 0]],
   ['1 x 1.2 x 1 m cylinder (prim at 123, 56), camera at -6.00, 0.00, 1.90, no click: at -0.56, 0, 1.13', 'cylinder', v(1, 1.2, 1), 1997.47, v(119.724, 52.284, 1997.421), -4.951, v(117, 52, 1999.37), null, v(-0.56, 0, 1.13), [0, 0, 1, 0]],
   ['1.2 x 1 x 1 m cylinder (prim at 123, 56), camera at -6.00, 0.00, 1.90, no click: at -0.654, 0, 1.13', 'cylinder', v(1.2, 1, 1), 1997.47, v(117.979, 52, 1997.421), -0.003, v(117, 52, 1999.37), null, v(-0.654, 0, 1.13), [0, 0, 1, 0]],
+  ['1 x 1.011 x 1 m cylinder (prim at 123, 58), camera at -6.00, 0.00, 1.90, no click: at -0.56, 0, 1.13', 'cylinder', v(1, 1.011, 1), 1997.47, v(119.996, 51.44, 1997.448), 10.555, v(117, 52, 1999.37), null, v(-0.56, 0, 1.13), [0, 0, 1, 0]],
+  ['1 x 1.0115 x 1 m cylinder (prim at 123, 58), camera at -6.00, 0.00, 1.90, no click: at -0.56, 0, 1.13', 'cylinder', v(1, 1.0115, 1), 1997.47, v(118.103, 51.978, 1997.447), 0.259, v(117, 52, 1999.37), null, v(-0.56, 0, 1.13), [0, 0, 1, 0]],
+  ['1 x 1.012 x 1 m cylinder (prim at 123, 58), camera at -6.00, 0.00, 1.90, no click: at -0.56, 0, 1.13', 'cylinder', v(1, 1.012, 1), 1997.47, v(118.049, 52.001, 1997.447), -0.01, v(117, 52, 1999.37), null, v(-0.56, 0, 1.13), [0, 0, 1, 0]],
 ]
+// 1 m boxes turned 90, -90 and 100 degrees about Z, read in the prim's frame.
+// On the box turned 90 degrees the avatar faced region -Y and read
+// <0, 0, -1, 0>: its heading of -90 degrees, over the prim's turn.
+const BOX_90: Click[] = [
+  ['box (prim at 123, 58), camera at 0.20, -4.00, 1.00, no click: at -0.59, -0.025, 1.13', 'box', v(1, 1, 1), 1997.47, v(123.76, 49.631, 1997.448), 107.789, v(123.2, 48, 1998.47), null, v(-0.59, -0.025, 1.13), [0, 0, -1, 0]],
+  ['box (prim at 123, 58), camera at -6.00, 0.00, 1.90, no click: at 0, 0.59, 1.13', 'box', v(1, 1, 1), 1997.47, v(120.142, 51.18, 1997.448), 16.016, v(117, 52, 1999.37), null, v(0, 0.59, 1.13), [0, 0, 0.707, 0.707]],
+]
+const BOX_MINUS_90: Click[] = [
+  ['box (prim at 123, 58), camera at -6.00, 0.00, 1.90, no click: at 0, -0.59, 1.13', 'box', v(1, 1, 1), 1997.47, v(118.074, 51.986, 1997.448), 0.164, v(117, 52, 1999.37), null, v(0, -0.59, 1.13), [0, 0, 0.707, -0.707]],
+  ['box (prim at 123, 58), camera at -0.20, 4.00, 1.00, no click: at -0.59, -0.025, 1.13', 'box', v(1, 1, 1), 1997.47, v(122.843, 56.101, 1997.448), -87.814, v(122.8, 56, 1998.47), null, v(-0.59, -0.025, 1.13), [0, 0, 1, 0]],
+]
+const BOX_100: Click[] = [
+  ['box (prim at 123, 58), camera at 0.20, -4.00, 1.00, no click: at -0.59, 0.063, 1.13', 'box', v(1, 1, 1), 1997.47, v(123.47, 50.29, 1997.448), 105.369, v(123.2, 48, 1998.47), null, v(-0.59, 0.063, 1.13), [0, 0, -1, 0]],
+]
+
 // A 2 x 1 x 1 m cylinder turned 20 degrees about Z: its polygon turns with
 // it. Positions and rotations are in the prim's frame.
 const OVAL_TURNED: Click[] = [
@@ -355,6 +375,18 @@ describe('where a click seats an avatar on a cylinder, sphere or prism, and low 
   it.fails.each(CYLINDER_TIE)('%s', async (...row) => { await check(row) })
   it.each(CYLINDER_TURN)('%s', async (...row) => { await check(row) })
   it.each(OVAL_SWITCH)('%s', async (...row) => { await check(row) })
+  const about = (deg: number) => ({ x: 0, y: 0, z: Math.sin(deg * Math.PI / 360), s: Math.cos(deg * Math.PI / 360) })
+  it.each(BOX_90)('box turned 90 degrees, %s', async (...row) => { await check(row, about(90)) })
+  it.each(BOX_MINUS_90)('box turned -90 degrees, %s', async (...row) => { await check(row, about(-90)) })
+  it.each(BOX_100)('box turned 100 degrees, %s', async (...row) => { await check(row, about(100)) })
+
+  // Not measured: a click a hair outside an oval's polygon, next to a corner,
+  // as a click on the oval itself can be, still seats the avatar at a side.
+  it('seats a click just outside a corner of an oval top', async () => {
+    const row: Click = ['', 'cylinder', v(10, 1, 1), 50, v(118, 52.4924, 50), 0, v(115, 52.4924, 51.9), v(0.868241, 0.492454, 0.5), null, null]
+    const response = await sit(row)
+    expect(response!.position.y).toBeCloseTo(0.492454 + 0.09, 1)
+  })
   it.each(OVAL_TURNED)('%s', async (...row) => { await check(row, { x: 0, y: 0, z: Math.sin(Math.PI / 18), s: Math.cos(Math.PI / 18) }) })
   it.each(LOW_TAKEN)('%s', async (...row) => { await check(row) })
   it.fails.each(LOW_REFUSED)('%s', async (...row) => { await check(row) })

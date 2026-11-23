@@ -667,9 +667,9 @@ cylinder's side. Where the line from above meets a box's or a cylinder's top
 first, with or without a click, the avatar sits at a side, in line with the
 spot where it met: rays across the top from that spot towards the camera,
 away from it and towards the avatar each reach the edge, and the avatar sits
-at the side or tangent there nearest the spot, facing out from it. The
-seat's rotation reads its turn from the prim's heading in (-120, 240]
-degrees. Where two
+at the side or tangent there nearest the spot, facing out from it. Its
+rotation gives its heading in the region in (-120, 240] degrees, and
+`PRIM_ROT_LOCAL` reads that over the prim's rotation. Where two
 are equally near, rezless takes the side towards the camera, then the one
 away from it; Second Life follows no fixed order there. Second Life refuses
 some clicks low on a side of some box sizes, depending on the camera's angle,

@@ -86,13 +86,13 @@ export function sitSpot(prim: Prim, camera: Vector, offset: Vector, avatar: Vect
   const turned = rotateVector({ x: seat[0]!, y: seat[1]!, z: seat[2]! }, turn)
   const lifted = { ...turned, z: turned.z + half[up]! + ABOVE_TOP }
   const normal = rotateVector({ x: out[0]!, y: out[1]!, z: out[2]! }, turn)
-  // Second Life gives the turn from the prim's heading in (-120, 240] degrees:
-  // in-world a turn of -116 degrees read as -116, one of -120.7 as 239.3.
-  const heading0 = Math.atan2(axes[a]!.y, axes[a]!.x)
-  let by = Math.atan2(normal.y, normal.x) - heading0
-  while (by <= -2 * Math.PI / 3) by += 2 * Math.PI
-  while (by > 4 * Math.PI / 3) by -= 2 * Math.PI
-  const yaw = (heading0 + by) / 2
+  // Second Life gives the avatar's heading in the region in (-120, 240]
+  // degrees: in-world -116 read as -116 and -120.7 as 239.3, and on a box
+  // turned 90 degrees a heading of -90 read as -90.
+  let heading = Math.atan2(normal.y, normal.x)
+  while (heading <= -2 * Math.PI / 3) heading += 2 * Math.PI
+  while (heading > 4 * Math.PI / 3) heading -= 2 * Math.PI
+  const yaw = heading / 2
   return {
     position: rotateVector(lifted, inverse),
     rotation: mulRotation({ x: 0, y: 0, z: Math.sin(yaw), s: Math.cos(yaw) }, inverse),
@@ -142,7 +142,7 @@ interface Leave { hit: [number, number]; normal: [number, number]; reach: number
  * `leave` gives where a line from a spot along a direction leaves the
  * outline, the outward normal there and the distance of the tangent or side
  * from the centre, or null when the line misses it. A line leaving through a
- * corner takes the side after it, counting from +X towards +Y.
+ * corner takes the first of its two sides counting from +X towards +Y.
  */
 function outline(ha: number, hb: number) {
   if (Math.max(ha, hb) <= Math.min(ha, hb) * (1 + ROUND)) {
@@ -171,10 +171,12 @@ function outline(ha: number, hb: number) {
     leave([x, y]: [number, number], [dx, dy]: [number, number]): Leave | null {
       let enter = -Infinity, exit = Infinity, face = faces[0]!
       for (const f of faces) {
-        const along = f.normal[0] * dx + f.normal[1] * dy, room = f.reach - f.normal[0] * x - f.normal[1] * y
-        if (Math.abs(along) < 1e-12) { if (room < -1e-4) return null; continue }
+        const along = f.normal[0] * dx + f.normal[1] * dy
+        // A spot just outside a side, as inside() allows, counts as on it.
+        const gap = f.reach - f.normal[0] * x - f.normal[1] * y, room = gap > -1e-4 ? Math.max(gap, 0) : gap
+        if (Math.abs(along) < 1e-12) { if (room < 0) return null; continue }
         const t = room / along
-        if (along > 0 && t < exit) { exit = t; face = f } else if (along < 0 && t > enter) enter = t
+        if (along > 0 && t < exit - 1e-9) { exit = t; face = f } else if (along < 0 && t > enter) enter = t
       }
       if (!Number.isFinite(exit) || enter > exit + 1e-4) return null
       return { hit: [x + dx * exit, y + dy * exit], normal: face.normal, reach: face.reach }
