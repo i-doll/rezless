@@ -154,6 +154,19 @@ it('drops the input that waited for a listen handler that changed state', async 
   expect(f.log()).toEqual(['nap 0/0', 'woke 0/1', 'two entry 0/1', 'two ev 0 0/0'])
 })
 
+// In-world (#545): a script asleep in a listen handler that was sent a press and a release woke
+// reading the release, then ran one event for it. Here the press comes at the instant the sleep
+// begins.
+it('reads input that comes as a listen handler starts to sleep', async () => {
+  const f = await box()
+  f.say('nap10')
+  f.gc.sendGameControl(OWNER, { buttons: 1 })
+  f.linkset.advanceTime(1_000)
+  f.gc.sendGameControl(OWNER, {})
+  f.linkset.advanceTime(10_000)
+  expect(f.log()).toEqual(['nap 0/0', 'woke 0/0', 'ev 0 0/0 xs 0'])
+})
+
 // In-world: the probe, worn, slept 10 s in game_control and changed to the state with no
 // game_control handler, with a release waiting. It detached itself there and was worn again ->
 // the attach events read -1/0, and back in default no event ran for the release.

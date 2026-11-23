@@ -202,6 +202,8 @@ export class Script {
   private crashShown = ''
   /** Running a game_control handler that still reads its own event's values. */
   private inGameControl = false
+  /** When the game_control handler that is running began. */
+  private gameControlSince = 0
   /** The event of a sleeping SLua game_control handler whose values a rez cleared. */
   private clearedGameControl: Record<string, unknown> | undefined
   /** Input that waited through a state change into a state with no game_control handler. */
@@ -833,7 +835,7 @@ export class Script {
       // reading what it read before. One asleep in touch_start while a release from an earlier
       // sleep waited read that release through a new press.
       const since = s.handlerStartedAt
-      const older = since !== undefined && s.linkset.clock.pendingEvents().some(e => e.target === s && e.event === 'game_control' && e.at <= since)
+      const older = since !== undefined && s.linkset.clock.pendingEvents().some(e => e.target === s && e.event === 'game_control' && !e.held && e.at <= since)
       if (s.handles('game_control') && !s.inGameControl && !older) s.state.gameControlSnapshot = state.mode
       s.clockView.schedule(s.now, 'game_control', {
         id: key, button_levels: state.buttons,
@@ -1610,6 +1612,7 @@ export class Script {
     if (gameControl) {
       this.state.gameControlSnapshot = values
       this.inGameControl = true
+      this.gameControlSince = this.now
     }
     enterDamageEvent(payload)
     const detected = payload['detected']
@@ -1689,7 +1692,7 @@ export class Script {
         // In-world: input that waited for a game_control handler that then changed state ran in
         // the next state with a game_control handler, after its state_entry. Input that waited
         // for a listen handler that changed state never ran.
-        const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control').at(-1)?.payload : undefined
+        const input = fromGameControl ? this.linkset.clock.takeDue(this, 'game_control', this.gameControlSince).at(-1)?.payload : undefined
         if (input) this.waitingGameControl = input
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
         forgetHeldTouches(this, false)
