@@ -27,6 +27,7 @@ import type { Linkset, Script } from '../src/index.js'
 // https://wiki.secondlife.com/wiki/Control
 
 const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const BOB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const SEATED = PERMISSION_TAKE_CONTROLS | PERMISSION_TRACK_CAMERA | PERMISSION_CONTROL_CAMERA
 
 const source = `
@@ -36,6 +37,7 @@ const source = `
       list a = llParseString2List(m, [" "], []);
       string c = llList2String(a, 0);
       if (c == "perm") llRequestPermissions(llGetOwner(), llList2Integer(a, 1));
+      else if (c == "permk") llRequestPermissions(llList2Key(a, 2), llList2Integer(a, 1));
       else if (c == "take") llTakeControls(llList2Integer(a, 1), llList2Integer(a, 2), llList2Integer(a, 3));
       else if (c == "release") llReleaseControls();
       else if (c == "cam") llSetCameraParams([${CAMERA_ACTIVE}, 1]);
@@ -283,6 +285,33 @@ describe('controls through a take and a rez', () => {
     expect(copy.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
   })
 
+  it('keeps them in a copy worn from inventory', async () => {
+    const { rlv } = await loadRlvPair({ source: 'default { touch_start(integer n) { llOwnerSay(llGetObjectDesc()); } }' })
+    const { world, avatar } = rlv
+    world.autoGrantPermissions = 'none'
+    const made = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{ scripts: [{ name: 'probe', source: { source } }] }] })
+    const probe = made.scripts.probe!
+    probe.start()
+    tell(probe, `perm ${PERMISSION_TAKE_CONTROLS}`)
+    probe.grantPermissions()
+    tell(probe, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
+    const saved = made.linkset.copy()
+    made.linkset.remove()
+    seedRlvInventory(avatar, { sharedRootId: 'root', entries: [
+      { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
+      { id: 'folder', parentId: 'root', kind: 'folder', name: 'Direct' },
+      { id: 'probe', parentId: 'folder', kind: 'item', name: 'Probe (left hand)', assetType: 'object', object: saved },
+    ] })
+    rlv.script.start()
+    rlv.script.host.description = '@attach:direct=force'
+    rlv.script.fire('touch_start', { num_detected: 1 })
+    const worn = world.linksets.find(l => l.attachment && l !== rlv.script.linkset && l.allScripts().length)!.allScripts()[0]!
+    worn.linkset.advanceTime(0)
+    worn.setGlobal('got', [])
+    hold(worn, CONTROL_BACK, 1)
+    expect(worn.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
+  })
+
   it('keeps them in a copy rezzed with llRezObject', async () => {
     const f = await holding()
     const rezzer = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'rezzer', source: { source:
@@ -351,5 +380,62 @@ describe('@sit:<key>=force on another prim of the seat', () => {
       expect(avatar.sittingOn).toBe(seat.prims[0])
       expect(avatar.viewer.commandLog.filter(entry => entry.status === 'action').at(-1)).toMatchObject({ actionOutcome: 'unchanged' })
     }
+  })
+})
+
+describe('controls held for another avatar through a copy', () => {
+  async function forBob() {
+    const f = await fixture()
+    const bob = f.world.addAvatar({ region: 'home', key: BOB, username: 'bob', position: { x: 12, y: 10, z: 20 } })
+    return { ...f, bob }
+  }
+  function rez(f: Fixture, saved: Linkset) {
+    seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'bob-item', kind: 'item', parentId: null, name: 'probe', object: saved, assetType: 'object' }] })
+    const object = f.world.attemptAvatarRez(f.avatar, 'bob-item', { x: 11, y: 12, z: 20 }).object!
+    object.advanceTime(0)
+    return object.allScripts()[0]!
+  }
+
+  // In-world, with two avatars: the owner's probe asked a second avatar, standing, for
+  // PERMISSION_TAKE_CONTROLS, which it granted from the dialog, and took forward and back. Then
+  // the owner made a Take Copy and rezzed it, rezzed it with llRezObject from another prim, and
+  // took the original and rezzed it -> every copy and the original held 4 for that avatar, and its
+  // back key gave 2/2, 2/0..., 0/2 in each (Aditi, SLua Tideland, 2026-11-23).
+  it('keeps them for an avatar that is not the owner', async () => {
+    const f = await forBob()
+    f.world.autoGrantPermissions = 'none'
+    tell(f.script, `permk ${PERMISSION_TAKE_CONTROLS} ${BOB}`)
+    f.script.grantPermissions()
+    tell(f.script, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
+    const saved = f.linkset.copy()
+    f.linkset.remove()
+    const copy = rez(f, saved)
+    copy.setGlobal('got', [])
+    hold(copy, CONTROL_BACK, 1)
+    expect(copy.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
+    expect(perms(copy)).toBe(PERMISSION_TAKE_CONTROLS)
+  })
+
+  // In-world: the second avatar sat on the owner's probe and granted 3076 with forward and back
+  // taken. A Take Copy stood it up: the original read 1024 in changed(CHANGED_LINK), and the
+  // rezzed copy read 1024 for that avatar in on_rez. Taking the probe from under the sitter and
+  // rezzing it gave the same, and its back key gave no event.
+  it('drops them for a sitter who is not the owner when the seat is copied from under it', async () => {
+    const f = await forBob()
+    expect(f.world.userSitAvatar(f.bob, f.linkset.prims[0]!)).toBe(true)
+    f.linkset.advanceTime(0)
+    tell(f.script, `permk ${SEATED} ${BOB}`)
+    tell(f.script, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
+    const saved = f.linkset.copy()
+    expect(f.bob.sittingOn).toBeNull()
+    f.linkset.advanceTime(0)
+    expect(got(f)).toContain('changed 32')
+    expect(perms(f.script)).toBe(PERMISSION_TRACK_CAMERA)
+    f.linkset.remove()
+    const copy = rez(f, saved)
+    expect(copy.global('got')).toContain(`rez ${PERMISSION_TRACK_CAMERA}`)
+    copy.setGlobal('got', [])
+    hold(copy, CONTROL_BACK, 1)
+    expect(copy.global('got')).toEqual([])
   })
 })
