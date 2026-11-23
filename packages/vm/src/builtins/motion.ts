@@ -88,6 +88,15 @@ function settleLater(linkset: Linkset, state: PhysicalMotion): void {
   })
 }
 
+/** A copy keeps the original's motion state; a settle under way starts again in the copy. */
+export function copyPhysicalMotion(from: Linkset, to: Linkset): void {
+  const state = physicalMotion.get(from)
+  if (!state) return
+  const copied: PhysicalMotion = { moving: state.moving }
+  physicalMotion.set(to, copied)
+  if (state.settle) settleLater(to, copied)
+}
+
 /**
  * Call after a script may have switched the object's physics. In-world: switching physics
  * on gave moving_start at once, whether the box fell or rested on the platform.

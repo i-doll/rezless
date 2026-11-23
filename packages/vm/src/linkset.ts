@@ -4,7 +4,7 @@ import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds } from './builtins/collision.js'
-import { queueMoving, setVelocity } from './builtins/motion.js'
+import { copyPhysicalMotion, queueMoving, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import type { Script } from './script.js'
@@ -466,6 +466,7 @@ export class Linkset {
       }
     }
     for (const [key, value] of this.linksetData) copy.linksetData.set(key, { ...value })
+    copyPhysicalMotion(this, copy)
   }
 
   /** Remove the object and cancel all its scripts, including sleeping handlers. */
