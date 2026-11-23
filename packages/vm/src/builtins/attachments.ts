@@ -14,7 +14,7 @@ const isHUD = (point: number) => point >= 31 && point <= 38
 
 function localAgent(ctx: CallContext, key: string): boolean {
   return isAgentInRegion(ctx, key) && (!ctx.linkset.world ||
-    ctx.linkset.world.avatars.some(a => sameKey(a.key, key) && a.region === ctx.linkset.region))
+    ctx.linkset.world.avatars.some(a => sameKey(a.key, key) && ctx.linkset.world!.avatarInRegion(a, ctx.linkset.region)))
 }
 
 function attach(ctx: CallContext, point: number, temporary: boolean): void {
@@ -71,8 +71,16 @@ export const llGetAttached: BuiltinImpl = ctx => ctx.linkset.attachment?.point ?
 
 function attachments(ctx: CallContext, avatar: string): Linkset[] | string {
   const known = ctx.linkset.world?.avatars.find(a => sameKey(a.key, avatar))
-  if (known && known.region !== ctx.linkset.region) return 'NOT ON REGION'
+  const left = known && ctx.linkset.world!.lingeringAvatar(known, ctx.linkset.region)
+  // In-world: the region the avatar left listed its attachments while it read "Init", then read
+  // "NOT ON REGION" while it still knew the avatar, then "NOT FOUND".
+  if (known && known.region !== ctx.linkset.region && left?.mode !== 'departing') return left ? 'NOT ON REGION' : 'NOT FOUND'
+  if (left?.mode === 'departing') return worn(ctx, avatar)
   if (!localAgent(ctx, avatar)) return 'NOT FOUND'
+  return worn(ctx, avatar)
+}
+
+function worn(ctx: CallContext, avatar: string): Linkset[] {
   return ctx.linkset.peers.filter(l => !l.dead && l.attachment && sameKey(l.attachment.avatar, avatar))
     .sort((a, b) => a.attachment!.order - b.attachment!.order)
 }
