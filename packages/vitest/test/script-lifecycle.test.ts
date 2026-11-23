@@ -92,6 +92,7 @@ const timed = `list log;
       else if (n == 7) llSleep(5.0);
       else if (n == 8) { integer z; z = 1 / z; }
       else if (n == 9) { llSleep(2.0); llSetTimerEvent(4.0); }
+      else if (n == 0) { llSleep(5.0); llSetTimerEvent(10.0); }
       else if (n == 4) { llSetTimerEvent(3.0); log += "sleep start"; llSleep(10.0); log += "sleep end"; }
       else if (n == 5) { llSetTimerEvent(4.0); llSensorRepeat("", NULL_KEY, AGENT, 20.0, PI, 4.0); }
       else if (n == 6) log += "lm";
@@ -624,6 +625,23 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     linkset.advanceTime(400)
     tell('msg:1:10.0')
     expect(changes(linkset, ticks, 8000)).toEqual([25_500])
+  })
+
+  it('takes the lag of a tick a sleeping handler kept, from when a waiting handler went ahead of it', async () => {
+    // As measured above for a tick released at a wake: the lag is how late the tick was when the
+    // waiting handler started, not when the tick ran.
+    const { t, tell, linkset } = await rig({ source: timed })
+    const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
+    tell('msg:1:10.0')
+    linkset.advanceTime(8000)
+    tell('msg:0:')
+    linkset.advanceTime(500)
+    tell('msg:7:')
+    linkset.advanceTime(10_000)
+    expect(ticks()).toBe(1)
+    tell('msg:1:10.0')
+    const start = linkset.clock.now
+    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
   })
 
   it('has no lag after more than one missed tick, even when a waiting handler lengthens the interval', async () => {

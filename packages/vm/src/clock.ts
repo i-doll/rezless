@@ -434,11 +434,19 @@ export class LinksetClock {
     if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
-      const due = ev.payload['due']
+      const at = Math.max(bestAt, this.now)
+      const due = ev.payload['__due']
       const tv = ev.target.clockView
-      if (ev.event === 'timer' && typeof due === 'number') tv.timerLate(Math.max(bestAt, this.now) - due)
-      // In-world: a tick that waited behind another handler had the lag it had when that handler started.
-      else if (tv.timerIntervalMs > 0 && tv.timerLateDueMs === undefined && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= Math.max(bestAt, this.now)
+      if (ev.event === 'timer' && typeof due === 'number') {
+        const passed = ev.payload['__passedAt']
+        tv.timerLate((typeof passed === 'number' ? passed : at) - due)
+      } else {
+        // In-world: a tick that waited behind another handler had the lag it had when that handler started.
+        if (tv.timerIntervalMs > 0 && tv.timerLateDueMs === undefined && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= at
+        for (const e of this.queue) {
+          if (e.target === ev.target && e.event === 'timer' && typeof e.payload['__due'] === 'number' && e.at <= bestAt) e.payload['__passedAt'] ??= at
+        }
+      }
       return bestAt > ev.at ? { ...ev, at: bestAt } : ev
     }
     if (bestTimerScript && bestTimerAt <= wakeAt) {
@@ -682,7 +690,8 @@ export class ScriptClockView {
     }
     // A tick that fell due and has not run yet still runs, and leaves how late it ran as the lag.
     if (this.timerIntervalMs > 0 && this.timerNextFireMs <= this.now && this.timerLateDueMs === undefined) {
-      this.schedule(this.timerNextFireMs, 'timer', { due: this.timerNextFireMs })
+      // Its due time is bookkeeping: a copy in inventory drops it, and with it the lag.
+      this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs })
     }
     this.timerIntervalMs = intervalMs
     this.timerPassedAt = undefined
