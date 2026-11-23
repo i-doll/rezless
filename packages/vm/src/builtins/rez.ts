@@ -8,7 +8,7 @@ import { truncateUtf8 } from '../values/utf8.js'
 import { requestKey } from '../keys.js'
 import { InventoryType } from '../inventory.js'
 import * as C from '../generated/constants.js'
-import { sayError } from './debug.js'
+import { sayError, sayOwnerError } from './debug.js'
 import { soundKey } from '../prim-params.js'
 import { RuntimeError } from '../memory.js'
 
@@ -27,6 +27,7 @@ interface Options {
   omega: { axis: Vector; local: boolean; spin: number; gain: number } | undefined
   damage: number | undefined
   damageType: number | undefined
+  /** The last REZ_SOUND: only it counts. As given until llRezObjectWithParams resolves it. */
   sound: { sound: string; volume: number; loop: boolean } | undefined
   /** The last REZ_SOUND_COLLIDE: only it counts. As given until llRezObjectWithParams resolves it. */
   collisionSound: { sound: string; volume: number } | undefined
@@ -72,13 +73,23 @@ function matches(list: readonly LslValue[], i: number, type: LslType): boolean {
   return typeof value === 'string'
 }
 
-function options(ctx: CallContext, list: readonly LslValue[]): Options | undefined {
+const names: Readonly<Record<number, string>> = {
+  [C.REZ_PARAM]: 'REZ_PARAM', [C.REZ_FLAGS]: 'REZ_FLAGS', [C.REZ_POS]: 'REZ_POS', [C.REZ_ROT]: 'REZ_ROT',
+  [C.REZ_VEL]: 'REZ_VEL', [C.REZ_ACCEL]: 'REZ_ACCEL', [C.REZ_OMEGA]: 'REZ_OMEGA', [C.REZ_DAMAGE]: 'REZ_DAMAGE',
+  [C.REZ_DAMAGE_TYPE]: 'REZ_DAMAGE_TYPE', [C.REZ_SOUND]: 'REZ_SOUND', [C.REZ_SOUND_COLLIDE]: 'REZ_SOUND_COLLIDE',
+  [C.REZ_LOCK_AXES]: 'REZ_LOCK_AXES', [C.REZ_PARAM_STRING]: 'REZ_PARAM_STRING',
+}
+
+/** The options, or the error text for the first rule that can't be read. Rules count from 1. */
+function options(ctx: CallContext, list: readonly LslValue[]): Options | string {
   const o = defaults(ctx)
-  for (let i = 0; i < list.length;) {
-    if (!matches(list, i, 'integer')) return undefined
+  for (let i = 0, rule = 1; i < list.length; rule++) {
+    if (!matches(list, i, 'integer')) return `Error running rule #${rule}: non-integer rule.`
     const param = list[i++] as number
     const signature = signatures[param]
-    if (!signature || !signature.every((type, j) => matches(list, i + j, type))) return undefined
+    if (!signature) return `Error running rule #${rule}: unknown rule id ${param}.`
+    const bad = signature.findIndex((type, j) => !matches(list, i + j, type))
+    if (bad >= 0) return `Error running rule #${rule} (${names[param]}): Expecting ${signature[bad]} parameter..`
     const value = list[i]!
     switch (param) {
       case C.REZ_PARAM: o.param = value as number; break
@@ -130,8 +141,13 @@ function centre(object: Linkset): Vector {
   return rotateVector({ x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 }, root.params.rotation)
 }
 
-function resolveSound(ctx: CallContext, name: string): string {
-  return ctx.prim.inventory.find(i => i.name === name && i.type === InventoryType.SOUND)?.key ?? name
+/** The key of a sound option, or undefined after saying it names no sound. */
+function findSound(ctx: CallContext, name: string): string | undefined {
+  const sound = soundKey(ctx.prim, name)
+  if (sound !== null && sound !== NULL_KEY) return sound
+  sayError(ctx, `Could not find sound '${name}'.`)
+  ctx.sleep(1000)
+  return undefined
 }
 
 function rez(ctx: CallContext, name: string, o: Options): string {
@@ -184,9 +200,7 @@ function rez(ctx: CallContext, name: string, o: Options): string {
   }
   if (o.damage !== undefined) root.params.damage.amount = o.damage
   if (o.damageType !== undefined) root.params.damage.type = o.damageType
-  if (o.sound) root.sound.current = {
-    sound: resolveSound(ctx, o.sound.sound), volume: Math.max(0, Math.min(1, o.sound.volume)), loop: o.sound.loop, sync: 'none',
-  }
+  if (o.sound) root.sound.current = { ...o.sound, volume: Math.max(0, Math.min(1, o.sound.volume)), sync: 'none' }
   object.setTemporary(root.params.tempOnRez)
   object.world?.sensorProperties.set(object, { velocity })
   if (!object.rez.copyable) {
@@ -213,19 +227,24 @@ export const llRezObject = legacy(false)
 export const llRezAtRoot = legacy(true)
 export const llRezObjectWithParams: BuiltinImpl = (ctx, args) => {
   const o = options(ctx, args[1] as readonly LslValue[])
-  if (!o) return NULL_KEY
-  // "" keeps the sound the object was saved with. A key other than NULL_KEY, or the name of a sound in the rezzer, sets it.
-  const given = o.collisionSound
-  o.collisionSound = undefined
-  if (given?.sound) {
-    const sound = soundKey(ctx.prim, given.sound)
-    if (sound === null || sound === NULL_KEY) {
-      sayError(ctx, `Could not find sound '${given.sound}'.`)
-      ctx.sleep(1000)
-      return NULL_KEY
-    }
-    o.collisionSound = { sound, volume: Math.max(0, Math.min(1, Math.fround(given.volume))) }
+  if (typeof o === 'string') {
+    // In-world: only the owner sees it, before any sound or object error, and the call returns
+    // without the second's pause.
+    sayOwnerError(ctx, `llRezObjectWithParams ${o}`)
+    return NULL_KEY
   }
+  // "" keeps the sound the object was saved with. A key other than NULL_KEY, or the name of a
+  // sound in the rezzer, sets it. REZ_SOUND is looked up first.
+  if (o.sound?.sound) {
+    const sound = findSound(ctx, o.sound.sound)
+    if (!sound) return NULL_KEY
+    o.sound = { ...o.sound, sound }
+  } else o.sound = undefined
+  if (o.collisionSound?.sound) {
+    const sound = findSound(ctx, o.collisionSound.sound)
+    if (!sound) return NULL_KEY
+    o.collisionSound = { sound, volume: Math.max(0, Math.min(1, Math.fround(o.collisionSound.volume))) }
+  } else o.collisionSound = undefined
   return rez(ctx, args[0] as string, o)
 }
 

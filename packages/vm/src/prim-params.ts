@@ -1391,7 +1391,13 @@ function typeAccepts(param: number, expected: LslType, given: LslType): boolean 
 }
 
 /** `%g`-style number text, as the simulator prints it in error messages. */
-export const formatG = (v: number): string => String(Number(v.toPrecision(6)))
+/** C's %g: six significant digits, in exponent form below 1e-4 or from 1e6. */
+export const formatG = (v: number): string => {
+  const [mantissa, power] = v.toExponential(5).split('e') as [string, string]
+  const exponent = Number(power)
+  if (!Number.isFinite(v) || v === 0 || (exponent >= -4 && exponent < 6)) return String(Number(v.toPrecision(6)))
+  return `${mantissa.replace(/\.?0+$/, '')}e${exponent < 0 ? '-' : '+'}${String(Math.abs(exponent)).padStart(2, '0')}`
+}
 
 const SHAPE_NAMES: Readonly<Record<number, string>> = {
   [PRIM_TYPE_BOX]: 'PRIM_TYPE_BOX', [PRIM_TYPE_CYLINDER]: 'PRIM_TYPE_CYLINDER', [PRIM_TYPE_PRISM]: 'PRIM_TYPE_PRISM',
