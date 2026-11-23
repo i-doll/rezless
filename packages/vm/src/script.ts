@@ -1,6 +1,6 @@
 import { clearTargetMotion } from './builtins/motion.js'
 import { copyGameControl, gameControlAvatars, type GameControlState, type GameControlSnapshot } from './builtins/game-control.js'
-import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY, TOUCH_INVALID_FACE } from './generated/constants.js'
+import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
 import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
@@ -31,7 +31,7 @@ import type { ListenEntry } from './builtins/listen.js'
 import type { LinkedMessageEntry } from './builtins/linked.js'
 import type { DataserverRequestEntry } from './builtins/dataserver.js'
 import type { LinksetDataEntry } from './builtins/linksetdata.js'
-import type { DetectedEntry } from './builtins/detected.js'
+import { touchThroughInventory, type DetectedEntry } from './builtins/detected.js'
 import type { AutoGrantPermissions, PermissionRequestEntry } from './builtins/permissions.js'
 import type { DialogEntry } from './builtins/dialog.js'
 import type { TakenControls } from './builtins/controls.js'
@@ -56,7 +56,7 @@ import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
 import type { QueuedEvent } from './clock.js'
-import { Linkset } from './linkset.js'
+import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
@@ -187,6 +187,8 @@ export class Script {
   readonly host: Prim
   readonly scriptName: string
   readonly instanceId: string
+  /** Clicks this script still counts as held, by avatar key. */
+  readonly heldClicks = new Map<string, HeldTouch>()
   /** When false, drainQueue parks events instead of delivering them. */
   private isRunning = true
   /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
@@ -1102,7 +1104,10 @@ export class Script {
     if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
+    // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
+    for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
     copy.running = this.running && !this.dead
+    resumeHeldTouches(copy)
     if (this.slua) {
       // In-world: an SLua script comes out of inventory as it went in.
       const carryOn = copy.slua!.adopt(this.slua)
@@ -1325,6 +1330,7 @@ export class Script {
       if (e instanceof RuntimeError) this.crash(e)
       throw e
     }
+    forgetHeldTouches(this, true)
     this.state.currentState = 'default'
     this.state.lifecycle.dead = false
     this.state.lifecycle.dying = false
@@ -1387,6 +1393,7 @@ export class Script {
       }
       if (!this.slua.handles(event)) return
       if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+      this.clockView.touchDelivered(event)
       const engine = this.slua
       const args = bindPayload(event, payload)
       this.step({ run: this.runHandler(event, () => this.sluaRun(engine.dispatch(event, args)), payload), startedAt: this.now, wakeAt: 0, slua: { event, payload } })
@@ -1395,6 +1402,7 @@ export class Script {
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
     if (!handler) return
     if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+    this.clockView.touchDelivered(event)
     this.begin(handler, bindPayload(event, payload), payload)
   }
 
@@ -1589,6 +1597,7 @@ export class Script {
         stopSensors(this)
         this.state.listens.length = 0
         this.linkset.clock.purgeTarget(this, this.now, '__reset')
+        forgetHeldTouches(this, false)
         this.state.currentState = target
         if (this.state.coverage) this.state.coverage.hitState(target)
         const entry = this.handlersByState.get(target)?.get('state_entry')
@@ -1711,7 +1720,10 @@ export class Script {
     const starting = value && !this.isRunning
     this.isRunning = value
     if (value) this.crashed = false
-    if (starting) this.catchUp()
+    if (starting) {
+      this.catchUp()
+      resumeHeldTouches(this)
+    }
   }
 
   /**
@@ -1778,19 +1790,9 @@ export class Script {
   }
 }
 
-/**
- * What a detected list reads once its object has been through inventory.
- * In-world: a click on face 3 read llDetectedTouchFace -1 after a take and rez, and after a
- * detach and wear, in the touch handler that slept through it and in the touch events that
- * waited. The toucher's key stayed. The probe's clicks carried no surface point, so the rest
- * of the click's surface data goes with the face here unmeasured.
- */
+/** What a detected list reads once its object has been through inventory. */
 function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>): DetectedEntry[] {
-  return detected.map(entry => {
-    if (!isTouch(event)) return { ...entry }
-    const { touchPos, touchST, touchUV, touchNormal, touchBinormal, ...kept } = entry
-    return { ...kept, touchFace: TOUCH_INVALID_FACE }
-  })
+  return isTouch(event) ? touchThroughInventory(detected) : detected.map(entry => ({ ...entry }))
 }
 
 const isTouch = (event: string | undefined) => event === 'touch_start' || event === 'touch' || event === 'touch_end'

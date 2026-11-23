@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { Vector, Rotation } from '../values/types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY } from '../values/types.js'
-import { TOUCH_INVALID_TEXCOORD } from '../generated/constants.js'
+import { TOUCH_INVALID_FACE, TOUCH_INVALID_TEXCOORD } from '../generated/constants.js'
 import { typedList } from '../values/list-types.js'
 
 /**
@@ -97,4 +97,17 @@ export const llDetectedDamage: BuiltinImpl = (ctx, args) => {
   const d = entry(ctx, args)?.damage
   if (!d) return []
   return typedList([d.amount, d.type, d.original ?? d.amount], ['float', 'integer', 'float'])
+}
+
+/**
+ * What a click reads once its object has been through inventory. In-world: a click on face 1
+ * at ST 0.3, 0.6 read face -1, ST and UV <-1, -1, 0> and zero Pos, Normal and Binormal after a
+ * take and rez, and after a detach and wear, in the touch handler that slept through it and in
+ * the touch events that waited. The toucher's key stayed.
+ */
+export function touchThroughInventory(detected: ReadonlyArray<DetectedEntry>): DetectedEntry[] {
+  return detected.map(entry => {
+    const { touchPos, touchST, touchUV, touchNormal, touchBinormal, ...kept } = entry
+    return { ...kept, touchFace: TOUCH_INVALID_FACE }
+  })
 }

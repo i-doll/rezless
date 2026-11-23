@@ -243,9 +243,8 @@ describe('llMapDestination audiences', () => {
 // touch_end(2) [i doll, fivebot]. Clicks by fivebot, i doll, fivebot -> touch_start(2)
 // [fivebot, i doll], touch(2) and touch_end(2) [i doll, fivebot]: touch_start in
 // order of each avatar's first click, touch and touch_end in order of the last.
-// The VM queues each click as its own events; merging clicks held back during a
-// sleep is #454's work.
-it.fails('merges clicks by two avatars during one sleep into one event of each kind', async () => {
+// linkset.touch would wait for the sleeping handler, so the clicks are queued on the clock.
+it('merges clicks by two avatars during one sleep into one event of each kind', async () => {
   const s = await loadScript({ owner: OWNER, source: `list log;
     string ev(string e, integer n) { string s = e + (string)n; integer i; for (i = 0; i < n; ++i) s += " " + (string)llDetectedKey(i); return s; }
     default {
@@ -257,11 +256,16 @@ it.fails('merges clicks by two avatars during one sleep into one event of each k
     }` })
   s.start()
   s.advanceTime(1500)
-  s.linkset.touch(0, { avatar: { key: OTHER, name: 'fivebot' } })
+  const click = (key: string, name: string) => {
+    for (const event of ['touch_start', 'touch', 'touch_end']) {
+      s.linkset.clock.schedule(s, s.linkset.clock.now, event, { num_detected: 1, detected: [{ key, name }] })
+    }
+  }
+  click(OTHER, 'fivebot')
   s.advanceTime(2000)
-  s.linkset.touch(0, { avatar: { key: OWNER, name: 'i Doll' } })
+  click(OWNER, 'i Doll')
   s.advanceTime(2000)
-  s.linkset.touch(0, { avatar: { key: OTHER, name: 'fivebot' } })
+  click(OTHER, 'fivebot')
   s.advanceTime(20000)
   expect(s.global('log')).toEqual([`ts2 ${OTHER} ${OWNER}`, `t2 ${OWNER} ${OTHER}`, `te2 ${OWNER} ${OTHER}`])
 })
