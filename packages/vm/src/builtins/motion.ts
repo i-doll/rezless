@@ -87,6 +87,8 @@ function settleLater(linkset: Linkset, state: PhysicalMotion): void {
   const root = linkset.prims[0]!
   state.settle = linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + SETTLE_MS, () => {
     state.settle = undefined
+    // A copy rezzed with a velocity during the settle is still moving.
+    if (!still(velocityOf(linkset))) return
     state.moving = false
     raiseMoving(root, 'moving_end', linkset.clock.now)
   })
