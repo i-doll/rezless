@@ -3,9 +3,10 @@ import type { Script } from '../script.js'
 import type { DetectedEntry } from './detected.js'
 import { NULL_KEY } from '../values/types.js'
 import { STATUS_PHANTOM } from '../generated/constants.js'
+import { soundKey } from '../prim-params.js'
 
 export interface CollisionFilter { name: string; key: string; accept: boolean }
-/** Requested impact sound and volume. Audio playback and particles are not simulated. */
+/** The prim's impact sound and volume. Audio playback and particles are not simulated. */
 export interface CollisionSound { sound: string; volume: number }
 
 const KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -21,8 +22,12 @@ export const llVolumeDetect: BuiltinImpl = (ctx, args) => {
   ctx.prim.setStatus(STATUS_PHANTOM, enabled)
 }
 
+/** "" stores NULL_KEY at volume 0; a sound's name stores its key, a key is kept, and any other name stores NULL_KEY. */
 export const llCollisionSound: BuiltinImpl = (ctx, args) => {
-  ctx.prim.collisionSound = { sound: String(args[0]), volume: Number(args[1]) }
+  const sound = String(args[0])
+  ctx.prim.collisionSound = sound === ''
+    ? { sound: NULL_KEY, volume: 0 }
+    : { sound: soundKey(ctx.prim, sound) ?? NULL_KEY, volume: Math.min(1, Math.max(0, Math.fround(Number(args[1])))) }
 }
 
 /** Opens this prim, root or child, to gifts its owner could not otherwise put there. */
