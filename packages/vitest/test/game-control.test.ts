@@ -235,6 +235,22 @@ it('keeps the permission through a detach and forgets the last event values', as
   expect(events().map(e => e.split('|')[1])).toEqual(['1', '512'])
 })
 
+it('starts every recipient handler at the same time', async () => {
+  const { world, script, linkset } = await fixture()
+  const source = `float began = -1; default {
+    state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_GAME_CONTROL); }
+    game_control(key id, integer b, list a) { began = llGetTime(); llSleep(1); } }`
+  const other = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'a', source: { source } }, { name: 'b', source: { source } }] }] })
+  other.linkset.attachToAvatar(OWNER, 6)
+  other.linkset.advanceTime(0)
+  const a = other.scripts.a!, b = other.scripts.b!
+  a.start(); b.start(); linkset.advanceTime(0)
+  const at = linkset.clock.now
+  script.sendGameControl(OWNER, { buttons: 1 })
+  expect(linkset.clock.now - at).toBeLessThan(1500)
+  expect(a.global('began')).toBe(b.global('began'))
+})
+
 it('works in a standalone script and keeps its values through a hand-fired event', async () => {
   const script = await loadScript({ source: probe(), owner: OWNER })
   script.start()

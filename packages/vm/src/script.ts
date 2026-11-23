@@ -802,13 +802,14 @@ export class Script {
     if (sameGameControl(avatars.get(key), state)) return
     avatars.set(key, state)
     const linksets = this.linkset.peers.length ? this.linkset.peers : [this.linkset]
-    const targets = linksets.flatMap(l => l.allScripts()).filter(s => !s.clockView.inInventory
+    const targets = linksets.flatMap(l => l.allScripts()).filter(s => s.running && !s.dead && !s.clockView.inInventory
       && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
-    for (const s of targets) s.fire('game_control', {
+    for (const s of targets) s.clockView.schedule(s.now, 'game_control', {
       id: key, button_levels: state.buttons,
       axes: typedList([...state.axes], state.axes.map(() => 'float')),
       gameControlSnapshot: state.mode,
     })
+    this.linkset.settle(targets.filter(s => s.handles('game_control')))
   }
 
   /**
