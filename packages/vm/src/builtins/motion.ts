@@ -137,9 +137,10 @@ export function setVelocity(linkset: Linkset, velocity: Vector): void {
   const before = velocityOf(linkset)
   root.physics.velocity = { ...velocity }
   if (!(root.statusFlags & STATUS_PHYSICS)) return
-  // An object made physical some other way, rezzed physical or copied, moves as its velocity says.
+  // An object made physical some other way, or rezzed with a velocity, moves as its velocity says.
   let state = physicalMotion.get(linkset)
-  if (!state) physicalMotion.set(linkset, state = { moving: !still(before) })
+  if (!state) physicalMotion.set(linkset, state = { moving: false })
+  state.moving ||= !still(before)
   if (still(velocity)) { settleLater(linkset, state); return }
   state.settle?.()
   state.settle = undefined
