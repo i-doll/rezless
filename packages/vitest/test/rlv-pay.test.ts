@@ -136,7 +136,10 @@ it('supports disabled viewers without restrictions and retains immutable sale sn
   world.setObjectSale(root, sale)
   sale.price = 8
   expect(world.attemptAvatarBuy(avatar, root)).toMatchObject({ status: 'requested', sale: { price: 4 } })
-  expect(world.attemptAvatarPay(avatar, root, 1).reason).toBe('not-payable')
+  // In-world: a payment to a prim with no script was accepted and paid to the owner (Aditi,
+  // SLua Tideland, 2026-11-24); the Pay menu isn't offered for it.
+  expect(world.attemptAvatarPay(avatar, root, 1).status).toBe('paid')
+  expect(world.attemptAvatarPay(avatar, root, 1, { menu: true }).reason).toBe('not-payable')
   const recipient = world.addAvatar({ username: 'recipient', region: 'Test' })
   expect(world.attemptAvatarPay(avatar, recipient, 2).status).toBe('paid')
   expect(() => world.setObjectSale(root, { type: 'copy', price: -1 })).toThrow()
@@ -190,15 +193,16 @@ it('queues money to every running handler on the paid prim and resolves child sa
   expect(f.buy(child).reason).toBe('not-for-sale')
 })
 
-it('rejects stale sale targets and attachments without a live wearer, and accepts root pay eligibility', async () => {
+it('rejects stale sale targets and attachments without a live wearer, and pays a bare child through the root', async () => {
   const f = (await loadRlvPair({ source })).rlva
   expect(() => f.world.setObjectSale(new Prim(), { type: 'copy', price: 1 })).toThrow()
   const t = await loadLinkset({ world: f.world, region: f.avatar.region, prims: [
     { scripts: [{ name: 'root', source: { source: 'integer count; default { money(key id, integer n) { ++count; } }' } }] }, {},
   ] })
   t.scripts.root!.start()
+  // In-world: paying a child with no script ran the root's money handler (Aditi, SLua Tideland, 2026-11-24).
   expect(f.pay(t.linkset.prims[1]!, 1).status).toBe('paid')
-  expect(t.scripts.root!.global('count')).toBe(0)
+  expect(t.scripts.root!.global('count')).toBe(1)
   t.linkset.attachToAvatar('00000000-0000-0000-0000-000000000099', 5)
   expect(f.pay(t.linkset.prims[0]!, 1).reason).toBe('target')
 })

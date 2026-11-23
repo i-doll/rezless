@@ -1592,8 +1592,10 @@ RLV payment fixtures expose `world.attemptAvatarPay` and
 `world.attemptAvatarBuy`, with frozen action logs and explicit root sale information
 from `world.setObjectSale`. RLVa `pay` blocks avatar payments, while `buy` blocks
 object payments and original, copy or contents purchase requests. Kokua keeps
-both commands unsupported. Allowed injected object payments deliver `money` events;
-attachment payments go to the wearer. Purchases capture requests without money
+both commands unsupported. An allowed object payment goes to the owner and runs the
+paid prim's `money` handlers, or the root's when the prim has none running. Pass
+`{ menu: true }` to pay through the Pay menu, which isn't offered for a prim without
+a handler. Attachment payments go to the wearer. Purchases capture requests without money
 events. Balances, settlement and purchase inventory delivery are outside the fixture.
 
 ## License

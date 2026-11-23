@@ -1,4 +1,4 @@
-import { attemptAvatarPay, attemptAvatarBuy, setObjectSale, type ObjectSale, type AvatarPayAction, type AvatarBuyAction } from './rlv/pay.js'
+import { attemptAvatarPay, attemptAvatarBuy, setObjectSale, type ObjectSale, type AvatarPayAction, type AvatarPayOptions, type AvatarBuyAction } from './rlv/pay.js'
 import { userChangeAvatarGroup, type AvatarGroup } from './rlv/group.js'
 import { attemptAvatarMovement, type AvatarMovement, type AvatarMovementAction, type AvatarMovementState } from './rlv/movement.js'
 import { attemptAvatarDrop, attemptAvatarDuplicate, attemptAvatarEdit, attemptAvatarRez, attemptAvatarTake, type AvatarDropAction, type AvatarDuplicateAction, type AvatarEditAction, type AvatarRezAction, type AvatarTakeAction, type AvatarTakeOptions } from './rlv/edit.js'
@@ -388,8 +388,8 @@ export class World {
   }
 
   /** Inject a completed payment, subject to the payer's viewer restrictions. */
-  attemptAvatarPay(avatar: WorldAvatar, target: Prim | WorldAvatar, amount: number): AvatarPayAction {
-    return attemptAvatarPay(this, avatar, target, amount)
+  attemptAvatarPay(avatar: WorldAvatar, target: Prim | WorldAvatar, amount: number, options?: AvatarPayOptions): AvatarPayAction {
+    return attemptAvatarPay(this, avatar, target, amount, options)
   }
 
   /** Capture a viewer purchase request against explicit object sale information. */
