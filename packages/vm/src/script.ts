@@ -82,7 +82,8 @@ import type { Journal } from './dispatch.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { parse } from '@rezless/parser'
-import { flood, FLOOD } from './builtins/debug.js'
+import { flood, FLOOD, ownerErrorText } from './builtins/debug.js'
+import { sayToOwner } from './builtins/chat.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -165,9 +166,6 @@ export interface ScriptOptions {
    */
   readonly experience?: Experience
 }
-
-/** The most bytes of prim name and text the owner sees of a crash. */
-const OWNER_ERROR_BYTES = 1151
 
 /**
  * Public handle for a loaded LSL script. Tests interact almost entirely
@@ -1738,6 +1736,12 @@ export class Script {
     return false
   }
 
+  /** SLua's print: an owner-say, which RLV acts on as on ll.OwnerSay; tests also read it in `printed`. */
+  private sluaPrint(text: string): void {
+    this.printed.push(text)
+    sayToOwner(this.state.chat, this.linkset, this.host, text)
+  }
+
   /** A new SLua VM for this script, replacing any it had. */
   private newSluaEngine(): SluaEngine {
     const engine = new SluaEngine(
@@ -1747,7 +1751,7 @@ export class Script {
         clock: () => this.clockView.elapsedSeconds(),
         unixTime: () => this.clockView.unixMicros() / 1e6,
         setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
-        print: (text) => this.printed.push(text),
+        print: (text) => this.sluaPrint(text),
         faceTextureIsItem: (face) => faceTextureIsItem(this.host, face),
       },
       this.state.filename,
@@ -1884,13 +1888,12 @@ export class Script {
   private sayCrash(): void {
     const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
     const header = `${this.host.name} [script:${name}] Script run-time error`
-    const room = OWNER_ERROR_BYTES - new TextEncoder().encode(this.host.name).length
     for (const [line, lineShown] of [[header, header], [this.crashText, this.crashShown]] as const) {
       const state = flood(this.host, this.state.clock.now)
       if (state === 'refused') continue
       const text = state === 'shuts' ? FLOOD : line
       const shown = state === 'shuts' ? FLOOD : lineShown
-      this.state.chat.push({ channel: DEBUG_CHANNEL, text: truncateUtf8(shown, room), type: 'say' })
+      this.state.chat.push({ channel: DEBUG_CHANNEL, text: ownerErrorText(this.host, shown), type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }
   }

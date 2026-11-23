@@ -285,7 +285,9 @@ periods start every 16 seconds of the clock rather than at a prim's first
 error, so how a burst comes out depends on where in a period it starts. A
 seated avatar's errors count for the avatar, apart from the seat's, and a worn
 object that teleports or crosses into another region starts afresh there and
-finds its old count when it comes back. The errors of `llSetPrimitiveParams`
+finds its old count when it comes back. The owner's copy of a prim's error in
+`s.chat` is cut so that the prim's name and the text come to 1151 bytes;
+listeners hear all of it. The errors of `llSetPrimitiveParams`
 and its link variants, and of the pathfinding calls made with no character, go
 to the owner only: they are in `s.chat`, but no script hears them. `llRegionSay` reaches every prim in the
 region. `llRegionSayTo` reaches only the prim with the target key, or, when
@@ -2424,7 +2426,8 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   `llcompat.SetMemoryLimit` takes a limit from what the script uses up to
   131072, and with `memoryLimit: true` the VM enforces the new limit.
 * **Test helpers**: `s.global(name)` and `s.setGlobal(name, value)` read and
-  write Lua globals (not locals). `s.printed` collects `print()` output.
+  write Lua globals (not locals). `s.printed` collects `print()` output, which the
+  owner also sees in `s.chat` as an owner-say, cut to 1024 bytes.
   `s.language` is `'slua'`.
 * **Mixed objects**: `loadLinkset` takes `.luau` scripts next to `.lsl` ones,
   and they talk through link messages, chat and the rest as usual.
@@ -2446,10 +2449,6 @@ Not modelled yet:
   start of a script.
 * A script's globals table starts with two entries, where Second Life's
   starts with four, so new globals grow it at different points.
-* `print()` goes to `s.printed`, not chat. In Second Life the owner sees it
-  as an owner-say, cut to 1024 bytes.
-* The owner's copy of an error the simulator says on `DEBUG_CHANNEL` isn't
-  cut to fit the prim's name, as a script's crash error is.
 * A string that isn't a valid UUID becomes `nil` where SLua wants a `uuid`.
   So a mock or fixture key like `'k1'` arrives as `nil`, as an invalid key
   would in SLua.

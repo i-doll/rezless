@@ -3,8 +3,18 @@ import { DEBUG_CHANNEL } from '../generated/constants.js'
 import { isPrim, type Link } from '../linkset.js'
 import { formatG } from '../prim-params.js'
 import { WindowThrottle } from '../throttle.js'
+import { truncateUtf8 } from '../values/utf8.js'
 
 export const FLOOD = 'Too many errors... dropping further messages until the flood stops'
+
+/** The most bytes of prim name and text the owner sees of an error on DEBUG_CHANNEL. */
+const OWNER_ERROR_BYTES = 1151
+
+/** The owner's copy of an error a prim says: cut so that its name and the text fit in OWNER_ERROR_BYTES. */
+export function ownerErrorText(speaker: Link, text: string): string {
+  if (!isPrim(speaker)) return text
+  return truncateUtf8(text, OWNER_ERROR_BYTES - Buffer.byteLength(speaker.name))
+}
 const floods = new WeakMap<object, Map<string | undefined, WindowThrottle>>()
 
 // In-world a prim gets 8 errors in 16 s, counted by a sliding window over periods
@@ -40,8 +50,9 @@ export function sayError(ctx: CallContext, text: string, speaker: Link = ctx.pri
   const state = flood(speaker, ctx.state.clock.now)
   if (state === 'refused') return
   if (state === 'shuts' && heard) text = FLOOD
-  ctx.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say', ...(speaker === ctx.prim ? {} : { from: speaker.key }) })
-  if (to) ctx.state.chat.push({ channel: DEBUG_CHANNEL, text, type: 'say', to, ...(speaker === ctx.prim ? {} : { from: speaker.key }) })
+  const shown = ownerErrorText(speaker, text)
+  ctx.state.chat.push({ channel: DEBUG_CHANNEL, text: shown, type: 'say', ...(speaker === ctx.prim ? {} : { from: speaker.key }) })
+  if (to) ctx.state.chat.push({ channel: DEBUG_CHANNEL, text: shown, type: 'say', to, ...(speaker === ctx.prim ? {} : { from: speaker.key }) })
   if (!heard) return
   if (isPrim(speaker)) ctx.linkset.routeChat(speaker, 'say', DEBUG_CHANNEL, text)
   else ctx.linkset.routeAvatarSay(speaker, DEBUG_CHANNEL, text)
