@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { loadScript } from '../src/index.js'
+import { JSON_INVALID } from '@rezless/vm'
 
 async function run(source: string) {
   const s = await loadScript({ source })
@@ -98,6 +99,68 @@ describe('a JSON value with an object member with no value', () => {
         out = [llList2Json(JSON_ARRAY, [v]), llList2Json(JSON_OBJECT, ["k", v]), llJsonSetValue("[]", [0], v), llJsonSetValue("{}", ["k"], v)];
       } }`)
     expect(s.global('out')).toEqual(['[{"a":}]', '{"k":{"a":}}', '[{"a":}]', '{"k":{"a":}}'])
+  })
+})
+
+describe('llJsonSetValue on an object with a member with no value', () => {
+  const set = async (json: string, path: string, value: string) => {
+    const s = await run(`string out; default { state_entry() { out = llJsonSetValue(${JSON.stringify(json)}, ${path}, ${value}); } }`)
+    return s.global('out')
+  }
+
+  // In-world (Aditi, SLua Tideland, 2026-11-23), for each row: the JSON, the path, the value and
+  // what llJsonSetValue returned.
+  it.each([
+    // A member with no value stays as `"k":` when the object is rebuilt, like one before a comma.
+    ['{"c":1,"a":}', '["b"]', '"1"', '{"a":,"b":1,"c":1}'],
+    ['{"a":1,"b":}', '["c"]', '"1"', '{"a":1,"b":,"c":1}'],
+    ['{"a":1,"b":}', '["a"]', '"2"', '{"a":2,"b":}'],
+    ['{"a":1,"b":}', '["b"]', '"2"', '{"a":1,"b":2}'],
+    ['{"a":1,"b":}', '["b", "x"]', '"1"', '{"a":1,"b":{"x":1}}'],
+    ['{"a":1,"b":}', '["b"]', 'JSON_DELETE', '{"a":1}'],
+    ['{"a":1,"b":}', '["a"]', 'JSON_DELETE', '{"b":}'],
+    ['{"b":,"a":1}', '["c"]', '"1"', '{"a":1,"b":,"c":1}'],
+    ['{"a":,"b":1}', '["b"]', '"2"', '{"a":,"b":2}'],
+    ['{"x":{"a":1,"b":}}', '["x", "a"]', '"2"', '{"x":{"a":2,"b":}}'],
+    ['{"x":{"a":1,"b":}}', '["x", "c"]', '"2"', '{"x":{"a":1,"b":,"c":2}}'],
+    ['{"x":{"a":1,"b":},"y":1}', '["y"]', '"2"', '{"x":{"a":1,"b":},"y":2}'],
+    ['[1,{"a":}]', '[0]', '"2"', '[2,{"a":}]'],
+    ['[{"a":}]', '[JSON_APPEND]', '"1"', '[{"a":},1]'],
+    // An object whose only member has no value is written to as an empty object.
+    ['{"a":}', '["b"]', '"1"', '{"b":1}'],
+    ['{"a":}', '["a"]', '"1"', '{"a":1}'],
+    ['{"a":}', '["a", "x"]', '"1"', '{"a":{"x":1}}'],
+    ['{"a":}', '["a", 0]', '"1"', '{"a":[1]}'],
+    ['[{"a":}]', '[0, "b"]', '"1"', '[{"b":1}]'],
+    ['{"x":{"a":}}', '["x", "b"]', '"1"', '{"x":{"b":1}}'],
+    ['{"a":}', '["a"]', 'JSON_DELETE', JSON_INVALID],
+    ['{"a":}', '[]', '"1"', '1'],
+    // A trailing comma adds a member "" with no value.
+    ['{"a":,}', '["b"]', '"1"', '{"":,"a":,"b":1}'],
+    ['{"a":1,}', '["a"]', '"2"', '{"":,"a":2}'],
+  ])('llJsonSetValue(%s, %s, %s)', async (json, path, value, want) => {
+    expect(await set(json, path, value)).toBe(want)
+  })
+
+  it('gives JSON_INVALID for deleting a key that is not there', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-23): each of these returned JSON_INVALID, and
+    // deleting the only key of {"a":1} returned {}.
+    for (const [json, path] of [['{}', '["a"]'], ['{"b":1}', '["a"]'], ['{"a":}', '["b"]'], ['{"x":{}}', '["x", "a"]'], ['{"a":1}', '["b", "c"]']]) {
+      expect(await set(json!, path!, 'JSON_DELETE'), json).toBe(JSON_INVALID)
+    }
+    expect(await set('{"a":1}', '["a"]', 'JSON_DELETE')).toBe('{}')
+  })
+
+  it('reads the member a trailing comma adds as JSON_INVALID', async () => {
+    // In-world: llJson2List("{\"a\":1,}") is ["a", 1, "", ""], llJson2List("{\"a\":,}") is
+    // ["a", "", "", ""], and llJsonGetValue and llJsonValueType at [""] are JSON_INVALID.
+    const s = await run(`list a; list b; string c; string d; default { state_entry() {
+      a = llJson2List("{\\"a\\":1,}"); b = llJson2List("{\\"a\\":,}");
+      c = llJsonGetValue("{\\"a\\":1,}", [""]); d = llJsonValueType("{\\"a\\":1,}", [""]);
+    } }`)
+    expect(s.global('a')).toEqual(['a', 1, '', ''])
+    expect(s.global('b')).toEqual(['a', '', '', ''])
+    expect([s.global('c'), s.global('d')]).toEqual([JSON_INVALID, JSON_INVALID])
   })
 })
 

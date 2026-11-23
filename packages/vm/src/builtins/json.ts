@@ -19,8 +19,9 @@ import {
 
 // Internal AST. `empty` represents the implicit-null slots LSL JSON allows
 // in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
-// regardless of remaining specifiers. The `missing` value of `{"k":}` reads
-// as JSON_INVALID instead.
+// regardless of remaining specifiers. A `missing` value, as in `{"k":}` or
+// the extra "" member a trailing comma adds to an object, reads as
+// JSON_INVALID instead.
 type JNode =
   | { t: 'null' }
   | { t: 'true' }
@@ -45,7 +46,7 @@ const SENTINEL_STRINGS: ReadonlySet<string> = new Set([
 
 class Parser {
   private i = 0
-  constructor(private readonly src: string, private readonly lenient: boolean) {}
+  constructor(private readonly src: string) {}
 
   parseRoot(): JNode | null {
     this.ws()
@@ -109,7 +110,6 @@ class Parser {
       const nc = this.src[this.i]
       let v: JNode
       if (nc === '}') {
-        if (!this.lenient) return null
         v = { t: 'empty', missing: true }
       } else if (nc === ',') {
         v = { t: 'empty' }
@@ -129,6 +129,7 @@ class Parser {
         this.ws()
         if (this.src[this.i] === '}') {
           this.i++
+          entries.push(['', { t: 'empty', missing: true }])
           return { t: 'obj', entries, raw: this.src.slice(start, this.i) }
         }
         continue
@@ -243,9 +244,8 @@ class Parser {
   }
 }
 
-/** `lenient` accepts an object member with no value before the closing brace. */
-function parseJson(src: string, lenient = false): JNode | null {
-  return new Parser(src, lenient).parseRoot()
+function parseJson(src: string): JNode | null {
+  return new Parser(src).parseRoot()
 }
 
 function escapeJsonString(s: string): string {
@@ -296,7 +296,7 @@ function printJson(n: JNode): string {
         '}'
       )
     case 'empty':
-      return 'null'
+      return ''
   }
 }
 
@@ -399,7 +399,7 @@ function valueToNode(value: string): JNode | 'delete' {
       ch === '-' ||
       (ch >= '0' && ch <= '9')
     ) {
-      const parsed = parseJson(trimmed, true)
+      const parsed = parseJson(trimmed)
       if (parsed !== null) return parsed
     }
   }
@@ -480,14 +480,17 @@ function setIn(
     return { ok: true, node: arr }
   }
   if (typeof head === 'string') {
+    // An object whose only member has no value is written to as an empty one.
+    const lone = root?.t === 'obj' && root.entries.length === 1 && root.entries[0]![1].t === 'empty' && root.entries[0]![1].missing
     const obj: { t: 'obj'; entries: Array<[string, JNode]> } =
-      root && root.t === 'obj'
+      root && root.t === 'obj' && !lone
         ? { t: 'obj', entries: collapseDuplicateKeys(root.entries) }
         : { t: 'obj', entries: [] }
     const existingIdx = obj.entries.findIndex(([k]) => k === head)
     if (rest.length === 0) {
       if (value === 'delete') {
-        if (existingIdx >= 0) obj.entries.splice(existingIdx, 1)
+        if (existingIdx < 0) return { ok: false }
+        obj.entries.splice(existingIdx, 1)
         return { ok: true, node: obj }
       }
       if (existingIdx >= 0) obj.entries[existingIdx] = [head, value]
@@ -536,7 +539,7 @@ function jsonNodeListType(n: JNode): LslType {
 export const llJson2List: BuiltinImpl = (_ctx, args) => {
   const src = (args[0] as string | undefined) ?? ''
   if (src === '') return []
-  const root = parseJson(src, true)
+  const root = parseJson(src)
   if (root === null) return typedList([src], ['string'])
   const values: LslValue[] = []
   const types: LslType[] = []
@@ -560,7 +563,7 @@ export const llJsonGetValue: BuiltinImpl = (_ctx, args) => {
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (json === '') return JSON_INVALID
   if (SENTINEL_STRINGS.has(json)) return specs.length === 0 ? json : JSON_INVALID
-  const root = parseJson(json, true)
+  const root = parseJson(json)
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)
   if (r.kind === 'invalid') return JSON_INVALID
@@ -573,7 +576,7 @@ export const llJsonValueType: BuiltinImpl = (_ctx, args) => {
   const specs = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   if (json === '') return JSON_INVALID
   if (SENTINEL_STRINGS.has(json)) return JSON_INVALID
-  const root = parseJson(json, true)
+  const root = parseJson(json)
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)
   if (r.kind === 'invalid') return JSON_INVALID
@@ -615,7 +618,7 @@ function lslStringToJsonElement(raw: string): string {
     return trimmed
   }
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    const parsed = parseJson(trimmed, true)
+    const parsed = parseJson(trimmed)
     if (parsed !== null) return trimmed
   }
   return '"' + escapeJsonString(trimmed) + '"'
