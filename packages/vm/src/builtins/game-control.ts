@@ -69,7 +69,7 @@ export function receiveGameControl(agent: string, input: GameControlInput): Game
   }
 }
 
-// Not measured: the measuring viewer won't send an all-zero state, so an avatar is taken to start at rest in avatar mode.
+// In-world: an all-zero first state in avatar mode raised no event; in captive mode it raised one.
 const REST = receiveGameControl('', {})
 
 export function sameGameControl(a: GameControlState = REST, b: GameControlState): boolean {

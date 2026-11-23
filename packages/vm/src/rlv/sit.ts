@@ -85,8 +85,10 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
 // In-world: with the avatar seated, "@unsit=force" then llSleep(0.1), (0.15) or (0.2) and "@getsitid"
 // still read the seat, and from 0.25 s the avatar stood; "@sit:<seat>=force" read the null key after
 // 0.2 s and the seat from 0.25 s. llGetAgentInfo in the issuing script changed between 0.15 and
-// 0.25 s (Aditi, SLua Tideland, 2026-11-14). 225 ms lies inside that window, so a script that
-// sleeps 0.25 s reads the new seat.
+// 0.25 s (Aditi, SLua Tideland, 2026-11-14). Over 150 force sits and stands in three later
+// sessions the region saw the new seat after 178 to 244 ms, mostly at 222 ms and the rest one 22 ms
+// frame either side, with a mean of 224 ms (Aditi, SLua Tideland, 2026-11-23). 225 ms lies next to that mean,
+// so a script that sleeps 0.25 s reads the new seat.
 const FORCE_SEAT_DELAY_MS = 225
 
 /**
@@ -152,9 +154,10 @@ function scheduleGroundSit(world: World, avatar: WorldAvatar, record?: GroundSit
   const lifetime = avatar.viewer.session.lifetime
   const cancel = world.clock.scheduleTask(lifetime, world.clock.now + GROUND_SIT_DELAY_MS, () => {
     pendingGroundSits.delete(lifetime)
-    if (world.avatars.includes(avatar) && !(avatar.info & AGENT_SITTING)) sitOnGround(world, avatar, record)
+    if (avatar.info & AGENT_SITTING) record?.('unchanged')
+    else if (world.avatars.includes(avatar)) sitOnGround(world, avatar, record)
   })
-  pendingGroundSits.set(lifetime, cancel)
+  pendingGroundSits.set(lifetime, () => { cancel(); record?.('refused', 'world-constraint') })
 }
 
 /**

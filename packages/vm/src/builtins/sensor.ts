@@ -183,9 +183,11 @@ function scan(script: Script, task: SensorTask): void {
   const clock = script.linkset.clock
   const since = script.handlerStartedAt
   const waiting = task.waiting
-  clock.purgeWhere((e) => e.target === script && (since === undefined
-    ? e.event === event
-    : clock.heldBack(e, since) && (e.event === event || (waiting !== undefined && e.payload === waiting))))
+  // In-world: under llMinEventDelay(3.0), with the target found and lost on alternate 1 s
+  // scans, each event read the last scan before it: no_sensor, sensor, no_sensor, sensor.
+  // A result this sensor queued is replaced whatever its kind.
+  clock.purgeWhere((e) => e.target === script && (since === undefined || clock.heldBack(e, since)) &&
+    (e.event === event || (waiting !== undefined && e.payload === waiting)))
   task.waiting = payload
   script.clockView.schedule(script.clockView.now, event, payload)
 }

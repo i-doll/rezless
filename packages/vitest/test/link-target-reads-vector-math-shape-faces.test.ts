@@ -105,7 +105,9 @@ describe('PRIM_LINK_TARGET in a read', () => {
       '[2][2][2][][][0, 2]',
       '[2][2][2][2]',
       '[][]',
-      [...Array(13).fill('2'), '3 1 2 2 2', '2 2 2 2', '1 1'].join(' '),
+      // In-world (Aditi, 2026-11-23, this probe in a lone box): the owner saw 9 of these
+      // errors, all for param 2, and nothing after them: the error flood cap.
+      Array(9).fill('2').join(' '),
     ])
   })
 
@@ -121,7 +123,8 @@ describe('PRIM_LINK_TARGET in a read', () => {
       '[5][5][5][][][0, 5]',
       '[5][5][5][5]',
       '[5, 6][6, 6, 6]',
-      '2 2 2 2 3 1 2 2 2 2 2 2 2 7',
+      // The error flood cap shows the owner the first 9.
+      '2 2 2 2 3 1 2 2 2',
     ])
   })
 
@@ -137,7 +140,8 @@ describe('PRIM_LINK_TARGET in a read', () => {
         `[${m}][${m}][${m}][][][0, ${m}]`,
         `[${m}][${m}][${m}][${m}]`,
         '[5, 6][5, 5, 5]',
-        '2 2 2 3 1 2 2 2 2 2 2 2 7'.split(' ').map((n) => `${n} root`).join(' '),
+        // The error flood cap shows the owner the first 9.
+        '2 2 2 3 1 2 2 2 2'.split(' ').map((n) => `${n} root`).join(' '),
       ])
     })
   }

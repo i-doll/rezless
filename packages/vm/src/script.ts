@@ -82,6 +82,7 @@ import type { Journal } from './dispatch.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { parse } from '@rezless/parser'
+import { flood, FLOOD } from './builtins/debug.js'
 
 /** Signature of an unlisted function that a test provides through `script.mock`. */
 export interface FunctionSignature {
@@ -199,6 +200,10 @@ export class Script {
   /** What the run-time error said after its first line, to listeners and to the owner; a crashed SLua script says it again when rezzed. */
   private crashText = ''
   private crashShown = ''
+  /** Running a game_control handler that still reads its own event's values. */
+  private inGameControl = false
+  /** The event of a sleeping SLua game_control handler whose values a rez cleared. */
+  private clearedGameControl: Record<string, unknown> | undefined
   /** Events that were already queued when the script stopped; delivered when it runs again. */
   readonly parkedEvents: Array<{ at: number; event: string; payload: Record<string, unknown> }> = []
   /** llGetStartParameter: the linkset's start parameter until the script resets, then 0. */
@@ -819,12 +824,20 @@ export class Script {
     const linksets = this.linkset.peers.length ? this.linkset.peers : [this.linkset]
     const targets = linksets.flatMap(l => l.allScripts()).filter(s => s.running && !s.dead && !s.clockView.inInventory
       && s.state.permissions.granted & PERMISSION_GAME_CONTROL && s.state.permissions.agent.toLowerCase() === key)
-    for (const s of targets) s.clockView.schedule(s.now, 'game_control', {
-      id: key, button_levels: state.buttons,
-      axes: typedList([...state.axes], state.axes.map(() => 'float')),
-      gameControlSnapshot: state.mode,
-    })
-    this.linkset.settle(targets.filter(s => s.handles('game_control')))
+    for (const s of targets) {
+      // In-world: a script that slept in another handler, or in a game_control handler worn
+      // again since, read new input at once. One asleep in its game_control handler kept that
+      // event's values until the next game_control ran. One in a state with no handler kept
+      // reading what it read before.
+      s.clockView.schedule(s.now, 'game_control', {
+        id: key, button_levels: state.buttons,
+        axes: typedList([...state.axes], state.axes.map(() => 'float')),
+        gameControlSnapshot: state.mode,
+      })
+      if (s.handles('game_control') && !s.inGameControl) s.state.gameControlSnapshot = state.mode
+    }
+    // Runs the handlers up to their first sleep, so more input can come while they sleep.
+    this.linkset.advanceTime(0)
   }
 
   /**
@@ -1118,9 +1131,13 @@ export class Script {
     const copy = this.sluaSource === undefined ? new Script(this.ast, { ...this.options, host, coverage: false }) : this.freshSluaCopy(host)
     Object.assign(copy.mocks, this.mocks)
     copy.state.permissions.autoGrant = this.state.permissions.autoGrant
+    // In-world: a stopped LSL or SLua script came out of a take, a Take Copy or llDerezObject
+    // reset. Started, it ran state_entry of the default state with its globals back at their
+    // start and the default memory limit, and no on_rez. A sleep it was stopped in never ended.
+    const reset = !this.running && !this.crashed && !this.dead
     // In-world: an LSL handler that was asleep when the object was taken finished its sleep
     // after the rez, with its locals and llDetected* data, and ran to its end before on_rez.
-    if (!opts.fresh && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
+    if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
     if (!this.slua) copy.state.coverage = this.state.coverage
     if (opts.fresh) return copy
     copy.detachedInHandler = this.detachedInHandler
@@ -1218,6 +1235,7 @@ export class Script {
       }
       copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, this.linkset.clock.heldBack(e, this.task?.startedAt))
     }
+    if (reset) copy.resetIntoInventory()
     return copy
   }
 
@@ -1225,8 +1243,12 @@ export class Script {
   queueRez(): void {
     // A detached attachment comes back from inventory without the controls and camera control it held.
     const detached = this.clockView.inInventory
-    // In-world: a worn script that was detached and worn again read -1 until its next game_control.
+    // In-world: a worn script that was detached and worn again read -1 until its next game_control,
+    // even in the game_control handler it slept in through the detach.
     this.state.gameControlSnapshot = null
+    this.inGameControl = false
+    // An SLua copy enters its sleeping handler only when it wakes, after this.
+    this.clearedGameControl = this.task?.slua?.payload
     if (detached) {
       this.dropSeatPermissions()
       this.state.detectedStack.forEach((context, i, stack) => {
@@ -1323,6 +1345,18 @@ export class Script {
       if (!this.running) this.queueStart()
     }
     this.linkset.settle([this])
+  }
+
+  /**
+   * A stopped script, neither crashed nor dead, that goes into inventory with its object comes
+   * back reset, its `state_entry` waiting for the start.
+   */
+  resetIntoInventory(): void {
+    if (this.running || this.crashed || this.dead) return
+    // The new SLua VM takes its limit from the state when restart() builds it.
+    if (this.slua) this.state.memory.limit = SLUA_MEMORY_LIMIT
+    this.restart()
+    this.queueStart()
   }
 
   /**
@@ -1560,7 +1594,11 @@ export class Script {
     // In-world: outside game_control the functions still read the last event's values, after a
     // state change or reset too.
     const values = payload['gameControlSnapshot'] as GameControlSnapshot | undefined
-    if (event === 'game_control' && values) this.state.gameControlSnapshot = values
+    const gameControl = event === 'game_control' && values !== undefined && payload !== this.clearedGameControl
+    if (gameControl) {
+      this.state.gameControlSnapshot = values
+      this.inGameControl = true
+    }
     enterDamageEvent(payload)
     const detected = payload['detected']
     const pushed = Array.isArray(detected) && detected.length > 0
@@ -1575,6 +1613,7 @@ export class Script {
       throw e
     } finally {
       if (pushed) this.state.detectedStack.pop()
+      if (gameControl) this.inGameControl = false
       leaveDamageEvent(payload)
     }
   }
@@ -1609,6 +1648,8 @@ export class Script {
         if (e instanceof ResetScriptSignal) return true
         if (e instanceof HaltSignal) return false
         if (!(e instanceof StateChangeSignal)) throw e
+        // state_exit and state_entry run outside the game_control handler that changed state.
+        this.inGameControl = false
         // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
         if (this.clearDamageAdjustment()) yield { until: this.now }
         if (this.state.lifecycle.removed) return false
@@ -1791,7 +1832,11 @@ export class Script {
     const name = this.host.inventory.find((item) => item.script === this)?.name ?? this.scriptName
     const header = `${this.host.name} [script:${name}] Script run-time error`
     const room = OWNER_ERROR_BYTES - new TextEncoder().encode(this.host.name).length
-    for (const [text, shown] of [[header, header], [this.crashText, this.crashShown]] as const) {
+    for (const [line, lineShown] of [[header, header], [this.crashText, this.crashShown]] as const) {
+      const state = flood(this.host, this.state.clock.now)
+      if (state === 'refused') continue
+      const text = state === 'shuts' ? FLOOD : line
+      const shown = state === 'shuts' ? FLOOD : lineShown
       this.state.chat.push({ channel: DEBUG_CHANNEL, text: truncateUtf8(shown, room), type: 'say' })
       this.linkset.routeChat(this.host, 'say', DEBUG_CHANNEL, text)
     }

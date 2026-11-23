@@ -351,6 +351,9 @@ export class Linkset {
     // A detached object leaves region queries and recurring timers. The final
     // attach event still runs from the shared clock's explicit event queue.
     for (const script of this.allScripts()) {
+      // In-world: a stopped script detached and worn again, or rezzed from the item, ran
+      // state_entry of the default state with fresh globals once it was started.
+      script.resetIntoInventory()
       script.clockView.pauseForInventory()
       script.detached()
       pauseSensors(script)
@@ -359,6 +362,8 @@ export class Linkset {
       // detach ran when the object was worn again, after on_rez and before the two attach events.
       if (script.handling) script.detachedInHandler = true
       else if (script.wakeAt === undefined) this.clock.purgeTarget(script)
+      // In-world: a game_control waiting for a script asleep at the detach never ran.
+      if (script.wakeAt !== undefined) this.clock.purgeWhere((e) => e.target === script && e.event === 'game_control')
     }
     // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
     for (const script of this.allScripts()) {
