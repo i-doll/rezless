@@ -433,6 +433,8 @@ function avatarDetail(ctx: CallContext, avatar: WorldAvatar, flag: number, left?
       case OBJECT_POS: return [[left.position!, 'vector']]
       case OBJECT_ROT: return [[left.rotation, 'rotation']]
     }
+    // In-world: from its "Init" on, an avatar that went beyond the next region read zero velocity.
+    if (left.mode !== 'neighbour' && flag === OBJECT_VELOCITY) return [[ZERO_VECTOR, 'vector']]
   }
   if (left && left.mode !== 'departing') {
     // In-world: once the avatar had left, the region read these, and the rest as before.

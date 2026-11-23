@@ -853,6 +853,11 @@ export class World {
     return departure && this.clock.now < departure.until && avatar.region !== region ? departure.info : undefined
   }
 
+  /** @internal Whether `avatar` has ever teleported out of `region`. */
+  hasLeft(avatar: WorldAvatar, region: string | undefined): boolean {
+    return region !== undefined && !!this.departures.get(avatar)?.has(region)
+  }
+
   private readonly lingering = new WeakMap<WorldAvatar, Map<string, { until: number, position: Vector | null, rotation: Rotation }>>()
 
   /**
