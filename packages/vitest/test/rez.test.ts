@@ -209,6 +209,17 @@ it.each([
   expect(velocity.z).toBeCloseTo(expected.z)
 })
 
+it('applies the rez velocity to an object whose physics was switched on and off before it was saved', async () => {
+  const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'child', source: { source: `
+    vector velocity; default { state_entry() { llSetStatus(STATUS_PHYSICS, TRUE); llSetStatus(STATUS_PHYSICS, FALSE); }
+      on_rez(integer p) { velocity=llGetVel(); } }
+  ` } }] }] })
+  payload.scripts.child!.start()
+  const f = await fixture(`result=llRezObjectWithParams("payload", [REZ_POS,<0,0,2>,TRUE,TRUE,REZ_FLAGS,2,REZ_VEL,<3,4,5>,FALSE,FALSE]);`, payload.linkset)
+  f.parent.start()
+  expect(f.world.linksets[1]!.allScripts()[0]!.global('velocity')).toEqual({ x: 3, y: 4, z: 5 })
+})
+
 // In-world: reliable.py cases 19-26 -> explicit flag bits, including unknown
 // bits, are accepted; source scripts saw physics/phantom before clearing physics.
 it.each([[0, false, 0, 0], [1, true, 0, 0], [2, false, 1, 0], [4, false, 0, 16], [128, false, 0, 0], [255, true, 1, 16], [256, false, 0, 0], [-1, true, 1, 16]])('sets flags %s before scripts start', async (flags, temp, physics, phantom) => {

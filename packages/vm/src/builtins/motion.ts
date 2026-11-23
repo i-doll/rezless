@@ -73,8 +73,12 @@ const physicalMotion = new WeakMap<Linkset, PhysicalMotion>()
  */
 export const SETTLE_MS = 133
 
+/** The velocity the object was rezzed or placed with, which llGetVel reads unless a test set one. */
+function launchVelocity(linkset: Linkset): Vector {
+  return linkset.rez?.velocity ?? linkset.world?.sensorProperties.get(linkset)?.velocity ?? ZERO_VECTOR
+}
 function velocityOf(linkset: Linkset): Vector {
-  return linkset.prims[0]?.physics.velocity ?? linkset.rez?.velocity ?? linkset.world?.sensorProperties.get(linkset)?.velocity ?? ZERO_VECTOR
+  return linkset.prims[0]?.physics.velocity ?? launchVelocity(linkset)
 }
 const still = (v: Vector) => v.x === 0 && v.y === 0 && v.z === 0
 
@@ -111,7 +115,8 @@ export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
     physicalMotion.delete(linkset)
     // In-world: a box floating at 0.5 m/s whose physics was switched off got moving_end, and
     // llGetVel read zero straight after.
-    root.physics.velocity = { ...ZERO_VECTOR }
+    // Left unset where llGetVel already reads zero, so a later rez can give it a velocity.
+    root.physics.velocity = still(launchVelocity(linkset)) ? null : { ...ZERO_VECTOR }
     if (before.moving) raiseMoving(root, 'moving_end', linkset.clock.now)
     return
   }

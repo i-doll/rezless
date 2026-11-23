@@ -177,7 +177,7 @@ describe('moving events from physical motion', () => {
     send(b, 'off')
     b.linkset.advanceTime(1_000)
     expect(b.log()).toEqual(['moving_start 0', 'moving_end 0'])
-    expect(b.linkset.prims[0]!.physics.velocity).toEqual({ x: 0, y: 0, z: 0 })
+    expect(b.linkset.prims[0]!.physics.velocity).toBeNull()
   })
 
   it('starts an object made physical without a script call when it gets a velocity', async () => {
