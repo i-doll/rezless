@@ -796,8 +796,8 @@ export class Linkset {
   /**
    * Queue avatar chat on the listens it reaches and return the matched
    * scripts; never drain inside a builtin. Channel 0 and positive channels
-   * reach `volume` range in any region. A negative channel is a dialog reply:
-   * 20 m in the avatar's region, whatever the volume.
+   * reach `volume` range; a negative channel reaches 20 m whatever the
+   * volume. Both cross region borders.
    */
   routeViewerReply(avatar: WorldAvatar, channel: number, message: string, volume: 'whisper' | 'say' | 'shout' = 'shout'): Script[] {
     const corner = this.world!.corner(avatar.region)
@@ -805,7 +805,7 @@ export class Linkset {
     const range = CHAT_RANGE[channel < 0 ? 'say' : volume]!
     // Attachment positions are fixture values, but a worn object always hears its wearer.
     return this.broadcast((linkset, prim) => linkset.attachment?.avatar.toLowerCase() === avatar.key.toLowerCase() ||
-      (channel >= 0 || linkset.region === avatar.region) && distanceSquared(origin, linkset.globalPosition(prim)) <= range ** 2,
+      distanceSquared(origin, linkset.globalPosition(prim)) <= range ** 2,
       { channel, name: avatar.name, key: avatar.key, message })
   }
 
