@@ -19,8 +19,8 @@ import {
 } from '../src/index.js'
 import type { Linkset, Script } from '../src/index.js'
 
-// Measured on the Aditi beta grid (SLua Tideland, 2026-11-23) with the headless viewer as one
-// avatar, holding movement keys with the viewer's control input. The probe was a two-prim
+// Measured on the Aditi beta grid (SLua Tideland, 2026-11-23) by holding movement keys from the
+// viewer, with one avatar unless a test says two. The probe was a two-prim
 // object with a sit target on each prim, its script taking commands on a chat channel and logging
 // every control event as level/edge with a repeat count.
 // https://wiki.secondlife.com/wiki/LlTakeControls
@@ -32,6 +32,7 @@ const SEATED = PERMISSION_TAKE_CONTROLS | PERMISSION_TRACK_CAMERA | PERMISSION_C
 
 const source = `
   list got;
+  key who;
   default {
     link_message(integer s, integer n, string m, key id) {
       list a = llParseString2List(m, [" "], []);
@@ -42,8 +43,8 @@ const source = `
       else if (c == "release") llReleaseControls();
       else if (c == "cam") llSetCameraParams([${CAMERA_ACTIVE}, 1]);
     }
-    control(key id, integer level, integer edge) { got += [level, edge]; }
-    touch_end(integer n) { got += ["perms " + (string)llGetPermissions()]; }
+    control(key id, integer level, integer edge) { got += [level, edge]; who = id; }
+    touch_end(integer n) { got += ["perms " + (string)llGetPermissions() + " " + (string)llGetPermissionsKey()]; }
     changed(integer c) { got += ["changed " + (string)c]; }
     on_rez(integer p) { got += ["rez " + (string)llGetPermissions()]; }
     attach(key id) { got += ["attach " + (string)(id != NULL_KEY) + " " + (string)llGetPermissions()]; }
@@ -285,6 +286,7 @@ describe('controls through a take and a rez', () => {
     expect(copy.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
   })
 
+  // In-world: that copy worn from inventory held 4 and gave 2/2, 2/0..., 0/2 for the back key.
   it('keeps them in a copy worn from inventory', async () => {
     const { rlv } = await loadRlvPair({ source: 'default { touch_start(integer n) { llOwnerSay(llGetObjectDesc()); } }' })
     const { world, avatar } = rlv
@@ -310,6 +312,7 @@ describe('controls through a take and a rez', () => {
     worn.setGlobal('got', [])
     hold(worn, CONTROL_BACK, 1)
     expect(worn.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
+    expect(perms(worn)).toBe(PERMISSION_TAKE_CONTROLS)
   })
 
   it('keeps them in a copy rezzed with llRezObject', async () => {
@@ -401,39 +404,59 @@ describe('controls held for another avatar through a copy', () => {
   // the owner made a Take Copy and rezzed it, rezzed it with llRezObject from another prim, and
   // took the original and rezzed it -> every copy and the original held 4 for that avatar, and its
   // back key gave 2/2, 2/0..., 0/2 in each (Aditi, SLua Tideland, 2026-11-23).
-  it('keeps them for an avatar that is not the owner', async () => {
+  const holdsForBob = (script: Script) => {
+    script.setGlobal('got', [])
+    hold(script, CONTROL_BACK, 1)
+    expect(script.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
+    expect(script.global('who')).toBe(BOB)
+    script.fire('touch_end', { num_detected: 1 })
+    expect((script.global('got') as unknown[]).at(-1)).toBe(`perms ${PERMISSION_TAKE_CONTROLS} ${BOB}`)
+  }
+  it.each(['take', 'Take Copy', 'llRezObject'] as const)('keeps them for an avatar that is not the owner (%s)', async (how) => {
     const f = await forBob()
     f.world.autoGrantPermissions = 'none'
     tell(f.script, `permk ${PERMISSION_TAKE_CONTROLS} ${BOB}`)
     f.script.grantPermissions()
     tell(f.script, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
     const saved = f.linkset.copy()
-    f.linkset.remove()
-    const copy = rez(f, saved)
-    copy.setGlobal('got', [])
-    hold(copy, CONTROL_BACK, 1)
-    expect(copy.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
-    expect(perms(copy)).toBe(PERMISSION_TAKE_CONTROLS)
+    let copy: Script
+    if (how === 'llRezObject') {
+      const rezzer = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'rezzer', source: { source:
+        'default { link_message(integer s, integer n, string m, key id) { llRezObject("probe", llGetPos() + <0, 0, 1>, ZERO_VECTOR, ZERO_ROTATION, 0); } }' } }] }] })
+      rezzer.prims[0]!.addInventory(makeInventoryItem({ name: 'probe', type: InventoryType.OBJECT, key: f.linkset.prims[0]!.key, object: saved }))
+      rezzer.scripts.rezzer!.start()
+      tell(rezzer.scripts.rezzer!, 'rez')
+      copy = f.world.linksets.at(-1)!.allScripts()[0]!
+      copy.linkset.advanceTime(0)
+    } else {
+      if (how === 'take') f.linkset.remove()
+      copy = rez(f, saved)
+    }
+    holdsForBob(copy)
+    if (how !== 'take') holdsForBob(f.script)
   })
 
   // In-world: the second avatar sat on the owner's probe and granted 3076 with forward and back
   // taken. A Take Copy stood it up: the original read 1024 in changed(CHANGED_LINK), and the
   // rezzed copy read 1024 for that avatar in on_rez. Taking the probe from under the sitter and
   // rezzing it gave the same, and its back key gave no event.
-  it('drops them for a sitter who is not the owner when the seat is copied from under it', async () => {
+  it.each(['Take Copy', 'take'] as const)('drops them for a sitter who is not the owner when the seat is copied from under it (%s)', async (how) => {
     const f = await forBob()
     expect(f.world.userSitAvatar(f.bob, f.linkset.prims[0]!)).toBe(true)
     f.linkset.advanceTime(0)
     tell(f.script, `permk ${SEATED} ${BOB}`)
     tell(f.script, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
+    clear(f)
     const saved = f.linkset.copy()
     expect(f.bob.sittingOn).toBeNull()
     f.linkset.advanceTime(0)
-    expect(got(f)).toContain('changed 32')
+    expect(got(f)).toEqual(['changed 32'])
     expect(perms(f.script)).toBe(PERMISSION_TRACK_CAMERA)
-    f.linkset.remove()
+    if (how === 'take') f.linkset.remove()
     const copy = rez(f, saved)
     expect(copy.global('got')).toContain(`rez ${PERMISSION_TRACK_CAMERA}`)
+    copy.fire('touch_end', { num_detected: 1 })
+    expect((copy.global('got') as unknown[]).at(-1)).toBe(`perms ${PERMISSION_TRACK_CAMERA} ${BOB}`)
     copy.setGlobal('got', [])
     hold(copy, CONTROL_BACK, 1)
     expect(copy.global('got')).toEqual([])
