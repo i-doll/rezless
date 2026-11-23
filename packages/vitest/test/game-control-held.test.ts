@@ -201,6 +201,31 @@ it('drops the input carried into a state with no game_control handler at a detac
   expect(f.log()).toEqual(['ev 1 0/1 xs 0', 'woke 0/1', 'three entry 0/1', 'three attach 0 0/1', 'three attach 1 -1/0', 'entry -1/0'])
 })
 
+// In-world: the unworn probe slept 10 s in game_control with a release waiting and changed to the
+// state with no game_control handler. It was taken 4 s later, rezzed 5 s after that and told to
+// go back to default -> state_entry read -1/0 and no event ran for the release. A press and a
+// release then gave two events. Twice, Aditi, SLua Tideland, 2026-11-23.
+it('drops the input carried into a state with no game_control handler at a take and rez', async () => {
+  const f = await box()
+  f.say('4 10')
+  f.gc.sendGameControl(OWNER, { buttons: 1 })
+  f.linkset.advanceTime(1_000)
+  f.gc.sendGameControl(OWNER, {})
+  f.linkset.advanceTime(13_000)
+  const saved = f.linkset.copy()
+  f.linkset.remove()
+  seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'probe', object: saved, assetType: 'object' }] })
+  const object = f.world.attemptAvatarRez(f.avatar, 'item', { x: 1, y: 2, z: 3 }).object!
+  object.advanceTime(5_000)
+  const copy = object.allScripts()[0]!
+  f.say('back', copy)
+  object.advanceTime(2_000)
+  expect(f.log(copy)).toEqual(['ev 1 0/1 xs 0', 'woke 0/1', 'three entry 0/1', 'entry -1/0'])
+  copy.sendGameControl(OWNER, { buttons: 2 })
+  copy.sendGameControl(OWNER, {})
+  expect(f.log(copy).slice(4)).toEqual(['ev 2 0/2 xs 0', 'ev 0 0/0 xs 0'])
+})
+
 // In-world: the script slept 10 s in a listen handler; a click and a 1 s press of button 0 came
 // during the sleep. After the wake touch_start ran and slept 8 s, and button 1 was pressed in that
 // sleep and held past it -> touch_start woke reading 0/0, then one event for the release that

@@ -33,7 +33,8 @@ describe('llListStatistics', () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_NUM_COUNT, [1, "2", 3.0])')).toBe(2)
   })
 
-  // Unmeasured: the remaining operations over [5, 1, 2, 7].
+  // In-world: over [5, 1, 2, 7] RANGE 6, MIN 1, MAX 7, MEAN 3.75, MEDIAN 3.5, SUM_SQUARES 79,
+  // GEOMETRIC_MEAN 2.892508 (Aditi, SLua Tideland, 2026-11-23).
   it.each([
     ['LIST_STAT_RANGE', 6],
     ['LIST_STAT_MIN', 1],
@@ -70,20 +71,24 @@ describe('llListStatistics', () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_GEOMETRIC_MEAN, [0, 4])')).toBe(0)
   })
 
-  // In-world: STD_DEV is the sample deviation (3.324154 for the mixed list above).
-  // Unmeasured: these inputs, and 0 for fewer than two numbers.
+  // In-world: STD_DEV [2, 4, 4, 4, 5, 5, 7, 9] = 2.138090, [2] = 0, [] = 0, [2, "x"] = 0 (Aditi, SLua Tideland, 2026-11-23).
   it('sample standard deviation, and 0 for fewer than two numbers', async () => {
     expect(await evalFloat('llListStatistics(LIST_STAT_STD_DEV, [2, 4, 4, 4, 5, 5, 7, 9])')).toBeCloseTo(
       Math.sqrt(32 / 7),
       5,
     )
     expect(await evalFloat('llListStatistics(LIST_STAT_STD_DEV, [2])')).toBe(0)
+    expect(await evalFloat('llListStatistics(LIST_STAT_STD_DEV, [])')).toBe(0)
+    expect(await evalFloat('llListStatistics(LIST_STAT_STD_DEV, [2, "x"])')).toBe(0)
   })
 
-  // Unmeasured
-  it('a non-numeric list gives 0', async () => {
-    expect(await evalFloat('llListStatistics(LIST_STAT_MEAN, ["a"])')).toBe(0)
-  })
+  // In-world: every operation over ["a"] gave 0 (Aditi, SLua Tideland, 2026-11-23).
+  it.each(['MEAN', 'SUM', 'MIN', 'MAX', 'NUM_COUNT', 'MEDIAN', 'GEOMETRIC_MEAN', 'RANGE'])(
+    'a non-numeric list gives 0 for %s',
+    async (op) => {
+      expect(await evalFloat(`llListStatistics(LIST_STAT_${op}, ["a"])`)).toBe(0)
+    },
+  )
 
   // In-world: empty lists and an unknown operation give 0.
   it('an empty list gives 0, as does an unknown operation', async () => {
@@ -126,9 +131,12 @@ describe('llListFindListNext', () => {
     expect(s.global('out')).toBe(want)
   })
 
-  // Unmeasured
+  // In-world: llListFindListNext([1, "1", 1], ["1"], 0) = 1, ([1, "1", 1], [1], 1) = 2,
+  // ([1, "1", 1], [1.0], 0) = -1 (Aditi, SLua Tideland, 2026-11-23).
   it('does not match across element types', async () => {
     expect(await evalInt('llListFindListNext([1, "1", 1], ["1"], 0)')).toBe(1)
+    expect(await evalInt('llListFindListNext([1, "1", 1], [1], 1)')).toBe(2)
+    expect(await evalInt('llListFindListNext([1, "1", 1], [1.0], 0)')).toBe(-1)
   })
 })
 
@@ -138,20 +146,23 @@ describe('llListFindStrided', () => {
     expect(await evalInt('llListFindStrided([0,1,0,1], [1], 0, -1, 2)')).toBe(-1)
   })
 
-  // Unmeasured
+  // In-world: ([0,1,0,1], [1], 1, -1, 2) = 1 and ([5,1,5,1,5], [5], 2, -1, 2) = 2 (Aditi, SLua Tideland, 2026-11-23).
   it('finds the first match on a stride boundary', async () => {
     expect(await evalInt('llListFindStrided([0,1,0,1], [1], 1, -1, 2)')).toBe(1)
     expect(await evalInt('llListFindStrided([5,1,5,1,5], [5], 2, -1, 2)')).toBe(2)
   })
 
-  // Unmeasured
+  // In-world: ([0,0,0,1], [1], 0, 2, 1) = -1 and ([0,0,0,1], [1], 0, 3, 1) = 3 (Aditi, SLua Tideland, 2026-11-23).
   it('stops at end_index', async () => {
     expect(await evalInt('llListFindStrided([0,0,0,1], [1], 0, 2, 1)')).toBe(-1)
     expect(await evalInt('llListFindStrided([0,0,0,1], [1], 0, 3, 1)')).toBe(3)
   })
 
-  // Unmeasured
+  // In-world: ([0,0,1], [1], 0, -1, 0) = 2, ([0,0,1], [1], 0, -1, -1) = 2 and
+  // ([0,0,1], [1], 1, -1, 0) = 2 (Aditi, SLua Tideland, 2026-11-23).
   it('a stride below 1 acts as 1', async () => {
     expect(await evalInt('llListFindStrided([0,0,1], [1], 0, -1, 0)')).toBe(2)
+    expect(await evalInt('llListFindStrided([0,0,1], [1], 0, -1, -1)')).toBe(2)
+    expect(await evalInt('llListFindStrided([0,0,1], [1], 1, -1, 0)')).toBe(2)
   })
 })

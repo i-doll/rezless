@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript, loadLinkset, NULL_KEY, PRIM_SIZE, PRIM_TEXT, ZERO_ROTATION } from '../src/index.js'
+import { loadScript, loadLinkset, DEBUG_CHANNEL, NULL_KEY, PRIM_SIZE, PRIM_TEXT, ZERO_ROTATION } from '../src/index.js'
 
 describe('llSetPrimitiveParams + alt accessors (script-level)', () => {
   it('llSetPrimitiveParams + llGetPrimitiveParams round-trip a single prim', async () => {
@@ -535,7 +535,10 @@ describe('prim behaviour measured in Second Life', () => {
 
   // In-world: gravity 50 and -5 ignored, 28 and 2 accepted; restitution 5 and -1 ignored, 0.3 accepted;
   // friction 500 and -1 ignored, 99 accepted; density 50000 and -1 ignored, 500 and 900 accepted.
-  // The exact edges (wiki ranges) were not measured.
+  // In-world, at the edges: gravity -1 and 28 accepted, -1.01 and 28.01 ignored; restitution 0 and 1
+  // accepted, -0.01 and 1.01 ignored; friction 0 and 255 accepted, -0.01 and 255.1 ignored; density 1 and
+  // 22587 accepted, 0.99, 22587.5 and 22588 ignored. Each ignored value said "ERROR: Failed to set
+  // material properties." on DEBUG_CHANNEL ((Aditi, SLua Tideland, 2026-11-23)).
   it.each([
     ['gravity 50', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, 50.0, 0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
     ['gravity -5', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, -5.0, 0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
@@ -551,11 +554,35 @@ describe('prim behaviour measured in Second Life', () => {
     ['density -1', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, -1.0);', [1, 0.5, Math.fround(0.6), 1000]],
     ['density 500', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 500.0);', [1, 0.5, Math.fround(0.6), 500]],
     ['density 900', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 900.0);', [1, 0.5, Math.fround(0.6), 900]],
+    ['gravity -1', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, -1.0, 0, 0, 0);', [-1, 0.5, Math.fround(0.6), 1000]],
+    ['gravity -1.01', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, -1.01, 0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['gravity 28.01', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, 28.01, 0, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['gravity 0', 'llSetPhysicsMaterial(GRAVITY_MULTIPLIER, 0.0, 0, 0, 0);', [0, 0.5, Math.fround(0.6), 1000]],
+    ['restitution 0', 'llSetPhysicsMaterial(RESTITUTION, 0, 0.0, 0, 0);', [1, 0, Math.fround(0.6), 1000]],
+    ['restitution 1', 'llSetPhysicsMaterial(RESTITUTION, 0, 1.0, 0, 0);', [1, 1, Math.fround(0.6), 1000]],
+    ['restitution 1.01', 'llSetPhysicsMaterial(RESTITUTION, 0, 1.01, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['restitution -0.01', 'llSetPhysicsMaterial(RESTITUTION, 0, -0.01, 0, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['friction 0', 'llSetPhysicsMaterial(FRICTION, 0, 0, 0.0, 0);', [1, 0.5, 0, 1000]],
+    ['friction 255', 'llSetPhysicsMaterial(FRICTION, 0, 0, 255.0, 0);', [1, 0.5, 255, 1000]],
+    ['friction 255.1', 'llSetPhysicsMaterial(FRICTION, 0, 0, 255.1, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['friction -0.01', 'llSetPhysicsMaterial(FRICTION, 0, 0, -0.01, 0);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['density 1', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 1.0);', [1, 0.5, Math.fround(0.6), 1]],
+    ['density 0.99', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 0.99);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['density 22587', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 22587.0);', [1, 0.5, Math.fround(0.6), 22587]],
+    ['density 22587.5', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 22587.5);', [1, 0.5, Math.fround(0.6), 1000]],
+    ['density 22588', 'llSetPhysicsMaterial(DENSITY, 0, 0, 0, 22588.0);', [1, 0.5, Math.fround(0.6), 1000]],
   ])('llSetPhysicsMaterial %s', async (_, call, expected) => {
     const s = await run(`${call} out = llGetPhysicsMaterial();`, 'list out;')
     expect(s.global('out')).toEqual(expected)
+    const accepted = expected.some((v, i) => v !== [1, 0.5, Math.fround(0.6), 1000][i])
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual(
+      accepted ? [] : ['ERROR: Failed to set material properties.'],
+    )
   })
 
+  // In-world: llSetPhysicsMaterial(GRAVITY_MULTIPLIER | FRICTION, 50.0, 0, 99.0, 0) read back
+  // [1, 0.5, 99, 1000] and said the error once; llSetPhysicsMaterial(FRICTION, 50.0, 0, 99.0, 0)
+  // said nothing ((Aditi, SLua Tideland, 2026-11-23)).
   it('llSetPhysicsMaterial still applies the in-range fields of a call with an out-of-range one', async () => {
     const s = await run(
       `llSetPhysicsMaterial(GRAVITY_MULTIPLIER | RESTITUTION | FRICTION | DENSITY, 50.0, 0.25, 99.0, 900.0);
@@ -563,6 +590,23 @@ describe('prim behaviour measured in Second Life', () => {
       'list out;',
     )
     expect(s.global('out')).toEqual([1, 0.25, 99, 900])
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual([
+      'ERROR: Failed to set material properties.',
+    ])
+  })
+
+  // In-world: llSetPhysicsMaterial(GRAVITY_MULTIPLIER | RESTITUTION, 50.0, 5.0, 0, 0) said the error once (Aditi, SLua Tideland, 2026-11-23).
+  it('llSetPhysicsMaterial says the error once for two out-of-range values', async () => {
+    const s = await run(`llSetPhysicsMaterial(GRAVITY_MULTIPLIER | RESTITUTION, 50.0, 5.0, 0, 0);`, '')
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)).toEqual([
+      'ERROR: Failed to set material properties.',
+    ])
+  })
+
+  it('llSetPhysicsMaterial ignores an out-of-range value outside the mask', async () => {
+    const s = await run(`llSetPhysicsMaterial(FRICTION, 50.0, 0, 99.0, 0); out = llGetPhysicsMaterial();`, 'list out;')
+    expect(s.global('out')).toEqual([1, 0.5, 99, 1000])
+    expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL)).toEqual([])
   })
 
   // In-world: a new prim's PRIM_ALPHA_MODE per face is [PRIM_ALPHA_MODE_BLEND, 0] and

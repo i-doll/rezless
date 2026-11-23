@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { NULL_KEY, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
-import { faceIndices, numberOfSides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName, sitFlagsOf } from '../prim-params.js'
+import { faceIndices, numberOfSides, rejectGltfOverrides, renderMaterialKey, setGltfOverrides, textureKey, textureName, materialName, sitFlagsOf } from '../prim-params.js'
 import { sayError } from './debug.js'
 import { physicsSwitched } from './motion.js'
 import { raisePrimChanged, setPrimParamWithChanged } from '../prim-changed.js'
@@ -330,6 +330,11 @@ export const llSetLinkGLTFOverrides: BuiltinImpl = (ctx, args) => {
   const link = num(args[0]) | 0
   const face = num(args[1]) | 0
   const params = args[2] as ReadonlyArray<LslValue>
+  const rejected = rejectGltfOverrides(params)
+  if (rejected) {
+    if (rejected.error !== null) sayError(ctx, rejected.error)
+    return undefined
+  }
   for (const p of targets(ctx.linkset, ctx.prim.linkNumber, link)) {
     for (const f of faceIndices(p.params, face)) {
       const fa = p.params.faces[f]!
@@ -413,11 +418,17 @@ export const llSetPhysicsMaterial: BuiltinImpl = (ctx, args) => {
   // property of the material — don't store it.
   const mask = num(args[0]) | 0
   const m = ctx.prim.params.physicsMaterial
-  const inRange = (v: number, lo: number, hi: number): boolean => v >= lo && v <= hi
+  let failed = false
+  const inRange = (v: number, lo: number, hi: number): boolean => {
+    const ok = v >= lo && v <= hi
+    if (!ok) failed = true
+    return ok
+  }
   if (mask & GRAVITY_MULTIPLIER && inRange(num(args[1], 1), -1, 28)) m.gravityMultiplier = num(args[1], 1)
   if (mask & RESTITUTION && inRange(num(args[2]), 0, 1)) m.restitution = num(args[2])
   if (mask & FRICTION && inRange(num(args[3]), 0, 255)) m.friction = num(args[3])
   if (mask & DENSITY && inRange(num(args[4], 1000), 1, 22587)) m.density = num(args[4], 1000)
+  if (failed) sayError(ctx, 'ERROR: Failed to set material properties.')
   return undefined
 }
 export const llGetPhysicsMaterial: BuiltinImpl = (ctx) => {
