@@ -339,6 +339,8 @@ export class Linkset {
     for (const script of this.allScripts()) {
       script.clockView.resumeFromInventory()
       resumeHeldTouches(script)
+      // A script that stopped itself after them still made the changes it held for its siblings.
+      if (!script.running) script.applyPastWearChanges()
     }
   }
 

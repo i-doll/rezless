@@ -278,3 +278,42 @@ it('applies held changes from two busy siblings in order: a reset after a stop d
   expect(scripts['T']!.running).toBe(false)
   expect(scripts['T']!.global('n')).toBe(3)
 })
+
+it('keeps a held change when the busy sibling then stops itself', async () => {
+  const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+    { name: 'T', source: { source: target } },
+    { name: 'C', source: { source: `default { link_message(integer s, integer i, string m, key id) {
+      if (m != "go") return; llOwnerSay("x"); llSetScriptState("T", FALSE); llSetScriptState("C", FALSE); } }` } },
+  ] }] })
+  for (const s of Object.values(scripts)) s.start()
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(0)
+  const c = scripts['C']!
+  c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+  c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+  linkset.advanceTime(0)
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(100)
+  expect(scripts['T']!.running).toBe(false)
+})
+
+it('starts a script that stopped itself in its on_rez after the wear', async () => {
+  const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [
+    { name: 'T', source: { source: `list log; default { on_rez(integer p) { llSleep(0.5); llSetScriptState("T", FALSE); log += "on"; }
+      attach(key id) { if (id) log += "attach"; } }` } },
+    { name: 'C', source: { source: `default { link_message(integer s, integer i, string m, key id) {
+      if (m != "go") return; llOwnerSay("x"); llSetScriptState("T", TRUE); } }` } },
+  ] }] })
+  for (const s of Object.values(scripts)) s.start()
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(0)
+  const c = scripts['C']!, t = scripts['T']!
+  t.setGlobal('log', [])
+  c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
+  c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
+  linkset.advanceTime(0)
+  linkset.attachToAvatar(OWNER, 5)
+  linkset.advanceTime(2_000)
+  expect(t.running).toBe(true)
+  expect(t.global('log')).toEqual(['on', 'attach'])
+})

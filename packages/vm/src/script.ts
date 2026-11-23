@@ -1364,7 +1364,7 @@ export class Script {
   }
 
   /** Apply the changes the rest of a handler made to siblings, in order, once worn or rezzed again. */
-  private applyPastWearChanges(): void {
+  applyPastWearChanges(): void {
     const changes = this.pastWearChanges.splice(0)
     for (const name of new Set(changes.map(c => c.name))) {
       const target = this.host.findScript(name)
@@ -1424,8 +1424,6 @@ export class Script {
     if (this.running || this.crashed || this.dead) return
     // The new SLua VM takes its limit from the state when restart() builds it.
     if (this.slua) this.state.memory.limit = SLUA_MEMORY_LIMIT
-    // The rest of its handler never runs.
-    this.pastWearChanges.length = 0
     this.restart()
     this.queueStart()
   }
