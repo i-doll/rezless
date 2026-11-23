@@ -347,8 +347,8 @@ it('takes the new root\'s volume detection when an object that has it is linked 
 // listed the triggered sounds it heard and which object played them. On the main
 // grid an impact played the collision sound at gain 0.75 for volume 1.0 too.
 // Dropped onto the 0.01 m thick prim floor of the test platform, the box raised
-// collision_start but played no sound, with or without a call, at up to 7.4 m/s;
-// rezless doesn't model that floor.
+// collision_start but played no sound, with or without a call, at up to 7.4 m/s: an
+// impact needs its speed times the thinnest side to reach 1 (collision-default-sounds.test.ts).
 describe('collision sounds on impact', () => {
   const S = 'ed124764-705d-d497-167a-182cd9fa2e6c'
   const S2 = 'a1b2c3d4-0000-4000-8000-000000000521'

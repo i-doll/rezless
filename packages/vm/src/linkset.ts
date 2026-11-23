@@ -3,7 +3,7 @@ import { retainRlvAttachment } from './rlv/attachments.js'
 import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
-import { playCollisionSounds } from './builtins/collision.js'
+import { playCollisionSounds, playLandSound } from './builtins/collision.js'
 import { copyPhysicalMotion, queueMoving, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
@@ -732,6 +732,11 @@ export class Linkset {
   /** Play the collision sounds of this object landing on `struck` at `speed` m/s. Collision events are fired separately. */
   collide(struck: Linkset, speed: number) {
     playCollisionSounds(this, struck, speed)
+  }
+
+  /** Play the sound of this object landing on the ground at `speed` m/s. Land collision events are fired separately. */
+  collideWithLand(speed: number) {
+    playLandSound(this, speed)
   }
 
   /**
