@@ -671,16 +671,17 @@ describe('llRotBetween', () => {
         }
       }`)
     // In-world: 40 pairs of vectors with random components from -4 to 4, and six chosen pairs.
-    // All match to the last bit, opposite vectors included.
+    // All match to the last bit.
     expect(said(s).map(readable)).toEqual(ROT_BETWEEN_RANDOM)
     expect(await rotBetween([
       '<1, 2, 3>', '<-4, 5, 0.5>', '<0.3, 0.1, -0.7>', '<0.2, 0.9, 0.1>', '<0.6, 0.8, 0>', '<0.8, -0.6, 0>',
-      '<3, 4, 12>', '<-12, 3, 4>', '<1, 1, 1>', '<-1, -1, -1>', '<0, 1, 0>', '<0, -1, 0>',
+      '<3, 4, 12>', '<-12, 3, 4>', '<0, 1, 0>', '<0, -1, 0>',
     ])).toEqual([
       '<-0.3596289,-0.3210972,0.3339411,0.8099673>', '<0.6023889,-0.16000956,0.23530819,0.7457577>',
-      '<0,0,-0.70710677,0.70710677>', '<-0.078305624,-0.6107839,0.22317104,0.7556493>',
-      '<0.81649655,-0.4082483,-0.4082483,0>', '<1,0,0,0>',
+      '<0,0,-0.70710677,0.70710677>', '<-0.078305624,-0.6107839,0.22317104,0.7556493>', '<1,0,0,0>',
     ])
+    // <1, 1, 1> to <-1, -1, -1> gave <0.81649655, -0.4082483, -0.4082483, 0>; opposite vectors off
+    // an axis are tested in euler2rot-rotbetween-rules.test.ts.
   })
 
   it('turns opposite vectors about z when less than 1e-5 of the x axis is left', async () => {
@@ -688,8 +689,7 @@ describe('llRotBetween', () => {
     // for t from 1e-6 to 0.1, and <1, 1e-20, 0>, <1, 1e-8, 0>, <1, 0, 1e-8> and <1e-5, 1e-25, 0>
     // against vectors pointing the other way. Up to t = 9e-6 the first two turned about z;
     // from 1e-5 about the x axis less its part along the vector. The third, which keeps
-    // 1.27e-5 of the x axis at t = 9e-6, turned about that from there. rezless is a few floats
-    // off for all three at t = 0.1 and for the third at t = 0.01; the rest match to the last bit.
+    // 1.27e-5 of the x axis at t = 9e-6, turned about that from there.
     expect(await rotBetween([
       '<1, 1e-20, 0>', '<-1, 0, 0>', '<1, 1e-8, 0>', '<-1, 0.001, 0>', '<1, 0, 1e-8>', '<-1, 0, 0>',
       '<1, 9e-6, 0>', '<-1, -9e-6, 0>', '<1, 1e-5, 0>', '<-1, -1e-5, 0>', '<1, 9e-6, 9e-6>', '<-1, -9e-6, -9e-6>',
@@ -766,41 +766,39 @@ describe('results below the smallest normal float', () => {
 })
 
 describe('llEuler2Rot', () => {
-  it('stays within 2.5e-7 of every rotation measured but three small turns together', async () => {
+  it('gives every zero measured and stays within 2.7e-7 of the rest', async () => {
     const got: number[][] = []
     for (let start = 0; start < EULER2ROT.length; start += 60) {
       const chunk = EULER2ROT.slice(start, start + 60).map(([e]) => `<${e.join(', ')}>`)
-      const s = await run(`
+      const s = await run(EXACT + `
         default {
           state_entry() {
             list es = [${chunk.join(', ')}];
             integer i;
-            for (i = 0; i < llGetListLength(es); ++i) {
-              rotation q = llEuler2Rot(llList2Vector(es, i));
-              llSay(0, llList2CSV([q.x * 1e8, q.y * 1e8, q.z * 1e8, q.s * 1e8]));
-            }
+            for (i = 0; i < llGetListLength(es); ++i) llSay(0, BR(llEuler2Rot(llList2Vector(es, i))));
           }
         }`)
-      got.push(...said(s).map((line) => line.split(', ').map((n) => Number(n) / 1e8)))
+      got.push(...said(s).map((line) => line.slice(1, -1).split(',').map((t) => (t === '-0' ? -0 : Math.fround(Number(readable(t)))))))
     }
-    const off = EULER2ROT.flatMap(([e, q], i) => (q.some((v, k) => Math.abs(v - got[i]![k]!) > 2.5e-7) ? [`<${e.join(', ')}>`] : []))
     // In-world: 164 rotations measured while working on #446 and 343 more: turns about one axis
     // from 1e-7 to 0.0018 radians, from -0.3 to 6.1 radians and within 3e-5 of PI and 2 * PI, and
-    // 50 small mixed turns. SLua gave the same small turns. The exact rule for the last bits is not known: a single-precision
-    // rotation matrix, half-angle products, reducing the angles by 2 * PI and stepping them to
-    // 1e-7 degrees as llRot2Euler does each match only some of the results to the last bit. A
-    // turn of 1.5e-5 radians about one axis comes back stepped (as 1.4999e-5), larger ones don't
-    // show it.
+    // 50 small mixed turns. SLua gave the same small turns.
     // A turn about one axis of 1.414e-5 radians or less gives no rotation, and 1.415e-5 does. A
     // turn within 1.398e-5 of PI is exactly a half turn, and one 1.422e-5 short of it isn't. With
     // two small turns each is dropped the same way, but three can still give a rotation: <1e-5,
     // 1e-5, 1e-5> and <1.2e-5, 1.2e-5, 1.2e-5> do, and <7e-6, 7e-6, 1.4e-5> keeps the turn about
-    // z alone, while <1e-5, 1e-5, 9e-6> and <9e-6, 9e-6, 9e-6> give none. rezless drops each small
-    // turn, so it gets those wrong:
-    expect(off).toEqual([
-      '<0.00001, 0.00001, 0.00001>', '<0.00001, 0.00001, 0.00001>', '<0.000012, 0.000012, 0.000012>',
-      '<0.000007, 0.000007, 0.000014>', '<-0.00001, 0.00001, 0.00001>', '<0.00001, -0.00001, 0.00001>',
-    ])
+    // z alone, while <1e-5, 1e-5, 9e-6> and <9e-6, 9e-6, 9e-6> give none. The rule for those is in
+    // euler2rot-rotbetween-rules.test.ts. Every zero comes out as measured, its sign too.
+    for (const [i, [e, q]] of EULER2ROT.entries()) {
+      for (let k = 0; k < 4; k++) {
+        if (q[k] === 0 || got[i]![k] === 0) expect(Object.is(got[i]![k], q[k]), `<${e.join(', ')}> part ${k}`).toBe(true)
+      }
+    }
+    // The last bits are still open: 311 of these come out exact.
+    const exact = EULER2ROT.filter(([, q], i) => q.every((v, k) => got[i]![k] === Math.fround(v))).length
+    const worst = Math.max(...EULER2ROT.flatMap(([, q], i) => q.map((v, k) => Math.abs(got[i]![k]! - Math.fround(v)))))
+    expect(exact).toBe(311)
+    expect(worst).toBeLessThan(2.7e-7)
   })
 })
 

@@ -78,6 +78,30 @@ describe('PRIM_ROTATION on linked prims', () => {
     expectRotation((script.global('zero') as unknown[])[0], identity)
   })
 
+  // In-world: on a child of a turned root, PRIM_ROT_LOCAL llEuler2Rot(<0, 0, a>) read back the same
+  // floats, and PRIM_ROTATION with that rotation then left them alone, for a = PI / 4, 1, 0.3, 2.5
+  // and PI_BY_TWO; llEuler2Rot(<0, 0, PI / 4>) is <0, 0, 12840726p-25, 15500127p-24>, a float off
+  // unit length (Aditi, SLua Tideland, 2026-11-23).
+  it('keeps a rotation within a float of unit length as it is given', async () => {
+    const { script } = await fixture(`list out;
+      default { state_entry() {
+        list angles = [PI / 4, 1.0, 0.3, 2.5, PI_BY_TWO];
+        integer i;
+        for (i = 0; i < 5; ++i) {
+          rotation r = llEuler2Rot(<0, 0, llList2Float(angles, i)>);
+          llSetLinkPrimitiveParamsFast(2, [PRIM_ROT_LOCAL, r]);
+          rotation a = llList2Rot(llGetLinkPrimitiveParams(2, [PRIM_ROT_LOCAL]), 0);
+          llSetLinkPrimitiveParamsFast(2, [PRIM_ROTATION, r]);
+          rotation b = llList2Rot(llGetLinkPrimitiveParams(2, [PRIM_ROT_LOCAL]), 0);
+          out += [r == a && a == b];
+        }
+        rotation q = llEuler2Rot(<0, 0, PI / 4>);
+        out += [q.s == 15500127.0 / 16777216.0];
+      } }`)
+    script.start()
+    expect(script.global('out')).toEqual([1, 1, 1, 1, 1, 1])
+  })
+
   // In-world: <1,2,3,4> local getter write-back -> unchanged, angle 0;
   // the original non-unit input still applies the root rotation
   // (Aditi, SLua Tideland, Firestorm 7.3.0.83011, 2026-11-01).
