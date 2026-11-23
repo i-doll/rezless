@@ -133,6 +133,20 @@ describe('a ground sit while flying', () => {
       .toEqual([[AGENT_IN_AIR, 'Falling Down'], [0, 'Landing'], [0, 'Standing']])
   })
 
+  it('falls once the flag clears when the ground sit came straight after a flying sit', async () => {
+    const f = await fixture()
+    f.fly()
+    expect(f.world.userSitAvatar(f.avatar, f.seat.prim)).toBe(true)
+    f.advance(50)
+    f.world.sitAvatarOnGround(f.avatar)
+    f.advance(0)
+    expect(f.world.userStandAvatar(f.avatar)).toBe(true)
+    f.advance(100)
+    expect(f.watcher.read().slice(0, 2)).toEqual([AGENT_ATTACHMENTS | AGENT_SCRIPTED | AGENT_FLYING | AGENT_IN_AIR, 'Hovering'])
+    f.advance(200)
+    expect(steps(watch(f.watcher, f.advance, 1500))).toEqual([[AGENT_IN_AIR, 'Falling Down'], [0, 'Landing'], [0, 'Standing']])
+  })
+
   it('keeps a state the test sets during "Hovering Up"', async () => {
     const f = await fixture()
     f.fly()

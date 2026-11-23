@@ -744,12 +744,15 @@ export class World {
     this.animate(avatar, 'Hovering Up')
     const hover = {}
     this.landings.set(avatar, hover)
+    // A flying sit whose flag hasn't cleared yet drops the avatar from this hover when it clears.
+    const flyingSit = this.flyingSits.get(avatar)
+    if (flyingSit) flyingSit.hover = hover
     this.clock.scheduleTask(this.presence(avatar), this.clock.now + 60, () => {
       if (this.landings.get(avatar) !== hover || avatar.info & AGENT_SITTING) return
       const hovering = regionAnimations(this.clock, avatar.region).get(avatar.key.toLowerCase())?.state === 'Hovering Up'
       if (hovering && !(avatar.info & AGENT_FLYING)) return this.landAvatar(avatar, 'Falling Down')
-      this.landings.delete(avatar)
-      if (hovering) this.animate(avatar, 'Hovering')
+      if (!hovering) this.landings.delete(avatar)
+      else this.animate(avatar, 'Hovering')
     })
   }
 
