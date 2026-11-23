@@ -6,6 +6,7 @@ import { rotateVector } from '../values/ops.js'
 import { AGENT_SITTING, INVENTORY_LANDMARK, LINK_THIS, PERMISSION_TELEPORT, PERMISSION_TRIGGER_ANIMATION } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isAgentInRegion } from './viewer.js'
+import { leaveRegionSeatRequests } from '../rlv/sit.js'
 
 /** A teleport attempt. Accepted means the script's checks passed, not a network confirmation. */
 export interface TeleportRequest {
@@ -103,7 +104,9 @@ function move(ctx: CallContext, key: string, destination: AvatarDestination, loo
   const agent = avatar(ctx, key)
   if (!agent) return
   const local = destination.region === ctx.linkset.region
+  const crossing = destination.region !== agent.region
   ctx.linkset.world!.relocateAvatar(agent, destination.region, destination.position)
+  if (crossing) leaveRegionSeatRequests(agent)
   if (lookAt) agent.rotation = yawRotation(lookAt.x - (local ? destination.position.x : 0), lookAt.y - (local ? destination.position.y : 0))
 }
 

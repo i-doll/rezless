@@ -11,6 +11,7 @@ import { KFM_COMMAND, KFM_DATA, KFM_MODE, KFM_ROTATION, KFM_TRANSLATION,
   PRIM_PHYSICS_SHAPE_PRIM } from '../generated/constants.js'
 import { llGround } from './ground.js'
 import type { Script } from '../script.js'
+import type { Linkset } from '../linkset.js'
 
 interface Frame { translation: Vector; rotation: Rotation; duration: number }
 interface Transform { position: Vector; rotation: Rotation }
@@ -44,8 +45,116 @@ function interpolate(a: Rotation, b: Rotation, t: number): Rotation {
 function raiseMoving(prim: Prim, event: 'moving_start' | 'moving_end', at: number): void {
   const linkset = prim.linkset
   if (!linkset || linkset.dead) return
-  for (const script of linkset.allScripts()) {
-    if (!script.dead && !linkset.clock.hasPending(script, event)) linkset.clock.schedule(script, at, event)
+  for (const script of linkset.allScripts()) queueMoving(linkset.clock, script, event, at)
+}
+
+/**
+ * Queue a moving event unless one of its kind waits. In-world: start, pause and play 0.5 s
+ * apart in one handler gave only moving_start after it, and moving_end when the motion ended.
+ * Start, pause, play and stop gave both, as did start and pause, and start and stop. A
+ * moving_start takes away a moving_end that waits.
+ */
+export function queueMoving(clock: LinksetClock, script: Script, event: 'moving_start' | 'moving_end', at: number): void {
+  if (script.dead) return
+  if (event === 'moving_start' && script.running) clock.purgeWhere((e) => e.target === script && e.event === 'moving_end')
+  if (!clock.hasPending(script, event)) clock.schedule(script, at, event)
+}
+
+/** Whether a physical object's scripts were told it moves, and the settle that will end it. */
+interface PhysicalMotion { moving: boolean; settle?: (() => void) | undefined }
+const physicalMotion = new WeakMap<Linkset, PhysicalMotion>()
+
+/**
+ * In-world: moving_end came when the physics engine put the object to rest, and llGetVel read
+ * exactly zero from then on. It came 0.09 to 0.13 s after llSetVelocity(ZERO_VECTOR) stopped a
+ * floating box, and 0.13 to 0.18 s after physics was switched on for a box resting on the
+ * platform. A box floating at 0.04 m/s or more never came to rest; at 0.001 to 0.035 m/s the
+ * engine stopped it after 0.8 to 2.2 s. When an object comes to rest is left to the test.
+ */
+export const SETTLE_MS = 133
+
+/** The velocity the object was rezzed or placed with, which llGetVel reads unless a test set one. */
+function launchVelocity(linkset: Linkset): Vector {
+  return linkset.rez?.velocity ?? linkset.world?.sensorProperties.get(linkset)?.velocity ?? ZERO_VECTOR
+}
+function velocityOf(linkset: Linkset): Vector {
+  return linkset.prims[0]?.physics.velocity ?? launchVelocity(linkset)
+}
+const still = (v: Vector) => v.x === 0 && v.y === 0 && v.z === 0
+
+function settleLater(linkset: Linkset, state: PhysicalMotion): void {
+  if (state.settle || !state.moving) return
+  const root = linkset.prims[0]!
+  state.settle = linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + SETTLE_MS, () => {
+    state.settle = undefined
+    // A copy rezzed with a velocity during the settle is still moving.
+    if (!still(velocityOf(linkset))) return
+    state.moving = false
+    raiseMoving(root, 'moving_end', linkset.clock.now)
+  })
+}
+
+/**
+ * The object's motion state, which a velocity read now also counts as moving: an object made
+ * physical some other way, or a copy rezzed with a velocity, moves as its velocity says.
+ */
+function motionOf(linkset: Linkset): PhysicalMotion {
+  const state = physicalMotion.get(linkset) ?? { moving: false }
+  state.moving ||= !still(velocityOf(linkset))
+  return state
+}
+
+/** A copy keeps the original's motion state; a settle under way starts again in the copy. */
+export function copyPhysicalMotion(from: Linkset, to: Linkset): void {
+  const state = physicalMotion.get(from)
+  if (!state) return
+  const copied: PhysicalMotion = { moving: state.moving }
+  physicalMotion.set(to, copied)
+  if (state.settle) settleLater(to, copied)
+}
+
+/**
+ * Call after a script may have switched the object's physics. In-world: switching physics
+ * on gave moving_start at once, whether the box fell or rested on the platform.
+ */
+export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
+  const root = linkset.prims[0]
+  if (!root || !!(root.statusFlags & STATUS_PHYSICS) === wasPhysical) return
+  const before = motionOf(linkset)
+  before.settle?.()
+  if (wasPhysical) {
+    physicalMotion.delete(linkset)
+    // In-world: a box floating at 0.5 m/s whose physics was switched off got moving_end, and
+    // llGetVel read zero straight after.
+    // Left unset where llGetVel already reads zero, so a later rez can give it a velocity.
+    root.physics.velocity = still(launchVelocity(linkset)) ? null : { ...ZERO_VECTOR }
+    if (before.moving) raiseMoving(root, 'moving_end', linkset.clock.now)
+    return
+  }
+  const state: PhysicalMotion = { moving: true }
+  physicalMotion.set(linkset, state)
+  raiseMoving(root, 'moving_start', linkset.clock.now)
+  if (still(velocityOf(linkset))) settleLater(linkset, state)
+}
+
+/**
+ * Set the velocity llGetVel reads, as a push, a fall or a stop would. A physical object that
+ * was at rest raises moving_start, and one whose velocity becomes zero raises moving_end
+ * SETTLE_MS later.
+ */
+export function setVelocity(linkset: Linkset, velocity: Vector): void {
+  const root = linkset.prims[0]
+  if (!root) return
+  if (!(root.statusFlags & STATUS_PHYSICS)) { root.physics.velocity = { ...velocity }; return }
+  const state = motionOf(linkset)
+  physicalMotion.set(linkset, state)
+  root.physics.velocity = { ...velocity }
+  if (still(velocity)) { settleLater(linkset, state); return }
+  state.settle?.()
+  state.settle = undefined
+  if (!state.moving) {
+    state.moving = true
+    raiseMoving(root, 'moving_start', linkset.clock.now)
   }
 }
 

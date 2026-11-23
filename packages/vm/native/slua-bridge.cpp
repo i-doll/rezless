@@ -807,19 +807,6 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
     s->thread = L;
     luaL_sandboxthread(L);
 
-    // As SLua's CLI: the timer manager takes LLEvents from the top of the stack.
-    int top = lua_gettop(L);
-    luaSL_createeventmanager(L);
-    s->lleventsRef = lua_ref(L, -1);
-    lua_pushvalue(L, -1);
-    lua_setglobal(L, "LLEvents");
-    luaSL_createtimermanager(L);
-    lua_setglobal(L, "LLTimers");
-    lua_settop(L, top);
-    lua_getfield(L, LUA_REGISTRYINDEX, LLEVENTS_HANDLEEVENT_KEY);
-    s->handleEventRef = lua_ref(L, -1);
-    lua_pop(L, 1);
-
     // Second Life makes a new function each time a function expression runs,
     // where Luau would hand back one it shares. Luau shares a function only
     // with the environment the chunk was loaded with, so load it with the
@@ -845,6 +832,22 @@ static int load(RzScript* s, const char* name, const char* source, int sourceLen
     lua_insert(L, 1);
     s->handler = lua_tothread(L, 1);
     lua_xmove(L, s->handler, 1);
+
+    // LLEvents and LLTimers come after the free objects, so naming them in the
+    // script doesn't make them free, and they stay on the instance thread's
+    // stack, so setting their globals to nil frees nothing (as in Second Life).
+    // The timer manager pops LLEvents from the top of the stack.
+    luaSL_createeventmanager(L);
+    s->lleventsRef = lua_ref(L, -1);
+    lua_pushvalue(L, -1);
+    lua_setglobal(L, "LLEvents");
+    lua_pushvalue(L, -1);
+    luaSL_createtimermanager(L);
+    lua_pushvalue(L, -1);
+    lua_setglobal(L, "LLTimers");
+    lua_getfield(L, LUA_REGISTRYINDEX, LLEVENTS_HANDLEEVENT_KEY);
+    s->handleEventRef = lua_ref(L, -1);
+    lua_pop(L, 1);
     return 0;
 }
 
@@ -859,6 +862,7 @@ RZ_EXPORT lua_State* rz_event_thread(RzScript* s, const char* event)
         lua_resetthread(s->handler);
     else
     {
+        lua_checkstack(s->thread, 1);
         lua_newthread(s->thread);
         if (status == LUA_CONOR)
             // Fired from inside a handler that is still running: that one keeps

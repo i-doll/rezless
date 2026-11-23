@@ -33,7 +33,8 @@ export interface QueuedEvent {
 const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['timer', 0], ['sensor', 1], ['no_sensor', 1],
   ['at_target', 2], ['not_at_target', 2], ['at_rot_target', 2], ['not_at_rot_target', 2],
-  ['collision_start', 3], ['collision', 3], ['land_collision_start', 3],
+  // In-world: land_collision_start ran ahead of a collision_start that came up before it.
+  ['land_collision_start', 2.5], ['collision_start', 3], ['collision', 3],
   ['touch_start', 4], ['touch', 5], ['touch_end', 6], ['changed', 7], ['__unseated', 7], ['__ownerChanged', 7],
   // In-world: game_control ran after a touch, a stand's changed and collision_start and before
   // collision_end, whichever came first.
@@ -70,6 +71,7 @@ interface DetectedTouch { readonly key?: string }
  */
 function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   const merged: QueuedEvent[] = []
+  const land = new Map<string, number>()
   const parts: { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }[] = []
   const collisions = new Map<string, number>()
   let changed: number | undefined
@@ -93,6 +95,14 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
           event: e.event === 'changed' ? first.event : e.event,
           payload: { changes: (first.payload['changes'] as number) | (e.payload['changes'] as number) },
         }
+      }
+      continue
+    }
+    if (LAND_EVENTS.has(e.event)) {
+      const kept = land.get(e.event) ?? 0
+      if (kept < (e.event === 'land_collision' ? HELD_LAND_COLLISIONS : 1)) {
+        land.set(e.event, kept + 1)
+        merged.push(e)
       }
       continue
     }
@@ -148,6 +158,15 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
 const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
 const SENSOR_EVENTS: ReadonlySet<string> = new Set(['sensor', 'no_sensor'])
 const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'collision', 'collision_end'])
+
+/**
+ * In-world: a box dropped onto bare land once or twice in sleeps of 6, 10 and 16 s, six runs,
+ * got one land_collision_start and one land_collision_end each time, and four land_collision in
+ * five of them (one in the other), where a drop without the sleep gave about 27. Every one read
+ * the box's position when it ran, back where it had been lifted to, not where it touched down.
+ */
+const LAND_EVENTS: ReadonlySet<string> = new Set(['land_collision_start', 'land_collision', 'land_collision_end'])
+const HELD_LAND_COLLISIONS = 4
 
 /** Events that wait behind one llMinEventDelay holds back. */
 const WAITS_BEHIND: ReadonlySet<string> = new Set([...TOUCH_EVENTS, 'timer'])
@@ -225,6 +244,17 @@ export class LinksetClock {
     if (held === undefined && at <= this.now && wakeAt !== undefined && wakeAt > this.now) held = true
     held &&= HELD_ORDER.has(event)
     const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }) }
+    // In-world: a release in the first sleep of a game_control handler and a press in its second
+    // gave one event, for the press. A release that waited from a listen handler's sleep and a
+    // press in the sleep of the touch_start handler that ran next gave two.
+    if (held && event === 'game_control') {
+      const since = target.handlerStartedAt
+      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && e.payload['heldFor'] === since && e.at <= this.now)
+      if (waiting >= 0) {
+        this.queue[waiting] = { ...this.queue[waiting]!, payload }
+        return
+      }
+    }
     if (held && at <= this.now) {
       // A click or a change that merges into one already held back takes no room of its own.
       if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
@@ -458,7 +488,8 @@ export class LinksetClock {
   /** Queue held-back events behind the others, merged and in the held order. */
   private release(script: Script, events: QueuedEvent[], timerWaits: boolean): void {
     const held = mergeHeld(events.sort((a, b) => a.at - b.at))
-      .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, payload, held: false }))
+      .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false,
+        payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
     const v = script.clockView
     // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first
     // click, timer, the second click. The ticks that fell due during one sleep give one event,
@@ -474,7 +505,15 @@ export class LinksetClock {
       v.timerLateDueMs = undefined
       v.timerNextFireMs = kept > this.now ? kept : this.now + v.timerIntervalMs
     }
-    held.sort((a, b) => HELD_ORDER.get(a.event)! - HELD_ORDER.get(b.event)!)
+    // In-world: a box that fell onto land and was lifted off it while asleep woke to
+    // land_collision_start, one land_collision, the game_control that waited, the other
+    // land_collision events and land_collision_end. A box that slid down a prim onto land woke to
+    // land_collision_start, collision_start, collision, one land_collision, the game_control, and
+    // collision_end among the other land_collision events in the order they came. A single
+    // land_collision ran behind changed.
+    const first = held.find((e) => e.event === 'land_collision')
+    const rank = (e: QueuedEvent) => e === first ? HELD_ORDER.get('changed')! + 0.5 : HELD_ORDER.get(e.event)!
+    held.sort((a, b) => rank(a) - rank(b))
     this.queue.push(...held)
   }
 
@@ -488,6 +527,13 @@ export class LinksetClock {
       const e = this.queue[i]!
       if (e.target === script && e.at <= upTo && e.event !== keep) this.queue.splice(i, 1)
     }
+  }
+
+  /** Remove and return the queued `event`s due by now whose target is `script` and that `match`, in queue order. */
+  takeDue(script: Script, event: string, match: (e: QueuedEvent) => boolean): QueuedEvent[] {
+    const taken = this.queue.filter((e) => e.target === script && e.event === event && e.at <= this.now && match(e))
+    this.purgeWhere((e) => taken.includes(e))
+    return taken
   }
 
   /** Remove every queued `event` whose target is `script`. */
