@@ -294,6 +294,7 @@ export const llGetAnimation: BuiltinImpl = (ctx, args) => {
   if (avatar && avatar.region !== ctx.linkset.region) {
     return ctx.linkset.world!.departingAvatarInfo(avatar, ctx.linkset.region ?? '') === undefined ? '' : 'Init'
   }
+  if (avatar && !ctx.linkset.world!.avatarInRegion(avatar, ctx.linkset.region)) return ''
   const state = ctx.state.animations.get(key)?.state
   if (state) return state
   if (!avatar) return ''

@@ -68,7 +68,10 @@ it('keeps region-only avatar reads separate from global name requests', async ()
   const { script, world } = await fixture(`key request; key local; string username; string answer;
     default {state_entry(){local=llName2Key("i Doll");username=llGetUsername(llGetOwner());request=llRequestUserKey("I.DOLL");}
     dataserver(key id,string data){if(id==request)answer=data;}}`)
-  world.avatars[0]!.region = 'away'
+  // A region that shares an edge with home keeps reading a child agent's names; this one doesn't.
+  // In-world pins are in departed-avatar-reads.test.ts.
+  world.addRegion('far', { x: 25600, y: 0 })
+  world.avatars[0]!.region = 'far'
   script.start()
   expect(script.global('local')).toBe('00000000-0000-0000-0000-000000000000')
   expect(script.global('username')).toBe('')
