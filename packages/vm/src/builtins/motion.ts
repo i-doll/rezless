@@ -251,6 +251,7 @@ export function setVelocity(linkset: Linkset, velocity: Vector): void {
   physicalMotion.set(linkset, state)
   root.physics.velocity = { ...velocity }
   if (still(velocity)) { settleLater(linkset, state); return }
+  dropRelease(linkset)
   state.settle?.()
   state.settle = undefined
   if (!state.moving) {
@@ -274,6 +275,7 @@ export function setMoving(linkset: Linkset): void {
   if (!root || !(root.statusFlags & STATUS_PHYSICS)) return
   const state = motionOf(linkset)
   physicalMotion.set(linkset, state)
+  dropRelease(linkset)
   state.settle?.()
   state.settle = undefined
   if (state.moving) return
@@ -317,19 +319,24 @@ export function rezzedMoving(object: Linkset, byScript: boolean): void {
 const DUPLICATE_HELD_MS = 200
 const RELEASE_SETTLE_MS = 700
 
-/** Physical objects a Duplicate holds selected. */
-const selectedPhysical = new WeakSet<Linkset>()
+/** The restart due when the viewer lets go of a physical object a Duplicate selected. */
+const releases = new WeakMap<Linkset, () => void>()
+
+/** A velocity, a push or an impulse during the selection leaves the motion to the test. */
+function dropRelease(linkset: Linkset): void {
+  releases.get(linkset)?.()
+  releases.delete(linkset)
+}
 
 function releaseLater(linkset: Linkset, state: PhysicalMotion): void {
   const root = linkset.prims[0]!
-  linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + SELECTION_MS.copy, () => {
-    selectedPhysical.delete(linkset)
-    // Physics switched, a velocity, a push or an impulse since the selection decide the motion.
-    if (!(root.statusFlags & STATUS_PHYSICS) || !still(velocityOf(linkset)) || physicalMotion.get(linkset) !== state || state.moving) return
+  releases.set(linkset, linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + SELECTION_MS.copy, () => {
+    releases.delete(linkset)
+    if (!(root.statusFlags & STATUS_PHYSICS) || physicalMotion.get(linkset) !== state) return
     state.moving = true
     raiseMoving(root, 'moving_start', linkset.clock.now)
     settleLater(linkset, state, RELEASE_SETTLE_MS)
-  })
+  }))
 }
 
 /**
@@ -342,7 +349,7 @@ function releaseLater(linkset: Linkset, state: PhysicalMotion): void {
 export function selectPhysical(linkset: Linkset): boolean {
   const root = linkset.prims[0]
   if (!root || !(root.statusFlags & STATUS_PHYSICS) || !still(velocityOf(linkset))) return false
-  if (selectedPhysical.has(linkset)) return true
+  if (releases.has(linkset)) return true
   const state = motionOf(linkset)
   physicalMotion.set(linkset, state)
   state.settle?.()
@@ -351,7 +358,6 @@ export function selectPhysical(linkset: Linkset): boolean {
     state.moving = false
     raiseMoving(root, 'moving_end', linkset.clock.now)
   }
-  selectedPhysical.add(linkset)
   releaseLater(linkset, state)
   return true
 }
@@ -363,15 +369,16 @@ export function selectPhysical(linkset: Linkset): boolean {
  * moving_start 0.44 to 0.79 s in and moving_end 0.57 to 0.76 s after that. Copies made 0.14 to
  * 0.29 s into the original's settle gave the same as copies of a box at rest: the copy keeps
  * none of the settle left to the original. A copy of a box that was not physical got no events.
- * Call for the copy of an object `selectPhysical` selected.
+ * `selected` says whether `selectPhysical` selected the original. A physical copy has been
+ * physical either way.
  */
-export function duplicatedPhysical(copy: Linkset): void {
+export function duplicatedPhysical(copy: Linkset, selected: boolean): void {
   const root = copy.prims[0]!
+  if (root.statusFlags & STATUS_PHYSICS) physicalBefore.add(copy)
+  if (!selected) return
   physicalMotion.get(copy)?.settle?.()
   const state: PhysicalMotion = { moving: true }
   physicalMotion.set(copy, state)
-  physicalBefore.add(copy)
-  selectedPhysical.add(copy)
   raiseMoving(root, 'moving_start', copy.clock.now)
   state.settle = copy.clock.scheduleTask({ get dead() { return copy.dead || copy.prims[0] !== root } }, copy.clock.now + DUPLICATE_HELD_MS, () => {
     state.settle = undefined

@@ -219,6 +219,19 @@ describe('moving events from physical motion', () => {
     expect(copyLog(copy)).toEqual(['moving_start 0', 'moving_end 2', 'moving_start 7', 'moving_end 14'])
   })
 
+  it('leaves an object that moved and stopped during the Duplicate selection at rest', async () => {
+    const b = await box(physical)
+    send(b, 'on')
+    b.linkset.advanceTime(2_000)
+    b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    b.linkset.advanceTime(100)
+    b.linkset.setVelocity({ x: 0, y: 0, z: 0.5 })
+    b.linkset.advanceTime(100)
+    b.linkset.setVelocity({ x: 0, y: 0, z: 0 })
+    b.linkset.advanceTime(2_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 21', 'moving_end 23'])
+  })
+
   it('gives the copy of a physical object that moves no Duplicate selection', async () => {
     const b = await box(physical)
     b.linkset.setVelocity({ x: 0.5, y: 0, z: 0 })
@@ -228,6 +241,13 @@ describe('moving events from physical motion', () => {
     b.linkset.advanceTime(2_000)
     expect(b.log()).toEqual(['moving_start 0'])
     expect(copyLog(copy).filter((line) => line.startsWith('moving_end'))).toEqual([])
+    // The copy has been physical, so its next switch settles as a later one.
+    for (const m of ['off', 'on']) copy.allScripts()[0]!.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' })
+    copy.setVelocity({ x: 0, y: 0, z: 0 })
+    copy.advanceTime(750)
+    expect(copyLog(copy).filter((line) => line.startsWith('moving_end'))).toEqual(['moving_end 0'])
+    copy.advanceTime(100)
+    expect(copyLog(copy).filter((line) => line.startsWith('moving_end'))).toEqual(['moving_end 0', 'moving_end 8'])
   })
 
   // In-world: Duplicates of a box that was not physical -> neither object got an event. Switched

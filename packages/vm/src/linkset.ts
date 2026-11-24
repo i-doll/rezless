@@ -446,7 +446,7 @@ export class Linkset {
     // two scripts were both counted read 0.75: the region leaves out the copy's last script.
     copy.countedScripts = Math.max(0, copy.allScripts().length - 1)
     for (const script of copy.allScripts()) script.queueStart()
-    if (selected) duplicatedPhysical(copy)
+    duplicatedPhysical(copy, selected)
     return copy
   }
 
