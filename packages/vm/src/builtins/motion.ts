@@ -783,7 +783,7 @@ export function slackenTargetMotion(script: Script, slack: boolean): void {
     }
   }
   if (move?.owner.prim !== script.host.key || move.owner.script !== script.instanceId || wasSlack === slack) return
-  // In-world: setting the script that held one of two worn targets not running left the wearer
+  // In-world: setting the script that held one of two worn targets not running left a wearer at rest
   // where it was until a walk; setting it running again took the wearer back at once.
   if (slack) holdWearer(script.linkset)
   else wakeWearer(script.linkset)
@@ -1100,13 +1100,15 @@ export const llStopMoveToTarget: BuiltinImpl = ctx => {
 }
 
 /**
- * A worn target has stopped acting. In-world: when one of two worn targets stopped, the wearer
- * stayed where it was, short of the other target, until a walk moved it or a new target was set.
+ * A worn target has stopped acting. In-world: when one of two worn targets stopped with the wearer
+ * at rest, the wearer stayed where it was, short of the other target, until a walk moved it or a
+ * new target was set. When it stopped on the way, the other target took the wearer on to it.
  */
 function holdWearer(linkset: Linkset): void {
   const wearer = linkset.wearer, world = linkset.world
   if (!wearer || !world) return
   const state = wearerMotionOf(wearer)
+  if (state.moving && wearerPull(world, wearer)) { pullWearer(world, wearer); return }
   if (wornBy(world, wearer).some(worn => acting(worn.prims[0]!.targetMotion.move))) state.dormant = true
   settleWearer(world, wearer, state)
 }

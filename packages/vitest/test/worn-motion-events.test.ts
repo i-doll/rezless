@@ -270,17 +270,20 @@ describe('move targets in two worn objects', () => {
     close(f.avatar.position, 117, 47, AT.z)
   })
 
-  it('wakes the held target with a walk that comes while the wearer was still on its way', async () => {
+  // In-world: with targets <117, 48> (chest) and <116, 48> (hand), tau 1.5, llStopMoveToTarget in
+  // one of them 1 s into the move let the hand's target take the wearer on to it, with one
+  // moving_start and one moving_end at the end.
+  it('lets the other target take the wearer on when one stops on the way', async () => {
     const f = await worn({
       root: `llMoveToTarget(<117, 47, ${AT.z}>, 0.3);`,
       hand: `if (llGetListLength(out) == 0) llMoveToTarget(<116, 48, ${AT.z}>, 0.3); else llStopMoveToTarget(); out += [1];`,
     })
-    f.run('root', 'hand')
-    f.chest.advanceTime(500)
-    f.run('hand')
+    f.avatar.position = v(116.5, 45, AT.z)
     f.chest.advanceTime(100)
     f.clear()
-    f.avatar.position = v(116.5, 46.5, AT.z)
+    f.run('root', 'hand')
+    f.chest.advanceTime(300)
+    f.run('hand')
     f.chest.advanceTime(10000)
     close(f.avatar.position, 117, 47, AT.z)
     expect(f.seen()).toEqual(all(['ms', 'me']))
@@ -345,8 +348,9 @@ describe('move targets in two worn objects', () => {
     expect(f.seen().hand).toEqual(['ms'])
   })
 
-  // A script that crashes keeps its targets acting (see target-of-a-stopped-script), so starting it
-  // again lets nothing go that was held.
+  // In-world: targets <117, 46> (chest) and <116, 48> (hand) left the wearer at <116.5, 47>; the
+  // hand's script was set not running, then the chest's script stopped on a Math Error. Setting
+  // it running again left the wearer there for 4.5 s and more.
   it('leaves a held wearer where it is when a crashed script holding a target starts again', async () => {
     const f = await worn({
       root: `integer zero; if (llGetListLength(out) == 0) llMoveToTarget(<117, 47, ${AT.z}>, 0.3); else zero = 1 / zero; out += [1];`,
@@ -363,25 +367,28 @@ describe('move targets in two worn objects', () => {
     close(f.avatar.position, 116.5, 48, AT.z)
   })
 
-  it('holds a wearer still on its way when the script holding one of two targets stops', async () => {
+  // In-world: with targets <117, 44> (chest) and <116, 44> (hand), tau 1.5, setting the chest's
+  // script not running 1 s into the move, or saving it, let the hand's target take the wearer on
+  // to it, with one moving_start and one moving_end at the end.
+  it('lets the other target take the wearer on when the script holding one stops on the way', async () => {
     const f = await pair()
     f.run('root', 'hand')
     f.chest.advanceTime(300)
-    const { x, y, z } = f.avatar.position
     f.clear()
     f.scripts.root.running = false
-    f.chest.advanceTime(5000)
-    close(f.avatar.position, x, y, z, 6)
+    f.chest.advanceTime(10000)
+    close(f.avatar.position, 116, 49, AT.z)
     expect(f.seen().hand).toEqual(['me'])
   })
 
-  it('holds the wearer as for a reset when the owner saves the script holding one of two targets', async () => {
+  it('lets the other target take the wearer on when the owner saves the script holding one on the way', async () => {
     const f = await pair()
     f.run('root', 'hand')
     f.chest.advanceTime(300)
     f.clear()
     f.chest.prims[0]!.replaceInventory('root', {})
-    f.chest.advanceTime(100)
+    f.chest.advanceTime(10000)
+    close(f.avatar.position, 116, 49, AT.z)
     expect(f.seen().hand).toEqual(['me'])
   })
 })
