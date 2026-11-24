@@ -69,9 +69,10 @@ async function setup() {
   const a = await wear('A', ['s1', 's2'], 1)
   const rezzed = async (source: string) => {
     const { linkset, scripts } = await loadLinkset({ world, region: 'SLua Tideland', owner: OWNER,
-      prims: [{ name: 'probe C', scripts: [{ name: 's', source: { source } }] }] })
-    scripts.s!.start()
-    return { linkset, script: scripts.s! }
+      prims: [{ name: 'probe C', scripts: [{ name: 'probe s1', source: { source } }] }] })
+    const script = scripts['probe s1']!
+    script.start()
+    return { linkset, script }
   }
   const scripts = () => a.allScripts()
   const go = (message: string) => {
