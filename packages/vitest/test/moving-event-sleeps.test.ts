@@ -453,6 +453,33 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     expect(b.linkset.prims[0]!.keyframedMotion!.playing).toBe(true)
   })
 
+  // In-world: a script that played the motion in its moving_end handler at a Duplicate got
+  // moving_start 0.53 to 0.71 s later, three runs; one that stopped and then played it got
+  // moving_start 0.76 to 0.80 s later, three runs. The copy stood still with only its state_entry,
+  // and the original played on: after a plain play between its start height and 0.3 m above it,
+  // after the stop between the height it stopped at and 0.3 m above that (Aditi, SLua Tideland,
+  // 2026-11-24).
+  it.each([
+    ['llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);', 100.3],
+    ['llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]); llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);', 100.6],
+  ])('plays the original again only when a Duplicate lets go, after a script played it: %s', async (call, top) => {
+    const b = await box(looper.replace('moving_end() { add("moving_end"); }',
+      `moving_end() { add("moving_end"); ${call} }`))
+    send(b, 'go')
+    b.linkset.advanceTime(1_000)
+    const copy = b.linkset.duplicate({ x: 0, y: -1.5, z: 0 })
+    b.linkset.advanceTime(1_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 10', 'moving_start 17'])
+    expect(b.linkset.prims[0]!.keyframedMotion!.playing).toBe(true)
+    let highest = 0
+    for (let i = 0; i < 40; i++) { b.linkset.advanceTime(100); highest = Math.max(highest, z(b.linkset)) }
+    expect(highest).toBeCloseTo(top, 1)
+    const still = z(copy)
+    copy.advanceTime(1_000)
+    expect(z(copy)).toBe(still)
+    expect(logOf(copy)).toEqual([])
+  })
+
   // In-world: a script that stopped the motion in its moving_end handler at a Duplicate got no
   // moving_start, and the motion stayed stopped.
   it('leaves the motion stopped when a script stopped it while the viewer held the object', async () => {
