@@ -300,13 +300,13 @@ export const SELECTION_MS = { edit: 400, copy: 700 } as const
  */
 export function selectMotion(linkset: Linkset, ms: number): boolean {
   const motion = linkset.prims[0]?.keyframedMotion
-  if (motion && selecting.has(motion)) return true
+  if (motion && selection(motion, linkset.prims[0]!)) return true
   if (!motion?.playing) return false
   motion.command(KFM_CMD_PAUSE)
-  selecting.set(motion, motion.stops)
+  selecting.set(motion, { linkset, stops: motion.stops })
   linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0]?.keyframedMotion !== motion } },
     linkset.clock.now + ms, () => {
-      const plays = selecting.get(motion) === motion.stops
+      const plays = selecting.get(motion)?.stops === motion.stops
       selecting.delete(motion)
       if (plays) motion.command(KFM_CMD_PLAY)
     })
@@ -341,7 +341,18 @@ export function endBeforeTake(linkset: Linkset): void {
  * KFM_CMD_PLAY did the same at an edit (two runs) and a Take Copy (Aditi, SLua Tideland,
  * 2026-11-24).
  */
-const selecting = new WeakMap<KeyframedMotion, number>()
+const selecting = new WeakMap<KeyframedMotion, { linkset: Linkset; stops: number }>()
+
+/** The selection holding `motion`, while its object is still the one the viewer selected. */
+function selection(motion: KeyframedMotion, prim: Prim) {
+  const held = selecting.get(motion)
+  if (!held) return undefined
+  if (held.linkset.dead || prim.linkset !== held.linkset || held.linkset.prims[0]?.keyframedMotion !== motion) {
+    selecting.delete(motion)
+    return undefined
+  }
+  return held
+}
 
 /**
  * A copy taken of a selected object holds its motion paused and has been told of no motion:
@@ -493,8 +504,8 @@ export class KeyframedMotion {
       this.held=this.transform()
       this.cancel?.();this.cancel=undefined
       if (command===KFM_CMD_STOP) { this.elapsed=0;this.stops++;this.rebuild() }
-    } else if (command===KFM_CMD_PLAY && selecting.has(this)) {
-      selecting.set(this,this.stops)
+    } else if (command===KFM_CMD_PLAY && selection(this,this.prim)) {
+      selection(this,this.prim)!.stops=this.stops
     } else if (command===KFM_CMD_PLAY && !this.playing) {
       if (this.completed) {
         this.completed=false

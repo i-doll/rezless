@@ -22,6 +22,7 @@ const looper = `list log;
     touch_start(integer n) { log += "touch"; llSleep(6.0); log += "woke"; }
     link_message(integer f, integer n, string m, key id) {
       if (m == "go") llSetKeyframedMotion([<0, 0, 0.3>, 1.0, <0, 0, -0.3>, 1.0], [KFM_MODE, KFM_LOOP, KFM_DATA, KFM_TRANSLATION]);
+      if (m == "play") llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);
     }
   }`
 const watcher = `list log;
@@ -259,6 +260,27 @@ describe('Take of an object in keyframed motion', () => {
     expect(logOf(rezzed)).toEqual(['entry', 'moving_start', 'moving_end', 'rez'])
     expect(rezzed.prims[0]!.params.position.z).toBe(z)
     if (copy) expect(logOf(b.linkset)).toEqual(['entry', 'moving_start', 'moving_end', 'moving_start'])
+  })
+})
+
+describe('an edit selection of an object in keyframed motion', () => {
+  // The selection ends with the object: a mover linked into another object while selected, and
+  // broken off again, plays on KFM_CMD_PLAY as one never selected does.
+  it('lets a mover linked away from its selection play again', async () => {
+    const b = await box()
+    const other = await loadLinkset({ world: b.world, region: 'home', owner: OWNER, prims: [{}] })
+    other.linkset.prims[0]!.params.position = { x: 129, y: 128, z: 100 }
+    go(b)
+    b.linkset.advanceTime(500)
+    b.world.attemptAvatarEdit(b.avatar, b.prim)
+    b.linkset.advanceTime(100)
+    other.linkset.absorb(b.linkset)
+    other.linkset.advanceTime(2_000)
+    other.linkset.breakOff(b.prim)
+    b.prim.linkset!.advanceTime(100)
+    b.script.fire('link_message', { sender_num: 0, num: 0, str: 'play', id: '' })
+    b.prim.linkset!.advanceTime(500)
+    expect(b.prim.keyframedMotion!.playing).toBe(true)
   })
 })
 
