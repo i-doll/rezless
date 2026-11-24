@@ -158,17 +158,20 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
     : profile !== 'rlva' ? named('rez')
       : checked ? [...new Set([...editDenials(avatar, linkset), ...named('edit', 'rez')])] : []
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
-  const paused = selectMotion(linkset, SELECTION_MS.copy)
   if (!foreign) {
+    const paused = selectMotion(linkset, SELECTION_MS.copy)
     if (paused) endBeforeTake(linkset)
+    // In-world: an llDie in that moving_end, at a Take or a Take Copy, left no item.
+    if (linkset.dead) return record('unsupported', 'target')
     const object = linkset.copy()
     if (paused) stillCopy(object)
     if (!copy) linkset.remove()
     return record('taken', undefined, [], object)
   }
+  // In-world: another avatar's Take Copy left a looping box moving with no event, and the copy
+  // rezzed moving on with on_rez only, its scripts having been told of no moving_end (two runs).
   const waiting = new Set(linkset.clock.pendingEvents())
   const object = linkset.copy({ owner: avatar.key })
-  if (paused) stillCopy(object)
   for (const prim of object.prims) {
     prim.permMask = nextOwnerMask(prim.permMask)
     for (const item of prim.inventory) Object.assign(item, forNextOwner(item))
