@@ -660,16 +660,17 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
   })
 
-  it('takes the lag of a tick a call made due at once, however late it was', async () => {
-    // Follows the measured rule: 3 s late, llSetTimerEvent(1) makes a tick due 2 s ago, and its
-    // lateness is the new lag.
+  it('takes no lag from a tick a call made due a full interval or more ago', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-24, three runs): in an SLua script, whose timer
+    // lags as an LSL one does, LLTimers:once(1) set 2 s after a start that left a 3 s lag ticked
+    // at once, and the timer LLTimers set again in that tick, for 0.98 s, ticked 0.98 s later.
     const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:1:1.0')
     expect(ticks()).toBe(1)
     at(10_500)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 3000)).toEqual([12_500])
+    expect(changes(linkset, ticks, 4100)).toEqual([14_500])
   })
 
   it('ticks twice at the start when a waiting handler sets an interval shorter than the start\'s lag', async () => {
@@ -793,9 +794,11 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([4000, 8000])
   })
 
-  it('has no lag for an SLua LLTimers timer', async () => {
+  it('runs an SLua LLTimers callback on time after a start that left a lag', async () => {
     // In-world: the same start with an SLua script whose link message handler
-    // called LLTimers:every(4) -> the first tick 4.0 s after the call.
+    // called LLTimers:every(4) -> the first callback 4.0 s after the call. The
+    // timer under it lags, so a raw timer handler would also see an earlier
+    // tick that runs no callback (see timer-after-sleep.test.ts).
     const { t, tell, linkset } = await rig({ filename: 't.luau', source: `
       log = {}
       local h = nil

@@ -381,7 +381,6 @@ export class Script {
       throw new Error('LSL script has no default state')
     }
     this.sluaSource = sluaSource
-    this.clockView.lags = sluaSource === undefined
     if (sluaSource !== undefined) {
       // SLua scripts get 128 KiB (Executor/src/Script.cpp).
       this.state.memory.limit = SLUA_MEMORY_LIMIT
