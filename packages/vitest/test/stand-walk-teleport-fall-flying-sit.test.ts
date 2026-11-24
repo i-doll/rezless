@@ -19,6 +19,7 @@ const AGENT_FLYING = 0x1, AGENT_ATTACHMENTS = 0x2, AGENT_SCRIPTED = 0x4, AGENT_S
 const AGENT_ON_OBJECT = 0x20, AGENT_WALKING = 0x80, AGENT_IN_AIR = 0x100
 const MOTION = AGENT_FLYING | AGENT_SITTING | AGENT_ON_OBJECT | AGENT_WALKING | AGENT_IN_AIR
 const SIT_GROUND = '@sit:00000000-0000-0000-0000-000000000000=force'
+const SIM_FRAME_MS = 1000 / 45
 
 const source = (sitTarget: boolean) => `
   key o; list log;
@@ -97,8 +98,8 @@ async function fixture() {
   worn.linkset.attachToAvatar(OWNER, 5)
   for (const p of [seat, watcher, worn]) avatar.viewer.session.bind(p.linkset, avatar)
   const advance = (ms: number) => watcher.linkset.advanceTime(ms)
-  const sit = () => { expect(world.userSitAvatar(avatar, seat.prim)).toBe(true); advance(0) }
-  const stand = () => { expect(world.userStandAvatar(avatar)).toBe(true); advance(0) }
+  const sit = () => { expect(world.userSitAvatar(avatar, seat.prim)).toBe(true); advance(SIM_FRAME_MS) }
+  const stand = () => { expect(world.userStandAvatar(avatar)).toBe(true); advance(SIM_FRAME_MS) }
   const fly = () => { avatar.info |= AGENT_FLYING | AGENT_IN_AIR }
   return { world, avatar, seat, watcher, far, worn, advance, sit, stand, fly }
 }
@@ -169,6 +170,7 @@ describe('AGENT_WALKING after a stand from an object', () => {
     f.sit()
     f.avatar.info &= ~AGENT_FLYING
     f.stand()
+    f.advance(SIM_FRAME_MS)
     expect(f.seat.changes().at(-1)).toEqual([AGENT_IN_AIR, 'Striding'])
   })
 

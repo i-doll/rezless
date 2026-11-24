@@ -35,7 +35,7 @@ async function scanner(body = 'llSensor("", NULL_KEY, PASSIVE, 20, PI);') {
 describe('sensors', () => {
   it('fires no_sensor when the world has no other objects', async () => {
     const { script } = await scanner()
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('misses')).toBe(1)
     expect(script.global('names')).toEqual([])
   })
@@ -44,7 +44,7 @@ describe('sensors', () => {
     const { script, world } = await scanner()
     const target = await loadLinkset({ world, region: 'sensor region',
       position: { x: 5, y: 0, z: 0 }, prims: [{ name: 'target' }] })
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toEqual(['target'])
     expect(script.global('keys')).toEqual([target.prims[0]!.key])
     expect(script.global('types')).toEqual([4])
@@ -82,7 +82,7 @@ describe('measured sensor filters', () => {
   it.each([[1.99, 0], [2, 0], [2.01, 1], [0, -1], [-1, -1]])('range %s produces %s detections', async (radius, hits) => {
     const { script, world } = await scanner(`llSensor("", NULL_KEY, PASSIVE, ${radius}, PI);`)
     await loadLinkset({ world, region: 'sensor region', position: { x: 2, y: 0, z: 0 }, prims: [{ name: 'target' }] })
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toEqual(hits === 1 ? ['target'] : [])
     expect(script.global('misses')).toBe(hits === 0 ? 1 : 0)
   })
@@ -93,14 +93,14 @@ describe('measured sensor filters', () => {
       await loadLinkset({ world, region: 'sensor region', position: { x: i, y: 0, z: 0 }, prims: [{ name: `target ${i}` }] })
     }
     await loadLinkset({ world, region: 'sensor region', position: { x: 96, y: 0, z: 0 }, prims: [{ name: 'boundary' }] })
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toEqual(Array.from({ length: 32 }, (_, i) => `target ${i + 1}`))
   })
 
   it.each([[95.99, 1], [96, 0], [97, 0]])('maximum range excludes %s when appropriate', async (distance, hits) => {
     const { script, world } = await scanner('llSensor("", NULL_KEY, PASSIVE, 1000, PI);')
     await loadLinkset({ world, region: 'sensor region', position: { x: distance, y: 0, z: 0 }, prims: [{ name: 'target' }] })
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toHaveLength(hits)
     expect(script.global('misses')).toBe(1 - hits)
   })
@@ -108,7 +108,7 @@ describe('measured sensor filters', () => {
   it.each([[0, 1], [-1, 1], [0.01, 0], [1.56, 0], [1.58, 1], [4, 1]])('uses rotated forward direction for arc %s', async (arc, hits) => {
     const { script, world } = await scanner(`llSetRot(llEuler2Rot(<0,0,PI_BY_TWO>)); llSensor("", NULL_KEY, PASSIVE, 20, ${arc});`)
     await loadLinkset({ world, region: 'sensor region', position: { x: 2, y: 0, z: 0 }, prims: [{ name: 'target' }] })
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toHaveLength(hits)
     expect(script.global('misses')).toBe(1 - hits)
   })
@@ -122,7 +122,7 @@ describe('measured sensor filters', () => {
   ])('matches exact name %s and key %s', async (name, key, hits) => {
     const { script, world } = await scanner(`llSensor("${name}", (key)${key}, PASSIVE, 20, PI);`)
     await loadLinkset({ world, region: 'sensor region', position: { x: 2, y: 0, z: 0 }, prims: [{ name: 'target', key: '11111111-1111-1111-1111-111111111111' }] })
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toHaveLength(hits)
     expect(script.global('misses')).toBe(1 - hits)
   })
@@ -137,7 +137,7 @@ describe('measured sensor filters', () => {
       world.addObject({ region: 'sensor region', name, position: { x: i + 1, y: 0, z: 0 },
         scripted: name !== 'bare', active: name === 'active' || name === 'physical', physical: name === 'physical' })
     }
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toEqual(names)
     expect(script.global('misses')).toBe(mask === 0 || names.length ? 0 : 1)
     if (mask === 12) expect(script.global('types')).toEqual([12, 12, 10])
@@ -146,14 +146,14 @@ describe('measured sensor filters', () => {
   it.each([['i Doll', 1, 1], ['i doll', 1, 0], ['i.doll', 16, 1], ['', 1, 1], ['', 9, 0]])('detects avatar name %s with mask %s', async (name, mask, hits) => {
     const { script, world } = await scanner(`llSensor("${name}", NULL_KEY, ${mask}, 20, PI);`)
     world.addAvatar({ region: 'sensor region', key: '11111111-1111-1111-1111-111111111111', name: 'i Doll', username: 'i.doll', position: { x: 2, y: 0, z: 0 } })
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('names')).toHaveLength(hits)
     if (hits) expect(script.global('types')).toEqual([3])
   })
 
   it('excludes its entire linkset', async () => {
     const { script, linkset, prims } = await scanner('llSensor("", llGetKey(), SCRIPTED | PASSIVE, 20, PI);')
-    script.start()
+    script.start(); script.advanceTime(100)
     expect(script.global('misses')).toBe(1)
     expect(script.global('names')).toEqual([])
     expect(linkset.prims).toContain(prims[0])
@@ -217,7 +217,7 @@ it('snapshots detected fields and compares the target group with the scanner gro
   ` } }] }] })
   world.sensorProperties.set(linkset, { group: '11111111-1111-1111-1111-111111111111' })
   world.addObject({ region: 'data', name: 'target', owner: '22222222-2222-2222-2222-222222222222', group: '11111111-1111-1111-1111-111111111111', position: { x: 5, y: 0, z: 0 } })
-  const s = scripts['data']!; s.start()
+  const s = scripts['data']!; s.start(); s.advanceTime(100)
   expect(s.global('missing')).toBe(0)
   expect(s.global('data')).toEqual(['22222222-2222-2222-2222-222222222222', 1, { x: 5, y: 0, z: 0 }, { x: 0, y: 0, z: 0, s: 1 }, { x: 0, y: 0, z: 0 }, 0, 0])
 })
@@ -239,7 +239,7 @@ it('classifies a loaded timer script separately from its detected type', async (
   const { script, world } = await scanner('llSensor("target",NULL_KEY,ACTIVE,20,PI);')
   const target = await loadLinkset({ world, region: 'sensor region', position: { x: 2, y: 0, z: 0 }, prims: [{ name: 'target', scripts: [{ name: 'timer', source: { source: 'default {state_entry(){llSetTimerEvent(1);}timer(){}}' } }] }] })
   target.scripts['timer']!.start()
-  script.start()
+  script.start(); script.advanceTime(100)
   expect(script.global('names')).toEqual(['target'])
   expect(script.global('types')).toEqual([12])
 })
@@ -251,7 +251,7 @@ it('does not return its own linked child even when its key matches', async () =>
     { scripts: [{ name: 'self', source: { source: `integer misses; default { state_entry(){llSensor("",(key)"11111111-1111-1111-1111-111111111111",PASSIVE,20,PI);}no_sensor(){++misses;} }` } }] },
     { key: '11111111-1111-1111-1111-111111111111', name: 'child' },
   ] })
-  scripts['self']!.start()
+  scripts['self']!.start(); scripts['self']!.advanceTime(100)
   expect(scripts['self']!.global('misses')).toBe(1)
 })
 
@@ -259,7 +259,7 @@ it('does not return its own linked child even when its key matches', async () =>
 it.each([[0, 4, 1.57069, 0], [0, 4, 1.5707, 1], [4, 4, .78525, 0], [4, 4, .78527, 1]])('matches measured cone boundary <%s,%s> at %s', async (x, y, arc, hits) => {
   const { script, world } = await scanner(`llSensor("target",NULL_KEY,PASSIVE,20,${arc});`)
   world.addObject({ region: 'sensor region', name: 'target', position: { x, y, z: 0 } })
-  script.start()
+  script.start(); script.advanceTime(100)
   expect(script.global('names')).toHaveLength(hits)
   expect(script.global('misses')).toBe(1 - hits)
 })
@@ -286,7 +286,7 @@ it('replaces an unfinished one-shot with a repeat', async () => {
 it('treats a loaded listener as an active scripted target', async () => {
   const { script, world } = await scanner('llSensor("target",NULL_KEY,SCRIPTED,20,PI);')
   const target = await loadLinkset({ world, region: 'sensor region', position: { x: 2, y: 0, z: 0 }, prims: [{ name: 'target', scripts: [{ name: 'listener', source: { source: 'default {state_entry(){llListen(123,"",NULL_KEY,"");}listen(integer c,string n,key id,string m){}}' } }] }] })
-  target.scripts['listener']!.start(); script.start()
+  target.scripts['listener']!.start(); script.start(); script.advanceTime(100)
   expect(script.global('names')).toEqual(['target'])
   expect(script.global('types')).toEqual([12])
 })
@@ -296,7 +296,7 @@ it('treats a loaded listener as an active scripted target', async () => {
 it.each([32, 34, 36, 40, 44])('matches the measured DAMAGEABLE mask %s', async (mask) => {
   const { script, world } = await scanner(`llSensor("target",NULL_KEY,${mask},20,PI);`)
   const target = await loadLinkset({ world, region: 'sensor region', position: { x: 2, y: 0, z: 0 }, prims: [{ name: 'target', scripts: [{ name: 'damage', source: { source: 'default {state_entry(){llSetTimerEvent(1);}timer(){}on_damage(integer n){}final_damage(integer n){}}' } }] }] })
-  target.scripts['damage']!.start(); script.start()
+  target.scripts['damage']!.start(); script.start(); script.advanceTime(100)
   expect(script.global('names')).toEqual([])
   expect(script.global('misses')).toBe(1)
 })
@@ -307,7 +307,7 @@ it('detects only another linkset root and uses its supplied group and motion dat
   const target = await loadLinkset({ world, region: 'sensor region', owner: '22222222-2222-2222-2222-222222222222', position: { x: 2, y: 0, z: 0 }, prims: [{ name: 'target' }, { name: 'target' }] })
   target.prims[0]!.params.rotation = { x: 0, y: 0, z: 1, s: 0 }
   world.sensorProperties.set(target.linkset, { group: '11111111-1111-1111-1111-111111111111', velocity: { x: 1, y: 2, z: 3 }, active: false })
-  script.start()
+  script.start(); script.advanceTime(100)
   expect(script.global('keys')).toEqual([target.prims[0]!.key])
   expect(script.global('positions')).toEqual([{ x: 2, y: 0, z: 0 }])
   expect(script.global('velocities')).toEqual([{ x: 1, y: 2, z: 3 }])

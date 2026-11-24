@@ -124,6 +124,7 @@ it('keeps script chat and automatic query replies independent of avatar chat loc
     const other = await loadLinkset({ world: f.world, region: f.avatar.region,
       prims: [{ scripts: [{ name: 'sender', source: { source: 'default { state_entry() { llSay(0,"speech"); llRegionSay(42,"private"); } }' } }] }] })
     other.scripts.sender!.start()
+    other.linkset.advanceTime(100)
     expect(f.script.global('heard')).toBe(1)
     expect(f.script.global('version')).toBe(profile === 'rlv' ? '2093500' : '3040300')
     expect(f.sendChat(42, 'blocked').status).toBe('blocked')

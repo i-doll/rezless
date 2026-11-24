@@ -37,6 +37,7 @@ describe('multi-script linkset', () => {
       scripts['writer']!.start()
       scripts['reader']!.start()
       scripts['writer']!.fire('touch_start', { num_detected: 1 })
+      linkset.advanceTime(100)
       // The writer also receives the event (LSL broadcasts to writer too).
       expect(scripts['reader']!.global('received')).toBe(1)
       expect(scripts['reader']!.global('lastKey')).toBe('greeting')
@@ -87,6 +88,7 @@ describe('multi-script linkset', () => {
       scripts['r2']!.start()
       scripts['sender']!.start()
       scripts['sender']!.fire('touch_start', { num_detected: 1 })
+      scripts['sender']!.advanceTime(100)
       // r1 in prim 1 receives from prim 2.
       expect(scripts['r1']!.global('gotSender')).toBe(2)
       expect(scripts['r1']!.global('gotNum')).toBe(42)
@@ -126,6 +128,7 @@ describe('multi-script linkset', () => {
       scripts['s']!.start()
       scripts['r']!.start()
       scripts['s']!.fire('touch_start', { num_detected: 1 })
+      scripts['s']!.advanceTime(100)
       expect(scripts['r']!.global('gotNum')).toBe(7)
     })
   })
@@ -645,6 +648,7 @@ describe('multi-script linkset', () => {
         ],
       })
       scripts['p']!.start()
+      scripts['p']!.advanceTime(1000)
       expect(scripts['p']!.global('got')).toBe('line one')
     })
 
@@ -735,6 +739,7 @@ describe('multi-script linkset', () => {
       scripts['reader']!.start()
       scripts['controller']!.start()
       scripts['writer']!.fire('touch_start', { num_detected: 1 })
+      linkset.advanceTime(100)
       expect(scripts['reader']!.global('received')).toBe(1)
       scripts['controller']!.fire('touch_start', { num_detected: 1 })
       scripts['writer']!.fire('touch_start', { num_detected: 1 })
@@ -748,6 +753,7 @@ describe('multi-script linkset', () => {
       linkset.drainQueue()
       expect(scripts['reader']!.global('received')).toBe(1)
       scripts['writer']!.fire('touch_start', { num_detected: 1 })
+      linkset.advanceTime(100)
       expect(scripts['reader']!.global('received')).toBe(2)
     })
 

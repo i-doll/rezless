@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import { loadScript, DEBUG_CHANNEL } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
+
 // https://wiki.secondlife.com/wiki/llRezObject
 // https://wiki.secondlife.com/wiki/llRezAtRoot
 // https://wiki.secondlife.com/wiki/llRezObjectWithParams
@@ -86,6 +88,7 @@ it('gives repeated rezzes fresh prim keys and independent script globals', async
   const f = await fixture(`llRezAtRoot("payload", llGetPos()+<0,0,2>, ZERO_VECTOR, ZERO_ROTATION, 1);
     llRezAtRoot("payload", llGetPos()+<0,0,3>, ZERO_VECTOR, ZERO_ROTATION, 2);`)
   f.parent.start()
+  f.linkset.advanceTime(100)
   expect(f.world.linksets).toHaveLength(3)
   const a = f.world.linksets[1]!, b = f.world.linksets[2]!
   expect(a.prims[0]!.key).not.toBe(b.prims[0]!.key)
@@ -640,7 +643,7 @@ it('starts a fresh lifetime when a script clears and reenables temp status in on
   const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
   f.parent.start()
   const child = f.world.linksets[1]!
-  f.linkset.advanceTime(59900)
+  f.linkset.advanceTime(59900 - SIM_FRAME_MS)
   expect(f.world.linksets.includes(child)).toBe(true)
   f.linkset.advanceTime(29999)
   expect(f.world.linksets.includes(child)).toBe(true)
@@ -672,7 +675,7 @@ it('does not restart the lifetime when an already-temporary object is marked tem
   const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
   f.parent.start()
   const child = f.world.linksets[1]!
-  f.linkset.advanceTime(59899)
+  f.linkset.advanceTime(59899 - SIM_FRAME_MS)
   expect(f.world.linksets.includes(child)).toBe(true)
   f.linkset.advanceTime(1)
   expect(f.world.linksets.includes(child)).toBe(false)
@@ -707,9 +710,9 @@ it('derezzes and rezzes active keyframed motion with independent playback state'
   f.parent.start()
   expect(f.parent.calls.find(c=>c.name==='llDerezObject')!.returned).toBe(1)
   const child=f.world.linksets[1]!,root=child.prims[0]!
-  expect(root.regionPosition()).toEqual({x:100.1,y:102,z:30})
+  expect(root.regionPosition()).toEqual({x:100.1+SIM_FRAME_MS/1000,y:102,z:30})
   f.parent.advanceTime(1000)
-  expect(root.regionPosition()).toEqual({x:101.1,y:102,z:30})
+  expect(root.regionPosition()).toEqual({x:101.1+SIM_FRAME_MS/1000,y:102,z:30})
   expect(root.params.rotation.z).toBeCloseTo(Math.sin(1.1*Math.PI/32))
   f.parent.advanceTime(6000)
   expect(root.regionPosition()).toEqual({x:107.1,y:102,z:30})

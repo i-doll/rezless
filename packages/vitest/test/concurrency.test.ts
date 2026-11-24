@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { DEBUG_CHANNEL, World, loadLinkset } from '../src/index.js'
 import type { Script } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
 const SAY = 'say(string s) { llOwnerSay(s); }\n'
 
 async function pair(a: [string, string], b: [string, string], bLeadMs = 0) {
@@ -48,11 +49,11 @@ describe('scripts run while another script sleeps', () => {
       '3000 A start sleep 3',
       '3500 B start sleep 0.5',
       '4000 B end sleep',
-      '4000 B lm from B',
+      '4022 B lm from B',
       '6000 A end sleep',
-      '6000 B lm from A',
-      '6000 A lm from B',
-      '6000 A lm from A',
+      '6022 B lm from A',
+      '6022 A lm from B',
+      '6044 A lm from A',
     ])
   })
 
@@ -278,11 +279,11 @@ describe('after a script wakes', () => {
     s.fire('touch_start', { num_detected: 1 })
     expect(s.currentState).toBe('other')
     s.fire('link_message', { num: 0, str: '', id: '' })
-    expect(s.now).toBe(2000)
+    expect(s.now).toBe(2000 + 2 * SIM_FRAME_MS)
     expect(s.currentState).toBe('default')
     s.fire('touch_start', { num_detected: 1 })
     expect(() => s.fire('touch_start', { num_detected: 1 })).toThrow('Stack-Heap Collision')
-    expect(log).toEqual(['0 entry 1', '1000 other', '2000 entry 1', '3000 other'])
+    expect(log).toEqual(['0 entry 1', '1022 other', '2044 entry 1', '3067 other'])
     expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)[0]).toBe('Object [script:w_a] Script run-time error')
     expect(s.running).toBe(false)
   })
@@ -320,8 +321,8 @@ describe('driving a sleeping script from a test', () => {
     s.linkset.clock.schedule(s, 0, 'touch_start', { num_detected: 1 })
     s.advanceTime(1_000)
     s.fire('touch_start', { num_detected: 1 })
-    expect(s.now).toBe(10000)
-    expect(log.filter((l) => l.endsWith('woke'))).toEqual(['5000 woke', '10000 woke'])
+    expect(s.now).toBe(10000 + SIM_FRAME_MS)
+    expect(log.filter((l) => l.endsWith('woke'))).toEqual(['5000 woke', '10022 woke'])
   })
 
   it('linkset.deliverChat returns once every listener it reached has finished', async () => {
@@ -329,8 +330,8 @@ describe('driving a sleeping script from a test', () => {
       listen(integer c, string n, key id, string m) { llSleep(2.0); say("heard " + m); } }`
     const { log, linkset } = await pair(['l_a', listener], ['ticker', ticker])
     linkset.deliverChat({ channel: 5, name: 'av', key: '', message: 'hi' })
-    expect(linkset.clock.now).toBe(2000)
-    expect(log).toEqual(['1000 tick', '2000 tick', '2000 heard hi'])
+    expect(linkset.clock.now).toBe(2000 + SIM_FRAME_MS)
+    expect(log).toEqual(['1000 tick', '2000 tick', '2022 heard hi'])
   })
 
   it('a reply only waits for scripts with a handler for it', async () => {
@@ -380,7 +381,7 @@ describe('driving a sleeping script from a test', () => {
     s.fire('touch_start', { num_detected: 1 })
     s.respondToLastHttp({ status: 200, body: '' })
     expect(s.global('x')).toBe(1)
-    expect(s.now).toBe(200)
+    expect(s.now).toBe(200 + SIM_FRAME_MS)
   })
 
   it('fire() waits for llResetScript into a state_entry that sleeps', async () => {
@@ -395,7 +396,7 @@ describe('driving a sleeping script from a test', () => {
     const s = scripts['c_a']!
     s.fire('touch_end', { num_detected: 1 })
     expect(s.linksetData.get('x')?.value).toBe('1')
-    expect(s.now).toBe(1000)
+    expect(s.now).toBe(1000 + SIM_FRAME_MS)
   })
 
   it('deliverChat does not wait for a sleeper no listen matched', async () => {
@@ -407,7 +408,7 @@ describe('driving a sleeping script from a test', () => {
     s.advanceTime(1_000)
     s.deliverChat({ channel: 6, name: 'av', key: '', message: 'hi' })
     expect(s.now).toBe(1000)
-    expect(s.wakeAt).toBe(5000)
+    expect(s.wakeAt).toBe(5000 + SIM_FRAME_MS)
   })
 
   it('reset() of a sleeping script abandons its handler', async () => {

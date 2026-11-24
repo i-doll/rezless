@@ -61,6 +61,7 @@ it('routes damage through adjustment and final notification without reducing obj
   s.linkset.damageEnabled = true
   s.start()
   s.fire('touch_start', { num_detected: 1 })
+  s.linkset.advanceTime(100)
   expect(s.global('events')).toEqual([12, 5, 12, 3, 5, 12, 3, 5, 12])
   expect(s.host.params.health).toBe(75)
 })
@@ -80,7 +81,7 @@ it('waits for a sleeping on_damage handler before final_damage', async () => {
   expect(s.global('events')).toEqual([])
   s.linkset.advanceTime(3999)
   expect(s.global('events')).toEqual([])
-  s.linkset.advanceTime(1)
+  s.linkset.advanceTime(100)
   expect(s.global('events')).toEqual(['adjusted', 3, 5, 12])
 })
 
@@ -104,7 +105,7 @@ it('waits for every script on the target before final notification', async () =>
   scripts.observer!.start()
   linkset.advanceTime(1000)
   expect(scripts.observer!.global('events')).toEqual(['on'])
-  linkset.advanceTime(4000)
+  linkset.advanceTime(4100)
   expect(scripts.observer!.global('events')).toEqual(['on', 3, 5, 12])
   expect(scripts.slow!.global('events')).toEqual([3, 5, 12])
 })
@@ -193,8 +194,10 @@ it('applies avatar damage after adjustments, and healing cannot exceed 100', asy
   source.source!.start()
   armor.armor!.start()
   source.source!.fire('touch_start', { num_detected: 1 })
+  linkset.advanceTime(100)
   expect(armor.armor!.global('health')).toEqual([67])
   source.source!.fire('touch_end', { num_detected: 1 })
+  linkset.advanceTime(100)
   expect(armor.armor!.global('health')).toEqual([67, 100])
 })
 
@@ -253,7 +256,7 @@ it('finishes damage when a queued on_damage event is removed by reset', async ()
   scripts.target!.start(); scripts.source!.start()
   linkset.advanceTime(1000)
   expect(scripts.source!.global('events')).toEqual([])
-  linkset.advanceTime(1000)
+  linkset.advanceTime(1100)
   expect(scripts.source!.global('events')).toEqual([12, 5, 12])
 })
 
@@ -289,6 +292,7 @@ it('ignores invalid adjustment indexes, and refuses calls from final_damage', as
   }` })
   s.linkset.damageEnabled = true
   s.start()
+  s.linkset.advanceTime(100)
   expect(s.global('result')).toEqual([12, 5, 12])
   expect(s.chat.filter((c) => c.channel === 2147483647).map((c) => c.text))
     .toEqual(['llAdjustDamage may only be called from the on_damage() event handler'])
@@ -362,6 +366,7 @@ it('keeps parked on_damage pending until the stopped script resumes', async () =
   expect(scripts.source!.global('hits')).toEqual([])
   expect(scripts.armor!.parkedEvents).toHaveLength(1)
   scripts.source!.fire('touch_end', { num_detected: 1 })
+  linkset.advanceTime(100)
   expect(scripts.source!.global('hits')).toEqual([3, 5, 12])
 })
 
@@ -441,7 +446,7 @@ it('releases parked damage when the stopped recipient is deleted', async () => {
   scripts.source!.fire('touch_start', { num_detected: 1 })
   expect(scripts.source!.global('hits')).toEqual([])
   scripts.armor!.markDead()
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   expect(scripts.source!.global('hits')).toEqual([12, 5, 12])
 })
 

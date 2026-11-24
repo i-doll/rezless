@@ -82,6 +82,7 @@ it('makes forced group changes visible to llSameGroup and sensor reads', async (
     issue(script, '@setgroup:none=force')
     expect(script.global('same')).toBe(0)
     issue(scan, 'scan')
+    scan.advanceTime(100)
     expect(scan.global('groups')).toEqual([1, 0])
     expect(avatar.group).toBe(NULL_KEY)
   }

@@ -45,7 +45,7 @@ async function giver(world: World, items: InventoryItem[], call: string) {
     default { touch_start(integer n) { float t = llGetTime(); ${call} dt = llGetTime() - t; } changed(integer c) { changes += [c]; } }` } }] }] })
   const script = loaded.scripts.giver!
   script.start()
-  return { ...loaded, script, give: () => { loaded.linkset.touch(0) }, errors: () => script.chat.filter(c => c.channel === DEBUG).map(c => c.text) }
+  return { ...loaded, script, give: () => { loaded.linkset.touch(0); loaded.linkset.advanceTime(100) }, errors: () => script.chat.filter(c => c.channel === DEBUG).map(c => c.text) }
 }
 
 const names = (items: ReadonlyArray<InventoryItem>) => items.map(i => i.name)
@@ -273,6 +273,7 @@ describe('llAttachToAvatarTemp to an avatar who is not the owner', () => {
     loaded.prims[0]!.permMask = masks(PERM_ALL, PERM_MOVE | PERM_COPY | PERM_TRANSFER)
     const t = loaded.scripts.t!
     t.start(); t.grantPermissions()
+    t.advanceTime(100)
     return { ...loaded, t }
   }
 
@@ -301,6 +302,7 @@ describe('llAttachToAvatarTemp to an avatar who is not the owner', () => {
     ] })
     scripts.child!.start(); scripts.child!.grantPermissions()
     scripts.root!.start(); scripts.root!.grantPermissions()
+    scripts.root!.advanceTime(100)
     expect(scripts.child!.global('log')).toEqual(['attach', 0, NULL_KEY, 'changed', 128])
   })
 

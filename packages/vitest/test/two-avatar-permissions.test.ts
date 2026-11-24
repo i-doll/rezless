@@ -327,7 +327,7 @@ describe('a change of owner', () => {
     const item = (avatar: WorldAvatar, again = false) => {
       if (!again) seedRlvInventory(avatar, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'probe', object: f.linkset.copy(), assetType: 'object' }] })
       const rezzed = f.world.attemptAvatarRez(avatar, 'item', { x: 1, y: 2, z: 3 }).object!
-      rezzed.advanceTime(0)
+      rezzed.advanceTime(100)
       return [f.s1, f.s2].map(original => {
         const copy = driver(rezzed.prims[0]!.scripts.find(s => s.scriptName === original.script.scriptName)!)
         const before = original.log().length
@@ -357,7 +357,7 @@ describe('a change of owner', () => {
     expect(again.log()).toEqual([`rez 0 ${NULL_KEY} ${BOB}`, `owner 0 ${NULL_KEY} ${BOB}`])
     seedRlvInventory(bob, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: again.script.linkset.copy(), assetType: 'object' }] })
     const rezzed = f.world.attemptAvatarRez(bob, 'taken', { x: 1, y: 2, z: 3 }).object!
-    rezzed.advanceTime(0)
+    rezzed.advanceTime(100)
     const before = (again.script.global('log') as string[]).length
     const log = rezzed.prims[0]!.scripts.find(s => s.scriptName === 's1')!.global('log') as string[]
     expect(log.slice(before)).toEqual([`rez 0 ${NULL_KEY} ${BOB}`])
@@ -372,7 +372,7 @@ describe('a change of owner', () => {
     const bob = f.avatars[BOB]!
     seedRlvInventory(bob, { sharedRootId: null, entries: [{ id: 'seat', kind: 'item', parentId: null, name: 'seat', object: saved, assetType: 'object' }] })
     const rezzed = f.world.attemptAvatarRez(bob, 'seat', { x: 1, y: 2, z: 3 }).object!
-    rezzed.advanceTime(0)
+    rezzed.advanceTime(100)
     const before = (f.s1.script.global('log') as string[]).length
     const s1 = rezzed.prims[0]!.scripts.find(s => s.scriptName === 's1')!
     expect((s1.global('log') as string[]).slice(before)).toEqual([`rez 0 ${NULL_KEY} ${BOB}`, `owner 0 ${NULL_KEY} ${BOB}`])
@@ -462,7 +462,7 @@ describe('a given item worn by its new owner', () => {
     rlv.script.host.description = '@attach:direct=force'
     rlv.script.fire('touch_start', { num_detected: 1 })
     const worn = world.linksets.find(l => l.attachment && l !== rlv.script.linkset && l.allScripts().length)!
-    worn.advanceTime(0)
+    worn.advanceTime(100)
     const none = `0 ${NULL_KEY} ${avatar.key}`
     expect(worn.allScripts()[0]!.global('log')).toEqual([`rez ${none}`, `attach ${avatar.key} ${none}`, `owner ${none}`])
   })

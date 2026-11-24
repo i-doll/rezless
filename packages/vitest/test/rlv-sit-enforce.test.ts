@@ -28,6 +28,7 @@ it('blocks user sitting while sit is locked and allows it after removal', async 
     script.fire('link_message', { sender_num: 1, num: 0, str: '@sit=y', id: avatar.key })
     expect(fixture.userSit(script.host)).toBe(true)
     expect(avatar.sittingOn).toBe(script.host)
+    script.advanceTime(100)
     expect(script.global('changes')).toBe(1)
   }
 })
@@ -73,6 +74,7 @@ it.each([
     script.fire('link_message', { sender_num: 1, num: 0, str: '@sittp' + option + '=n', id: avatar.key })
     expect(fixture.userSit(script.host)).toBe(allowed)
     expect(avatar.sittingOn).toBe(allowed ? script.host : null)
+    script.advanceTime(100)
     expect(script.global('changes')).toBe(allowed ? 1 : 0)
   }
 })
@@ -91,6 +93,7 @@ it('rejects invalid world targets before changing a seated avatar', async () => 
     expect(fixture.userSit(script.host, { x: Infinity, y: 0, z: 0 })).toBe(false)
     expect(avatar.position).toEqual(original)
     expect(avatar.sittingOn).toBe(script.host)
+    script.advanceTime(100)
     expect(script.global('changes')).toBe(1)
   }
 })
@@ -132,10 +135,12 @@ it('keeps simulator seating and llUnSit independent of viewer locks', async () =
     script.start()
     expect(fixture.userSit(script.host)).toBe(false)
     expect(world.sitAvatar(avatar, script.host)).toBe(true)
+    script.advanceTime(100)
     expect(fixture.userStand()).toBe(false)
     script.fire('touch_start', { num_detected: 1 })
     expect(avatar.sittingOn).toBeNull()
     expect(avatar.info & 16).toBe(0)
+    script.advanceTime(100)
     expect(script.global('changes')).toBe(2)
   }
 })

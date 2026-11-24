@@ -33,6 +33,7 @@ async function fixtures() {
 function send(script: Awaited<ReturnType<typeof fixtures>>['rlv']['script'], command: string) {
  script.host.description = command
  script.fire('touch_start', { num_detected: 1 })
+ script.advanceTime(100)
 }
 
 describe('direct shared attachment force wear', () => {
@@ -169,7 +170,7 @@ it('copies script state, queues attachment lifecycle events, and reuses the inve
   const events = first.allScripts()[0]!
   expect(events.global('events')).toEqual([avatar.key, 1])
   expect(events.state.permissions.granted).toBe(0)
-  first.detachFromAvatar(); script.advanceTime(0)
+  first.detachFromAvatar(); script.advanceTime(100)
   send(script, '@attach:direct=force')
   expect(world.linksets.filter(l => l.attachment)).toContain(first)
   expect(events.global('events')).toEqual([avatar.key, 1, '00000000-0000-0000-0000-000000000000', 0, avatar.key, 1])
@@ -415,8 +416,8 @@ for (const inWorld of [false, true]) it(`keeps detach behavior unchanged without
  const loaded = await loadLinkset({ ...(inWorld ? { world, region: avatar.region } : {}), owner: avatar.key,
   prims: [{ scripts: [{ name: 'plain', source: { source: 'list events; default { attach(key id) { events += [(string)id, llGetAttached()]; } }' } }] }] })
  const script = loaded.scripts.plain!
- script.start(); loaded.linkset.attachToAvatar(avatar.key, 1); script.advanceTime(0)
- loaded.linkset.detachFromAvatar(); script.advanceTime(0)
+ script.start(); loaded.linkset.attachToAvatar(avatar.key, 1); script.advanceTime(100)
+ loaded.linkset.detachFromAvatar(); script.advanceTime(100)
  expect(loaded.linkset.attachment).toBeNull()
  expect(loaded.linkset.peers).not.toContain(loaded.linkset)
  expect(script.global('events')).toEqual([avatar.key, 1, '00000000-0000-0000-0000-000000000000', 0])

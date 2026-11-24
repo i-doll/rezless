@@ -116,6 +116,7 @@ describe('viewer reply routing and inspection', () => {
       for (const s of Object.values(listeners.scripts)) s.start()
       script.fire('touch_start', { num_detected: 1 })
       sender.scripts.other!.fire('touch_start', { num_detected: 1 })
+      listeners.linkset.advanceTime(100)
       for (const s of Object.values(listeners.scripts)) {
         expect(s.global('replies')).toBe(2)
         expect(s.global('speaker')).toBe(avatar.key)

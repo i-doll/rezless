@@ -25,7 +25,7 @@ async function box(f: Rlv, at: { x: number, y: number, z: number }, scale = { x:
   const made = await loadLinkset({ world: f.world, owner: f.avatar.key, region: f.avatar.region, position: at,
     prims: [{ size: scale, scripts: [{ name: 'main', source: { source } }] }] })
   made.scripts['main']!.start()
-  made.linkset.advanceTime(10)
+  made.linkset.advanceTime(100)
   return made
 }
 
@@ -303,15 +303,15 @@ describe('the permissions a dropped attachment keeps', () => {
     const made = await box(f, { x: 10, y: 11, z: 10 }, undefined, probe)
     const script = made.scripts['main']!
     made.linkset.attachToAvatar(f.avatar.key, 9)
-    made.linkset.advanceTime(10)
+    made.linkset.advanceTime(100)
     script.sendControl(1)
     script.sendControl(0)
-    made.linkset.advanceTime(10)
+    made.linkset.advanceTime(100)
     expect(made.linkset.prims[0]!.scriptedCameras.size).toBe(1)
     expect(f.drop(made.linkset).status).toBe('dropped')
-    made.linkset.advanceTime(10)
+    made.linkset.advanceTime(100)
     script.sendControl(1)
-    made.linkset.advanceTime(10)
+    made.linkset.advanceTime(100)
     expect(script.global('log')).toEqual(['attach 1 0 0', 'perm 3124', 'control 1', 'control 0', 'attach 0 1072 1'])
     expect(script.state.permissions.granted & (PERMISSION_TAKE_CONTROLS | PERMISSION_CONTROL_CAMERA)).toBe(0)
     expect(script.state.permissions.agent).toBe(f.avatar.key)
@@ -325,9 +325,9 @@ describe('the permissions a dropped attachment keeps', () => {
     const f = await scene()
     const made = await box(f, { x: 10, y: 11, z: 10 }, undefined, probe.replace('0xC34', 'PERMISSION_TAKE_CONTROLS'))
     made.linkset.attachToAvatar(f.avatar.key, 9)
-    made.linkset.advanceTime(10)
+    made.linkset.advanceTime(100)
     f.drop(made.linkset)
-    made.linkset.advanceTime(10)
+    made.linkset.advanceTime(100)
     expect(made.scripts['main']!.global('log')).toEqual(['attach 1 0 0', 'perm 4', 'attach 0 0 0'])
   })
 })
@@ -353,7 +353,7 @@ describe('Take Copy of a seat someone sits on', () => {
     }
     const script = made.scripts['seat']!
     script.start()
-    made.linkset.advanceTime(10)
+    made.linkset.advanceTime(100)
     return { world, owner, other, linkset: made.linkset, log: () => script.global('log') as string[] }
   }
 
@@ -363,9 +363,9 @@ describe('Take Copy of a seat someone sits on', () => {
   it('stands the owner up when another avatar takes the copy, with one changed(160)', async () => {
     const f = await scene()
     f.world.sitAvatar(f.owner, f.linkset.prims[0]!)
-    f.linkset.advanceTime(10)
+    f.linkset.advanceTime(100)
     expect(f.world.attemptAvatarTake(f.other, f.linkset.prims[0]!, { copy: true }).status).toBe('taken')
-    f.linkset.advanceTime(10)
+    f.linkset.advanceTime(100)
     expect(f.owner.sittingOn).toBeNull()
     expect(f.log()).toEqual(['32 1 2', '160 0 1'])
     expect(f.linkset.owner).toBe(OWNER)
@@ -377,15 +377,15 @@ describe('Take Copy of a seat someone sits on', () => {
   it('stands the other avatar up whoever takes the copy', async () => {
     const f = await scene()
     f.world.sitAvatar(f.other, f.linkset.prims[0]!)
-    f.linkset.advanceTime(10)
+    f.linkset.advanceTime(100)
     expect(f.world.attemptAvatarTake(f.owner, f.linkset.prims[0]!, { copy: true }).status).toBe('taken')
-    f.linkset.advanceTime(10)
+    f.linkset.advanceTime(100)
     expect(f.other.sittingOn).toBeNull()
     f.world.sitAvatar(f.other, f.linkset.prims[0]!)
-    f.linkset.advanceTime(10)
+    f.linkset.advanceTime(100)
     expect(f.world.attemptAvatarTake(f.other, f.linkset.prims[0]!).reason).toBe('owner')
     expect(f.world.attemptAvatarTake(f.other, f.linkset.prims[0]!, { copy: true }).status).toBe('taken')
-    f.linkset.advanceTime(10)
+    f.linkset.advanceTime(100)
     expect(f.other.sittingOn).toBeNull()
     expect(f.log()).toEqual(['32 1 2', '32 0 1', '32 1 2', '160 0 1'])
   })

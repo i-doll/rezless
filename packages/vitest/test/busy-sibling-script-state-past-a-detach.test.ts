@@ -39,17 +39,17 @@ async function worn(source = target) {
   const t = scripts['T']!, c = scripts['C']!
   for (const s of Object.values(scripts)) s.start()
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(0)
-  const say = (m: string) => { t.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' }); linkset.advanceTime(0) }
+  linkset.advanceTime(100)
+  const say = (m: string) => { t.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' }); linkset.advanceTime(100) }
   say('two')
   t.setGlobal('log', [])
   /** C runs `m`; another script detaches the object while C's handler is busy. */
   const busy = (m: string) => {
     c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
     c.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' })
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
   }
-  const wear = () => { linkset.attachToAvatar(OWNER, 5); linkset.advanceTime(0) }
+  const wear = () => { linkset.attachToAvatar(OWNER, 5); linkset.advanceTime(100) }
   return { linkset, t, say, busy, wear, log: () => t.global('log') }
 }
 
@@ -112,13 +112,13 @@ it('waits for an on_rez that sleeps before changing the script', async () => {
   const t = scripts['T']!, c = scripts['C']!
   for (const s of Object.values(scripts)) s.start()
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   t.fire('link_message', { sender_num: 0, num: 0, str: 'two', id: '' })
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   t.setGlobal('log', [])
   c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
   c.fire('link_message', { sender_num: 0, num: 0, str: 'c1', id: '' })
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   linkset.attachToAvatar(OWNER, 5)
   linkset.advanceTime(2_000)
   expect(t.running).toBe(false)
@@ -174,11 +174,11 @@ describe('a change held for a script that is busy after the wear', () => {
     const t = scripts['T']!, c = scripts['C']!
     for (const s of Object.values(scripts)) s.start()
     linkset.attachToAvatar(OWNER, 5)
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     setUp?.(t)
     c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
     c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     linkset.attachToAvatar(OWNER, 5)
     linkset.advanceTime(3_000)
     return t
@@ -306,12 +306,12 @@ it('starts a script that stopped itself in its on_rez after the wear', async () 
   ] }] })
   for (const s of Object.values(scripts)) s.start()
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   const c = scripts['C']!, t = scripts['T']!
   t.setGlobal('log', [])
   c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
   c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   linkset.attachToAvatar(OWNER, 5)
   linkset.advanceTime(2_000)
   expect(t.running).toBe(true)
@@ -356,11 +356,11 @@ it('stops a script that crashed in its on_rez after the wear, so a later reset l
   ] }] })
   for (const s of Object.values(scripts)) s.start()
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   const c = scripts['C']!, t = scripts['T']!
   c.mock('llOwnerSay', () => { linkset.detachFromAvatar(); return undefined })
   c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   t.setGlobal('log', [])
   linkset.attachToAvatar(OWNER, 5)
   try { linkset.advanceTime(100) } catch { /* T's on_rez crashes */ }
@@ -372,7 +372,7 @@ it('stops a script that crashed in its on_rez after the wear, so a later reset l
   expect(t.global('log')).toEqual([])
   t.running = true
   c.fire('link_message', { sender_num: 0, num: 0, str: 'reset', id: '' })
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   expect(t.global('log')).toEqual(['entry'])
 })
 
@@ -448,7 +448,7 @@ it('takes no event slot from the busy sibling for the change it holds', async ()
   c.fire('link_message', { sender_num: 0, num: 0, str: 'go', id: '' })
   linkset.advanceTime(0)
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(100)
+  linkset.advanceTime(2_000)
   expect(scripts['T']!.running).toBe(false)
   expect(c.global('log')).toEqual(['worn'])
 })

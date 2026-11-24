@@ -40,6 +40,7 @@ describe('scoreboard.lsl', () => {
   it('"reset" clears the store and triggers the linkset_data RESET event', () => {
     score(s, 'alice')
     s.deliverChat({ channel: 0, name: 'A', key: '', message: 'reset' })
+    s.advanceTime(100)
     expect(s.linksetData.size).toBe(0)
     expect(s).toHaveSaid(0, 'scoreboard cleared')
   })

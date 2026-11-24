@@ -231,6 +231,7 @@ describe('owner drops a script in', () => {
     })
     scripts['a']!.start()
     const added = await addScript(prims[1]!, src(logger, 'n'))
+    added.linkset.advanceTime(1000)
     prims[1]!.replaceInventory('n', {})
     added.linkset.advanceTime(1000)
     expect(said(added)).toEqual(['entry n', 'entry n'])
@@ -565,7 +566,7 @@ describe('owner recompiles a script', () => {
     expect(said(scripts['c']!).slice(spoken)).toEqual([])
     expect(scripts['a']!.global('seen')).toEqual(['changed 1 of 2'])
     control.fire('link_message', { sender_num: 2, num: 1, str: '', id: NULL_KEY })
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     expect(said(scripts['c']!).slice(spoken)).toEqual(['entry c'])
   })
 

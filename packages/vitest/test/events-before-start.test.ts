@@ -82,7 +82,7 @@ describe.each<Lang>(['LSL', 'SLua'])('a %s script that has not started yet', (la
     // collision_start for that landing, only for the next one.
     const { copy, named, logs } = await copyOf(lang, ['a', 'b'])
     copy.startAll(named('a'))
-    copy.advanceTime(22)
+    copy.advanceTime(1000 / 45)
     for (const s of copy.allScripts()) s.fire('collision_start', { num_detected: 1 })
     copy.startAll()
     copy.advanceTime(100)

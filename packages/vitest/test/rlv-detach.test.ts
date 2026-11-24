@@ -20,8 +20,9 @@ describe('paired viewer self-detach', () => {
  it('detaches the issuing attachment asynchronously and emits attach(NULL_KEY)', async () => {
   const pair = await loadRlvPair({ source })
   for (const { script, avatar } of Object.values(pair)) {
-   script.start(); script.linkset.attachToAvatar(avatar.key, 1); script.advanceTime(0)
+   script.start(); script.linkset.attachToAvatar(avatar.key, 1); script.advanceTime(100)
    script.fire('touch_start', { num_detected: 1 })
+   script.advanceTime(100)
    expect(script.linkset.attachment).toBeNull()
    expect(script.global('before')).toBe(1)
    expect(script.global('after')).toBe(1)
@@ -60,8 +61,9 @@ it('resolves Kokua child self-detach but leaves RLVa child self-detach inert', a
    { scripts: [{ name: 'child', source: { source } }] },
   ] })
   loaded.scripts.root!.start(); loaded.scripts.child!.start()
-  loaded.linkset.attachToAvatar(avatar.key, 5); loaded.linkset.advanceTime(0)
+  loaded.linkset.attachToAvatar(avatar.key, 5); loaded.linkset.advanceTime(100)
   loaded.scripts.child!.fire('touch_start', { num_detected: 1 })
+  loaded.linkset.advanceTime(100)
   expect(loaded.linkset.attachment?.point ?? 0).toBe(profile === 'rlv' ? 0 : 5)
   expect(loaded.scripts.child!.global('after')).toBe(5)
   for (const script of Object.values(loaded.scripts)) expect(script.global('events')).toEqual(profile === 'rlv'
@@ -142,8 +144,9 @@ it('allows a permitted root simulator detach through a viewer lock', async () =>
   attach(key id) { events += [(string)id, llGetAttached()]; }
  }` })
  for (const { script, avatar } of Object.values(pair)) {
-  script.start(); script.linkset.attachToAvatar(avatar.key, 1); script.grantPermissions()
+  script.start(); script.linkset.attachToAvatar(avatar.key, 1); script.grantPermissions(); script.advanceTime(100)
   script.fire('touch_start', { num_detected: 1 })
+  script.advanceTime(100)
   expect(script.global('after')).toBe(1)
   expect(script.linkset.attachment).toBeNull()
   expect(script.global('events')).toEqual([avatar.key, 1, '00000000-0000-0000-0000-000000000000', 0])
@@ -159,7 +162,7 @@ it('denies viewer detach until the last root or child lock is removed', async ()
    { scripts: [{ name: 'child', source: { source: commands } }] },
   ] })
   for (const script of Object.values(loaded.scripts)) script.start()
-  loaded.linkset.attachToAvatar(avatar.key, 1); loaded.linkset.advanceTime(0)
+  loaded.linkset.attachToAvatar(avatar.key, 1); loaded.linkset.advanceTime(100)
   const send = (name: 'root' | 'child', command: string) => {
    const script = loaded.scripts[name]!
    script.host.description = command; script.fire('touch_start', { num_detected: 1 })
@@ -170,7 +173,7 @@ it('denies viewer detach until the last root or child lock is removed', async ()
   expect(fixture.attemptDetach(loaded.linkset)).toBe('blocked')
   send('child', '@detach=y')
   expect(fixture.attemptDetach(loaded.linkset)).toBe('allowed')
-  loaded.linkset.advanceTime(0)
+  loaded.linkset.advanceTime(100)
   expect(loaded.linkset.attachment).toBeNull()
   for (const script of Object.values(loaded.scripts)) expect(script.global('events')).toEqual([
    avatar.key, 1, '00000000-0000-0000-0000-000000000000', 0,

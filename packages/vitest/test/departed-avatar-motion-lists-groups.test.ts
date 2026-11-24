@@ -228,7 +228,7 @@ describe('a seat that dies under the avatar', () => {
     f.advance(1000)
     f.seat.send('die')
     f.watcher.send('sense')
-    f.advance(0)
+    f.advance(100)
     expect(f.watcher.seen()).toEqual([OWNER])
   })
 })

@@ -52,7 +52,7 @@ async function fixture() {
   world.addRegion('home', { x: 0, y: 0 })
   const avatar = world.addAvatar({ region: 'home', key: OWNER, username: 'owner', viewer: { profile: 'rlva' } })
   const linksets: { advanceTime(ms: number): void }[] = []
-  const tick = () => { for (const linkset of linksets) linkset.advanceTime(0) }
+  const tick = () => { for (const linkset of linksets) linkset.advanceTime(100) }
   const load = async () => {
     const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: OWNER,
       prims: [{ scripts: [{ name: 'probe', source: { source } }] }] })

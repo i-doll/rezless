@@ -31,7 +31,7 @@ async function held(source: string, hold: number, slua = false, busyMs = 0) {
   })
   if (busyMs) scripts.s!.mock('llOwnerSay', (ctx) => { ctx.busy(busyMs); return undefined })
   scripts.s!.start()
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   linkset.touch(0, { hold })
   linkset.advanceTime(10_000)
   return scripts.s!.global('got') as string[]
@@ -44,7 +44,7 @@ describe('a held click while the touch handler sleeps', () => {
     // In-world: touch slept 1 s, held 2.5 s -> touch at 0.067, 1.111 and 2.156 after
     // touch_start, touch_end at 3.200; held 5 s -> five touch events a little over a second
     // apart, then touch_end.
-    expect(await held(lsl(0, 1, 0), 2500)).toEqual(['S', 'T22', 'T1067', 'T2111', 'E3111'])
+    expect(await held(lsl(0, 1, 0), 2500)).toEqual(['S', 'T22', 'T1067', 'T2111', 'E3133'])
     expect(kinds(await held(lsl(0, 1, 0), 5000))).toBe('STTTTTE')
   })
 
@@ -54,14 +54,14 @@ describe('a held click while the touch handler sleeps', () => {
     // one touch and touch_end right after the sleep; slept 1 s, held 0.3 s -> the same.
     expect(kinds(await held(lsl(0, 0.5, 0), 2500))).toBe('STTTTTE')
     expect(kinds(await held(lsl(0, 2, 0), 5000))).toBe('STTTE')
-    expect(await held(lsl(0, 3, 0), 1000)).toEqual(['S', 'T22', 'E3022'])
-    expect(await held(lsl(0, 1, 0), 300)).toEqual(['S', 'T22', 'E1022'])
+    expect(await held(lsl(0, 3, 0), 1000)).toEqual(['S', 'T22', 'E3044'])
+    expect(await held(lsl(0, 1, 0), 300)).toEqual(['S', 'T22', 'E1044'])
   })
 
   it('every handler sleeping 1 s through a 2.5 s hold gives two touch events', async () => {
     // In-world: touch_start, touch and touch_end each slept 1 s, held 2.5 s -> touch at
     // 1.044 and 2.111 after touch_start, touch_end at 3.133.
-    expect(await held(lsl(1, 1, 1), 2500)).toEqual(['S', 'T1000', 'T2044', 'E3044'])
+    expect(await held(lsl(1, 1, 1), 2500)).toEqual(['S', 'T1022', 'T2067', 'E3089'])
   })
 
   it('the next touch comes one repeat after the touch handler ends', async () => {
@@ -95,9 +95,9 @@ describe('a held click while the touch handler sleeps', () => {
     // In-world: touch_start slept 3 s and the click was held 1 s -> one touch right after the
     // sleep, then touch_end. Slept 2 s, held 2.5 s -> one touch after the sleep, then one every
     // two frames until the release.
-    expect(await held(lsl(3, 0, 0), 1000)).toEqual(['S', 'T3000', 'E3000'])
+    expect(await held(lsl(3, 0, 0), 1000)).toEqual(['S', 'T3022', 'E3044'])
     const got = await held(lsl(2, 0, 0), 2500)
-    expect(got.slice(0, 2)).toEqual(['S', 'T2000'])
+    expect(got.slice(0, 2)).toEqual(['S', 'T2022'])
     expect(got.at(-1)).toBe('E2500')
   })
 
@@ -105,7 +105,7 @@ describe('a held click while the touch handler sleeps', () => {
     // In-world: touch did not sleep; a timer 1 s into a 2.5 s hold slept 2 s -> after the
     // timer's sleep one touch, then touch_end.
     const got = await held(lsl(0, 0, 0, 1, 2), 2500)
-    expect(got.slice(got.indexOf('X'))).toEqual(['X', 'T3000', 'E3000'])
+    expect(got.slice(got.indexOf('X'))).toEqual(['X', 'T2922', 'E2944'])
   })
 
   it('SLua drops the touch events raised during the touch handler sleep the same way', async () => {
@@ -183,7 +183,7 @@ describe('two avatars clicking while a handler sleeps', () => {
     s.mock('llWhisper', (ctx) => { ctx.busy(1500); return undefined })
     s.mock('llShout', (ctx) => { ctx.busy(1000); return undefined })
     s.start()
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     let now = 0
     for (const [at, step] of Object.entries(steps).map(([at, step]) => [Number(at), step] as const).sort((a, b) => a[0] - b[0])) {
       linkset.advanceTime(at - now)
@@ -331,14 +331,14 @@ describe('two avatars clicking while a handler sleeps', () => {
 
   it('a click in an LSL touch_end sleep runs its touch_start ahead of the touch it joined, whenever it presses', async () => {
     // fivebot presses 10 ms into the sleep, before i doll's next touch comes up.
-    expect(await run('lsl', 0, 0, { 0: 'i', 500: 'f', 700: 'F', 710: 'f', 1010: 'F', 6000: 'I' }, 3)).toBe('Si Ti Tif Ef Sf Tif Ef Ti Ei')
+    expect(await run('lsl', 0, 0, { 0: 'i', 500: 'f', 700: 'F', 721: 'f', 1021: 'F', 6000: 'I' }, 3)).toBe('Si Ti Tif Ef Sf Tif Ef Ti Ei')
   })
 
   it('touch_start events let through a touch_end sleep merge as held ones do', async () => {
     const CAROL = { key: 'cccccccc-0000-0000-0000-000000000000', name: 'carol' }
     const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0, 3), filename: 's.lsl' } }] }] })
     const t = scripts.s!
-    t.start(); linkset.advanceTime(0)
+    t.start(); linkset.advanceTime(100)
     linkset.press(0, { avatar: IDOLL }); linkset.advanceTime(500)
     linkset.press(0, { avatar: FIVEBOT }); linkset.advanceTime(200); linkset.release(FIVEBOT); linkset.advanceTime(800)
     linkset.press(0, { avatar: FIVEBOT }); linkset.advanceTime(100); linkset.press(0, { avatar: CAROL }); linkset.advanceTime(200)
@@ -350,7 +350,7 @@ describe('two avatars clicking while a handler sleeps', () => {
   it('a held click does not join a waiting touch fired without detected data', async () => {
     const l2 = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0), filename: 's.lsl' } }] }] })
     const u = l2.scripts.s!
-    u.start(); l2.linkset.advanceTime(0)
+    u.start(); l2.linkset.advanceTime(100)
     l2.linkset.press(0, { avatar: IDOLL }); l2.linkset.advanceTime(300)
     l2.linkset.clock.schedule(u, l2.linkset.clock.now, 'listen', { channel: 5, name: 'x', id: FIVEBOT.key, msg: 'sleep' }); l2.linkset.drainQueue()
     l2.linkset.advanceTime(100); u.fire('touch', { num_detected: 1 }); l2.linkset.advanceTime(3900); l2.linkset.release(IDOLL); l2.linkset.advanceTime(2000)
@@ -362,7 +362,7 @@ describe('two avatars clicking while a handler sleeps', () => {
     // fivebot's first touch comes on i doll's next one, 11 ms after the timer starts. A touch
     // that came up in the handler's first frame took no other avatar in the runs above, so
     // fivebot gets no touch here either.
-    expect(await run('slua', 0, 0, { 0: 'i', 300: 'X', 305: 'f', 1000: 'F', 4000: 'I' })).toBe('Si Ti X Ti Sf Ef Ti Ei')
+    expect(await run('slua', 0, 0, { 0: 'i', 300: 'X', 340: 'f', 1000: 'F', 4000: 'I' })).toBe('Si Ti X Ti Sf Ef Ti Ei')
   })
 
   describe('another handler sleeping', () => {
@@ -514,7 +514,7 @@ describe('two avatars clicking while a handler sleeps', () => {
     const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(1, 0), filename: 's.lsl' } }] }] })
     const s = scripts.s!
     s.start()
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     linkset.press(0, { avatar: IDOLL })
     s.fire('touch', { num_detected: 1 })
     linkset.advanceTime(2000)
@@ -527,7 +527,7 @@ describe('two avatars clicking while a handler sleeps', () => {
     const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(1, 0), filename: 's.lsl' } }] }] })
     const s = scripts.s!
     s.start()
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     linkset.clock.schedule(s, linkset.clock.now, 'touch', { num_detected: 1, detected: [{ ...FIVEBOT }] }, undefined, linkset.clock.now + 5000)
     linkset.press(0, { avatar: IDOLL })
     linkset.advanceTime(300)
@@ -589,7 +589,7 @@ describe('the touch handler rules leave other cases alone', () => {
     ] })
     scripts.s!.start()
     scripts.e!.start()
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     linkset.clock.scheduleTask(scripts.s!, linkset.clock.now + 10, () => linkset.breakOff(linkset.prims[1]!))
     linkset.touch(2, { avatar: av('b', 'bob'), hold: 100 })
     linkset.advanceTime(5000)
@@ -613,7 +613,7 @@ describe('the touch handler rules leave other cases alone', () => {
     const s = scripts.s!
     s.mock('llOwnerSay', (ctx) => { ctx.busy(5000); return undefined })
     s.start()
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     const c = linkset.clock
     const q = (ev: string, p: Record<string, unknown>) => c.schedule(s, c.now, ev, p)
     q('link_message', { sender_num: 1, num: 0, str: '', id: '' })

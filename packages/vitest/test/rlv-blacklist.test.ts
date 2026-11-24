@@ -97,7 +97,7 @@ it('retains blacklist configuration through session reset and startup queuing', 
  pair.rlv.script.start()
  expect(pair.rlv.script.global('replies')).toEqual(['2093500,sit'])
  pair.rlv.avatar.viewer.session.setReady(true)
- pair.rlv.script.advanceTime(0)
+ pair.rlv.script.advanceTime(100)
  expect(pair.rlv.script.global('replies')).toEqual(['2093500,sit','sit'])
  expect(pair.rlv.avatar.viewer.restrictions.snapshot()).toEqual([])
  pair.rlv.avatar.viewer.session.reset()

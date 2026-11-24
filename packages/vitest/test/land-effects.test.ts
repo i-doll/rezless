@@ -187,7 +187,7 @@ describe('parcel effect requests', () => {
       world.addRegion('Away', { x: 256, y: 0 })
       world.addAvatar({ region: 'Away', key: OTHER, username: 'fivebot' })
       const { s } = await pay(world, `tx=llTransferLindenDollars("${OTHER}",2);`)
-      s.grantPermissions(); s.advanceTime(0)
+      s.grantPermissions(); s.advanceTime(100)
       expect(s.global('out')).toEqual([1, 1, `${OTHER},2`])
     })
     // In-world: fivebot's and i doll's keys in capitals -> the success data in lower case.
@@ -196,20 +196,20 @@ describe('parcel effect requests', () => {
       const lettered = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
       world.addAvatar({ region: 'Sandbox', key: lettered, username: 'fivebot' })
       const { s } = await pay(world, `tx=llTransferLindenDollars("${lettered.toUpperCase()}",1);`)
-      s.grantPermissions(); s.advanceTime(0)
+      s.grantPermissions(); s.advanceTime(100)
       expect(s.global('out')).toEqual([1, 1, `${lettered},1`])
     })
     it('completes a transfer to the owner', async () => {
       const { world } = fixture()
       const { s } = await pay(world, 'tx=llTransferLindenDollars(llGetOwner(),1);')
-      s.grantPermissions(); s.advanceTime(0)
+      s.grantPermissions(); s.advanceTime(100)
       expect(s.global('out')).toEqual([1, 1, `${OWNER},1`])
     })
     it.each(['llGetKey()', `"${TARGET}"`])('reports an object destination %s as no such entity', async (destination) => {
       const { world } = fixture()
       world.addObject({ region: 'Sandbox', key: TARGET, owner: OTHER })
       const { s } = await pay(world, `tx=llTransferLindenDollars(${destination},1);`)
-      s.grantPermissions(); s.advanceTime(0)
+      s.grantPermissions(); s.advanceTime(100)
       expect(s.global('out')).toEqual([1, 0, 'LINDENDOLLAR_ENTITYDOESNOTEXIST'])
     })
     it('reports a loaded object in another region as no such entity', async () => {
@@ -217,7 +217,7 @@ describe('parcel effect requests', () => {
       world.addRegion('Away', { x: 256, y: 0 })
       const away = await loadLinkset({ world, region: 'Away', owner: OTHER, prims: [{}] })
       const { s } = await pay(world, `tx=llTransferLindenDollars("${away.prims[0]!.key}",1);`)
-      s.grantPermissions(); s.advanceTime(0)
+      s.grantPermissions(); s.advanceTime(100)
       expect(s.global('out')).toEqual([1, 0, 'LINDENDOLLAR_ENTITYDOESNOTEXIST'])
     })
     it.each([
@@ -227,7 +227,7 @@ describe('parcel effect requests', () => {
     ])('checks the destination, then the amount, then the entity: %s', async (args, error) => {
       const { world } = fixture()
       const { s } = await pay(world, `tx=llTransferLindenDollars(${args});`)
-      s.grantPermissions(); s.advanceTime(0)
+      s.grantPermissions(); s.advanceTime(100)
       expect(s.global('out')).toEqual([1, 0, error])
     })
     it.each([
@@ -349,7 +349,7 @@ describe('parcel effect requests', () => {
     const { s } = await run(world, 'llRequestPermissions(llGetOwner(),PERMISSION_DEBIT);', OWNER,
       `run_time_permissions(integer p){tx=llTransferLindenDollars(${args});}
        transaction_result(key id,integer success,string data){out=[id==tx,success,data];}`)
-    s.grantPermissions(); s.advanceTime(0)
+    s.grantPermissions(); s.advanceTime(100)
     expect(s.global('out')).toEqual([1,0,error])
     expect(parcel.effects[0]?.accepted).toBe(false)
   })

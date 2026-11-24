@@ -59,6 +59,7 @@ describe('chat across region borders', () => {
       sender(`llWhisper(42, "whisper"); llSay(42, "say"); llShout(42, "shout"); llRegionSay(42, "region"); ${to}`),
     )
     script.fire('touch_start', { num_detected: 1 })
+    script.advanceTime(500)
     return Object.fromEntries(Object.entries(receivers).map(([k, r]) => [k, r.script.global('heard')]))
   }
 
@@ -123,6 +124,7 @@ describe('chat between objects in one region', () => {
       SENDER,
     )
     script.fire('touch_start', { num_detected: 1 })
+    script.advanceTime(500)
     return { root: scripts['root']!.global('heard'), child: scripts['child']!.global('heard') }
   }
 
@@ -157,6 +159,7 @@ describe('chat between objects in one region', () => {
     const r = await place(world, 'Sandbox', { x: 10, y: 10, z: 25 }, named)
     const s = await place(world, 'Sandbox', { x: 11, y: 10, z: 25 }, sender('llSay(42, "hi");'), SENDER)
     s.script.fire('touch_start', { num_detected: 1 })
+    s.script.advanceTime(500)
     expect(r.script.global('heard')).toEqual([s.prim.name, SENDER])
   })
 
@@ -166,8 +169,10 @@ describe('chat between objects in one region', () => {
     const r = await place(world, 'Sandbox', { x: 10, y: 10, z: 25 }, listener)
     const s = await place(world, 'Sandbox', { x: 50, y: 10, z: 25 }, sender('llSay(42, "say");'))
     s.script.fire('touch_start', { num_detected: 1 })
+    s.script.advanceTime(500)
     s.prim.params.position = { x: 20, y: 10, z: 25 }
     s.script.fire('touch_start', { num_detected: 1 })
+    s.script.advanceTime(500)
     expect(r.script.global('heard')).toEqual(['say'])
   })
 
@@ -200,6 +205,7 @@ describe('chat within one linkset without a world', () => {
     prims[2]!.params.position = { x: 0, y: 0, z: 30 }
     for (const s of Object.values(scripts)) s.start()
     scripts['tx']!.fire('touch_start', { num_detected: 1 })
+    scripts['tx']!.advanceTime(500)
     expect(scripts['near']!.global('heard')).toEqual(['say', 'region'])
     expect(scripts['far']!.global('heard')).toEqual(['region'])
   })
@@ -219,6 +225,7 @@ describe('DEBUG_CHANNEL errors', () => {
     const across25 = await place(world, 'West', { x: 241, y: 128, z: 25 }, listener)
     const s = await place(world, 'East', { x: 10, y: 128, z: 25 }, sender('llRegionSay(0, "x");'))
     s.script.fire('touch_start', { num_detected: 1 })
+    s.script.advanceTime(500)
     const error = 'Cannot use llRegionSay() on channel 0.'
     expect(s.script.chat).toEqual([{ channel: DEBUG_CHANNEL, text: error, type: 'say' }])
     expect(at8.script.global('heard')).toEqual([error])

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { loadLinkset, loadScript, loadRlvPair, seedRlvInventory, World, makeInventoryItem, InventoryType, NULL_KEY, DEBUG_CHANNEL, type Linkset, type Script } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
+
 // https://wiki.secondlife.com/wiki/LlSetScriptState
 // https://wiki.secondlife.com/wiki/LlResetOtherScript
 //
@@ -117,14 +119,21 @@ async function rig(source: { source: string; filename?: string } = { source: tar
   return { ...loaded, t, ctl, tell, say }
 }
 
-/** Virtual times, in ms, at which `read()` changed while the clock ran for `ms`. */
-function changes(linkset: Linkset, read: () => unknown, ms: number): number[] {
+/** Runs the clock on to each 50 ms step after `origin` that is after now and by `to`, and yields how far each is from `origin`. */
+function* steps(linkset: Linkset, origin: number, to: number): Generator<number> {
+  for (let offset = 50 * (Math.floor((linkset.clock.now - origin) / 50) + 1); origin + offset <= to; offset += 50) {
+    linkset.advanceTime(origin + offset + 1e-6 - linkset.clock.now)
+    yield offset
+  }
+}
+
+/** Times after `origin`, in ms, at which `read()` changed while the clock ran for `ms`, looked at every 50 ms from `origin`. */
+function changes(linkset: Linkset, read: () => unknown, ms: number, origin = 0): number[] {
   const out: number[] = []
   let last = read()
-  for (let elapsed = 0; elapsed < ms; elapsed += 50) {
-    linkset.advanceTime(50)
+  for (const at of steps(linkset, origin, linkset.clock.now + ms)) {
     const now = read()
-    if (now !== last) out.push(linkset.clock.now)
+    if (now !== last) out.push(at)
     last = now
   }
   return out
@@ -135,11 +144,10 @@ function fired(linkset: Linkset, k: Script, ms: number, start = linkset.clock.no
   const ticks: number[] = []
   const scans: number[] = []
   let last = [k.global('ticks'), k.global('scans')]
-  while (linkset.clock.now < start + ms) {
-    linkset.advanceTime(50)
+  for (const at of steps(linkset, start, start + ms + 49)) {
     const now = [k.global('ticks'), k.global('scans')]
-    if (now[0] !== last[0]) ticks.push(linkset.clock.now - start)
-    if (now[1] !== last[1]) scans.push(linkset.clock.now - start)
+    if (now[0] !== last[0]) ticks.push(at)
+    if (now[1] !== last[1]) scans.push(at)
     last = now
   }
   return { ticks, scans }
@@ -166,7 +174,8 @@ describe('a script stopped with llSetScriptState', () => {
     tell('after start')
     say('chat after start')
     tell('lsd')
-    expect(t.global('log')).toEqual(['entry default 0', 'lm after start', 'heard chat after start', 'lsd 27.000000'])
+    linkset.advanceTime(100)
+    expect(t.global('log')).toEqual(['entry default 0', 'lm after start', 'heard chat after start', 'lsd 27.133330'])
   })
 
   it('never gets a dataserver reply or an HTTP response that came while it was stopped', async () => {
@@ -197,8 +206,9 @@ describe('a script stopped with llSetScriptState', () => {
     linkset.advanceTime(8000)
     expect([t.global('scans'), t.global('ticks')]).toEqual([0, 0])
     tell('start')
+    linkset.advanceTime(50)
     expect([t.global('scans'), t.global('ticks')]).toEqual([1, 1])
-    linkset.advanceTime(2900)
+    linkset.advanceTime(2850)
     expect([t.global('scans'), t.global('ticks')]).toEqual([1, 1])
     linkset.advanceTime(200)
     expect([t.global('scans'), t.global('ticks')]).toEqual([1, 2])
@@ -236,9 +246,11 @@ describe('a script stopped with llSetScriptState', () => {
     linkset.advanceTime(2000)
     expect(t.global('log')).toEqual(['entry default 0', 'sleep start'])
     tell('start')
+    linkset.advanceTime(50)
     expect(t.global('log')).toEqual(['entry default 0', 'sleep start', 'sleep end', 'lm A'])
-    linkset.advanceTime(1000)
+    linkset.advanceTime(950)
     tell('D')
+    linkset.advanceTime(50)
     expect(t.global('log')).toEqual(['entry default 0', 'sleep start', 'sleep end', 'lm A', 'lm D'])
   })
 
@@ -247,12 +259,13 @@ describe('a script stopped with llSetScriptState', () => {
     // from 1.0 s to 3.1 s -> timer and sensor at 6.0 s and 12.0 s.
     const { t, tell, linkset } = await rig()
     linkset.deliverLinkMessage(1, 1, 500, '6.0', NULL_KEY)
-    linkset.drainQueue()
+    linkset.advanceTime(SIM_FRAME_MS)
+    const set = linkset.clock.now
     linkset.advanceTime(1000)
     tell('stop')
     linkset.advanceTime(2100)
     tell('start')
-    expect(changes(linkset, () => t.global('ticks'), 10_000)).toEqual([6000, 12_000])
+    expect(changes(linkset, () => t.global('ticks'), 10_000, set)).toEqual([6000, 12_000])
     expect(t.global('scans')).toBe(2)
   })
 
@@ -264,15 +277,17 @@ describe('a script stopped with llSetScriptState', () => {
     // old schedule the same way.
     const { t, tell, linkset } = await rig()
     linkset.deliverLinkMessage(1, 1, 500, '4.0', NULL_KEY)
-    linkset.drainQueue()
+    linkset.advanceTime(SIM_FRAME_MS)
+    const set = linkset.clock.now
     linkset.advanceTime(8600)
     expect([t.global('ticks'), t.global('scans')]).toEqual([2, 2])
     tell('stop')
     linkset.advanceTime(6600)
     expect([t.global('ticks'), t.global('scans')]).toEqual([2, 2])
     tell('start')
+    linkset.advanceTime(50)
     expect([t.global('ticks'), t.global('scans')]).toEqual([3, 3])
-    expect(fired(linkset, t, linkset.clock.now + 9000, 0)).toEqual({ ticks: [16_000, 20_000, 24_000], scans: [19_200, 23_200] })
+    expect(fired(linkset, t, linkset.clock.now - set + 9000, set)).toEqual({ ticks: [16_000, 20_000, 24_000], scans: [19_200, 23_200] })
   })
 
   it('starts a full interval again when more than one tick was missed', async () => {
@@ -282,13 +297,15 @@ describe('a script stopped with llSetScriptState', () => {
     // timer and a 9 s stop of a 6 s timer did the same.
     const { t, tell, linkset } = await rig()
     linkset.deliverLinkMessage(1, 1, 500, '4.0', NULL_KEY)
-    linkset.drainQueue()
+    linkset.advanceTime(SIM_FRAME_MS)
+    const set = linkset.clock.now
     linkset.advanceTime(4600)
     tell('stop')
     linkset.advanceTime(9500)
     tell('start')
+    linkset.advanceTime(50)
     expect([t.global('ticks'), t.global('scans')]).toEqual([2, 2])
-    expect(changes(linkset, () => t.global('ticks'), 8500)).toEqual([18_100, 22_100])
+    expect(changes(linkset, () => t.global('ticks'), 8450, set)).toEqual([18_100, 22_100])
     expect(t.global('scans')).toBe(4)
   })
 
@@ -329,12 +346,15 @@ describe('a script stopped with llSetScriptState', () => {
     // first tick 5.0 s after the call.
     const { t, tell, linkset } = await rig({ source: timed })
     tell('msg:1:4.0')
+    linkset.advanceTime(SIM_FRAME_MS)
+    const set = linkset.clock.now
     linkset.advanceTime(1000)
     tell('q+stop:1:5.0')
     linkset.advanceTime(6100)
     tell('start')
+    linkset.advanceTime(50)
     expect(t.global('log')).toEqual(['set 4.0', 'set 5.0', 'timer'])
-    expect(changes(linkset, () => (t.global('log') as string[]).length, 8000)).toEqual([9000, 14_000])
+    expect(changes(linkset, () => (t.global('log') as string[]).length, 8000, set)).toEqual([9000, 14_000])
   })
 
   it('gets one tick when it is stopped and started during a sleep, and the interval starts again from there', async () => {
@@ -344,15 +364,17 @@ describe('a script stopped with llSetScriptState', () => {
     // 16.0 s.
     const { t, tell, linkset } = await rig({ source: timed })
     linkset.clock.schedule(t, linkset.clock.now, 'link_message', { sender_num: 1, num: 4, str: '', id: NULL_KEY })
+    linkset.advanceTime(SIM_FRAME_MS)
+    const set = linkset.clock.now
     linkset.advanceTime(4000)
     tell('stop')
     linkset.advanceTime(1000)
     tell('start')
     linkset.advanceTime(4950)
     expect(t.global('log')).toEqual(['sleep start'])
-    linkset.advanceTime(50)
+    linkset.advanceTime(100)
     expect(t.global('log')).toEqual(['sleep start', 'sleep end', 'timer'])
-    expect(changes(linkset, () => (t.global('log') as string[]).length, 6500)).toEqual([13_000, 16_000])
+    expect(changes(linkset, () => (t.global('log') as string[]).length, 6450, set)).toEqual([13_000, 16_000])
   })
 
   it('never gets a collision that happened while it was stopped', async () => {
@@ -392,6 +414,8 @@ describe('a script stopped with llSetScriptState', () => {
   it('keeps the missed tick\'s place when it is started, stopped and started again before the tick fires', async () => {
     const { t, tell, linkset } = await rig({ source: timed })
     tell('msg:1:4.0')
+    linkset.advanceTime(SIM_FRAME_MS)
+    const set = linkset.clock.now
     linkset.advanceTime(1000)
     tell('stop')
     linkset.advanceTime(4000)
@@ -399,20 +423,20 @@ describe('a script stopped with llSetScriptState', () => {
     linkset.advanceTime(1000)
     tell('start')
     expect(t.global('log')).toEqual(['set 4.0', 'timer'])
-    expect(changes(linkset, () => (t.global('log') as string[]).length, 6500)).toEqual([8000, 12_000])
+    expect(changes(linkset, () => (t.global('log') as string[]).length, 6500, set)).toEqual([8000, 12_000])
   })
 
   it('catches up the same way when a test starts it with script.running', async () => {
     const { t, linkset } = await rig()
     linkset.deliverLinkMessage(1, 1, 500, '4.0', NULL_KEY)
-    linkset.drainQueue()
+    linkset.advanceTime(SIM_FRAME_MS)
     linkset.advanceTime(4600)
     t.running = false
     linkset.advanceTime(9500)
     t.running = true
-    linkset.advanceTime(0)
+    linkset.advanceTime(50)
     expect([t.global('ticks'), t.global('scans')]).toEqual([2, 2])
-    linkset.advanceTime(8500)
+    linkset.advanceTime(8450)
     expect([t.global('ticks'), t.global('scans')]).toEqual([4, 4])
   })
 
@@ -458,13 +482,15 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
   async function caughtUp(stopAt: number, startAt: number, how = 'q+stop:2:') {
     const r = await rig({ source: timed })
     r.tell('msg:1:4.0')
-    r.linkset.advanceTime(stopAt)
+    r.linkset.advanceTime(SIM_FRAME_MS)
+    const set = r.linkset.clock.now
+    const at = (ms: number) => r.linkset.advanceTime(set + ms - r.linkset.clock.now)
+    at(stopAt)
     r.tell(how)
-    r.linkset.advanceTime(startAt - stopAt)
+    at(startAt)
     r.tell('start')
     const ticks = () => (r.t.global('log') as string[]).filter((l) => l === 'timer').length
-    const at = (ms: number) => r.linkset.advanceTime(ms - r.linkset.clock.now)
-    return { ...r, ticks, at }
+    return { ...r, ticks, at, origin: set + SIM_FRAME_MS }
   }
 
   it('counts the new interval from as late as the missed tick was', async () => {
@@ -473,14 +499,14 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     // 7 s (the 4 s tick 3 s late). llSetTimerEvent(4) at 10 s -> ticks at
     // 11.07, 15.07 and 19.07 s. A call 0.5 s after the start ticked 1.0 s after
     // it, and one 33 s after the start 1.0 s after it.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 9500)).toEqual([11_000, 15_000, 19_000])
+    expect(changes(linkset, ticks, 9500, origin)).toEqual([11_000, 15_000, 19_000])
     const late = await caughtUp(1000, 7000)
     late.at(40_000)
     late.tell('msg:1:4.0')
-    expect(changes(late.linkset, late.ticks, 2000)).toEqual([41_000])
+    expect(changes(late.linkset, late.ticks, 2000, late.origin)).toEqual([41_000])
   })
 
   it('takes the lateness of the missed tick, whatever the intervals', async () => {
@@ -491,47 +517,48 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     const short = await caughtUp(1000, 5500)
     short.at(9000)
     short.tell('msg:1:4.0')
-    expect(changes(short.linkset, short.ticks, 3000)).toEqual([11_500])
+    expect(changes(short.linkset, short.ticks, 3000, short.origin)).toEqual([11_500])
     const long = await caughtUp(1000, 7000)
     long.at(12_500)
     long.tell('msg:1:8.0')
-    expect(changes(long.linkset, long.ticks, 14_000)).toEqual([17_500, 25_500])
+    expect(changes(long.linkset, long.ticks, 14_000, long.origin)).toEqual([17_500, 25_500])
   })
 
   it('fires at once when the interval is shorter than the lateness, then an interval after it was due', async () => {
     // In-world: started 3 s late, llSetTimerEvent(2) 3 s after the start -> a
     // tick 20 ms after the call, then 1.0 s after the call and every 2 s.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:1:2.0')
+    linkset.advanceTime(100)
     expect(ticks()).toBe(1)
-    expect(changes(linkset, ticks, 5500)).toEqual([11_000, 13_000, 15_000])
+    expect(changes(linkset, ticks, 5400, origin)).toEqual([11_000, 13_000, 15_000])
   })
 
   it('keeps the lateness when the caught-up tick ran and the timer was turned off before the next', async () => {
     // In-world: stopped at 1 s with no message queued, started at 7 s -> a tick
     // at the start; llSetTimerEvent(0) 0.5 s later; llSetTimerEvent(4) at 10 s
     // -> ticks at 11.0, 15.0 and 19.0 s.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'stop')
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000, 'stop')
     expect(ticks()).toBe(1)
     at(7500)
     tell('msg:2:')
     at(10_000)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 9500)).toEqual([11_000, 15_000, 19_000])
+    expect(changes(linkset, ticks, 9500, origin)).toEqual([11_000, 15_000, 19_000])
   })
 
   it('keeps the lateness through another stop and start with no tick missed', async () => {
     // In-world: started 3 s late at 7 s, stopped at 8 s and started at 8.5 s,
     // llSetTimerEvent(4) at 10 s -> tick at 11.0 s.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(8000)
     tell('stop')
     at(8500)
     tell('start')
     at(10_000)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 2000)).toEqual([11_000])
+    expect(changes(linkset, ticks, 2000, origin)).toEqual([11_000])
   })
 
   it('drops the lateness once a tick after the caught-up one has run', async () => {
@@ -539,42 +566,43 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     // llSetTimerEvent(4) again at 13 s ticked at 17, 21 and 25 s. Stopped with
     // no message queued and left running after the start, it ticked at 7, 8, 12
     // and 16 s, and llSetTimerEvent(4) at 17.5 s ticked at 21.5 s.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:1:4.0')
     at(13_000)
     expect(ticks()).toBe(1)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 9000)).toEqual([17_000, 21_000])
+    expect(changes(linkset, ticks, 9000, origin)).toEqual([17_000, 21_000])
     const running = await caughtUp(1000, 7000, 'stop')
-    expect(changes(running.linkset, running.ticks, 10_000)).toEqual([8000, 12_000, 16_000])
+    expect(changes(running.linkset, running.ticks, 10_000, running.origin)).toEqual([8000, 12_000, 16_000])
     running.at(17_500)
     running.tell('msg:1:4.0')
-    expect(changes(running.linkset, running.ticks, 4500)).toEqual([21_500])
+    expect(changes(running.linkset, running.ticks, 4500, running.origin)).toEqual([21_500])
   })
 
   it('takes the lag of a tick a call made due at once', async () => {
     // In-world: started 3 s late, llSetTimerEvent(2) 3 s after the start ticked
     // 20 ms after the call, 1.0 s late on its schedule. llSetTimerEvent(4) 0.47 s
     // after that call ticked 2.98 s after it, then every 4 s.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:1:2.0')
+    linkset.advanceTime(100)
     expect(ticks()).toBe(1)
     at(10_500)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 8000)).toEqual([13_500, 17_500])
+    expect(changes(linkset, ticks, 8000, origin)).toEqual([13_500, 17_500])
   })
 
   it('lets a second call in the same handler replace a tick the first made due at once', async () => {
     // In-world: started 3 s late, llSetTimerEvent(2.0) then llSetTimerEvent(10.0)
     // in one handler 3 s after the start -> no tick at the call; ticks 7.0 s
     // after it and 10 s later.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:3:')
     expect(ticks()).toBe(0)
-    expect(changes(linkset, ticks, 18_000)).toEqual([17_000, 27_000])
+    expect(changes(linkset, ticks, 18_000, origin)).toEqual([17_000, 27_000])
   })
 
   it('has no lag once ticks after the caught-up one have run during a sleep', async () => {
@@ -584,12 +612,12 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     // That run gave three timer events within 0.1 s of the wake. Three more runs of
     // the same on 2026-11-23 gave two, the caught-up tick and the one due during
     // the sleep, 45 ms apart (see timer-after-sleep.test.ts).
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:7:')
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000, 'q+stop:7:')
     at(12_100)
     expect(ticks()).toBe(2)
     at(13_000)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 4500)).toEqual([17_000])
+    expect(changes(linkset, ticks, 4500, origin)).toEqual([17_000])
   })
 
   it('takes the lag of a tick that ran late behind a busy handler', async () => {
@@ -597,15 +625,15 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     // 1.1 s later. A handler that slept 2 s and then called llSetTimerEvent(4) held that tick
     // back; it ran right after the handler, 1.0 s late. llSetTimerEvent(4) 0.36 s later ticked
     // 3.0 s after the call, then every 4 s.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:1:4.0')
     tell('msg:9:')
-    at(12_000)
+    at(12_100)
     expect(ticks()).toBe(1)
     at(12_400)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 8000)).toEqual([15_400, 19_400])
+    expect(changes(linkset, ticks, 8000, origin)).toEqual([15_400, 19_400])
   })
 
   it('takes the lag of a tick held through a sleep from the wake, not from when it runs', async () => {
@@ -616,6 +644,8 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     const { t, tell, linkset } = await rig({ source: timed })
     const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
     tell('msg:1:10.0')
+    linkset.advanceTime(SIM_FRAME_MS)
+    const origin = linkset.clock.now + SIM_FRAME_MS
     linkset.advanceTime(8000)
     tell('msg:7:')
     linkset.advanceTime(500)
@@ -624,7 +654,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(ticks()).toBe(1)
     linkset.advanceTime(400)
     tell('msg:1:10.0')
-    expect(changes(linkset, ticks, 8000)).toEqual([25_500])
+    expect(changes(linkset, ticks, 8000, origin)).toEqual([25_500])
   })
 
   it('takes the lag of a tick a sleeping handler kept, from when a waiting handler went ahead of it', async () => {
@@ -641,7 +671,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(ticks()).toBe(1)
     tell('msg:1:10.0')
     const start = linkset.clock.now
-    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
+    expect(changes(linkset, ticks, 8500, start)).toEqual([7000])
   })
 
   it('keeps the lag a waiting tick had when the handler that went ahead of it sets the timer again', async () => {
@@ -657,20 +687,21 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(ticks()).toBe(1)
     tell('msg:1:10.0')
     const start = linkset.clock.now
-    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([7000])
+    expect(changes(linkset, ticks, 8500, start)).toEqual([7000])
   })
 
   it('takes no lag from a tick a call made due a full interval or more ago', async () => {
     // In-world (Aditi, SLua Tideland, 2026-11-24, three runs): in an SLua script, whose timer
     // lags as an LSL one does, LLTimers:once(1) set 2 s after a start that left a 3 s lag ticked
     // at once, and the timer LLTimers set again in that tick, for 0.98 s, ticked 0.98 s later.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000)
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000)
     at(10_000)
     tell('msg:1:1.0')
+    linkset.advanceTime(100)
     expect(ticks()).toBe(1)
     at(10_500)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 4100)).toEqual([14_500])
+    expect(changes(linkset, ticks, 4100, origin)).toEqual([14_500])
   })
 
   it('ticks twice at the start when a waiting handler sets an interval shorter than the start\'s lag', async () => {
@@ -680,33 +711,35 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     // 0.55 s after the start ticked 2.87 s after the call: the lag was how late the second tick
     // ran, due at 6 s, 2 s after the call less the start's 3 s lag, not the start's 3 s.
     const plain = await caughtUp(1000, 7000, 'q+stop:1:2.0')
+    plain.linkset.advanceTime(100)
     expect(plain.ticks()).toBe(2)
-    expect(changes(plain.linkset, plain.ticks, 3100)).toEqual([8000, 10_000])
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:1:2.0')
+    expect(changes(plain.linkset, plain.ticks, 3000, plain.origin)).toEqual([8000, 10_000])
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000, 'q+stop:1:2.0')
     at(7500)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 4000)).toEqual([10_500])
+    expect(changes(linkset, ticks, 4000, origin)).toEqual([10_450])
   })
 
   it('keeps the start\'s lag when a waiting handler runs before the caught-up tick', async () => {
     // Follows the measured rule: the lag is the start's lateness, fixed when a waiting handler
     // goes ahead of the tick.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 7000, 'q+stop:7:0.5')
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000, 'q+stop:7:0.5')
     at(7600)
     expect(ticks()).toBe(1)
     tell('msg:1:10.0')
-    expect(changes(linkset, ticks, 8000)).toEqual([14_600])
+    expect(changes(linkset, ticks, 8000, origin)).toEqual([14_600])
   })
 
   it('has no lag after more than one missed tick, even when a waiting handler lengthens the interval', async () => {
     // In-world: a link message queued before the stop called llSetTimerEvent(10); started 8.5 s
     // after the stop, with the 4 s and 8 s ticks missed, the caught-up tick came 20 ms after
     // that handler, and llSetTimerEvent(10) 0.5 s later ticked 10.0 s after the call.
-    const { tell, at, linkset, ticks } = await caughtUp(1000, 9500, 'q+stop:1:10.0')
+    const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 9500, 'q+stop:1:10.0')
+    linkset.advanceTime(100)
     expect(ticks()).toBe(1)
     at(10_000)
     tell('msg:1:10.0')
-    expect(changes(linkset, ticks, 10_500)).toEqual([20_000])
+    expect(changes(linkset, ticks, 10_500, origin)).toEqual([20_000])
   })
 
   it('has no lag in a copy taken and rezzed during it', async () => {
@@ -722,7 +755,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     named('ctl').fire('link_message', { sender_num: 1, num: 900, str: 'msg:1:4.0', id: NULL_KEY })
     const start = rezzed.clock.now
     const ticks = () => (copy.global('log') as string[]).filter((l) => l === 'timer').length
-    expect(changes(rezzed, ticks, 4500).map((t) => t - start)).toEqual([4000])
+    expect(changes(rezzed, ticks, 4500, start)).toEqual([4000])
   })
 
   it('has no lag in a worn object detached during it and worn again', async () => {
@@ -745,7 +778,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     tell('msg:1:4.0')
     const start = linkset.clock.now
     const ticks = () => (t.global('log') as string[]).filter((l) => l === 'timer').length
-    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([4000, 8000])
+    expect(changes(linkset, ticks, 8500, start)).toEqual([4000, 8000])
   })
 
   it('has no lag from a kept tick that waited through a detach', async () => {
@@ -767,7 +800,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(ticks()).toBe(1)
     tell('msg:1:10.0')
     const start = linkset.clock.now
-    expect(changes(linkset, ticks, 10_500).map((at) => at - start)).toEqual([10_000])
+    expect(changes(linkset, ticks, 10_500, start)).toEqual([10_000])
   })
 
   it('has no lag in a crashed script that comes back in a rez', async () => {
@@ -791,7 +824,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     send(k, 1, '4.0')
     const start = linkset.clock.now
     const ticks = () => (k.global('log') as string[]).filter((l) => l === 'timer').length
-    expect(changes(linkset, ticks, 8500).map((at) => at - start)).toEqual([4000, 8000])
+    expect(changes(linkset, ticks, 8500, start)).toEqual([4000, 8000])
   })
 
   it('runs an SLua LLTimers callback on time after a start that left a lag', async () => {
@@ -812,6 +845,8 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
       end)
     ` }, 'slua')
     tell('msg:1:4.0')
+    linkset.advanceTime(SIM_FRAME_MS)
+    const origin = linkset.clock.now + SIM_FRAME_MS
     linkset.advanceTime(1000)
     tell('q+stop:2:')
     linkset.advanceTime(6000)
@@ -819,7 +854,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     linkset.advanceTime(3000)
     tell('msg:1:4.0')
     const ticks = () => (t.global('log') as string[]).length
-    expect(changes(linkset, ticks, 4500)).toEqual([14_000])
+    expect(changes(linkset, ticks, 4500, origin)).toEqual([14_050])
   })
 
   it('counts from the call when no tick, or more than one, was missed', async () => {
@@ -830,11 +865,11 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     const none = await caughtUp(1000, 3000)
     none.at(10_000)
     none.tell('msg:1:4.0')
-    expect(changes(none.linkset, none.ticks, 4500)).toEqual([14_000])
+    expect(changes(none.linkset, none.ticks, 4500, none.origin)).toEqual([14_000])
     const two = await caughtUp(1000, 9500)
     two.at(12_000)
     two.tell('msg:1:4.0')
-    expect(changes(two.linkset, two.ticks, 4500)).toEqual([16_000])
+    expect(changes(two.linkset, two.ticks, 4500, two.origin)).toEqual([16_000])
   })
 })
 
@@ -886,9 +921,10 @@ describe('llResetOtherScript on a running script', () => {
   it('delivers a link message sent 0.1 s after it, after state_entry', async () => {
     // In-world: llResetOtherScript, llSleep(0.1), llMessageLinked -> the
     // script said state_entry in default, then answered the message.
-    const { t, tell } = await rig()
+    const { t, tell, linkset } = await rig()
     tell('num:600')
     tell('reset+wait+send')
+    linkset.advanceTime(100)
     expect(t.global('log')).toEqual(['entry default 0', 'lm 0.1 s after reset'])
   })
 
@@ -1157,10 +1193,11 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
     linkset.detachFromAvatar()
     linkset.advanceTime(15_000)
     linkset.attachToAvatar(owner, 6)
-    linkset.advanceTime(0)
+    const start = linkset.clock.now
+    linkset.advanceTime(100)
     expect(k.running).toBe(true)
     expect(k.global('log')).toEqual(['entry', 'attach', 'timer', 'on_rez', 'attach', 'timer', 'scan'])
-    expect(fired(linkset, k, 14_500)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
+    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
   })
 })
 

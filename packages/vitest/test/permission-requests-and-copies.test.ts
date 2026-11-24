@@ -89,7 +89,7 @@ type Twin = 'lsl' | 'slua'
 function driver(script: Script) {
   const tell = (str: string, num = 0, id = NULL_KEY) => {
     script.fire('link_message', { sender_num: 0, num, str, id })
-    script.linkset.advanceTime(0)
+    script.linkset.advanceTime(100)
   }
   /** Ask `agent` (the owner by default) for `bits`. */
   const ask = (bits: number, agent = script.linkset.owner) => tell('ask', bits, agent)
@@ -124,7 +124,7 @@ type Fixture = Awaited<ReturnType<typeof fixture>>
 
 /** The two probes of a rezzed object, once its rez events have run. */
 function twins(object: Linkset) {
-  object.advanceTime(0)
+  object.advanceTime(100)
   const find = (name: string) => driver(object.allScripts().find(s => s.scriptName === name)!)
   return { linkset: object, lsl: find('lsl'), slua: find('slua') }
 }
@@ -417,14 +417,14 @@ describe('what an SLua script keeps through inventory', () => {
   it('keeps them through a detach and a wear, less the controls', async () => {
     const f = await busy()
     f.linkset.attachToAvatar(OWNER, 5)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     for (const probe of [f.lsl, f.slua]) probe.ask(CONTROLS | ATTACH)
     f.slua.tell('inc')
     f.linkset.detachFromAvatar()
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     expect(f.slua.log().at(-1)).toBe(`attach 36 ${OWNER}`)
     f.linkset.attachToAvatar(OWNER, 5)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     expect(f.slua.log().slice(-2)).toEqual([`rez 32 ${OWNER} n=3 count=3 hits=3`, `attach 32 ${OWNER}`])
     expect(f.lsl.log().at(-1)).toBe(`attach 32 ${OWNER}`)
     expect(f.slua.report()).toBe(`state 32 ${OWNER} n=3 count=3 hits=3 ticks=0 co=4`)
@@ -453,7 +453,7 @@ describe('what an SLua script keeps through inventory', () => {
     const script = copy.allScripts()[0]!
     copy.advanceTime(34_000)
     expect(script.global('log')).toEqual([])
-    copy.advanceTime(1_000)
+    copy.advanceTime(1_100)
     expect(script.global('log')).toEqual(['after 45', 'rez'])
     copy.touch(0)
     expect(script.global('log')).toEqual(['after 45', 'rez', 'touch'])
@@ -500,7 +500,7 @@ describe('what an SLua script keeps through inventory', () => {
     made.linkset.advanceTime(6_000)
     seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'probe', object: take(made), assetType: 'object' }] })
     const copy = f.world.attemptAvatarRez(f.avatar, 'item', { x: 1, y: 2, z: 3 }).object!
-    copy.advanceTime(24_000)
+    copy.advanceTime(24_100)
     expect(copy.allScripts()[0]!.global('log')).toEqual([`${BOB} Bob`])
   })
 
@@ -528,7 +528,7 @@ describe('what an SLua script keeps through inventory', () => {
     const copied = made.linkset.copy().copy({ world: f.world, region: 'home' })
     const copy = copied.allScripts()[0]!
     detected[0]!.name = 'Changed'
-    copied.advanceTime(24_000)
+    copied.advanceTime(24_100)
     expect([original.global('done'), copy.global('done')]).toEqual([1, 1])
     expect([original.global('who'), copy.global('who')]).toEqual(['Changed', 'Bob'])
     expect(completed).toBe(1)
@@ -555,7 +555,7 @@ describe('what an SLua script keeps through inventory', () => {
     const copy = linkset.copy().copy({ world, region: 'home' })
     const script = copy.allScripts()[0]!
     script.queueRez()
-    copy.advanceTime(0)
+    copy.advanceTime(100)
     copy.touch(0)
     expect(script.chat.map(c => c.text)).toEqual(['main'])
     expect(script.global('log')).toEqual([`rez 0 ${NULL_KEY} n=0 count=0 hits=0`])
@@ -569,7 +569,7 @@ describe('what an SLua script keeps through inventory', () => {
     const copy = linkset.copy({ world, region: 'home' })
     const script = copy.allScripts()[0]!
     script.queueRez()
-    copy.advanceTime(0)
+    copy.advanceTime(100)
     expect(script.chat.map(c => c.text)).toEqual(['main'])
     expect(script.global('log')).toEqual([`rez 0 ${NULL_KEY} n=0 count=0 hits=0`])
   })
@@ -902,7 +902,7 @@ describe('taking an object that is sat on', () => {
     const f = await derezSeat({ awake: logging, stopped: logging, asleep: logging })
     f.script('stopped').running = false
     f.world.clock.schedule(f.script('asleep'), f.world.clock.now, 'touch_start', { num_detected: 1 })
-    f.seat.advanceTime(0)
+    f.seat.advanceTime(100)
     f.rezzer.tell('derez', 2)
     expect(f.seat.dead).toBe(true)
     expect(f.script('awake').global('log')).toEqual(['changed', 'changed'])

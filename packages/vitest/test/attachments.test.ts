@@ -23,6 +23,7 @@ it('attaches a permitted linkset and broadcasts attach to its scripts', async ()
   scripts.root!.start()
   scripts.child!.start()
   scripts.root!.grantPermissions()
+  scripts.root!.advanceTime(100)
   expect(scripts.root!.global('point')).toBe(6)
   expect(scripts.child!.global('point')).toBe(6)
   expect(scripts.root!.global('events')).toEqual([OWNER])
@@ -61,6 +62,7 @@ it('ignores an attach call on an object that is already attached', async () => {
   const { script } = await fixture(attaching('llAttachToAvatar(6); llAttachToAvatar(5);'))
   script.start()
   script.grantPermissions()
+  script.advanceTime(100)
   expect(script.global('point')).toBe(6)
   expect(script.global('events')).toEqual([OWNER])
 })
@@ -93,6 +95,7 @@ it('fires detach with NULL_KEY and reads zero while pending detachment', async (
   script.start()
   script.grantPermissions()
   linkset.touch(0)
+  linkset.advanceTime(100)
   expect(script.global('point')).toBe(6)
   expect(script.global('events')).toEqual([OWNER, '00000000-0000-0000-0000-000000000000'])
 })
@@ -135,11 +138,11 @@ it('remembers the last point across detach and fixture reattachment', async () =
    default {attach(key id){points += [llGetAttached()];}}`)
   script.start()
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   linkset.detachFromAvatar()
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   linkset.attachToAvatar(OWNER, 0)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   expect(script.global('points')).toEqual([5,0,5])
 })
 
@@ -186,6 +189,7 @@ it.each([false,true])('detaches with an avatar permission key and no ATTACH bit 
   script.start()
   if (!prior) {linkset.attachToAvatar(OWNER,6);linkset.advanceTime(0)}
   script.grantPermissions()
+  linkset.advanceTime(100)
   // In-world: a probe granted 32 called llAttachToAvatar and asked for 1040 in the same event ->
   // llGetAttached() was already 5 and llGetPermissions() 1040 on the next line, with no dialog
   // (Aditi, SLua Tideland, 2026-11-13).
@@ -215,7 +219,7 @@ it('changes detach state after the caller returns and removes the object from re
    touch_start(integer n){llDetachFromAvatar();order += [llGetAttached()];}
    attach(key id){order += [id,llGetAttached()];}
    on_rez(integer p){order += ["rez"];}}`)
-  script.start();script.grantPermissions();linkset.touch(0)
+  script.start();script.grantPermissions();linkset.touch(0);linkset.advanceTime(100)
   expect(script.global('order')).toEqual([6,OWNER,6,6,NULL_KEY,0])
   expect(world.linksets).not.toContain(linkset)
 })
@@ -233,6 +237,7 @@ it('keeps extra permissions on a same-owner temporary attachment and reports its
   expect(script.global('permissions')).toBe(48)
   expect(linkset.attachment?.temporary).toBe(true)
   linkset.touch(0)
+  linkset.advanceTime(100)
   expect(script.global('events')).toEqual([OWNER,NULL_KEY])
   expect(linkset.dead).toBe(true)
 })
@@ -357,7 +362,7 @@ it('temporarily attaches to the permission avatar and transfers ownership', asyn
    run_time_permissions(integer p){llAttachToAvatarTemp(6);owner=llGetOwner();permissions=llGetPermissions();}
    changed(integer flags){changes=flags;}}`)
   world.addAvatar({region:'home',key:other,username:'second.avatar'})
-  script.start();script.grantPermissions()
+  script.start();script.grantPermissions();script.advanceTime(100)
   expect(script.global('owner')).toBe(other)
   // In-world (Aditi, two avatars, 2026-11-14): llGetPermissions() read 0 on the line after
   // llAttachToAvatarTemp handed the object to the wearer (two-avatar-permissions.test.ts).
@@ -411,10 +416,10 @@ it('keeps fixture attach and detach idempotent', async () => {
   linkset.detachFromAvatar()
   linkset.attachToAvatar(OWNER,5)
   linkset.attachToAvatar(OWNER,6)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   linkset.detachFromAvatar()
   linkset.detachFromAvatar()
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   expect(script.global('events')).toEqual([OWNER,NULL_KEY])
   expect(linkset.attachment).toBeNull()
 })
@@ -435,7 +440,7 @@ it('does not invent a local owner avatar when the world contains none', async ()
 // Standalone scripts retain their configured owner as an implicit local avatar.
 it('supports attachment fixtures without a World', async () => {
   const script=await loadScript({source:attaching('llAttachToAvatar(6);'),owner:OWNER})
-  script.start();script.grantPermissions()
+  script.start();script.grantPermissions();script.advanceTime(100)
   expect(script.global('point')).toBe(6)
   expect(script.global('events')).toEqual([OWNER])
 })
@@ -473,7 +478,7 @@ it('suspends a caller after detach without hanging settle, then resumes on rewea
   linkset.advanceTime(500)
   expect(script.global('after')).toBe(7)
   expect(script.global('detached')).toBe(0)
-  linkset.advanceTime(500)
+  linkset.advanceTime(600)
   expect(script.global('detached')).toBe(1)
 })
 
@@ -509,7 +514,7 @@ it('applies next-owner masks before ownership events and later inventory operati
   child.addInventory({...prims[0]!.inventory.find(i=>i.name==='gift')!,permMask:{base:2147483647,owner:2147483647,group:0,everyone:0,next:8192}})
   const childScript=await loadScript({host:child,source:`integer mask;
    default {changed(integer flags){mask=llGetInventoryPermMask("gift",MASK_OWNER);}}`})
-  childScript.start();script.start();script.grantPermissions()
+  childScript.start();script.start();script.grantPermissions();script.advanceTime(100)
   expect(childScript.global('mask')).toBe(8192)
   expect(script.global('mask')).toBe(8192)
   expect(script.global('base')).toBe(8192)
@@ -525,7 +530,7 @@ it('suspends recurring sensors and targets in inventory, preserving their regist
   const { script,linkset }=await fixture(`integer scans;integer targets;
    default {state_entry(){llSensorRepeat("",NULL_KEY,AGENT,96,PI,1);llTarget(<10,0,0>,0.1);}
    sensor(integer n){++scans;}no_sensor(){++scans;}not_at_target(){++targets;}}`)
-  script.start();linkset.attachToAvatar(OWNER,6);linkset.advanceTime(1000)
+  script.start();linkset.attachToAvatar(OWNER,6);linkset.advanceTime(1100)
   const scans=script.global('scans'),targets=script.global('targets')
   expect(scans).toBe(1);expect(targets).toBeGreaterThan(0)
   linkset.detachFromAvatar();linkset.advanceTime(3000)

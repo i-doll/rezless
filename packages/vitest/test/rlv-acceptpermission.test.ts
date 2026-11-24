@@ -138,6 +138,7 @@ describe('acceptpermission automatic permission replies', () => {
     for (const { script } of Object.values(pair)) {
       script.start()
       script.linkset.touch(0)
+      script.advanceTime(100)
       // In-world: a rezzed probe asked its standing owner for 4 and the dialog stayed open. It then
       // sent @acceptpermission=add and asked for 4 again -> the viewer answered,
       // run_time_permissions(4) fired once, and Yes on the old dialog afterwards fired nothing

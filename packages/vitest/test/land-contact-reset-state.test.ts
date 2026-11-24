@@ -204,7 +204,7 @@ describe('a contact whose held land_collision ran, through a reset or a state ch
       f.linkset.advanceTime(44)
       queued(f.script, f.linkset, 'land_collision')
     }
-    f.linkset.advanceTime(1_000 - f.linkset.clock.now)
+    f.linkset.advanceTime(1_100 - f.linkset.clock.now)
     return f
   }
 

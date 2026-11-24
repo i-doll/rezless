@@ -158,6 +158,7 @@ describe('SLua beside LSL', () => {
     scripts['pinger']!.start()
     scripts['ponger']!.start()
     scripts['pinger']!.fire('touch_start', { num_detected: 1 })
+    scripts['pinger']!.advanceTime(100)
     expect(scripts['pinger']!).toHaveSaid(0, 'got pong 8')
   })
 })

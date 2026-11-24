@@ -222,6 +222,7 @@ describe('llEmail', () => {
       objectKey: RECEIVER_KEY,
     })
     s.start()
+    s.advanceTime(100)
     expect(s.chat.map((c) => c.text)).toEqual([`${TO} self`])
   })
 

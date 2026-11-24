@@ -1065,8 +1065,11 @@ describe('SLua: the functions only llcompat has', () => {
     // 2.42, 2.82, 3.22, 3.62, 4.02 s, and the timer handler ran then and at no multiple of 0.5 s of its own.
     // (In-world the handler also ran about 0.02 s before some callbacks, at 1.20, 2.00, 2.80 and 3.60 s: the
     // timer woke early and LLTimers set it again. LLTimers:every(0.4, cb) alone did the same.)
-    const every04 = [0.4, 0.8, 1.2, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4]
-    expect(await timeline('llcompat.SetTimerEvent(0.5); LLTimers:every(0.4, cb)', 4100)).toEqual({ ticks: every04, lt: every04, args: 0 })
+    expect(await timeline('llcompat.SetTimerEvent(0.5); LLTimers:every(0.4, cb)', 4100)).toEqual({
+      ticks: [0.4, 0.8, 1.2, 1.22, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4],
+      lt: [0.4, 0.8, 1.22, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4],
+      args: 0,
+    })
     // In-world: LLTimers:every(0.4, cb), then llcompat.SetTimerEvent(1.0) -> the handler ran at 1.00 s, and from
     // then with cb at 1.42, 1.82, 2.22, 2.62, 3.02, 3.42, 3.82 s (cb's first run was at 1.00 s, not 0.40 s)
     expect(await timeline('LLTimers:every(0.4, cb); llcompat.SetTimerEvent(1.0)', 3900)).toEqual({

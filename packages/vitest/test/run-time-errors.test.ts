@@ -94,6 +94,7 @@ const control = `list states;
     if (m == "start") llSetScriptState((string)k, TRUE);
     else if (m == "stop") llSetScriptState((string)k, FALSE);
     else if (m == "reset") llResetOtherScript((string)k);
+    else if (m == "reset stop") { llResetOtherScript((string)k); llSetScriptState((string)k, FALSE); }
     else if (m == "state") states += llGetScriptState((string)k);
   } }`
 
@@ -129,7 +130,7 @@ async function rig(a: { name: string; source: unknown; language?: string } = lsl
   const send = (m: string, to = script) => {
     target.linkset.clock.schedule(to, target.linkset.clock.now, 'link_message', message(m))
   }
-  const run = () => target.linkset.advanceTime(0)
+  const run = () => target.linkset.advanceTime(100)
   const tell = (m: string, name = 'a') => ctl.fire('link_message', { sender_num: 1, num: 0, str: m, id: name })
   const debug = (s = script) => s.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)
   return { world, target, script, ctl, ears, send, run, tell, debug, root: target.prims[0]!, child: target.prims[1]! }
@@ -328,7 +329,7 @@ describe('a crashed script', () => {
     // script in one handler -> llGetScriptState 0 and nothing said. 4 s later
     // llSetScriptState(TRUE) -> it said state_entry in default with g = 0.
     const { script, ctl, target, send, run } = await crashed()
-    for (const m of ['reset', 'stop', 'state']) {
+    for (const m of ['reset stop', 'state']) {
       target.linkset.clock.schedule(ctl, target.linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: m, id: 'a' })
     }
     target.linkset.advanceTime(4000)
@@ -400,6 +401,7 @@ describe('a crashed script', () => {
     const a = target.scripts['a']!
     expect(a.global('log')).toEqual(['entry', 'tick', 'tick'])
     ctl.fire('link_message', { sender_num: 1, num: 0, str: 'reset', id: 'a' })
+    target.linkset.advanceTime(100)
     expect(a.running).toBe(true)
     expect(a.global('log')).toEqual(['entry'])
     target.linkset.advanceTime(3000)

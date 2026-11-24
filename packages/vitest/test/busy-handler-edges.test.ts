@@ -59,7 +59,7 @@ async function make(busy: number, nap = 0) {
   /** Queue an event rather than fire it: fire() would wait for the handler to finish. */
   const queue = (event: string, payload: Record<string, unknown> = {}) => clock.schedule(s, clock.now, event, payload)
   const wait = (ms: number) => linkset.advanceTime(ms)
-  const say = (msg: string) => { queue('listen', { channel: 5, name: 'owner', id: OWNER, msg }); wait(0) }
+  const say = (msg: string) => { queue('listen', { channel: 5, name: 'owner', id: OWNER, msg }); wait(1000 / 45) }
   return {
     linkset, avatar, say, wait, queue,
     /** Queue an event now to come up `ms` later. */
@@ -235,7 +235,7 @@ describe('a handler that is busy and then sleeps', () => {
     const g = await make(6_000, 6_000)
     g.say('busy')
     g.wait(1_000); g.paint(); g.wait(1_000); g.click(1); g.wait(1_000); g.paint(); g.wait(4_000); g.paint(); g.wait(1_000); g.click(2)
-    g.wait(4_000)
+    g.wait(4_500)
     expect(g.log()).toEqual(['begin', 'end', 'changed 2', 'touch_start 1', 'touch 1', 'touch_end 1', 'changed 2', 'touch_start 2', 'touch 2', 'touch_end 2'])
   })
 
@@ -293,7 +293,7 @@ describe('a handler that is busy and then sleeps', () => {
     f.say('timer')
     f.wait(500)
     f.say('busy')
-    f.wait(12_000)
+    f.wait(12_100)
     expect(f.log()).toEqual(['begin', 'end', 'timer', 'timer'])
     f.wait(1_000)
     expect(f.log()).toEqual(['begin', 'end', 'timer', 'timer', 'timer'])
@@ -388,6 +388,6 @@ it('keeps a timer between the clicks of two sleeps in a handler that only slept'
   queue('touch_start', { num_detected: 1, detected: [{ key: OWNER, name: 'owner' }] })
   made.linkset.advanceTime(8_000)
   queue('touch_start', { num_detected: 1, detected: [{ key: OWNER, name: 'owner' }] })
-  made.linkset.advanceTime(6_100)
+  made.linkset.advanceTime(6_200)
   expect(script.global('log')).toEqual(['end', 'timer', 'touch_start', 'timer', 'touch_start'])
 })

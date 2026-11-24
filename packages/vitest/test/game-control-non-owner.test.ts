@@ -53,14 +53,15 @@ async function seat() {
 it('gets a sitter’s input, not the owner’s, and reads it for the sitter only', async () => {
   const f = await seat()
   expect(f.world.sitAvatar(f.sitter, f.linkset.prims[0]!)).toBe(true)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   f.script.sendGameControl(SITTER, { mode: 3 })
   f.script.sendGameControl(SITTER, { mode: 3, buttons: 9 })
   f.script.sendGameControl(OWNER, { buttons: 2 })
   f.script.sendGameControl(OWNER, {})
   f.world.standAvatar(f.sitter)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   f.script.sendGameControl(SITTER, { buttons: 4 })
+  f.linkset.advanceTime(100)
   expect(f.log()).toEqual([
     'changed 1', `rtp ${1 << 20}`,
     'ev bbbbbbbb 0 3/0 owner -1/0',
@@ -83,7 +84,7 @@ it.each([
     const f = await seat()
     f.world.sitAvatar(f.sitter, f.linkset.prims[0]!)
     f.say('sleep')
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     f.script.sendGameControl(SITTER, { mode: 3, buttons: 1 })
     f.linkset.advanceTime(1_000)
     const steps = [() => f.script.sendGameControl(SITTER, { mode: 3 }), () => other(f)]
@@ -126,24 +127,24 @@ it('answers a question to an avatar who is not on the object with Yes, No, or la
   const f = await seat()
   const rtp = () => f.log().filter(line => line.startsWith('rtp'))
   const events = () => f.log().filter(line => line.startsWith('ev'))
-  const input = () => { f.script.sendGameControl(SITTER, { buttons: 1 }); f.script.sendGameControl(SITTER, {}) }
-  const answer = (yes: boolean) => { if (yes) f.script.grantPermissions(); else f.script.denyPermissions(); f.linkset.advanceTime(0) }
+  const input = () => { f.script.sendGameControl(SITTER, { buttons: 1 }); f.script.sendGameControl(SITTER, {}); f.linkset.advanceTime(100) }
+  const answer = (yes: boolean) => { if (yes) f.script.grantPermissions(); else f.script.denyPermissions(); f.linkset.advanceTime(100) }
   f.say(SITTER)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   answer(true)
   expect(rtp()).toEqual(['rtp 1048576'])
   expect(f.script.state.permissions.agent).toBe(SITTER)
   input()
   expect(events()).toEqual(['ev bbbbbbbb 1 0/1 owner -1/0', 'ev bbbbbbbb 0 0/0 owner -1/0'])
   f.say(SITTER)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   answer(false)
   expect(rtp()).toEqual(['rtp 1048576', 'rtp 0'])
   expect(f.script.state.permissions.agent).toBe(SITTER)
   input()
   expect(events()).toHaveLength(2)
   f.say(SITTER)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   answer(true)
   f.say(SITTER)
   f.linkset.advanceTime(30_000)

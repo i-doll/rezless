@@ -6,6 +6,8 @@ import { loadLinkset, type ScriptInput } from '../src/index.js'
 // lone-prim cases in SLua Tideland (2026-10-31) with a 7-prim linkset whose
 // scripts llSay what they received, each prim clicked on face 0.
 
+const SIM_FRAME_MS = 1000 / 45
+
 const ALICE = { key: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'Alice Resident' }
 
 const recorder = (events: ReadonlyArray<string> = ['touch_start', 'touch', 'touch_end'], entry = '') => `
@@ -193,7 +195,7 @@ describe('linkset.touch routes a click like Second Life', () => {
     `
     const { linkset, got } = await setup([[script('s', sleepy)]])
     linkset.touch(0, { hold: 1000 })
-    expect(got('s')).toEqual([2])
+    expect(got('s')).toEqual([Math.fround(2 + SIM_FRAME_MS / 1000)])
   })
 
   const selfStopping = (stopIn: string) => `
@@ -214,7 +216,7 @@ describe('linkset.touch routes a click like Second Life', () => {
     linkset.touch(0)
     expect(got('s')).toEqual(['start'])
     linkset.deliverLinkMessage(0, 0, 0, '', '')
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     expect(got('s')).toEqual(['start', 'touch', 'end'])
   })
 
@@ -248,7 +250,7 @@ describe('linkset.touch routes a click like Second Life', () => {
     linkset.deliverLinkMessage(0, 0, 0, 'go', '')
     linkset.advanceTime(1000)
     linkset.deliverLinkMessage(0, 0, 0, '', '')
-    linkset.advanceTime(0)
+    linkset.advanceTime(SIM_FRAME_MS)
     // 11 touch events before the stop, then 23 in the second after the restart: the first
     // 0.022 s after it, then every 0.044 s.
     expect(got('s')).toEqual(['start', 'touches', 34])
@@ -306,7 +308,7 @@ describe('linkset.touch routes a click like Second Life', () => {
     expect(times).toHaveLength(34)
     expect(times[0]).toBeCloseTo(0.022, 3)
     expect(times.slice(1).map((t, i) => Math.round((t - times[i]!) * 1000))).toEqual(Array(33).fill(44))
-    expect(got('s').slice(-2)).toEqual(['end', 1.5])
+    expect(got('s').slice(-2)).toEqual(['end', Math.fround(68 * SIM_FRAME_MS / 1000)])
   })
 
   it('under llMinEventDelay a held click raises touch once per delay, on its own beat', async () => {
@@ -328,13 +330,13 @@ describe('linkset.touch routes a click like Second Life', () => {
     linkset.touch(0, { hold: 4000 })
     // A touch held back by the delay runs when the delay is over; in-world it ran on the next
     // simulator frame, up to 0.022 s later. touch_end waits behind it.
-    expect(got('s')).toEqual(['start', 22, 1000, 2000, 3000, 4000, 'end', 4000])
+    expect(got('s')).toEqual(['start', 22, 1000, 2000, 3000, 4000, 'end', 4022])
   })
 
   it('under llMinEventDelay held touch events keep their beat apart from a timer', async () => {
     // In-world: llMinEventDelay(1.0) and a 0.1 s timer; touch_start came 0.455 s after the
     // click, on the timer's beat. After it: timer at 0.978, 2.000 and 3.000, touch at 0.022,
-    // 1.000, 2.022 and 3.023, and touch_end at 3.045, each within a frame of the times here.
+    // 1.000, 2.022 and 3.023, and touch_end at 3.045, each within two frames of the times here.
     const log = `
       list got = [];
       integer on;
@@ -349,10 +351,10 @@ describe('linkset.touch routes a click like Second Life', () => {
     `
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.advanceTime(2500)
-    linkset.touch(0, { hold: 3510 })
+    linkset.touch(0, { hold: 3532 })
     // Here a timer and a touch due at once run touch first.
-    expect(got('s')).toEqual(['start', 'touch@0', 'touch@1000', 'timer@1000', 'touch@2000', 'timer@2000',
-      'touch@3000', 'timer@3000', 'end@3010'])
+    expect(got('s')).toEqual(['start', 'touch@22', 'touch@1000', 'timer@1022', 'touch@2000', 'timer@2022',
+      'touch@3000', 'timer@3022', 'end@3044'])
   })
 
   describe('under llMinEventDelay, touch events waiting from one avatar merge', () => {
@@ -372,7 +374,9 @@ describe('linkset.touch routes a click like Second Life', () => {
       const { linkset, got } = await setup([[script('s', merged(delay))]])
       linkset.advanceTime(3000)
       for (const { face, hold } of clicks) {
-        linkset.touch(0, { face, hold })
+        linkset.press(0, { face })
+        linkset.advanceTime(hold)
+        linkset.release()
         linkset.advanceTime(100)
       }
       linkset.advanceTime(5000)
@@ -383,13 +387,13 @@ describe('linkset.touch routes a click like Second Life', () => {
       // In-world, (1.0): S1@3066 T1@3111 T2@4067 E2@4089. (2.0): S1@3068 T1@3090 T2@5090
       // E2@5112. The second click raised no touch_start; its data reached the touch and
       // touch_end that waited, one delay after the first touch_start.
-      expect(await run(delay, [{ face: 1, hold: 100 }, { face: 2, hold: 100 }])).toEqual(['S1@3000', 'T1@3022', `T2@${due}`, `E2@${due}`])
+      expect(await run(delay, [{ face: 1, hold: 100 }, { face: 2, hold: 100 }])).toEqual(['S1@3000', 'T1@3022', `T2@${due}`, `E2@${due + 22}`])
     })
 
     it.each([[1, 4000], [2, 5000]])('three 0.1 s holds in a row with llMinEventDelay(%i) make one click', async (delay, due) => {
       // In-world, (1.0): S1@3067 T1@3089 T3@4067 E3@4089. (2.0): S1@3111 T1@3133 T3@5111 E3@5134.
       const clicks = [1, 2, 3].map((face) => ({ face, hold: 100 }))
-      expect(await run(delay, clicks)).toEqual(['S1@3000', 'T1@3022', `T3@${due}`, `E3@${due}`])
+      expect(await run(delay, clicks)).toEqual(['S1@3000', 'T1@3022', `T3@${due}`, `E3@${due + 22}`])
     })
 
     it.each([[1, 4000], [2, 5000]])('a quick click, then a 0.4 s hold, with llMinEventDelay(%i)', async (delay, due) => {
@@ -397,7 +401,7 @@ describe('linkset.touch routes a click like Second Life', () => {
       // T1@3089 E1@3111 S2@5066 T2@5089 E2@5111. The hold's touch_start waited a delay, and its
       // touch events merged into one.
       expect(await run(delay, [{ face: 1, hold: 0 }, { face: 2, hold: 400 }])).toEqual(
-        ['S1@3000', 'T1@3000', 'E1@3000', `S2@${due}`, `T2@${due}`, `E2@${due}`])
+        ['S1@3000', 'T1@3022', 'E1@3044', `S2@${due}`, `T2@${due + 22}`, `E2@${due + 44}`])
     })
   })
 
@@ -424,10 +428,10 @@ describe('linkset.touch routes a click like Second Life', () => {
     const { linkset, got } = await setup([[script('s', log), script('r', sender)]])
     linkset.advanceTime(3000)
     linkset.touch(0, { face: 1 })
-    linkset.advanceTime(100)
+    linkset.advanceTime(3100 - linkset.clock.now)
     linkset.touch(0, { face: 2, hold: 400 })
     linkset.advanceTime(2000)
-    expect(got('s')).toEqual(['S1@3000', 'T1@3000', 'E1@3000', 'Lx@3300', 'S2@4000', 'T2@4000', 'E2@4000'])
+    expect(got('s')).toEqual(['S1@3000', 'T1@3022', 'E1@3044', 'Lx@3322', 'S2@4000', 'T2@4022', 'E2@4044'])
   })
 
   describe('clicks held back in a sleep keep their own times when they merge', () => {
@@ -508,8 +512,10 @@ describe('linkset.touch routes a click like Second Life', () => {
     const run = async (delay: number, clicks: ReadonlyArray<ReturnType<typeof click>>) => {
       const { linkset, got } = await setup([[script('s', both(delay))]])
       linkset.advanceTime(3000)
-      for (const c of clicks) {
-        linkset.touch(0, c)
+      for (const { hold, ...c } of clicks) {
+        linkset.press(0, c)
+        linkset.advanceTime(hold)
+        linkset.release(c.avatar)
         linkset.advanceTime(100)
       }
       linkset.advanceTime(5000)
@@ -520,7 +526,7 @@ describe('linkset.touch routes a click like Second Life', () => {
       // In-world, (1.0): S1[i1]@3067 T1[i1]@3178 S1[f2]@4067 T2[i1f2]@4089 E2[i1f2]@4111.
       // (2.0): S1[i1]@3088 T1[i1]@3111 S1[f2]@5088 T2[i1f2]@5111 E2[i1f2]@5133.
       expect(await run(delay, [click(IDOLL, 100), click(FIVEBOT, 100)])).toEqual(
-        ['S1[i1]@3000', 'T1[i1]@3022', `S1[f2]@${due}`, `T2[i1f2]@${due}`, `E2[i1f2]@${due}`])
+        ['S1[i1]@3000', 'T1[i1]@3022', `S1[f2]@${due}`, `T2[i1f2]@${due + 22}`, `E2[i1f2]@${due + 44}`])
     })
 
     it.each([[1, 4000], [2, 5000]])('with llMinEventDelay(%i) the merged touch and touch_end list avatars by their last click', async (delay, due) => {
@@ -528,7 +534,7 @@ describe('linkset.touch routes a click like Second Life', () => {
       // T2[f2i1]@4111 E2[f2i1]@4133. (2.0) S1[i1]@3066 T1[i1]@3089 S1[f2]@5067 T2[f2i1]@5088
       // E2[f2i1]@5111.
       expect(await run(delay, [click(IDOLL, 100), click(FIVEBOT, 100), click(IDOLL, 100)])).toEqual(
-        ['S1[i1]@3000', 'T1[i1]@3022', `S1[f2]@${due}`, `T2[f2i1]@${due}`, `E2[f2i1]@${due}`])
+        ['S1[i1]@3000', 'T1[i1]@3022', `S1[f2]@${due}`, `T2[f2i1]@${due + 22}`, `E2[f2i1]@${due + 44}`])
     })
 
     it.each([[1, 4000], [2, 5000]])('with llMinEventDelay(%i) a click after another avatar\'s finished click waits a delay', async (delay, due) => {
@@ -536,7 +542,7 @@ describe('linkset.touch routes a click like Second Life', () => {
       // T1[i1]@3089 E1[i1]@3112 S1[f2]@4089 T1[f2]@4112 E1[f2]@4134. (2.0) the same with
       // fivebot's events at 5111, 5133 and 5155.
       expect(await run(delay, [click(IDOLL, 0), click(FIVEBOT, 400)])).toEqual(
-        ['S1[i1]@3000', 'T1[i1]@3000', 'E1[i1]@3000', `S1[f2]@${due}`, `T1[f2]@${due}`, `E1[f2]@${due}`])
+        ['S1[i1]@3000', 'T1[i1]@3022', 'E1[i1]@3044', `S1[f2]@${due}`, `T1[f2]@${due + 22}`, `E1[f2]@${due + 44}`])
     })
 
     it('during a sleep, each kind of touch event lists both avatars once', async () => {
@@ -553,7 +559,7 @@ describe('linkset.touch routes a click like Second Life', () => {
         linkset.advanceTime(200)
       }
       linkset.advanceTime(10_000)
-      expect(got('s')).toEqual(['S2[i1f2]@8000', 'T2[f2i1]@8000', 'E2[f2i1]@8000'])
+      expect(got('s')).toEqual(['S2[i1f2]@8044', 'T2[f2i1]@8067', 'E2[f2i1]@8089'])
     })
   })
 
@@ -663,10 +669,12 @@ describe('linkset.touch routes a click like Second Life', () => {
       linkset.attachToAvatar(linkset.owner, 1)
       linkset.advanceTime(1000)
       send('')
+      linkset.advanceTime(SIM_FRAME_MS)
       linkset.detachFromAvatar()
       linkset.attachToAvatar(linkset.owner, 1)
       linkset.advanceTime(1000)
       send('')
+      linkset.advanceTime(SIM_FRAME_MS)
       expect(got('s').slice(-3)).toEqual(['touches', 23, -1])
       linkset.touch(0, { face: 2 })
       expect(got('s').slice(-5)).toEqual(['touches', 1, 2, 'end', 2])
@@ -804,7 +812,7 @@ describe('linkset.touch routes a click like Second Life', () => {
     `
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.touch(0, { hold: 3500 })
-    expect(got('s')).toEqual([22, 1000, 2000, 3000])
+    expect(got('s')).toEqual([22, 1000, 2000, 3000, 4000])
   })
 
   it('each held click starts its touch events half a beat after it, even right after another', async () => {
@@ -869,7 +877,8 @@ describe('linkset.touch routes a click like Second Life', () => {
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.advanceTime(4000)
     for (const wait of [300, 2500, 300, 10_000]) {
-      linkset.touch(0)
+      linkset.press(0)
+      linkset.release()
       linkset.advanceTime(wait)
     }
     expect(got('s')).toEqual(['start', 'touch', 'end', 'start', 'touch', 'end', 'start', 'touch', 'end'])

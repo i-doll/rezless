@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset, loadScript, World } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
+const framesAfter = (s: number, frames: number) => Math.fround(s + frames * SIM_FRAME_MS / 1000)
+
 // In-world: SLua Tideland on Aditi, Mono (2026-10-31). Probes wrote results
 // into the object description, read back with object.get.
 
@@ -113,7 +116,7 @@ describe('llMinEventDelay', () => {
        listen(integer c, string n, key i, string m) { out += ["listen", llGetTime()]; }`,
     )
     s.deliverChat({ channel: 5, name: 'talker', key: '00000000-0000-0000-0000-000000000005', message: 'x' })
-    expect(s.global('out')).toEqual(['lm', 0, 'lm', 0, 'lm', 0, 'listen', 0])
+    expect(s.global('out')).toEqual(['lm', framesAfter(0, 1), 'lm', framesAfter(0, 2), 'lm', framesAfter(0, 3), 'listen', framesAfter(0, 4)])
   })
 
   // In-world: with llMinEventDelay(2.0), clicks at about t, t+0.3, t+2.8 and t+3.1 gave
@@ -125,16 +128,17 @@ describe('llMinEventDelay', () => {
        touch_start(integer n) { out += ["start", n, llGetTime()]; }
        touch_end(integer n) { out += ["end", n, llGetTime()]; }`,
     )
+    const click = () => { s.linkset.press(0); s.linkset.release() }
     s.advanceTime(4000)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(300)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(2500)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(300)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(10_000)
-    expect(s.global('out')).toEqual(['start', 1, 4, 'end', 1, 4, 'start', 1, 6, 'end', 1, 6, 'start', 1, 8, 'end', 1, 8])
+    expect(s.global('out')).toEqual(['start', 1, 4, 'end', 1, framesAfter(4, 1), 'start', 1, 6, 'end', 1, framesAfter(6, 1), 'start', 1, 8, 'end', 1, framesAfter(8, 1)])
   })
 
   // In-world: llMinEventDelay(1.0) with a 0.1 s timer running; clicks at about 2.2 s and 4.7 s
@@ -147,10 +151,11 @@ describe('llMinEventDelay', () => {
        touch_start(integer n) { out += [llGetTime()]; }`,
       'integer ticks;',
     )
+    const click = () => { s.linkset.press(0); s.linkset.release() }
     s.advanceTime(2200)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(2500)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(2300)
     expect(s.global('out')).toEqual([3, 5])
     expect(s.global('ticks')).toBe(5)
@@ -163,11 +168,12 @@ describe('llMinEventDelay', () => {
       `state_entry() { llResetTime(); llMinEventDelay(3.0); }
        touch_start(integer n) { out += [n, llGetTime()]; }`,
     )
-    s.linkset.touch(0)
+    const click = () => { s.linkset.press(0); s.linkset.release() }
+    click()
     s.advanceTime(200)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(200)
-    s.linkset.touch(0)
+    click()
     s.advanceTime(9000)
     expect(s.global('out')).toEqual([1, 3])
   })
@@ -177,7 +183,7 @@ describe('llMinEventDelay', () => {
   it('holds an event fired from a test until the delay has passed', async () => {
     const s = await run('state_entry() { llMinEventDelay(1.0); llResetTime(); } timer() { out += [llGetTime()]; }')
     s.fire('timer')
-    expect(s.global('out')).toEqual([])
+    expect(s.global('out')).toEqual([1])
     s.advanceTime(1000)
     expect(s.global('out')).toEqual([1])
   })

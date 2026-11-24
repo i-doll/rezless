@@ -97,6 +97,7 @@ it('keeps simulator chat independent of denied viewer attempts', async () => {
         llSay(22101,"say"); llRegionSay(22101,"region");
       } }` } }] }] })
     sender.scripts.sender!.start()
+    fixture.script.advanceTime(100)
     const before = [...sender.scripts.sender!.chat]
     expect(fixture.script.global('heard')).toBe(2)
     fixture.sendChat(22101, 'denied')

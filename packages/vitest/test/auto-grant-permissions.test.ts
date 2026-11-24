@@ -58,11 +58,11 @@ async function fixture(where: Where, asks: number[], opts: { agent?: string, scr
     const seat = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{}] })
     expect(world.sitAvatar(avatar, seat.linkset.prims[0]!)).toBe(true)
   }
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   const ask = (times = 1) => {
     for (let i = 0; i < times; i++) {
       script.fire('touch_start', { num_detected: 1 })
-      linkset.advanceTime(0)
+      linkset.advanceTime(100)
     }
   }
   const held = () => {
@@ -362,7 +362,7 @@ describe('controls and camera control taken back', () => {
       }` } }] }] })
     scripts.seat!.start()
     world.sitAvatar(owner, linkset.prims[0]!)
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
     expect([scripts.seat!.global('before'), scripts.seat!.global('after')]).toEqual([20, 16])
     expect(owner.sittingOn).toBeNull()
   })
@@ -443,9 +443,9 @@ describe('controls and camera control taken back', () => {
     const f = await fixture('worn', [bits])
     f.ask()
     f.linkset.detachFromAvatar()
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     f.linkset.attachToAvatar(OWNER, 5)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     expect(f.script.global('attached')).toEqual([0, '00000000-0000-0000-0000-000000000000', bits, OWNER, left, key])
     expect(f.script.global('events')).toEqual([bits])
   })
