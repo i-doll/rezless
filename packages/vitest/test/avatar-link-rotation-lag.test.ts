@@ -390,9 +390,9 @@ describe("a seated avatar's rotation under turned roots", () => {
     // In-world: llCreateLink(B, FALSE) made B the root. The sitter kept its region rotation in
     // PRIM_ROT_LOCAL at once, but PRIM_ROTATION read the old local rotation times B's root until
     // the new one arrived; a set on its way when the link came arrived the same way. Before the
-    // settled link the probe set PRIM_ROTATION 0 over a local rotation of 0 and got a local
-    // rotation of 50; the test sets that state through PRIM_ROT_LOCAL, as a PRIM_ROTATION equal to
-    // the local rotation changes nothing here, as it did in-world before the other link (f0).
+    // settled link the probe set PRIM_ROTATION 0 and got a local rotation of 50, so the local
+    // rotation before it can't have been 0: over 0 it changed nothing in 17 later tries (see
+    // attachment-root-rotation.test.ts). The test sets the local rotation of 50 directly.
     const settled = await turnedSeats()
     settled.world.sitAvatar(settled.avatar, settled.a.linkset.prims[0]!)
     settled.wait(2000)
