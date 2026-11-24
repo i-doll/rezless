@@ -920,7 +920,7 @@ describe('SLua as its host runs it', () => {
     const s = await slua(`LLEvents:on("touch_start", function(e) print("touch") error("boom") end)`)
     s.start()
     expect(() => s.fire('touch_start', { num_detected: 1 })).toThrow(/boom/)
-    s.running = true
+    s.reset()
     expect(() => s.fire('touch_start', { num_detected: 1 })).toThrow(/boom/)
     expect(s.printed).toEqual(['touch', 'touch'])
   })
