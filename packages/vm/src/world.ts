@@ -1263,30 +1263,51 @@ interface Plane { readonly normal: Vector; readonly offset: number }
 const dot = (a: Vector, b: Vector) => a.x * b.x + a.y * b.y + a.z * b.z
 const minus = (a: Vector, b: Vector): Vector => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z })
 
-const hullPlanes = new Map<number, readonly Plane[]>()
+type AvatarPose = 'standing' | 'seated' | 'ground'
+
+const hullPlanes = new Map<string, readonly Plane[]>()
 
 /**
- * In-world, rays hit a standing avatar on a convex hull, not a box or a capsule. In the avatar's
- * frame, with x forward and heights from the avatar's position, it joins four rings, each given by
- * its corners:
- * - the bottom, at minus the top's height: (±0.05, ±0.05);
- * - the low ring, 0.6511 m above the bottom: (0.225, ±0.1128), (-0.1949, ±0.1128), (0, ±0.2255);
- * - the middle ring, 0.7789 of the way from the bottom to the top: (±0.225, ±0.1005), (0, ±0.3);
- * - the top, 0.05 m above half the avatar's llGetAgentSize height: (±0.1125, ±0.1).
- * The heights were measured on two avatars, 1.65382 and 1.70672 m tall: bottom, low, middle and
- * top at -0.8765, -0.226, 0.488 and 0.8765 m on one, -0.9035, -0.252, 0.505 and 0.9035 m on the
- * other, each within 1.1 mm of these rules. Other heights are not measured.
+ * In-world, rays hit an avatar on a convex hull set by its pose and its llGetAgentSize height h,
+ * not on a box or a capsule. In the avatar's frame, with x forward and heights from the avatar's
+ * position, each hull joins rings of corners, mirrored across x = 0 where written with ±:
+ * - Standing, with the top t = h / 2 + 0.05: the bottom at -t, (±0.05, ±0.05); 0.65 m above the
+ *   bottom, (0.225, ±0.1125), (-0.1949, ±0.1125), (0, ±0.225); 0.825 h above the bottom,
+ *   (±0.225, ±0.1), (0, ±0.3); the top at t, (±0.1125, ±0.1).
+ * - Sitting on an object, a wedge leaning back: (0.1375, ±0.3) at -0.3 - 0.375 h,
+ *   (-0.5375, ±0.3) at -0.3 - 0.125 h, (0.025, ±0.15) at -0.3, (-0.5375, ±0.15) at -0.3 + 0.25 h.
+ *   It doesn't change with the sit target or the animation playing.
+ * - Sitting on the ground: (±0.3375, ±0.45) at -0.375 h up to (±0.225, ±0.15) at 0.
+ * Measured on avatars 1.13977, 1.55859, 1.65382, 1.70672 and 2.20989 m tall (seated and on the
+ * ground at all but 1.65382); the hulls give every measured hit and miss at each height.
  */
-function avatarHull(height: number): readonly Plane[] {
-  const cached = hullPlanes.get(height)
+function avatarHull(pose: AvatarPose, h: number): readonly Plane[] {
+  const key = `${pose} ${h}`
+  const cached = hullPlanes.get(key)
   if (cached) return cached
-  const top = height / 2 + 0.05, low = 0.6511 - top, middle = -top + 0.7789 * 2 * top
   const vertices: Vector[] = []
-  for (const s of [1, -1]) {
-    for (const t of [1, -1]) {
-      vertices.push({ x: 0.05 * s, y: 0.05 * t, z: -top }, { x: 0.1125 * s, y: 0.1 * t, z: top }, { x: 0.225 * s, y: 0.1005 * t, z: middle })
+  const mirrored = (x: number, y: number, z: number) => vertices.push({ x, y, z }, { x, y: -y, z })
+  if (pose === 'standing') {
+    const top = h / 2 + 0.05, low = 0.65 - top, middle = 0.825 * h - top
+    for (const s of [1, -1]) {
+      mirrored(0.05 * s, 0.05, -top)
+      mirrored(0.225 * s, 0.1, middle)
+      mirrored(0.1125 * s, 0.1, top)
     }
-    vertices.push({ x: 0.225, y: 0.1128 * s, z: low }, { x: -0.1949, y: 0.1128 * s, z: low }, { x: 0, y: 0.2255 * s, z: low }, { x: 0, y: 0.3 * s, z: middle })
+    mirrored(0.225, 0.1125, low)
+    mirrored(-0.1949, 0.1125, low)
+    mirrored(0, 0.225, low)
+    mirrored(0, 0.3, middle)
+  } else if (pose === 'seated') {
+    mirrored(0.1375, 0.3, -0.3 - 0.375 * h)
+    mirrored(-0.5375, 0.3, -0.3 - 0.125 * h)
+    mirrored(0.025, 0.15, -0.3)
+    mirrored(-0.5375, 0.15, -0.3 + 0.25 * h)
+  } else {
+    for (const s of [1, -1]) {
+      mirrored(0.3375 * s, 0.45, -0.375 * h)
+      mirrored(0.225 * s, 0.15, 0)
+    }
   }
   const planes: Plane[] = []
   for (let i = 0; i < vertices.length; i++) {
@@ -1304,12 +1325,15 @@ function avatarHull(height: number): readonly Plane[] {
       }
     }
   }
-  hullPlanes.set(height, planes)
+  hullPlanes.set(key, planes)
   return planes
 }
 
-// In-world, rays at a seated avatar hit another shape, set by the sitting pose, that isn't modelled.
-const isStandingAvatar = (entity: WorldEntity) => entity.username !== undefined && !((entity as WorldAvatar).info & AGENT_SITTING)
+const avatarPose = (entity: WorldEntity): AvatarPose | undefined => {
+  if (entity.username === undefined) return
+  const info = (entity as WorldAvatar).info
+  return !(info & AGENT_SITTING) ? 'standing' : info & AGENT_ON_OBJECT ? 'seated' : 'ground'
+}
 
 /** Intersect a convex hull, excluding rays whose start is inside. */
 function hullEntry(start: Vector, end: Vector, position: Vector, rotation: Rotation, planes: readonly Plane[]): Omit<RayHit, 'key' | 'rootKey' | 'linkNumber'> | undefined {
@@ -1347,9 +1371,9 @@ function hullEntry(start: Vector, end: Vector, position: Vector, rotation: Rotat
 /** Shared by World ray queries and a standalone linkset's own-prim query. */
 export function castRayBoxes(linksets: readonly Linkset[], entities: readonly WorldEntity[], start: Vector, end: Vector, options: RayOptions): RayHit[] {
   const hits: RayHit[] = []
-  const add = (key: string, rootKey: string, linkNumber: number, position: Vector, rotation: Rotation, size: Vector, physical: boolean, phantom: boolean, avatar: boolean, hull = false) => {
+  const add = (key: string, rootKey: string, linkNumber: number, position: Vector, rotation: Rotation, size: Vector, physical: boolean, phantom: boolean, avatar: boolean, pose?: AvatarPose) => {
     if (avatar ? (options.rejectTypes & 1) : phantom ? !options.detectPhantom : (options.rejectTypes & (physical ? 2 : 4))) return
-    const hit = hull ? hullEntry(start, end, position, rotation, avatarHull(size.z)) : boxEntry(start, end, position, rotation, size)
+    const hit = pose ? hullEntry(start, end, position, rotation, avatarHull(pose, size.z)) : boxEntry(start, end, position, rotation, size)
     if (hit) hits.push({ ...hit, key, rootKey, linkNumber })
   }
   for (const linkset of linksets) {
@@ -1364,7 +1388,7 @@ export function castRayBoxes(linksets: readonly Linkset[], entities: readonly Wo
   }
   for (const entity of entities) {
     add(entity.key, entity.key, 0, entity.position, entity.rotation, entity.size ?? { x: 0.5, y: 0.5, z: 0.5 },
-      entity.physical, entity.phantom ?? false, entity.username !== undefined, isStandingAvatar(entity))
+      entity.physical, entity.phantom ?? false, entity.username !== undefined, avatarPose(entity))
   }
   return hits.sort((a, b) => a.fraction - b.fraction)
 }
