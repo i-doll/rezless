@@ -199,15 +199,17 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // its own when i doll's touch waited. In LSL, i doll's touch listed fivebot too when it
       // came up a frame or more after the handler started (5 of 13 runs with a timer that slept
       // 3 s), and listed i doll alone when it came up in the handler's first frame (the other
-      // 8). SLua raises a held click's touch every frame, so it came up in the first frame and
-      // listed i doll alone, 4 runs of 4.
+      // 8; with a listen that slept, 8 of 10 and 2 of 10). It listed i doll alone after a spin,
+      // whatever frame it came up in (13 runs with a listen, 4 with touch_end). SLua raises a
+      // held click's touch every frame, so it came up in the first frame and listed i doll
+      // alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
       const touches = running ? waitingTouches(s, 'touch', by) : { own: undefined, other: undefined }
       const waiting = touches.other
       if (waiting || running && raised) {
         const listed = waiting ? detectedIn(waiting) : raised!.detected
         const came = waiting ? cameUp(waiting) : clock.now
-        if (listed.length && s.handlerEvent !== 'touch_start' && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
+        if (listed.length && s.handlerEvent !== 'touch_start' && !s.busy && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
           if (waiting) {
             waiting.payload['detected'] = [...listed, ...click.detected]
             waiting.payload['num_detected'] = listed.length + click.detected.length
