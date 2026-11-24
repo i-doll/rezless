@@ -204,8 +204,12 @@ const enum Register {
   CompatOnly = 2,
 }
 
-/** SLua's own versions of these differ from Second Life's: ll.Pow and ll.Atan2 keep results below the smallest normal float, and ll.Acos keeps a NaN's sign. */
-const REPLACED = new Set(['llPow', 'llAtan2', 'llAcos'])
+/**
+ * SLua's own versions of these that rezless answers instead. ll.Pow, ll.Atan2 and ll.Acos differ from Second
+ * Life's: ll.Pow and ll.Atan2 keep results below the smallest normal float, and ll.Acos keeps a NaN's sign.
+ * ll.GetTime comes through rezless so that a test's mock of llGetTime answers it; unmocked, it reads the clock as SLua does.
+ */
+const REPLACED = new Set(['llPow', 'llAtan2', 'llAcos', 'llGetTime'])
 
 const utf8 = new TextEncoder()
 const fromUtf8 = new TextDecoder()

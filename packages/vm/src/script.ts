@@ -1966,6 +1966,8 @@ export class Script {
   private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null; busyMs: number | null } {
     const spec = BUILTIN_SPECS[name as keyof typeof BUILTIN_SPECS] as BuiltinSpec
     const engine = this.slua!
+    // SLua's own ll.GetTime reads the script clock as a double, without an LSL call; only a test's mock replaces it.
+    if (name === 'llGetTime' && !this.mocks[name]) return { value: this.clockView.elapsedSeconds(), delayMs: null, busyMs: null }
     // SLua passes floats to LSL functions as 32-bit floats.
     const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
     let mocks = this.mocks
@@ -1973,6 +1975,7 @@ export class Script {
     const vmMemory = this.sluaMemoryBuiltin(name, lslArgs)
     if (!mocks[name] && vmMemory) mocks = { ...mocks, [name]: vmMemory }
     const { result, delayMs, busyMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
+    if (name === 'llGetTime') return { value: result ?? 0, delayMs, busyMs }
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
     return { value, delayMs, busyMs }
   }
