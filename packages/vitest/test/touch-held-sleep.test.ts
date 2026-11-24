@@ -449,14 +449,26 @@ describe('two avatars clicking while a handler sleeps', () => {
       }
     })
 
-    it('in LSL a click pressed in a spin stays out of the waiting touch through a sleep after the spin', async () => {
+    it('in LSL the touch waiting from a sleep takes no other click once the handler has spun', async () => {
       // In-world (Aditi, SLua Tideland, 2026-11-24): i doll held 4.5 s, a listen 0.3 s in slept
       // 1 s, spun 1 s and slept 1.5 s, and fivebot pressed 0.2 s into the spin and held until
       // 0.2 to 0.3 s into the second sleep -> the touch after the handler listed i doll alone,
       // 6 runs of 6, 4 of them with the listen one frame after i doll's last touch.
+      // In-world: the same with fivebot clicking for 0.3 s only in the second sleep, 0.4 to 0.5 s
+      // into it -> i doll alone, 6 runs of 6, 4 at the one-frame phase.
       for (const at of [300, 320]) {
         expect(await run('lsl', 0, 0, { 0: 'i', [at]: 'Z', 1600: 'f', 2600: 'F', 4500: 'I' })).toBe('Si Ti Z Ti Ef Ti Ei')
+        expect(await run('lsl', 0, 0, { 0: 'i', [at]: 'Z', 2800: 'f', 3100: 'F', 4500: 'I' })).toBe('Si Ti Z Ti Ef Ti Ei')
       }
+    })
+
+    it.fails('in LSL a second click by the same avatar, pressed while its first touch_end waits, raises touch_start', async () => {
+      // In-world (Aditi, SLua Tideland, 2026-11-24): the listen above, with fivebot clicking for
+      // 0.2 s in the spin and again for 0.3 s in the second sleep -> i doll's touch alone,
+      // fivebot's touch_end, then fivebot's touch_start, a touch listing both and fivebot's
+      // touch_end, 3 runs of 3. rezless raises no touch_start for the second click and no touch
+      // for it, from a rule measured with one avatar clicking twice.
+      expect(await run('lsl', 0, 0, { 0: 'i', 300: 'Z', 1600: 'f', 1800: 'F', 2800: 'f', 3100: 'F', 4500: 'I' })).toBe('Si Ti Z Ti Ef Sf Tif Ef Ti Ei')
     })
 
     it('in LSL a click pressed in the sleep after a spin stays out of the touch that came up in the spin', async () => {

@@ -107,8 +107,6 @@ export interface HeldTouch {
   cut?: boolean
   /** When its next `touch` is due. */
   dueAt: number
-  /** When the handler started that was in a busy loop when one of its touches came due. */
-  spunIn?: number
 }
 
 /** The scripts on one clock that hold clicks, and the task that raises their next `touch`. */
@@ -143,6 +141,9 @@ const fresh = (detected: ReadonlyArray<DetectedEntry>) => detected.map((e) => ({
 
 /** The touch data each script has run a `touch` handler with. */
 const deliveredTouches = new WeakMap<Script, WeakSet<DetectedEntry>>()
+
+/** When a held click last came due while the script's handler was in a busy loop. */
+const spunAt = new WeakMap<Script, number>()
 
 /** Note that `s` runs a `touch` handler with `detected`. */
 export function touchDelivered(s: Script, detected: ReadonlyArray<DetectedEntry>): void {
@@ -207,19 +208,20 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // listen that spun 1.5 s and then slept 1.5 s while fivebot's click was held into the
       // sleep, or clicked in the sleep, 8 runs, and 6 with a timer that spun. A listen that slept
       // first and then spun followed the frame rule, 5 runs, but listed i doll alone when
-      // fivebot clicked in the spin, 6 runs of 6, and when it slept 1 s, spun 1 s and slept
-      // 1.5 s, with fivebot's click pressed in the spin and held into the second sleep, 6 runs
-      // of 6. So a click pressed while the handler spins never joins. SLua raises a held
-      // click's touch every frame, so it came up in the first frame and listed i doll alone,
-      // 4 runs of 4.
+      // fivebot clicked in the spin, 6 runs of 6. A listen that slept 1 s, spun 1 s and slept
+      // 1.5 s listed i doll alone when fivebot pressed in the spin and held into the second
+      // sleep, 6 runs of 6, and when fivebot clicked only in the second sleep, 6 runs of 6. So
+      // once the handler has spun, the touch that came up before the spin takes no one else.
+      // SLua raises a held click's touch every frame, so it came up in the first frame and
+      // listed i doll alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
-      if (running && s.busy) click.spunIn = s.handlerStartedAt!
+      if (running && s.busy) spunAt.set(s, clock.now)
       const touches = running ? waitingTouches(s, 'touch', by) : { own: undefined, other: undefined }
       const waiting = touches.other
       if (waiting || running && raised) {
         const listed = waiting ? detectedIn(waiting) : raised!.detected
         const came = waiting ? cameUp(waiting) : clock.now
-        if (listed.length && s.handlerEvent !== 'touch_start' && click.spunIn !== s.handlerStartedAt && !waiting?.busy && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
+        if (listed.length && s.handlerEvent !== 'touch_start' && !waiting?.busy && !((spunAt.get(s) ?? -Infinity) >= Math.max(came, s.handlerStartedAt!)) && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
           if (waiting) {
             waiting.payload['detected'] = [...listed, ...click.detected]
             waiting.payload['num_detected'] = listed.length + click.detected.length
