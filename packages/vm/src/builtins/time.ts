@@ -1,6 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { toFloat32, toInt32 } from '../values/types.js'
 import { isNegativeNaN } from '../values/nan.js'
+import { SIM_FRAME_MS } from '../clock.js'
 
 /**
  * Time and timer built-ins. All operate on the virtual clock; no real
@@ -25,14 +26,6 @@ export const llMinEventDelay: BuiltinImpl = (ctx, args) => {
 }
 
 /**
- * Minimum llSleep advance for positive durations: one server frame at the
- * LSL-canonical 45 Hz tick (~22.222 ms). `llSleep(0)` and negative values
- * are no-ops per the LSL wiki — they are early-returned before this floor
- * is applied.
- */
-const FRAME_MS = 1000 / 45
-
-/**
  * llSleep(float sec) — suspends the script on the virtual clock.
  *
  * Per LSL:
@@ -46,7 +39,7 @@ const FRAME_MS = 1000 / 45
 export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0
   if (seconds <= 0 || isNegativeNaN(seconds)) return undefined
-  ctx.sleep(Number.isNaN(seconds) ? FRAME_MS : Math.max(FRAME_MS, seconds * 1000))
+  ctx.sleep(Number.isNaN(seconds) ? SIM_FRAME_MS : Math.max(SIM_FRAME_MS, seconds * 1000))
   return undefined
 }
 

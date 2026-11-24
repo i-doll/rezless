@@ -194,7 +194,7 @@ describe('llGetObjectAnimationNames', () => {
   it('reads the calling prim only: a child prim plays its own animations', async () => {
     // In-world: llStartObjectAnimation("hello") in link 2 -> link 2 reads [9b29cd61-...];
     // the root's list stayed [...] without it, and the root stopping "hello" left link 2's.
-    const { scripts } = await loadLinkset({
+    const { linkset, scripts } = await loadLinkset({
       animesh: true,
       prims: [
         {
@@ -223,7 +223,7 @@ describe('llGetObjectAnimationNames', () => {
         },
       ],
     })
-    for (const s of Object.values(scripts)) s.start()
+    linkset.startAll()
     scripts.root!.advanceTime(1000)
     expect(scripts.root!.global('out')).toEqual([HELLO, SIT])
     expect(scripts.child!.global('out')).toEqual([HELLO])

@@ -55,6 +55,8 @@ describe('giving to an object owned by someone else', () => {
     // In-world: llGiveInventory of a script to the other avatar's prim after its llAllowInventoryDrop(TRUE)
     // -> delivered, one changed(64), masks 532480/532480/532480 (base and owner cut to next).
     // llGiveInventoryList of a notecard and a script -> both delivered, one changed(64), 3 s.
+    // In-world (2026-11-24): llGiveInventory then llGiveInventoryList in one handler into the other
+    // avatar's prim -> one changed(64) counting both (2 of 2).
     const world = await scene()
     const r = await receiver(world, OTHER)
     r.scripts.r1!.start(); r.linkset.touch(0)
@@ -64,7 +66,7 @@ describe('giving to an object owned by someone else', () => {
     expect(g.errors()).toEqual([])
     expect(names(r.prims[0]!.inventory).sort()).toEqual(['gift', 'payload', 'payload 1', 'r1'])
     expect(r.prims[0]!.inventory.find(i => i.name === 'payload')!.permMask).toMatchObject({ base: 532480, owner: 532480, next: 532480 })
-    expect(r.scripts.r1!.global('changes')).toEqual([64, 64])
+    expect(r.scripts.r1!.global('changes')).toEqual([64])
     expect(g.script.global('dt')).toBeCloseTo(3, 5)
   })
 
@@ -153,6 +155,8 @@ describe('giving to an object owned by someone else', () => {
     // In-world: a no-modify object given by the other avatar and rezzed by the owner. A gift from the
     // owner's own giver -> 'Blocked by permissions'. After that object's llAllowInventoryDrop(TRUE) ->
     // delivered with changed(64); the notecard kept full owner masks, and a script was delivered too.
+    // In-world (2026-11-24): two llGiveInventory gifts in one handler into such an object -> one
+    // changed(64) counting both (3 of 3).
     const world = await scene()
     const r = await receiver(world, OWNER)
     r.prims[0]!.permMask = masks(NO_MODIFY, NO_MODIFY)
@@ -166,7 +170,7 @@ describe('giving to an object owned by someone else', () => {
     expect(g.errors()).toHaveLength(2)
     expect(r.prims[0]!.inventory.find(i => i.name === 'gift')!.permMask).toMatchObject({ base: PERM_ALL, owner: PERM_ALL })
     expect(names(r.prims[0]!.inventory)).toContain('payload')
-    expect(r.scripts.r1!.global('changes')).toEqual([64, 64])
+    expect(r.scripts.r1!.global('changes')).toEqual([64])
   })
 })
 

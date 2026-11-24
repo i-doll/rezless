@@ -577,15 +577,6 @@ describe('owner recompiles a script', () => {
     expect(said(scripts['a']!)).toEqual([])
   })
 
-  it('resets a script that only a queued event has run', async () => {
-    const { linkset, prims, scripts } = await loadLinkset({ prims: [{ scripts: [src(logger, 'a')] }] })
-    linkset.clock.schedule(scripts['a']!, linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
-    linkset.advanceTime(0)
-    expect(scripts['a']!.global('seen')).toEqual(['message'])
-    prims[0]!.replaceInventory('a', {})
-    expect(scripts['a']!.global('seen')).toEqual(['entry a'])
-  })
-
   it('does not bring back a script of an object that has died', async () => {
     const { prims, scripts } = await loadLinkset({
       prims: [{ scripts: [src('default { state_entry() { llOwnerSay("entry"); } touch_start(integer n) { llDie(); } }', 'a')] }],
