@@ -5,7 +5,7 @@ import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds, playLandSound } from './builtins/collision.js'
 import { copyMovingState, copyPhysicalMotion, duplicatedPhysical, queueMoving, SELECTION_MS, selectMotion, selectPhysical, setVelocity } from './builtins/motion.js'
-import { LinksetClock } from './clock.js'
+import { LATE_TOUCH_START, LinksetClock, SIM_FRAME_MS, cameUp, type QueuedEvent } from './clock.js'
 import { Prim } from './prim.js'
 import { restepRezzedShape } from './prim-params.js'
 import type { Script } from './script.js'
@@ -99,8 +99,12 @@ export interface HeldTouch {
   repeating: boolean
   /** Whether it has raised a `touch` yet. */
   touched: boolean
+  /** What its last `touch` detected. */
+  lastTouch?: ReadonlyArray<DetectedEntry>
   /** Whether the button came up while the script was stopped. */
   released: boolean
+  /** Whether a link change ended it while the button was still down. */
+  cut?: boolean
   /** When its next `touch` is due. */
   dueAt: number
 }
@@ -114,8 +118,38 @@ function repeater(clock: LinksetClock) {
   return found
 }
 
-function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<DetectedEntry>): void {
-  if (s.handles(event)) s.linkset.clock.scheduleTouch(s, event, { num_detected: 1, detected })
+function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<DetectedEntry>, extra?: { held?: false; late?: true }): void {
+  if (!s.handles(event)) return
+  s.linkset.clock.scheduleTouch(s, event, { num_detected: detected.length, detected, ...(extra?.late && { [LATE_TOUCH_START]: true }) }, extra?.held)
+}
+
+const detectedIn = (e: QueuedEvent) => (e.payload['detected'] as ReadonlyArray<DetectedEntry> | undefined) ?? []
+
+/** The touch events waiting for `s` that list the avatar `by`, or that list someone else. */
+function waitingTouches(s: Script, event: string, by: string) {
+  const lists = (e: QueuedEvent) => detectedIn(e).some((d) => d.key?.toLowerCase() === by)
+  const clock = s.linkset.clock
+  const waiting = clock.pendingEvents().filter((e) => e.target === s && e.event === event && e.at <= clock.now)
+  return { own: waiting.find(lists), other: waiting.find((e) => !lists(e)) }
+}
+
+/**
+ * A copy of `detected` that counts as new touch data, so llMapDestination and llMapBeacon may
+ * show the map again from the event that carries it.
+ */
+const fresh = (detected: ReadonlyArray<DetectedEntry>) => detected.map((e) => ({ ...e }))
+
+/** The touch data each script has run a `touch` handler with. */
+const deliveredTouches = new WeakMap<Script, WeakSet<DetectedEntry>>()
+
+/** When a held click last came due while the script's handler was in a busy loop. */
+const spunAt = new WeakMap<Script, number>()
+
+/** Note that `s` runs a `touch` handler with `detected`. */
+export function touchDelivered(s: Script, detected: ReadonlyArray<DetectedEntry>): void {
+  let seen = deliveredTouches.get(s)
+  if (!seen) deliveredTouches.set(s, seen = new WeakSet())
+  for (const e of detected) seen.add(e)
 }
 
 const raising = (s: Script) => !s.dead && s.running && s.linkset.peers.includes(s.linkset)
@@ -140,9 +174,12 @@ function armTouches(clock: LinksetClock): void {
   })
 }
 
+/** In-world: an SLua script got touch every simulator frame, an LSL script in the same prim every second. */
+const repeatMs = (s: Script) => s.language === 'slua' ? TOUCH_REPEAT_MS / 2 : TOUCH_REPEAT_MS
+
 /**
  * Raise `touch` for each held click that is due. In-world: held for 1.5 s, a click raised
- * touch 0.022 s after touch_start and then every 0.044 s, two simulator frames. Under
+ * touch 0.022 s after touch_start and then every 0.044 s in LSL, every 0.022 s in SLua. Under
  * llMinEventDelay(1.0) the first touch still came 0.022 s after touch_start, the next 1.0 s
  * after touch_start, and each after that a second after the touch before it, whatever the
  * timer did; the ones in between merged into the waiting one.
@@ -150,14 +187,85 @@ function armTouches(clock: LinksetClock): void {
 function raiseHeldTouches(clock: LinksetClock): void {
   for (const s of repeater(clock).scripts) {
     if (!raising(s)) continue
-    for (const click of s.heldClicks.values()) {
+    // In-world: while i doll and fivebot both held a click, each touch listed both, i doll first,
+    // in LSL and SLua.
+    let raised: { detected: DetectedEntry[]; plain: boolean } | undefined
+    const starts: QueuedEvent[] = []
+    for (const [by, click] of s.heldClicks) {
       if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
-      click.dueAt += TOUCH_REPEAT_MS
-      if (!s.handles('touch')) continue
+      click.dueAt += repeatMs(s)
+      // In-world: a held click raised no touch while the touch handler ran on, asleep, busy or
+      // in a call's delay, so a release then left only touch_end; touch_start's or a timer's
+      // sleep kept one.
+      if (!s.handles('touch') || s.handlerEvent === 'touch') continue
+      // In-world: while another handler slept or spun, fivebot's held click raised no touch of
+      // its own when i doll's touch waited. In LSL, i doll's touch listed fivebot too when it
+      // came up a frame or more after the handler started (5 of 13 runs with a timer that slept
+      // 3 s), and listed i doll alone when it came up in the handler's first frame (the other
+      // 8; with a listen that slept, 8 of 10 and 2 of 10; in llInstantMessage's delay, 4 of 5
+      // and 1 of 5). When i doll's touch came up while the handler spun it listed i doll alone,
+      // whatever frame it came up in: 13 runs with a listen, 4 with touch_end, and 5 with a
+      // listen that spun 1.5 s and then slept 1.5 s while fivebot's click was held into the
+      // sleep, or clicked in the sleep, 8 runs, and 6 with a timer that spun. A listen that slept
+      // first and then spun followed the frame rule, 5 runs, but listed i doll alone when
+      // fivebot clicked in the spin, 6 runs of 6. A listen that slept 1 s, spun 1 s and slept
+      // 1.5 s listed i doll alone when fivebot pressed in the spin and held into the second
+      // sleep, 6 runs of 6, and when fivebot clicked only in the second sleep, 6 runs of 6. So
+      // once the handler has spun, the touch that came up before the spin takes no one else.
+      // SLua raises a held click's touch every frame, so it came up in the first frame and
+      // listed i doll alone, 4 runs of 4.
+      const running = s.handlerEvent !== undefined
+      if (running && s.busy) spunAt.set(s, clock.now)
+      const touches = running ? waitingTouches(s, 'touch', by) : { own: undefined, other: undefined }
+      const waiting = touches.other
+      if (waiting || running && raised) {
+        const listed = waiting ? detectedIn(waiting) : raised!.detected
+        const came = waiting ? cameUp(waiting) : clock.now
+        if (listed.length && s.handlerEvent !== 'touch_start' && !waiting?.busy && !((spunAt.get(s) ?? -Infinity) >= Math.max(came, s.handlerStartedAt!)) && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
+          if (waiting) {
+            waiting.payload['detected'] = [...listed, ...click.detected]
+            waiting.payload['num_detected'] = listed.length + click.detected.length
+          } else raised!.detected.push(...click.detected)
+          click.lastTouch = click.detected
+          // In-world: fivebot's click in an LSL touch_end sleep joined i doll's touch that waited
+          // through it, and its touch_start ran ahead of that touch, 4 runs of 4.
+          const start = waitingTouches(s, 'touch_start', by).own
+          if (start?.held) starts.push(start)
+        }
+        click.touched = true
+        continue
+      }
+      // In-world: a held click's touch from a sleep in touch_start, or a spin in listen, after
+      // its touch_start ran, came ahead of a listen that came up later; its touch_end waited
+      // behind that listen.
+      const plain = running && !waitingTouches(s, 'touch_start', by).own
+      // A touch already waiting with this click's data stays as it is, in its place among the
+      // avatars it lists; a new click by the same avatar replaces it in the held merge.
+      if (touches.own && (plain || detectedIn(touches.own).some((d) => click.detected.includes(d) || !!click.lastTouch?.includes(d)))) continue
+      // In-world: a map call in the first touch of a held click showed nothing after one in
+      // touch_start, and one in a later touch showed the map again.
+      // A touch raised before the last one ran merges into it and keeps its data.
+      const last = click.lastTouch
+      const detected = !last ? click.detected : deliveredTouches.get(s)?.has(last[0]!) ? fresh(click.detected) : last
       click.touched = true
-      scheduleTouch(s, 'touch', click.detected)
+      click.lastTouch = detected
+      if (raised) raised.detected.push(...detected)
+      else raised = { detected: [...detected], plain }
     }
+    if (raised) scheduleTouch(s, 'touch', raised.detected, raised.plain ? { held: false } : undefined)
+    for (const start of starts) clock.putAhead(start)
   }
+}
+
+/**
+ * In-world: after a held click's touch handler slept, the next touch came 0.044 to 0.045 s
+ * after the wake in LSL and 0.022 to 0.023 s after it in SLua, for sleeps of 0.5, 1 and
+ * 1.01 s: one repeat after the handler ended.
+ */
+export function touchHandlerEnded(s: Script): void {
+  if (!s.heldClicks.size) return
+  for (const click of s.heldClicks.values()) click.dueAt = s.linkset.clock.now + repeatMs(s)
+  armTouches(s.linkset.clock)
 }
 
 /** In-world: a script started again during a hold, or after it, got touch 0.022 s later. */
@@ -171,15 +279,37 @@ export function resumeHeldTouches(s: Script): void {
 /**
  * In-world: after llResetScript, or a state change, a held click raised no more touch events,
  * and its release still raised touch_end. A reset also forgot a click whose button came up
- * while the script was stopped, so the next click was a normal one; after a state change
- * that next click still raised no touch_start.
+ * while the script was stopped, or that a link break had ended, so the next click was a normal
+ * one; after a state change that next click still raised no touch_start.
  */
 export function forgetHeldTouches(s: Script, reset: boolean): void {
   for (const [by, click] of s.heldClicks) {
-    if (reset && click.released) s.heldClicks.delete(by)
+    if (reset && (click.released || click.cut)) s.heldClicks.delete(by)
     else click.repeating = false
   }
   armTouches(s.linkset.clock)
+}
+
+/**
+ * In-world: llBreakLink and llBreakAllLinks, called from the root or a child, and llBreakLink(1)
+ * on the root itself, ended every click the root's scripts held, whether the button was still
+ * down or the click was stuck, with touch_end reading the click's link number, and their touch
+ * events stopped. Clicks held in the children ran on. llCreateLink ended none. Unlink and Link
+ * in the viewer's build tools did the same. A root script still counted such a click as held
+ * until a release reached it: when the release went elsewhere, that avatar's next click raised
+ * no touch_start there.
+ */
+function cutRootClicks(root: Prim): void {
+  for (const s of root.scripts) {
+    if (!s.running || s.dead) continue
+    for (const click of s.heldClicks.values()) {
+      if (click.cut) continue
+      click.cut = true
+      click.repeating = false
+      scheduleTouch(s, 'touch_end', fresh(click.detected))
+    }
+  }
+  armTouches(root.linkset!.clock)
 }
 
 export interface RezRecord {
@@ -194,6 +324,30 @@ export interface RezRecord {
 }
 
 const TOUCH_EVENTS = ['touch_start', 'touch', 'touch_end'] as const
+
+/** A click pressed and not yet released. */
+interface PressedClick {
+  readonly prim: Prim
+  readonly by: string
+  readonly detected: ReadonlyArray<DetectedEntry>
+  readonly receivers: Script[]
+  readonly clicks: Map<Script, HeldTouch>
+  readonly at: number
+}
+
+const live = (s: Script) => s.running && !s.dead
+
+const touchHandlers = (p: Prim) =>
+  p.scripts.filter((s) => live(s) && s.hasStarted && TOUCH_EVENTS.some((e) => s.handles(e)))
+
+/** The scripts a click on `prim` reaches now, by its pass setting and links. */
+function touchRoute(prim: Prim): Script[] {
+  const own = touchHandlers(prim)
+  const top = prim.linkset!.prims[0]!
+  if (prim === top) return own
+  const pass = prim.params.passTouches
+  return pass === PASS_ALWAYS || (pass !== PASS_NEVER && own.length === 0) ? [...own, ...touchHandlers(top)] : own
+}
 /** How often a held click raises `touch`: every second simulator frame. */
 export const TOUCH_REPEAT_MS = 2000 / 45
 
@@ -379,7 +533,10 @@ export class Linkset {
     }
     // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
     for (const script of this.allScripts()) {
-      for (const click of script.heldClicks.values()) click.detected = touchThroughInventory(click.detected)
+      for (const click of script.heldClicks.values()) {
+        click.detected = touchThroughInventory(click.detected)
+        delete click.lastTouch
+      }
     }
     this.broadcastAttach(NULL_KEY)
     this.finishTemporaryDetach()
@@ -423,9 +580,11 @@ export class Linkset {
   /**
    * Copy a rezzed object where it stands, as a shift-drag in the viewer does, or `offset` from
    * it, as the viewer's Duplicate does, and return the copy. The copy's scripts start from the
-   * top, and an avatar sitting on the original stays.
+   * top, and an avatar sitting on the original stays. They start together; with
+   * `startScripts: false` they wait for `startAll`, so a test can start them in groups, as
+   * Second Life does.
    */
-  duplicate(offset: Vector = ZERO_VECTOR): Linkset {
+  duplicate(offset: Vector = ZERO_VECTOR, { startScripts = true }: { startScripts?: boolean } = {}): Linkset {
     if (this.dead || this.attachment || !this.prims.length || !this.peers.includes(this)) throw new Error('duplicate: only a rezzed object can be copied')
     // A no-copy item makes the object that holds it no-copy to its owner.
     if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY) || prim.inventory.some(item => !(item.permMask.owner & PERM_COPY)))) {
@@ -446,7 +605,10 @@ export class Linkset {
     // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
     // two scripts were both counted read 0.75: the region leaves out the copy's last script.
     copy.countedScripts = Math.max(0, copy.allScripts().length - 1)
-    for (const script of copy.allScripts()) script.queueStart()
+    for (const script of copy.allScripts()) {
+      if (startScripts) script.queueStart()
+      else script.holdStart()
+    }
     duplicatedPhysical(copy, selected)
     return copy
   }
@@ -579,11 +741,12 @@ export class Linkset {
    * keeps the linkset data; when `prim` is the root, the rest stay linked
    * under the next prim with no data. Every prim of both parts gets
    * changed(CHANGED_LINK), and avatars seated on the object stand. A lone
-   * prim only loses its sitters.
+   * prim only loses its sitters. `caller` is the script that broke the link.
    */
-  breakOff(prim: Prim): void {
-    this.standSitters()
+  breakOff(prim: Prim, caller?: Script): void {
+    this.standSitters(caller)
     if (this.prims.length < 2) return
+    cutRootClicks(this.prims[0]!)
     const rest = this.prims.filter((p) => p !== prim)
     const all = [...this.prims]
     if (prim === this.prims[0]) {
@@ -596,10 +759,14 @@ export class Linkset {
     this.raiseLinkChanged(all)
   }
 
-  /** llBreakAllLinks: break every prim apart; each gets changed(CHANGED_LINK). */
-  breakAll(): void {
-    this.standSitters()
+  /**
+   * llBreakAllLinks: break every prim apart; each gets changed(CHANGED_LINK).
+   * `caller` is the script that broke the links.
+   */
+  breakAll(caller?: Script): void {
+    this.standSitters(caller)
     if (this.prims.length < 2) return
+    cutRootClicks(this.prims[0]!)
     const all = [...this.prims]
     for (const p of all.slice(1)) this.splitOff([p])
     this.place([all[0]!])
@@ -607,8 +774,14 @@ export class Linkset {
   }
 
   /** Unlinking a prim stands everyone seated on the object. */
-  private standSitters(): void {
-    for (const avatar of this.sitters()) this.world!.standAvatar(avatar)
+  private standSitters(caller?: Script): void {
+    // In-world, the stand's changed(32) came with the link change, a frame late, in LSL and, after
+    // a sleep and with a sitter wearing few attached prims, in SLua.
+    const late = caller && (caller.language !== 'slua' || caller.handlerWentOn)
+    for (const avatar of this.sitters()) {
+      if (late) this.world!.unsitFrom(avatar)
+      else this.world!.standAvatar(avatar)
+    }
   }
 
   /** Move `prims` into a new linkset in this one's world and region, with no linkset data. */
@@ -670,7 +843,9 @@ export class Linkset {
   /**
    * Queue changed(CHANGED_LINK) on every script in `prims`. As in Second
    * Life, a stopped script never gets it, and a script skips it while one
-   * queued since it last started or woke is still waiting, or while two are.
+   * queued since it last started or woke is still waiting, or while two are. In-world it came
+   * a simulator frame after llBreakLink or llBreakAllLinks, behind a link message sent straight
+   * after it.
    */
   private raiseLinkChanged(prims: ReadonlyArray<Prim>): void {
     const pending = this.clock
@@ -680,8 +855,8 @@ export class Linkset {
       for (const s of p.scripts) {
         if (!s.running) continue
         const waiting = pending.filter((e) => e.target === s)
-        if (waiting.length >= 2 || waiting.some((e) => e.at >= s.resumedAt)) continue
-        this.clock.schedule(s, this.clock.now, 'changed', { changes: CHANGED_LINK })
+        if (waiting.length >= 2 || waiting.some((e) => cameUp(e) >= s.resumedAt)) continue
+        this.clock.scheduleNextFrame(s, 'changed', { changes: CHANGED_LINK })
       }
     }
   }
@@ -813,7 +988,7 @@ export class Linkset {
     const at = this.clock.now
     for (const p of targets) {
       for (const s of p.scripts) {
-        if (s.running) this.clock.schedule(s, at, 'link_message', { sender_num: senderLink, num, str, id })
+        if (s.running && s.hasStarted) this.clock.schedule(s, at, 'link_message', { sender_num: senderLink, num, str, id })
       }
     }
   }
@@ -905,9 +1080,15 @@ export class Linkset {
    * Click link `link` as an avatar. Each script in that prim gets
    * `touch_start`, `touch` and `touch_end`, if it handles them. The click
    * also reaches the root's scripts when the prim set PASS_ALWAYS, or when
-   * no running script in it handles any touch event and it did not set
-   * PASS_NEVER. In every receiver llDetectedLinkNumber is `link` and
-   * llDetectedTouchFace is `face`.
+   * no running script in it that has started handles any touch event and it
+   * did not set PASS_NEVER. The release goes where a click on that prim
+   * would go at that moment, by its pass setting and links then: a script
+   * it reaches that did not get the click gets `touch_end` alone, and a
+   * clicked script it no longer reaches keeps getting `touch` as if stopped
+   * through the release. llDetectedLinkNumber is `link` until the release,
+   * whose `touch_end` reads the prim's link number then, and
+   * llDetectedTouchFace is `face`. Breaking a link during the hold ends the
+   * root's clicks at once; see cutRootClicks.
    *
    * A click with no `hold` raises all three events at once. A held click
    * raises `touch_start`, then `touch` every TOUCH_REPEAT_MS, starting half
@@ -918,20 +1099,50 @@ export class Linkset {
    * `touch_start` there and whose release ends it.
    */
   touch(link: number, opts: TouchOptions = {}): void {
+    const { hold, ...click } = opts
+    const by = (opts.avatar?.key ?? this.owner).toLowerCase()
+    if (this.pressed.has(by)) throw new Error(`touch: ${by} is holding a click from press`)
+    const pressed = this.pressClick(link, click, Math.min(TOUCH_REPEAT_MS / 2, hold ?? 0))
+    if (hold) {
+      armTouches(this.clock)
+      this.advanceTime(hold)
+    }
+    this.settle(this.releaseClick(pressed))
+  }
+
+  /**
+   * Press an avatar's click on link `link` and keep it held until `release`, so a test can
+   * overlap several avatars' clicks in any order. It reaches the same scripts and raises the
+   * same events as `touch`, whose `hold` it leaves out; advance time to run them.
+   */
+  press(link: number, opts: Omit<TouchOptions, 'hold'> = {}): void {
+    const by = (opts.avatar?.key ?? this.owner).toLowerCase()
+    if (this.pressed.has(by)) throw new Error(`press: ${by} is already holding a click`)
+    this.pressed.set(by, this.pressClick(link, opts, TOUCH_REPEAT_MS / 2))
+    armTouches(this.clock)
+    this.drainQueue()
+  }
+
+  /** Release the click `avatar` (by default the owner) holds from `press`; advance time to run its events. */
+  release(avatar: { readonly key: string } = { key: this.owner }): void {
+    const by = avatar.key.toLowerCase()
+    const pressed = this.pressed.get(by)
+    if (!pressed) throw new Error(`release: ${by} is not holding a click`)
+    this.pressed.delete(by)
+    this.releaseClick(pressed)
+    this.drainQueue()
+  }
+
+  private readonly pressed = new Map<string, PressedClick>()
+
+  private pressClick(link: number, opts: Omit<TouchOptions, 'hold'>, firstTouchMs: number): PressedClick {
     const prim =
       this.prims.length === 1 && (link === 0 || link === LINK_ROOT)
         ? this.prims[0]
         : this.prims.find((p) => p.linkNumber === link)
     if (!prim) throw new Error(`touch: no prim with link number ${link}`)
     const root = this.prims[0]!
-    for (const s of new Set([...prim.scripts, ...root.scripts])) if (s.running) s.start()
-    const handlers = (p: Prim) =>
-      p.scripts.filter((s) => s.running && !s.dead && TOUCH_EVENTS.some((e) => s.handles(e)))
-    const receivers = handlers(prim)
-    const pass = prim.params.passTouches
-    if (prim !== root && (pass === PASS_ALWAYS || (pass !== PASS_NEVER && receivers.length === 0))) {
-      receivers.push(...handlers(root))
-    }
+    for (const s of new Set([...prim.scripts, ...root.scripts])) if (s.running && !s.waitsToStart) s.start()
     const avatar = opts.avatar ?? { key: this.owner, name: '' }
     const by = avatar.key.toLowerCase()
     const detected: DetectedEntry[] = [
@@ -946,34 +1157,69 @@ export class Linkset {
         ...(opts.binormal && { touchBinormal: opts.binormal }),
       },
     ]
-    const live = (s: Script) => s.running && !s.dead
-    const clicked = receivers.filter(live)
+    const receivers = touchRoute(prim)
     const clicks = new Map<Script, HeldTouch>()
-    const firstAt = this.clock.now + Math.min(TOUCH_REPEAT_MS / 2, opts.hold ?? 0)
-    for (const s of clicked) {
-      // In-world: a script still holding this avatar's earlier click raised no touch_start.
-      if (!s.heldClicks.has(by)) scheduleTouch(s, 'touch_start', detected)
-      const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt: firstAt }
+    const firstAt = this.clock.now + firstTouchMs
+    for (const s of receivers.filter(live)) {
+      // In-world: a script still holding this avatar's earlier click raised no touch_start. Nor
+      // did an LSL script while another avatar's click was held, whether its handlers were idle
+      // (6 runs of 6) or its touch, touch_start, timer or listen handler slept or spun; SLua
+      // raised it. A click pressed while the LSL touch_end handler slept raised it (4 runs of 4).
+      const crowded = s.language !== 'slua' && s.handlerEvent !== 'touch_end' &&
+        [...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut)
+      // In-world: fivebot's click in a touch_start sleep, while i doll held a click or i doll's
+      // touch_end waited, raised its touch_start behind that touch_end, in LSL and SLua.
+      const late = s.handlerEvent === 'touch_start' &&
+        ([...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut) || waitingTouches(s, 'touch_end', by).other !== undefined)
+      if (!s.heldClicks.has(by) && !crowded) {
+        scheduleTouch(s, 'touch_start', detected, late ? { late } : undefined)
+      }
+      // In-world: fivebot's touches came on the frames of i doll's held click, merged with them.
+      const beat = [...s.heldClicks].find(([k, c]) => k !== by && c.repeating && !c.released && !c.cut)?.[1].dueAt
+      const dueAt = beat === undefined ? firstAt : beat > this.clock.now + 1e-6 ? beat : beat + repeatMs(s)
+      const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt }
       s.heldClicks.set(by, click)
       clicks.set(s, click)
       repeater(this.clock).scripts.add(s)
     }
-    if (opts.hold) {
-      armTouches(this.clock)
-      this.advanceTime(opts.hold)
+    return { prim, by, detected, receivers, clicks, at: this.clock.now }
+  }
+
+  /** Release a pressed click and return the scripts it reached. */
+  private releaseClick({ prim, by, detected, receivers, clicks, at }: PressedClick): Script[] {
+    const held = this.clock.now > at
+    // In-world: the release went where a click would have gone at that moment, whatever the
+    // pass setting at the click, and its touch_end read the prim's link number then. A click passed to
+    // the root while the child's touch scripts had not started, or were stopped, ended in the
+    // child once one of them ran; the root got no touch_end and kept getting touch. A click
+    // taken by the child's only touch script, stopped or moved to a state with no touch
+    // handler before the release, raised touch_end in the root. A child that set PASS_NEVER
+    // during a passed click kept the release from the root. A script reached only by the
+    // release got touch_end alone, which also ended a click it was still holding.
+    // In-world: a map call in touch_end showed the map again after one in touch_start when the
+    // click was held, and not when it was a quick click.
+    const now = (d: ReadonlyArray<DetectedEntry>) =>
+      held || d.some((e) => e.linkNumber !== prim.linkNumber) ? d.map((e) => ({ ...e, linkNumber: prim.linkNumber })) : d
+    const released = touchRoute(prim)
+    const late = released.filter((s) => !clicks.has(s) || clicks.get(s)!.cut)
+    for (const s of late) {
+      s.heldClicks.delete(by)
+      scheduleTouch(s, 'touch_end', now(detected))
     }
     for (const [s, click] of clicks) {
-      if (!live(s)) {
+      if (click.cut) continue
+      if (!live(s) || !released.includes(s)) {
         click.released = true
         continue
       }
       if (s.heldClicks.get(by) === click) s.heldClicks.delete(by)
-      // In-world: every click, however short, raised one touch, unless touch_start changed state.
-      if (!click.touched && click.repeating) scheduleTouch(s, 'touch', click.detected)
-      scheduleTouch(s, 'touch_end', click.detected)
+      // In-world: every click, however short, raised one touch, unless touch_start changed state
+      // or the click came and went while the touch handler ran on.
+      if (!click.touched && click.repeating && s.handlerEvent !== 'touch') scheduleTouch(s, 'touch', click.detected)
+      scheduleTouch(s, 'touch_end', now(click.detected))
     }
     armTouches(this.clock)
-    this.settle(receivers)
+    return [...receivers, ...late]
   }
 
   private globalPosition(prim: Prim): Vector {
@@ -996,6 +1242,21 @@ export class Linkset {
     const until = this.clock.now + ms
     this.drainQueue(until)
     if (this.clock.now < until) this.clock.now = until
+  }
+
+  /**
+   * Start `scripts` (by default every script in the object) together, as one frame of a rezzed
+   * object does, and finish their state_entry handlers. Each one gets the link messages the
+   * others send from state_entry, after its own state_entry. Scripts already started are left
+   * alone; a stopped one runs state_entry when it is set running. A script started later, by a
+   * later call or by `start()`, misses messages sent before it starts.
+   */
+  startAll(scripts: Iterable<Script> = this.allScripts()): void {
+    const batch = [...scripts]
+    if (batch.some(s => s.linkset !== this)) throw new Error('startAll: a script is not in this object')
+    const starting = batch.filter(s => !s.hasStarted)
+    for (const s of starting) s.queueStart()
+    this.settle(starting)
   }
 
   /**
