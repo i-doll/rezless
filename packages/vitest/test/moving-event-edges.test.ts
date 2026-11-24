@@ -158,6 +158,19 @@ describe('moving events from physical motion', () => {
     expect(b.log()).toEqual(['moving_start 0', 'moving_end 8'])
   })
 
+  // A copy made while the object settles settles in full again, with the delay the original had.
+  it('settles a copy made during a physics switch with the same delay', async () => {
+    const b = await box(physical)
+    send(b, 'on')
+    b.linkset.advanceTime(100)
+    const copy = b.linkset.duplicate()
+    const ends = () => (copy.allScripts()[0]!.global('log') as string[]).filter((line) => line.startsWith('moving_end'))
+    copy.advanceTime(700)
+    expect(ends()).toEqual([])
+    copy.advanceTime(200)
+    expect(ends()).toHaveLength(1)
+  })
+
   // In-world: a box floating at 0.04, 0.05 or 0.5 m/s for 5 to 6 s never got moving_end. At
   // 0.5 m/s, set to zero with llSetVelocity, moving_end came 0.09, 0.13 and 0.13 s later.
   it('ends a moment after the velocity becomes zero', async () => {

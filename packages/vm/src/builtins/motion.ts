@@ -133,7 +133,7 @@ export function queueMoving(clock: LinksetClock, script: Script, event: MovingEv
 }
 
 /** Whether a physical object's scripts were told it moves, and the settle that will end it. */
-interface PhysicalMotion { moving: boolean; settle?: (() => void) | undefined }
+interface PhysicalMotion { moving: boolean; settle?: (() => void) | undefined; settleMs?: number }
 const physicalMotion = new WeakMap<Linkset, PhysicalMotion>()
 
 /**
@@ -165,6 +165,7 @@ const still = (v: Vector) => v.x === 0 && v.y === 0 && v.z === 0
 function settleLater(linkset: Linkset, state: PhysicalMotion, ms = SETTLE_MS): void {
   if (state.settle || !state.moving) return
   const root = linkset.prims[0]!
+  state.settleMs = ms
   state.settle = linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + ms, () => {
     state.settle = undefined
     // A copy rezzed with a velocity during the settle is still moving.
@@ -190,7 +191,7 @@ export function copyPhysicalMotion(from: Linkset, to: Linkset): void {
   if (!state) return
   const copied: PhysicalMotion = { moving: state.moving }
   physicalMotion.set(to, copied)
-  if (state.settle) settleLater(to, copied)
+  if (state.settle) settleLater(to, copied, state.settleMs)
 }
 
 /**
