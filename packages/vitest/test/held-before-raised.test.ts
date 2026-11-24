@@ -146,3 +146,30 @@ describe.each(['lsl', 'slua'] as const)('a land contact that came up in a sleep 
     expect(logged).toEqual(['land_collision_start', 'lm', 'land_collision', 'changed 2', 'land_collision', 'land_collision_end'])
   })
 })
+
+// In-world: a 1 s timer set before the sleep, then 63 or 64 link messages the handler sent itself
+// after the wake -> the timer ran first both times; all 63 messages ran after it, but only 63 of
+// the 64 (2 runs of each in LSL and SLua). The tick took the room of the 64th. The same with a
+// 1 s sleep after the messages (2 runs of each).
+describe('a timer tick that fell due in a sleep, with the queue full after the wake', () => {
+  it.each([[63, false, ['timer after 0', 'lm 1', 'lm 63']], [64, false, ['timer after 0', 'lm 1']], [64, true, ['timer after 0', 'lm 1']]] as const)('runs first and takes the room of the last of %i link messages (sleeping again: %s)', async (total, again, expected) => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const { linkset, scripts } = await loadLinkset({
+      world, region: 'home', owner: OWNER,
+      prims: [{ scripts: [{ name: 'probe', source: { source: `integer n;
+        default {
+          state_entry() {
+            llSetTimerEvent(1.0); llSleep(4.0);
+            integer i; for (i = 1; i <= ${total}; ++i) llMessageLinked(LINK_THIS, i, "", "");
+            ${again ? 'llSleep(1.0);' : ''}
+          }
+          link_message(integer s, integer num, string m, key id) { ++n; if (num == 1 || num == ${total}) llOwnerSay("lm " + (string)num); }
+          timer() { llOwnerSay("timer after " + (string)n); llSetTimerEvent(0.0); }
+        }` } }] }],
+    })
+    linkset.startAll()
+    for (let i = 0; i < 80; i++) linkset.advanceTime(100)
+    expect(scripts.probe!.chat.map((c) => c.text)).toEqual(expected)
+  })
+})

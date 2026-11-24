@@ -52,6 +52,11 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
 /** Changes to running state held from the rest of a handler that was busy at a detach; they take no event slot. */
 export const HELD_CONTROL: ReadonlySet<string> = new Set(['__running', '__scriptState'])
 
+function lastIndex<T>(list: ReadonlyArray<T>, match: (item: T) => boolean): number {
+  for (let i = list.length - 1; i >= 0; i--) if (match(list[i]!)) return i
+  return -1
+}
+
 /** `changed` and the events a rez raises that run as `changed`. */
 const CHANGED_EVENTS: ReadonlySet<string> = new Set(['changed', '__unseated', '__ownerChanged'])
 
@@ -748,7 +753,11 @@ export class LinksetClock {
     const raised = waited.filter((e) => queued && !queued.has(e))
     const early = waited.filter((e) => !raised.includes(e))
     this.queue.push(...early.filter((e) => !this.heldBack(e, since)).map(plain))
-    const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length > 0)
+    const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined)
+    const room = MAX_PENDING_EVENTS - this.pending(script) - released.filter((e) => !HELD_CONTROL.has(e.event)).length
+    for (let over = raised.filter((e) => !HELD_CONTROL.has(e.event)).length - room; over > 0; over--) {
+      raised.splice(lastIndex(raised, (e) => !HELD_CONTROL.has(e.event)), 1)
+    }
     // In-world: a land contact held through a sleep ran land_collision_start, the link message
     // sent after the wake, a land_collision, the change made after the wake a frame later, then
     // the other land_collision events and land_collision_end: one per physics step after the wake.
@@ -781,21 +790,32 @@ export class LinksetClock {
     const contactStays = waited.some((e) => contact(e) && waiting.has(kind(e)))
     const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)) && !(contactStays && contact(e)))
     const isRaised = (e: QueuedEvent) => queued !== undefined && e.target === script && !queued.has(e)
-    const ahead = this.queue.some(isRaised)
-    if (!held.length && !ahead) return
+    const raised = this.queue.filter(isRaised)
+    if (!held.length && !raised.length) return
     this.purgeWhere((e) => held.includes(e))
-    const raised = this.queue.findIndex(isRaised)
     const early = held.filter((e) => !queued || queued.has(e))
-    this.queue.splice(raised < 0 ? this.queue.length : raised, 0, ...this.release(script, early, waiting.has('timer'), ahead))
+    const released = this.release(script, early, waiting.has('timer'), raised.length ? raised : undefined)
+    const first = this.queue.findIndex(isRaised)
+    this.queue.splice(first < 0 ? this.queue.length : first, 0, ...released)
+    for (let over = this.pending(script) - MAX_PENDING_EVENTS; over > 0; over--) {
+      this.queue.splice(lastIndex(this.queue, (e) => isRaised(e) && !HELD_CONTROL.has(e.event)), 1)
+    }
     this.queue.push(...this.release(script, held.filter((e) => !early.includes(e)), waiting.has('timer')))
   }
 
+  /** The events `script` holds, counted against MAX_PENDING_EVENTS. */
+  private pending(script: Script): number {
+    let pending = script.parkedEvents.filter((e) => !HELD_CONTROL.has(e.event)).length
+    for (const e of this.queue) if (e.target === script && !HELD_CONTROL.has(e.event)) pending++
+    return pending
+  }
+
   /**
-   * Held-back events to queue behind the others, merged and in the held order. With `ahead`,
-   * events the handler raised after its wake wait behind them, so a tick that fell due in the
-   * sleep is queued even with nothing else held.
+   * Held-back events to queue behind the others, merged and in the held order. With `raised`,
+   * the events the handler raised after its wake wait behind them, so a tick that fell due in the
+   * sleep is queued even with nothing else held, and takes its room ahead of them.
    */
-  private release(script: Script, events: QueuedEvent[], timerWaits: boolean, ahead = false): QueuedEvent[] {
+  private release(script: Script, events: QueuedEvent[], timerWaits: boolean, raised?: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
     // In-world: a handler busy and then asleep ran what it held in the sleep in the held order, a
     // change held in the busy part among them, unless all of it was held as when busy.
     const inOrder = events.every((e) => e.busy)
@@ -818,12 +838,14 @@ export class LinksetClock {
     // released with the other held events. With nothing else held the tick is left to
     // takeNextDue, which gives one tick after several sleeps, as measured on the main grid. A tick
     // that fell due in a 4 s sleep ran ahead of a link message sent after the wake.
+    // In-world: with the tick from the sleep queued, the 64th of 64 link messages the handler
+    // sent itself after the wake was lost, and 63 all ran after the tick.
     let pending = script.parkedEvents.length + events.length
-    for (const e of this.queue) if (e.target === script) pending++
+    for (const e of this.queue) if (e.target === script && !raised?.includes(e)) pending++
     // In-world: a 1 s timer through a handler busy for 6 s and then asleep for 6 s gave two timer
     // events: the tick held in the busy part stands for those in the sleep.
     const busyTick = events.some((e) => e.busy && e.event === 'timer')
-    if ((held.length || ahead) && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
+    if ((held.length || raised) && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
         !timerWaits && (busyTick || !held.some((e) => e.event === 'timer'))) {
       if (!busyTick) held.push({ at: this.now, target: script, event: 'timer', payload: {}, held: false })
       // As in takeNextDue: an overdue tick keeps the old schedule if that is still ahead.
