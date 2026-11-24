@@ -248,6 +248,9 @@ export const DELAYED_EVENTS: ReadonlySet<string> = new Set(['timer', 'touch_star
 /** Events a script can hold in its queue; more are dropped, as in Second Life. */
 export const MAX_PENDING_EVENTS = 64
 
+/** One region simulator frame, at 45 frames a second. */
+export const SIM_FRAME_MS = 1000 / 45
+
 /** When llMinEventDelay lets a queued event run, or 0 when it doesn't delay it. */
 function delayedUntil(e: QueuedEvent): number {
   const v = e.target.clockView
@@ -320,9 +323,10 @@ export class LinksetClock {
    * the events it already held wait for it. A script holds at most
    * MAX_PENDING_EVENTS queued events, counting those waiting while it is
    * stopped; further events are dropped. Pass `held` to queue again an event
-   * that was waiting, with what `heldBack` said of it.
+   * that was waiting, with what `heldBack` said of it. An event judged at `at` that falls due
+   * later, at `dueAt`, keeps what it was judged then.
    */
-  schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean): void {
+  schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, dueAt = at): void {
     if (event !== '__reset' && !target.running) return
     // Due now, in the middle of a sleep: held back even at the instant the handler began.
     const wakeAt = target.wakeAt
@@ -341,7 +345,8 @@ export class LinksetClock {
       }
     }
     held &&= HELD_ORDER.has(event)
-    const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy) && { busy: true }) }
+    if (dueAt > at) held ??= false
+    const queued: QueuedEvent = { at: dueAt, target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy) && { busy: true }) }
     // In-world: a release in the first sleep of a game_control handler and a press in its second
     // gave one event, for the press. A release that waited from a listen handler's sleep and a
     // press in the sleep of the touch_start handler that ran next gave two. The first input of a
@@ -360,6 +365,15 @@ export class LinksetClock {
     }
     if (event !== '__reset' && !HELD_CONTROL.has(event) && this.full(target)) return
     this.queue.push(queued)
+  }
+
+  /**
+   * Queue `event` as `schedule` would now, due a simulator frame later. In-world, a prim change
+   * from a script call came a frame after the call: behind a link message sent straight after
+   * it, ahead of one sent after a sleep or a spin, and into the state the script changed to.
+   */
+  scheduleNextFrame(target: Script, event: string, payload: Record<string, unknown>): void {
+    this.schedule(target, this.now, event, payload, undefined, this.now + SIM_FRAME_MS)
   }
 
   /** Whether `target` holds as many queued events as it can. */

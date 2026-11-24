@@ -8,7 +8,12 @@ import {
 
 const PRIM_CHANGES = CHANGED_COLOR | CHANGED_MEDIA | CHANGED_RENDER_MATERIAL | CHANGED_SCALE | CHANGED_SHAPE
 
-/** Queue a prim setter's changes, merging bits within each script's pending events. */
+/**
+ * Queue a prim setter's changes, merging bits within each script's pending events. In-world,
+ * a script's llSetColor, llSetLinkColor, llSetAlpha, llSetScale, PRIM_COLOR or llSetLinkMedia
+ * raised changed a simulator frame after the call, in every script of the changed prim, behind
+ * a link message sent straight after it.
+ */
 export function raisePrimChanged(prim: Prim, changes: number): void {
   const clock = prim.linkset!.clock
   for (const script of prim.scripts) {
@@ -19,7 +24,7 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
     // A busy handler gets what the clock gives any event that comes up while it is busy.
     const merge = script.busy ? undefined : waiting.find(e => e.at >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
     if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
-    else clock.schedule(script, clock.now, 'changed', { changes })
+    else clock.scheduleNextFrame(script, 'changed', { changes })
   }
 }
 

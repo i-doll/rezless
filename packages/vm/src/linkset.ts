@@ -670,7 +670,9 @@ export class Linkset {
   /**
    * Queue changed(CHANGED_LINK) on every script in `prims`. As in Second
    * Life, a stopped script never gets it, and a script skips it while one
-   * queued since it last started or woke is still waiting, or while two are.
+   * queued since it last started or woke is still waiting, or while two are. In-world it came
+   * a simulator frame after llBreakLink or llBreakAllLinks, behind a link message sent straight
+   * after it.
    */
   private raiseLinkChanged(prims: ReadonlyArray<Prim>): void {
     const pending = this.clock
@@ -681,7 +683,7 @@ export class Linkset {
         if (!s.running) continue
         const waiting = pending.filter((e) => e.target === s)
         if (waiting.length >= 2 || waiting.some((e) => e.at >= s.resumedAt)) continue
-        this.clock.schedule(s, this.clock.now, 'changed', { changes: CHANGED_LINK })
+        this.clock.scheduleNextFrame(s, 'changed', { changes: CHANGED_LINK })
       }
     }
   }

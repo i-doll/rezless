@@ -249,9 +249,7 @@ describe('LSL: llUnSit, then llMessageLinked', () => {
 // recolour, then llMessageLinked(LINK_THIS), straight away ("N") or after
 // llSleep(0.5) ("S"). In-world, CHANGED_COLOR came a frame after the link
 // message in both languages: 3 of 3 SLua and 2 of 3 LSL runs for "N", 3 of 3
-// in each for "S". rezless raises it with the recolour. After a sleep it holds
-// the change back behind the link message, which gives the measured order;
-// without one the change runs first.
+// in each for "S". The prim change comes a simulator frame after the call.
 describe('a recolour, then llMessageLinked', () => {
   const colour = {
     lsl: `integer k; default { state_entry() { llListen(7686, "", NULL_KEY, ""); }
@@ -281,7 +279,7 @@ describe('a recolour, then llMessageLinked', () => {
   it.each(['lsl', 'slua'] as const)('runs link_message before CHANGED_COLOR after a sleep (%s)', async (language) => {
     expect(await recolour(language, 'S')).toEqual(['lm', 'changed 2'])
   })
-  it.fails('runs link_message before CHANGED_COLOR without a sleep (slua)', async () => {
-    expect(await recolour('slua', 'N')).toEqual(['lm', 'changed 2'])
+  it.each(['lsl', 'slua'] as const)('runs link_message before CHANGED_COLOR without a sleep (%s)', async (language) => {
+    expect(await recolour(language, 'N')).toEqual(['lm', 'changed 2'])
   })
 })

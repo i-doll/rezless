@@ -125,6 +125,8 @@ describe('changed colour and material events', () => {
         default{state_entry(){++entries;ready=1;}changed(integer c){seen += [ready,c];}}` } },
     ] }] })
     scripts.setter!.start()
+    // The change comes a simulator frame after the call.
+    scripts.setter!.advanceTime(100)
     expect(scripts.observer!.global('seen')).toEqual([1,2])
     scripts.observer!.start()
     expect(scripts.observer!.global('entries')).toBe(1)
