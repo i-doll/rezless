@@ -923,7 +923,7 @@ The option placeholder describes discovery metadata, not acceptance of every opt
 
 Forms: <code>@pay=n&#124;add&#124;y&#124;rem</code>.
 
-Comparison: confirmed difference. RLVa pay blocks avatar payments, including payments through attachments to their wearer. Object payments use buy. Kokua has no pay handler.
+Comparison: confirmed difference. RLVa pay blocks avatar payments, including the Pay menu on an attachment, which pays its wearer. Object payments, attachments included, use buy. Kokua has no pay handler.
 
 #### Kokua RLV 2.09.35.00
 
@@ -934,7 +934,7 @@ Reference symbols: <code>indra/newview/RRInterface.cpp</code>: <code>RRInterface
 
 #### Firestorm RLVa 2.4.2
 
-Support depth: enforced. No-option pay denies avatar payments. Attachment payments target their wearer without money events on the attachment. Add/remove aliases and per-issuer clear apply; options, secure variants and force forms are unsupported.
+Support depth: enforced. No-option pay denies avatar payments. The Pay menu on an attachment pays its wearer without money events on the attachment. Add/remove aliases and per-issuer clear apply; options, secure variants and force forms are unsupported.
 
 - @pay=n|add|y|rem
 

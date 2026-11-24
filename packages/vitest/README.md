@@ -3017,13 +3017,17 @@ owner, as Second Life pays it, whether or not any script takes money.
 It queues `money(id, amount)` on the paid prim's running handlers, or on the
 root's running handlers when the paid prim has none. A payment to a root never
 reaches a child's handler.
-A payment through an attachment goes to its wearer and sends no attachment event.
+A payment to an attachment goes to its wearer and runs the same handlers as on a
+rezzed object. Through the Pay menu (`{ menu: true }`), an attachment pays its
+wearer as an avatar: RLVa checks `pay` instead of `buy`, and no money event runs.
+The menu has no Pay item for your own attachment, so that payment is `unsupported`
+with reason `not-payable`.
 `fixture.payActions` records `paid`, `blocked`, and `unsupported` outcomes,
 including the target, effective recipient, amount and deciding restrictions.
 
 Pass `{ menu: true }` as the last argument to pay through the viewer's Pay menu
-instead. The menu offers Pay only when the prim or its root has a running money
-handler; otherwise the payment is `unsupported` with reason `not-payable`.
+instead. On a rezzed object the menu offers Pay only when the prim or its root has
+a running money handler; otherwise the payment is `unsupported` with reason `not-payable`.
 `llSetPayPrice` alone doesn't make the menu offer Pay. Payment injection doesn't
 validate the dialog's button choices.
 
