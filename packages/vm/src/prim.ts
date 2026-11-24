@@ -319,7 +319,7 @@ export class Prim {
     }
     if (saved.type === InventoryType.NOTECARD && saved.key !== NULL_KEY) this.#notecardKeys().set(notecardText(saved.notecardLines), saved.key)
     const script = old.script
-    if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
+    if (!script || script.dead || !script.hasStarted) return this.#ownerEditedInventory()
     this.#ownerEditedScript(script, () => script.recompile())
   }
 
@@ -401,11 +401,6 @@ export class Prim {
     })
     if (!script.dead) start()
     if (idle) linkset.settle(idle)
-  }
-
-  /** A queued event can run a script's handler without starting it. */
-  #live(script: Script): boolean {
-    return script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined
   }
 
   #ownerEditedInventory(changes = CHANGED_INVENTORY): void {

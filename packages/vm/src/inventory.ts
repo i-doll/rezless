@@ -40,10 +40,10 @@ export function queueInventoryChanged(script: Script, changes = CHANGED_INVENTOR
 /**
  * Whether an owner edit or a remote script load made now queues `changed`
  * for a script. It does not for a stopped script, nor for one that has not
- * run yet. A queued event can run a script's handler without starting it.
+ * run yet.
  */
 export function hearsInventoryChange(script: Script): boolean {
-  return script.running && (script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined)
+  return script.running && script.hasStarted
 }
 
 /** The name an arriving item gets: a taken name is cut to fit a number within 63 characters. */

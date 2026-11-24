@@ -66,7 +66,7 @@ export const llBreakLink: BuiltinImpl = (ctx, args) => {
   if (link === LINK_THIS) prim = prims[0]
   else if (link < 0) prim = prims[1]
   else if (link > 0) prim = prims[link - 1]
-  if (prim && mayEdit(ctx)) ctx.linkset.breakOff(prim)
+  if (prim && mayEdit(ctx)) ctx.linkset.breakOff(prim, ctx.script)
   return undefined
 }
 
@@ -75,6 +75,6 @@ export const llBreakLink: BuiltinImpl = (ctx, args) => {
  * object, nothing happens and the owner is told; a worn object breaks nothing, with no error.
  */
 export const llBreakAllLinks: BuiltinImpl = (ctx) => {
-  if (mayBreakLinks(ctx) && !ctx.linkset.attachment && mayEdit(ctx)) ctx.linkset.breakAll()
+  if (mayBreakLinks(ctx) && !ctx.linkset.attachment && mayEdit(ctx)) ctx.linkset.breakAll(ctx.script)
   return undefined
 }

@@ -319,21 +319,6 @@ describe('a script that is not running', () => {
   })
 })
 
-describe('a script that only a queued event has run', () => {
-  it('hears an owner edit made after that event', async () => {
-    // An event queued for a script the test never started runs its handler
-    // without start().
-    const { linkset, prims, scripts } = await loadLinkset({
-      prims: [{ scripts: [{ source: { source: logger, filename: 'a.lsl' }, name: 'a' }] }],
-    })
-    linkset.clock.schedule(scripts['a']!, linkset.clock.now, 'changed', { changes: 1 })
-    linkset.advanceTime(0)
-    expect(scripts['a']!.global('seen')).toEqual([1])
-    prims[0]!.addInventory(notecard('x1'))
-    expect(scripts['a']!.global('seen')).toEqual([1, 1])
-  })
-})
-
 describe('loadLinkset', () => {
   it('stores fixture inventory as given', async () => {
     const { prims } = await loadLinkset({ prims: [{ inventory: [notecard('nc'), notecard('nc')] }] })

@@ -18,8 +18,7 @@ const PRIM_CHANGES = CHANGED_COLOR | CHANGED_MEDIA | CHANGED_RENDER_MATERIAL | C
 export function raisePrimChanged(prim: Prim, changes: number): void {
   const clock = prim.linkset!.clock
   for (const script of prim.scripts) {
-    if (!script.running) continue
-    script.queueStart()
+    if (!script.running || !script.hasStarted) continue
     const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
       && ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0)
     // A busy handler gets what the clock gives any event that comes up while it is busy.
