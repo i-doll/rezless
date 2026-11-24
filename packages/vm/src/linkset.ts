@@ -128,12 +128,14 @@ function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<Detecte
  */
 const fresh = (detected: ReadonlyArray<DetectedEntry>) => detected.map((e) => ({ ...e }))
 
-/** Touch data a script has run a `touch` handler with. */
-const deliveredTouches = new WeakSet<DetectedEntry>()
+/** The touch data each script has run a `touch` handler with. */
+const deliveredTouches = new WeakMap<Script, WeakSet<DetectedEntry>>()
 
-/** Note that a script runs a `touch` handler with `detected`. */
-export function touchDelivered(detected: ReadonlyArray<DetectedEntry>): void {
-  for (const e of detected) deliveredTouches.add(e)
+/** Note that `s` runs a `touch` handler with `detected`. */
+export function touchDelivered(s: Script, detected: ReadonlyArray<DetectedEntry>): void {
+  let seen = deliveredTouches.get(s)
+  if (!seen) deliveredTouches.set(s, seen = new WeakSet())
+  for (const e of detected) seen.add(e)
 }
 
 const raising = (s: Script) => !s.dead && s.running && s.linkset.peers.includes(s.linkset)
@@ -179,7 +181,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // touch_start, and one in a later touch showed the map again.
       // A touch raised before the last one ran merges into it and keeps its data.
       const last = click.lastTouch
-      const detected = !last ? click.detected : deliveredTouches.has(last[0]!) ? fresh(click.detected) : last
+      const detected = !last ? click.detected : deliveredTouches.get(s)?.has(last[0]!) ? fresh(click.detected) : last
       click.touched = true
       click.lastTouch = detected
       scheduleTouch(s, 'touch', detected)

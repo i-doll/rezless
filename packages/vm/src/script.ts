@@ -1802,7 +1802,7 @@ export class Script {
     if (pushed) this.state.detectedStack.push({
       entries: detected as ReadonlyArray<DetectedEntry>, event,
     })
-    if (pushed && event === 'touch') touchDelivered(detected as ReadonlyArray<DetectedEntry>)
+    if (pushed && event === 'touch') touchDelivered(this, detected as ReadonlyArray<DetectedEntry>)
     try {
       this.state.memory.startEvent()
       return yield* body()

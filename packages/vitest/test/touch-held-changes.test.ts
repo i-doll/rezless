@@ -502,6 +502,16 @@ default {
     expect(await mapped(mapper(false, 3, 1), { hold: 4000 })).toEqual([101, 102, 103, 210])
   })
 
+  it('judges each script by the touch events it ran', async () => {
+    // Another script in the prim running its first touch earlier doesn't make this script's new.
+    const world = new World()
+    world.addRegion('SLua Tideland', { x: 40960, y: 23296 })
+    world.addAvatar({ region: 'SLua Tideland', key: OWNER, username: 'owner' })
+    const made = await build([[{ name: 'map', source: mapper(true, 1, 0) }, { name: 'other', source: 'default { touch(integer k) { } }' }]], { world })
+    made.linkset.touch(0, { hold: 2500 })
+    expect(made.scripts.map!.viewerRequests.map((r) => (r as unknown as { position: { x: number } }).position.x)).toEqual([1])
+  })
+
   it('shows touch_end\'s map after a link change renumbers the clicked prim', async () => {
     // In-world: a click on link 2 passed to the root, whose script linked a third prim in, so
     // touch_end read link 3: touch_start's map and touch_end's both showed.
