@@ -30,9 +30,9 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
  * child gave it one changed(3). Two gifts from another prim to an idle script could give it one
  * changed or two; it gets two here, as an earlier probe measured.
  */
-export function raiseInventoryChanged(script: Script, fromOwnPrim: boolean): void {
+export function raiseInventoryChanged(script: Script, inGiversPrim: boolean): void {
   const idle = !script.handling && script.handlerStartedAt === undefined
-  raiseChanged(script, CHANGED_INVENTORY, idle && !fromOwnPrim ? PRIM_CHANGES : MERGED_CHANGES)
+  raiseChanged(script, CHANGED_INVENTORY, idle && !inGiversPrim ? PRIM_CHANGES : MERGED_CHANGES)
 }
 
 function raiseChanged(script: Script, changes: number, mergesWith = MERGED_CHANGES): void {
@@ -41,7 +41,7 @@ function raiseChanged(script: Script, changes: number, mergesWith = MERGED_CHANG
     && ((e.payload['changes'] as number) & MERGED_CHANGES) !== 0)
   const into = waiting.filter(e => ((e.payload['changes'] as number) & ~mergesWith) === 0)
   // A busy handler gets what the clock gives any event that comes up while it is busy.
-  const merge = script.busy ? undefined : into.find(e => cameUp(e) >= script.resumedAt) ?? (waiting.length >= 2 ? into.at(-1) : undefined)
+  const merge = script.busy ? undefined : into.find(e => cameUp(e) >= script.resumedAt) ?? (into.length >= 2 ? into.at(-1) : undefined)
   if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
   else clock.scheduleNextFrame(script, 'changed', { changes })
 }

@@ -81,8 +81,8 @@ async function touched(language: Language, body: (c: typeof calls.lsl) => string
 
 describe.each(['lsl', 'slua'] as const)('a gift to the script\'s own linkset (%s)', (language) => {
   // In-world: llGiveInventory(llGetKey(), item) then llMessageLinked(LINK_THIS) -> link_message,
-  // then changed(1) (24 of 24 runs over the two languages, a notecard, another script and the
-  // caller itself as the item).
+  // then changed(1) (36 of 38 runs over the two languages, with a notecard, another script and the
+  // caller itself as the item; two early runs put changed first).
   it('raises changed a frame after the call, behind a link message sent after it', async () => {
     expect((await touched(language, (c) => c.give + c.message)).root).toEqual(['lm', 'changed 1'])
   })
