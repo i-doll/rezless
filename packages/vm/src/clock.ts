@@ -374,16 +374,17 @@ export class LinksetClock {
    * the first contact's collision_start, first collision and collision_end, when none of its
    * collisions was held, ran where they came up; a later contact was held whole and merged with
    * the held events. A collision_start from an object already in a held collision was dropped.
+   * Each object's contact is judged by its own events.
    */
   private busyCollisionHeld(target: Script, event: string, payload: Record<string, unknown>): boolean | undefined {
     const waiting = this.queue.filter((e) => e.target === target && e.at <= this.now && COLLISION_EVENTS.has(e.event))
-    const waits = (kind: string, held?: boolean) => waiting.some((e) => e.event === kind && (held === undefined || !!e.held === held))
     const keys = detectedKeys(payload)
-    const heldWith = (kind: string) => waiting.some((e) => e.held && e.event === kind && (!keys.length || detectedKeys(e.payload).some((k) => keys.includes(k))))
-    if (event === 'collision') return waits('collision') || waits('collision_end') || heldWith('collision_start')
-    if (event === 'collision_end') return waits('collision_end') || waits('collision', true) || heldWith('collision_start')
-    if (!waits('collision_start')) return false
-    return heldWith('collision') ? undefined : true
+    const same = (e: QueuedEvent) => !keys.length || detectedKeys(e.payload).some((k) => keys.includes(k))
+    const waits = (kind: string, held?: boolean) => waiting.some((e) => e.event === kind && (held === undefined || !!e.held === held) && same(e))
+    if (event === 'collision') return waits('collision') || waits('collision_end') || waits('collision_start', true)
+    if (event === 'collision_end') return waits('collision_end') || waits('collision', true) || waits('collision_start', true)
+    if (!waiting.some((e) => e.event === 'collision_start')) return false
+    return waits('collision', true) ? undefined : true
   }
 
   /** Whether an event of `event`'s kind waits for `target`; with `since`, one that came up while busy after it. */

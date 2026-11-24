@@ -185,6 +185,17 @@ describe('a second contact while a handler is busy', () => {
     expect(f.log()).toEqual(['begin', 'end', 'collision_start ball 1', 'link 1', 'collision_start platform 1', 'collision platform 1'])
   })
 
+  // Nor could a contact from a second object that starts inside the first contact. The first
+  // contact's own events run where they came up, as when it is alone.
+  it("runs the first contact whole while a second object's contact is held", async () => {
+    const f = await make(8_000)
+    f.begin()
+    f.wait(1_000); f.queue('collision_start'); f.wait(50); f.queue('collision_start', PLATFORM); f.wait(20); f.queue('collision', PLATFORM)
+    f.wait(60); f.queue('collision_end'); f.link(1)
+    f.wait(8_000)
+    expect(f.log()).toEqual(['begin', 'end', 'collision_start ball 1', 'collision_end ball 1', 'link 1', 'collision_start platform 1', 'collision platform 1'])
+  })
+
   // A collision event with no detected objects counts as from one already in a held collision,
   // so a second drop still gives no collision_start of its own.
   it('drops a collision_start with no detected objects behind a held collision', async () => {
