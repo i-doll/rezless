@@ -1309,7 +1309,7 @@ function avatarHull(height: number): readonly Plane[] {
 }
 
 // In-world, rays at a seated avatar hit another shape, set by the sitting pose, that isn't modelled.
-const isStandingAvatar = (entity: WorldEntity) => entity.username !== undefined && !(entity as WorldAvatar).sittingOn
+const isStandingAvatar = (entity: WorldEntity) => entity.username !== undefined && !((entity as WorldAvatar).info & AGENT_SITTING)
 
 /** Intersect a convex hull, excluding rays whose start is inside. */
 function hullEntry(start: Vector, end: Vector, position: Vector, rotation: Rotation, planes: readonly Plane[]): Omit<RayHit, 'key' | 'rootKey' | 'linkNumber'> | undefined {

@@ -65,6 +65,22 @@ describe('llCastRay on an avatar', () => {
     })
   }
 
+  // In-world, rays at a seated avatar hit a shape that depends on the sitting pose. It isn't
+  // modelled, so an avatar sitting on an object or on the ground keeps its size box.
+  it('keeps the size box for a seated or ground-sitting avatar', async () => {
+    for (const sit of ['object', 'ground'] as const) {
+      const { w, avatar } = world('tall')
+      if (sit === 'ground') w.sitAvatarOnGround(avatar)
+      else {
+        const seat = await loadLinkset({ world: w, region: 'ray', position: AT, prims: [{ name: 'seat' }] })
+        expect(w.sitAvatar(avatar, seat.prims[0]!, { position: { x: 0, y: 0, z: 1 } })).toBe(true)
+      }
+      const at = avatar.position
+      const hits = w.castRay('ray', { x: at.x - 1.5, y: at.y, z: at.z + 0.84 }, { x: at.x + 1.5, y: at.y, z: at.z + 0.84 }, { rejectTypes: 6, detectPhantom: false })
+      expect(hits.map(h => h.position.x - at.x), sit).toEqual([expect.closeTo(-0.3, 4)])
+    }
+  })
+
   // In-world: the tall avatar, turned 90 degrees. Along x at its centre's height the ray hit
   // <-0.250, 0, 0> (an edge); along y it hit <0, -0.204, 0> with normal <0, -0.999, -0.039>;
   // straight down it hit the top at 0.903 with normal <0, 0, 1>, and straight up the bottom at

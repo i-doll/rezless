@@ -117,6 +117,28 @@ describe('llMoveToTarget in a worn object', () => {
     expect(f.avatar.position).toEqual(before)
   })
 
+  it('moves the wearer the same however the clock is sliced, physical or not', async () => {
+    const run = async (slices: number[]) => {
+      const f = await worn('llSetStatus(STATUS_PHYSICS, TRUE); llMoveToTarget(llGetPos() + <0, -10, 0>, 1.0); llLookAt(llGetPos() + <5, 0, 0>, 1.0, 1.0);')
+      f.start(f.root)
+      for (const ms of slices) f.linkset.advanceTime(ms)
+      return f.avatar.position.y
+    }
+    expect(await run([5, 5])).toBeCloseTo(await run([10]), 9)
+  })
+
+  it('leaves a pending sit alone while the wearer is already at the target', async () => {
+    const f = await worn('llMoveToTarget(llGetPos(), 0.3);')
+    const seat = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, position: v(125, 48, 1997), prims: [{ name: 'seat' }] })
+    f.world.setSitResponse(seat.prims[0]!, { position: v(0, 0, 1), autopilot: { durationMs: 1000, success: true } })
+    f.start(f.root)
+    f.linkset.advanceTime(100)
+    expect(f.world.userSitAvatar(f.avatar, seat.prims[0]!)).toBe(true)
+    f.linkset.advanceTime(500)
+    f.linkset.advanceTime(600)
+    expect(f.avatar.sittingOn).toBe(seat.prims[0])
+  })
+
   // In-world: a target 64.2 m above the wearer left it where it was; 63.8 m above lifted it to
   // 2061.18 in 3 s, 0.07 m short of the target. Here the wearer reaches the target, with no
   // gravity.

@@ -871,7 +871,12 @@ function advanceTargetMotion(prim: Prim, seconds: number): void {
   const wearer = prim.linkset?.wearer
   if (wearer) {
     const move = acting(prim.targetMotion.move)
-    if (move && !wearer.sittingOn) wearer.position = approach(wearer.position, move.target, -Math.expm1(-seconds / move.tau))
+    if (!move || wearer.sittingOn) return
+    const from = wearer.position, to = approach(from, move.target, -Math.expm1(-seconds / move.tau))
+    // A step too small for a single-precision position isn't a move, so a wearer resting at its
+    // target leaves a sit it is walking to pending.
+    const f = Math.fround
+    if (f(to.x) !== f(from.x) || f(to.y) !== f(from.y) || f(to.z) !== f(from.z)) wearer.position = to
     return
   }
   if (!(prim.statusFlags & STATUS_PHYSICS)) return
