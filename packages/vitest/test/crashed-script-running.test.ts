@@ -48,11 +48,11 @@ const control = `list states;
 
 type Lang = 'lsl' | 'slua'
 
-async function rig(lang: Lang) {
+async function rig(lang: Lang, lsl = lslVictim) {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   const victim = lang === 'lsl'
-    ? { name: 'a', source: { source: lslVictim } }
+    ? { name: 'a', source: { source: lsl } }
     : { name: 'a', language: 'slua', source: { source: sluaVictim, filename: 'a.luau' } }
   const payload = await loadLinkset({ prims: [{ name: 'rig', scripts: [victim, { name: 'ctl', source: { source: control } }] }] })
   for (const s of Object.values(payload.scripts)) s.start()
@@ -86,6 +86,18 @@ async function rig(lang: Lang) {
     parent.fire('link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
     return rez()
   }
+  /** Take a copy into the rezzer's item and rez it, leaving the original where it is. */
+  const takeCopyAndRez = () => {
+    const original = linkset
+    Object.assign(rezzer.prims[0]!.inventory.find(i => i.name === 'payload')!, { object: linkset.copy() })
+    return { original: original.allScripts().find(s => s.scriptName === 'a')!, ...rez() }
+  }
+  /** The viewer's Duplicate: the copy's `a`, with its first events run. */
+  const duplicate = () => {
+    const copy = linkset.duplicate({ x: 0, y: 0, z: 0.6 })
+    copy.advanceTime(0)
+    return copy.allScripts().find(s => s.scriptName === 'a')!
+  }
   rez()
   const send = (m: string) => {
     const { a } = scripts()
@@ -112,7 +124,7 @@ async function rig(lang: Lang) {
   }
   const states = () => scripts().ctl.global('states')
   const debug = () => scripts().a.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)
-  return { world, scripts, send, tell, wait, crash, log, states, takeAndRez, debug, prim: () => linkset.prims[0]! }
+  return { world, scripts, send, tell, wait, crash, log, states, takeAndRez, takeCopyAndRez, duplicate, debug, prim: () => linkset.prims[0]! }
 }
 
 describe.each<Lang>(['lsl', 'slua'])('a crashed %s script', (lang) => {
@@ -390,6 +402,160 @@ describe('a crashed script in a worn object detached and worn again', () => {
     r.tell('state')
     r.linkset.advanceTime(5000)
     expect(r.states()).toEqual([0, 1, 0, 0, 1])
+    expect(r.log()).toEqual([])
+  })
+})
+
+// In-world (Aditi beta grid, SLua Tideland, 2026-11-24): the same scripts, crashed the same way,
+// in an object the owner took a copy of or duplicated with the viewer's Duplicate, two runs each.
+describe('a copy of a crashed script', () => {
+  const copyLog = (s: Script) => {
+    try {
+      return s.global('log')
+    } catch {
+      return []
+    }
+  }
+
+  it('comes out of a Take Copy of an LSL script left set running as out of a take', async () => {
+    // In-world: Take Copy of the crashed object, then a rez of the copy -> "entry 42", "on_rez 42"
+    // and ticks with g 42. The original stayed down.
+    const r = await rig('lsl')
+    r.crash()
+    r.wait(5000)
+    const { original } = r.takeCopyAndRez()
+    r.send('ping')
+    r.wait(0)
+    expect(r.log()).toEqual(['entry 42', 'on_rez 42', 'tick 42', 'pong 42'])
+    expect(original.crashed).toBe(true)
+    expect(copyLog(original)).toEqual([])
+  })
+
+  it('says its error again from a Take Copy of an SLua script left set running', async () => {
+    // In-world: the rezzed copy said both error lines again and ran nothing.
+    const r = await rig('slua')
+    r.crash()
+    const { a, original } = r.takeCopyAndRez()
+    r.wait(5000)
+    expect(r.debug()).toEqual(['rig [script:a] Script run-time error', 'lua_script:9: boom\n[C] function error\nlua_script:9\n[C] function _handleEvent\n'])
+    expect(a.crashed).toBe(true)
+    expect(r.log()).toEqual([])
+    expect(original.crashed).toBe(true)
+  })
+
+  it.each<[Lang, string, boolean]>([
+    // In-world: the copy of a crashed LSL script left set running said "entry 0" and its checkbox
+    // read on.
+    ['lsl', 'left set running', true],
+    // In-world: the copy of a crashed SLua script left set running said nothing and its checkbox
+    // read off. So did one set running with llSetScriptState TRUE after the crash. The copy of an SLua script that never crashed ran.
+    ['slua', 'left set running', false],
+    ['slua', 'set running with llSetScriptState', false],
+    ['slua', 'never crashed', true],
+    // In-world: stopped with llSetScriptState FALSE, the copy's checkbox read off, and turned on
+    // it said "entry 0". Stopped and started again, the copy said "entry 0" and read 1.
+    ['lsl', 'stopped', false],
+    ['slua', 'stopped', false],
+    ['lsl', 'stopped and started again', true],
+    ['slua', 'stopped and started again', true],
+    // In-world: Duplicate of the object rezzed from a take. The stuck LSL script's copy said
+    // "entry 0" and read 1. The crashed SLua script's copy said
+    // "entry 0" and read 1, whether the script had been left set running or stopped and started
+    // again before the take.
+    ['lsl', 'stopped and started again, then taken and rezzed', true],
+    ['slua', 'left set running, then taken and rezzed', true],
+    ['slua', 'stopped and started again, then taken and rezzed', true],
+  ])('the viewer’s Duplicate of a %s script %s runs: %s', async (lang, how, runs) => {
+    const r = await rig(lang)
+    if (how !== 'never crashed') r.crash()
+    if (how === 'set running with llSetScriptState') r.tell('start')
+    if (how.startsWith('stopped')) r.tell('stop')
+    if (how.startsWith('stopped and started again')) r.tell('start')
+    if (how.endsWith('taken and rezzed')) r.takeAndRez()
+    const said = r.debug().length
+    const copy = r.duplicate()
+    expect(copy.crashed).toBe(false)
+    expect(copy.running).toBe(runs)
+    expect(copy.readsRunning).toBe(runs)
+    expect(copyLog(copy)).toEqual(runs ? ['entry 0'] : [])
+    expect(r.debug()).toHaveLength(said)
+    expect(copy.chat.filter(c => c.channel === DEBUG_CHANNEL)).toEqual([])
+    if (!runs) {
+      copy.running = true
+      copy.linkset.advanceTime(0)
+      expect(copyLog(copy)).toEqual(['entry 0'])
+    }
+    expect(r.scripts().a.crashed).toBe(how !== 'never crashed')
+  })
+})
+
+describe('a crashed LSL script reset while stopped', () => {
+  const twoStates = `integer g; list log;
+    default {
+      state_entry() { log += "entry " + (string)g; }
+      on_rez(integer p) { log += "on_rez " + (string)g; }
+      link_message(integer s, integer n, string m, key k) {
+        if (m == "ping") log += "pong " + (string)g;
+        else if (m == "go") state two;
+      }
+    }
+    state two {
+      state_entry() { log += "two entry " + (string)g; }
+      on_rez(integer p) { log += "two on_rez " + (string)g; }
+      link_message(integer s, integer n, string m, key k) {
+        if (m == "ping") log += "two pong " + (string)g;
+        else if (m == "set") g = 42;
+        else if (m == "crash") { integer z; g = g / z; }
+      }
+    }`
+
+  it('comes out of a take as stuck as one that was never reset', async () => {
+    // In-world: g set to 42 and the script moved to a second state before the crash. Then
+    // llSetScriptState FALSE, llResetOtherScript (read 0), llSetScriptState TRUE (read 0), a take
+    // and a rez -> nothing said in either state, no on_rez, llGetScriptState 0. llResetOtherScript
+    // then read 1, and it still ran nothing, as for the stuck script that was never reset. Two runs.
+    const r = await rig('lsl', twoStates)
+    r.send('go')
+    r.wait(0)
+    r.crash()
+    r.tell('stop')
+    r.tell('reset')
+    r.tell('state')
+    r.tell('start')
+    r.tell('state')
+    r.takeAndRez()
+    r.tell('state')
+    r.send('ping')
+    r.wait(5000)
+    r.tell('reset')
+    r.tell('state')
+    r.send('ping')
+    r.wait(5000)
+    expect(r.states()).toEqual([0, 0, 0, 1])
+    expect(r.log()).toEqual([])
+  })
+})
+
+describe('a stuck LSL script', () => {
+  it('stays down on llSetScriptState TRUE before any reset', async () => {
+    // In-world: crashed, llSetScriptState FALSE then TRUE, taken and rezzed -> llGetScriptState 0.
+    // llSetScriptState TRUE -> still 0, and it answered nothing. llResetOtherScript then read 1,
+    // and it still answered nothing. Two runs.
+    const r = await rig('lsl')
+    r.crash()
+    r.tell('stop')
+    r.tell('start')
+    r.takeAndRez()
+    r.tell('state')
+    r.tell('start')
+    r.tell('state')
+    r.send('ping')
+    r.wait(5000)
+    r.tell('reset')
+    r.tell('state')
+    r.send('ping')
+    r.wait(5000)
+    expect(r.states()).toEqual([0, 0, 1])
     expect(r.log()).toEqual([])
   })
 })
