@@ -292,7 +292,9 @@ describe('llJsonGetValue', () => {
     expect(s.global('out')).toBe('line\nbreak\there')
   })
 
-  it('empty-value short-circuit → JSON_NULL even with extra specifiers', async () => {
+  // In-world (Aditi, SLua Tideland, 2026-11-24, json-reader/empty-members.lsl): an empty member
+  // reads as JSON_INVALID at its key and at any path through it.
+  it('empty member value → JSON_INVALID even with extra specifiers', async () => {
     const s = await run(`
       string a = ""; string b = "";
       default { state_entry() {
@@ -300,8 +302,8 @@ describe('llJsonGetValue', () => {
         b = llJsonGetValue("{\\"parent\\":,}", ["parent","missing"]);
       } }
     `)
-    expect(s.global('a')).toBe(JSON_NULL)
-    expect(s.global('b')).toBe(JSON_NULL)
+    expect(s.global('a')).toBe(JSON_INVALID)
+    expect(s.global('b')).toBe(JSON_INVALID)
   })
 
   // In-world: llJsonGetValue("[1,,3]", [1]) = JSON_INVALID
@@ -410,14 +412,16 @@ describe('llJsonValueType', () => {
     expect(s.global('out')).toBe(JSON_INVALID)
   })
 
-  it('empty-value short-circuit returns JSON_NULL', async () => {
+  // In-world (Aditi, SLua Tideland, 2026-11-24, json-reader/empty-members.lsl): the type of an
+  // empty member is JSON_INVALID.
+  it('empty member value → JSON_INVALID type', async () => {
     const s = await run(`
       string out = "";
       default { state_entry() {
         out = llJsonValueType("{\\"parent\\":,}", ["parent"]);
       } }
     `)
-    expect(s.global('out')).toBe(JSON_NULL)
+    expect(s.global('out')).toBe(JSON_INVALID)
   })
 
   it('nested specifier path: {"a":[1,{"b":true}]} via ["a",1,"b"] → JSON_TRUE', async () => {

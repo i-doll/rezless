@@ -16,13 +16,10 @@ import {
   JSON_DELETE,
 } from '../generated/constants.js'
 
-// Internal AST. `empty` represents the implicit-null slots LSL JSON allows
-// in `{"k":,}` and `[,,]`; on Get/Type these short-circuit to JSON_NULL
-// regardless of remaining specifiers. A `missing` value, as in `{"k":}` or
-// the extra "" member a trailing comma adds to an object, reads as
-// JSON_INVALID instead. A `raw` value is text printed exactly as stored: text read that is not
-// JSON, or a value llJsonSetValue writes. A `bad`
-// container is one whose first and last characters make it an object or array but whose
+// Internal AST. `empty` represents the empty slots LSL JSON allows in `{"k":,}` and `[,,]`;
+// on Get/Type they read as JSON_INVALID, as does any path through them. A `raw` value is text
+// printed exactly as stored: text read that is not JSON, or a value llJsonSetValue writes. A
+// `bad` container is one whose first and last characters make it an object or array but whose
 // members could not be read.
 type JNode =
   | { t: 'null' }
@@ -32,7 +29,7 @@ type JNode =
   | { t: 'str'; v: string; raw: string }
   | { t: 'arr'; items: JNode[]; raw?: string }
   | { t: 'obj'; entries: Array<[string, JNode]>; raw?: string }
-  | { t: 'empty'; missing?: true }
+  | { t: 'empty' }
   | { t: 'raw'; v: string }
   | { t: 'bad'; kind: 'arr' | 'obj'; raw: string }
 
@@ -174,7 +171,7 @@ function readContainer(t: string): JNode {
     } else if (c === '[' || c === '{') {
       const j = matchForward(t, i)
       if (j < 0) {
-        finish(t[i - 1] === ',' ? { t: 'raw', v: t.slice(i) } : { t: 'empty', missing: true }, false)
+        finish(t[i - 1] === ',' ? { t: 'raw', v: t.slice(i) } : { t: 'empty' }, false)
         break
       }
       if (j >= end - 1) {
@@ -209,7 +206,7 @@ function readContainer(t: string): JNode {
       key = unescapeJson(s.keyText.slice(1, -1))
     }
     if (key === '' && s.comma) return bad
-    entries.push([key, s.value ?? (s.colons === 1 && s.comma ? { t: 'empty' } : { t: 'empty', missing: true })])
+    entries.push([key, s.value ?? { t: 'empty' }])
   }
   return { t: 'obj', entries, raw: t }
 }
@@ -277,22 +274,20 @@ function printJson(n: JNode): string {
   }
 }
 
-type ReadNode = Exclude<JNode, { t: 'raw' }>
+type ReadNode = Exclude<JNode, { t: 'raw' } | { t: 'empty' }>
 
 type WalkResult =
   | { kind: 'node'; node: ReadNode }
   | { kind: 'invalid' }
-  | { kind: 'null' }
 
 function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
   let cur: JNode = root
   for (const [i, spec] of specs.entries()) {
-    if (cur.t === 'empty') return cur.missing ? { kind: 'invalid' } : { kind: 'null' }
     if (typeof spec === 'string' && cur.t === 'arr') {
       const digits = /^[ \t\n\v\f\r]*\+?([0-9]+)/.exec(spec)
       if (digits === null) return { kind: 'invalid' }
       const item = cur.items[Number(digits[1])]
-      if (item === undefined || item.t === 'empty') return { kind: 'invalid' }
+      if (item === undefined) return { kind: 'invalid' }
       cur = item
     } else if (typeof spec === 'string') {
       if (cur.t !== 'obj') return { kind: 'invalid' }
@@ -304,15 +299,12 @@ function walk(root: JNode, specs: ReadonlyArray<LslValue>): WalkResult {
       if (cur.t !== 'arr' || listElementType(specs, i) === 'float') return { kind: 'invalid' }
       const idx = Math.trunc(spec)
       if (idx < 0 || idx >= cur.items.length) return { kind: 'invalid' }
-      const item = cur.items[idx]!
-      if (item.t === 'empty') return { kind: 'invalid' }
-      cur = item
+      cur = cur.items[idx]!
     } else {
       return { kind: 'invalid' }
     }
   }
-  if (cur.t === 'empty') return cur.missing ? { kind: 'invalid' } : { kind: 'null' }
-  if (cur.t === 'raw') return { kind: 'invalid' }
+  if (cur.t === 'empty' || cur.t === 'raw') return { kind: 'invalid' }
   return { kind: 'node', node: cur }
 }
 
@@ -332,8 +324,6 @@ function nodeToGetString(n: ReadNode): string {
     case 'obj':
     case 'bad':
       return printJson(n)
-    case 'empty':
-      return JSON_NULL
   }
 }
 
@@ -355,8 +345,6 @@ function nodeType(n: ReadNode): string {
       return JSON_OBJECT
     case 'bad':
       return n.kind === 'obj' ? JSON_OBJECT : JSON_ARRAY
-    case 'empty':
-      return JSON_NULL
   }
 }
 
@@ -457,7 +445,7 @@ function setIn(
   }
   if (typeof head === 'string') {
     // An object whose only member has no value is written to as an empty one.
-    const lone = root?.t === 'obj' && root.entries.length === 1 && root.entries[0]![1].t === 'empty' && root.entries[0]![1].missing
+    const lone = root?.t === 'obj' && root.entries.length === 1 && root.entries[0]![1].t === 'empty'
     const obj: { t: 'obj'; entries: Array<[string, JNode]> } =
       root && root.t === 'obj' && !lone
         ? { t: 'obj', entries: collapseDuplicateKeys(root.entries) }
@@ -546,7 +534,6 @@ export const llJsonGetValue: BuiltinImpl = (_ctx, args) => {
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)
   if (r.kind === 'invalid') return JSON_INVALID
-  if (r.kind === 'null') return JSON_NULL
   return nodeToGetString(r.node)
 }
 
@@ -559,7 +546,6 @@ export const llJsonValueType: BuiltinImpl = (_ctx, args) => {
   if (root === null) return JSON_INVALID
   const r = walk(root, specs)
   if (r.kind === 'invalid') return JSON_INVALID
-  if (r.kind === 'null') return JSON_NULL
   return nodeType(r.node)
 }
 

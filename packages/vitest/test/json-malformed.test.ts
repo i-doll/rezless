@@ -29,6 +29,11 @@ const fixture = (file: string) => readFileSync(new URL(`./json-reader/${file}`, 
  *
  * In-world: Aditi, SLua Tideland, 2026-11-23, LSL Mono. The objects-and-arrays script compiled
  * to Luau gave the same transcript.
+ *
+ * empty-members reads and writes an object member with nothing between its colon and the next
+ * comma or brace, and an empty array slot, in every position. Its E rows are the reads and its
+ * W rows the writes. In-world: Aditi, SLua Tideland, 2026-11-24, LSL Mono; the same script
+ * compiled to Luau gave the same transcript.
  */
 const TRANSCRIPTS = [
   'objects-and-arrays',
@@ -36,6 +41,7 @@ const TRANSCRIPTS = [
   'closers-and-numbers',
   'array-string-specifiers',
   'whitespace-and-writes',
+  'empty-members',
 ]
 
 describe('how Second Life reads malformed JSON', () => {
