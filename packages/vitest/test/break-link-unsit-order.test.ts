@@ -347,8 +347,7 @@ describe('llSleep, then llBreakLink(LINK_THIS) on a seated lone prim or llBreakA
 // In-world the touch ran first in every run: then link_message and
 // changed(32) in LSL (2 of 2), and in SLua changed(32) and link_message with
 // the first test avatar (2 of 2), link_message and changed(32) with the
-// second, which wore one attached prim (2 of 2). rezless runs the touch after
-// both.
+// second, which wore one attached prim (2 of 2).
 describe('a touch during the sleep before llBreakLink with a sitter', () => {
   const SOURCES = {
     lsl: `rep(string s) { llOwnerSay(s); }
@@ -383,18 +382,19 @@ describe('a touch during the sleep before llBreakLink with a sitter', () => {
     expect(world.sitAvatar(avatar, linkset.prims[0]!)).toBe(true)
     linkset.advanceTime(2000)
     const before = scripts.ctl!.chat.length
-    linkset.deliverChat({ channel: 7723, name: 'Test Resident', key: AVATAR, message: 'T' })
+    // Queued rather than delivered: deliverChat would run the handler through its sleep.
+    world.clock.schedule(scripts.ctl!, world.clock.now, 'listen', { channel: 7723, name: 'Test Resident', id: AVATAR, msg: 'T' })
     linkset.advanceTime(1500)
     linkset.touch(1, { avatar: { key: AVATAR, name: 'Test Resident' } })
     for (let i = 0; i < 60; i++) linkset.advanceTime(100)
     return scripts.ctl!.chat.slice(before).map((c) => c.text)
   }
 
-  it.fails('LSL runs the touch, then link_message, then changed', async () => {
+  it('LSL runs the touch, then link_message, then changed', async () => {
     expect(await touched('lsl')).toEqual(['touch', 'lm', 'changed 32'])
   })
 
-  it.fails('SLua runs the touch, then link_message, then changed, as for a sitter wearing few attached prims', async () => {
+  it('SLua runs the touch, then link_message, then changed, as for a sitter wearing few attached prims', async () => {
     expect(await touched('slua')).toEqual(['touch', 'lm', 'changed 32'])
   })
 })

@@ -216,7 +216,9 @@ describe('land_collision held through a sleep', () => {
     expect(f.log()).toEqual(['woke', 'lcs', 'lc', 'lc', 'lc', 'lc', 'lce'])
   })
   // Follows the count above: a script stopped by another one at its wake keeps the held events
-  // for when it runs again, and they are counted then, behind the link message that stopped it.
+  // for when it runs again, and they are counted then. In-world (Aditi, SLua Tideland,
+  // 2026-11-24): a contact held through a 4 s sleep ran land_collision_start ahead of a link
+  // message the handler sent itself after the wake, and its land_collision events behind it.
   it('keeps the count for a script stopped at the wake and run again', async () => {
     const f = await box()
     f.link('sleep stop', 4_000)
@@ -226,7 +228,7 @@ describe('land_collision held through a sleep', () => {
     expect(f.log()).toEqual(['woke'])
     f.script.running = true
     f.linkset.advanceTime(1_000)
-    expect(f.log()).toEqual(['woke', 'link', 'lcs', 'lc', 'lc', 'lc', 'lc', 'lce'])
+    expect(f.log()).toEqual(['woke', 'lcs', 'link', 'lc', 'lc', 'lc', 'lc', 'lce'])
   })
 })
 
