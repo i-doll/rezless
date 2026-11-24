@@ -385,3 +385,21 @@ describe('a changed waiting two frames in LSL', () => {
     expect(JSON.parse(JSON.stringify(s.global('log')))).toEqual(['ch', 'ch', 'lm'])
   })
 })
+
+describe('a timer due with a repeating sensor', () => {
+  // A sensor result does not take the timer's tick off the frame it falls due in: the result
+  // waits for that frame and runs behind the tick, as a result and a tick due together do
+  // (see script-lifecycle.test.ts).
+  it('ticks on the frame after its time, as without the sensor', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `list log;
+      default {
+        state_entry() { llSensorRepeat("", NULL_KEY, AGENT, 5.0, PI, 0.1); llSetTimerEvent(0.1); }
+        timer() { log += ["tm", llGetTime()]; llSetTimerEvent(0); }
+        no_sensor() { if (llGetListLength(log) < 4) log += ["ns", llGetTime()]; }
+      }` } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(300)
+    const log = JSON.parse(JSON.stringify(scripts['s']!.global('log'))) as Array<string | number>
+    expect(log.map((e) => typeof e === 'number' ? Math.round(e * 1000) : e)).toEqual(['tm', 111, 'ns', 133])
+  })
+})

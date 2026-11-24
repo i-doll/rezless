@@ -781,9 +781,15 @@ export class LinksetClock {
     const waiting = bestIdx === -1 ? undefined : this.queue[bestIdx]!
     const own = waiting && SENSOR_EVENTS.has(waiting.event) ? waiting.target : undefined
     const ownTimer = own?.clockView
+    // A sensor result due with the tick waits for the frame the tick runs in, and runs behind it.
+    if (own?.running && ownTimer && ownTimer.timerIntervalMs > 0 && waiting!.at === ownTimer.timerNextFireMs &&
+        ownTimer.timerFrameMs - bestAt > 1e-6 && (waiting!.notBefore ?? 0) < ownTimer.timerFrameMs) {
+      this.queue[bestIdx] = { ...waiting!, notBefore: ownTimer.timerFrameMs }
+      return this.takeNextEventOrTask(scripts, horizon)
+    }
     const sensorWaits = !!own?.running && !!ownTimer && ownTimer.timerIntervalMs > 0 && bestAt <= bestTimerAt &&
       (bestAt === ownTimer.delayedUntilMs || waiting!.at === ownTimer.timerNextFireMs) &&
-      bestAt === Math.max(ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs, ownTimer.nextEventAt('timer'))
+      bestAt === Math.max(ownTimer.timerFrameMs, ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs, ownTimer.nextEventAt('timer'))
     if (sensorWaits) {
       bestTimerScript = own
       bestTimerAt = bestAt
