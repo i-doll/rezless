@@ -126,7 +126,8 @@ function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<Detecte
 /** The touch events waiting for `s` that list the avatar `by`, or that list someone else. */
 function waitingTouches(s: Script, event: string, by: string) {
   const lists = (e: QueuedEvent) => ((e.payload['detected'] as ReadonlyArray<DetectedEntry> | undefined) ?? []).some((d) => d.key?.toLowerCase() === by)
-  const waiting = s.linkset.clock.pendingEvents().filter((e) => e.target === s && e.event === event)
+  const clock = s.linkset.clock
+  const waiting = clock.pendingEvents().filter((e) => e.target === s && e.event === event && e.at <= clock.now)
   return { own: waiting.some(lists), other: waiting.some((e) => !lists(e)) }
 }
 

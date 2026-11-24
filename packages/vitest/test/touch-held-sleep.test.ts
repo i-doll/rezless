@@ -313,6 +313,19 @@ describe('two avatars clicking while a handler sleeps', () => {
     expect((s.global('got') as string[]).map((e) => e[0]).join('')).toMatch(/^STT*E$/)
   })
 
+  it('a touch queued for later does not count as waiting for a held click', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(1, 0), filename: 's.lsl' } }] }] })
+    const s = scripts.s!
+    s.start()
+    linkset.advanceTime(0)
+    linkset.clock.schedule(s, linkset.clock.now, 'touch', { num_detected: 1, detected: [{ ...FIVEBOT }] }, undefined, linkset.clock.now + 5000)
+    linkset.press(0, { avatar: IDOLL })
+    linkset.advanceTime(300)
+    linkset.release(IDOLL)
+    linkset.advanceTime(10_000)
+    expect(s.global('got')).toEqual(['Si', 'Ti', 'Ei', 'Tf'])
+  })
+
   it('press and release refuse a second press or a release without a press', async () => {
     const { linkset } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0), filename: 's.lsl' } }] }] })
     linkset.press(0, { avatar: IDOLL })
