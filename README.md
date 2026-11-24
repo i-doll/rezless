@@ -100,7 +100,7 @@ await loadScript({
   },
   stubs: 'warn',                  // optional: 'allow' (default), 'warn' or 'throw' when the script calls a stubbed function
   memoryLimit: true,              // optional, default false: true crashes the script with a Stack-Heap Collision when rezless's rough memory estimate passes the limit
-  experience: new Experience({ name: 'Quest' }), // optional: compile the script with an experience; scripts given the same one share its key-value store
+  experience: new Experience({ name: 'Quest' }), // optional: compile the script with an experience; scripts given the same one share its key-value store. Also a loadLinkset option, per linkset, per inventory object and per script
 })
 ```
 
@@ -383,6 +383,18 @@ ZERO_VECTOR, ZERO_ROTATION, 42)` and `receiver.lsl` stores
 and the rezzing prim receives `object_rez` with the new root key. An inventory
 item made with `makeInventoryItem({ name, type: InventoryType.OBJECT, object:
 savedLinkset })` supplies an existing linkset instead of an inline definition.
+
+Give an object definition an `experience` to compile its scripts with one, so
+the rezzed copy can use experience functions such as
+`llRequestExperiencePermissions` and `llAttachToAvatarTemp`:
+
+```ts
+payload: { experience: new Experience({ name: 'Quest' }), prims: [/* … */] }
+```
+
+A script's own `experience` wins over the object's. The object's experience
+doesn't reach the objects in its own prims' contents. `loadLinkset` takes the
+same option for its own scripts, and it doesn't reach the objects either.
 
 `llRezObject`, `llRezAtRoot` and `llRezObjectWithParams` apply the measured
 size-dependent reach, placement and parameter rules. `llDerezObject` removes an

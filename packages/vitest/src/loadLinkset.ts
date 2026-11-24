@@ -11,6 +11,7 @@ import {
   type InventoryItem,
   type Vector,
   type AutoGrantPermissions,
+  type Experience,
   makeInventoryItem,
   InventoryType,
 } from '@rezless/vm'
@@ -56,6 +57,11 @@ export interface LinksetInput extends LinksetOptions {
    * Defaults to the world's setting.
    */
   readonly autoGrantPermissions?: AutoGrantPermissions
+  /**
+   * The experience for every script here that doesn't set its own. Objects in
+   * the prims' contents don't take it; give them their own.
+   */
+  readonly experience?: Experience
 }
 
 export interface LoadedLinkset {
@@ -166,7 +172,8 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
         key: object.prims[0]!.key, object }))
     }
     for (const sInput of primInput.scripts ?? []) {
-      const s = await buildScript(prim, sInput, false, input.autoGrantPermissions)
+      const experience = sInput.experience ?? input.experience
+      const s = await buildScript(prim, experience ? { ...sInput, experience } : sInput, false, input.autoGrantPermissions)
       const finalName = s.scriptName
       if (finalName in scripts) {
         throw new Error(
