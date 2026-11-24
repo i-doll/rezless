@@ -55,9 +55,9 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
+import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView, cameUp } from './clock.js'
 import type { QueuedEvent } from './clock.js'
-import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
+import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, touchHandlerEnded, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
@@ -185,6 +185,9 @@ export class Script {
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
   get hasStarted() { return this.started }
+  /** Left unstarted on purpose, as a duplicate's scripts can be: events raised at it are lost until it starts. */
+  private waiting = false
+  get waitsToStart() { return this.waiting && !this.started }
   private readonly stubs: 'allow' | 'warn' | 'throw'
   private readonly warnedStubs = new Set<string>()
   /** Per-script clock facade (timer state + time reference). */
@@ -1108,11 +1111,13 @@ export class Script {
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events. An event
-   * fired at a stopped or crashed script is lost, as in Second Life.
+   * fired at a stopped or crashed script is lost, as in Second Life, and so is
+   * one fired at a copy's script that waits for `startAll`.
    */
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
     if (!this.running) return
+    if (this.waitsToStart) return
     if (!this.started) {
       this.started = true
       forgetMoving(this)
@@ -1138,20 +1143,29 @@ export class Script {
   }
 
   /**
-   * Run state_entry of the default state. If the script has been auto-started
-   * (e.g. by an earlier fire), this is a no-op.
+   * Run state_entry of the default state, or for a stopped script, once it is
+   * set running. If the script has been auto-started (e.g. by an earlier fire),
+   * this is a no-op.
    */
   start(): void {
     if (this.state.lifecycle.dead) return
     if (this.started) return
+    // A stopped script runs state_entry once it is set running, as with startAll.
+    if (!this.running) return this.queueStart()
     this.boot()
     this.linkset.settle([this])
+  }
+
+  /** Leave this script unstarted until a start: until then, events raised at it are lost. */
+  holdStart(): void {
+    if (!this.started) this.waiting = true
   }
 
   /** Queue a fresh inventory script's first event without waiting for its handler. */
   queueStart(): void {
     if (this.started || this.dead) return
     this.started = true
+    this.waiting = false
     forgetMoving(this)
     // A script loaded stopped keeps its first event until it is started.
     if (this.running) this.clockView.schedule(this.now, 'state_entry')
@@ -1179,7 +1193,10 @@ export class Script {
     copy.resetPastWear = this.resetPastWear
     copy.pastWearChanges.push(...this.pastWearChanges)
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
-    for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
+    for (const [by, click] of this.heldClicks) {
+      const { lastTouch: _, ...kept } = click
+      copy.heldClicks.set(by, { ...kept, detected: touchThroughInventory(click.detected) })
+    }
     copy.running = this.running && !this.dead
     resumeHeldTouches(copy)
     if (this.slua) {
@@ -1212,8 +1229,7 @@ export class Script {
       copy.state.currentState = this.state.currentState
     }
     copy.state.memory.limit = this.state.memory.limit
-    // An SLua script whose start is still queued has not run: the copy starts it.
-    copy.started = this.slua ? this.slua.started : this.started
+    copy.started = this.started
     // A saved object keeps the mark for every rez. A rezzed one has used it up.
     copy.unseated = !!opts.unseated || (this.unseated && !this.linkset.world)
     copy.crashed = this.crashed
@@ -1259,7 +1275,7 @@ export class Script {
     }
     // In-world: a chat line and a touch that were waiting for a sleeping handler came out of
     // inventory with the script and ran in the rezzed copy, after on_rez.
-    const waiting = (opts.waiting ?? []).filter(e => e.target === this && e.at <= this.now && e.event !== '__reset')
+    const waiting = (opts.waiting ?? []).filter(e => e.target === this && cameUp(e) <= this.now && e.event !== '__reset')
     // A full queue has no room for the event `unseated` brings, so it keeps its own.
     const merge = !!opts.unseated && waiting.length < MAX_PENDING_EVENTS
     for (const e of waiting) {
@@ -1415,6 +1431,7 @@ export class Script {
 
   private boot(): void {
     this.started = true
+    this.waiting = false
     forgetMoving(this)
     if (this.slua) {
       this.beginSluaMain()
@@ -1641,6 +1658,23 @@ export class Script {
     return this.task?.startedAt
   }
 
+  /** The event whose handler is running, or undefined when the script is idle. */
+  get handlerEvent(): string | undefined {
+    return this.task?.slua?.event ?? (this.task?.lsl && this.chainEvent)
+  }
+
+  /** The LSL handler running in the current chain: a state change runs state_exit and state_entry in it. */
+  private chainEvent: string | undefined
+
+  /** Whether the running handler has gone on past the instant it began, after a sleep or a busy spell. */
+  get handlerWentOn(): boolean {
+    const startedAt = this.stepping?.startedAt
+    return startedAt !== undefined && startedAt < this.now
+  }
+
+  /** The task whose handler is running now. */
+  private stepping: Task | null = null
+
   /**
    * In-world: a sleep did not run down while the worn object was in inventory. `since` is when
    * it went there; a handler that started later has only been asleep since its own start.
@@ -1667,7 +1701,9 @@ export class Script {
     const task = this.task
     if (!task) return
     this.task = null
-    this.step(task)
+    // In-world: a touch that came up in a sleep ran ahead of the link message and the changed the
+    // handler raised after it woke, in LSL and SLua.
+    this.step(task, task.busy ? undefined : new Set(this.linkset.clock.pendingEvents()))
   }
 
   private begin(handler: EventHandler, args: ReadonlyArray<EvalResult>, payload: Record<string, unknown>): void {
@@ -1700,30 +1736,34 @@ export class Script {
     copy.task = { run, lsl, ...this.sleepIn(copy, task) }
   }
 
-  private step(task: Task): void {
+  /** `queued`, for a handler that wakes from a sleep: the queue as it was at the wake. */
+  private step(task: Task, queued?: ReadonlySet<QueuedEvent>): void {
     this.resumedAt = this.now
     this.quietAttach = false
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
     const outerBusy = this.busyRun
+    const outerTask = this.stepping
     this.handling = true
     this.busyRun = task.busy === true
+    this.stepping = task
     try {
       r = task.run.next()
     } catch (e) {
-      this.finish(task)
+      this.finish(task, queued)
       throw e
     } finally {
       this.handling = outer
       this.busyRun = outerBusy
+      this.stepping = outerTask
       if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until, busy: r.value.busy === true }
-      this.linkset.clock.releaseAtWake(this, task.startedAt)
+      this.linkset.clock.releaseAtWake(this, task.startedAt, queued)
       return
     }
-    this.finish(task)
+    this.finish(task, queued)
     this.clockView.finishHandler(r.value)
     if (r.value) {
       if (this.detachedInHandler && this.clockView.inInventory) this.resetPastWear = true
@@ -1731,10 +1771,11 @@ export class Script {
     }
   }
 
-  private finish(task: Task): void {
+  private finish(task: Task, queued?: ReadonlySet<QueuedEvent>): void {
     if (this.now === task.startedAt) return
     this.clockView.busyUntilMs = this.now
-    this.linkset.clock.requeue(this, task.startedAt)
+    this.linkset.clock.requeue(this, task.startedAt, queued)
+    if ((task.slua?.event ?? task.lsl?.handler.name) === 'touch') touchHandlerEnded(this)
   }
 
   private abandon(): void {
@@ -1772,6 +1813,7 @@ export class Script {
     if (pushed) this.state.detectedStack.push({
       entries: detected as ReadonlyArray<DetectedEntry>, event,
     })
+    if (pushed && event === 'touch') touchDelivered(this, detected as ReadonlyArray<DetectedEntry>)
     try {
       this.state.memory.startEvent()
       return yield* body()
@@ -1809,6 +1851,7 @@ export class Script {
     while (pending && !this.state.lifecycle.dead) {
       const { handler: h, args: a } = pending
       pending = null
+      this.chainEvent = h.name
       try {
         yield* execHandler(ctx, h, a)
       } catch (e) {
@@ -1825,6 +1868,7 @@ export class Script {
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
+          this.chainEvent = 'state_exit'
           try {
             yield* execHandler(ctx, exit, [])
           } catch (e2) {

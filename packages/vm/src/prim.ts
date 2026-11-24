@@ -319,7 +319,7 @@ export class Prim {
     }
     if (saved.type === InventoryType.NOTECARD && saved.key !== NULL_KEY) this.#notecardKeys().set(notecardText(saved.notecardLines), saved.key)
     const script = old.script
-    if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
+    if (!script || script.dead || !script.hasStarted) return this.#ownerEditedInventory()
     this.#ownerEditedScript(script, () => script.recompile())
   }
 
@@ -403,11 +403,6 @@ export class Prim {
     if (idle) linkset.settle(idle)
   }
 
-  /** A queued event can run a script's handler without starting it. */
-  #live(script: Script): boolean {
-    return script.hasStarted || script.clockView.completedHandlers > 0 || script.wakeAt !== undefined
-  }
-
   #ownerEditedInventory(changes = CHANGED_INVENTORY): void {
     const hearing = this.#queueOwnerEdit(changes)
     if (hearing.length) this.linkset!.settle(hearing.filter((script) => script.wakeAt === undefined))
@@ -418,18 +413,18 @@ export class Prim {
    * scripts that get it.
    */
   #queueOwnerEdit(changes = CHANGED_INVENTORY): Script[] {
-    const scripts = this.inventoryChangeListeners()
+    const scripts = this.changeListeners()
     for (const script of scripts) queueInventoryChanged(script, changes)
     return scripts
   }
 
   /**
-   * The scripts that hear of an owner edit, a gift or a remote script load into this prim. A
-   * stopped script, or one that has not started yet, never hears of it. When no script in a
-   * child prim handles `changed`, the root's scripts hear of it instead. `arriving` is a script
+   * The scripts that hear of a change to this prim: an owner edit, a gift, a remote script load
+   * or a prim setter's change. A stopped script, or one that has not started yet, never hears of
+   * it. When no script in a child prim handles `changed`, the root's scripts hear of it instead. `arriving` is a script
    * the change itself brings, which neither hears of it nor counts as handling it.
    */
-  inventoryChangeListeners(arriving?: Script): Script[] {
+  changeListeners(arriving?: Script): Script[] {
     const linkset = this.linkset
     if (!linkset) return []
     const hearing = (prim: Prim) => prim.scripts.filter((script) => script !== arriving && hearsInventoryChange(script))

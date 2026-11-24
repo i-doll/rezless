@@ -246,7 +246,8 @@ it('recovers a permitted LSL simulator detach through a child-issued lock', asyn
   expect(loaded.linkset.attachment).toBeNull()
   script.advanceTime(20000)
   expect(loaded.linkset.attachment?.point).toBe(1)
-  expect(loaded.scripts.root!.global('events')).toEqual([avatar.key, 1, nil, 0, 'rez', 1, avatar.key, 1])
+  // Attached before its scripts started, it missed the first attach event.
+  expect(loaded.scripts.root!.global('events')).toEqual([nil, 0, 'rez', 1, avatar.key, 1])
  }
 })
 

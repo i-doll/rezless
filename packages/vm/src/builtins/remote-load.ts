@@ -41,7 +41,7 @@ export const llRemoteLoadScriptPin: BuiltinImpl = (ctx, args) => {
   copy.startParameter = Number(args[4])
   copy.running = Number(args[3]) !== 0
   // In-world: the root's script heard of a load into a child before the loaded script started.
-  for (const script of target.inventoryChangeListeners(copy)) queueInventoryChanged(script)
+  for (const script of target.changeListeners(copy)) queueInventoryChanged(script)
   copy.queueStart()
   if (!(item.permMask.owner & PERM_COPY)) llRemoveInventory(ctx, [name])
 }
