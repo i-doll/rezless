@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadLinkset, STATUS_PHYSICS, World } from '../src/index.js'
+import type { Linkset } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/Moving_start
 // https://wiki.secondlife.com/wiki/Moving_end
@@ -142,33 +143,111 @@ describe('moving events from physical motion', () => {
     }`
 
   // In-world: physics switched on for a box resting on the platform -> moving_start 0.04 to
-  // 0.11 s later and moving_end 0.73 to 0.80 s after the call in 45 runs; the first switch for
-  // each of five new boxes took 0.86 to 0.97 s (Aditi, SLua Tideland, 2026-11-24). Rest times of 0.2 to 30 s before the switch,
+  // 0.11 s later and moving_end 0.73 to 0.80 s after the call in 45 runs (Aditi, SLua Tideland,
+  // 2026-11-24). Rest times of 0.2 to 30 s before the switch,
   // 0.2, 0.5 and 1 m boxes, a 0.5 m cylinder, llSetStatus and llSetPrimitiveParams, a box sunk
   // 5 mm into the platform and one left where physics had put it all gave the same. A box
   // 1 to 2 cm above the platform came to rest 0.15 to 0.26 s after the switch; 3 mm to 5 cm
   // above, it bounced, with up to five start and end pairs. Four 0.3 m drops gave moving_end
   // 1.25 to 1.33 s after physics was switched on, as llGetVel first read zero.
+  // In-world: a new box's first switch took longer. Boxes a script rezzed still onto the platform,
+  // switched physical 1 or 4 s later, three times with 1 s off between -> moving_end 0.86 to
+  // 0.87 s after the first switch, 0.82 s after the second and 0.75 s after the third, the same in
+  // all 8 runs; five boxes made in the viewer took 0.86 to 0.97 s the first time (Aditi, SLua
+  // Tideland, 2026-11-24).
   it.each(['on', 'link'])('starts when physics is switched on (%s), and ends as the object rests', async (command) => {
     const b = await box(physical)
     send(b, command)
-    b.linkset.advanceTime(700)
+    b.linkset.advanceTime(850)
     expect(b.log()).toEqual(['moving_start 0'])
-    b.linkset.advanceTime(200)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 8'])
+    b.linkset.advanceTime(100)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9'])
   })
 
-  // A copy made while the object settles settles in full again, with the delay the original had.
-  it('settles a copy made during a physics switch with the same delay', async () => {
+  it('settles sooner from the second switch to physical on', async () => {
+    const b = await box(physical)
+    send(b, 'on')
+    b.linkset.advanceTime(1_000)
+    send(b, 'off')
+    b.linkset.advanceTime(1_000)
+    send(b, 'on')
+    b.linkset.advanceTime(750)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0'])
+    b.linkset.advanceTime(100)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 8'])
+  })
+
+  const copyLog = (copy: Linkset) => copy.allScripts()[0]!.global('log') as string[]
+
+  // In-world: a Duplicate of a box switched physical just before -> the original got moving_end
+  // as the viewer selected it, then moving_start 0.53 to 0.69 s after the copy appeared and
+  // moving_end 0.64 to 0.76 s after that. The copy got moving_start 0.01 to 0.08 s after it
+  // appeared, moving_end 0.15 to 0.35 s in, moving_start 0.44 to 0.79 s in and moving_end 0.57 to
+  // 0.76 s after that, 19 copies; copies made 0.14 to 0.29 s into the original's settle gave the
+  // same as copies of a box at rest (Aditi, SLua Tideland, 2026-11-24).
+  it('stops a physical object as a Duplicate selects it, and starts it and its copy when the viewer lets go', async () => {
     const b = await box(physical)
     send(b, 'on')
     b.linkset.advanceTime(100)
-    const copy = b.linkset.duplicate()
-    const ends = () => (copy.allScripts()[0]!.global('log') as string[]).filter((line) => line.startsWith('moving_end'))
-    copy.advanceTime(700)
-    expect(ends()).toEqual([])
-    copy.advanceTime(200)
-    expect(ends()).toHaveLength(1)
+    const copy = b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    b.linkset.advanceTime(1_600)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 1', 'moving_start 8', 'moving_end 15'])
+    expect(copyLog(copy)).toEqual(['moving_start 0', 'moving_end 2', 'moving_start 7', 'moving_end 14'])
+  })
+
+  // In-world: a Duplicate of a physical box that had rested 10 s -> the original got moving_start
+  // 0.55 to 0.58 s after the copy appeared and moving_end 0.64 to 0.71 s later; its copies as above.
+  it('starts a physical object at rest and its copy when the viewer lets go of a Duplicate', async () => {
+    const b = await box(physical)
+    send(b, 'on')
+    b.linkset.advanceTime(2_000)
+    const copy = b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    b.linkset.advanceTime(2_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 27', 'moving_end 34'])
+    expect(copyLog(copy)).toEqual(['moving_start 0', 'moving_end 2', 'moving_start 7', 'moving_end 14'])
+  })
+
+  it('leaves an object an impulse sets moving during the Duplicate selection to the test', async () => {
+    const b = await box(`${physical.replace('else if (m == "off")', 'else if (m == "imp") llApplyImpulse(<0, 0, 1>, FALSE);\n        else if (m == "off")')}`)
+    send(b, 'on')
+    b.linkset.advanceTime(2_000)
+    const copy = b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    b.linkset.advanceTime(300)
+    send(b, 'imp')
+    b.linkset.advanceTime(2_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0'])
+    expect(copyLog(copy)).toEqual(['moving_start 0', 'moving_end 2', 'moving_start 7', 'moving_end 14'])
+  })
+
+  it('gives the copy of a physical object that moves no Duplicate selection', async () => {
+    const b = await box(physical)
+    b.linkset.setVelocity({ x: 0.5, y: 0, z: 0 })
+    send(b, 'on')
+    b.linkset.advanceTime(1_000)
+    const copy = b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    b.linkset.advanceTime(2_000)
+    expect(b.log()).toEqual(['moving_start 0'])
+    expect(copyLog(copy).filter((line) => line.startsWith('moving_end'))).toEqual([])
+  })
+
+  // In-world: Duplicates of a box that was not physical -> neither object got an event. Switched
+  // physical 1 s later, the copy got moving_end 0.91 to 0.93 s after the switch, three runs,
+  // though the original had been physical many times.
+  it('treats the copy of an object that is not physical as new to physics', async () => {
+    const b = await box(physical)
+    send(b, 'on')
+    b.linkset.advanceTime(1_000)
+    send(b, 'off')
+    b.linkset.advanceTime(1_000)
+    const copy = b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    copy.advanceTime(1_000)
+    expect(copyLog(copy)).toEqual([])
+    copy.allScripts()[0]!.fire('link_message', { sender_num: 0, num: 0, str: 'on', id: '' })
+    copy.advanceTime(850)
+    expect(copyLog(copy)).toEqual(['moving_start 0'])
+    copy.advanceTime(100)
+    expect(copyLog(copy)).toEqual(['moving_start 0', 'moving_end 9'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9'])
   })
 
   // In-world: a box floating at 0.04, 0.05 or 0.5 m/s for 5 to 6 s never got moving_end. At
@@ -196,7 +275,7 @@ describe('moving events from physical motion', () => {
     b.linkset.advanceTime(1_000)
     b.linkset.setVelocity({ x: 0, y: 0, z: 0 })
     b.linkset.advanceTime(1_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 8', 'moving_start 10', 'moving_end 21'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 10', 'moving_end 21'])
   })
 
   // In-world: a box floating at 0.5 m/s whose physics was switched off -> moving_end.
@@ -227,7 +306,7 @@ describe('moving events from physical motion', () => {
     b.linkset.advanceTime(1_000)
     send(b, 'off')
     b.linkset.advanceTime(1_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 8'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9'])
   })
 
   it('ends a copy of a moving physical object when its velocity becomes zero', async () => {

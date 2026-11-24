@@ -117,7 +117,8 @@ describe('motion that starts and ends while a handler sleeps', () => {
 
   // In-world: physics switched on for a box at rest on the platform -> moving_start at once and
   // moving_end when it came to rest 0.8 s in; in a sleep of 1 s, neither. In a 0.05 s sleep
-  // moving_start came after the sleep; in a 0.5 s sleep, both.
+  // moving_start came after the sleep; in a 0.5 s sleep, both. These boxes are new, and a new
+  // box's first switch comes to rest 0.9 s in (see moving-event-edges.test.ts).
   it('gives neither event when physics switched on comes to rest inside the sleep', async () => {
     const b = await box(physical)
     send(b, 'on,1.0')
@@ -129,14 +130,14 @@ describe('motion that starts and ends while a handler sleeps', () => {
     const b = await box(physical)
     send(b, 'on,0.05')
     b.linkset.advanceTime(3_000)
-    expect(b.log()).toEqual(['moving_start 1', 'moving_end 8'])
+    expect(b.log()).toEqual(['moving_start 1', 'moving_end 9'])
   })
 
   it('gives both when physics switched on is still settling at the end of a 0.5 s sleep', async () => {
     const b = await box(physical)
     send(b, 'on,0.5')
     b.linkset.advanceTime(3_000)
-    expect(b.log()).toEqual(['moving_start 5', 'moving_end 8'])
+    expect(b.log()).toEqual(['moving_start 5', 'moving_end 9'])
   })
 
   // In-world: a hop from llApplyImpulse or llPushObject in a 3 s sleep -> neither, two runs each.
@@ -257,9 +258,9 @@ describe('moving events at a rez', () => {
       moving_end() { log += "moving_end"; }
     }`
 
-  async function rezzer(call: string, physicalItem = false) {
+  async function rezzer(call: string, physicalItem = false, source = child) {
     const w = world()
-    const payload = await loadLinkset({ prims: [{ name: 'payload', scripts: [{ name: 'child', source: { source: child } }] }] })
+    const payload = await loadLinkset({ prims: [{ name: 'payload', scripts: [{ name: 'child', source: { source } }] }] })
     payload.scripts.child!.start()
     if (physicalItem) payload.linkset.prims[0]!.setStatus(1, true)
     const item = makeInventoryItem({ name: 'payload', type: InventoryType.OBJECT })
@@ -274,13 +275,36 @@ describe('moving events at a rez', () => {
   // In-world: a box rezzed with llRezObjectWithParams and REZ_FLAG_PHYSICAL, on the platform or
   // 0.5 m above it -> on_rez, moving_start 0.02 to 0.05 s later and moving_end as it came to rest
   // 0.84 to 1.27 s after that. A physical item rezzed with llRezObject gave the same.
+  // In-world: rezzed with REZ_FLAG_PHYSICAL in contact with the platform -> moving_start 0.01 to
+  // 0.10 s after on_rez and moving_end 0.88 to 0.93 s after it, 8 runs; 1 cm above it, a fall
+  // that ended 0.17 s after on_rez, 3 runs (Aditi, SLua Tideland, 2026-11-24).
   it.each([
     ['llRezObjectWithParams("payload", [REZ_POS, <1.2, 0, 0>, TRUE, FALSE, REZ_FLAGS, REZ_FLAG_PHYSICAL])', false],
     ['llRezObject("payload", llGetPos() + <1.2, 0, 0>, ZERO_VECTOR, ZERO_ROTATION, 1)', true],
   ])('starts an object rezzed physical, after on_rez: %s', async (call, physicalItem) => {
     const f = await rezzer(`${call};`, physicalItem)
-    f.rezzed.advanceTime(1_000)
+    // The rez came 0.1 s ago, before the rezzer's script delay.
+    f.rezzed.advanceTime(750)
+    expect(logOf(f.rezzed)).toEqual(['rez', 'moving_start'])
+    f.rezzed.advanceTime(100)
     expect(logOf(f.rezzed)).toEqual(['rez', 'moving_start', 'moving_end'])
+  })
+
+  // In-world: rezzed with REZ_FLAG_PHYSICAL in contact, switched off 3 s later and on again 1 s
+  // after that -> moving_end 0.79 s after the switch, and 0.77 s after the next, 3 runs.
+  it('settles an object rezzed physical as one that has been physical when it is switched on again', async () => {
+    const switcher = child.replace('default {', `default {
+      link_message(integer f, integer n, string m, key id) { llSetStatus(STATUS_PHYSICS, m == "on"); }`)
+    const f = await rezzer('llRezObjectWithParams("payload", [REZ_POS, <1.2, 0, 0>, TRUE, FALSE, REZ_FLAGS, REZ_FLAG_PHYSICAL]);', false, switcher)
+    const script = f.rezzed.allScripts()[0]!
+    f.rezzed.advanceTime(3_000)
+    script.fire('link_message', { sender_num: 0, num: 0, str: 'off', id: '' })
+    f.rezzed.advanceTime(1_000)
+    script.fire('link_message', { sender_num: 0, num: 0, str: 'on', id: '' })
+    f.rezzed.advanceTime(750)
+    expect(logOf(f.rezzed)).toEqual(['rez', 'moving_start', 'moving_end', 'moving_start'])
+    f.rezzed.advanceTime(100)
+    expect(logOf(f.rezzed)).toEqual(['rez', 'moving_start', 'moving_end', 'moving_start', 'moving_end'])
   })
 
   // In-world: a physical box rezzed with a velocity of 1 m/s up -> on_rez, moving_start, and

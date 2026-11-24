@@ -4,7 +4,7 @@ import { pauseSensors, resumeSensors } from './builtins/sensor.js'
 import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds, playLandSound } from './builtins/collision.js'
-import { copyMovingState, copyPhysicalMotion, queueMoving, SELECTION_MS, selectMotion, setVelocity } from './builtins/motion.js'
+import { copyMovingState, copyPhysicalMotion, duplicatedPhysical, queueMoving, SELECTION_MS, selectMotion, selectPhysical, setVelocity } from './builtins/motion.js'
 import { LinksetClock } from './clock.js'
 import { Prim } from './prim.js'
 import { restepRezzedShape } from './prim-params.js'
@@ -432,6 +432,7 @@ export class Linkset {
       throw new Error('duplicate: the object is no-copy')
     }
     selectMotion(this, SELECTION_MS.copy)
+    const selected = selectPhysical(this)
     const region = this.region
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)
@@ -445,6 +446,7 @@ export class Linkset {
     // two scripts were both counted read 0.75: the region leaves out the copy's last script.
     copy.countedScripts = Math.max(0, copy.allScripts().length - 1)
     for (const script of copy.allScripts()) script.queueStart()
+    if (selected) duplicatedPhysical(copy)
     return copy
   }
 

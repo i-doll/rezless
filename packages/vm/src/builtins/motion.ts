@@ -147,11 +147,29 @@ export const SETTLE_MS = 133
 /**
  * How long an object resting on something takes to come to rest again once physics is switched
  * on. In-world: 0.73 to 0.80 s in 45 runs, whatever the box's size, shape, rest time before the
- * switch or the call that switched it; the first switch for a new box took 0.86 to 0.97 s. A box
- * 1 to 2 cm above the surface fell and rested in 0.15 to 0.26 s, which is a fall for the test to
- * set.
+ * switch or the call that switched it; a new object's first switch takes longer
+ * (FIRST_PHYSICS_SETTLE_MS). A box 1 to 2 cm above the surface fell and rested in 0.15 to 0.26 s,
+ * which is a fall for the test to set.
  */
 export const PHYSICS_ON_SETTLE_MS = 800
+
+/**
+ * How long a new object's first physics takes to come to rest on the surface it lies on.
+ * In-world: a box rezzed in contact with the platform with REZ_FLAG_PHYSICAL got moving_end 0.88
+ * to 0.93 s after on_rez (8 runs); the first switch to physical of a box rezzed still took 0.86 to
+ * 0.87 s (8 runs), and of a Duplicate's copy 0.91 to 0.93 s (3 runs), though the original had
+ * been physical many times. The next switches of the same boxes took 0.75 to 0.82 s (Aditi, SLua
+ * Tideland, 2026-11-24).
+ */
+export const FIRST_PHYSICS_SETTLE_MS = 900
+
+/** Objects whose physics has been switched on since they were rezzed or copied. */
+const physicalBefore = new WeakSet<Linkset>()
+function firstSettleMs(linkset: Linkset, later: number): number {
+  if (physicalBefore.has(linkset)) return later
+  physicalBefore.add(linkset)
+  return FIRST_PHYSICS_SETTLE_MS
+}
 
 /** The velocity the object was rezzed or placed with, which llGetVel reads unless a test set one. */
 function launchVelocity(linkset: Linkset): Vector {
@@ -215,7 +233,8 @@ export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
   const state: PhysicalMotion = { moving: true }
   physicalMotion.set(linkset, state)
   raiseMoving(root, 'moving_start', linkset.clock.now)
-  if (still(velocityOf(linkset))) settleLater(linkset, state, PHYSICS_ON_SETTLE_MS)
+  const ms = firstSettleMs(linkset, PHYSICS_ON_SETTLE_MS)
+  if (still(velocityOf(linkset))) settleLater(linkset, state, ms)
 }
 
 /**
@@ -264,11 +283,12 @@ export function setMoving(linkset: Linkset): void {
 /**
  * Call once `object` is rezzed and its on_rez queued. In-world: a box a script rezzed physical,
  * with REZ_FLAG_PHYSICAL or from a physical item, got on_rez, moving_start straight after it,
- * and moving_end as it came to rest on the platform 0.84 to 1.27 s later (here SETTLE_MS later
- * unless it was rezzed with a velocity). The viewer rezzing a physical item gave the same in two
- * runs of three. A box a script rezzed not physical with llRezObject, llRezAtRoot or
- * llRezObjectWithParams got on_rez, moving_start and moving_end, seven runs; one the viewer
- * rezzed got neither.
+ * and moving_end as it came to rest on the platform 0.84 to 1.27 s later; rezzed in contact with
+ * the platform, 0.88 to 0.93 s after on_rez (FIRST_PHYSICS_SETTLE_MS later here, unless it was
+ * rezzed with a velocity). The viewer rezzing a physical item gave on_rez, moving_start and
+ * moving_end 0.26 s later in two runs of three (SETTLE_MS later here, not yet probed again). A
+ * box a script rezzed not physical with llRezObject, llRezAtRoot or llRezObjectWithParams got
+ * on_rez, moving_start and moving_end, seven runs; one the viewer rezzed got neither.
  */
 export function rezzedMoving(object: Linkset, byScript: boolean): void {
   const root = object.prims[0]
@@ -285,7 +305,79 @@ export function rezzedMoving(object: Linkset, byScript: boolean): void {
   const state: PhysicalMotion = { moving: true }
   physicalMotion.set(object, state)
   raiseMoving(root, 'moving_start', object.clock.now)
-  if (still(velocityOf(object))) settleLater(object, state)
+  physicalBefore.add(object)
+  if (still(velocityOf(object))) settleLater(object, state, byScript ? FIRST_PHYSICS_SETTLE_MS : SETTLE_MS)
+}
+
+/**
+ * How long after a Duplicate the viewer's selection stops the copy of a physical object, and how
+ * long the copy and the original take to come to rest once the viewer lets go of them.
+ */
+const DUPLICATE_HELD_MS = 200
+const RELEASE_SETTLE_MS = 700
+
+/** Physical objects a Duplicate holds selected. */
+const selectedPhysical = new WeakSet<Linkset>()
+
+function releaseLater(linkset: Linkset, state: PhysicalMotion): void {
+  const root = linkset.prims[0]!
+  linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + SELECTION_MS.copy, () => {
+    selectedPhysical.delete(linkset)
+    // Physics switched, a velocity, a push or an impulse since the selection decide the motion.
+    if (!(root.statusFlags & STATUS_PHYSICS) || !still(velocityOf(linkset)) || physicalMotion.get(linkset) !== state || state.moving) return
+    state.moving = true
+    raiseMoving(root, 'moving_start', linkset.clock.now)
+    settleLater(linkset, state, RELEASE_SETTLE_MS)
+  })
+}
+
+/**
+ * The viewer selects a physical object at rest or settling to Duplicate it, which stops it until
+ * the viewer lets go. In-world: a box switched physical just before a Duplicate got moving_end as
+ * it was selected; the original, settling or at rest, got moving_start 0.53 to 0.69 s after the
+ * copy appeared and moving_end 0.64 to 0.76 s after that (5 runs). Call before the copy is made;
+ * returns whether the object was physical and at rest or settling.
+ */
+export function selectPhysical(linkset: Linkset): boolean {
+  const root = linkset.prims[0]
+  if (!root || !(root.statusFlags & STATUS_PHYSICS) || !still(velocityOf(linkset))) return false
+  if (selectedPhysical.has(linkset)) return true
+  const state = motionOf(linkset)
+  physicalMotion.set(linkset, state)
+  state.settle?.()
+  state.settle = undefined
+  if (state.moving) {
+    state.moving = false
+    raiseMoving(root, 'moving_end', linkset.clock.now)
+  }
+  selectedPhysical.add(linkset)
+  releaseLater(linkset, state)
+  return true
+}
+
+/**
+ * A Duplicate's copy of a physical object at rest or settling starts as a new object, is stopped
+ * by the viewer's selection, and starts and settles again when the viewer lets go. In-world, 19
+ * copies: moving_start 0.01 to 0.08 s after the copy appeared, moving_end 0.15 to 0.35 s in,
+ * moving_start 0.44 to 0.79 s in and moving_end 0.57 to 0.76 s after that. Copies made 0.14 to
+ * 0.29 s into the original's settle gave the same as copies of a box at rest: the copy keeps
+ * none of the settle left to the original. A copy of a box that was not physical got no events.
+ * Call for the copy of an object `selectPhysical` selected.
+ */
+export function duplicatedPhysical(copy: Linkset): void {
+  const root = copy.prims[0]!
+  physicalMotion.get(copy)?.settle?.()
+  const state: PhysicalMotion = { moving: true }
+  physicalMotion.set(copy, state)
+  physicalBefore.add(copy)
+  selectedPhysical.add(copy)
+  raiseMoving(root, 'moving_start', copy.clock.now)
+  state.settle = copy.clock.scheduleTask({ get dead() { return copy.dead || copy.prims[0] !== root } }, copy.clock.now + DUPLICATE_HELD_MS, () => {
+    state.settle = undefined
+    state.moving = false
+    raiseMoving(root, 'moving_end', copy.clock.now)
+  })
+  releaseLater(copy, state)
 }
 
 /**
