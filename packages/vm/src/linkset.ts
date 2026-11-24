@@ -1261,7 +1261,8 @@ export class Linkset {
 
   /**
    * Finish the handlers already active or queued on `scripts`, including
-   * their reset/state-change chains. Future recurring events do not extend
+   * their reset/state-change chains, moving the clock on to each wake and to
+   * the frame each queued event runs in. Future recurring events do not extend
    * this call indefinitely; tests run those with advanceTime.
    */
   settle(scripts: ReadonlyArray<Script>): void {
@@ -1279,8 +1280,10 @@ export class Linkset {
         // again. They cannot complete as goals of this settling call.
         // A script whose handler is still on the call stack wakes once that handler returns.
         if (script.running && !script.handling && script.linkset.peers.includes(script.linkset) &&
-            script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
-          at = Math.min(at, script.wakeAt)
+            script.clockView.completedHandlers < completed) {
+          // An idle script runs its next queued event a frame after its last handler ended.
+          const due = script.wakeAt ?? this.clock.nextEventDue(script)
+          if (due !== undefined) at = Math.min(at, due)
         }
       }
       if (at === Infinity) return

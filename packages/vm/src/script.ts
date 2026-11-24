@@ -1745,12 +1745,15 @@ export class Script {
     this.handling = true
     this.busyRun = task.busy === true
     this.stepping = task
+    const clock = this.linkset.clock
+    clock.handlersRunning++
     try {
       r = task.run.next()
     } catch (e) {
       this.finish(task, queued)
       throw e
     } finally {
+      clock.handlersRunning--
       this.handling = outer
       this.busyRun = outerBusy
       this.stepping = outerTask
@@ -1762,6 +1765,7 @@ export class Script {
       return
     }
     this.finish(task, queued)
+    this.clockView.handlerEnded(task.slua?.event ?? task.lsl?.handler.name ?? 'state_entry')
     this.clockView.finishHandler(r.value)
     if (r.value) {
       if (this.detachedInHandler && this.clockView.inInventory) this.resetPastWear = true
