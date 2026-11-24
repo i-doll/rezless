@@ -25,7 +25,12 @@ export interface QueuedEvent {
   readonly held?: boolean
   /** Came up while the handler was busy, or held back as then: released in the order it came up. */
   readonly busy?: boolean
+  /** When an event due later came up and was judged, if before `at`. */
+  readonly raisedAt?: number
 }
+
+/** When `e` came up: before it falls due for a prim change a frame late. */
+export const cameUp = (e: QueuedEvent) => e.raisedAt ?? e.at
 
 /**
  * Events Second Life holds back while a handler sleeps. When the handler wakes or ends they go
@@ -346,7 +351,7 @@ export class LinksetClock {
     }
     held &&= HELD_ORDER.has(event)
     if (dueAt > at) held ??= false
-    const queued: QueuedEvent = { at: dueAt, target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy) && { busy: true }) }
+    const queued: QueuedEvent = { at: dueAt, ...(dueAt > at && { raisedAt: at }), target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy) && { busy: true }) }
     // In-world: a release in the first sleep of a game_control handler and a press in its second
     // gave one event, for the press. A release that waited from a listen handler's sleep and a
     // press in the sleep of the touch_start handler that ran next gave two. The first input of a
@@ -361,7 +366,7 @@ export class LinksetClock {
     }
     if (held && at <= this.now) {
       // A click or a change that merges into one already held back takes no room of its own.
-      if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
+      if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && cameUp(e) <= this.now), queued)) return
     }
     if (event !== '__reset' && !HELD_CONTROL.has(event) && this.full(target)) return
     this.queue.push(queued)
@@ -404,7 +409,7 @@ export class LinksetClock {
   /** Whether an event of `event`'s kind waits for `target`; with `since`, one that came up while busy after it. */
   private waitsFor(target: Script, event: string, since?: number): boolean {
     const kinds = event === 'collision_end' ? ['collision', 'collision_end'] : [busyKind(event)]
-    return this.queue.some((e) => e.target === target && !e.held && e.at <= this.now && (since === undefined || e.at > since && e.busy === true)
+    return this.queue.some((e) => e.target === target && !e.held && cameUp(e) <= this.now && (since === undefined || cameUp(e) > since && e.busy === true)
       && kinds.includes(busyKind(e.event)))
   }
 
@@ -734,9 +739,11 @@ export class LinksetClock {
    * others, with a timer tick that fell due ahead of them.
    */
   requeue(script: Script, since: number): void {
-    const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
-    this.purgeTarget(script, this.now)
-    const plain = ({ at, target, event, payload }: QueuedEvent): QueuedEvent => ({ at, target, event, payload })
+    const waited = this.queue.filter((e) => e.target === script && cameUp(e) <= this.now)
+    this.purgeWhere((e) => waited.includes(e))
+    // One that falls due later keeps its place in time and is not held back by a later handler.
+    const plain = ({ at, target, event, payload }: QueuedEvent): QueuedEvent =>
+      ({ at, target, event, payload, ...(at > this.now && { held: false, raisedAt: this.now }) })
     this.queue.push(...waited.filter((e) => !this.heldBack(e, since)).map(plain))
     this.release(script, waited.filter((e) => this.heldBack(e, since)), false)
   }
@@ -751,7 +758,7 @@ export class LinksetClock {
    */
   releaseAtWake(script: Script, since: number): void {
     const kind = (e: QueuedEvent) => heldKind(e.event)
-    const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
+    const waited = this.queue.filter((e) => e.target === script && cameUp(e) <= this.now)
     const waiting = new Set(waited.filter((e) => HELD_ORDER.has(e.event) && !this.heldBack(e, since)).map(kind))
     // In-world: a contact held whole while busy stayed whole through the sleep that followed.
     const contact = (e: QueuedEvent) => e.busy === true && COLLISION_EVENTS.has(e.event) && this.heldBack(e, since)
@@ -771,7 +778,7 @@ export class LinksetClock {
     // The contact goes on past the wake when no end of it was held.
     const open = !merged.some((e) => e.event === 'land_collision_end' && !e.payload[REOPENED])
     const held = merged.filter((e) => !e.payload[REOPENED])
-      .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false,
+      .map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false, ...(at > this.now && { raisedAt: this.now }),
         payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
     const lands = held.filter((e) => e.event === 'land_collision')
     if (lands.length) {

@@ -239,3 +239,49 @@ describe("a script's own prim change in a handler that goes on", () => {
     }
   })
 })
+
+// Changes that wait for their frame still merge as changes that came up then. A busy
+// handler gets two changed events for several changes, as measured with a painter
+// script in the busy-handler tests, and the caller's own back-to-back changes after a
+// busy call or a one-frame sleep merge as they did when they came up at the call.
+describe('changes that wait for their frame', () => {
+  const ctl = `integer k; col() { ++k; llSetColor(<(k & 1), ((k >> 1) & 1), 0.5>, ALL_SIDES); }
+    default {
+      state_entry() { llListen(7701, "", NULL_KEY, ""); }
+      listen(integer c, string n, key id, string m) {
+        if (m == "spin") { llSetSitText(""); col(); col(); col(); col(); }
+        else if (m == "sleep") { col(); llSleep(0.01); col(); }
+        else if (m == "other") { llMessageLinked(LINK_THIS, 0, "", ""); llSleep(0.1); col(); col(); col(); col(); }
+        llOwnerSay("end");
+      }
+      changed(integer c) { llOwnerSay("changed " + (string)c); }
+    }`
+  const sib = `default {
+      changed(integer c) { llOwnerSay("changed " + (string)c); }
+      link_message(integer s, integer n, string m, key id) { llSetSitText(""); llOwnerSay("busy done"); }
+    }`
+  const run = async (command: string) => {
+    const { linkset, scripts } = await loadLinkset({ owner: AVATAR, prims: [{ scripts: [
+      { name: 'ctl', source: { source: ctl } }, { name: 'sib', source: { source: sib } }] }] })
+    for (const s of Object.values(scripts)) {
+      s.mock('llSetSitText', (ctx) => { ctx.busy(500); return undefined })
+      s.start()
+    }
+    linkset.advanceTime(1000)
+    linkset.deliverChat({ channel: 7701, name: 'Test Resident', key: AVATAR, message: command })
+    for (let i = 0; i < 30; i++) linkset.advanceTime(100)
+    return { ctl: scripts.ctl!.chat.map((c) => c.text), sib: scripts.sib!.chat.map((c) => c.text) }
+  }
+
+  it('gives a busy script two changed events for four changes from another script', async () => {
+    expect((await run('other')).sib).toEqual(['busy done', 'changed 2', 'changed 2'])
+  })
+
+  it("merges the caller's own changes after a busy call", async () => {
+    expect((await run('spin')).ctl).toEqual(['end', 'changed 2', 'changed 2'])
+  })
+
+  it('keeps a change apart from one made after a one-frame sleep', async () => {
+    expect(await run('sleep')).toEqual({ ctl: ['end', 'changed 2', 'changed 2'], sib: ['changed 2', 'changed 2'] })
+  })
+})

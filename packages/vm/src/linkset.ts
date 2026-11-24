@@ -5,7 +5,7 @@ import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds, playLandSound } from './builtins/collision.js'
 import { copyMovingState, copyPhysicalMotion, duplicatedPhysical, queueMoving, SELECTION_MS, selectMotion, selectPhysical, setVelocity } from './builtins/motion.js'
-import { LinksetClock } from './clock.js'
+import { LinksetClock, cameUp } from './clock.js'
 import { Prim } from './prim.js'
 import { restepRezzedShape } from './prim-params.js'
 import type { Script } from './script.js'
@@ -682,7 +682,7 @@ export class Linkset {
       for (const s of p.scripts) {
         if (!s.running) continue
         const waiting = pending.filter((e) => e.target === s)
-        if (waiting.length >= 2 || waiting.some((e) => e.at >= s.resumedAt)) continue
+        if (waiting.length >= 2 || waiting.some((e) => cameUp(e) >= s.resumedAt)) continue
         this.clock.scheduleNextFrame(s, 'changed', { changes: CHANGED_LINK })
       }
     }

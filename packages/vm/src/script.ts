@@ -55,7 +55,7 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView } from './clock.js'
+import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView, cameUp } from './clock.js'
 import type { QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
@@ -1257,7 +1257,7 @@ export class Script {
     }
     // In-world: a chat line and a touch that were waiting for a sleeping handler came out of
     // inventory with the script and ran in the rezzed copy, after on_rez.
-    const waiting = (opts.waiting ?? []).filter(e => e.target === this && e.at <= this.now && e.event !== '__reset')
+    const waiting = (opts.waiting ?? []).filter(e => e.target === this && cameUp(e) <= this.now && e.event !== '__reset')
     // A full queue has no room for the event `unseated` brings, so it keeps its own.
     const merge = !!opts.unseated && waiting.length < MAX_PENDING_EVENTS
     for (const e of waiting) {

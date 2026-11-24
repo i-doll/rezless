@@ -1,4 +1,5 @@
 import type { Prim } from './prim.js'
+import { cameUp } from './clock.js'
 import type { LslValue } from './values/types.js'
 import {
   CHANGED_COLOR, CHANGED_MEDIA, CHANGED_RENDER_MATERIAL, CHANGED_SCALE, CHANGED_SHAPE,
@@ -22,7 +23,7 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
     const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
       && ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0)
     // A busy handler gets what the clock gives any event that comes up while it is busy.
-    const merge = script.busy ? undefined : waiting.find(e => e.at >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
+    const merge = script.busy ? undefined : waiting.find(e => cameUp(e) >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
     if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
     else clock.scheduleNextFrame(script, 'changed', { changes })
   }
