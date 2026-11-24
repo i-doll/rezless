@@ -230,10 +230,9 @@ describe('SLua: llUnSit, then llMessageLinked', () => {
     expect(out.log1).toEqual(order('log1 lm G', 'log1 changed 32'))
   })
 
-  // rezless releases the events held for the busy child in the order they
-  // were raised, and it raises the change with the llUnSit call, ahead of the
-  // link message.
-  it.fails('gives the busy child link_message first too', async () => {
+  // In-world: the busy child ran done, link_message, changed(32), 2 of 2.
+  // The change falls due a frame after llUnSit, behind the link message.
+  it('gives the busy child link_message first too', async () => {
     const out = await run('slua', 'G')
     expect(out.log2).toEqual([`log2 lm busy${childSeated}`, `log2 done${stood}`, ...order('log2 lm G', 'log2 changed 32')])
   })
