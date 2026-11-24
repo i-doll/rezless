@@ -20,6 +20,7 @@ import { LinksetClock } from './clock.js'
 import { addNotecardAsset } from './builtins/notecard-search.js'
 import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
 import { startRegeneration } from './builtins/damage.js'
+import { quietWearer, wearerMoved, wearerTeleported } from './builtins/motion.js'
 import type { Linkset } from './linkset.js'
 import type { Prim, PrimSoundState } from './prim.js'
 import type { PrimParams } from './prim-params.js'
@@ -511,9 +512,18 @@ export class World {
         if (flyingSit && !(value & AGENT_FLYING)) world.endFlyingSit(avatar, flyingSit)
       },
       get position() { clearRemovedSeat(); return seat ? world.seatPosition(seat, seatOffset) : position },
-      set position(value) { cancelPendingSit(avatar); position = value },
+      set position(value) {
+        cancelPendingSit(avatar)
+        const moved = !seat && (value.x !== position.x || value.y !== position.y || value.z !== position.z)
+        position = value
+        if (moved) wearerMoved(world, avatar)
+      },
       get rotation() { clearRemovedSeat(); return seat ? world.seatRotation(seat, shown()) : rotation },
-      set rotation(value) { rotation = value },
+      set rotation(value) {
+        const turned = !seat && (value.x !== rotation.x || value.y !== rotation.y || value.z !== rotation.z || value.s !== rotation.s)
+        rotation = value
+        if (turned) wearerMoved(world, avatar)
+      },
       get region() { clearRemovedSeat(); return seat?.linkset?.region ?? region },
       set region(value) { cancelPendingSit(avatar); region = value },
       language: opts.language ?? '',
@@ -760,6 +770,7 @@ export class World {
     } else if (sitting && motion && !previous && avatar.info & AGENT_FLYING) this.hoverUp(avatar)
     else if (sitting && motion) this.landAvatar(avatar, motion, removed ? 'removed' : previous ? 'object' : 'ground')
     if (previous) this.sitChanged(previous)
+    if (sitting) wearerMoved(this, avatar)
     if (sitting) returnStandtpAvatar(this, avatar)
     if (previous) groundSitAfterStand(this, avatar)
   }
@@ -1110,14 +1121,16 @@ export class World {
       lookAt = landing.lookAt ?? lookAt
     }
     const sameRegion = avatar.region === region.name
-    this.relocateAvatar(avatar, region.name, position)
-    cancelSeatRequests(avatar, sameRegion)
-    teleportPendingGroundSit(avatar, sameRegion)
-    if (lookAt && (lookAt.x || lookAt.y)) {
-      const half = Math.atan2(lookAt.y, lookAt.x) / 2
-      avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
-    }
-    this.reportTeleport(avatar, !sameRegion)
+    quietWearer(() => {
+      this.relocateAvatar(avatar, region.name, position)
+      cancelSeatRequests(avatar, sameRegion)
+      teleportPendingGroundSit(avatar, sameRegion)
+      if (lookAt && (lookAt.x || lookAt.y)) {
+        const half = Math.atan2(lookAt.y, lookAt.x) / 2
+        avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
+      }
+    })
+    wearerTeleported(this, avatar, () => this.reportTeleport(avatar, !sameRegion))
     return true
   }
 
