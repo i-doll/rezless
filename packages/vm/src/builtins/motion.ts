@@ -313,10 +313,11 @@ export function selectMotion(linkset: Linkset, ms: number): boolean {
 }
 
 /**
- * Run the moving_end a Take's selection raised before the object is saved and goes. In-world: a
- * looping box taken into inventory ran its moving_end, and the box rezzed from the item had
- * counted it; a moving_end handler that slept 1 s was cut off by the Take, and the rezzed box
- * finished it before its on_rez (Aditi, SLua Tideland, 2026-11-24).
+ * Run the moving_end a Take's selection raised before the object is saved. In-world: a looping
+ * box taken into inventory ran its moving_end, and the box rezzed from the item had counted it,
+ * as had the box rezzed from a Take Copy (two runs); a moving_end handler that slept 1 s was cut
+ * off by the Take, and the rezzed box finished it before its on_rez (Aditi, SLua Tideland,
+ * 2026-11-24).
  */
 export function endBeforeTake(linkset: Linkset): void {
   const clock = linkset.clock

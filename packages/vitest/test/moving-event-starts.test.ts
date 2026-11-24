@@ -82,8 +82,8 @@ describe('a script that first starts in a moving object', () => {
 })
 
 describe('Take of an object in keyframed motion', () => {
-  function take(b: Box) {
-    const taken = b.world.attemptAvatarTake(b.avatar, b.prim).object!
+  function take(b: Box, copy = false) {
+    const taken = b.world.attemptAvatarTake(b.avatar, b.prim, { copy }).object!
     seedRlvInventory(b.avatar, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: taken, assetType: 'object' }] })
     return b.world.attemptAvatarRez(b.avatar, 'taken', { x: 128, y: 130, z: 100 }).object!
   }
@@ -100,6 +100,19 @@ describe('Take of an object in keyframed motion', () => {
     expect(logOf(b.linkset)).toEqual(['entry', 'moving_start', 'moving_end'])
     rezzed.advanceTime(1_000)
     expect(logOf(rezzed)).toEqual(['entry', 'moving_start', 'moving_end', 'rez'])
+  })
+
+  // In-world: Take Copy of the looping box, two runs -> the original logged moving_end, and the box
+  // rezzed from the item had counted it before its on_rez (Aditi, SLua Tideland, 2026-11-24).
+  it('runs the moving_end of the selection before a Take Copy is saved', async () => {
+    const b = await box()
+    go(b)
+    b.linkset.advanceTime(1_500)
+    const rezzed = take(b, true)
+    rezzed.advanceTime(1_000)
+    expect(logOf(rezzed)).toEqual(['entry', 'moving_start', 'moving_end', 'rez'])
+    b.linkset.advanceTime(1_000)
+    expect(logOf(b.linkset)).toEqual(['entry', 'moving_start', 'moving_end', 'moving_start'])
   })
 
   // In-world: the same box whose moving_end slept 1 s before logging -> nothing logged before the

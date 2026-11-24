@@ -160,7 +160,7 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
   const paused = selectMotion(linkset, SELECTION_MS.copy)
   if (!foreign) {
-    if (paused && !copy) endBeforeTake(linkset)
+    if (paused) endBeforeTake(linkset)
     const object = linkset.copy()
     if (paused) stillCopy(object)
     if (!copy) linkset.remove()
