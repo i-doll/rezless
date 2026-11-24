@@ -425,12 +425,12 @@ describe('the NaN sign in SLua', () => {
     return s.chat[0]?.text
   }
 
-  it('Luau arithmetic passes on the first NaN', async () => {
-    // In-world: P, N, tostring(P), tostring(N), 0/0, tostring(0/0), -(0/0) and P + N, N + P,
-    // N + N, P * N, N * P, N * N, N + 1, 1 - N, inf - inf, 0 * inf, -inf + inf.
+  it('Luau arithmetic keeps the sign of a single NaN', async () => {
+    // In-world: P, N, tostring(P), tostring(N), 0/0, tostring(0/0), -(0/0) and N + 1, 1 - N,
+    // N * N, inf - inf, 0 * inf and -inf + inf. (P + N gave nan and N + P -nan in-world; with
+    // two NaNs the WebAssembly engine picks the sign, so the VM doesn't promise it.)
     expect(await slua('P, N, tostring(P), tostring(N), 0/0, tostring(0/0), -(0/0)')).toBe('nan, -nan, nan, nan, -nan, nan, nan')
-    expect(await slua('P + N, N + P, N + N, P * N, N * P, N * N, N + 1, 1 - N, inf - inf, 0 * inf, -inf + inf'))
-      .toBe('nan, -nan, -nan, nan, -nan, -nan, -nan, -nan, -nan, -nan, -nan')
+    expect(await slua('N + 1, 1 - N, N * N, inf - inf, 0 * inf, -inf + inf')).toBe('-nan, -nan, -nan, -nan, -nan, -nan')
   })
 
   it('the math functions give the same signs as Mono, except llSqrt of a negative number', async () => {

@@ -3,7 +3,7 @@ import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './
 import { coerce, stringify } from './coerce.js'
 import { concatLists, scriptList } from './list-types.js'
 import { RuntimeError } from '../memory.js'
-import { NEGATIVE_NAN, addFloat, boxedArray, boxedOf, isNegativeNaN, mulFloat, negateFloat, signedNaN, subFloat } from './nan.js'
+import { NEGATIVE_NAN, POSITIVE_NAN, addFloat, boxedArray, boxedOf, isNegativeNaN, mulFloat, negateFloat, signedNaN, subFloat } from './nan.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -486,13 +486,18 @@ function divisionNaN(r: number, parts: number[], order: number[]) {
 export function rotateVector(v: Vector, q: Rotation): Vector {
   const { x, y, z, s } = q
   const { x: vx, y: vy, z: vz } = v
-  const m = (a: number, b: number, c: number) => mulFloat(mulFloat(a, b), c)
-  const m2 = (a: number, b: number, c: number) => mulFloat(m(2, a, b), c)
-  return vec(
-    subFloat(subFloat(addFloat(addFloat(addFloat(subFloat(addFloat(m(s, s, vx), m2(y, s, vz)), m2(z, s, vy)), m(x, x, vx)), m2(y, x, vy)), m2(z, x, vz)), m(z, z, vx)), m(y, y, vx)),
-    subFloat(subFloat(addFloat(subFloat(addFloat(addFloat(addFloat(m2(x, y, vx), m(y, y, vy)), m2(z, y, vz)), m2(s, z, vx)), m(z, z, vy)), m(s, s, vy)), m2(x, s, vz)), m(x, x, vy)),
-    addFloat(subFloat(addFloat(subFloat(subFloat(addFloat(addFloat(m2(x, z, vx), m2(y, z, vy)), m(z, z, vz)), m2(s, y, vx)), m(y, y, vz)), m2(s, x, vy)), m(x, x, vz)), m(s, s, vz)),
+  const r = vec(
+    s * s * vx + 2 * y * s * vz - 2 * z * s * vy + x * x * vx + 2 * y * x * vy + 2 * z * x * vz - z * z * vx - y * y * vx,
+    2 * x * y * vx + y * y * vy + 2 * z * y * vz + 2 * s * z * vx - z * z * vy + s * s * vy - 2 * x * s * vz - x * x * vy,
+    2 * x * z * vx + 2 * y * z * vy + z * z * vz - 2 * s * y * vx - y * y * vz + 2 * s * x * vy - x * x * vz + s * s * vz,
   )
+  if (r.x === r.x && r.y === r.y && r.z === r.z) return r
+  // Every part of the result uses every part of v and q, so a NaN in it
+  // follows Mono's float rule over all of them: negative unless one is positive.
+  const positive = (n: number) => n !== n && !isNegativeNaN(n)
+  const anyPositive = positive(x) || positive(y) || positive(z) || positive(s) || positive(vx) || positive(vy) || positive(vz)
+  const nan = anyPositive ? POSITIVE_NAN : NEGATIVE_NAN
+  return vec(r.x === r.x ? r.x : nan, r.y === r.y ? r.y : nan, r.z === r.z ? r.z : nan)
 }
 
 /** For interpreter compound-assignment helpers. */
