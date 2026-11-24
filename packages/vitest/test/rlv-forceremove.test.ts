@@ -43,6 +43,7 @@ async function fixtures() {
 type Fixture = Awaited<ReturnType<typeof fixtures>>['rlv']
 function send(script: Fixture['script'], command: string) {
  script.host.description = command; script.fire('touch_start', { num_detected: 1 })
+ script.advanceTime(500)
 }
 function attachment(f: Fixture, id: string) {
  const root = f.avatar.viewer.inventory.attachmentMappings().find(m => m.itemId === id)!.rootKey

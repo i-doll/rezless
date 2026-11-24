@@ -51,7 +51,7 @@ async function worn(mode: number) {
       return undefined
     })
     t.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' })
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
   }
   const detach = () => { linkset.detachFromAvatar(); linkset.advanceTime(100) }
   const wear = () => { linkset.attachToAvatar(OWNER, 5); linkset.advanceTime(100) }

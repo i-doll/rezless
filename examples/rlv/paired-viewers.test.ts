@@ -35,6 +35,7 @@ describe('paired viewer example', () => {
       }
       expect(sendChat(37, 'blocked by both').status).toBe('blocked')
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(500)
       expect(script.global('statuses')).toEqual(['/sendchannel'])
       const negative = rlvExpectationFor(negativeChannelReplies, profile)
       if (negative.kind !== 'expected') throw new Error(negative.reason)
@@ -43,6 +44,7 @@ describe('paired viewer example', () => {
       expect(avatar.viewer.restrictions.snapshot().map(rule => rule.sourcePrim)).toEqual([other.host.key])
       expect(sendChat(37, 'still blocked by second').status).toBe('blocked')
       other.fire('touch_start', { num_detected: 1 })
+      other.advanceTime(500)
       expect(other.global('allStatuses')).toEqual(['/sendchannel/sendchannel', '/sendchannel', '/sendchannel', ''])
       expect(avatar.viewer.restrictions.snapshot()).toEqual([])
       expect(sendChat(37, 'released').status).toBe('sent')

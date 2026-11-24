@@ -51,16 +51,20 @@ describe('avatar reply origin', () => {
       avatar.position = { x: 230.1, y: 0, z: 0 }
       script.start()
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 2 : 1)
       avatar.position = { x: 150.1, y: 0, z: 0 }
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 3 : 2)
       avatar.position = { x: 149.9, y: 0, z: 0 }
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 3 : 2)
       avatar.region = 'neighbour'
       avatar.position = { x: 1, y: 0, z: 0 }
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 5 : 3)
     }
   })
@@ -146,9 +150,11 @@ it('limits negative dialog delivery at 20 m from the current avatar', async () =
     script.start()
     script.host.params.position = { x: 19.9, y: 0, z: 0 }
     script.fire('touch_start', { num_detected: 1 })
+    script.advanceTime(100)
     expect(script.global('replies')).toBe(profile === 'rlv' ? 1 : 0)
     script.host.params.position = { x: 20.1, y: 0, z: 0 }
     script.fire('touch_start', { num_detected: 1 })
+    script.advanceTime(100)
     expect(script.global('replies')).toBe(profile === 'rlv' ? 1 : 0)
   }
 })

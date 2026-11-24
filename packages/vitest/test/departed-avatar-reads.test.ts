@@ -17,6 +17,7 @@ const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const OBJECT_NAME = 1, OBJECT_POS = 3, OBJECT_ROT = 4, OBJECT_OWNER = 6, OBJECT_RUNNING_SCRIPT_COUNT = 9
 const OBJECT_TOTAL_SCRIPT_COUNT = 10, OBJECT_SCRIPT_MEMORY = 11, OBJECT_STREAMING_COST = 15, OBJECT_ATTACHED_SLOTS_AVAILABLE = 35
 const OBJECT_ACCOUNT_LEVEL = 41, OBJECT_MASS = 43, OBJECT_PRIM_COUNT = 30, OBJECT_TOTAL_INVENTORY_COUNT = 31
+const SIM_FRAME_MS = 1000 / 45
 
 const source = `
   key o; list out; list details;
@@ -63,6 +64,7 @@ async function fixture() {
   const watcher = await probe(world)
   for (const p of [seat, watcher]) avatar.viewer.session.bind(p.linkset, avatar)
   const advance = (ms: number) => watcher.linkset.advanceTime(ms)
+  advance(100)
   const teleport = (region: 'home' | 'north' | 'far') => {
     const corner = world.corner(region)
     expect(world.teleportAvatar(avatar, { x: corner.x + 118, y: corner.y + 48, z: 30 })).toBe(true)
@@ -84,9 +86,7 @@ describe('a seat that dies under the avatar', () => {
     f.advance(1000)
     f.seat.send('die')
     expect(f.watcher.read()).toEqual([...GONE, 'NOT FOUND', 0])
-    f.advance(20)
-    expect(f.watcher.read()[0]).toBe('')
-    f.advance(10)
+    // The next read a script can make runs a frame later, when the avatar is back.
     expect(f.watcher.read()).toEqual([...NAMES, 0x100, 'Striding', 1, 1, expect.anything(), 1])
   })
 })
@@ -102,7 +102,7 @@ describe('the region an avatar leaves, while it reads "Init"', () => {
     expect(f.watcher.read()).toEqual([...NAMES, 0, 'Init', 1, 1, '', 1])
     expect(f.watcher.details([OBJECT_POS, OBJECT_RUNNING_SCRIPT_COUNT])).toEqual([{ x: 128, y: 128, z: 20 }, 0])
     expect(f.watcher.language()).toBe('en')
-    f.advance(210)
+    f.advance(210 - 2 * SIM_FRAME_MS)
     expect(f.watcher.read()).toEqual([...NAMES, 0, '', 0, 1, '', 1])
     f.advance(20)
     expect(f.watcher.read()).toEqual([...NAMES, 0, '', 0, 0, 'NOT ON REGION', 1])

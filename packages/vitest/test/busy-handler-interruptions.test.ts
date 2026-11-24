@@ -78,7 +78,7 @@ describe('an owner Reset or Recompile of a script whose handler is running', () 
       return undefined
     })
     a.fire('touch_start', { num_detected: 1 })
-    a.linkset.advanceTime(0)
+    a.linkset.advanceTime(100)
     const log = a.global('log')
     return { said, log: Array.isArray(log) ? log : Object.values(log as Record<string, unknown>) }
   }

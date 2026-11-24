@@ -15,7 +15,7 @@ const logger = `list log;
 const notecard = (name: string) => makeInventoryItem({ name, type: InventoryType.NOTECARD, notecardLines: ['one'] })
 
 async function load(edit: (prim: Prim, scripts: Record<string, Script>) => void, other = logger) {
-  const { prims, scripts } = await loadLinkset({
+  const { prims, scripts, linkset } = await loadLinkset({
     prims: [{
       inventory: [notecard('nc')],
       scripts: [
@@ -30,6 +30,7 @@ async function load(edit: (prim: Prim, scripts: Record<string, Script>) => void,
     return undefined
   })
   scripts['a']!.fire('touch_start', { num_detected: 1 })
+  linkset.advanceTime(100)
   return { log: (name: string) => scripts[name]!.global('log'), prim: prims[0]! }
 }
 

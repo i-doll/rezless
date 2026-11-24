@@ -13,7 +13,7 @@ const source = `list replies; integer during; default {
 }`
 type Fixture = Awaited<ReturnType<typeof loadRlvPair>>['rlv']
 function send(f: Fixture, command: string) {
- f.script.host.description = command; f.script.fire('touch_start', { num_detected: 1 })
+ f.script.host.description = command; f.script.fire('touch_start', { num_detected: 1 }); f.script.advanceTime(100)
 }
 async function attachment(f: Fixture, point = 1, name = 'Item') {
  const loaded = await loadLinkset({ world: f.world, owner: f.avatar.key, region: f.avatar.region,

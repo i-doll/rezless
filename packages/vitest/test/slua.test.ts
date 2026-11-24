@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { loadScript } from '../src/index.js'
 import { NULL_KEY as NULL, Prim } from '@rezless/vm'
 
+const SIM_FRAME_MS = 1000 / 45
+
 const slua = (source: string, options: Record<string, unknown> = {}) =>
   loadScript({ source, language: 'slua', filename: 'test.luau', ...options })
 
@@ -744,7 +746,8 @@ describe('SLua as SLua runs it', () => {
     s.fire('touch_start', { num_detected: 1 })
     s.advanceTime(2000)
     s.fire('touch_start', { num_detected: 1 })
-    expect(s.chat.map((c) => c.text)).toEqual(['5 5', '0 0', '2 2'])
+    const sinceReset = (ms: number) => `${Math.round((ms - 5000) * 1000) / 1e6} ${Math.round((ms - 5000) * 1000) / 1e6}`
+    expect(s.chat.map((c) => c.text)).toEqual(['5 5', sinceReset(5000 + SIM_FRAME_MS), sinceReset(7000 + SIM_FRAME_MS)])
   })
 
   it('reports error objects that are not strings', async () => {

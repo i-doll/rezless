@@ -12,7 +12,10 @@ const source = `list replies; integer same; default {
   link_message(integer s,integer n,string m,key id) { llOwnerSay(m); same = llSameGroup(llGetOwner()); }
   listen(integer c,string n,key id,string m) { replies += [m]; }
 }`
-const issue = (script: Script, str: string) => script.fire('link_message', { sender_num: 1, num: 0, str, id: NULL_KEY })
+const issue = (script: Script, str: string) => {
+  script.fire('link_message', { sender_num: 1, num: 0, str, id: NULL_KEY })
+  script.advanceTime(100)
+}
 function seed(avatar: WorldAvatar) {
   avatar.groups.push({ key: a, name: 'Builders' }, { key: b, name: 'Builders North' }, { key: c, name: 'Builders South' })
 }

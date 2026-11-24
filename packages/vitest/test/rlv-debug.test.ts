@@ -8,8 +8,10 @@ const source = `list replies; default {
   link_message(integer s,integer n,string m,key id) { llOwnerSay(m); }
   listen(integer c,string n,key id,string m) { replies += [m]; }
 }`
-const issue = (script: import('@rezless/vm').Script, str: string) =>
+const issue = (script: import('@rezless/vm').Script, str: string) => {
   script.fire('link_message', { sender_num: 1, num: 0, str, id: NULL_KEY })
+  script.advanceTime(500)
+}
 
 it('queries default settings with named AspectRatio expectations', async () => {
   for (const [profile, { script, avatar }] of Object.entries(await loadRlvPair({ source }))) {

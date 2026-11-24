@@ -70,12 +70,13 @@ async function probe(world: World, region = 'home', sitTarget = false) {
   }
 }
 
-/** Each [masked bits, animation] the watcher read in turn, with when it started and ended (ms). */
-function watch(p: Probe, advance: (ms: number) => void, ms: number) {
+/** Each [masked bits, animation] the watcher read in turn, with when it started and ended (ms after `since`). */
+function watch(p: Probe, advance: (ms: number) => void, ms: number, since = p.linkset.clock.now) {
   const out: { bits: number, state: string, from: number, to: number }[] = []
-  for (let t = 0; t <= ms; t += 10) {
-    if (t) advance(10)
+  for (let first = true; p.linkset.clock.now - since <= ms; first = false) {
+    if (!first) advance(10)
     const [bits, state] = p.read() as [number, string]
+    const t = p.linkset.clock.now - since
     const last = out.at(-1)
     if (last && last.bits === (bits & MOTION) && last.state === state) last.to = t
     else out.push({ bits: bits & MOTION, state, from: t, to: t })
@@ -98,10 +99,11 @@ async function fixture() {
   worn.linkset.attachToAvatar(OWNER, 5)
   for (const p of [seat, watcher, worn]) avatar.viewer.session.bind(p.linkset, avatar)
   const advance = (ms: number) => watcher.linkset.advanceTime(ms)
-  const sit = () => { expect(world.userSitAvatar(avatar, seat.prim)).toBe(true); advance(SIM_FRAME_MS) }
-  const stand = () => { expect(world.userStandAvatar(avatar)).toBe(true); advance(SIM_FRAME_MS) }
+  const at = { sit: 0, stand: 0 }
+  const sit = () => { at.sit = world.clock.now; expect(world.userSitAvatar(avatar, seat.prim)).toBe(true); advance(SIM_FRAME_MS) }
+  const stand = () => { at.stand = world.clock.now; expect(world.userStandAvatar(avatar)).toBe(true); advance(SIM_FRAME_MS) }
   const fly = () => { avatar.info |= AGENT_FLYING | AGENT_IN_AIR }
-  return { world, avatar, seat, watcher, far, worn, advance, sit, stand, fly }
+  return { world, avatar, seat, watcher, far, worn, advance, sit, stand, fly, at }
 }
 
 describe('AGENT_WALKING after a stand from an object', () => {
@@ -119,7 +121,7 @@ describe('AGENT_WALKING after a stand from an object', () => {
     const f = await fixture()
     f.sit()
     f.stand()
-    const w = watch(f.watcher, f.advance, 800)
+    const w = watch(f.watcher, f.advance, 800, f.at.stand)
     expect(steps(w)).toEqual([[AGENT_IN_AIR, 'Striding'], [0, 'Standing'], [AGENT_WALKING, 'Walking'], [0, 'Standing']])
     const walk = w[2]!
     expect(walk.from).toBeGreaterThan(280)
@@ -222,6 +224,7 @@ describe('llUnSit read in the handler that called it', () => {
     const f = await fixture()
     f.sit()
     f.seat.send('unsit')
+    f.advance(SIM_FRAME_MS)
     expect(f.seat.now()).toEqual([AGENT_IN_AIR, 'Striding'])
     expect(f.seat.changes().at(-1)).toEqual([AGENT_IN_AIR, 'Striding'])
   })
@@ -280,7 +283,7 @@ describe('sitting down while flying', () => {
     f.fly()
     f.sit()
     expect(f.seat.changes()).toEqual([[AGENT_SITTING | AGENT_ON_OBJECT | AGENT_FLYING, 'Sitting']])
-    const w = watch(f.watcher, f.advance, 800)
+    const w = watch(f.watcher, f.advance, 800, f.at.sit)
     expect(steps(w)).toEqual([[AGENT_SITTING | AGENT_ON_OBJECT | AGENT_FLYING, 'Sitting'], [AGENT_SITTING | AGENT_ON_OBJECT, 'Sitting']])
     expect(w[0]!.to).toBeGreaterThanOrEqual(270)
     expect(w[0]!.to).toBeLessThan(360)
@@ -308,7 +311,7 @@ describe('sitting down while flying', () => {
     f.advance(100)
     f.stand()
     expect(f.seat.changes().at(-1)).toEqual([AGENT_FLYING | AGENT_IN_AIR, 'Hovering Up'])
-    const w = watch(f.watcher, f.advance, 2000)
+    const w = watch(f.watcher, f.advance, 2000, f.at.stand)
     expect(w[0]!.to).toBeGreaterThanOrEqual(160)
     expect(w[0]!.to).toBeLessThan(260)
     expect(steps(w)).toEqual([[AGENT_FLYING | AGENT_IN_AIR, 'Hovering Up'], [AGENT_IN_AIR, 'Falling Down'], [0, 'Landing'], [0, 'Standing']])
@@ -381,9 +384,10 @@ describe('sitting down while flying', () => {
     f.fly()
     f.sit()
     f.seat.send('tpa', 0, '<120.0, 52.0, 30.0>')
+    f.advance(SIM_FRAME_MS)
     expect(f.seat.now()).toEqual([AGENT_FLYING | AGENT_IN_AIR, 'Hovering'])
     expect(f.seat.changes().at(-1)).toEqual([AGENT_FLYING | AGENT_IN_AIR, 'Hovering'])
-    const w = watch(f.watcher, f.advance, 2000)
+    const w = watch(f.watcher, f.advance, 2000, f.at.sit)
     expect(steps(w)).toEqual([[AGENT_FLYING | AGENT_IN_AIR, 'Hovering'], [AGENT_IN_AIR, 'Falling Down'], [0, 'Landing'], [0, 'Standing']])
     expect(w[0]!.to).toBeGreaterThanOrEqual(260)
     expect(w[0]!.to).toBeLessThan(360)

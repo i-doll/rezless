@@ -643,7 +643,7 @@ it('starts a fresh lifetime when a script clears and reenables temp status in on
   const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
   f.parent.start()
   const child = f.world.linksets[1]!
-  f.linkset.advanceTime(59900 - SIM_FRAME_MS)
+  f.linkset.advanceTime(59900)
   expect(f.world.linksets.includes(child)).toBe(true)
   f.linkset.advanceTime(29999)
   expect(f.world.linksets.includes(child)).toBe(true)
@@ -715,10 +715,10 @@ it('derezzes and rezzes active keyframed motion with independent playback state'
   expect(root.regionPosition()).toEqual({x:101.1+SIM_FRAME_MS/1000,y:102,z:30})
   expect(root.params.rotation.z).toBeCloseTo(Math.sin(1.1*Math.PI/32))
   f.parent.advanceTime(6000)
-  expect(root.regionPosition()).toEqual({x:107.1,y:102,z:30})
+  expect(root.regionPosition()).toEqual({x:107.1+SIM_FRAME_MS/1000,y:102,z:30})
   expect(root.params.rotation.z).toBeCloseTo(Math.sin(7.1*Math.PI/32))
   // Advancing the world cannot advance the saved inventory controller.
-  expect(f.item.object!.prims[0]!.regionPosition()).toEqual({x:102.9,y:100,z:30})
+  expect(f.item.object!.prims[0]!.regionPosition()).toEqual({x:102.9-SIM_FRAME_MS/1000,y:100,z:30})
 })
 
 // In-world: controlled-paused.log -> saved pause survives; play restarts full frames

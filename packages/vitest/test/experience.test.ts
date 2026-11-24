@@ -354,6 +354,7 @@ describe('dataserver answers', () => {
     })
     scripts.other!.start()
     scripts.writer!.start()
+    scripts.writer!.advanceTime(100)
     expect(scripts.other!.global('got')).toEqual(['1,1'])
     const reader = await load('llReadKeyValue("a");', x)
     expect(reader.global('got')).toEqual(['1,1'])
@@ -454,4 +455,5 @@ async function driven(experience: Experience) {
 
 function create(s: Awaited<ReturnType<typeof driven>>, k: string, v: string) {
   s.fire('link_message', { sender_num: 1, num: 0, str: `${k}|${v}`, id: NULL_KEY })
+  s.advanceTime(100)
 }

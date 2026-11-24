@@ -31,7 +31,7 @@ describe('paired attachment queries', () => {
     const pair = await loadRlvPair({ source })
     for (const profile of ['rlv', 'rlva'] as const) {
       const { script, avatar } = pair[profile]
-      script.start(); script.fire('touch_start', { num_detected: 1 })
+      script.start(); script.fire('touch_start', { num_detected: 1 }); script.advanceTime(500)
       expect(script.global('replies')).toEqual(profile === 'rlv' ? [bitmap(), '0', '0', '0'] : [bitmap(), '0', '0', '0', ''])
       expect(avatar.viewer.commandLog.at(-1)?.status).toBe(profile === 'rlv' ? 'unsupported' : 'replied')
     }
@@ -49,19 +49,22 @@ describe('paired attachment queries', () => {
       await wear(world, other, 2)
       // Attachment avatar, rather than object owner, decides occupancy.
       left.owner = other.key
-      script.start(); script.fire('touch_start', { num_detected: 1 })
+      script.start(); script.fire('touch_start', { num_detected: 1 }); script.advanceTime(500)
       const expected = [bitmap(1, 5, 35), '1', '1', '1', ...(profile === 'rlva' ? ['Chest,Left Hand,Center'] : [])]
       expect(script.global('replies')).toEqual(expected)
       expect(script.global('worn')).toEqual([left.prims[0]!.key, chestA.prims[0]!.key, chestB.prims[0]!.key])
       chestA.detachFromAvatar()
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(500)
       expect(script.global('replies')).toEqual([...expected, ...expected])
       chestB.detachFromAvatar(); left.detachFromAvatar(); hud.detachFromAvatar()
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(500)
       expect((script.global('replies') as string[]).slice(expected.length * 2)).toEqual([bitmap(), '0', '0', '0', ...(profile === 'rlva' ? [''] : [])])
       expect(script.global('worn')).toEqual([])
       chestB.attachToAvatar(avatar.key, 55)
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(500)
       expect((script.global('replies') as string[]).slice(-expected.length)).toEqual([bitmap(55), '0', '0', '0', ...(profile === 'rlva' ? ['Right Hind Foot'] : [])])
     }
   })
@@ -108,7 +111,7 @@ describe('paired attachment queries', () => {
     const pair = await loadRlvPair({ source: source.replace('llListen(', 'llOwnerSay("@detach=n"); llListen(') })
     for (const { script, avatar } of Object.values(pair)) {
       script.linkset.attachToAvatar(avatar.key, 1)
-      script.start(); script.fire('touch_start', { num_detected: 1 })
+      script.start(); script.fire('touch_start', { num_detected: 1 }); script.advanceTime(500)
       expect((script.global('replies') as string[]).slice(0, 2)).toEqual([bitmap(1), '1'])
     }
   })
@@ -148,7 +151,7 @@ it('subtracts only an explicitly identified bridge at Center 2, and never create
     const query = () => getRlvAttachmentReply(script.linkset, avatar.viewer, 'getattach', 'center 2')
     expect(query()).toBe('1')
     setRlvAttachmentBridge(avatar.viewer, bridge.prims[0]!.key.toUpperCase())
-    script.start(); script.fire('touch_start', { num_detected: 1 })
+    script.start(); script.fire('touch_start', { num_detected: 1 }); script.advanceTime(500)
     expect((script.global('replies') as string[])[0]).toBe(profile === 'rlva' ? bitmap() : bitmap(31))
     expect(query()).toBe(profile === 'rlva' ? '0' : '1')
     const ordinary = await wear(world, avatar, 31)

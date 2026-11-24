@@ -320,6 +320,7 @@ describe('a script stopped with llSetScriptState', () => {
     linkset.advanceTime(6000)
     const before = (t.global('log') as string[]).length
     tell('start')
+    linkset.advanceTime(100)
     expect((t.global('log') as string[]).slice(before)).toEqual(['lm', 'timer', 'scan'])
   })
 
@@ -633,7 +634,9 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(ticks()).toBe(1)
     at(12_400)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 8000, origin)).toEqual([15_400, 19_400])
+    // Here 2.91 s after the call: the start was 3.02 s late and the two calls reached the script a
+    // frame apart, so the tick ran 1.09 s late.
+    expect(changes(linkset, ticks, 8000, origin)).toEqual([15_350, 19_350])
   })
 
   it('takes the lag of a tick held through a sleep from the wake, not from when it runs', async () => {
@@ -717,7 +720,8 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000, 'q+stop:1:2.0')
     at(7500)
     tell('msg:1:4.0')
-    expect(changes(linkset, ticks, 4000, origin)).toEqual([10_450])
+    // Here 2.93 to 2.98 s after the call, as the second tick runs a frame after the first.
+    expect(changes(linkset, ticks, 4000, origin)).toEqual([10_500])
   })
 
   it('keeps the start\'s lag when a waiting handler runs before the caught-up tick', async () => {
@@ -910,6 +914,7 @@ describe('llResetOtherScript on a running script', () => {
     tell('num:600')
     expect(t.global('log')).toEqual(['entry default 0', 'entry two 42'])
     tell('send+reset+send')
+    linkset.advanceTime(100)
     expect(ctl.global('states')).toEqual([1])
     expect(t.currentState).toBe('default')
     expect(t.global('log')).toEqual(['entry default 0'])
@@ -1037,7 +1042,8 @@ describe('an object taken to inventory and rezzed again', () => {
     expect(k.currentState).toBe('two')
     expect(k.global('g')).toBe(42)
     expect(k.global('log')).toEqual(['entry two', 'on_rez 7'])
-    expect(fired(linkset, k, 25_000, start)).toEqual({ ticks: [3800, 13_800, 23_800], scans: [5800, 12_800, 19_800] })
+    // Each tick and scan waits a frame or more behind the target events that take every frame.
+    expect(fired(linkset, k, 25_000, start)).toEqual({ ticks: [3850, 13_900, 23_900], scans: [5850, 12_900, 19_900] })
     expect(Number(k.global('ats'))).toBeGreaterThan(500)
     expect(Number(k.global('rats'))).toBeGreaterThan(500)
     linkset.routeChat(linkset.prims[0]!, 'say', 7, 'hello')
@@ -1153,7 +1159,8 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
     const k = rez()
     linkset.advanceTime(0)
     expect(k.global('log')).toEqual(['entry', 'timer', 'entry', 'on_rez', 'timer', 'scan'])
-    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
+    // The first tick ran behind state_entry and on_rez, three frames after the rez: the next show 4 s after it.
+    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4100, 8100, 12_100], scans: [7000, 14_000] })
   })
 
   it('keeps that order when the object goes through llDerezObject and llRezObject', async () => {
@@ -1171,7 +1178,8 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
     const k = rez()
     linkset.advanceTime(0)
     expect((k.global('log') as string[]).slice(-4)).toEqual(['entry', 'on_rez', 'timer', 'scan'])
-    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
+    // The first tick ran behind state_entry and on_rez, three frames after the rez: the next show 4 s after it.
+    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4100, 8100, 12_100], scans: [7000, 14_000] })
   })
 
   it('runs on without state_entry in an attachment that is detached and worn again', async () => {

@@ -97,6 +97,7 @@ describe('collar leash', () => {
     f.script.answerDialog('1')
     expect(f.particleTarget()).toBe(f.post.prims[0]!.key)
     expect(f.script).toHaveCalledFunction('llTarget', position(46), 4)
+    f.script.advanceTime(100)
     f.script.fire('not_at_target')
     expect(f.script).toHaveCalledFunction('llMoveToTarget', position(46), 0.75)
     f.post.linkset.remove()

@@ -15,7 +15,10 @@ const source = (commands = queries) => `list replies; default {
 }`
 const item = (id: string, wearableType: typeof layers[number], name = id, parentId: string | null = null) =>
   ({ id, parentId, name, kind: 'item' as const, wearableType })
-const ask = (script: Awaited<ReturnType<typeof loadRlvPair>>['rlva']['script']) => script.fire('touch_start', { num_detected: 1 })
+const ask = (script: Awaited<ReturnType<typeof loadRlvPair>>['rlva']['script']) => {
+  script.fire('touch_start', { num_detected: 1 })
+  script.advanceTime(500)
+}
 
 it('returns valid empty replies and all addable layers, while Kokua remains unsupported', async () => {
   const pair = await loadRlvPair({ source: source() })

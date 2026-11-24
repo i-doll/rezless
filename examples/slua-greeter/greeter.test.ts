@@ -24,6 +24,7 @@ describe('greeter.luau', () => {
   })
 
   it('reminds after 60 seconds without another touch', () => {
+    s.advanceTime(100)
     touch(s, 'Alice')
     s.advanceTime(59_000)
     expect(s).not.toHaveSaid(0, 'Anyone there?')
