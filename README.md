@@ -277,9 +277,14 @@ linkset.clock.pendingEvents()           // snapshot of queued one-shot events:
 batch, as resetting all of an object's scripts does in Second Life, then runs
 their `state_entry` handlers. Each running script gets the link messages the
 others send from `state_entry`, after its own `state_entry`. A stopped script
-runs `state_entry` when it is set running.
+runs `state_entry` when it is set running, also when it is started with `start()`.
 Starting scripts one at a time with `start()` works differently: a link
 message sent before a script starts never reaches it, as in Second Life.
+Neither does any other event raised at a script before it starts, such as
+linkset data, a touch or a collision, and no handler runs before
+`state_entry`. A test may still touch a loaded script it never started, or
+`fire` an event at it, which starts it first, unless it is a copy's script
+waiting for `copy.startAll`.
 A duplicated object starts its scripts over a few frames, in an order that
 changes from copy to copy, so a script can miss the messages sent by scripts
 that started before it. To test that, pass the scripts to start:
