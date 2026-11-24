@@ -2,9 +2,18 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim } from '../prim.js'
 import { LINK_THIS, PERMISSION_CHANGE_LINKS, PERM_MODIFY } from '../generated/constants.js'
 import { findObjectPrim } from './object-reads.js'
+import { sayOwnerError } from './debug.js'
 
 const mayChangeLinks = (ctx: CallContext) => (ctx.state.permissions.granted & PERMISSION_CHANGE_LINKS) !== 0
 const ownerCanModify = (linkset: CallContext['linkset']) => (linkset.prims[0]!.permMask.owner & PERM_MODIFY) !== 0
+
+// In-world, llBreakLink and llBreakAllLinks without the permission told the owner so on
+// DEBUG_CHANNEL, from a rezzed object and a worn one alike; a listener there heard nothing.
+function mayBreakLinks(ctx: CallContext): boolean {
+  if (mayChangeLinks(ctx)) return true
+  sayOwnerError(ctx, 'Script trying to break links but PERMISSION_CHANGE_LINKS permission not set!')
+  return false
+}
 
 /**
  * llCreateLink(key target, integer parent) — link the object holding prim
@@ -13,9 +22,15 @@ const ownerCanModify = (linkset: CallContext['linkset']) => (linkset.prims[0]!.p
  * and this object's prims go in from link 2. A target in this object only
  * raises changed. A key with no prim, no PERMISSION_CHANGE_LINKS, a target
  * with another owner, or either object no-modify for its owner does nothing,
- * with no error.
+ * with no error. A worn object links nothing and tells its owner so.
  */
 export const llCreateLink: BuiltinImpl = (ctx, args) => {
+  // In-world: from a worn root or child, with or without PERMISSION_CHANGE_LINKS, the owner got
+  // this on DEBUG_CHANNEL and a listener there heard nothing.
+  if (ctx.linkset.attachment) {
+    sayOwnerError(ctx, 'Attachments cannot link objects')
+    return undefined
+  }
   if (!mayChangeLinks(ctx)) return undefined
   const target = findObjectPrim(ctx, (args[0] as string | undefined) ?? '')?.linkset
   if (!target || target.owner.toLowerCase() !== ctx.linkset.owner.toLowerCase()) return undefined
@@ -30,11 +45,12 @@ export const llCreateLink: BuiltinImpl = (ctx, args) => {
  * llBreakLink(integer link) — break the prim at `link` out of the linkset.
  * LINK_THIS reads as the root and any other negative number as link 2; 0
  * and numbers past the last prim do nothing. Without
- * PERMISSION_CHANGE_LINKS, or in an object no-modify for its owner, nothing
- * happens, with no error.
+ * PERMISSION_CHANGE_LINKS nothing happens and the owner is told; in an object
+ * no-modify for its owner, or a worn one, nothing happens, with no error.
  */
 export const llBreakLink: BuiltinImpl = (ctx, args) => {
-  if (!mayChangeLinks(ctx) || !ownerCanModify(ctx.linkset)) return undefined
+  // In-world: a worn object with the permission stayed whole.
+  if (!mayBreakLinks(ctx) || !ownerCanModify(ctx.linkset) || ctx.linkset.attachment) return undefined
   const link = (args[0] as number | undefined) ?? 0
   const prims = ctx.linkset.prims
   let prim: Prim | undefined
@@ -45,8 +61,8 @@ export const llBreakLink: BuiltinImpl = (ctx, args) => {
   return undefined
 }
 
-/** llBreakAllLinks() — break every prim apart. Without PERMISSION_CHANGE_LINKS, or in a no-modify object, nothing happens. */
+/** llBreakAllLinks() — break every prim apart. Without PERMISSION_CHANGE_LINKS (the owner is told), in a no-modify object or in a worn one, nothing happens. */
 export const llBreakAllLinks: BuiltinImpl = (ctx) => {
-  if (mayChangeLinks(ctx) && ownerCanModify(ctx.linkset)) ctx.linkset.breakAll()
+  if (mayBreakLinks(ctx) && ownerCanModify(ctx.linkset) && !ctx.linkset.attachment) ctx.linkset.breakAll()
   return undefined
 }

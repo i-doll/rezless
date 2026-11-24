@@ -1258,12 +1258,98 @@ function boxEntry(start: Vector, end: Vector, position: Vector, rotation: Rotati
   }
 }
 
+interface Plane { readonly normal: Vector; readonly offset: number }
+
+const dot = (a: Vector, b: Vector) => a.x * b.x + a.y * b.y + a.z * b.z
+const minus = (a: Vector, b: Vector): Vector => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z })
+
+/** Ray heights of the avatar hull were measured on two avatars, this tall and {@link HULL_TALL}, by llGetAgentSize. */
+const HULL_SHORT = 1.65382
+const HULL_TALL = 1.70672
+const hullPlanes = new Map<number, readonly Plane[]>()
+
+/**
+ * In-world, rays hit a standing avatar on a convex hull, not a box or a capsule. In the avatar's
+ * frame it joins four rings: a 0.1 m square at the bottom, a hexagon at (0.225, ±0.1128),
+ * (-0.1949, ±0.1128) and (0, ±0.2255), a hexagon at (±0.225, ±0.1005) and (0, ±0.3), and a 0.225
+ * by 0.2 m rectangle at the top. From the avatar's position the rings were at -0.8765, -0.226,
+ * 0.488 and 0.8765 m on the shorter avatar and -0.9035, -0.252, 0.505 and 0.9035 m on the taller;
+ * other heights take the line through the two.
+ */
+function avatarHull(height: number): readonly Plane[] {
+  const cached = hullPlanes.get(height)
+  if (cached) return cached
+  const level = (short: number, tall: number) => short + (tall - short) * (height - HULL_SHORT) / (HULL_TALL - HULL_SHORT)
+  const top = level(0.8765, 0.9035), low = level(-0.226, -0.252), middle = level(0.488, 0.505)
+  const vertices: Vector[] = []
+  for (const s of [1, -1]) {
+    for (const t of [1, -1]) {
+      vertices.push({ x: 0.05 * s, y: 0.05 * t, z: -top }, { x: 0.1125 * s, y: 0.1 * t, z: top }, { x: 0.225 * s, y: 0.1005 * t, z: middle })
+    }
+    vertices.push({ x: 0.225, y: 0.1128 * s, z: low }, { x: -0.1949, y: 0.1128 * s, z: low }, { x: 0, y: 0.2255 * s, z: low }, { x: 0, y: 0.3 * s, z: middle })
+  }
+  const planes: Plane[] = []
+  for (let i = 0; i < vertices.length; i++) {
+    for (let j = i + 1; j < vertices.length; j++) {
+      for (let k = j + 1; k < vertices.length; k++) {
+        const a = vertices[i]!, u = minus(vertices[j]!, a), v = minus(vertices[k]!, a)
+        const cross = { x: u.y * v.z - u.z * v.y, y: u.z * v.x - u.x * v.z, z: u.x * v.y - u.y * v.x }
+        const length = Math.hypot(cross.x, cross.y, cross.z)
+        if (length < 1e-9) continue
+        let normal = { x: cross.x / length, y: cross.y / length, z: cross.z / length }
+        const sides = vertices.map(p => dot(normal, minus(p, a)))
+        if (sides.every(d => d >= -1e-9)) normal = { x: -normal.x, y: -normal.y, z: -normal.z }
+        else if (!sides.every(d => d <= 1e-9)) continue
+        planes.push({ normal, offset: dot(normal, a) })
+      }
+    }
+  }
+  hullPlanes.set(height, planes)
+  return planes
+}
+
+// In-world, rays at a seated avatar hit another shape, set by the sitting pose, that isn't modelled.
+const isStandingAvatar = (entity: WorldEntity) => entity.username !== undefined && !(entity as WorldAvatar).sittingOn
+
+/** Intersect a convex hull, excluding rays whose start is inside. */
+function hullEntry(start: Vector, end: Vector, position: Vector, rotation: Rotation, planes: readonly Plane[]): Omit<RayHit, 'key' | 'rootKey' | 'linkNumber'> | undefined {
+  const inverse = conjugate(rotation)
+  const local = rotateVector(minus(start, position), inverse)
+  const delta = minus(end, start)
+  const direction = rotateVector(delta, inverse)
+  let entry = -Infinity
+  let exit = 1
+  let normal: Vector = { x: 0, y: 0, z: 0 }
+  for (const plane of planes) {
+    const distance = dot(plane.normal, local) - plane.offset
+    const rate = dot(plane.normal, direction)
+    if (rate === 0) {
+      if (distance > 0) return
+      continue
+    }
+    const t = -distance / rate
+    if (rate < 0) {
+      if (t > entry) {
+        entry = t
+        normal = plane.normal
+      }
+    } else exit = Math.min(exit, t)
+    if (entry > exit) return
+  }
+  if (entry < 0 || entry >= 1) return
+  const rotated = rotateVector(normal, rotation)
+  return { fraction: entry,
+    position: { x: start.x + delta.x * entry, y: start.y + delta.y * entry, z: start.z + delta.z * entry },
+    normal: { x: rotated.x + 0, y: rotated.y + 0, z: rotated.z + 0 },
+  }
+}
+
 /** Shared by World ray queries and a standalone linkset's own-prim query. */
 export function castRayBoxes(linksets: readonly Linkset[], entities: readonly WorldEntity[], start: Vector, end: Vector, options: RayOptions): RayHit[] {
   const hits: RayHit[] = []
-  const add = (key: string, rootKey: string, linkNumber: number, position: Vector, rotation: Rotation, size: Vector, physical: boolean, phantom: boolean, avatar: boolean) => {
+  const add = (key: string, rootKey: string, linkNumber: number, position: Vector, rotation: Rotation, size: Vector, physical: boolean, phantom: boolean, avatar: boolean, hull = false) => {
     if (avatar ? (options.rejectTypes & 1) : phantom ? !options.detectPhantom : (options.rejectTypes & (physical ? 2 : 4))) return
-    const hit = boxEntry(start, end, position, rotation, size)
+    const hit = hull ? hullEntry(start, end, position, rotation, avatarHull(size.z)) : boxEntry(start, end, position, rotation, size)
     if (hit) hits.push({ ...hit, key, rootKey, linkNumber })
   }
   for (const linkset of linksets) {
@@ -1278,7 +1364,7 @@ export function castRayBoxes(linksets: readonly Linkset[], entities: readonly Wo
   }
   for (const entity of entities) {
     add(entity.key, entity.key, 0, entity.position, entity.rotation, entity.size ?? { x: 0.5, y: 0.5, z: 0.5 },
-      entity.physical, entity.phantom ?? false, entity.username !== undefined)
+      entity.physical, entity.phantom ?? false, entity.username !== undefined, isStandingAvatar(entity))
   }
   return hits.sort((a, b) => a.fraction - b.fraction)
 }

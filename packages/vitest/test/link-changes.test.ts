@@ -253,11 +253,18 @@ describe('llBreakLink', () => {
   })
 
   // In-world: llBreakLink(2) without PERMISSION_CHANGE_LINKS left the object
-  // linked and put nothing on DEBUG_CHANNEL.
-  it('does nothing without PERMISSION_CHANGE_LINKS', async () => {
-    const { out, c } = await scene('llBreakLink(2); llBreakAllLinks(); out = names();', { grant: false })
+  // linked. On 2026-11-24 (Aditi, SLua Tideland) llBreakLink(2) and
+  // llBreakAllLinks from the root of a rezzed two-prim object without it each
+  // told the owner "Script trying to break links but PERMISSION_CHANGE_LINKS
+  // permission not set!" on DEBUG_CHANNEL, which a listener there didn't hear.
+  it('does nothing without PERMISSION_CHANGE_LINKS and tells the owner', async () => {
+    const { out, c, scripts } = await scene('llBreakLink(2); llBreakAllLinks(); out = names();', { grant: false })
     expect(out).toEqual(['A1', 'A2'])
-    expect(c.chat.filter((m) => m.channel === DEBUG_CHANNEL)).toEqual([])
+    expect(c.chat.filter((m) => m.channel === DEBUG_CHANNEL).map((m) => m.text)).toEqual([
+      'Script trying to break links but PERMISSION_CHANGE_LINKS permission not set!',
+      'Script trying to break links but PERMISSION_CHANGE_LINKS permission not set!',
+    ])
+    expect(seen(scripts.wA2)).toEqual([])
   })
 
   // In-world: a lone prim's llBreakLink(0) and llBreakAllLinks raised no changed.

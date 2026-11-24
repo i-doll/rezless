@@ -102,8 +102,11 @@ it.each(['[RC_REJECT_TYPES,16]', '[RC_REJECT_TYPES,-1]', '[RC_DETECT_PHANTOM,1.0
 
 it('detects an avatar fixture and can reject agents', async () => {
   const { world, cast } = await ray('<10,10,100>', '<30,10,100>', '[RC_DATA_FLAGS,7]')
-  const avatar = world.addAvatar({ region: 'ray', username: 'test', position: { x: 20, y: 10, z: 100 }, size: { x: 1, y: 1, z: 2 } })
-  expect(cast()).toEqual([avatar.key, 0, { x: 19.5, y: 10, z: 100 }, { x: -1, y: 0, z: 0 }, 1])
+  const avatar = world.addAvatar({ region: 'ray', username: 'test', position: { x: 20, y: 10, z: 100 }, size: { x: 0.45, y: 0.6, z: 1.70672 } })
+  // In-world (avatar-ray-hull.test.ts): a ray from behind at the avatar's centre hit its back
+  // 0.204 m out, on a face whose normal leans 2.3 degrees down.
+  expect(cast()).toEqual([avatar.key, 0, { x: expect.closeTo(19.7955, 3), y: 10, z: 100 },
+    { x: expect.closeTo(-0.9992, 3), y: 0, z: expect.closeTo(-0.039, 2) }, 1])
   const other = await ray('<10,10,100>', '<30,10,100>', '[RC_REJECT_TYPES,1]')
   other.world.addAvatar({ region: 'ray', username: 'test', position: { x: 20, y: 10, z: 100 } })
   expect(other.cast()).toEqual([0])
