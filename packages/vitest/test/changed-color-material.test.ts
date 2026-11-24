@@ -125,10 +125,20 @@ describe('changed colour and material events', () => {
         default{state_entry(){++entries;ready=1;}changed(integer c){seen += [ready,c];}}` } },
     ] }] })
     scripts.setter!.start()
-    // In-world: an event raised at a script that had not started yet was lost (see events-before-start).
+    // A loaded script the test has not started loses the events other scripts raise at it.
     expect([scripts.observer!.hasStarted, scripts.observer!.global('seen')]).toEqual([false, []])
     scripts.observer!.start()
     expect([scripts.observer!.global('entries'), scripts.observer!.global('seen')]).toEqual([1, []])
+  })
+
+  it('lets a sleeping observer finish initialization before its first change', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [
+      { name: 'setter', source: { source: 'default{state_entry(){llSetColor(<1,0,0>,0);}}' } },
+      { name: 'observer', source: { source: `integer ready; list seen;
+        default{state_entry(){llSleep(1.0);ready=1;}changed(integer c){seen += [ready,c];}}` } },
+    ] }] })
+    linkset.startAll([scripts.setter!, scripts.observer!])
+    expect(scripts.observer!.global('seen')).toEqual([1,2])
   })
 
   it('discards changes made while a script is stopped', async () => {
