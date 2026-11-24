@@ -22,8 +22,8 @@ const AT = v(116, 48, 1997.421)
 
 const logger = (body = '') => ({ source: `list seen; list out;
   default {
-    state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
-    run_time_permissions(integer p) { ${body} llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+    state_entry() { llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS | PERMISSION_TELEPORT); }
+    run_time_permissions(integer p) { ${body} llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS | PERMISSION_TELEPORT); }
     moving_start() { seen += ["ms"]; }
     moving_end() { seen += ["me"]; }
     changed(integer c) { if (c & CHANGED_TELEPORT) seen += ["tp"]; }
@@ -105,6 +105,14 @@ describe('moving events in worn objects', () => {
     expect(f.seen()).toEqual(all(['ms', 'tp', 'me']))
   })
 
+  it('wraps a scripted teleport within the region the same way', async () => {
+    const f = await worn({ rotation: 0, root: 'llTeleportAgent(llGetOwner(), "", <116, 45, 1997.5>, <117, 45, 1997.5>);' })
+    f.run('root')
+    f.chest.advanceTime(1000)
+    close(f.avatar.position, 116, 45, 1997.5)
+    expect(f.seen()).toEqual(all(['ms', 'tp', 'me']))
+  })
+
   // In-world: sitting on a box 4 m away and sitting on the ground gave no moving event; standing
   // from either gave moving_start and moving_end 67 ms apart.
   it('says nothing when the wearer sits and tells it when it stands', async () => {
@@ -138,6 +146,16 @@ describe('moving events in worn objects', () => {
     expect(f.seen()).toEqual(all(['ms', 'me']))
     close(f.avatar.position, 116, 50, Math.fround(AT.z), 5)
   })
+
+  it('keeps one move going when something else moves the wearer on its way', async () => {
+    const f = await worn({ root: 'llMoveToTarget(llGetPos() + <0, 2, 0>, 0.3);' })
+    f.run('root')
+    f.chest.advanceTime(500)
+    f.avatar.position = v(117, f.avatar.position.y, AT.z)
+    f.chest.advanceTime(10000)
+    expect(f.seen()).toEqual(all(['ms', 'me']))
+    close(f.avatar.position, 116, 50, Math.fround(AT.z), 5)
+  })
 })
 
 describe('move targets in two worn objects', () => {
@@ -153,6 +171,20 @@ describe('move targets in two worn objects', () => {
     f.run('root', 'hand')
     f.chest.advanceTime(10000)
     close(f.avatar.position, 117.6, 44.32, AT.z)
+  })
+
+  it('ends the move when the averaged target falls between two single-precision values', async () => {
+    const f = await worn({
+      root: `llMoveToTarget(<10, ${AT.y}, ${AT.z}>, 0.3);`,
+      hand: `llMoveToTarget(<10.000000953674316, ${AT.y}, ${AT.z}>, 0.3);`,
+    })
+    f.avatar.position = v(12, AT.y, AT.z)
+    f.chest.advanceTime(100)
+    f.clear()
+    f.run('root', 'hand')
+    f.chest.advanceTime(10000)
+    expect(f.seen()).toEqual(all(['ms', 'me']))
+    expect(f.avatar.position.x).toBeCloseTo(10.0000004768, 9)
   })
 
   // In-world: with targets in the chest and the hand, llStopMoveToTarget in either left the

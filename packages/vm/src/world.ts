@@ -20,7 +20,7 @@ import { LinksetClock } from './clock.js'
 import { addNotecardAsset } from './builtins/notecard-search.js'
 import { moveRegionAnimations, regionAnimations, setAnimationState, type AnimationState } from './builtins/animation.js'
 import { startRegeneration } from './builtins/damage.js'
-import { quietWearer, wearerMoved, wearerTeleported } from './builtins/motion.js'
+import { wearerMoved, wearerTeleported } from './builtins/motion.js'
 import type { Linkset } from './linkset.js'
 import type { Prim, PrimSoundState } from './prim.js'
 import type { PrimParams } from './prim-params.js'
@@ -1121,7 +1121,7 @@ export class World {
       lookAt = landing.lookAt ?? lookAt
     }
     const sameRegion = avatar.region === region.name
-    quietWearer(() => {
+    wearerTeleported(this, avatar, () => {
       this.relocateAvatar(avatar, region.name, position)
       cancelSeatRequests(avatar, sameRegion)
       teleportPendingGroundSit(avatar, sameRegion)
@@ -1129,8 +1129,7 @@ export class World {
         const half = Math.atan2(lookAt.y, lookAt.x) / 2
         avatar.rotation = { x: 0, y: 0, z: Math.sin(half), s: Math.cos(half) }
       }
-    })
-    wearerTeleported(this, avatar, () => this.reportTeleport(avatar, !sameRegion))
+    }, () => this.reportTeleport(avatar, !sameRegion))
     return true
   }
 

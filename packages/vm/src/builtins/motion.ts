@@ -909,28 +909,42 @@ let wearerQuiet = false
  * turns it. In-world: walking, turning in place, a teleport within the region and standing up
  * each gave moving_start and then moving_end in every prim of every object the avatar wore;
  * sitting down, on an object or on the ground, gave neither (Aditi, SLua Tideland, 2026-11-24).
- * The wearer is taken to have stopped at once. A worn move target held off by a stop acts again.
+ * The wearer is taken to have stopped at once, unless worn move targets are moving it. A worn
+ * move target held off by a stop acts again.
  */
 export function wearerMoved(world: World, avatar: WorldAvatar): void {
   if (wearerQuiet) return
-  wearerMotionOf(avatar).dormant = false
+  const state = wearerMotionOf(avatar)
+  // A wearer the worn targets move is still on its way; it gets there later or sooner.
+  if (state.moving) { pullWearer(world, avatar); return }
+  interruptWearer(avatar)
   raiseWorn(world, avatar, 'moving_start', true)
   raiseWorn(world, avatar, 'moving_end', true)
 }
 
+/** A move from outside ends what the worn targets were doing; a pull that goes on starts anew. */
+function interruptWearer(avatar: WorldAvatar): void {
+  const state = wearerMotionOf(avatar)
+  state.dormant = false
+  state.moving = false
+  state.settle?.()
+  state.settle = undefined
+}
+
 /** Run `move` without telling the wearer's objects; the caller tells them. */
-export function quietWearer(move: () => void): void {
+function quietWearer(move: () => void): void {
   const was = wearerQuiet
   wearerQuiet = true
   try { move() } finally { wearerQuiet = was }
 }
 
 /**
- * Tell a wearer's objects it teleported within its region. In-world: moving_start, then
- * changed(CHANGED_TELEPORT) 21 ms later, then moving_end.
+ * Teleport a wearer with `relocate` and tell its objects with `report`. In-world, within the
+ * region: moving_start, then changed(CHANGED_TELEPORT) 21 ms later, then moving_end.
  */
-export function wearerTeleported(world: World, avatar: WorldAvatar, report: () => void): void {
-  wearerMotionOf(avatar).dormant = false
+export function wearerTeleported(world: World, avatar: WorldAvatar, relocate: () => void, report: () => void): void {
+  quietWearer(relocate)
+  interruptWearer(avatar)
   raiseWorn(world, avatar, 'moving_start', true)
   report()
   raiseWorn(world, avatar, 'moving_end', true)
@@ -958,17 +972,22 @@ function wearerPull(world: World, wearer: WorldAvatar): { target: Vector, rate: 
   return { target: { x: sum.x / rate, y: sum.y / rate, z: sum.z / rate }, rate }
 }
 
-const arrived = (position: Vector, target: Vector) => {
-  const f = Math.fround
-  return f(position.x) === f(target.x) && f(position.y) === f(target.y) && f(position.z) === f(target.z)
+/**
+ * How close counts as there on each axis: half a single-precision step at the larger of the two
+ * coordinates, so a target at 0 or on a power of two is reached in the same time as any other.
+ */
+function slack(position: number, target: number): number {
+  const value = Math.max(Math.abs(position), Math.abs(target))
+  return value ? 2 ** (Math.floor(Math.log2(value)) - 24) : 0
 }
+const arrived = (position: Vector, target: Vector) =>
+  (['x', 'y', 'z'] as const).every(axis => Math.abs(target[axis] - position[axis]) <= slack(position[axis], target[axis]))
 
-/** The seconds until a wearer pulled at `rate` is at `target` to single precision. */
+/** The seconds until a wearer pulled at `rate` from `position` is at `target`. */
 function arrival(position: Vector, target: Vector, rate: number): number {
   let seconds = 0
   for (const axis of ['x', 'y', 'z'] as const) {
-    const left = Math.abs(target[axis] - position[axis]), value = Math.abs(Math.fround(target[axis]))
-    const half = value ? 2 ** (Math.floor(Math.log2(value)) - 24) : 2 ** -150
+    const left = Math.abs(target[axis] - position[axis]), half = slack(position[axis], target[axis])
     if (left > half) seconds = Math.max(seconds, Math.log(left / half) / rate)
   }
   return seconds
@@ -996,8 +1015,9 @@ function pullWearer(world: World, wearer: WorldAvatar): void {
   state.settle = world.clock.scheduleTask({ get dead() { return !world.avatars.includes(wearer) } }, at, () => {
     state.settle = undefined
     const now = wearerPull(world, wearer)
-    if (!now || arrived(wearer.position, now.target)) settleWearer(world, wearer, state)
-    else pullWearer(world, wearer)
+    // The pull is there by now, give or take rounding: put the wearer on the target.
+    if (now) quietWearer(() => { wearer.position = { ...now.target } })
+    settleWearer(world, wearer, state)
   })
 }
 
@@ -1007,7 +1027,7 @@ function pullWearer(world: World, wearer: WorldAvatar): void {
  * one in the chest object and one in the hand, left the wearer halfway between them; tau 0.3 and
  * 0.9 left it at the average weighted 3 : 1. A seated wearer stays where it sits. A wearer the
  * targets move gets moving_start as it sets off, and moving_end once it is at the target to single
- * precision (in-world it came 3.2 to 7 s after a 2 m move with tau 0.3 to 1.5, up to 2 cm short).
+ * precision, at the time the pull takes to get there (in-world it came 3.2 to 7 s after a 2 m move with tau 0.3 to 1.5, up to 2 cm short).
  * There the wearer fell when the last target stopped; here it stays.
  */
 function advanceWearer(world: World, wearer: WorldAvatar, from: number, now: number): void {
