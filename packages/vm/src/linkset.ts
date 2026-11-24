@@ -99,6 +99,8 @@ export interface HeldTouch {
   repeating: boolean
   /** Whether it has raised a `touch` yet. */
   touched: boolean
+  /** What its last `touch` detected. */
+  lastTouch?: ReadonlyArray<DetectedEntry>
   /** Whether the button came up while the script was stopped. */
   released: boolean
   /** Whether a link change ended it while the button was still down. */
@@ -118,6 +120,22 @@ function repeater(clock: LinksetClock) {
 
 function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<DetectedEntry>): void {
   if (s.handles(event)) s.linkset.clock.scheduleTouch(s, event, { num_detected: 1, detected })
+}
+
+/**
+ * A copy of `detected` that counts as new touch data, so llMapDestination and llMapBeacon may
+ * show the map again from the event that carries it.
+ */
+const fresh = (detected: ReadonlyArray<DetectedEntry>) => detected.map((e) => ({ ...e }))
+
+/** The touch data each script has run a `touch` handler with. */
+const deliveredTouches = new WeakMap<Script, WeakSet<DetectedEntry>>()
+
+/** Note that `s` runs a `touch` handler with `detected`. */
+export function touchDelivered(s: Script, detected: ReadonlyArray<DetectedEntry>): void {
+  let seen = deliveredTouches.get(s)
+  if (!seen) deliveredTouches.set(s, seen = new WeakSet())
+  for (const e of detected) seen.add(e)
 }
 
 const raising = (s: Script) => !s.dead && s.running && s.linkset.peers.includes(s.linkset)
@@ -159,8 +177,14 @@ function raiseHeldTouches(clock: LinksetClock): void {
       if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
       click.dueAt += repeatMs(s)
       if (!s.handles('touch')) continue
+      // In-world: a map call in the first touch of a held click showed nothing after one in
+      // touch_start, and one in a later touch showed the map again.
+      // A touch raised before the last one ran merges into it and keeps its data.
+      const last = click.lastTouch
+      const detected = !last ? click.detected : deliveredTouches.get(s)?.has(last[0]!) ? fresh(click.detected) : last
       click.touched = true
-      scheduleTouch(s, 'touch', click.detected)
+      click.lastTouch = detected
+      scheduleTouch(s, 'touch', detected)
     }
   }
 }
@@ -176,12 +200,12 @@ export function resumeHeldTouches(s: Script): void {
 /**
  * In-world: after llResetScript, or a state change, a held click raised no more touch events,
  * and its release still raised touch_end. A reset also forgot a click whose button came up
- * while the script was stopped, so the next click was a normal one; after a state change
- * that next click still raised no touch_start.
+ * while the script was stopped, or that a link break had ended, so the next click was a normal
+ * one; after a state change that next click still raised no touch_start.
  */
 export function forgetHeldTouches(s: Script, reset: boolean): void {
   for (const [by, click] of s.heldClicks) {
-    if (reset && click.released) s.heldClicks.delete(by)
+    if (reset && (click.released || click.cut)) s.heldClicks.delete(by)
     else click.repeating = false
   }
   armTouches(s.linkset.clock)
@@ -191,15 +215,19 @@ export function forgetHeldTouches(s: Script, reset: boolean): void {
  * In-world: llBreakLink and llBreakAllLinks, called from the root or a child, and llBreakLink(1)
  * on the root itself, ended every click the root's scripts held, whether the button was still
  * down or the click was stuck, with touch_end reading the click's link number, and their touch
- * events stopped. Clicks held in the children ran on. llCreateLink ended none.
+ * events stopped. Clicks held in the children ran on. llCreateLink ended none. Unlink and Link
+ * in the viewer's build tools did the same. A root script still counted such a click as held
+ * until a release reached it: when the release went elsewhere, that avatar's next click raised
+ * no touch_start there.
  */
 function cutRootClicks(root: Prim): void {
   for (const s of root.scripts) {
     if (!s.running || s.dead) continue
-    for (const [by, click] of s.heldClicks) {
-      s.heldClicks.delete(by)
+    for (const click of s.heldClicks.values()) {
+      if (click.cut) continue
       click.cut = true
-      scheduleTouch(s, 'touch_end', click.detected)
+      click.repeating = false
+      scheduleTouch(s, 'touch_end', fresh(click.detected))
     }
   }
   armTouches(root.linkset!.clock)
@@ -402,7 +430,10 @@ export class Linkset {
     }
     // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
     for (const script of this.allScripts()) {
-      for (const click of script.heldClicks.values()) click.detected = touchThroughInventory(click.detected)
+      for (const click of script.heldClicks.values()) {
+        click.detected = touchThroughInventory(click.detected)
+        delete click.lastTouch
+      }
     }
     this.broadcastAttach(NULL_KEY)
     this.finishTemporaryDetach()
@@ -1020,8 +1051,10 @@ export class Linkset {
     // handler before the release, raised touch_end in the root. A child that set PASS_NEVER
     // during a passed click kept the release from the root. A script reached only by the
     // release got touch_end alone, which also ended a click it was still holding.
+    // In-world: a map call in touch_end showed the map again after one in touch_start when the
+    // click was held, and not when it was a quick click.
     const now = (d: ReadonlyArray<DetectedEntry>) =>
-      d.every((e) => e.linkNumber === prim.linkNumber) ? d : d.map((e) => ({ ...e, linkNumber: prim.linkNumber }))
+      opts.hold || d.some((e) => e.linkNumber !== prim.linkNumber) ? d.map((e) => ({ ...e, linkNumber: prim.linkNumber })) : d
     const released = route()
     const late = released.filter((s) => !clicks.has(s) || clicks.get(s)!.cut)
     for (const s of late) {

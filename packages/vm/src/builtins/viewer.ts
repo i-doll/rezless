@@ -56,8 +56,10 @@ export const llLoadURL: BuiltinImpl = (ctx, args) => {
 const mapClicks = new WeakMap<object, WeakSet<object>>()
 
 // An attachment shows the map or beacon to its owner, unless someone else clicked it.
-// A rezzed object shows it only to whoever clicked it, once per click and script,
-// and llMapDestination and llMapBeacon share that once.
+// A rezzed object shows it only to whoever clicked it, once per script for each touch data
+// the click sends, and llMapDestination and llMapBeacon share that once. A quick click sends
+// one for its touch_start, touch and touch_end; a held click sends new data for each later
+// touch and for its touch_end.
 function mapAgent(ctx: CallContext): string | undefined {
   const owner = ctx.linkset.owner.toLowerCase()
   const detected = ctx.state.detectedStack.at(-1)
@@ -67,8 +69,9 @@ function mapAgent(ctx: CallContext): string | undefined {
   if (!touch) return undefined
   let shown = mapClicks.get(ctx.state)
   if (!shown) mapClicks.set(ctx.state, shown = new WeakSet())
-  if (shown.has(touch.entries)) return undefined
-  shown.add(touch.entries)
+  const data = touch.entries[0]
+  if (!data || shown.has(data)) return undefined
+  shown.add(data)
   return toucher
 }
 

@@ -57,7 +57,7 @@ import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView, cameUp } from './clock.js'
 import type { QueuedEvent } from './clock.js'
-import { Linkset, forgetHeldTouches, resumeHeldTouches, type HeldTouch } from './linkset.js'
+import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
@@ -1191,7 +1191,10 @@ export class Script {
     copy.resetPastWear = this.resetPastWear
     copy.pastWearChanges.push(...this.pastWearChanges)
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
-    for (const [by, click] of this.heldClicks) copy.heldClicks.set(by, { ...click, detected: touchThroughInventory(click.detected) })
+    for (const [by, click] of this.heldClicks) {
+      const { lastTouch: _, ...kept } = click
+      copy.heldClicks.set(by, { ...kept, detected: touchThroughInventory(click.detected) })
+    }
     copy.running = this.running && !this.dead
     resumeHeldTouches(copy)
     if (this.slua) {
@@ -1799,6 +1802,7 @@ export class Script {
     if (pushed) this.state.detectedStack.push({
       entries: detected as ReadonlyArray<DetectedEntry>, event,
     })
+    if (pushed && event === 'touch') touchDelivered(this, detected as ReadonlyArray<DetectedEntry>)
     try {
       this.state.memory.startEvent()
       return yield* body()

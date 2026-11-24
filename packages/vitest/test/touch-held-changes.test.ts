@@ -452,3 +452,225 @@ default {
   })
 })
 
+
+// https://wiki.secondlife.com/wiki/LlMapDestination
+// In-world probes on Aditi (SLua Tideland, 2026-11-24): fivebot clicked its own two-prim object,
+// whose root script called llMapDestination in touch_start, touch and touch_end, each call with
+// its own position, and the viewer's log showed which ones reached it.
+describe('maps shown from a held click', () => {
+  const mapper = (start: boolean, touches: number, ends: number, action = '') => `integer t; integer e;
+default {
+  state_entry() { }
+  touch_start(integer k) { ${start ? 'llMapDestination("r", <1, 0, 0>, ZERO_VECTOR);' : ''} ${action && 'llSetTimerEvent(0.5);'} }
+  touch(integer k) { if (++t <= ${touches}) llMapDestination("r", <100 + t, 0, 0>, ZERO_VECTOR); }
+  touch_end(integer k) { ++e; integer i; for (i = 0; i < ${ends}; ++i) llMapDestination("r", <200 + 10 * e + i, 0, 0>, ZERO_VECTOR); }
+  timer() { llSetTimerEvent(0); ${action} }
+}`
+
+  async function mapped(source: string, opts: { link?: number; hold?: number; links?: boolean } = {}) {
+    const world = new World()
+    world.addRegion('SLua Tideland', { x: 40960, y: 23296 })
+    world.addAvatar({ region: 'SLua Tideland', key: OWNER, username: 'owner' })
+    await build([[{ name: 'b' }]], { world, key: B_KEY, x: 112 })
+    const made = await build([[{ name: 'map', source, links: opts.links ?? false }], [{ name: 'e', source: 'default { state_entry() {} }' }]], { world })
+    made.linkset.touch(opts.link ?? 2, opts.hold === undefined ? {} : { hold: opts.hold })
+    made.linkset.advanceTime(3000)
+    return made.scripts.map!.viewerRequests.map((r) => (r as unknown as { position: { x: number } }).position.x)
+  }
+
+  it('shows touch_start\'s map alone for a click that is not held', async () => {
+    // In-world: a click with no hold, 30 s after the last map, showed touch_start's map and
+    // neither of the two calls in touch_end.
+    expect(await mapped(mapper(true, 0, 2))).toEqual([1])
+  })
+
+  it('shows touch_end\'s map again after a held click', async () => {
+    // In-world: held 0.05, 0.1, 0.15, 0.3, 0.6, 1, 2 and 2.5 s, touch_end's map showed after
+    // touch_start's. A second call in the same touch_end did not.
+    expect(await mapped(mapper(true, 0, 2), { hold: 2000 })).toEqual([1, 210])
+    expect(await mapped(mapper(true, 0, 2), { hold: 50 })).toEqual([1, 210])
+  })
+
+  it('lets the first touch share touch_start\'s showing and shows later touch events\' maps', async () => {
+    // In-world: with calls in touch_start, every touch and touch_end, held 2.5 s, the first
+    // touch's map was dropped, and the second touch's and touch_end's showed, in two runs. With
+    // no call in touch_start, the first touch's showed and so did each later one, a second apart,
+    // and touch_end's. Runs made within seconds of other map calls also had calls dropped with
+    // "Too many llMapDestination() function calls; halted until average falls." on DEBUG_CHANNEL,
+    // and some without it; the runs here were 12 s apart.
+    expect(await mapped(mapper(true, 2, 1), { hold: 2500 })).toEqual([1, 102, 210])
+    expect(await mapped(mapper(false, 3, 1), { hold: 4000 })).toEqual([101, 102, 103, 210])
+  })
+
+  it('judges each script by the touch events it ran', async () => {
+    // Another script in the prim running its first touch earlier doesn't make this script's new.
+    const world = new World()
+    world.addRegion('SLua Tideland', { x: 40960, y: 23296 })
+    world.addAvatar({ region: 'SLua Tideland', key: OWNER, username: 'owner' })
+    const made = await build([[{ name: 'map', source: mapper(true, 1, 0) }, { name: 'other', source: 'default { touch(integer k) { } }' }]], { world })
+    made.linkset.touch(0, { hold: 2500 })
+    expect(made.scripts.map!.viewerRequests.map((r) => (r as unknown as { position: { x: number } }).position.x)).toEqual([1])
+  })
+
+  it('shows touch_end\'s map after a link change renumbers the clicked prim', async () => {
+    // In-world: a click on link 2 passed to the root, whose script linked a third prim in, so
+    // touch_end read link 3: touch_start's map and touch_end's both showed.
+    expect(await mapped(mapper(true, 0, 1, `llCreateLink("${B_KEY}", TRUE);`), { hold: 2500, links: true })).toEqual([1, 210])
+  })
+
+  it('shows the map from the touch_end a link break raises and from the touch_end alone at the release', async () => {
+    // In-world: the root broke the clicked child off and linked it back: the touch_end at the
+    // break and the one at the release each showed a map after touch_start's.
+    const relink = 'key c = llGetLinkKey(2); llBreakLink(2); llCreateLink(c, TRUE);'
+    expect(await mapped(mapper(true, 0, 1, relink), { hold: 2500, links: true })).toEqual([1, 210, 220])
+  })
+})
+
+describe('a click the root keeps after a link break', () => {
+  it('raises no touch_start on the next click when the release reached nobody', async () => {
+    // In-world: a click on a child with no touch script, passed to the root, whose script broke
+    // the child off. The release went to the lone child. The next click on the root raised no
+    // touch_start, one touch and touch_end, reading 0.
+    const linker = { name: 'linker', source: after('llBreakLink(2);', ''), links: true }
+    const made = await build([[{ name: 'root' }, linker], [{ name: 'e', source: 'default { state_entry() {} }' }]])
+    made.linkset.touch(2, { hold: 2000 })
+    made.linkset.advanceTime(1000)
+    made.linkset.touch(0)
+    const { got } = recorder(made.scripts)
+    expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, expect.closeTo(510, -2), 'touch', 0, 'end', 0, expect.any(Number)])
+  })
+
+  it('raises touch_start on the next click once the release ended the click', async () => {
+    // In-world: the root clicked and link 2 unlinked: touch_end at once, touch_end alone at the
+    // release, and the next click raised touch_start.
+    const linker = { name: 'linker', source: after('llBreakLink(2);', ''), links: true }
+    const made = await build([[{ name: 'root' }, linker], [{ name: 'e', source: 'default { state_entry() {} }' }]])
+    made.linkset.touch(1, { hold: 2000 })
+    made.linkset.advanceTime(1000)
+    made.linkset.touch(0)
+    const { got } = recorder(made.scripts)
+    expect(got('root').slice(7)).toEqual(['end', 0, 2000, 'start', 0, 'touch', 0, 'end', 0, 0])
+  })
+
+  const passedAndBroken = async () => {
+    const linker = { name: 'linker', source: after('llBreakLink(2);', ''), links: true }
+    return build([[{ name: 'root' }, linker], [{ name: 'e', source: 'default { state_entry() {} }' }]])
+  }
+
+  it('forgets the click at a reset', async () => {
+    // In-world: the root's script was reset 2 s into a 2.5 s hold, after the break; the next
+    // click raised touch_start.
+    const made = await passedAndBroken()
+    made.linkset.clock.scheduleTask({ dead: false }, made.linkset.clock.now + 2000, () => made.scripts.root!.reset())
+    made.linkset.touch(2, { hold: 2500 })
+    made.linkset.advanceTime(1000)
+    made.linkset.touch(0)
+    expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 0, 0])
+  })
+
+  it('keeps the click through a stop, and the script gets no touch once it runs again', async () => {
+    // In-world: the root's script was stopped 1.5 s into a 3 s hold, after the break, and set
+    // running after the release. It got no touch, and the next click raised no touch_start.
+    const made = await passedAndBroken()
+    const root = made.scripts.root!
+    made.linkset.clock.scheduleTask({ dead: false }, made.linkset.clock.now + 1500, () => { root.running = false })
+    made.linkset.touch(2, { hold: 3000 })
+    made.linkset.advanceTime(1000)
+    root.running = true
+    const { got, touches } = recorder(made.scripts)
+    const n = touches('root')
+    made.linkset.advanceTime(2000)
+    expect(touches('root')).toBe(n)
+    made.linkset.touch(0)
+    expect(got('root').slice(7)).toEqual(['touch', 0, 'end', 0, expect.any(Number)])
+  })
+})
+
+// In-world probes on Aditi (SLua Tideland, 2026-11-24): the same recorder in fivebot's own
+// objects, with the links changed from the viewer's build tools (Link and Unlink) about 1 s into
+// a 3 s hold. Each case ended as the same change made by a script does.
+describe('a link change made in the viewer during a held click', () => {
+  const at = (made: { linkset: { clock: { now: number; scheduleTask(t: { dead: boolean }, at: number, run: () => void): unknown } } }, ms: number, run: () => void) =>
+    made.linkset.clock.scheduleTask({ dead: false }, made.linkset.clock.now + ms, run)
+  const empty = { name: 'e', source: 'default { state_entry() {} }' }
+
+  it('Unlink of a child the click was passed through ends the root\'s click at once, and keeps it until the next click', async () => {
+    // In-world: touch_end at once reading 2, no touch after. The next click on the root raised
+    // no touch_start, one touch and touch_end reading 0.
+    const made = await build([[{ name: 'root' }], [empty]])
+    at(made, 1000, () => made.linkset.breakOff(made.linkset.prims[1]!))
+    made.linkset.touch(2, { hold: 3000 })
+    made.linkset.advanceTime(1000)
+    made.linkset.touch(0)
+    const { got } = recorder(made.scripts)
+    expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, 1000, 'touch', 0, 'end', 0, expect.any(Number)])
+  })
+
+  it('Unlink of a child while the root is clicked ends the click at once and raises touch_end alone at the release', async () => {
+    // In-world: touch_end at once reading 1, touch_end alone at the release reading 0, and the
+    // next click raised touch_start.
+    const made = await build([[{ name: 'root' }], [empty]])
+    at(made, 1000, () => made.linkset.breakOff(made.linkset.prims[1]!))
+    made.linkset.touch(1, { hold: 3000 })
+    const { got } = recorder(made.scripts)
+    expect(got('root')).toEqual(['start', 1, 'touch', 1, 'end', 1, 1000, 'end', 0, 3000])
+  })
+
+  it('Unlink of the root ends a click passed to it, and the release reaches nobody', async () => {
+    // In-world: three prims, a click on link 2 passed to the root, the root unlinked: touch_end
+    // at once reading 2. The next click on the old root raised no touch_start, one touch and
+    // touch_end reading 0.
+    const made = await build([[{ name: 'root' }], [empty], [{ ...empty, name: 'e3' }]])
+    const root = made.linkset.prims[0]!
+    at(made, 1000, () => made.linkset.breakOff(root))
+    made.linkset.touch(2, { hold: 3000 })
+    made.linkset.advanceTime(1000)
+    root.linkset!.touch(0)
+    const { got } = recorder(made.scripts)
+    expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, 1000, 'touch', 0, 'end', 0, expect.any(Number)])
+  })
+
+  it('Unlink of a clicked child with its own touch script leaves its click running', async () => {
+    // In-world: the child's recorder kept getting touch and its touch_end read 0.
+    const made = await build([[{ name: 'root' }], [{ name: 'child' }]])
+    at(made, 1000, () => made.linkset.breakOff(made.linkset.prims[1]!))
+    made.linkset.touch(2, { hold: 3000 })
+    const { got } = recorder(made.scripts)
+    expect(got('child')).toEqual(['start', 2, 'touch', 2, 'end', 0, 3000])
+    expect(got('root')).toEqual([])
+  })
+
+  describe('Link', () => {
+    async function two(a: ReadonlyArray<ReadonlyArray<ScriptSpec>>) {
+      const world = new World()
+      world.addRegion('SLua Tideland', { x: 40960, y: 23296 })
+      const b = await build([[{ ...empty, name: 'b' }]], { world, key: B_KEY, x: 112 })
+      const made = await build(a, { world, x: 110 })
+      return { made, b }
+    }
+
+    it('of a prim into the clicked object keeps a click passed to the root, and touch_end reads the new link number', async () => {
+      // In-world: the click on link 2 ran on, and touch_end read link 3.
+      const { made, b } = await two([[{ name: 'root' }], [empty]])
+      at(made, 1000, () => made.linkset.absorb(b.linkset))
+      made.linkset.touch(2, { hold: 3000 })
+      expect(recorder(made.scripts).got('root')).toEqual(['start', 2, 'touch', 2, 'end', 3, 3000])
+    })
+
+    it('of another prim under a clicked lone prim keeps the click, and touch_end reads link 1', async () => {
+      // In-world: touch kept reading 0, and touch_end read 1.
+      const { made, b } = await two([[{ name: 'root' }]])
+      at(made, 1000, () => made.linkset.absorb(b.linkset))
+      made.linkset.touch(0, { hold: 3000 })
+      expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 1, 3000])
+    })
+
+    it('of a clicked lone prim under another keeps the click, and touch_end reads link 2', async () => {
+      // In-world: touch kept reading 0, and touch_end read 2.
+      const { made, b } = await two([[{ name: 'root' }]])
+      at(made, 1000, () => b.linkset.absorb(made.linkset))
+      made.linkset.touch(0, { hold: 3000 })
+      expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 2, 3000])
+    })
+  })
+})
