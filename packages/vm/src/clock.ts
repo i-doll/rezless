@@ -282,6 +282,9 @@ export const DELAYED_EVENTS: ReadonlySet<string> = new Set(['timer', 'touch_star
 /** Events a script can hold in its queue; more are dropped, as in Second Life. */
 export const MAX_PENDING_EVENTS = 64
 
+/** `seconds` to the nearest microsecond: the SLua script clock. */
+export const toMicroseconds = (seconds: number) => Math.round(seconds * 1e6) / 1e6
+
 /** One region simulator frame, at 45 frames a second. */
 export const SIM_FRAME_MS = 1000 / 45
 

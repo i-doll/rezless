@@ -55,7 +55,7 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, SIM_FRAME_MS, ScriptClockView, cameUp } from './clock.js'
+import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, SIM_FRAME_MS, ScriptClockView, cameUp, toMicroseconds } from './clock.js'
 import type { QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, touchHandlerEnded, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
@@ -1942,12 +1942,12 @@ export class Script {
       {
         call: (name, args) => this.sluaCall(name, args),
         now: () => this.now,
-        clock: () => sluaClock(this.clockView.elapsedSeconds()),
+        clock: () => toMicroseconds(this.clockView.elapsedSeconds()),
         unixTime: () => this.clockView.unixMicros() / 1e6,
         // The tick falls due at the first microsecond the clock reads on or after the time asked for.
         setTimer: (seconds) => {
           const now = this.clockView.elapsedSeconds()
-          this.clockView.setTimer(seconds > 0 ? (Math.ceil((sluaClock(now) + seconds) * 1e6 - 1e-6) / 1e6 - now) * 1000 : seconds)
+          this.clockView.setTimer(seconds > 0 ? (Math.ceil((toMicroseconds(now) + seconds) * 1e6 - 1e-6) / 1e6 - now) * 1000 : seconds)
         },
         print: (text) => this.sluaPrint(text),
         faceTextureIsItem: (face) => faceTextureIsItem(this.host, face),
@@ -2140,9 +2140,6 @@ export class Script {
     this.linkset.clock.scheduleWaiting(this, events)
   }
 }
-
-/** The SLua script clock in seconds, to the microsecond. */
-const sluaClock = (seconds: number) => Math.round(seconds * 1e6) / 1e6
 
 /** What a detected list reads once its object has been through inventory. */
 function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>): DetectedEntry[] {
