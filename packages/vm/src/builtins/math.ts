@@ -323,7 +323,7 @@ export const llEuler2Rot: BuiltinImpl = (_ctx, args) => {
  * A rotation matrix (rows are the turned axes) as a rotation: from the trace
  * when it is positive, otherwise from the largest diagonal entry.
  */
-function matrixToRotation(m: number[][]): Rotation {
+export function matrixToRotation(m: number[][]): Rotation {
   const tr = m[0]![0]! + m[1]![1]! + m[2]![2]!
   if (tr > 0) {
     const t = Math.sqrt(tr + 1)

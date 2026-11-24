@@ -453,11 +453,8 @@ describe('look targets in a worn object', () => {
   // In-world: llLookAt(wearer + offset, 1, 1) in the child (at <0.3, 0, 0> on the root) set the
   // child's local rotation to the region-frame look rotation from the child's position, the
   // wearer's position plus <0.3, 0, 0> turned by the wearer, whichever way the wearer faced
-  // (14 samples at four headings). Turning the root on its point changed nothing. For the raised
-  // target <3, 0, 4> the child's +Z pointed at the target, but the rotation about that axis
-  // differed from the one here by 0.15 to 1.4 degrees, about a quarter of the target's bearing
-  // the other way (-0.22 to -0.28 times it, four samples); no rule fitted, so only the aim is
-  // pinned for those.
+  // (14 samples at four headings). Turning the root on its point changed nothing. The raised
+  // target <3, 0, 4> turned the child about its +Z axis as look-at-roll.test.ts describes.
   it('turns the child to look from where it is in the region, whichever way the wearer faces', async () => {
     const samples: Array<[number, ReturnType<typeof v>, ReturnType<typeof v>, number[]]> = [
       [90, v(116, 48, AT.z), v(5, 0, 0), [0.02118, 0.70679, -0.02118, 0.70679]],
@@ -475,12 +472,6 @@ describe('look targets in a worn object', () => {
       f.run('child')
       f.chest.advanceTime(1000)
       const r = f.chest.prims[1]!.params.rotation
-      if (offset.z) {
-        const [x, y, z, s] = expected as [number, number, number, number]
-        const up = (q: { x: number, y: number, z: number, s: number }) => [2 * (q.x * q.z + q.y * q.s), 2 * (q.y * q.z - q.x * q.s), 1 - 2 * (q.x * q.x + q.y * q.y)]
-        expect(up(r)).toEqual(up({ x, y, z, s }).map(n => expect.closeTo(n, 3)))
-        continue
-      }
       const sign = Math.sign(r.s * expected[3]! || 1)
       expect([r.x, r.y, r.z, r.s].map(n => n * sign)).toEqual(expected.map(n => expect.closeTo(n, 3)))
     }
