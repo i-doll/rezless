@@ -342,21 +342,41 @@ function matrixToRotation(m: number[][]): Rotation {
   return rot(q[0]!, q[1]!, q[2]!, q[3]!)
 }
 
-function rotationAxis(q: Rotation, axis: Vector): Vector {
-  const m = Math.hypot(q.x, q.y, q.z, q.s)
-  if (m === 0) return vec(axis.x, axis.y, axis.z)
-  const v = rotateVector(axis, rot(q.x / m, q.y / m, q.z / m, q.s / m))
-  return vec(flushTiny(v.x), flushTiny(v.y), flushTiny(v.z))
+const AXES: Row[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+/**
+ * An axis turned by a rotation. A NaN or infinite rotation is normalised as
+ * Second Life does it, in single precision, and the axis read from its
+ * matrix: a NaN rotation gives the unturned axis, and an infinite part
+ * becomes a NaN.
+ */
+function rotationAxis(arg: LslValue | undefined, row: 0 | 1 | 2): Vector {
+  const q = (arg as Rotation | undefined) ?? rot(0, 0, 0, 1)
+  const axis = AXES[row]!
+  const length = Math.hypot(q.x, q.y, q.z, q.s)
+  if (length === 0) return vec(axis[0], axis[1], axis[2])
+  if (Number.isFinite(length)) {
+    const v = rotateVector(vec(axis[0], axis[1], axis[2]), rot(q.x / length, q.y / length, q.z / length, q.s / length))
+    return vec(flushTiny(v.x), flushTiny(v.y), flushTiny(v.z))
+  }
+  const { x, y, z, s } = unitRotation(q)
+  const twice = (n: number) => f32(2 * f32(n))
+  const plus = (a: number, b: number, c: number, d: number) => twice(addFloat(f32(mulFloat(a, b)), f32(mulFloat(c, d))))
+  const minus = (a: number, b: number, c: number, d: number) => twice(subFloat(f32(mulFloat(a, b)), f32(mulFloat(c, d))))
+  const one = (a: number, b: number) => f32(subFloat(1, twice(addFloat(f32(mulFloat(a, a)), f32(mulFloat(b, b))))))
+  if (row === 0) return vec(one(y, z), plus(x, y, z, s), minus(x, z, y, s))
+  if (row === 1) return vec(minus(x, y, z, s), one(x, z), plus(y, z, x, s))
+  return vec(plus(x, z, y, s), minus(y, z, x, s), one(x, y))
 }
 
 /** llRot2Fwd(rotation q) — the x axis rotated by q, normalised. */
-export const llRot2Fwd: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rotation, { x: 1, y: 0, z: 0 })
+export const llRot2Fwd: BuiltinImpl = (_ctx, args) => rotationAxis(args[0], 0)
 
 /** llRot2Left(rotation q) — the y axis rotated by q, normalised. */
-export const llRot2Left: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rotation, { x: 0, y: 1, z: 0 })
+export const llRot2Left: BuiltinImpl = (_ctx, args) => rotationAxis(args[0], 1)
 
 /** llRot2Up(rotation q) — the z axis rotated by q, normalised. */
-export const llRot2Up: BuiltinImpl = (_ctx, args) => rotationAxis(args[0] as Rotation, { x: 0, y: 0, z: 1 })
+export const llRot2Up: BuiltinImpl = (_ctx, args) => rotationAxis(args[0], 2)
 
 /** Second Life reads a rotation whose half-angle sine is below this as no rotation. */
 const HALF_ANGLE_SINE_MIN = 0.0005

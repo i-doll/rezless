@@ -204,8 +204,8 @@ const enum Register {
   CompatOnly = 2,
 }
 
-/** SLua's own versions of these keep results below the smallest normal float, which Second Life's don't. */
-const REPLACED = new Set(['llPow', 'llAtan2'])
+/** SLua's own versions of these differ from Second Life's: ll.Pow and ll.Atan2 keep results below the smallest normal float, and ll.Acos keeps a NaN's sign. */
+const REPLACED = new Set(['llPow', 'llAtan2', 'llAcos'])
 
 const utf8 = new TextEncoder()
 const fromUtf8 = new TextDecoder()

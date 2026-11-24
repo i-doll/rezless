@@ -3,7 +3,7 @@ import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './
 import { coerce, stringify } from './coerce.js'
 import { concatLists, scriptList } from './list-types.js'
 import { RuntimeError } from '../memory.js'
-import { addFloat, boxedOf, mulFloat, negateFloat, subFloat } from './nan.js'
+import { NEGATIVE_NAN, POSITIVE_NAN, addFloat, boxedArray, boxedOf, isNegativeNaN, mulFloat, negateFloat, signedNaN, subFloat } from './nan.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -328,11 +328,21 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
   }
   // vector / rotation → rotate by inverse
   if (isVector(a.value) && isRotation(b.value)) {
-    return { type: 'vector', value: rotateVector(a.value, conjugate(b.value)) }
+    const inverse = conjugate(b.value)
+    const v = rotateVector(a.value, inverse)
+    if (v.x === v.x && v.y === v.y && v.z === v.z) return { type: 'vector', value: v }
+    const parts = divisionParts(a.value, inverse)
+    const nan = (r: number, c: number) => divisionNaN(r, parts, VECTOR_DIVISION_NAN_ORDER[c]!)
+    return { type: 'vector', value: vec(nan(v.x, 0), nan(v.y, 1), nan(v.z, 2)) }
   }
   // rotation / rotation → multiply by inverse
   if (isRotation(a.value) && isRotation(b.value)) {
-    return { type: 'rotation', value: mulRotation(a.value, conjugate(b.value)) }
+    const inverse = conjugate(b.value)
+    const q = mulRotation(a.value, inverse)
+    if (q.x === q.x && q.y === q.y && q.z === q.z && q.s === q.s) return { type: 'rotation', value: q }
+    const parts = divisionParts(a.value, inverse)
+    const nan = (r: number, c: number) => divisionNaN(r, parts, ROTATION_DIVISION_NAN_ORDER[c]!)
+    return { type: 'rotation', value: rot(nan(q.x, 0), nan(q.y, 1), nan(q.z, 2), nan(q.s, 3)) }
   }
   // numeric
   const p = promoteNumeric(a, b)
@@ -399,14 +409,27 @@ export function mulRotationF32(a: Rotation, b: Rotation): Rotation {
   )
 }
 
+/** The Hamilton product, with the NaN signs Mono gives. */
 function hamilton(a: Rotation, b: Rotation): Rotation {
-  return rot(
+  const r = rot(
     a.s * b.x + a.x * b.s + a.y * b.z - a.z * b.y,
     a.s * b.y - a.x * b.z + a.y * b.s + a.z * b.x,
     a.s * b.z + a.x * b.y - a.y * b.x + a.z * b.s,
     a.s * b.s - a.x * b.x - a.y * b.y - a.z * b.z,
   )
+  if (r.x === r.x && r.y === r.y && r.z === r.z && r.s === r.s) return r
+  // Every part of the result uses every part of a and b.
+  const nan = productNaN(positiveNaN(a.x) || positiveNaN(a.y) || positiveNaN(a.z) || positiveNaN(a.s) || positiveNaN(b.x) || positiveNaN(b.y) || positiveNaN(b.z) || positiveNaN(b.s))
+  return rot(r.x === r.x ? r.x : nan, r.y === r.y ? r.y : nan, r.z === r.z ? r.z : nan, r.s === r.s ? r.s : nan)
 }
+
+const positiveNaN = (n: number) => n !== n && !isNegativeNaN(n)
+
+/**
+ * The NaN a product of rotations or a rotated vector gives, as Mono does:
+ * negative unless one of the parts it was made from is a positive NaN.
+ */
+const productNaN = (anyPositive: boolean) => (anyPositive ? POSITIVE_NAN : NEGATIVE_NAN)
 
 /**
  * Second Life's quaternion normalise, in single precision: it leaves a
@@ -419,11 +442,53 @@ export function normalizeRotation(q: Rotation): Rotation {
   if (!(m > f32(1e-7))) return rot(0, 0, 0, 1)
   if (Math.abs(f32(1 - m)) <= 1e-6) return q
   const k = f32(1 / m)
-  return rot(f32(q.x * k), f32(q.y * k), f32(q.z * k), f32(q.s * k))
+  return rot(f32(mulFloat(q.x, k)), f32(mulFloat(q.y, k)), f32(mulFloat(q.z, k)), f32(mulFloat(q.s, k)))
 }
 
 export function conjugate(q: Rotation): Rotation {
-  return rot(-q.x, -q.y, -q.z, q.s)
+  return rot(negateFloat(q.x), negateFloat(q.y), negateFloat(q.z), q.s)
+}
+
+/**
+ * Mono meets the parts of a division by a rotation in another order than
+ * those of a product, and the first NaN it meets passes on with its sign. Per
+ * result component, the parts in that order: the left operand's x, y, z (and
+ * s) first, then the inverted divisor's x, y, z and s, as measured.
+ */
+const ROTATION_DIVISION_NAN_ORDER = [
+  [4, 3, 7, 0, 5, 2, 1, 6],
+  [0, 6, 1, 7, 3, 5, 2, 4],
+  [3, 6, 7, 2, 4, 1, 0, 5],
+  [7, 3, 0, 4, 5, 1, 2, 6],
+]
+const VECTOR_DIVISION_NAN_ORDER = [
+  [4, 2, 6, 3, 1, 0, 5],
+  [5, 4, 2, 0, 6, 1, 3],
+  [0, 5, 1, 6, 3, 2, 4],
+]
+
+/** The parts of `left / divisor` in a boxed array, which keeps their NaN signs. */
+function divisionParts(left: Vector | Rotation, inverse: Rotation) {
+  const parts = boxedArray<number>()
+  parts.push(left.x)
+  parts.push(left.y)
+  parts.push(left.z)
+  if ('s' in left) parts.push(left.s)
+  parts.push(inverse.x)
+  parts.push(inverse.y)
+  parts.push(inverse.z)
+  parts.push(inverse.s)
+  return parts
+}
+
+/** A NaN `r` takes the sign of the first NaN part in `order`; one made from numbers is negative. */
+function divisionNaN(r: number, parts: number[], order: number[]) {
+  if (r === r) return r
+  for (const i of order) {
+    const p = parts[i]!
+    if (p !== p) return signedNaN(isNegativeNaN(p))
+  }
+  return NEGATIVE_NAN
 }
 
 /**
@@ -434,11 +499,15 @@ export function conjugate(q: Rotation): Rotation {
 export function rotateVector(v: Vector, q: Rotation): Vector {
   const { x, y, z, s } = q
   const { x: vx, y: vy, z: vz } = v
-  return vec(
+  const r = vec(
     s * s * vx + 2 * y * s * vz - 2 * z * s * vy + x * x * vx + 2 * y * x * vy + 2 * z * x * vz - z * z * vx - y * y * vx,
     2 * x * y * vx + y * y * vy + 2 * z * y * vz + 2 * s * z * vx - z * z * vy + s * s * vy - 2 * x * s * vz - x * x * vy,
     2 * x * z * vx + 2 * y * z * vy + z * z * vz - 2 * s * y * vx - y * y * vz + 2 * s * x * vy - x * x * vz + s * s * vz,
   )
+  if (r.x === r.x && r.y === r.y && r.z === r.z) return r
+  // Every part of the result uses every part of v and q.
+  const nan = productNaN(positiveNaN(x) || positiveNaN(y) || positiveNaN(z) || positiveNaN(s) || positiveNaN(vx) || positiveNaN(vy) || positiveNaN(vz))
+  return vec(r.x === r.x ? r.x : nan, r.y === r.y ? r.y : nan, r.z === r.z ? r.z : nan)
 }
 
 /** For interpreter compound-assignment helpers. */
