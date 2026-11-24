@@ -290,7 +290,8 @@ describe('linkset.touch routes a click like Second Life', () => {
     expect(times.filter((t) => t < 500)).toHaveLength(11)
     expect(times.filter((t) => t > 500 && t < 1600)).toEqual([])
     expect(times.find((t) => t >= 1600)).toBe(1644)
-    // A touch runs in the frame of the release, so touch_end comes a frame after it.
+    // The restart's frame puts a touch in the frame of the release here, so touch_end comes a
+    // frame after it, within the frame of the release that was measured.
     expect(got('s').slice(-2)).toEqual(['end', 4022])
   })
 

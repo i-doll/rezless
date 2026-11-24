@@ -1148,8 +1148,12 @@ export class ScriptClockView {
   timerIntervalMs = 0
   /** Virtual time at which the next timer event falls due. */
   timerNextFireMs = 0
-  /** When the timer was last set, started or ticked: its ticks run on frames counted from then. */
+  /** When the timer's schedule started: its ticks run on simulator frames counted from then. */
   timerFramesFromMs = 0
+  /** Where the frames of the schedule an owed tick belongs to count from. */
+  private lateFramesFromMs = 0
+  /** Where the frames of a schedule set while a tick was owed count from. */
+  private setFramesFromMs = 0
 
   /**
    * When the next tick may run: on the first simulator frame on or after it falls due, counting
@@ -1307,8 +1311,9 @@ export class ScriptClockView {
     this.timerLateDueMs = undefined
     this.owedBySet = false
     this.owedSetDueMs = undefined
+    const keptFrom = late === undefined ? this.timerFramesFromMs : this.lateFramesFromMs
     this.timerNextFireMs = kept > at ? kept : at + this.timerIntervalMs
-    this.timerFramesFromMs = at
+    this.timerFramesFromMs = kept > at ? keptFrom : at
     // In-world: a tick held through one interval, by a sleep or llMinEventDelay, kept the
     // schedule and left its lateness as the lag; one held through more left neither.
     if (late === undefined) {
@@ -1326,7 +1331,10 @@ export class ScriptClockView {
     this.timerLagMs = lags && this.owedTickLags ? Math.max(0, (overdue ? this.owedStartMs : passed ?? lagAt) - late) : 0
     const fromStart = this.owedFromStart
     this.owedFromStart = false
-    if (fromStart && !bySet && setDue === undefined && kept <= at) this.timerNextFireMs = this.owedStartMs + this.timerIntervalMs
+    if (fromStart && !bySet && setDue === undefined && kept <= at) {
+      this.timerNextFireMs = this.owedStartMs + this.timerIntervalMs
+      this.timerFramesFromMs = this.owedStartMs
+    }
     if (bySet || (setDue === undefined && !this.owedWhileStopped)) return
     // In-world: after a start that missed more than one tick, the next came an interval after the
     // start, and after a call before the caught-up tick ran, on the call's schedule. A script that
@@ -1334,6 +1342,7 @@ export class ScriptClockView {
     // one. One stopped during its own sleep woke to one, unless a waiting handler set the timer.
     const running = setDue ?? (kept > this.owedStartMs ? kept : this.owedStartMs + this.timerIntervalMs)
     this.timerNextFireMs = running
+    this.timerFramesFromMs = setDue !== undefined ? this.setFramesFromMs : kept > this.owedStartMs ? keptFrom : this.owedStartMs
     this.followsOwed = running <= at
   }
 
@@ -1361,7 +1370,10 @@ export class ScriptClockView {
   catchUpTimer(lag = true): void {
     if (this.timerIntervalMs <= 0 || this.timerNextFireMs > this.now) return
     // A tick already owed from an earlier start keeps its place.
-    this.timerLateDueMs ??= this.timerNextFireMs
+    if (this.timerLateDueMs === undefined) {
+      this.timerLateDueMs = this.timerNextFireMs
+      this.lateFramesFromMs = this.timerFramesFromMs
+    }
     this.timerNextFireMs = this.now
     this.timerFramesFromMs = this.now
     // In-world: an LSL script started with llSetScriptState has the lag from the start, also when
@@ -1397,6 +1409,7 @@ export class ScriptClockView {
     // old schedule is still ahead.
     if (this.timerLateDueMs !== undefined && !this.owedBySet) {
       this.owedSetDueMs = this.now + intervalMs - (this.now < this.owedNextMs ? this.timerLagMs : 0)
+      this.setFramesFromMs = this.now
       return
     }
     this.timerPassedAt = undefined
@@ -1406,6 +1419,7 @@ export class ScriptClockView {
     this.owedBySet = due <= this.now
     this.owedTickLags = this.owedBySet
     this.timerLateDueMs = this.owedBySet ? due : undefined
+    this.lateFramesFromMs = this.now
     this.timerNextFireMs = this.owedBySet ? this.now : due
   }
 
@@ -1495,6 +1509,7 @@ export class ScriptClockView {
         this.schedule(this.now, 'timer')
         const next = this.timerNextFireMs + this.timerIntervalMs
         this.timerNextFireMs = next > this.now ? next : this.now + this.timerIntervalMs
+        if (next <= this.now) this.timerFramesFromMs = this.now
       }
     }
   }

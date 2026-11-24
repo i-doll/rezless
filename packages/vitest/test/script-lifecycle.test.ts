@@ -465,7 +465,8 @@ describe('a script stopped with llSetScriptState', () => {
     tell('start')
     expect(t.global('log')).toEqual([])
     expect(t.global('ticks')).toBe(3)
-    // Each tick runs on the first simulator frame after it falls due, and shows at the next read.
+    // Here the start falls between two simulator frames, and LLTimers sets the timer again from
+    // it, so each tick runs on the frame after the whole second and shows at the next read.
     expect(changes(linkset, () => t.global('ticks'), 5500)).toEqual([16_050, 20_050])
     tell('send+stop')
     linkset.advanceTime(3000)
@@ -519,6 +520,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     const short = await caughtUp(1000, 5500)
     short.at(9000)
     short.tell('msg:1:4.0')
+    // The call falls between two simulator frames here, so its tick runs on the frame after its time.
     expect(changes(short.linkset, short.ticks, 3000, short.origin)).toEqual([11_550])
     const long = await caughtUp(1000, 7000)
     long.at(12_500)
@@ -1208,8 +1210,7 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
     linkset.advanceTime(100)
     expect(k.running).toBe(true)
     expect(k.global('log')).toEqual(['entry', 'attach', 'timer', 'on_rez', 'attach', 'timer', 'scan'])
-    // Each tick runs on the first simulator frame after it falls due.
-    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4050, 8050, 12_050], scans: [7000, 14_000] })
+    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
   })
 })
 

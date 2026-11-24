@@ -403,3 +403,19 @@ describe('a timer due with a repeating sensor', () => {
     expect(log.map((e) => typeof e === 'number' ? Math.round(e * 1000) : e)).toEqual(['tm', 111, 'ns', 133])
   })
 })
+
+describe('a tick held through a sleep that ends between frames', () => {
+  // The tick held through one interval keeps the schedule (see timer-after-sleep.test.ts), and the
+  // ticks after it stay on the frames counted from the call.
+  it('leaves the later ticks on the frames of the schedule', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `list log;
+      default {
+        state_entry() { llSetTimerEvent(0.5); llSleep(0.52); }
+        timer() { log += llGetTime(); }
+      }` } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(2100)
+    const log = JSON.parse(JSON.stringify(scripts['s']!.global('log'))) as number[]
+    expect(log.map((t) => Math.round(t * 1000))).toEqual([542, 1000, 1511, 2000, 2511])
+  })
+})
