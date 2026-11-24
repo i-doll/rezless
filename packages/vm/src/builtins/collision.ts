@@ -169,7 +169,12 @@ export function withCollisionFilter(script: Script, event: string, payload: Reco
   const dies = !!(flags & REZ_FLAG_DIE_ON_COLLIDE) && !linkset.prims.some(p => p.volumeDetect)
   if (event.startsWith('land_collision')) {
     if (dies) return linkset.remove()
-    // An idle script gets the event at once, not through the clock's queue.
+    // An idle script gets the event at once, not through the clock's queue, unless the held land
+    // events of its last sleep are still being paced out: then it waits behind them.
+    if (script.wakeAt === undefined && !script.handling && linkset.clock.pacesLand(script)) {
+      linkset.clock.schedule(script, linkset.clock.now, event, payload)
+      return linkset.settle([script])
+    }
     if (script.wakeAt === undefined && !script.handling) {
       linkset.clock.landEventCame(script, event)
       if (linkset.clock.dropsLiveLandEvent(script, event)) return

@@ -423,7 +423,7 @@ describe('llRemoveInventory of a texture or material in use', () => {
         }
       }`)
     const s = scripts.probe!
-    for (const script of Object.values(scripts)) script!.start()
+    for (const script of [scripts.observer!, scripts.child!, s]) script.start()
     s.advanceTime(30_000)
     // In-world: the removal probe, in the root of two linked boxes holding uploaded textures
     // "ptex A", a copy of it named "ptex A2" and "ptex B". Removing the copy reset every face of
@@ -550,7 +550,7 @@ describe('llRemoveInventory of a texture or material in use', () => {
         }
       }`)
     const s = scripts.probe!
-    for (const script of Object.values(scripts)) script!.start()
+    for (const script of [scripts.observer!, scripts.child!, s]) script.start()
     s.advanceTime(60_000)
     const G5 = '<2.000000, 2.000000, 0.000000>, <0.100000, 0.100000, 0.000000>, 0.500000'
     const G4 = '<3.000000, 3.000000, 0.000000>, <0.200000, 0.200000, 0.000000>, 0.250000'

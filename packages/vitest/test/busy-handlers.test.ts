@@ -80,13 +80,16 @@ describe('a handler that is busy, not asleep', () => {
     expect(script.now - before).toBe(2_500)
   })
 
-  // The handler is still busy when it raises an event itself, so the event keeps its place.
-  it('keeps the events the handler raises after the busy call in the order it raised them', async () => {
+  // The handler raises its own events after the busy call as if it had not been busy.
+  // In-world (Aditi, SLua Tideland, 2026-11-24): after a 0.5 s spin, llSetColor and then
+  // llMessageLinked gave link_message first and changed a simulator frame later, 2 of 2
+  // in LSL and in SLua, as without the spin.
+  it('keeps the events the handler raises after the busy call in the order they come up', async () => {
     const { script, say, wait, log } = await make(3_000)
     script.mock('llSetText', (ctx) => { ctx.busy(3_000); return undefined })
     say('raise')
-    wait(3_000)
-    expect(log()).toEqual(['changed 2', 'link 7'])
+    wait(3_100)
+    expect(log()).toEqual(['link 7', 'changed 2'])
   })
 
   // In-world: two notecards dropped in 3 s apart gave changed(1) twice after the handler; three
