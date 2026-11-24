@@ -404,6 +404,23 @@ describe('a timer due with a repeating sensor', () => {
   })
 })
 
+describe('a short timer due with a repeating sensor', () => {
+  // A result and a tick due together run the tick first, every time.
+  it('runs each tick ahead of the sensor result due with it', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `string log;
+      default {
+        state_entry() { llSensorRepeat("", NULL_KEY, AGENT, 5.0, PI, 0.05); llSetTimerEvent(0.05); }
+        timer() { log += "t"; }
+        no_sensor() { log += "n"; }
+      }` } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(1000)
+    const log = String(scripts['s']!.global('log'))
+    expect(log.length).toBeGreaterThan(20)
+    expect(log).toBe('tn'.repeat(log.length / 2))
+  })
+})
+
 describe('a tick held through a sleep that ends between frames', () => {
   // The tick held through one interval keeps the schedule (see timer-after-sleep.test.ts), and the
   // ticks after it stay on the frames counted from the call.

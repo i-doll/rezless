@@ -789,7 +789,7 @@ export class LinksetClock {
     }
     const sensorWaits = !!own?.running && !!ownTimer && ownTimer.timerIntervalMs > 0 && bestAt <= bestTimerAt &&
       (bestAt === ownTimer.delayedUntilMs || waiting!.at === ownTimer.timerNextFireMs) &&
-      bestAt === Math.max(ownTimer.timerFrameMs, ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs, ownTimer.nextEventAt('timer'))
+      Math.abs(bestAt - Math.max(ownTimer.timerFrameMs, ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs, ownTimer.nextEventAt('timer'))) < 1e-6
     if (sensorWaits) {
       bestTimerScript = own
       bestTimerAt = bestAt
