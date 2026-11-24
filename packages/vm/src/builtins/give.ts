@@ -7,7 +7,7 @@ import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
 import { formatListElement } from '../values/format.js'
 import { listElementType, ruleElementType } from '../values/list-types.js'
-import { PERM_COPY, PERM_MODIFY, PERM_TRANSFER, CHANGED_ALLOWED_DROP, TRANSFER_DEST, TRANSFER_FLAGS } from '../generated/constants.js'
+import { PERM_COPY, PERM_MODIFY, PERM_TRANSFER, TRANSFER_DEST, TRANSFER_FLAGS } from '../generated/constants.js'
 import { sayError } from './debug.js'
 import { isAgentInRegion, isKey } from './viewer.js'
 import { llRemoveInventory } from './inventory.js'
@@ -57,9 +57,9 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
     }
     for (const script of prim.changeListeners()) {
       if (prim.linkset !== ctx.linkset) {
-        if (dropped) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
+        if (dropped) raiseDropChanged(script)
         else queueInventoryChanged(script)
-      } else if (dropped) raiseDropChanged(script)
+      } else if (dropped) raiseDropChanged(script, ctx.script)
       else raiseInventoryChanged(script)
     }
   }

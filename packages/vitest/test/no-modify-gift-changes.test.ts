@@ -68,24 +68,6 @@ describe('gifts inside an object its owner cannot modify', () => {
     expect(root.seen('log')).toEqual([66])
   })
 
-  // Not measured: a gift from another object in the same frame. rezless keeps it a separate event,
-  // as a gift from another object was measured to raise its own.
-  it('keep a gift from another object apart', async () => {
-    const world = new World()
-    world.addRegion('home', { x: 0, y: 0 })
-    const { made } = await noModify(`llGiveInventory(${C1}, "nc");`, false, world, true)
-    const outside = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ inventory: [notecard('gift')], scripts: [
-      { name: 'out', source: { source: `default { link_message(integer s, integer n, string m, key k) { llGiveInventory("${made.prims[1]!.key}", "gift"); } }` } },
-    ] }] })
-    outside.linkset.startAll()
-    made.linkset.advanceTime(1000)
-    const message = { sender_num: 1, num: 0, str: '', id: '' }
-    world.clock.schedule(outside.scripts['out']!, world.clock.now, 'link_message', message)
-    world.clock.schedule(made.scripts['give']!, world.clock.now, 'link_message', message)
-    for (let i = 0; i < 20; i++) made.linkset.advanceTime(100)
-    expect(made.scripts['c1']!.global('seen')).toEqual([64, 64])
-  })
-
   // In-world: a gift into C1 then llSetLinkColor on it -> changed(64), then changed(2) (2 of 2).
   it('do not merge with a recolour made after them', async () => {
     const { seen } = await noModify(`llGiveInventory(${C1}, "nc"); ${recolour(2)}`)
@@ -104,5 +86,92 @@ describe('gifts inside an object its owner cannot modify', () => {
     expect(allowed.seen('log')).toEqual([64])
     expect(allowed.seen('give')).toEqual([64])
     expect(allowed.made.prims[0]!.inventory.map((i) => i.name).sort()).toEqual(['give', 'log', 'nc', 'nc2'])
+  })
+})
+
+// In-world (Aditi, SLua Tideland, 2026-11-24, Firestorm RLVa): the same kind of no-modify object, with
+// an LSL and an SLua logger in the root, an LSL logger in C1 and an SLua one in C2, each allowing
+// drops, and C3 allowing drops with no changed handler. One or two other objects of the same owner
+// gave a notecard into a child on the same chat line as the root's giving script, LSL or SLua, so
+// the gifts landed within a millisecond of each other. Each script reported changed and each giver
+// its gift with llGetTimestamp, which showed whether a script ran a change between the gifts.
+describe('gifts from other objects in the same frame as one from inside the linkset', () => {
+  const sluaLogger = 'seen = {}; LLEvents:on("changed", function(c) table.insert(seen, c) end)'
+
+  /** Give into link `target` in the order of `steps`: 'in' from the root's script, 'out' from another object each. */
+  async function sameFrame(target: number, steps: Array<'in' | 'out'>, before = '') {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const made = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [
+      { name: 'R', inventory: [notecard('nc')], scripts: [
+        { name: 'give', source: { source: giver.replace('BODY', `${before} llGiveInventory(llGetLinkKey(${target}), "nc");`) } },
+        { name: 'log', source: { source: logger } },
+        { name: 'slog', language: 'slua', source: { source: sluaLogger } },
+      ] },
+      { name: 'C1', scripts: [{ name: 'c1', source: { source: logger } }] },
+      { name: 'C2', scripts: [{ name: 'c2', language: 'slua', source: { source: sluaLogger } }] },
+      { name: 'C3', scripts: [{ name: 'quiet', source: { source: 'default { state_entry() { } }' } }] },
+    ] })
+    for (const prim of made.prims) {
+      prim.permMask = { base: NO_MODIFY, owner: NO_MODIFY, group: 0, everyone: 0, next: NO_MODIFY }
+      prim.allowInventoryDrop = prim.linkNumber !== 1
+    }
+    made.linkset.startAll()
+    const givers = await Promise.all(steps.map(async (step) => {
+      if (step === 'in') return made.scripts['give']!
+      const outside = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ inventory: [notecard('gift')], scripts: [
+        { name: 'out', source: { source: `default { link_message(integer s, integer n, string m, key k) { llGiveInventory("${made.prims[target - 1]!.key}", "gift"); } }` } },
+      ] }] })
+      outside.linkset.startAll()
+      return outside.scripts['out']!
+    }))
+    made.linkset.advanceTime(1000)
+    const message = { sender_num: 1, num: 0, str: '', id: '' }
+    for (const script of givers) world.clock.schedule(script, world.clock.now, 'link_message', message)
+    for (let i = 0; i < 20; i++) made.linkset.advanceTime(100)
+    return { seen: (name: string) => made.scripts[name]!.global('seen'), items: (link: number) => made.prims[link - 1]!.inventory.length }
+  }
+
+  // In-world: C1's script got one changed(64) counting both notecards when the root's SLua script
+  // gave first (5 of 5) and when another object gave first, then the root, then a second object (3
+  // of 3). C2's got one in 3 of 5 runs with the root first. Where the receiving script ran the first
+  // change before the next gift landed, it got a second: C1 and C2 with the other object first and
+  // the LSL giver (10 of 10), C2 with the root first (2 of 5).
+  it('raise one change in the receiving prim, in either order', async () => {
+    const inFirst = await sameFrame(2, ['in', 'out'])
+    expect(inFirst.seen('c1')).toEqual([64])
+    expect(inFirst.items(2)).toBe(3)
+    expect((await sameFrame(3, ['in', 'out'])).seen('c2')).toEqual([64])
+    expect((await sameFrame(2, ['out', 'in'])).seen('c1')).toEqual([64])
+    expect((await sameFrame(2, ['out', 'in', 'out'])).seen('c1')).toEqual([64])
+  })
+
+  // In-world: another object gave into C1, then the root's SLua script recoloured C1 and gave into it
+  // -> one changed(66) (3 of 3). With the LSL script, C1's script ran the other object's change
+  // first, then got changed(66) (3 of 3).
+  it('merge a recolour and a gift from inside into a gift from another object', async () => {
+    expect((await sameFrame(2, ['out', 'in'], recolour(2))).seen('c1')).toEqual([66])
+  })
+
+  // In-world: two other objects gave into C1 -> one changed(64) where C1's script had not run the
+  // first change yet (3 of 3), two where it had (3 of 3). Into C3 -> one in the root's idle SLua
+  // logger (6 of 6).
+  it('raise one change for two gifts from other objects', async () => {
+    expect((await sameFrame(2, ['out', 'out'])).seen('c1')).toEqual([64])
+    expect((await sameFrame(4, ['out', 'out'])).seen('slog')).toEqual([64])
+  })
+
+  // In-world: into C3, the root's idle LSL and SLua loggers each got one changed(64) in 10 of 10
+  // runs, in either order. The root's giving script got two when the other object gave first (9 of
+  // 9, LSL and SLua) and one when it gave first itself (7 of 7).
+  it('raise one change in the root for a child with no changed handler, two in a giver the other object beat', async () => {
+    const outsideFirst = await sameFrame(4, ['out', 'in'])
+    expect(outsideFirst.seen('log')).toEqual([64])
+    expect(outsideFirst.seen('slog')).toEqual([64])
+    expect(outsideFirst.seen('give')).toEqual([64, 64])
+    const insideFirst = await sameFrame(4, ['in', 'out'])
+    expect(insideFirst.seen('log')).toEqual([64])
+    expect(insideFirst.seen('slog')).toEqual([64])
+    expect(insideFirst.seen('give')).toEqual([64])
   })
 })
