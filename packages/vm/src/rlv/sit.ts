@@ -2,6 +2,7 @@ import { rlvAtof, rlvStof } from './numbers.js'
 import { AGENT_FLYING, AGENT_SITTING, SIT_FLAG_SCRIPTED_ONLY } from '../generated/constants.js'
 import { NULL_KEY, ZERO_VECTOR, type Vector } from '../values/types.js'
 import { rotateVector } from '../values/ops.js'
+import { wornTargetPulls } from '../builtins/motion.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
@@ -459,7 +460,7 @@ function requestViewerSit(world: World, avatar: WorldAvatar, seat: Prim,
   const lifetime = avatar.viewer.session.lifetime
   const cancel = world.clock.scheduleTask(lifetime, world.clock.now + durationMs, () => {
     pendingSits.delete(avatar.viewer.session.lifetime)
-    const outcome = success ? sit() : 'refused'
+    const outcome = success && !wornTargetPulls(world, avatar) ? sit() : 'refused'
     complete?.(outcome)
   })
   pendingSits.set(lifetime, () => { cancel(); complete?.('refused') })

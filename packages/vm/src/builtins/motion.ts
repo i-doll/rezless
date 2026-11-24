@@ -12,6 +12,7 @@ import { KFM_COMMAND, KFM_DATA, KFM_MODE, KFM_ROTATION, KFM_TRANSLATION,
 import { llGround } from './ground.js'
 import type { Script } from '../script.js'
 import type { Linkset } from '../linkset.js'
+import type { World, WorldAvatar } from '../world.js'
 
 interface Frame { translation: Vector; rotation: Rotation; duration: number }
 interface Transform { position: Vector; rotation: Rotation }
@@ -77,7 +78,9 @@ export function copyMovingState(from: Script, to: Script): void {
 
 /** Whether the object moves, in keyframed motion or physically. */
 function moving(linkset: Linkset): boolean {
-  return !!linkset.prims[0]?.keyframedMotion?.playing || !!physicalMotion.get(linkset)?.moving
+  const wearer = linkset.wearer
+  return !!linkset.prims[0]?.keyframedMotion?.playing || !!physicalMotion.get(linkset)?.moving ||
+    !!wearer && !!wearerMotion.get(wearer)?.moving
 }
 
 /**
@@ -835,8 +838,14 @@ export class TargetMotionStepper {
       this.coupled = undefined
       return
     }
+    const wearer = this.prim.linkset?.wearer
+    if (wearer) {
+      this.coupled = undefined
+      advanceWearer(this.prim.linkset!.world!, wearer, from, now)
+      return
+    }
     const move = acting(this.prim.targetMotion.move), look = acting(this.prim.targetMotion.look)
-    if (!(this.prim.statusFlags & STATUS_PHYSICS) || this.prim.linkset?.wearer || !move || !look || !('position' in look.target)) {
+    if (!(this.prim.statusFlags & STATUS_PHYSICS) || !move || !look || !('position' in look.target)) {
       this.coupled = undefined
       advanceTargetMotion(this.prim, (now - from) / 1000)
       return
@@ -862,22 +871,8 @@ export class TargetMotionStepper {
 const approach = (from: Vector, to: Vector, t: number): Vector =>
   ({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, z: from.z + (to.z - from.z) * t })
 
-/**
- * Nominal exponential kinematics. No gravity, angular wobble, contacts or inertia. A worn object's
- * move target moves its standing wearer instead. In-world: llMoveToTarget in a worn root or child
- * took the wearer to the target. There the wearer fell when it stopped; here it stays.
- */
+/** Nominal exponential kinematics. No gravity, angular wobble, contacts or inertia. */
 function advanceTargetMotion(prim: Prim, seconds: number): void {
-  const wearer = prim.linkset?.wearer
-  if (wearer) {
-    const move = acting(prim.targetMotion.move)
-    if (!move || wearer.info & AGENT_SITTING) return
-    const from = wearer.position, f = Math.fround
-    // A wearer at the target to single precision isn't moved, so a sit it is walking to stays pending.
-    if (f(from.x) === f(move.target.x) && f(from.y) === f(move.target.y) && f(from.z) === f(move.target.z)) return
-    wearer.position = approach(from, move.target, -Math.expm1(-seconds / move.tau))
-    return
-  }
   if (!(prim.statusFlags & STATUS_PHYSICS)) return
   const move = acting(prim.targetMotion.move), look = acting(prim.targetMotion.look)
   if (move) prim.params.position = approach(prim.params.position, move.target, -Math.expm1(-seconds / move.tau))
@@ -886,6 +881,174 @@ function advanceTargetMotion(prim: Prim, seconds: number): void {
     prim.params.rotation = interpolate(normalize(prim.params.rotation), target,
       -Math.expm1(-seconds / (look.strength * look.damping)))
   }
+}
+
+/** The objects `avatar` wears in `world`. */
+function wornBy(world: World, avatar: WorldAvatar): Linkset[] {
+  const key = avatar.key.toLowerCase()
+  return world.linksets.filter(linkset => !linkset.dead && linkset.attachment?.avatar.toLowerCase() === key)
+}
+
+function raiseWorn(world: World, avatar: WorldAvatar, event: MovingEvent, jump = false): void {
+  for (const linkset of wornBy(world, avatar)) raiseMoving(linkset.prims[0]!, event, linkset.clock.now, jump)
+}
+
+/**
+ * How far worn move targets have taken a wearer, whether they move it, whether they hold off, and
+ * the check that ends the move.
+ */
+interface WearerPull { target: Vector, rate: number }
+interface WearerMotion { at: number; moving: boolean; dormant: boolean; pull?: WearerPull; settle?: (() => void) | undefined }
+const wearerMotion = new WeakMap<WorldAvatar, WearerMotion>()
+function wearerMotionOf(avatar: WorldAvatar): WearerMotion {
+  let state = wearerMotion.get(avatar)
+  if (!state) wearerMotion.set(avatar, state = { at: -Infinity, moving: false, dormant: false })
+  return state
+}
+let wearerQuiet = false
+
+/**
+ * Call when something other than a worn move target puts a standing avatar somewhere else or
+ * turns it. In-world: walking, turning in place, a teleport within the region and standing up
+ * each gave moving_start and then moving_end in every prim of every object the avatar wore;
+ * sitting down, on an object or on the ground, gave neither (Aditi, SLua Tideland, 2026-11-24).
+ * The wearer is taken to have stopped at once, unless worn move targets are moving it. A worn
+ * move target held off by a stop acts again.
+ */
+export function wearerMoved(world: World, avatar: WorldAvatar): void {
+  if (wearerQuiet) return
+  // A wearer the worn targets move is still on its way; it gets there later or sooner.
+  if (wearerMotionOf(avatar).moving && wearerPull(world, avatar)) { pullWearer(world, avatar); return }
+  interruptWearer(avatar)
+  raiseWorn(world, avatar, 'moving_start', true)
+  raiseWorn(world, avatar, 'moving_end', true)
+}
+
+/** A move from outside ends what the worn targets were doing; a pull that goes on starts anew. */
+function interruptWearer(avatar: WorldAvatar): void {
+  const state = wearerMotionOf(avatar)
+  state.dormant = false
+  state.moving = false
+  state.settle?.()
+  state.settle = undefined
+}
+
+/** Run `move` without telling the wearer's objects; the caller tells them. */
+function quietWearer(move: () => void): void {
+  const was = wearerQuiet
+  wearerQuiet = true
+  try { move() } finally { wearerQuiet = was }
+}
+
+/**
+ * Teleport a wearer with `relocate` and tell its objects with `report`. In-world, within the
+ * region: moving_start, then changed(CHANGED_TELEPORT) 21 ms later, then moving_end.
+ */
+export function wearerTeleported(world: World, avatar: WorldAvatar, relocate: () => void, report: () => void): void {
+  quietWearer(relocate)
+  interruptWearer(avatar)
+  raiseWorn(world, avatar, 'moving_start', true)
+  report()
+  raiseWorn(world, avatar, 'moving_end', true)
+}
+
+function settleWearer(world: World, avatar: WorldAvatar, state: WearerMotion): void {
+  state.settle?.()
+  state.settle = undefined
+  if (!state.moving) return
+  state.moving = false
+  raiseWorn(world, avatar, 'moving_end')
+}
+
+/** Where the worn move targets pull a standing wearer, and how fast, or nothing while none acts. */
+function wearerPull(world: World, wearer: WorldAvatar): WearerPull | undefined {
+  const moves = wornBy(world, wearer).map(linkset => acting(linkset.prims[0]!.targetMotion.move)).filter(move => !!move)
+  if (!moves.length || wearer.info & AGENT_SITTING || wearerMotionOf(wearer).dormant) return undefined
+  let rate = 0
+  const sum = { x: 0, y: 0, z: 0 }
+  for (const move of moves) {
+    const k = 1 / move.tau
+    rate += k
+    sum.x += move.target.x * k; sum.y += move.target.y * k; sum.z += move.target.z * k
+  }
+  return { target: { x: sum.x / rate, y: sum.y / rate, z: sum.z / rate }, rate }
+}
+
+/**
+ * How close counts as there on each axis: half a single-precision step at the larger of the two
+ * coordinates, so a target at 0 or on a power of two is reached in the same time as any other.
+ */
+function slack(position: number, target: number): number {
+  const value = Math.max(Math.abs(position), Math.abs(target))
+  return value ? 2 ** (Math.floor(Math.log2(value)) - 24) : 0
+}
+const samePull = (a: WearerPull | undefined, b: WearerPull) => !!a && a.rate === b.rate &&
+  a.target.x === b.target.x && a.target.y === b.target.y && a.target.z === b.target.z
+const arrived = (position: Vector, target: Vector) =>
+  (['x', 'y', 'z'] as const).every(axis => Math.abs(target[axis] - position[axis]) <= slack(position[axis], target[axis]))
+
+/** The seconds until a wearer pulled at `rate` from `position` is at `target`. */
+function arrival(position: Vector, target: Vector, rate: number): number {
+  let seconds = 0
+  for (const axis of ['x', 'y', 'z'] as const) {
+    const left = Math.abs(target[axis] - position[axis]), half = slack(position[axis], target[axis])
+    if (left > half) seconds = Math.max(seconds, Math.log(left / half) / rate)
+  }
+  return seconds
+}
+
+/**
+ * Whether a worn move target pulls the avatar. In-world: with a worn target holding the wearer
+ * where it stood, a ground sit 3 m away that the viewer walked it to failed after 3.4 s.
+ */
+export function wornTargetPulls(world: World, avatar: WorldAvatar): boolean {
+  return !!wearerPull(world, avatar)
+}
+
+/** Start telling the wearer's objects it moves, if a worn move target will move it. */
+function pullWearer(world: World, wearer: WorldAvatar): void {
+  const state = wearerMotionOf(wearer), pull = wearerPull(world, wearer)
+  if (!pull) return
+  if (arrived(wearer.position, pull.target)) { settleWearer(world, wearer, state); return }
+  if (!state.moving) {
+    state.moving = true
+    raiseWorn(world, wearer, 'moving_start')
+  }
+  state.settle?.()
+  state.pull = pull
+  const at = world.clock.now + Math.max(1, Math.ceil(arrival(wearer.position, pull.target, pull.rate) * 1000))
+  state.settle = world.clock.scheduleTask({ get dead() { return !world.avatars.includes(wearer) } }, at, () => {
+    state.settle = undefined
+    const now = wearerPull(world, wearer)
+    // Targets that changed since this end was set take their own time.
+    if (now && !samePull(pull, now)) { pullWearer(world, wearer); return }
+    // The pull is there by now, give or take rounding: put the wearer on the target.
+    if (now) quietWearer(() => { wearer.position = { ...now.target } })
+    settleWearer(world, wearer, state)
+  })
+}
+
+/**
+ * The move targets of every object the avatar wears pull it together, each in proportion to
+ * 1 / tau, toward their average weighted that way. In-world: targets 1 m apart with the same tau,
+ * one in the chest object and one in the hand, left the wearer halfway between them; tau 0.3 and
+ * 0.9 left it at the average weighted 3 : 1. A seated wearer stays where it sits. A wearer the
+ * targets move gets moving_start as it sets off, and moving_end once it is at the target to single
+ * precision, at the time the pull takes to get there (in-world it came 3.2 to 7 s after a 2 m move with tau 0.3 to 1.5, up to 2 cm short).
+ * There the wearer fell when the last target stopped; here it stays.
+ */
+function advanceWearer(world: World, wearer: WorldAvatar, from: number, now: number): void {
+  const state = wearerMotionOf(wearer)
+  if (now <= state.at) return
+  const seconds = (now - Math.max(from, state.at)) / 1000
+  state.at = now
+  if (!wornBy(world, wearer).some(linkset => acting(linkset.prims[0]!.targetMotion.move))) state.dormant = false
+  const pull = wearerPull(world, wearer)
+  if (!pull) { settleWearer(world, wearer, state); return }
+  if (arrived(wearer.position, pull.target)) return
+  if (!state.moving || !samePull(state.pull, pull)) pullWearer(world, wearer)
+  const position = wearer.position
+  quietWearer(() => { wearer.position = approach(position, pull.target, -Math.expm1(-seconds * pull.rate)) })
 }
 
 export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
@@ -897,11 +1060,27 @@ export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
   // In-world: edge-64 moved, edge-64.01 and distance-64.9 did not.
   if (Math.hypot(delta.x, delta.y, delta.z) > 64) return
   root.targetMotion.move = { owner: initiator, target: { ...target }, tau, ...slackOf(held) }
+  const wearer = ctx.linkset.wearer
+  // In-world: a new target from either worn object made every held target pull again.
+  if (wearer && ctx.linkset.world) {
+    wearerMotionOf(wearer).dormant = false
+    pullWearer(ctx.linkset.world, wearer)
+  }
   setMoving(ctx.linkset, true)
 }
 // In-world: llStopMoveToTarget gave moving_start when the box fell from the target, and nothing
 // when it rested where it was; the fall is left to the test.
-export const llStopMoveToTarget: BuiltinImpl = ctx => { stopTargetMotion(ctx.linkset.prims[0]!, 'move', owner(ctx)) }
+export const llStopMoveToTarget: BuiltinImpl = ctx => {
+  const root = ctx.linkset.prims[0]!, before = acting(root.targetMotion.move)
+  stopTargetMotion(root, 'move', owner(ctx))
+  const wearer = ctx.linkset.wearer, world = ctx.linkset.world
+  if (!wearer || !world || !before || root.targetMotion.move) return
+  // In-world: when one of two worn targets stopped, the wearer stayed where it was, short of the
+  // other target, until a walk moved it or a new target was set.
+  const state = wearerMotionOf(wearer)
+  if (wornBy(world, wearer).some(linkset => acting(linkset.prims[0]!.targetMotion.move))) state.dormant = true
+  settleWearer(world, wearer, state)
+}
 
 function setLook(ctx: CallContext, target: LookRequest['target'], strength: number, damping: number): void {
   const root = ctx.linkset.prims[0]!

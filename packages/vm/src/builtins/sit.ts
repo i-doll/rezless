@@ -7,6 +7,7 @@ import { AGENT_SITTING, INVENTORY_LANDMARK, LINK_THIS, PERMISSION_TELEPORT, PERM
 import { sayError } from './debug.js'
 import { isAgentInRegion } from './viewer.js'
 import { leaveRegionSeatRequests } from '../rlv/sit.js'
+import { wearerTeleported } from './motion.js'
 
 /** A teleport attempt. Accepted means the script's checks passed, not a network confirmation. */
 export interface TeleportRequest {
@@ -106,10 +107,11 @@ function move(ctx: CallContext, key: string, destination: AvatarDestination, loo
   const local = destination.region === ctx.linkset.region
   const crossing = destination.region !== agent.region
   const world = ctx.linkset.world!
-  world.relocateAvatar(agent, destination.region, destination.position)
-  if (crossing) leaveRegionSeatRequests(agent)
-  world.reportTeleport(agent, crossing)
-  if (lookAt) agent.rotation = yawRotation(lookAt.x - (local ? destination.position.x : 0), lookAt.y - (local ? destination.position.y : 0))
+  wearerTeleported(world, agent, () => {
+    world.relocateAvatar(agent, destination.region, destination.position)
+    if (crossing) leaveRegionSeatRequests(agent)
+    if (lookAt) agent.rotation = yawRotation(lookAt.x - (local ? destination.position.x : 0), lookAt.y - (local ? destination.position.y : 0))
+  }, () => world.reportTeleport(agent, crossing))
 }
 
 export const llTeleportAgent: BuiltinImpl = (ctx, args) => {

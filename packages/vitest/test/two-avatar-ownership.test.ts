@@ -377,11 +377,13 @@ describe('inside an object that is no-modify for its owner', () => {
   it('blocks gifts and remote loads to its own child', async () => {
     // In-world: a two-prim object that was no-modify for the owner. Its root gave a notecard to its own
     // child -> 'Blocked by permissions'; it loaded a script into the child with the child's PIN -> the
-    // illegal-load error. Nothing arrived.
+    // illegal-load error. Nothing arrived. The break errors are the next test's.
     const { root, prims } = await noMod()
     expect(root.chat.filter(c => c.channel === DEBUG).map(c => c.text)).toEqual([
       "Unable to give inventory: 'Blocked by permissions'.",
       "Task 'Root' trying to illegally load script onto task 'Child'!",
+      'Unlink failed: no edit permissions.',
+      'Unlink failed: no edit permissions.',
     ])
     expect(names(prims[1]!.inventory)).toEqual(['child'])
   })
@@ -389,7 +391,9 @@ describe('inside an object that is no-modify for its owner', () => {
   it('cannot break its links', async () => {
     // In-world: the same object's root, holding the owner's PERMISSION_CHANGE_LINKS, called llBreakLink(2)
     // -> still two prims, no error. A three-prim no-modify object: llBreakAllLinks and llBreakLink(3) ->
-    // still three prims, no error.
+    // still three prims, no error. A later probe (2026-11-24) found the owner is told
+    // "Unlink failed: no edit permissions." for each, though a DEBUG_CHANNEL listener hears nothing;
+    // worn-motion-events.test.ts pins it.
     const { linkset } = await noMod()
     expect(linkset.prims).toHaveLength(2)
   })
