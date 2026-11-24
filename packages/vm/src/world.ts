@@ -740,7 +740,7 @@ export class World {
   }
 
   /**
-   * @internal Stand an avatar for llUnSit in `caller`, whose own changed(32) runs where it
+   * @internal Stand an avatar for llUnSit, llBreakLink or llBreakAllLinks in `caller`, whose own changed(32) runs where it
    * came up even after the handler slept.
    */
   unsitFrom(avatar: WorldAvatar, caller: Script): void {
