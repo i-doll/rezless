@@ -221,7 +221,7 @@ s.setAgentInRegion(key, present = true)          // region-presence override, sh
 
 Recurring events created during those handlers do not extend the synchronous call forever. Use `advanceTime` to continue their handlers.
 
-A script runs one queued event per simulator frame (1/45 s), as in Second Life: its next event or timer tick runs a frame after its previous handler ended, and in LSL a second waiting `changed` and the next timer tick wait two frames. A link message, chat or a change that a handler raises runs a frame later at the earliest. The calls above move the clock on to the frame the event they deliver runs in, but not to the events its handler raises: advance time to run those. This is a breaking change: before, queued events ran one after another at the same instant.
+A script runs one queued event per simulator frame (1/45 s), as in Second Life: its next event or timer tick runs a frame after its previous handler ended, and in LSL a `changed` right after a `changed`, or a tick right after a tick, waits two frames. An event a handler raises, such as a link message, chat or a change, runs a frame later at the earliest. The calls above move the clock on, a frame per event, until the script they deliver to has run as many handlers as it had events waiting, the delivered one included; advance time to run what comes after. This is a breaking change: before, queued events ran one after another at the same instant.
 
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 

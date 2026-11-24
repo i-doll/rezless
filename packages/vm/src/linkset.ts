@@ -1280,6 +1280,7 @@ export class Linkset {
     this.drainQueue()
     for (;;) {
       let at = Infinity
+      const queued = this.clock.nextQueued()
       for (const { script, completed } of goals) {
         // Inventory suspends sleeping detach handlers until the object is worn
         // again. They cannot complete as goals of this settling call.
@@ -1287,7 +1288,7 @@ export class Linkset {
         if (script.running && !script.handling && script.linkset.peers.includes(script.linkset) &&
             script.clockView.completedHandlers < completed) {
           // An idle script runs its next queued event a frame after its last handler ended.
-          const due = script.wakeAt ?? this.clock.nextEventDue(script)
+          const due = script.wakeAt ?? queued.get(script)?.due
           if (due !== undefined) at = Math.min(at, due)
         }
       }

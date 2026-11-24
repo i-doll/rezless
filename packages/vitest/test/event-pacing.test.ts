@@ -241,3 +241,32 @@ describe('a short timer', () => {
     expect(ticks.slice(1).map((f, i) => f - ticks[i]!)).toEqual(Array(7).fill(gap))
   })
 })
+
+describe('a timer next to events that take every frame', () => {
+  // In-world: a timer ticked on time while at_target and at_rot_target events took every frame
+  // (see script-lifecycle.test.ts). A tick that fell due runs ahead of the chat that came up after
+  // it, and behind the chat that came up before it.
+  it.each(['lsl', 'slua'] as const)('ticks between the chat lines around it in %s', async (language) => {
+    const source = language === 'lsl'
+      ? `list log;
+        default { state_entry() { llListen(5, "", NULL_KEY, ""); llSetTimerEvent(0.1); }
+          listen(integer c, string n, key k, string m) { log += m; } timer() { log += "tick"; llSetTimerEvent(0); } }`
+      : `log = {}
+        ll.Listen(5, "", "", "")
+        LLEvents:on("listen", function(c, n, k, m) table.insert(log, m) end)
+        LLTimers:once(0.1, function() table.insert(log, "tick") end)`
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 116, y: 43, z: 20 } })
+    const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: AVATAR, position: { x: 116, y: 45, z: 20 },
+      prims: [{ scripts: [{ name: 's', language, source: { source } }] }] })
+    linkset.startAll()
+    // The timer falls due 100 ms after the start, between the chat of frames 4 and 5.
+    for (let i = 0; i < 10; i++) {
+      linkset.routeAvatarSay(avatar, 5, String(i))
+      linkset.advanceTime(SIM_FRAME_MS)
+    }
+    linkset.advanceTime(500)
+    expect(JSON.parse(JSON.stringify(scripts['s']!.global('log')))).toEqual(['0', '1', '2', '3', '4', 'tick', '5', '6', '7', '8', '9'])
+  })
+})
