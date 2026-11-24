@@ -204,8 +204,8 @@ export class Prim {
     this.appearance.description = this.description
   }
 
-  /** Add a script to this prim's inventory and roster. */
-  addScript(script: Script, opts: { name?: string; key?: string } = {}): void {
+  /** Add a script to this prim's inventory and roster. `creator` defaults to NULL_KEY, as for a Library script. */
+  addScript(script: Script, opts: { name?: string; key?: string; creator?: string } = {}): void {
     // The region counts scripts for the server cost before the new one lands.
     this.linkset?.recountScripts()
     this.scripts.push(script)
@@ -213,7 +213,7 @@ export class Prim {
       name: inventoryItemName(opts.name ?? script.scriptName),
       type: InventoryType.SCRIPT,
       key: opts.key ?? NULL_KEY,
-      creator: NULL_KEY,
+      creator: opts.creator ?? NULL_KEY,
       description: '',
       acquireTimeMs: this.linkset?.clock.now ?? 0,
       permMask: {

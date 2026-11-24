@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadLinkset } from '../src/index.js'
+import { loadLinkset, addScript, loadScript } from '../src/index.js'
 import { EOF, InventoryType, makeInventoryItem } from '@rezless/vm'
 
 describe('multi-script linkset', () => {
@@ -412,6 +412,67 @@ describe('multi-script linkset', () => {
       expect(p.global('c')).toBe('00000000-0000-0000-0000-000000000000')
       expect(p.global('t')).toBe(-1)
       expect(p.chat).toEqual([{ channel: 2147483647, text: "No item named 'nope'.", type: 'say' }])
+    })
+
+    // https://wiki.secondlife.com/wiki/LlGetInventoryCreator
+    // In-world: a script i doll made, a Library script and a script another avatar made, dropped in
+    // one prim -> i doll's key, NULL_KEY and the other maker's key (Aditi, SLua Tideland, 2026-11-24).
+    describe('script creator', () => {
+      const probe = `
+        key mine;
+        key other;
+        default {
+          state_entry() {
+            mine = llGetInventoryCreator(llGetScriptName());
+            other = llGetInventoryCreator("other");
+          }
+        }
+      `
+      const maker = 'c0ffee00-0000-4000-8000-000000000001'
+
+      it('is NULL_KEY by default, as for a Library script', async () => {
+        const { scripts } = await loadLinkset({
+          owner: 'a0000000-0000-4000-8000-000000000001',
+          prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p' }] }],
+        })
+        scripts['p']!.start()
+        expect(scripts['p']!.global('mine')).toBe('00000000-0000-0000-0000-000000000000')
+      })
+
+      it('is the creator a loadLinkset script names', async () => {
+        const { scripts } = await loadLinkset({
+          prims: [{ scripts: [
+            { source: { source: probe, filename: 'p.lsl' }, name: 'p', creator: maker },
+            { source: { source: 'default { state_entry() {} }', filename: 'other.lsl' }, name: 'other', creator: 'b0000000-0000-4000-8000-000000000002' },
+          ] }],
+        })
+        scripts['p']!.start()
+        expect(scripts['p']!.global('mine')).toBe(maker)
+        expect(scripts['p']!.global('other')).toBe('b0000000-0000-4000-8000-000000000002')
+      })
+
+      it('is the creator a script added with addScript names', async () => {
+        const { prims } = await loadLinkset({ prims: [{}] })
+        const s = await addScript(prims[0]!, { source: { source: probe, filename: 'p.lsl' }, name: 'p', creator: maker })
+        expect(s.global('mine')).toBe(maker)
+      })
+
+      it('is the creator loadScript names, for SLua too', async () => {
+        const s = await loadScript({ source: 'mine = ll.GetInventoryCreator(ll.GetScriptName())', filename: 'p.luau', creator: maker })
+        s.start()
+        expect(s.global('mine')).toBe(maker)
+      })
+
+      // In-world: saving new source over another maker's script in the prim kept that maker as its
+      // creator (Aditi, SLua Tideland, 2026-11-24).
+      it('stays when the script is saved again', async () => {
+        const { prims, scripts } = await loadLinkset({
+          prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p', creator: maker }] }],
+        })
+        prims[0]!.replaceInventory('p', {})
+        scripts['p']!.start()
+        expect(scripts['p']!.global('mine')).toBe(maker)
+      })
     })
 
     // In-world: llGetScriptState("nope") gives "Could not find script 'nope'." and returns 0.
