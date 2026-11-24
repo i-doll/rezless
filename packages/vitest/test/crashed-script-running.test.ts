@@ -98,6 +98,24 @@ async function rig(lang: Lang, lsl = lslVictim) {
     copy.advanceTime(0)
     return copy.allScripts().find(s => s.scriptName === 'a')!
   }
+  /** Wear the rezzed object, as the viewer's Wear does on an object in-world. */
+  const wear = () => {
+    linkset.attachToAvatar(linkset.owner, 1)
+    linkset.advanceTime(0)
+  }
+  /** Take the object into the rezzer's item and wear it from there, as a wear from inventory does. */
+  const takeAndWear = () => {
+    parent.fire('link_message', { sender_num: 1, num: 0, str: '', id: NULL_KEY })
+    const taken = rezzer.prims[0]!.inventory.find(i => i.name === 'payload')!.object as Linkset
+    linkset = taken.copy({ world, region: 'home', owner: taken.owner })
+    for (const script of linkset.allScripts()) script.queueRez()
+    wear()
+  }
+  /** The viewer's Drop of the worn object. */
+  const drop = () => {
+    linkset.dropFromAvatar({ x: 100, y: 100, z: 30 })
+    linkset.advanceTime(0)
+  }
   rez()
   const send = (m: string) => {
     const { a } = scripts()
@@ -124,7 +142,7 @@ async function rig(lang: Lang, lsl = lslVictim) {
   }
   const states = () => scripts().ctl.global('states')
   const debug = () => scripts().a.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)
-  return { world, scripts, send, tell, wait, crash, log, states, takeAndRez, takeCopyAndRez, duplicate, debug, prim: () => linkset.prims[0]! }
+  return { world, scripts, send, tell, wait, crash, log, states, takeAndRez, takeCopyAndRez, wear, takeAndWear, drop, duplicate, debug, prim: () => linkset.prims[0]! }
 }
 
 describe.each<Lang>(['lsl', 'slua'])('a crashed %s script', (lang) => {
@@ -465,13 +483,38 @@ describe('a copy of a crashed script', () => {
     ['lsl', 'stopped and started again, then taken and rezzed', true],
     ['slua', 'left set running, then taken and rezzed', true],
     ['slua', 'stopped and started again, then taken and rezzed', true],
+    // In-world (issue #684): an SLua script that crashed while worn (worn from the ground, which
+    // ran no on_rez), then dropped: the dropped object said nothing and the copy's checkbox read
+    // off, llGetScriptState 0; turned on, it said "entry 0". Crashed on the ground, taken and worn
+    // from inventory (it said its error again), then dropped: the copy said "entry 0", ticked,
+    // answered and read 1. Two runs each.
+    ['slua', 'left set running, worn, crashed, then dropped', false],
+    ['slua', 'left set running, then taken, worn and dropped', true],
+    // In-world (issue #684): a stuck LSL script (stopped and started again after the crash, then
+    // taken and rezzed) stopped again with llSetScriptState FALSE or the Running checkbox: the
+    // copy's checkbox read off and llGetScriptState 0; turned on, it said "entry 0", ticked and
+    // answered. One run with llSetScriptState, two with the checkbox.
+    ['lsl', 'stopped and started again, then taken and rezzed, then stopped', false],
+    ['lsl', 'stopped and started again, then taken and rezzed, then stopped by its checkbox', false],
   ])('the viewer’s Duplicate of a %s script %s runs: %s', async (lang, how, runs) => {
     const r = await rig(lang)
+    if (how.includes('worn, crashed')) r.wear()
     if (how !== 'never crashed') r.crash()
     if (how === 'set running with llSetScriptState') r.tell('start')
     if (how.startsWith('stopped')) r.tell('stop')
     if (how.startsWith('stopped and started again')) r.tell('start')
-    if (how.endsWith('taken and rezzed')) r.takeAndRez()
+    if (how.includes('taken and rezzed')) r.takeAndRez()
+    if (how.endsWith('then stopped')) r.tell('stop')
+    if (how.endsWith('stopped by its checkbox')) r.scripts().a.running = false
+    if (how.includes('taken, worn')) {
+      r.takeAndWear()
+      expect(r.debug()).toEqual(['rig [script:a] Script run-time error', 'lua_script:9: boom\n[C] function error\nlua_script:9\n[C] function _handleEvent\n'])
+    }
+    if (how.endsWith('dropped')) {
+      const before = r.debug().length
+      r.drop()
+      expect(r.debug()).toHaveLength(before)
+    }
     const said = r.debug().length
     const copy = r.duplicate()
     expect(copy.crashed).toBe(false)

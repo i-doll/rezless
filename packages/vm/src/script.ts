@@ -1489,8 +1489,8 @@ export class Script {
   /**
    * Whether the copy the viewer's Duplicate makes of this script runs. In-world: the copy of a
    * crashed LSL script ran when its checkbox was on, stuck or not. The copy of a crashed SLua
-   * script ran only once it had been stopped and started again, or taken and rezzed, since the
-   * crash.
+   * script ran only once it had been stopped and started again, or taken and rezzed or worn from
+   * inventory, since the crash.
    */
   get runsWhenDuplicated(): boolean {
     if (!this.crashed) return this.running
