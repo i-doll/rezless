@@ -152,3 +152,67 @@ describe('another avatar clicking while the touch handler sleeps', () => {
     expect(await two(2, 300, 800, 3000)).toEqual(['Si', 'Ti', 'Sf', 'Ei', 'Tf', 'Ef'])
   })
 })
+
+describe('the touch handler rules leave other cases alone', () => {
+  it('a click cut by a link break does not count as held', async () => {
+    // The cut click's release went to the broken-off prim, so no button is down when cat
+    // clicks, as in the measured case above where cat's touch_start came.
+    const log = `list got;
+      string who(integer n) { string w; integer i; for (i = 0; i < n; ++i) w += llGetSubString(llDetectedName(i), 0, 0); return w; }
+      default {
+        touch_start(integer n) { got += "S" + who(n); }
+        touch(integer n) { got += "T" + who(n); llSleep(3); }
+        touch_end(integer n) { got += "E" + who(n); }
+      }`
+    const av = (c: string, name: string) => ({ key: c.repeat(8) + '-0000-0000-0000-000000000000', name })
+    const { linkset, scripts } = await loadLinkset({ prims: [
+      { scripts: [{ name: 's', source: { source: log, filename: 's.lsl' } }] },
+      { scripts: [{ name: 'e', source: { source: 'default { state_entry() {} }', filename: 'e.lsl' } }] },
+    ] })
+    scripts.s!.start()
+    scripts.e!.start()
+    linkset.advanceTime(0)
+    linkset.clock.scheduleTask(scripts.s!, linkset.clock.now + 10, () => linkset.breakOff(linkset.prims[1]!))
+    linkset.touch(2, { avatar: av('b', 'bob'), hold: 100 })
+    linkset.advanceTime(5000)
+    linkset.clock.scheduleTask(scripts.s!, linkset.clock.now + 1000, () => linkset.touch(0, { avatar: av('c', 'cat'), hold: 100 }))
+    linkset.touch(0, { avatar: av('a', 'ann'), hold: 200 })
+    linkset.advanceTime(10_000)
+    expect(scripts.s!.global('got')).toEqual(['Sb', 'Eb', 'Sa', 'Ta', 'Sc', 'Eac'])
+  })
+
+  it('a busy handler still releases a held change behind the touch events that came up before it', async () => {
+    const src = `list log;
+      default {
+        link_message(integer f, integer n, string s, key id) { log += "begin"; llOwnerSay("spin"); log += "end"; }
+        changed(integer c) { log += "changed"; }
+        touch_start(integer n) { log += "S" + llGetSubString(llDetectedName(0), 0, 0); }
+        touch(integer n) { log += "T" + llGetSubString(llDetectedName(0), 0, 0); }
+        touch_end(integer n) { integer i; string w; for (i = 0; i < n; ++i) w += llGetSubString(llDetectedName(i), 0, 0); log += "E" + w; }
+      }`
+    const who = (k: string, name: string) => ({ num_detected: 1, detected: [{ key: k.repeat(8) + '-0000-0000-0000-000000000000', name }] })
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: src, filename: 's.lsl' } }] }] })
+    const s = scripts.s!
+    s.mock('llOwnerSay', (ctx) => { ctx.busy(5000); return undefined })
+    s.start()
+    linkset.advanceTime(0)
+    const c = linkset.clock
+    const q = (ev: string, p: Record<string, unknown>) => c.schedule(s, c.now, ev, p)
+    q('link_message', { sender_num: 1, num: 0, str: '', id: '' })
+    linkset.advanceTime(100)
+    const w = who('c', 'w')
+    q('touch_start', w)
+    q('touch', w)
+    q('touch_end', w)
+    linkset.advanceTime(100)
+    q('touch_end', who('a', 'x'))
+    linkset.advanceTime(100)
+    q('changed', { changes: 1 })
+    linkset.advanceTime(50)
+    q('changed', { changes: 2 })
+    linkset.advanceTime(50)
+    q('touch_start', who('b', 'y'))
+    linkset.advanceTime(10_000)
+    expect(s.global('log')).toEqual(['begin', 'end', 'Sw', 'Tw', 'Ew', 'changed', 'Sy', 'Ex', 'changed'])
+  })
+})

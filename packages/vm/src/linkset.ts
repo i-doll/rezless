@@ -1037,7 +1037,7 @@ export class Linkset {
     for (const s of clicked) {
       // In-world: a script still holding this avatar's earlier click raised no touch_start, nor
       // did one whose touch handler ran on while another avatar's click was held.
-      const crowded = s.handlerEvent === 'touch' && [...s.heldClicks].some(([k, c]) => k !== by && !c.released)
+      const crowded = s.handlerEvent === 'touch' && [...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut)
       if (!s.heldClicks.has(by) && !crowded) scheduleTouch(s, 'touch_start', detected)
       const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt: firstAt }
       s.heldClicks.set(by, click)
