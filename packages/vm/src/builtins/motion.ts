@@ -1,6 +1,6 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Prim } from '../prim.js'
-import type { LinksetClock } from '../clock.js'
+import type { LinksetClock, QueuedEvent } from '../clock.js'
 import type { LslValue, Rotation, Vector } from '../values/types.js'
 import { ZERO_ROTATION, ZERO_VECTOR } from '../values/types.js'
 import { conjugate, mulRotation } from '../values/ops.js'
@@ -81,11 +81,13 @@ function moving(linkset: Linkset): boolean {
 }
 
 /**
- * A reset script has been told nothing. In-world: keyframed motion started in a handler that
- * then reset the script, at once or after a 1 s sleep, gave the reset script state_entry and
- * then moving_start, and moving_end when the motion ended.
+ * A script that starts, or starts again after a reset, has been told nothing. In-world: keyframed
+ * motion started in a handler that then reset the script, at once or after a 1 s sleep, gave the
+ * reset script state_entry and then moving_start, and moving_end when the motion ended. A script
+ * added to a box in looping keyframed motion got state_entry and then moving_start (Aditi, SLua
+ * Tideland, 2026-11-23).
  */
-function forgetMoving(script: Script): void {
+export function forgetMoving(script: Script): void {
   given.delete(script)
   held.delete(script)
   if (!script.dead && moving(script.linkset)) hold(script, 'moving_start')
@@ -310,18 +312,38 @@ export function selectMotion(linkset: Linkset, ms: number): boolean {
   return true
 }
 
+/**
+ * Run the moving_end a Take's selection raised before the object is saved. In-world: a looping
+ * box taken into inventory ran its moving_end, and the box rezzed from the item had counted it,
+ * as had the box rezzed from a Take Copy (two runs); a moving_end handler that slept 1 s was cut
+ * off by the Take, and the rezzed box finished it before its on_rez (Aditi, SLua Tideland,
+ * 2026-11-24).
+ */
+export function endBeforeTake(linkset: Linkset): void {
+  const clock = linkset.clock
+  for (const script of linkset.allScripts()) {
+    if (script.dead || !script.running || script.handling || script.wakeAt !== undefined) continue
+    const next = clock.pendingEvents().filter((e) => e.target === script && e.at <= clock.now)
+      .reduce<QueuedEvent | undefined>((first, e) => !first || e.at < first.at ? e : first, undefined)
+    if (next?.event !== 'moving_end') continue
+    clock.purgeWhere((e) => e === next)
+    script.deliver(next.event, next.payload)
+  }
+}
+
 /** Motion a viewer selection has paused and not let go of yet. */
 const selecting = new WeakSet<KeyframedMotion>()
 
 /**
  * A copy taken of a selected object holds its motion paused and has been told of no motion:
- * in-world the object rezzed from the item got on_rez only.
+ * in-world the object rezzed from the item got on_rez only. A script asleep in a handler at the
+ * Take or Take Copy keeps the moving_end it was not told yet: the rezzed object finished the
+ * handler, got on_rez and then moving_end (Aditi, SLua Tideland, 2026-11-24).
  */
 export function stillCopy(copy: Linkset): void {
   for (const script of copy.allScripts()) {
     copy.clock.purgeWhere((e) => e.target === script && (e.event === 'moving_start' || e.event === 'moving_end'))
-    held.delete(script)
-    given.set(script, 'moving_end')
+    if (!held.has(script)) given.set(script, 'moving_end')
   }
 }
 
@@ -604,8 +626,6 @@ export function clearTargetMotion(script: Script): void {
   const root = script.linkset.prims[0]!, caller = { prim: script.host.key, script: script.instanceId }
   stopTargetMotion(root, 'move', caller)
   stopTargetMotion(root, 'look', caller)
-  // Runs at a reset and a removal.
-  forgetMoving(script)
 }
 
 function lookRotation(position: Vector, target: Vector): Rotation {

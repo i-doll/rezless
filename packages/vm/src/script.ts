@@ -1,4 +1,4 @@
-import { clearTargetMotion, slackenTargetMotion } from './builtins/motion.js'
+import { clearTargetMotion, forgetMoving, slackenTargetMotion } from './builtins/motion.js'
 import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
@@ -1103,6 +1103,7 @@ export class Script {
     if (!this.running) return
     if (!this.started) {
       this.started = true
+      forgetMoving(this)
       if (this.slua) {
         // The script's top level is its state_entry.
         this.beginSluaMain()
@@ -1139,6 +1140,7 @@ export class Script {
   queueStart(): void {
     if (this.started || this.dead) return
     this.started = true
+    forgetMoving(this)
     // A script loaded stopped keeps its first event until it is started.
     if (this.running) this.clockView.schedule(this.now, 'state_entry')
     else this.parkedEvents.push({ at: this.now, event: 'state_entry', payload: {} })
@@ -1327,6 +1329,7 @@ export class Script {
     for (const e of waiting) if (e.event === 'state_entry') clock.schedule(this, this.now, e.event, e.payload)
     if (!this.started) {
       this.started = true
+      forgetMoving(this)
       this.clockView.schedule(this.now, 'state_entry')
     }
     // In-world: an object rezzed with start parameter 2, taken back and rezzed with 3 inside one
@@ -1389,6 +1392,7 @@ export class Script {
 
   private boot(): void {
     this.started = true
+    forgetMoving(this)
     if (this.slua) {
       this.beginSluaMain()
       return
@@ -1985,6 +1989,7 @@ export class Script {
     if (!this.running) return
     if (this.parkedEvents.length === 0) return
     const events = this.parkedEvents.splice(0, this.parkedEvents.length)
+    if (events.some(e => e.event === 'state_entry')) forgetMoving(this)
     const at = this.now
     for (const e of events) {
       this.clockView.schedule(at, e.event, e.payload)
