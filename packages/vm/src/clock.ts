@@ -52,10 +52,8 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
 /** Changes to running state held from the rest of a handler that was busy at a detach; they take no event slot. */
 export const HELD_CONTROL: ReadonlySet<string> = new Set(['__running', '__scriptState'])
 
-function lastIndex<T>(list: ReadonlyArray<T>, match: (item: T) => boolean): number {
-  for (let i = list.length - 1; i >= 0; i--) if (match(list[i]!)) return i
-  return -1
-}
+/** How many of `events` count against MAX_PENDING_EVENTS. */
+const counted = (events: ReadonlyArray<QueuedEvent>) => events.filter((e) => !HELD_CONTROL.has(e.event)).length
 
 /** `changed` and the events a rez raises that run as `changed`. */
 const CHANGED_EVENTS: ReadonlySet<string> = new Set(['changed', '__unseated', '__ownerChanged'])
@@ -338,6 +336,11 @@ export class LinksetClock {
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, dueAt = at): void {
     if (event !== '__reset' && !target.running) return
+    // In-world: the end of a land contact that came at the wake ran behind the held land_collision
+    // events paced out after it.
+    if (LAND_EVENTS.has(event) && held === undefined) {
+      for (const e of this.queue) if (e.target === target && LAND_EVENTS.has(e.event) && e.payload['__here'] && e.at > dueAt) dueAt = e.at
+    }
     // Due now, in the middle of a sleep: held back even at the instant the handler began.
     const wakeAt = target.wakeAt
     // A busy handler holds events back until it sleeps or ends, also those it raises itself.
@@ -754,10 +757,7 @@ export class LinksetClock {
     const early = waited.filter((e) => !raised.includes(e))
     this.queue.push(...early.filter((e) => !this.heldBack(e, since)).map(plain))
     const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined)
-    const room = MAX_PENDING_EVENTS - this.pending(script) - released.filter((e) => !HELD_CONTROL.has(e.event)).length
-    for (let over = raised.filter((e) => !HELD_CONTROL.has(e.event)).length - room; over > 0; over--) {
-      raised.splice(lastIndex(raised, (e) => !HELD_CONTROL.has(e.event)), 1)
-    }
+    this.fit(raised, MAX_PENDING_EVENTS - this.pending(script) - counted(released), (e) => this.heldBack(e, since))
     // In-world: a land contact held through a sleep ran land_collision_start, the link message
     // sent after the wake, a land_collision, the change made after the wake a frame later, then
     // the other land_collision events and land_collision_end: one per physics step after the wake.
@@ -794,13 +794,28 @@ export class LinksetClock {
     if (!held.length && !raised.length) return
     this.purgeWhere((e) => held.includes(e))
     const early = held.filter((e) => !queued || queued.has(e))
+    const late = held.filter((e) => !early.includes(e))
     const released = this.release(script, early, waiting.has('timer'), raised.length ? raised : undefined)
+    const queuedRaised = counted(raised.filter((e) => !late.includes(e)))
+    const dropped = this.fit(raised, MAX_PENDING_EVENTS - this.pending(script) + queuedRaised - counted(released), (e) => late.includes(e))
+    this.purgeWhere((e) => dropped.includes(e))
     const first = this.queue.findIndex(isRaised)
     this.queue.splice(first < 0 ? this.queue.length : first, 0, ...released)
-    this.queue.push(...this.release(script, held.filter((e) => !early.includes(e)), waiting.has('timer')))
-    for (let over = this.pending(script) - MAX_PENDING_EVENTS; over > 0; over--) {
-      this.queue.splice(lastIndex(this.queue, (e) => isRaised(e) && !released.includes(e) && !HELD_CONTROL.has(e.event)), 1)
-    }
+    this.queue.push(...this.release(script, late.filter((e) => !dropped.includes(e)), waiting.has('timer')))
+  }
+
+  /**
+   * Drop the newest of `raised`, events the handler raised after its wake in the order they came
+   * up, until they take no more than `room`, counting those that `merges` once merged. The newest
+   * is the last to fall due. In-world, a colour change made before or after 63 link messages was
+   * lost, and every message ran. Returns the dropped events.
+   */
+  private fit(raised: QueuedEvent[], room: number, merges: (e: QueuedEvent) => boolean): QueuedEvent[] {
+    const size = () => counted(raised.filter((e) => !merges(e))) + counted(mergeHeld(raised.filter(merges)))
+    const newest = () => raised.reduce((last, e, i) => HELD_CONTROL.has(e.event) || last >= 0 && e.at < raised[last]!.at ? last : i, -1)
+    const dropped: QueuedEvent[] = []
+    for (let i = newest(); i >= 0 && size() > room; i = newest()) dropped.push(...raised.splice(i, 1))
+    return dropped
   }
 
   /** The events `script` holds, counted against MAX_PENDING_EVENTS. */

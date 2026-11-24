@@ -79,13 +79,14 @@ async function probe(language: Language) {
   return { linkset, script, raise, say, log: () => script.chat.slice(before).map((c) => c.text) }
 }
 
-/** Send `command`, run `during` 1.5 s into the 4 s sleep and `after` 0.1 s past the wake. */
+/** Send `command`, run `during` 1.5 s into the 4 s sleep and `after` 30 ms past the wake. */
 async function run(language: Language, command: string, during: (p: Probe) => void, after?: (p: Probe) => void) {
   const p = await probe(language)
+  const start = p.linkset.clock.now
   p.say(command)
   p.linkset.advanceTime(1500)
   during(p)
-  p.linkset.advanceTime(2600)
+  p.linkset.advanceTime(Math.max(0, start + 4030 - p.linkset.clock.now))
   after?.(p)
   for (let i = 0; i < 30; i++) p.linkset.advanceTime(100)
   return p.log()
@@ -144,56 +145,65 @@ describe.each(['lsl', 'slua'] as const)('a land contact that came up in a sleep 
     let landed = 0
     const logged = log.filter((e) => e !== 'land_collision' || ++landed <= 2)
     expect(logged).toEqual(['land_collision_start', 'lm', 'land_collision', 'changed 2', 'land_collision', 'land_collision_end'])
+    expect(log.at(-1)).toBe('land_collision_end')
   })
 })
 
-// In-world: a 1 s timer set before the sleep, then 63 or 64 link messages the handler sent itself
-// after the wake -> the timer ran first both times; all 63 messages ran after it, but only 63 of
-// the 64 (2 runs of each in LSL and SLua). The tick took the room of the 64th. The same with a
-// 1 s sleep after the messages (2 runs of each).
+/**
+ * A 1 s timer set before a 4 s sleep, then `total` link messages the handler sends itself after
+ * the wake, with `before` and `after` the messages: what the handler said.
+ */
+async function fill(total: number, { before = '', after = '' } = {}) {
+  const world = new World()
+  world.addRegion('home', { x: 0, y: 0 })
+  const { linkset, scripts } = await loadLinkset({
+    world, region: 'home', owner: OWNER,
+    prims: [{ scripts: [{ name: 'probe', source: { source: `integer n;
+      default {
+        state_entry() {
+          llSetTimerEvent(1.0); llSleep(4.0); ${before}
+          integer i; for (i = 1; i <= ${total}; ++i) llMessageLinked(LINK_THIS, i, "", "");
+          ${after}
+        }
+        link_message(integer s, integer num, string m, key id) { ++n; if (num == 1 || num == ${total}) llOwnerSay("lm " + (string)num); }
+        changed(integer c) { llOwnerSay("changed " + (string)c); }
+        timer() { llOwnerSay("timer after " + (string)n); llSetTimerEvent(0.0); }
+      }` } }] }],
+  })
+  linkset.startAll()
+  for (let i = 0; i < 80; i++) linkset.advanceTime(100)
+  return scripts.probe!.chat.map((c) => c.text)
+}
+const COLOUR = 'llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES);'
+const AGAIN = 'llSleep(1.0);'
+
 describe('a timer tick that fell due in a sleep, with the queue full after the wake', () => {
+  // In-world: 63 or 64 link messages -> the timer ran first both times; all 63 messages ran after
+  // it, but only 63 of the 64 (2 runs of each in LSL and SLua). The tick took the room of the
+  // 64th. The same with a 1 s sleep after the messages (2 runs of each).
+  it.each([[63, '', ['timer after 0', 'lm 1', 'lm 63']], [64, '', ['timer after 0', 'lm 1']], [64, AGAIN, ['timer after 0', 'lm 1']]] as const)(
+    'runs first and takes the room of the last of %i link messages (then: %s)', async (total, after, expected) => {
+      expect(await fill(total, { after })).toEqual(expected)
+    })
+
   // In-world: 62 or 63 link messages, then llSetColor and a 1 s sleep -> the timer, then the
   // messages; changed(2) after 62 of them, none after 63 (2 runs of each in LSL and SLua).
-  it.each([[62, ['timer after 0', 'lm 1', 'lm 62', 'changed 2']], [63, ['timer after 0', 'lm 1', 'lm 63']]] as const)('takes the room of a change made after %i link messages before a second sleep', async (total, expected) => {
-    const world = new World()
-    world.addRegion('home', { x: 0, y: 0 })
-    const { linkset, scripts } = await loadLinkset({
-      world, region: 'home', owner: OWNER,
-      prims: [{ scripts: [{ name: 'probe', source: { source: `integer n;
-        default {
-          state_entry() {
-            llSetTimerEvent(1.0); llSleep(4.0);
-            integer i; for (i = 1; i <= ${total}; ++i) llMessageLinked(LINK_THIS, i, "", "");
-            llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES); llSleep(1.0);
-          }
-          link_message(integer s, integer num, string m, key id) { ++n; if (num == 1 || num == ${total}) llOwnerSay("lm " + (string)num); }
-          changed(integer c) { llOwnerSay("changed " + (string)c); }
-          timer() { llOwnerSay("timer after " + (string)n); llSetTimerEvent(0.0); }
-        }` } }] }],
+  it.each([[62, ['timer after 0', 'lm 1', 'lm 62', 'changed 2']], [63, ['timer after 0', 'lm 1', 'lm 63']]] as const)(
+    'takes the room of a change made after %i link messages before a second sleep', async (total, expected) => {
+      expect(await fill(total, { after: COLOUR + AGAIN })).toEqual(expected)
     })
-    linkset.startAll()
-    for (let i = 0; i < 80; i++) linkset.advanceTime(100)
-    expect(scripts.probe!.chat.map((c) => c.text)).toEqual(expected)
+
+  // In-world: llSetColor, then 63 link messages, with or without a 1 s sleep after them -> the
+  // timer and the 63 messages, and no changed (2 runs of each in LSL and SLua): the change came
+  // up a frame after the call, behind the messages.
+  it.each(['', AGAIN])('takes the room of a change made before 63 link messages (then: %s)', async (after) => {
+    expect(await fill(63, { before: COLOUR, after })).toEqual(['timer after 0', 'lm 1', 'lm 63'])
   })
 
-  it.each([[63, false, ['timer after 0', 'lm 1', 'lm 63']], [64, false, ['timer after 0', 'lm 1']], [64, true, ['timer after 0', 'lm 1']]] as const)('runs first and takes the room of the last of %i link messages (sleeping again: %s)', async (total, again, expected) => {
-    const world = new World()
-    world.addRegion('home', { x: 0, y: 0 })
-    const { linkset, scripts } = await loadLinkset({
-      world, region: 'home', owner: OWNER,
-      prims: [{ scripts: [{ name: 'probe', source: { source: `integer n;
-        default {
-          state_entry() {
-            llSetTimerEvent(1.0); llSleep(4.0);
-            integer i; for (i = 1; i <= ${total}; ++i) llMessageLinked(LINK_THIS, i, "", "");
-            ${again ? 'llSleep(1.0);' : ''}
-          }
-          link_message(integer s, integer num, string m, key id) { ++n; if (num == 1 || num == ${total}) llOwnerSay("lm " + (string)num); }
-          timer() { llOwnerSay("timer after " + (string)n); llSetTimerEvent(0.0); }
-        }` } }] }],
-    })
-    linkset.startAll()
-    for (let i = 0; i < 80; i++) linkset.advanceTime(100)
-    expect(scripts.probe!.chat.map((c) => c.text)).toEqual(expected)
+  // In-world: the same with llGiveInventory(llGetKey(), llGetScriptName()) in place of
+  // llSetColor -> no changed either (2 runs of each). rezless raises the inventory change at the
+  // call, ahead of the messages, so the 63rd message is lost instead.
+  it.fails.each(['', AGAIN])('takes the room of an inventory change made before 63 link messages (then: %s)', async (after) => {
+    expect(await fill(63, { before: 'llGiveInventory(llGetKey(), llGetScriptName());', after })).toEqual(['timer after 0', 'lm 1', 'lm 63'])
   })
 })
