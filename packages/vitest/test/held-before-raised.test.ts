@@ -141,7 +141,7 @@ describe.each(['lsl', 'slua'] as const)('a land contact that came up in a sleep 
         p.linkset.advanceTime(44)
         p.raise('land_collision', GROUND)
       }
-    }, (p) => p.raise('land_collision_end', GROUND))
+    }, (p) => p.script.fire('land_collision_end', GROUND))
     let landed = 0
     const logged = log.filter((e) => e !== 'land_collision' || ++landed <= 2)
     expect(logged).toEqual(['land_collision_start', 'lm', 'land_collision', 'changed 2', 'land_collision', 'land_collision_end'])

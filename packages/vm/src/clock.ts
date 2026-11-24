@@ -341,7 +341,7 @@ export class LinksetClock {
     // In-world: the end of a land contact that came at the wake ran behind the held land_collision
     // events paced out after it.
     if (LAND_EVENTS.has(event) && held === undefined) {
-      for (const e of this.queue) if (e.target === target && LAND_EVENTS.has(e.event) && e.payload['__here'] && e.at > dueAt) dueAt = e.at
+      for (const e of this.queue) if (this.paced(target, e) && e.at > dueAt) dueAt = e.at
     }
     // Due now, in the middle of a sleep: held back even at the instant the handler began.
     const wakeAt = target.wakeAt
@@ -818,6 +818,16 @@ export class LinksetClock {
     const dropped: QueuedEvent[] = []
     for (let i = newest(); i >= 0 && size() > room; i = newest()) dropped.push(...raised.splice(i, 1))
     return dropped
+  }
+
+  /** Whether `e` is a held land event of `script` still being paced out after its wake. */
+  private paced(script: Script, e: QueuedEvent): boolean {
+    return e.target === script && LAND_EVENTS.has(e.event) && !!e.payload['__here'] && e.at > this.now
+  }
+
+  /** Whether held land events of `script` are still being paced out after its wake. */
+  pacesLand(script: Script): boolean {
+    return this.queue.some((e) => this.paced(script, e))
   }
 
   /** The events `script` holds, counted against MAX_PENDING_EVENTS. */
