@@ -25,27 +25,24 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
 
 /**
  * Queue an inventory change for `script` a simulator frame from now, merged into a change still
- * waiting for it. In-world, gifts to the giver's own prim and llSetColor in one handler gave
- * every script there one changed, in any order, and a gift with llSetLinkColor into an idle
- * child gave it one changed(3). Two gifts from another prim to an idle script could give it one
- * changed or two; it gets two here, as an earlier probe measured.
+ * waiting for it. In-world, gifts into a prim of the giver's linkset and colour changes made in
+ * one handler gave every script in that prim one changed, in any order, whether it was the
+ * giver, idle, or in another prim.
  */
-export function raiseInventoryChanged(script: Script, inGiversPrim: boolean): void {
-  const idle = !script.handling && script.handlerStartedAt === undefined
-  raiseChanged(script, CHANGED_INVENTORY, idle && !inGiversPrim ? PRIM_CHANGES : MERGED_CHANGES)
+export function raiseInventoryChanged(script: Script): void {
+  raiseChanged(script, CHANGED_INVENTORY)
 }
 
-function raiseChanged(script: Script, changes: number, mergesWith = MERGED_CHANGES): void {
+function raiseChanged(script: Script, changes: number): void {
   const clock = script.linkset.clock
   const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
     && ((e.payload['changes'] as number) & MERGED_CHANGES) !== 0)
-  const into = waiting.filter(e => ((e.payload['changes'] as number) & ~mergesWith) === 0)
   // A busy handler gets what the clock gives any event that comes up while it is busy, but
   // changes made in one frame are one change. In-world, a script busy in another handler got
   // one changed for two or four recolours of its prim in one frame, and two for two recolours
   // 0.1 s apart.
-  const merge = script.busy ? into.find(e => e.raisedAt === clock.now)
-    : into.find(e => cameUp(e) >= script.resumedAt) ?? (into.length >= 2 ? into.at(-1) : undefined)
+  const merge = script.busy ? waiting.find(e => e.raisedAt === clock.now)
+    : waiting.find(e => cameUp(e) >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
   if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
   else clock.scheduleNextFrame(script, 'changed', { changes })
 }

@@ -57,7 +57,7 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
     }
     for (const script of prim.inventoryChangeListeners()) {
       if (dropped) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
-      else if (prim.linkset === ctx.linkset) raiseInventoryChanged(script, own && script.host === prim)
+      else if (prim.linkset === ctx.linkset) raiseInventoryChanged(script)
       else queueInventoryChanged(script)
     }
   }

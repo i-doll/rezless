@@ -137,6 +137,22 @@ describe.each(['lsl', 'slua'] as const)('a gift to the script\'s own linkset (%s
     expect(log.child).toEqual(['changed 3'])
   })
 
+  // In-world: llSetLinkColor on the child and two gifts into it, in the orders colour, gift, gift;
+  // gift, colour, gift; and gift, gift, colour -> the child's idle script said one changed(3)
+  // counting both items (4 runs of each order in each language; the very first LSL run, colour
+  // first, gave changed(2) then changed(1)). Two gifts alone -> one changed(1) counting both (15
+  // runs).
+  it.each([
+    ['colour, gift, gift', (c: typeof calls.lsl) => c.colourChild + c.giveChildOnly + c.giveChildOnly, 'changed 3'],
+    ['gift, colour, gift', (c: typeof calls.lsl) => c.giveChildOnly + c.colourChild + c.giveChildOnly, 'changed 3'],
+    ['gift, gift, colour', (c: typeof calls.lsl) => c.giveChildOnly + c.giveChildOnly + c.colourChild, 'changed 3'],
+    ['gift, gift', (c: typeof calls.lsl) => c.giveChildOnly + c.giveChildOnly, 'changed 1'],
+  ] as const)('gives an idle child one changed for %s', async (_order, body, expected) => {
+    const log = await touched(language, body)
+    expect(log.child).toEqual([expected])
+    expect(log.after[1]).toEqual(['child', 'nc', 'nc 1'])
+  })
+
   // In-world: llGiveInventoryList(llGetKey(), "x", [notecard]), then llMessageLinked -> the
   // inventory was the same, and changed(1) came up in the call's 3 s delay, ahead of
   // link_message (LSL 1 run, SLua 2).

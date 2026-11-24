@@ -327,12 +327,15 @@ describe('loadLinkset', () => {
 })
 
 describe('a gift from another prim', () => {
-  it.each([['in one go', '', [3, 3]], ['a second apart', 'llSleep(1.0);', [2, 3]]])('sends an idle script one event per gift when two are given %s', async (_when, between, counts) => {
-    // In-world: a child script gave the root two notecards in one touch_start,
-    // back to back and with a 1 s sleep between -> the root's idle logging
-    // script logged changed(1) twice both times, counting one more item each time.
-    // Here a handler runs to its next sleep before another script's event, so
-    // back-to-back gifts are both counted by the time the first event runs.
+  it.each([['in one go', '', [1], [3]], ['a second apart', 'llSleep(1.0);', [1, 1], [2, 3]]])('sends an idle script the gifts made %s', async (_when, between, seen, counts) => {
+    // In-world: a child script gave the root two notecards with a 1 s sleep
+    // between -> the root's idle logging script logged changed(1) twice,
+    // counting one more item each time (#401, and again on 2026-11-24).
+    // In-world (Aditi, SLua Tideland, 2026-11-24): a child script gave the root
+    // two items back to back -> the root's idle script logged one changed(1)
+    // counting both in 6 of 7 runs, and two events in the first; a root gave an
+    // idle child two items -> one changed(1) in 16 of 16 runs. #401's two runs
+    // of the child's pair had logged two events.
     const { linkset, prims, scripts } = await loadLinkset({
       prims: [
         { scripts: [{ source: { source: logger, filename: 'a.lsl' }, name: 'a' }] },
@@ -343,7 +346,7 @@ describe('a gift from another prim', () => {
     linkset.touch(2)
     linkset.advanceTime(100)
     expect(prims[0]!.inventory.map((item) => item.name).sort()).toEqual(['a', 'g2', 'g2 1'])
-    expect(scripts['a']!.global('seen')).toEqual([1, 1])
+    expect(scripts['a']!.global('seen')).toEqual(seen)
     expect(scripts['a']!.global('counts')).toEqual(counts)
   })
 
