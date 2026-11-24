@@ -187,6 +187,28 @@ describe('move targets in two worn objects', () => {
     expect(f.avatar.position.x).toBeCloseTo(10.0000004768, 9)
   })
 
+  it('takes its own time to a target that changes on the way', async () => {
+    const f = await worn({
+      root: `llMoveToTarget(<118, ${AT.y}, ${AT.z}>, 0.3);`,
+      hand: `llMoveToTarget(<126, ${AT.y}, ${AT.z}>, 1000.0);`,
+    })
+    f.run('root', 'hand')
+    f.chest.advanceTime(100)
+    f.scripts.root.running = false
+    f.chest.advanceTime(4000)
+    expect(f.avatar.position.x).toBeLessThan(117)
+    expect(f.seen().hand).toEqual(['ms'])
+  })
+
+  it('starts a worn script that starts on the way with moving_start', async () => {
+    const f = await worn({ root: 'llMoveToTarget(llGetPos() + <0, 2, 0>, 0.3);' })
+    f.run('root')
+    f.chest.advanceTime(500)
+    f.scripts.hand.reset()
+    f.chest.advanceTime(10000)
+    expect(f.seen().hand).toEqual(['ms', 'me'])
+  })
+
   // In-world: with targets in the chest and the hand, llStopMoveToTarget in either left the
   // wearer where it was, 0.5 m from the other target, for 3 s and more. After the avatar walked
   // a little, the other target took it back (to <118.5996, 45.2999> for a target at
@@ -205,6 +227,22 @@ describe('move targets in two worn objects', () => {
     f.avatar.position = v(116.5, 47, AT.z)
     f.chest.advanceTime(10000)
     close(f.avatar.position, 117, 47, AT.z)
+  })
+
+  it('wakes the held target with a walk that comes while the wearer was still on its way', async () => {
+    const f = await worn({
+      root: `llMoveToTarget(<117, 47, ${AT.z}>, 0.3);`,
+      hand: `if (llGetListLength(out) == 0) llMoveToTarget(<116, 48, ${AT.z}>, 0.3); else llStopMoveToTarget(); out += [1];`,
+    })
+    f.run('root', 'hand')
+    f.chest.advanceTime(500)
+    f.run('hand')
+    f.chest.advanceTime(100)
+    f.clear()
+    f.avatar.position = v(116.5, 46.5, AT.z)
+    f.chest.advanceTime(10000)
+    close(f.avatar.position, 117, 47, AT.z)
+    expect(f.seen()).toEqual(all(['ms', 'me']))
   })
 
   // In-world: targets <117, 47> (chest) and <116, 48> (hand) left the wearer at <116.5, 47.5>;
