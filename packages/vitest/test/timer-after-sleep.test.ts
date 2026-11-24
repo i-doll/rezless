@@ -281,6 +281,31 @@ describe('a waiting handler that changes the interval before the caught-up tick'
     // ticked 2.0 s after the second, then every 2 s.
     const shorter = await changed(4000, 2000, 4)
     expect(tickTimes(shorter.linkset, shorter.ticks, 8100)).toEqual([9000, 9000, 11_000, 13_000])
+    // In-world: a 4 s timer changed to 2 s with no sleep, and llSetTimerEvent(4) 0.55 s after the
+    // start, before the tick due on the 2 s schedule, ticked 2.95 s after that call: the start's
+    // 1 s lag still held.
+    const later = await changed(4000, 2000, 0)
+    later.at(5500)
+    later.tell('1:4.0')
+    expect(tickTimes(later.linkset, later.ticks, 3100)).toEqual([8500])
+  })
+
+  it('applies to a waiting handler of a script stopped during another handler\'s sleep', async () => {
+    // In-world: a 4 s timer; a handler that slept 1 s from 0.5 s, and a handler queued behind it
+    // that called llSetTimerEvent(2). Stopped at 1 s and started at 7 s, it gave two timer events
+    // 45 ms apart at the start, then ticked 8.0 s after the timer was set and every 2 s.
+    const r = await rig()
+    r.tell('1:4.0')
+    r.at(500)
+    r.tell('7:1.0')
+    r.at(600)
+    r.tell('11:2,0')
+    r.at(1000)
+    r.tell('stop')
+    r.at(7000)
+    r.tell('start')
+    expect(r.ticks()).toBe(2)
+    expect(tickTimes(r.linkset, r.ticks, 3100)).toEqual([8000, 10_000])
   })
 
   it('drops the tick that follows when the caught-up tick\'s handler sets the timer', async () => {
@@ -298,18 +323,20 @@ describe('a waiting handler that changes the interval before the caught-up tick'
     expect(tickTimes(r.linkset, r.ticks, 5100)).toEqual([8000, 12_000])
   })
 
-  it('counts from the call when the script was stopped in the handler that makes it', async () => {
+  it('leaves no lag for a call made after the next tick on the old schedule', async () => {
     // In-world: a 3 s timer and a handler that slept 10 s and then called llSetTimerEvent(4),
-    // stopped 4 s in and started at 5 s, woke at 10 s to one timer event and ticked 4.0 s after
-    // the call, then every 4 s.
-    const r = await rig()
-    r.tell('1:3.0')
-    r.tell('10:10.0')
-    r.at(4000)
-    r.tell('stop')
-    r.at(5000)
-    r.tell('start')
-    expect(tickTimes(r.linkset, r.ticks, 13_100)).toEqual([10_000, 14_000, 18_000])
+    // stopped 4 s in and started at 5 s, or stopped 2 s in and started at 4 s, woke at 10 s to
+    // one timer event and ticked 4.0 s after the call, then every 4 s.
+    for (const [stopAt, startAt] of [[4000, 5000], [2000, 4000]] as const) {
+      const r = await rig()
+      r.tell('1:3.0')
+      r.tell('10:10.0')
+      r.at(stopAt)
+      r.tell('stop')
+      r.at(startAt)
+      r.tell('start')
+      expect(tickTimes(r.linkset, r.ticks, 18_100 - startAt)).toEqual([10_000, 14_000, 18_000])
+    }
   })
 })
 

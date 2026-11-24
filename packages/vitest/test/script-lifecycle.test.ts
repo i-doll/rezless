@@ -675,9 +675,9 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
   it('ticks twice at the start when a waiting handler sets an interval shorter than the start\'s lag', async () => {
     // In-world (Aditi, SLua Tideland, 2026-11-24, three runs each): a waiting handler called
     // llSetTimerEvent(2) at the start, 3 s after the missed tick. The caught-up tick and a second
-    // one came 45 ms apart, then ticks 8.0 s after the first call and every 2 s. llSetTimerEvent(4)
+    // one came 45 ms apart, then ticks 8.0 s after the timer was set and every 2 s. llSetTimerEvent(4)
     // 0.55 s after the start ticked 2.87 s after the call: the lag was how late the second tick
-    // ran, due 2 s after the start's lag-shifted call, not the start's 3 s.
+    // ran, due at 6 s, 2 s after the call less the start's 3 s lag, not the start's 3 s.
     const plain = await caughtUp(1000, 7000, 'q+stop:1:2.0')
     expect(plain.ticks()).toBe(2)
     expect(changes(plain.linkset, plain.ticks, 3100)).toEqual([8000, 10_000])
