@@ -797,10 +797,10 @@ export class LinksetClock {
     const released = this.release(script, early, waiting.has('timer'), raised.length ? raised : undefined)
     const first = this.queue.findIndex(isRaised)
     this.queue.splice(first < 0 ? this.queue.length : first, 0, ...released)
-    for (let over = this.pending(script) - MAX_PENDING_EVENTS; over > 0; over--) {
-      this.queue.splice(lastIndex(this.queue, (e) => isRaised(e) && !HELD_CONTROL.has(e.event)), 1)
-    }
     this.queue.push(...this.release(script, held.filter((e) => !early.includes(e)), waiting.has('timer')))
+    for (let over = this.pending(script) - MAX_PENDING_EVENTS; over > 0; over--) {
+      this.queue.splice(lastIndex(this.queue, (e) => isRaised(e) && !released.includes(e) && !HELD_CONTROL.has(e.event)), 1)
+    }
   }
 
   /** The events `script` holds, counted against MAX_PENDING_EVENTS. */

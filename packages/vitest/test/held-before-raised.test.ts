@@ -152,6 +152,30 @@ describe.each(['lsl', 'slua'] as const)('a land contact that came up in a sleep 
 // the 64 (2 runs of each in LSL and SLua). The tick took the room of the 64th. The same with a
 // 1 s sleep after the messages (2 runs of each).
 describe('a timer tick that fell due in a sleep, with the queue full after the wake', () => {
+  // In-world: 62 or 63 link messages, then llSetColor and a 1 s sleep -> the timer, then the
+  // messages; changed(2) after 62 of them, none after 63 (2 runs of each in LSL and SLua).
+  it.each([[62, ['timer after 0', 'lm 1', 'lm 62', 'changed 2']], [63, ['timer after 0', 'lm 1', 'lm 63']]] as const)('takes the room of a change made after %i link messages before a second sleep', async (total, expected) => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const { linkset, scripts } = await loadLinkset({
+      world, region: 'home', owner: OWNER,
+      prims: [{ scripts: [{ name: 'probe', source: { source: `integer n;
+        default {
+          state_entry() {
+            llSetTimerEvent(1.0); llSleep(4.0);
+            integer i; for (i = 1; i <= ${total}; ++i) llMessageLinked(LINK_THIS, i, "", "");
+            llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES); llSleep(1.0);
+          }
+          link_message(integer s, integer num, string m, key id) { ++n; if (num == 1 || num == ${total}) llOwnerSay("lm " + (string)num); }
+          changed(integer c) { llOwnerSay("changed " + (string)c); }
+          timer() { llOwnerSay("timer after " + (string)n); llSetTimerEvent(0.0); }
+        }` } }] }],
+    })
+    linkset.startAll()
+    for (let i = 0; i < 80; i++) linkset.advanceTime(100)
+    expect(scripts.probe!.chat.map((c) => c.text)).toEqual(expected)
+  })
+
   it.each([[63, false, ['timer after 0', 'lm 1', 'lm 63']], [64, false, ['timer after 0', 'lm 1']], [64, true, ['timer after 0', 'lm 1']]] as const)('runs first and takes the room of the last of %i link messages (sleeping again: %s)', async (total, again, expected) => {
     const world = new World()
     world.addRegion('home', { x: 0, y: 0 })
