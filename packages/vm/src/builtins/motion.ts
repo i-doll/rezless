@@ -7,7 +7,7 @@ import { conjugate, mulRotation } from '../values/ops.js'
 import { ruleElementType } from '../values/list-types.js'
 import { KFM_COMMAND, KFM_DATA, KFM_MODE, KFM_ROTATION, KFM_TRANSLATION,
   KFM_FORWARD, KFM_LOOP, KFM_REVERSE, KFM_PING_PONG,
-  KFM_CMD_PLAY, KFM_CMD_PAUSE, KFM_CMD_STOP, STATUS_PHYSICS,
+  KFM_CMD_PLAY, KFM_CMD_PAUSE, KFM_CMD_STOP, STATUS_PHYSICS, AGENT_SITTING,
   PRIM_PHYSICS_SHAPE_PRIM } from '../generated/constants.js'
 import { llGround } from './ground.js'
 import type { Script } from '../script.js'
@@ -871,12 +871,11 @@ function advanceTargetMotion(prim: Prim, seconds: number): void {
   const wearer = prim.linkset?.wearer
   if (wearer) {
     const move = acting(prim.targetMotion.move)
-    if (!move || wearer.sittingOn) return
-    const from = wearer.position, to = approach(from, move.target, -Math.expm1(-seconds / move.tau))
-    // A step too small for a single-precision position isn't a move, so a wearer resting at its
-    // target leaves a sit it is walking to pending.
-    const f = Math.fround
-    if (f(to.x) !== f(from.x) || f(to.y) !== f(from.y) || f(to.z) !== f(from.z)) wearer.position = to
+    if (!move || wearer.info & AGENT_SITTING) return
+    const from = wearer.position, f = Math.fround
+    // A wearer at the target to single precision isn't moved, so a sit it is walking to stays pending.
+    if (f(from.x) === f(move.target.x) && f(from.y) === f(move.target.y) && f(from.z) === f(move.target.z)) return
+    wearer.position = approach(from, move.target, -Math.expm1(-seconds / move.tau))
     return
   }
   if (!(prim.statusFlags & STATUS_PHYSICS)) return

@@ -127,6 +127,26 @@ describe('llMoveToTarget in a worn object', () => {
     expect(await run([5, 5])).toBeCloseTo(await run([10]), 9)
   })
 
+  it('adds up steps smaller than a single-precision position', async () => {
+    const run = async (slices: number) => {
+      const f = await worn('llMoveToTarget(llGetPos() + <0, 0, 1>, 100.0);')
+      f.start(f.root)
+      for (let i = 0; i < slices; i++) f.linkset.advanceTime(1000 / slices)
+      return f.avatar.position.z
+    }
+    expect(await run(1000)).toBeCloseTo(await run(1), 6)
+    expect(await run(1)).toBeCloseTo(1997.444 + -Math.expm1(-1 / 100), 6)
+  })
+
+  it('leaves a ground-sitting wearer where it sits', async () => {
+    const f = await worn('llMoveToTarget(llGetPos() + <1, 0, 0>, 0.3);')
+    f.world.sitAvatarOnGround(f.avatar)
+    const before = { ...f.avatar.position }
+    f.start(f.root)
+    f.linkset.advanceTime(3000)
+    expect(f.avatar.position).toEqual(before)
+  })
+
   it('leaves a pending sit alone while the wearer is already at the target', async () => {
     const f = await worn('llMoveToTarget(llGetPos(), 0.3);')
     const seat = await loadLinkset({ world: f.world, region: 'home', owner: OWNER, position: v(125, 48, 1997), prims: [{ name: 'seat' }] })
