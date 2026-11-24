@@ -235,10 +235,8 @@ describe('LSL: llUnSit, then llMessageLinked', () => {
   })
 
   // In-world: "I" (llSleep(0.5), llUnSit, llMessageLinked) -> link_message,
-  // then changed(32), in every script, 3 of 3 runs. rezless gives the caller
-  // that order, as it holds back a change raised after its handler slept, but
-  // runs changed(32) first in the scripts that were not in a handler.
-  it.fails('queues link_message first in every script after the caller slept', async () => {
+  // then changed(32), in every script, 3 of 3 runs.
+  it('queues link_message first in every script after the caller slept', async () => {
     const out = await run('lsl', 'I')
     expect(out.ctl).toEqual([`cmd I${seated}`, `end${stood}`, ...order('lm I', 'changed 32')])
     logs(out, 'lm I', 'changed 32')
