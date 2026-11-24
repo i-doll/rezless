@@ -185,7 +185,7 @@ export class Script {
   get hasStarted() { return this.started }
   /** Left unstarted on purpose, as a duplicate's scripts can be: events raised at it are lost until it starts. */
   private waiting = false
-  get waitsToStart() { return this.waiting }
+  get waitsToStart() { return this.waiting && !this.started }
   private readonly stubs: 'allow' | 'warn' | 'throw'
   private readonly warnedStubs = new Set<string>()
   /** Per-script clock facade (timer state + time reference). */
@@ -1115,7 +1115,7 @@ export class Script {
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
     if (!this.running) return
-    if (this.waiting) return
+    if (this.waitsToStart) return
     if (!this.started) {
       this.started = true
       forgetMoving(this)
@@ -1224,8 +1224,7 @@ export class Script {
       copy.state.currentState = this.state.currentState
     }
     copy.state.memory.limit = this.state.memory.limit
-    // An SLua script whose start is still queued has not run: the copy starts it.
-    copy.started = this.slua ? this.slua.started : this.started
+    copy.started = this.started
     // A saved object keeps the mark for every rez. A rezzed one has used it up.
     copy.unseated = !!opts.unseated || (this.unseated && !this.linkset.world)
     copy.crashed = this.crashed

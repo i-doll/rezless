@@ -285,7 +285,7 @@ export const llDerezObject: BuiltinImpl = (ctx, args) => {
     // A script that is stopped, asleep or still in a handler cannot take it before then.
     try {
       if (sat) for (const script of target.allScripts()) {
-        if (!script.running || script.wakeAt !== undefined || script.handling) continue
+        if (!script.running || !script.hasStarted || script.wakeAt !== undefined || script.handling) continue
         try {
           script.deliver('changed', { changes: C.CHANGED_LINK })
         } catch (e) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadLinkset, World } from '../src/index.js'
+import { loadLinkset, World, seedRlvInventory } from '../src/index.js'
 
 // Measured on Aditi, SLua Tideland, 2026-11-24, with a box holding 12 or 40 copies of one probe,
 // each compiled on its own so that a copy's scripts start over several frames. The avatar stood
@@ -88,6 +88,83 @@ describe.each<Lang>(['LSL', 'SLua'])('a %s script that has not started yet', (la
     copy.advanceTime(100)
     for (const s of copy.allScripts()) s.fire('collision_start', { num_detected: 1 })
     expect(logs()).toEqual({ a: 'E La C Lb C', b: 'E Lb C' })
+  })
+})
+
+describe('a copy\'s script waiting for startAll', () => {
+  const LOG = `string log; default {
+    state_entry() { log += " E"; }
+    changed(integer c) { log += " C"; }
+    touch_start(integer n) { log += " T"; }
+    collision_start(integer n) { log += " K"; }
+  }`
+
+  async function held(other: string) {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const { linkset } = await loadLinkset({ owner: OWNER, world, region: 'home', position: { x: 100, y: 100, z: 30 }, prims: [{ scripts: [
+      { name: 'a', source: { source: other, filename: 'a.lsl' } },
+      { name: 'b', source: { source: LOG, filename: 'b.lsl' } },
+    ] }] })
+    linkset.startAll()
+    linkset.advanceTime(1000)
+    const copy = linkset.duplicate(undefined, { startScripts: false })
+    const [a, b] = ['a', 'b'].map(name => copy.allScripts().find(s => s.scriptName === name)!)
+    return { copy, a: a!, b: b! }
+  }
+
+  it('stays unstarted through a sibling\'s prim change, and misses it', async () => {
+    const { copy, a, b } = await held('default { state_entry() { llSetColor(<1, 0, 0>, ALL_SIDES); } }')
+    copy.startAll([a])
+    copy.advanceTime(100)
+    expect([b.hasStarted, b.global('log')]).toEqual([false, ''])
+    copy.startAll([b])
+    copy.advanceTime(100)
+    expect(b.global('log')).toBe(' E')
+  })
+
+  it('loses a collision the region raises before it starts', async () => {
+    const { copy, b } = await held('default { state_entry() { } }')
+    copy.clock.schedule(b, copy.clock.now, 'collision_start', { num_detected: 1 })
+    copy.startAll()
+    copy.advanceTime(100)
+    copy.clock.schedule(b, copy.clock.now, 'collision_start', { num_detected: 1 })
+    copy.advanceTime(100)
+    expect(b.global('log')).toBe(' E K')
+  })
+
+  it('takes events once wearing it from inventory starts it', async () => {
+    const { copy, b } = await held('default { state_entry() { } }')
+    copy.attachToAvatar(OWNER, 1)
+    copy.detachFromAvatar()
+    copy.attachToAvatar(OWNER, 1)
+    copy.advanceTime(100)
+    b.fire('touch_start', { num_detected: 1 })
+    expect(b.global('log')).toContain('T')
+  })
+})
+
+describe.each<Lang>(['LSL', 'SLua'])('a %s copy taken while its start is still queued', (lang) => {
+  it('keeps the events queued behind the start', async () => {
+    const source = lang === 'LSL'
+      ? 'string log; default { state_entry() { log += "E"; } link_message(integer a, integer b, string c, key d) { log += " M"; } }'
+      : 'log = "E"\nLLEvents:on("link_message", function(a, b, c, d) log ..= " M" end)'
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
+    const made = await loadLinkset({ world, region: 'home', owner: OWNER, position: { x: 100, y: 100, z: 30 }, prims: [{ scripts: [
+      { name: 'main', source: { source, filename: lang === 'LSL' ? 'main.lsl' : 'main.luau' } },
+    ] }] })
+    made.linkset.startAll()
+    made.linkset.advanceTime(100)
+    const dup = made.linkset.duplicate()
+    world.clock.schedule(dup.allScripts()[0]!, world.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: '' })
+    const saved = dup.copy()
+    dup.remove()
+    seedRlvInventory(avatar, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'probe', object: saved, assetType: 'object' }] })
+    const rezzed = world.attemptAvatarRez(avatar, 'item', { x: 100, y: 100, z: 30 }).object!
+    rezzed.advanceTime(100)
+    expect(rezzed.allScripts()[0]!.global('log')).toBe('E M')
   })
 })
 
