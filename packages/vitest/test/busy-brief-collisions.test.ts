@@ -21,6 +21,7 @@ const probe = `list log; float nap;
   default {
     state_entry() { llListen(5, "", "", ""); }
     listen(integer c, string name, key id, string m) { log += "begin"; llOwnerSay("spin"); log += "end"; if (nap > 0) llSleep(nap); }
+    changed(integer c) { log += "changed " + (string)c; }
     touch_start(integer n) { log += "touch_start " + (string)n; }
     touch(integer n) { log += "touch " + (string)n; }
     touch_end(integer n) { log += "touch_end " + (string)n; }
@@ -46,6 +47,7 @@ async function make(busy: number, nap = 0) {
   return {
     wait, queue,
     begin: () => { clock.schedule(script, clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: 'busy' }); wait(0) },
+    change: () => clock.schedule(script, clock.now, 'changed', { changes: 2 }),
     click: () => {
       for (const event of ['touch_start', 'touch', 'touch_end']) clock.schedule(script, clock.now, event, { num_detected: 1, detected: [{ key: OWNER, name: 'owner', touchFace: 0 }] })
     },
@@ -236,5 +238,20 @@ describe('a contact while a handler is busy and then asleep', () => {
     f.wait(10_000)
     expect(f.log()).toEqual(['begin', 'end', 'collision_start ball 1', 'collision_end ball 1', 'link 1', 'link 2',
       'collision_start ball 1', 'collision ball 1', 'collision_end ball 1'])
+  })
+
+  // In-world, twice: a 6 s busy part and then llSleep(6). The box dropped onto the platform
+  // 0.5 s in, the ball dropped onto the box 3 or 3.5 s in, a link message 4.5 s in and a colour
+  // change 8 s in, in the sleep. After the sleep: collision_start and collision, the link
+  // message, changed, the ball's collision_start, then collision and collision_end with 2
+  // detected.
+  it('runs a held collision_start ahead of the held collision when the sleep held a change', async () => {
+    const f = await make(6_000, 6_000)
+    f.begin()
+    f.wait(900); f.drop(); f.wait(1_400); f.hit(); f.wait(1_070); f.link(1)
+    f.wait(3_500); f.change()
+    f.wait(6_000)
+    expect(f.log()).toEqual(['begin', 'end', 'collision_start platform 1', 'collision platform 1', 'link 1', 'changed 2',
+      'collision_start ball 1', 'collision platform 2', 'collision_end platform 2'])
   })
 })

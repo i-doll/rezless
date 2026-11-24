@@ -792,12 +792,15 @@ export class LinksetClock {
     const rank = (e: QueuedEvent) => e === lands[0] ? HELD_ORDER.get('changed')! + 0.5
       : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
-    else {
-      // In-world: a busy handler's held collision, collision_end and a later contact's
-      // collision_start ran as collision_start, collision, collision_end.
+    // In-world: a busy handler's held collision, collision_end and a later contact's
+    // collision_start ran as collision_start, collision, collision_end. With a change held in
+    // the sleep that followed, the change ran first and the contact after it.
+    const collisions = events.filter((e) => COLLISION_EVENTS.has(e.event))
+    if (collisions.length && collisions.every((e) => e.busy)) {
       const slots = held.flatMap((e, i) => COLLISION_EVENTS.has(e.event) ? [i] : [])
       const contact = slots.map((i) => held[i]!).sort((a, b) => COLLISION_ORDER.indexOf(a.event) - COLLISION_ORDER.indexOf(b.event))
-      slots.forEach((i, n) => { held[i] = contact[n]! })
+      if (inOrder) slots.forEach((i, n) => { held[i] = contact[n]! })
+      else held.splice(0, held.length, ...held.filter((e) => !COLLISION_EVENTS.has(e.event)), ...contact)
     }
     this.queue.push(...held)
   }
