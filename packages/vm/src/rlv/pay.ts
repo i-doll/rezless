@@ -33,7 +33,8 @@ export interface AvatarBuyAction {
 }
 /**
  * `menu: true` models paying through the viewer's Pay menu: on an object it is offered only when the prim or its
- * root has a running money handler, and on an attachment it pays the wearer as an avatar.
+ * root has a running money handler, and on another avatar's attachment it pays the wearer as an avatar.
+ * It is not offered on the payer's own attachment.
  */
 export interface AvatarPayOptions {
   readonly menu?: boolean
@@ -86,6 +87,7 @@ export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim
     const object = target.linkset!
     const wearer = object.attachment && world.avatars.find(a => a.key.toLowerCase() === object.attachment!.avatar.toLowerCase())
     if (object.attachment && !wearer) return record('unsupported', 'target')
+    if (options.menu && wearer === avatar) return record('unsupported', 'not-payable')
     recipient = wearer ? wearer.key : object.owner
     kind = wearer && options.menu ? 'avatar' : 'object'
     if (kind === 'object') prim = target

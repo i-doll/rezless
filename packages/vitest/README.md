@@ -3014,6 +3014,8 @@ reaches a child's handler.
 A payment to an attachment goes to its wearer and runs the same handlers as on a
 rezzed object. Through the Pay menu (`{ menu: true }`), an attachment pays its
 wearer as an avatar: RLVa checks `pay` instead of `buy`, and no money event runs.
+The menu has no Pay item for your own attachment, so that payment is `unsupported`
+with reason `not-payable`.
 `fixture.payActions` records `paid`, `blocked`, and `unsupported` outcomes,
 including the target, effective recipient, amount and deciding restrictions.
 

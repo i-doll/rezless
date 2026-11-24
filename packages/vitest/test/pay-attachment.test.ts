@@ -20,7 +20,7 @@ async function setup(prims: { scripts?: { name: string; source: string }[] }[]) 
   loaded.linkset.attachToAvatar(wearer.key, 5)
   const pay = (link: number, menu?: boolean) => world.attemptAvatarPay(payer, loaded.linkset.prims[link - 1]!, 1, menu ? { menu } : undefined)
   const log = (name: string) => loaded.scripts[name]!.global('log')
-  return { wearer, payer, pay, log }
+  return { world, wearer, payer, pay, log }
 }
 
 describe('paying another avatar\'s attachment as an object', () => {
@@ -61,10 +61,29 @@ describe('paying another avatar\'s attachment through the Pay menu', () => {
   // handlers -> L$1 to i doll, no money event in any attachment.
   it('pays the wearer as an avatar and runs no money handler', async () => {
     for (const prims of [[{ scripts: [{ name: 'root', source: handler }] }], [{}]]) {
-      const { wearer, pay, log } = await setup(prims)
+      const { world, wearer, payer, pay, log } = await setup(prims)
       expect(pay(1, true)).toMatchObject({ status: 'paid', recipient: wearer.key, kind: 'avatar' })
+      expect(world.attemptAvatarPay(payer, wearer, 1)).toMatchObject({ status: 'paid', recipient: wearer.key, kind: 'avatar' })
       if (prims[0]!.scripts) expect(log('root')).toEqual([])
     }
+  })
+})
+
+describe('paying your own attachment', () => {
+  // In-world: i doll paid her own worn prim with a money handler L$1 as an object payment
+  // -> its money event (link 0, i doll, 1), balance unchanged.
+  // Firestorm's menu for your own attachment has no Pay item.
+  it('runs its handler on an object payment and is not offered in the Pay menu', async () => {
+    const world = new World()
+    world.addRegion('Pay', { x: 0, y: 0 })
+    const wearer = world.addAvatar({ username: 'wearer', region: 'Pay' })
+    const loaded = await loadLinkset({ world, region: 'Pay', owner: wearer.key, prims: [{ scripts: [{ name: 's', source: { source: handler } }] }] })
+    loaded.scripts.s!.start()
+    loaded.linkset.attachToAvatar(wearer.key, 5)
+    const prim = loaded.linkset.prims[0]!
+    expect(world.attemptAvatarPay(wearer, prim, 1, { menu: true })).toMatchObject({ status: 'unsupported', reason: 'not-payable' })
+    expect(world.attemptAvatarPay(wearer, prim, 1)).toMatchObject({ status: 'paid', recipient: wearer.key, kind: 'object' })
+    expect(loaded.scripts.s!.global('log')).toEqual([0, wearer.key, 1])
   })
 })
 
