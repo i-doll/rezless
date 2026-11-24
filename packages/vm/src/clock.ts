@@ -165,11 +165,15 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
     } else if (part.kind === 'touch_end' || click.touch || !click.touch_end) click[part.kind] = part
   }
   const first = merged[touches]!
+  let at = -Infinity
   const group = TOUCH_KINDS.flatMap((kind): QueuedEvent[] => {
     const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => x.at - y.at || x.seq - y.seq)
     if (!kept.length) return []
     const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at) }
-    return [{ ...first, at: Math.min(...kept.map((p) => p.at)), event: kind, payload }]
+    // Not before the events ahead of it, so a later merge reads them in this order. In-world, a
+    // click in a touch handler's sleep after another avatar's release kept its touch_start.
+    at = Math.max(at, Math.min(...kept.map((p) => p.at)))
+    return [{ ...first, at, event: kind, payload }]
   })
   merged.splice(touches, 1, ...group)
   return merged
