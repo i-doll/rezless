@@ -20,6 +20,7 @@ const LSL = `rep(string s) { llOwnerSay(s); }
       llSleep(4.0);
       llMessageLinked(LINK_THIS, 1, m, "");
       llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES);
+      if (m == "W") llSleep(1.0);
     }
     link_message(integer s, integer num, string m, key id) { rep("lm"); }
     changed(integer c) { rep("changed " + (string)c); }
@@ -43,6 +44,7 @@ const SLUA = `local rep = ll.OwnerSay
     ll.Sleep(4)
     ll.MessageLinked(LINK_THIS, 1, m, "")
     ll.SetColor(vector(1, 0, 0), ALL_SIDES)
+    if m == "W" then ll.Sleep(1) end
   end)
   LLEvents:on("link_message", function(s, num, m, id) rep("lm") end)
   LLEvents:on("changed", function(c) rep("changed " .. c) end)
@@ -94,6 +96,13 @@ describe.each(['lsl', 'slua'] as const)('events that came up in a sleep, then a 
   // changed(2) (2 runs each).
   it('runs a click first', async () => {
     const log = await run(language, 'T', (p) => p.linkset.touch(1, { avatar: { key: OWNER, name: 'Test Resident' } }))
+    expect(log).toEqual(['touch_start', 'touch', 'touch_end', 'lm', 'changed 2'])
+  })
+
+  // In-world: the same click with a 1 s sleep after llSetColor -> touch_start, touch, touch_end,
+  // link_message, changed(2) (2 runs each).
+  it('runs a click first when the handler sleeps again', async () => {
+    const log = await run(language, 'W', (p) => p.linkset.touch(1, { avatar: { key: OWNER, name: 'Test Resident' } }))
     expect(log).toEqual(['touch_start', 'touch', 'touch_end', 'lm', 'changed 2'])
   })
 

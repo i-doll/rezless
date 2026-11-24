@@ -780,11 +780,13 @@ export class LinksetClock {
     const contact = (e: QueuedEvent) => e.busy === true && COLLISION_EVENTS.has(e.event) && this.heldBack(e, since)
     const contactStays = waited.some((e) => contact(e) && waiting.has(kind(e)))
     const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)) && !(contactStays && contact(e)))
-    const raised = queued ? this.queue.findIndex((e) => e.target === script && !queued.has(e)) : -1
-    if (!held.length && raised < 0) return
+    const isRaised = (e: QueuedEvent) => queued !== undefined && e.target === script && !queued.has(e)
+    const ahead = this.queue.some(isRaised)
+    if (!held.length && !ahead) return
     this.purgeWhere((e) => held.includes(e))
+    const raised = this.queue.findIndex(isRaised)
     const early = held.filter((e) => !queued || queued.has(e))
-    this.queue.splice(raised < 0 ? this.queue.length : raised, 0, ...this.release(script, early, waiting.has('timer'), raised >= 0))
+    this.queue.splice(raised < 0 ? this.queue.length : raised, 0, ...this.release(script, early, waiting.has('timer'), ahead))
     this.queue.push(...this.release(script, held.filter((e) => !early.includes(e)), waiting.has('timer')))
   }
 
