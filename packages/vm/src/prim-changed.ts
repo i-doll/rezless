@@ -33,25 +33,40 @@ export function raiseInventoryChanged(script: Script): void {
 }
 
 /**
- * Queue a CHANGED_ALLOWED_DROP for `script` now, merged into a change raised for it this frame.
- * In-world, inside an object its owner could not modify, two gifts into a prim in one handler gave
- * one changed(64), and a recolour then a gift gave one changed(66); a gift then a recolour gave
- * changed(64), then changed(2).
+ * Queue a CHANGED_ALLOWED_DROP for `script` now, from a gift into an object its owner could not
+ * modify, merged into a drop change raised for it this frame that it has not run yet, and for a
+ * gift from inside the linkset into a prim change too. `giver` is the script that gave from inside
+ * the linkset; a gift from another object has none.
+ *
+ * In-world, drops landing in one frame gave one changed(64) to each script that had not yet run one:
+ * two gifts in one handler, a gift from inside and one from another object in either order, and two
+ * gifts from other objects. A script that ran the first change before the next gift got a second.
+ * The giving script got a second change when the other object's drop came before its handler.
+ * A recolour then a gift from inside gave one changed(66), and one changed(66) still when another
+ * object's gift came first; a gift then a recolour gave changed(64), then changed(2).
  */
-export function raiseDropChanged(script: Script): void {
+export function raiseDropChanged(script: Script, giver?: Script): void {
   const clock = script.linkset.clock
-  const merge = clock.pendingEvents().find(e => e.target === script && e.event === 'changed' && cameUp(e) === clock.now
-    && (insideDrops.has(e.payload) || ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0))
-  if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | CHANGED_ALLOWED_DROP
-  else {
+  const pending = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed' && cameUp(e) === clock.now)
+  const drop = pending.find(e => drops.has(e.payload) && !(script === giver && drops.get(e.payload) === undefined))
+  const prim = giver && pending.find(e => !drops.has(e.payload) && ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0)
+  const merge = drop ?? prim
+  if (merge) {
+    merge.payload['changes'] = (merge.payload['changes'] as number) | CHANGED_ALLOWED_DROP
+    if (drop && prim) {
+      drop.payload['changes'] = (drop.payload['changes'] as number) | (prim.payload['changes'] as number)
+      clock.purgeWhere(e => e === prim)
+    }
+    if (!drop) drops.set(merge.payload, giver)
+  } else {
     const payload = { changes: CHANGED_ALLOWED_DROP }
-    insideDrops.add(payload)
+    drops.set(payload, giver)
     clock.schedule(script, clock.now, 'changed', payload)
   }
 }
 
-// Drops raised by gifts from inside the linkset. A drop from another object keeps its own event.
-const insideDrops = new WeakSet<object>()
+// Drop changes waiting to run, with the script that gave from inside the linkset.
+const drops = new WeakMap<object, Script | undefined>()
 
 function raiseChanged(script: Script, changes: number): void {
   const clock = script.linkset.clock
