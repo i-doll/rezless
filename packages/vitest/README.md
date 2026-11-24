@@ -555,6 +555,13 @@ numeric parameter IDs to values in `[0, 1]`; unset supported parameters read 0.
 Size defaults to `<0.45, 0.6, 1.9>`, flags to 0, and shared language to empty.
 Display name defaults to `name`, then `username`.
 
+Avatars in rezless wear no attached prims, so an SLua script that sleeps and then
+stands its sitter with `llUnSit`, `llBreakLink` or `llBreakAllLinks` goes on in
+the same frame, and a link message it sends next runs before `changed`. In
+Second Life a sitter wearing hundreds of attached prims, or a frame with much
+other work, holds the caller into the next frame, and every script gets
+`changed` first. Add the avatar with `standTakesFrame: true` to test that order.
+
 `llGetObjectDetails` reads an attachment point from either the root or a child prim.
 `OBJECT_TEMP_ATTACHED` is 1 only for the root of a temporary attachment; children
 and normal attachments return 0. Rezzed objects return 0 for both attachment flags.
