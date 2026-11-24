@@ -188,24 +188,20 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // in a call's delay, so a release then left only touch_end; touch_start's or a timer's
       // sleep kept one.
       if (!s.handles('touch') || s.handlerEvent === 'touch') continue
-      if (s.wakeAt !== undefined) {
-        const touches = waitingTouches(s, 'touch', by)
-        // In-world: fivebot's click in a sleep of touch_start or listen, while i doll's touch
-        // waited, raised no touch for fivebot, and i doll's touch listed only i doll.
-        if (touches.other) {
-          click.touched = true
-          continue
-        }
-        // In-world: i doll's touch from a touch_start sleep ran at the wake, ahead of a listen
-        // that came up later in the sleep; the click's touch_end waited behind the listen.
-        if (!waitingTouches(s, 'touch_start', by).own) {
-          if (touches.own) continue
-          click.touched = true
-          click.lastTouch = click.detected
-          scheduleTouch(s, 'touch', click.detected, { held: false })
-          continue
-        }
+      // In-world: while another handler slept or spun, fivebot's held click raised no touch of
+      // its own when i doll's touch waited. In three runs each with a listen and a timer
+      // sleeping, i doll's touch listed fivebot too in half of them; it lists i doll alone here.
+      const running = s.handlerEvent !== undefined
+      const touches = running ? waitingTouches(s, 'touch', by) : { own: false, other: false }
+      if (touches.other) {
+        click.touched = true
+        continue
       }
+      // In-world: a held click's touch from a sleep in touch_start, or a spin in listen, after
+      // its touch_start ran, came ahead of a listen that came up later; its touch_end waited
+      // behind that listen.
+      const plain = running && !waitingTouches(s, 'touch_start', by).own
+      if (plain && touches.own) continue
       // In-world: a map call in the first touch of a held click showed nothing after one in
       // touch_start, and one in a later touch showed the map again.
       // A touch raised before the last one ran merges into it and keeps its data.
@@ -213,7 +209,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
       const detected = !last ? click.detected : deliveredTouches.get(s)?.has(last[0]!) ? fresh(click.detected) : last
       click.touched = true
       click.lastTouch = detected
-      scheduleTouch(s, 'touch', detected)
+      scheduleTouch(s, 'touch', detected, plain ? { held: false } : undefined)
     }
   }
 }
@@ -1061,6 +1057,8 @@ export class Linkset {
    */
   touch(link: number, opts: TouchOptions = {}): void {
     const { hold, ...click } = opts
+    const by = (opts.avatar?.key ?? this.owner).toLowerCase()
+    if (this.pressed.has(by)) throw new Error(`touch: ${by} is holding a click from press`)
     const pressed = this.pressClick(link, click, Math.min(TOUCH_REPEAT_MS / 2, hold ?? 0))
     if (hold) {
       armTouches(this.clock)
@@ -1121,14 +1119,14 @@ export class Linkset {
     const firstAt = this.clock.now + firstTouchMs
     for (const s of receivers.filter(live)) {
       // In-world: a script still holding this avatar's earlier click raised no touch_start. Nor
-      // did an LSL script whose touch, touch_start or listen handler ran on while another
-      // avatar's click was held; SLua raised it.
+      // did an LSL script whose touch, touch_start, timer or listen handler slept, or whose listen
+      // spun, while another avatar's click was held; SLua raised it.
       const crowded = s.language !== 'slua' && s.handlerEvent !== undefined &&
         [...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut)
       // In-world: fivebot's click in a touch_start sleep, while i doll held a click or i doll's
       // touch_end waited, raised its touch_start behind that touch_end, in LSL and SLua.
       const late = s.handlerEvent === 'touch_start' &&
-        ([...s.heldClicks.keys()].some((k) => k !== by) || waitingTouches(s, 'touch_end', by).other)
+        ([...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut) || waitingTouches(s, 'touch_end', by).other)
       if (!s.heldClicks.has(by) && !crowded) scheduleTouch(s, 'touch_start', detected, late ? { late } : undefined)
       const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt: firstAt }
       s.heldClicks.set(by, click)

@@ -931,6 +931,11 @@ export class LinksetClock {
       : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5
       : e.payload[LATE_TOUCH_START] ? HELD_ORDER.get('touch_end')! + 0.5 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
+    for (const [i, e] of held.entries()) {
+      if (!e.payload[LATE_TOUCH_START]) continue
+      const { [LATE_TOUCH_START]: _, ...payload } = e.payload
+      held[i] = { ...e, payload }
+    }
     // In-world: a busy handler's held collision, collision_end and a later contact's
     // collision_start ran as collision_start, collision, collision_end. With a change held in
     // the sleep that followed, the change ran first and the contact after it.

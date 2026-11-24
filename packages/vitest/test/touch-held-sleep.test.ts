@@ -131,7 +131,12 @@ describe('two avatars clicking while a handler sleeps', () => {
     string who(integer n) { string w; integer i; for (i = 0; i < n; ++i) w += llGetSubString(llDetectedName(i), 0, 0); return w; }
     default {
       state_entry() { llListen(5, "", NULL_KEY, ""); }
-      listen(integer c, string n, key k, string m) { if (m == "mark") got += "M"; else { got += "L"; llSleep(3); } }
+      listen(integer c, string n, key k, string m) {
+        if (m == "mark") got += "M";
+        else if (m == "spin") { got += "P"; llOwnerSay("spin"); }
+        else { got += "L"; llSleep(3); }
+      }
+      timer() { got += "X"; llSleep(3); }
       touch_start(integer n) { got += "S" + who(n); llSleep(${start}); }
       touch(integer n) { got += "T" + who(n); llSleep(${touch}); }
       touch_end(integer n) { got += "E" + who(n); }
@@ -141,20 +146,29 @@ describe('two avatars clicking while a handler sleeps', () => {
     got = {}
     local function who(d) local w = "" for i = 1, #d do w = w .. string.sub(d[i]:getName(), 1, 1) end return w end
     ll.Listen(5, "", "", "")
-    LLEvents:on("listen", function(c, n, k, m) if m == "mark" then table.insert(got, "M") else table.insert(got, "L"); ll.Sleep(3) end end)
+    LLEvents:on("listen", function(c, n, k, m)
+      if m == "mark" then table.insert(got, "M")
+      elseif m == "spin" then table.insert(got, "P"); ll.OwnerSay("spin")
+      else table.insert(got, "L"); ll.Sleep(3) end
+    end)
+    LLEvents:on("timer", function() table.insert(got, "X"); ll.Sleep(3) end)
     LLEvents:on("touch_start", function(d) table.insert(got, "S" .. who(d)); ll.Sleep(${start}) end)
     LLEvents:on("touch", function(d) table.insert(got, "T" .. who(d)); ll.Sleep(${touch}) end)
     LLEvents:on("touch_end", function(d) table.insert(got, "E" .. who(d)) end)
   `
 
-  /** i, f: press as i doll or fivebot; I, F: release; L: a listen that sleeps 3 s; M: one that only logs. */
-  type Step = 'i' | 'I' | 'f' | 'F' | 'L' | 'M'
+  /**
+   * i, f: press as i doll or fivebot; I, F: release; L: a listen that sleeps 3 s; P: one that
+   * spins 3 s; M: one that only logs; X: a timer event that sleeps 3 s.
+   */
+  type Step = 'i' | 'I' | 'f' | 'F' | 'L' | 'P' | 'M' | 'X'
 
   /** Run `steps` at their times (ms), with Linkset.press and release, and give the log with runs of one touch event shown once. */
   async function run(lang: 'lsl' | 'slua', start: number, touch: number, steps: Record<number, Step>) {
     const source = lang === 'slua' ? sluaLog(start, touch) : lslLog(start, touch)
     const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source, filename: `s.${lang === 'slua' ? 'luau' : 'lsl'}` } }] }] })
     const s = scripts.s!
+    s.mock('llOwnerSay', (ctx) => { ctx.busy(3000); return undefined })
     s.start()
     linkset.advanceTime(0)
     let now = 0
@@ -166,7 +180,9 @@ describe('two avatars clicking while a handler sleeps', () => {
       else if (step === 'f') linkset.press(0, { avatar: FIVEBOT })
       else if (step === 'F') linkset.release(FIVEBOT)
       else {
-        linkset.clock.schedule(s, linkset.clock.now, 'listen', { channel: 5, name: 'fivebot', id: FIVEBOT.key, msg: step === 'M' ? 'mark' : 'sleep' })
+        const msg = step === 'M' ? 'mark' : step === 'P' ? 'spin' : 'sleep'
+        if (step === 'X') linkset.clock.schedule(s, linkset.clock.now, 'timer')
+        else linkset.clock.schedule(s, linkset.clock.now, 'listen', { channel: 5, name: 'fivebot', id: FIVEBOT.key, msg })
         linkset.drainQueue()
       }
     }
@@ -256,6 +272,21 @@ describe('two avatars clicking while a handler sleeps', () => {
       // fivebot's touch_end. fivebot got no touch.
       expect(await run('lsl', 0, 0, { 0: 'i', 300: 'L', 1000: 'f', 1300: 'F', 4000: 'I' })).toBe('Si Ti L Ti Ef Ti Ei')
       expect(await run('slua', 0, 0, { 0: 'i', 300: 'L', 1000: 'f', 1300: 'F', 4000: 'I' })).toBe('Si Ti L Ti Sf Ef Ti Ei')
+      // In-world: the same with a timer that slept 3 s, or a listen that spun 3 s, in place of
+      // the listen's sleep -> the same events. In three runs each with the listen and the timer
+      // sleeping, i doll's touch after the wake listed fivebot too in half of them.
+      for (const busy of ['X', 'P'] as const) {
+        expect(await run('lsl', 0, 0, { 0: 'i', 300: busy, 1000: 'f', 1300: 'F', 4000: 'I' })).toBe(`Si Ti ${busy} Ti Ef Ti Ei`)
+        expect(await run('slua', 0, 0, { 0: 'i', 300: busy, 1000: 'f', 1300: 'F', 4000: 'I' })).toBe(`Si Ti ${busy} Ti Sf Ef Ti Ei`)
+      }
+    })
+
+    it('a held click\'s touch from a spin runs ahead of a listen that came up during it', async () => {
+      // In-world: i doll held 4 s and a listen 0.3 s in spun 3 s; a second listen came 0.7 s in
+      // -> after the spin i doll's touch, the second listen, then i doll's touch events.
+      for (const lang of ['lsl', 'slua'] as const) {
+        expect(await run(lang, 0, 0, { 0: 'i', 300: 'P', 700: 'M', 4000: 'I' })).toBe('Si Ti P Ti M Ti Ei')
+      }
     })
 
     it('a listen that came up in the sleep runs ahead of a click that came before it', async () => {
@@ -273,6 +304,7 @@ describe('two avatars clicking while a handler sleeps', () => {
     const { linkset } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0), filename: 's.lsl' } }] }] })
     linkset.press(0, { avatar: IDOLL })
     expect(() => linkset.press(0, { avatar: { ...IDOLL, key: IDOLL.key.toUpperCase() } })).toThrow(/already holding/)
+    expect(() => linkset.touch(0, { avatar: IDOLL })).toThrow(/holding a click from press/)
     linkset.release(IDOLL)
     expect(() => linkset.release(IDOLL)).toThrow(/not holding/)
   })
