@@ -79,6 +79,19 @@ export function resumeSensors(script: Script): void {
   schedule(script, task, missed ? 0 : task.remainingMs, missed)
 }
 
+/**
+ * Keep a scan owed from while the script was down for its start. In-world, a crashed script rezzed
+ * by another object scanned behind its on_rez, and its next scans came 7 s and 14 s after on_rez.
+ */
+export function holdOwedSensor(script: Script): void {
+  const task = sensors.get(script)
+  if (!task?.cancel || !task.late) return
+  task.cancel()
+  task.cancel = undefined
+  task.late = false
+  task.missed = true
+}
+
 /** A scan that fell due while the script was stopped runs at the start, and a repeating one starts its interval again. */
 export function runMissedSensor(script: Script): void {
   const task = sensors.get(script)

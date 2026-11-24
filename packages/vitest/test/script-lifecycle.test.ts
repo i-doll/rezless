@@ -1085,7 +1085,8 @@ describe('an object taken to inventory and rezzed again', () => {
     expect(k.running).toBe(true)
     linkset.advanceTime(0)
     expect(k.global('log')).toEqual(['entry', 'scan', 'entry', 'on_rez', 'timer', 'scan'])
-    expect(fired(linkset, k, 20_000, start)).toEqual({ ticks: [4500, 14_500], scans: [7000, 14_000] })
+    // Times from the frame on_rez ran, two frames after the rez call.
+    expect(fired(linkset, k, 20_000, start + 2 * SIM_FRAME_MS)).toEqual({ ticks: [4500, 14_500], scans: [7000, 14_000] })
   })
 })
 
@@ -1143,7 +1144,10 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
   it('runs state_entry, on_rez, the timer and a scan in the rezzed object, then a full interval', async () => {
     // In-world: taken and rezzed -> state_entry, on_rez, timer, sensor within
     // 60 ms; timer again 4.0 s, 8.0 s and 12.0 s later, sensor 7.0 s and
-    // 14.0 s later.
+    // 14.0 s later. Taken and rezzed again with llRezObject by another object
+    // (Aditi, SLua Tideland, 2026-11-24, two runs): state_entry 23 ms after the
+    // call, on_rez 43 ms, timer 66 ms and sensor 88 ms, a frame apart; timer
+    // again 4.0 s, 8.0 s and 12.0 s after on_rez, sensor 7.0 s and 14.0 s after it.
     const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'k', source: { source: crasher } }] }] })
     const saved = payload.scripts['k']!
     saved.start()
@@ -1157,8 +1161,8 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
     const k = rez()
     linkset.advanceTime(0)
     expect(k.global('log')).toEqual(['entry', 'timer', 'entry', 'on_rez', 'timer', 'scan'])
-    // The first tick ran behind state_entry and on_rez, three frames after the rez: the next show 4 s after it.
-    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4100, 8100, 12_100], scans: [7000, 14_000] })
+    // Times from the frame on_rez ran, two frames after the rez call.
+    expect(fired(linkset, k, 14_500, start + 2 * SIM_FRAME_MS)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
   })
 
   it('keeps that order when the object goes through llDerezObject and llRezObject', async () => {
@@ -1176,8 +1180,8 @@ describe('a crashed LSL script whose tick is overdue by more than the interval',
     const k = rez()
     linkset.advanceTime(0)
     expect((k.global('log') as string[]).slice(-4)).toEqual(['entry', 'on_rez', 'timer', 'scan'])
-    // The first tick ran behind state_entry and on_rez, three frames after the rez: the next show 4 s after it.
-    expect(fired(linkset, k, 14_500, start)).toEqual({ ticks: [4100, 8100, 12_100], scans: [7000, 14_000] })
+    // Times from the frame on_rez ran, two frames after the rez call.
+    expect(fired(linkset, k, 14_500, start + 2 * SIM_FRAME_MS)).toEqual({ ticks: [4000, 8000, 12_000], scans: [7000, 14_000] })
   })
 
   it('runs on without state_entry in an attachment that is detached and worn again', async () => {

@@ -3,7 +3,7 @@ import { gameControlAvatars, receiveGameControl, sameGameControl, type GameContr
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
-import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
+import { copySensors, holdOwedSensor, runMissedSensor, stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
   leaveDamageEvent,
@@ -250,6 +250,8 @@ export class Script {
   private slua: SluaEngine | null = null
   /** Whether the rez events of this trip out of inventory are queued. A detach starts the next trip. */
   rezQueued = false
+  /** A revived script rezzed by another object starts its timer and scans when its on_rez runs. */
+  private startsAtRez = false
   /** Set on a copy of an object that was taken from under a sitter, until it is rezzed. */
   private unseated = false
   /** A copy rezzed for a new owner: its first rez says changed(CHANGED_OWNER). */
@@ -1376,6 +1378,13 @@ export class Script {
     if (room > 0 && !rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
     if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer(false)
+    // In-world: a crashed script rezzed by another object ran state_entry a frame after the call
+    // and on_rez a frame later; its next ticks came 4 s, 8 s and 12 s after on_rez and its next
+    // scans 7 s and 14 s after it. Its start is when on_rez runs.
+    if (revived && room > 0 && !this.clockView.inInventory) {
+      this.startsAtRez = true
+      holdOwedSensor(this)
+    }
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
       const detected = e.payload['detected']
@@ -1602,6 +1611,11 @@ export class Script {
     if (event === '__running') {
       this.applyHeldChanges(payload['ops'] as Array<{ running?: boolean; reset?: true }>)
       return
+    }
+    if (event === 'on_rez' && this.startsAtRez) {
+      this.startsAtRez = false
+      this.clockView.startedNow()
+      runMissedSensor(this)
     }
     if (event === '__unseated' || event === '__ownerChanged') {
       // Queued behind on_rez. A wear queues attach next, and the changed event comes after that.
