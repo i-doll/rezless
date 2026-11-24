@@ -262,7 +262,8 @@ linkset.deliverChat({ channel: 0, name: 'Alice', key: 'k', message: 'hi' })
 linkset.touch(2, { face: 0, st: { x: 0.5, y: 0.5, z: 0 }, hold: 1_500, avatar: { key: 'k', name: 'Alice' } })
                                         // click link 2; reaches the scripts Second Life would
                                         //   deliver it to, honouring llPassTouches. A held click
-                                        //   raises `touch` every 2000/45 ms until the release, and
+                                        //   raises `touch` every 2000/45 ms in LSL and every
+                                        //   1000/45 ms in SLua until the release, and
                                         //   a script stopped at the release keeps getting `touch`
                                         //   until that avatar's next click; `pos`, `normal` and
                                         //   `binormal` set the other llDetectedTouch* values
@@ -549,6 +550,13 @@ are mutable, so a test can move them or change an `AGENT_*` mask between events.
 numeric parameter IDs to values in `[0, 1]`; unset supported parameters read 0.
 Size defaults to `<0.45, 0.6, 1.9>`, flags to 0, and shared language to empty.
 Display name defaults to `name`, then `username`.
+
+Avatars in rezless wear no attached prims, so an SLua script that sleeps and then
+stands its sitter with `llUnSit`, `llBreakLink` or `llBreakAllLinks` goes on in
+the same frame, and a link message it sends next runs before `changed`. In
+Second Life a sitter wearing hundreds of attached prims, or a frame with much
+other work, holds the caller into the next frame, and every script gets
+`changed` first. Add the avatar with `standTakesFrame: true` to test that order.
 
 `llGetObjectDetails` reads an attachment point from either the root or a child prim.
 `OBJECT_TEMP_ATTACHED` is 1 only for the root of a temporary attachment; children

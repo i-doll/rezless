@@ -9,6 +9,8 @@ const NULL = '00000000-0000-0000-0000-000000000000'
 // E to H, ctl first sends the child "sleep" (llSleep(3.0)) or "busy" (a 3 s
 // llGetTime spin, here a call that keeps the script busy for 3 s) and sleeps
 // 0.5 s, so the child is still in that handler when the two events arrive.
+// "W" stands in for #699's 0.5 s llGetTime spin before llUnSit, here an
+// llSetText that keeps the script busy for 0.5 s.
 const LSL = {
   ctl: `string info() { return " n=" + (string)llGetNumberOfPrims() + " st=" + (string)llAvatarOnSitTarget() + " rt=" + (string)llAvatarOnLinkSitTarget(1); }
     rep(string s) { llOwnerSay("ctl " + s); }
@@ -23,6 +25,7 @@ const LSL = {
         else if (m == "C") { llUnSit(a); llSleep(1.0); rep("woke" + info()); llMessageLinked(LINK_SET, 3, "C", ""); rep("end" + info()); }
         else if (m == "D") { llMessageLinked(LINK_SET, 4, "D", ""); llSleep(1.0); rep("woke" + info()); llUnSit(a); rep("end" + info()); }
         else if (m == "I") { llSleep(0.5); llUnSit(a); llMessageLinked(LINK_SET, 7, "I", ""); rep("end" + info()); }
+        else if (m == "W") { llSetText("", ZERO_VECTOR, 0.0); llUnSit(a); llMessageLinked(LINK_SET, 8, "W", ""); rep("end" + info()); }
         else {
           string w = "sleep"; if (m == "G" || m == "H") w = "busy";
           llMessageLinked(LINK_ALL_CHILDREN, 9, w, ""); llSleep(0.5); rep("sent " + w + info());
@@ -82,11 +85,11 @@ const SLUA = {
 
 type Language = 'lsl' | 'slua'
 
-async function run(language: Language, command: string) {
+async function run(language: Language, command: string, standTakesFrame = false) {
   const sources = language === 'lsl' ? LSL : SLUA
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
-  const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 } })
+  const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 }, standTakesFrame })
   const script = (name: string, source: string) => ({ name, language, source: { source } })
   const { linkset, scripts } = await loadLinkset({
     world, region: 'home', owner: AVATAR, position: { x: 114, y: 47, z: 20 },
@@ -97,6 +100,7 @@ async function run(language: Language, command: string) {
   })
   linkset.prims[1]!.params.position = { x: 0, y: 0.6, z: 0 }
   scripts.log2!.mock('llSetText', (ctx) => { ctx.busy(3000); return undefined })
+  scripts.ctl!.mock('llSetText', (ctx) => { ctx.busy(500); return undefined })
   for (const s of Object.values(scripts)) s.start()
   linkset.advanceTime(1000)
   expect(world.sitAvatar(avatar, linkset.prims[0]!)).toBe(true)
@@ -191,7 +195,8 @@ describe.each(['lsl', 'slua'] as const)('llUnSit and llMessageLinked in one hand
 //   one with a 100,000-step loop link_message first.
 // Avatars in rezless wear nothing, so rezless gives the order of a sitter
 // wearing few attached prims: after a sleep it raises changed(32) a frame
-// late, as in LSL.
+// late, as in LSL. An avatar added with standTakesFrame gives the order of a
+// sitter wearing many.
 describe('SLua: llUnSit, then llMessageLinked', () => {
   // In-world: "A" -> changed(32), then link_message, in every script, 4 of 4
   // runs with the first test avatar; with the second, wearing one attached
@@ -214,8 +219,8 @@ describe('SLua: llUnSit, then llMessageLinked', () => {
   // In-world: "I" with the first test avatar (2 runs, and 2 more with a 0.5 s
   // spin in place of the sleep) -> changed(32), then link_message, in every
   // script, the caller included.
-  it.fails('queues changed first in every script after the caller slept, as for a sitter wearing many attached prims', async () => {
-    const out = await run('slua', 'I')
+  it('queues changed first in every script after the caller slept, for a sitter whose stand takes a frame', async () => {
+    const out = await run('slua', 'I', true)
     expect(out.ctl).toEqual([`cmd I${seated}`, `end${stood}`, ...order('changed 32', 'lm I')])
     logs(out, 'changed 32', 'lm I')
   })
@@ -239,8 +244,8 @@ describe('SLua: llUnSit, then llMessageLinked', () => {
 
   // In-world: "G" with the first test avatar (4 runs) -> every script, the
   // busy child included, got changed(32), then link_message.
-  it.fails('queues changed first for a caller that slept and a child busy in an earlier handler, as for a sitter wearing many attached prims', async () => {
-    const out = await run('slua', 'G')
+  it('queues changed first for a caller that slept and a child busy in an earlier handler, for a sitter whose stand takes a frame', async () => {
+    const out = await run('slua', 'G', true)
     expect(out.ctl).toEqual([`cmd G${seated}`, `sent busy${seated}`, `end${stood}`, ...order('changed 32', 'lm G')])
     expect(out.log1).toEqual(order('log1 changed 32', 'log1 lm G'))
     expect(out.log2).toEqual([`log2 lm busy${childSeated}`, `log2 done${stood}`, ...order('log2 changed 32', 'log2 lm G')])
@@ -259,10 +264,49 @@ describe('SLua: llUnSit, then llMessageLinked', () => {
 
   // In-world: with the first test avatar, the root's scripts, the caller that
   // had slept included, got changed(32) first.
-  it.fails('gives the root\'s scripts changed first while the child sleeps, as for a sitter wearing many attached prims', async () => {
-    const out = await run('slua', 'E')
+  it('gives the root\'s scripts changed first while the child sleeps, for a sitter whose stand takes a frame', async () => {
+    const out = await run('slua', 'E', true)
     expect(out.ctl).toEqual([`cmd E${seated}`, `sent sleep${seated}`, `end${stood}`, ...order('changed 32', 'lm E')])
     expect(out.log1).toEqual(order('log1 changed 32', 'log1 lm E'))
+  })
+})
+
+// In-world (#719): the stand held the SLua caller a frame when the heavy sitter sat on the
+// caller's own seat. A stand of a sitter on another object, on land the caller's owner owns, was
+// not measured, so it does not hold the caller.
+describe('SLua: llSleep, then llUnSit of a sitter whose stand takes a frame', () => {
+  const held = async (onCallersSeat: boolean) => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    world.addParcel({ region: 'home', owner: AVATAR })
+    const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 }, standTakesFrame: true })
+    const source = `ll.Listen(7686, "", "", "")
+      LLEvents:on("listen", function(c, n, id, m)
+        ll.Sleep(0.5); local t = ll.GetTime(); ll.UnSit(id); ll.OwnerSay(tostring(ll.GetTime() - t))
+      end)`
+    const { linkset, scripts } = await loadLinkset({
+      world, region: 'home', owner: AVATAR, position: { x: 114, y: 47, z: 20 },
+      prims: [{ scripts: [{ name: 'ctl', language: 'slua', source: { source } }] }],
+    })
+    const other = await loadLinkset({ world, region: 'home', owner: AVATAR, position: { x: 116, y: 47, z: 20 }, prims: [{}] })
+    linkset.prims[0]!.params.sitTarget = { ...linkset.prims[0]!.params.sitTarget, enabled: true }
+    other.linkset.prims[0]!.params.sitTarget = { ...other.linkset.prims[0]!.params.sitTarget, enabled: true }
+    linkset.startAll()
+    linkset.advanceTime(500)
+    expect(world.sitAvatar(avatar, (onCallersSeat ? linkset : other.linkset).prims[0]!)).toBe(true)
+    linkset.advanceTime(500)
+    linkset.deliverChat({ channel: 7686, name: 'Test Resident', key: AVATAR, message: 'U' })
+    for (let i = 0; i < 20; i++) linkset.advanceTime(100)
+    expect(avatar.sittingOn).toBeNull()
+    return Number(scripts.ctl!.chat.at(-1)!.text)
+  }
+
+  it('holds the caller a frame when the sitter is on its own object', async () => {
+    expect(await held(true)).toBeGreaterThan(0)
+  })
+
+  it('does not hold the caller for a sitter on another object', async () => {
+    expect(await held(false)).toBe(0)
   })
 })
 
@@ -290,6 +334,24 @@ describe('LSL: llUnSit, then llMessageLinked', () => {
   // then changed(32), in every script, 3 of 3 runs.
   it('queues link_message first in every script after the caller slept', async () => {
     const out = await run('lsl', 'I')
+    expect(out.ctl).toEqual([`cmd I${seated}`, `end${stood}`, ...order('lm I', 'changed 32')])
+    logs(out, 'lm I', 'changed 32')
+  })
+
+  // In-world (#699): a 0.5 s llGetTime spin, then llUnSit and
+  // llMessageLinked, run from a controller that logged timestamps instead of
+  // this one -> link_message, then changed(32), in every script. Runs after a
+  // sleep or a spin gave that order in 16 of 17.
+  it('queues link_message first in every script after the caller was busy', async () => {
+    const out = await run('lsl', 'W')
+    expect(out.ctl).toEqual([`cmd W${seated}`, `end${stood}`, ...order('lm W', 'changed 32')])
+    logs(out, 'lm W', 'changed 32')
+  })
+
+  // In-world (LSL, #716): the stand's change came a frame after the call, behind the link
+  // message, with either test avatar seated, the first wearing 557 attached prims.
+  it('queues link_message first after the caller slept for a sitter whose stand takes a frame', async () => {
+    const out = await run('lsl', 'I', true)
     expect(out.ctl).toEqual([`cmd I${seated}`, `end${stood}`, ...order('lm I', 'changed 32')])
     logs(out, 'lm I', 'changed 32')
   })
