@@ -137,8 +137,10 @@ describe('SLua: llBreakLink with a sitter, then llMessageLinked', () => {
 // the root, with nothing else running, and llMessageLinked(LINK_SET) after it
 // (Aditi, SLua Tideland, 2026-11-24): link_message, then changed(32), in every
 // script, 6 of 6 runs over both test avatars. The change came a frame after
-// the call and the link message in the frame of the call. rezless gives the
-// order of the quiet region.
+// the call and the link message in the frame of the call. Two objects
+// breaking in the same frame mostly kept that order too
+// (link-change-order.test.ts).
+// rezless gives the order of the quiet region.
 describe('LSL: llBreakLink with a sitter, then llMessageLinked', () => {
   it.each(['K', 'J'])('queues link_message before changed (%s)', async (command) => {
     const out = await run('lsl', command)
