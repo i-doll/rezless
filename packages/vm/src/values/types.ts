@@ -104,8 +104,8 @@ export function isRotation(v: LslValue): v is Rotation {
   )
 }
 
-/** Round a JS number to LSL's 32-bit float. */
-export const toFloat32 = Math.fround
+/** Round a JS number to LSL's 32-bit float. A NaN is returned as it is, keeping its sign. */
+export const toFloat32 = (n: number) => (n === n ? Math.fround(n) : n)
 
 export function vec(x: number, y: number, z: number): Vector {
   return Object.freeze({ x: toFloat32(x), y: toFloat32(y), z: toFloat32(z) })

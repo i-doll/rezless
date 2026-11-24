@@ -20,11 +20,12 @@ import type { Script } from './script.js'
 /**
  * Queue `changed(CHANGED_INVENTORY)` for a script. A script asleep in a
  * handler that already waits for one gets no second event, unless it has woken
- * since that one was queued and no other is waiting behind it.
+ * since that one was queued and no other is waiting behind it. A busy one gets
+ * what the clock gives any event that comes up while it is busy.
  */
 export function queueInventoryChanged(script: Script, changes = CHANGED_INVENTORY): void {
   const clock = script.linkset.clock
-  if (script.wakeAt !== undefined) {
+  if (script.wakeAt !== undefined && !script.busy) {
     const waiting = clock.pendingEvents().filter((e) => e.target === script && e.event === 'changed'
       && ((e.payload['changes'] as number) & CHANGED_INVENTORY) !== 0)
     const merge = waiting.find((e) => e.at >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)

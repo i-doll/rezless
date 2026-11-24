@@ -16,6 +16,7 @@ import type { LslType, LslValue, Rotation, Vector } from '../values/types.js'
 import { isRotation, toFloat32Value, toInt32 } from '../values/types.js'
 import { listElementTypes, luaResultKind, markLuaList, typedList } from '../values/list-types.js'
 import type { LuaKind } from '../values/list-types.js'
+import { boxedArray } from '../values/nan.js'
 import { BUILTIN_SPECS } from '../generated/functions.js'
 import type { BuiltinSpec } from '../generated/functions.js'
 import { EVENT_SPECS } from '../generated/events.js'
@@ -29,11 +30,11 @@ import { isKey } from '../builtins/viewer.js'
 /** What the engine needs from the script hosting it. */
 export interface SluaHost {
   /**
-   * Run builtin `name` with LSL arguments now: its result, and how long the
-   * script must then sleep (null for not at all). Throws to stop the script
-   * (llDie, llResetScript, a crash).
+   * Run builtin `name` with LSL arguments now: its result, how long the script
+   * must then stay busy and then sleep (null for not at all). Throws to stop the
+   * script (llDie, llResetScript, a crash).
    */
-  call(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null }
+  call(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null; busyMs: number | null }
   /** Virtual time in milliseconds. */
   now(): number
   /** The script's clock in seconds (since it started or reset): ll.GetTime, os.clock, LLTimers. */
@@ -214,6 +215,8 @@ export class SluaEngine {
   private readonly s: number
   /** Sleep the script owes (ms), taken at its next break or when the code finishes. */
   private sleepMs: number | null = null
+  /** Busy time the script owes (ms), taken before its sleep. */
+  private busyMs: number | null = null
   /** Why an ll call stopped the script, rethrown once the VM has unwound. */
   private pendingThrow: unknown = null
   /** Whether the script's top level has run. */
@@ -442,7 +445,7 @@ export class SluaEngine {
         if (this.pendingThrow !== null) {
           const e = this.pendingThrow
           this.pendingThrow = null
-          this.sleepMs = null
+          this.sleepMs = this.busyMs = null
           throw e
         }
         if (status === Status.Break) {
@@ -465,6 +468,9 @@ export class SluaEngine {
   }
 
   private *sleep(): Generator<Suspension, void, unknown> {
+    const busy = this.busyMs
+    this.busyMs = null
+    if (busy !== null) yield { until: this.host.now() + busy, busy: true }
     if (this.sleepMs === null) return
     const ms = this.sleepMs
     this.sleepMs = null
@@ -479,7 +485,7 @@ export class SluaEngine {
       this.pushString(L, args)
       return RZ_ERROR
     }
-    let result: { value: LslValue | undefined; delayMs: number | null }
+    let result: { value: LslValue | undefined; delayMs: number | null; busyMs: number | null }
     try {
       result = this.host.call(spec.name, args)
     } catch (e) {
@@ -487,10 +493,9 @@ export class SluaEngine {
       this.pendingThrow = e
       return RZ_KILL
     }
-    if (result.delayMs !== null) {
-      this.sleepMs = (this.sleepMs ?? 0) + result.delayMs
-      this.x.rz_request_break(this.s)
-    }
+    if (result.busyMs !== null) this.busyMs = (this.busyMs ?? 0) + result.busyMs
+    if (result.delayMs !== null) this.sleepMs = (this.sleepMs ?? 0) + result.delayMs
+    if (result.delayMs !== null || result.busyMs !== null) this.x.rz_request_break(this.s)
     return this.pushResult(L, spec, compat, args, result.value)
   }
 
@@ -570,7 +575,7 @@ export class SluaEngine {
   private readList(L: number, slot: number): LslValue | { error: string } {
     const x = this.x
     const n = x.rz_objlen(L, slot)
-    const values: LslValue[] = []
+    const values = boxedArray<LslValue>()
     const types: LslType[] = []
     const kinds: LuaKind[] = []
     for (let k = 1; k <= n; k++) {

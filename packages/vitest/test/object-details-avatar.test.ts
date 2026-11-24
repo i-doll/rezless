@@ -92,6 +92,8 @@ describe('llGetObjectDetails avatars', () => {
     const seat = await loadLinkset({ world: f.world, region: 'home', position: { x: 119, y: 48, z: 1997.5 },
       prims: [{ key: ROOT }, {}] })
     f.avatar.sittingOn = seat.linkset.prims[1]!
+    // Read once the seat's rotation shows, about 0.31 s after the sit.
+    seat.linkset.advanceTime(400)
     expect(f.read()).toEqual([ROOT, { x: 119, y: 48, z: 1997.5 }, { x: 0, y: 0, z: 0, s: 1 }, 3, expect.closeTo(406.1691, 5), 560, 2, 2, 1])
     f.avatar.sittingOn = null
     expect(f.read()).toEqual([AVATAR, { x: 119, y: 48, z: 1997.5 }, { x: 0, y: 0, z: 0, s: 1 }, 0, 156.1691, 560, 1, 1, 0])

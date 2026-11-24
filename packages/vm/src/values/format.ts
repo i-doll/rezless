@@ -1,6 +1,7 @@
 import type { LslType, LslValue, Vector, Rotation } from './types.js'
 import { isVector, isRotation } from './types.js'
 import { listElementType } from './list-types.js'
+import { isNegativeNaN } from './nan.js'
 
 /**
  * Format a float the way LSL prints it, porting Mono's NumberFormatter (as
@@ -71,11 +72,10 @@ const bits = new DataView(new ArrayBuffer(8))
  * Format a float like C `%f`, as llList2CSV and llList2Json print it: the
  * exact value, rounded half to even at `decimals` places, e.g. 1e30 →
  * "1000000015047466219876688855040.000000" and 0.0078125 → "0.007812".
- * A -0.0 keeps its sign. In-world a NaN prints as "nan" or "-nan" by its
- * sign bit, which the VM's floats do not carry, so every NaN prints as "nan".
+ * A -0.0 keeps its sign, and a NaN prints as "nan" or "-nan" by its sign bit.
  */
 export function formatFloatExact(n: number, decimals = 6): string {
-  if (Number.isNaN(n)) return 'nan'
+  if (Number.isNaN(n)) return isNegativeNaN(n) ? '-nan' : 'nan'
   if (!Number.isFinite(n)) return n > 0 ? 'inf' : '-inf'
   bits.setFloat64(0, Math.abs(n))
   const raw = bits.getBigUint64(0)

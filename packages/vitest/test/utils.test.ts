@@ -653,7 +653,7 @@ describe('Phase 3 — list builtins', () => {
     expect(s.global('ints')).toBe('1, -2, 0')
     expect(s.global('floats')).toBe('0.500000, -2.250000, 3.141593')
     expect(s.global('whole')).toBe('1.000000, 0.000000, -3.000000')
-    expect(s.global('nonfinite')).toBe('nan, inf')
+    expect(s.global('nonfinite')).toBe('-nan, inf')
     expect(s.global('vec')).toBe('<1.000000, 2.500000, -3.000000>')
     expect(s.global('rot')).toBe('<0.000000, 0.000000, 0.000000, 1.000000>')
     expect(s.global('mixed')).toBe('x, 1, 2.500000, <1.000000, 2.000000, 3.000000>, <0.000000, 0.000000, 0.000000, 1.000000>, 11111111-2222-3333-4444-555555555555')

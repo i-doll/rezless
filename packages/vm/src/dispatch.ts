@@ -53,10 +53,11 @@ export function* callBuiltin(
     if (journal.replayed === journal.results.length) yield { until: 0 }
     return result
   }
-  const { result, delayMs } = invokeBuiltin(dctx, name, args)
+  const { result, delayMs, busyMs } = invokeBuiltin(dctx, name, args)
   journal.names.push(name)
   journal.results.push(result)
   journal.replayed++
+  if (busyMs !== null) yield { until: dctx.state.clock.now + busyMs, busy: true }
   if (delayMs !== null) yield { until: dctx.state.clock.now + delayMs }
   return result
 }
@@ -71,10 +72,11 @@ export function invokeBuiltin(
   dctx: DispatchContext,
   name: string,
   args: ReadonlyArray<LslValue>,
-): { result: LslValue | undefined; delayMs: number | null } {
+): { result: LslValue | undefined; delayMs: number | null; busyMs: number | null } {
   const spec = specFor(name)
   const impl = dctx.mocks[name] ?? own(REAL_BUILTINS, name) ?? makeStub(dctx.script, name)
   let sleptMs: number | null = null
+  let busyMs: number | null = null
   const ctx: CallContext = {
     state: dctx.state,
     spec,
@@ -84,6 +86,9 @@ export function invokeBuiltin(
     sleep: (ms) => {
       sleptMs = (sleptMs ?? 0) + ms
     },
+    busy: (ms) => {
+      busyMs = (busyMs ?? 0) + ms
+    },
   }
   const dying = dctx.state.lifecycle.dying
   const removed = dctx.state.lifecycle.removed
@@ -92,9 +97,9 @@ export function invokeBuiltin(
   dctx.state.calls.push({ name, args, returned: result })
   if (dying || dctx.state.lifecycle.reset) throw new HaltSignal()
   // A call that moved the calling script away (a no-copy gift or load) leaves it nothing to sleep in.
-  if (!removed && dctx.state.lifecycle.removed) return { result, delayMs: null }
+  if (!removed && dctx.state.lifecycle.removed) return { result, delayMs: null, busyMs: null }
   const delayMs = spec ? spec.delay * 1000 : 0
-  return { result, delayMs: sleptMs === null && delayMs === 0 ? null : (sleptMs ?? 0) + delayMs }
+  return { result, delayMs: sleptMs === null && delayMs === 0 ? null : (sleptMs ?? 0) + delayMs, busyMs }
 }
 
 function makeStub(script: Script, name: string): BuiltinImpl {

@@ -5,8 +5,7 @@ import { loadLinkset } from '../src/index.js'
 // remover sent each victim a link message, then removed it with llRemoveInventory (Aditi, SLua
 // Tideland, 2026-11-23). Removal took effect at once: the remover's next line counted one script
 // fewer and llGetInventoryType gave INVENTORY_NONE, and no script got a changed event.
-// A victim in a loop with no delay was stopped mid-loop too. rezless runs a handler with no delay
-// to its end before another script runs, so that case can't happen here.
+// A victim in a loop with no delay was stopped mid-loop too.
 const VICTIM = `
   default {
     link_message(integer s, integer n, string m, key k) {
@@ -82,5 +81,23 @@ describe('a script removing another script', () => {
   it('removes a stopped script the same way', async () => {
     // In-world: a script stopped with llSetScriptState went with no error and no changed event.
     expect(await removeVictim('stop', 'v-stop')).toEqual(['v-stop running=0', 'rm v-stop n=1 type=-1'])
+  })
+
+  it('stops a script busy in a loop before the loop ends', async () => {
+    // In-world: a victim spinning in a loop with no delay never said the line after the loop.
+    const made = await loadLinkset({
+      prims: [{
+        scripts: [
+          { name: 'remover', source: { source: `default { touch_start(integer t) { llMessageLinked(LINK_THIS, 0, "", ""); llSleep(1); llRemoveInventory("v-busy"); } }` } },
+          { name: 'v-busy', source: { source: `list log; default { link_message(integer s, integer n, string m, key k) { log += "spin"; llSetText("", ZERO_VECTOR, 0); log += "done"; } }` } },
+        ],
+      }],
+    })
+    for (const s of Object.values(made.scripts)) s.start()
+    const victim = made.scripts['v-busy']!
+    victim.mock('llSetText', (ctx) => { ctx.busy(4_000); return undefined })
+    made.scripts.remover!.fire('touch_start', { num_detected: 1 })
+    made.linkset.advanceTime(10_000)
+    expect(victim.global('log')).toEqual(['spin'])
   })
 })

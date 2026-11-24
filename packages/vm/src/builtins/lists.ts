@@ -1,8 +1,9 @@
 import type { BuiltinImpl } from '../runtime.js'
 import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
-import { isVector, isRotation, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
+import { isVector, isRotation, toFloat32, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { formatFloatExact, formatFloatPositiveZero, formatListElement } from '../values/format.js'
 import { coerce, floatToInteger, parseLslInteger } from '../values/coerce.js'
+import { NEGATIVE_NAN, boxedArray, boxedMap, isNegativeNaN, signedNaN } from '../values/nan.js'
 import {
   LIST_STAT_GEOMETRIC_MEAN,
   LIST_STAT_MAX,
@@ -351,23 +352,27 @@ function sortStrided(
   if (index < 0 || index >= stride) return []
   const len = src.length
   if (len % stride !== 0) return src
-  const values = [...src]
-  const types = values.map((_, i) => listElementType(src, i))
-  const sortTypes = types.map((t, i): LslType | 'boolean' | undefined => (luaKind(src, i) === 'boolean' ? 'boolean' : t))
+  // The sort moves indexes, not values: storing a NaN into an array of
+  // numbers can lose its sign.
+  const order = src.map((_, i) => i)
+  const sortTypes = src.map((_, i): LslType | 'boolean' | undefined =>
+    luaKind(src, i) === 'boolean' ? 'boolean' : listElementType(src, i))
   const swap = (i: number, j: number) => {
     for (let k = 0; k < stride; k++) {
-      ;[values[i + k], values[j + k]] = [values[j + k]!, values[i + k]!]
-      ;[types[i + k], types[j + k]] = [types[j + k], types[i + k]]
-      ;[sortTypes[i + k], sortTypes[j + k]] = [sortTypes[j + k], sortTypes[i + k]]
+      const t = order[i + k]!
+      order[i + k] = order[j + k]!
+      order[j + k] = t
     }
   }
   for (let i = 0; i < len - stride; i += stride) {
     for (let j = i + stride; j < len; j += stride) {
-      const a = i + index
-      const b = j + index
-      if (sortsAfter(values[a]!, sortTypes[a], values[b]!, sortTypes[b]) !== descending) swap(i, j)
+      const a = order[i + index]!
+      const b = order[j + index]!
+      if (sortsAfter(src[a]!, sortTypes[a], src[b]!, sortTypes[b]) !== descending) swap(i, j)
     }
   }
+  const values = boxedMap(order, (i) => src[i]!)
+  const types = order.map((i) => listElementType(src, i))
   return typedList(values, types)
 }
 
@@ -411,7 +416,7 @@ function ranges(start: number, end: number, len: number): Array<[number, number]
 
 function pick(src: ReadonlyArray<LslValue>, indexes: number[]): ReadonlyArray<LslValue> {
   return typedList(
-    indexes.map((i) => src[i]!),
+    boxedMap(indexes, (i) => src[i]!),
     indexes.map((i) => listElementType(src, i)),
   )
 }
@@ -477,44 +482,64 @@ export const llListStatistics: BuiltinImpl = (_ctx, args) => {
   const op = (args[0] as number | undefined) ?? 0
   const src = (args[1] as ReadonlyArray<LslValue> | undefined) ?? []
   // A Lua number is read as a 32-bit float here, a whole one too.
-  const nums = src
-    .map((v, i) => (luaKind(src, i) === 'number' ? Math.fround(v as number) : v))
-    .filter((v): v is number => typeof v === 'number')
+  const nums = boxedArray<number>()
+  src.forEach((v, i) => {
+    if (typeof v === 'number') nums.push(luaKind(src, i) === 'number' ? toFloat32(v) : v)
+  })
   if (nums.length === 0) return 0
-  const sum = nums.reduce((a, b) => a + b, 0)
-  const mean = sum / nums.length
-  const sorted = [...nums].sort((a, b) => a - b)
+  const sum = nums.reduce(add, 0)
+  const mean = div(sum, nums.length)
   switch (op) {
     case LIST_STAT_RANGE:
-      return sorted[sorted.length - 1]! - sorted[0]!
+      return sub(extreme(nums, (x, best) => x > best), extreme(nums, (x, best) => x < best))
     case LIST_STAT_MIN:
-      return sorted[0]!
-    case LIST_STAT_MAX: {
-      // The first of equal maximums, which matters for 0.0 and -0.0.
-      const max = sorted[sorted.length - 1]!
-      return nums.find((n) => n === max) ?? max
-    }
+      return extreme(nums, (x, best) => x < best)
+    case LIST_STAT_MAX:
+      return extreme(nums, (x, best) => x > best)
     case LIST_STAT_MEAN:
       return mean
     case LIST_STAT_MEDIAN: {
+      const sorted = boxedMap(nums, (n) => n).sort((a, b) => a - b)
       const mid = sorted.length >> 1
-      return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+      return sorted.length % 2 ? sorted[mid]! : div(add(sorted[mid]!, sorted[mid - 1]!), 2)
     }
     case LIST_STAT_STD_DEV:
       if (nums.length < 2) return 0
-      return Math.sqrt(nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (nums.length - 1))
+      return sqrt(div(nums.reduce((a, b) => add(a, square(sub(b, mean))), 0), nums.length - 1))
     case LIST_STAT_SUM:
       return sum
     case LIST_STAT_SUM_SQUARES:
-      return nums.reduce((a, b) => a + b * b, 0)
+      return nums.reduce((a, b) => add(a, square(b)), 0)
     case LIST_STAT_NUM_COUNT:
       return nums.length
     case LIST_STAT_GEOMETRIC_MEAN:
       if (nums.some((n) => n <= 0)) return 0
-      return Math.exp(nums.reduce((a, b) => a + Math.log(b), 0) / nums.length)
+      return exp(div(nums.reduce((a, b) => add(a, log(b)), 0), nums.length))
     default:
       return 0
   }
+}
+
+/**
+ * llListStatistics works in the simulator's own arithmetic, where a NaN
+ * result takes the sign of its left operand if that is NaN, else of its
+ * right one, and a NaN made from two numbers is negative.
+ */
+const statNaN = (a: number, b: number, r: number) =>
+  r === r ? r : a !== a ? signedNaN(isNegativeNaN(a)) : b !== b ? signedNaN(isNegativeNaN(b)) : NEGATIVE_NAN
+const add = (a: number, b: number) => statNaN(a, b, a + b)
+const sub = (a: number, b: number) => statNaN(a, b, a - b)
+const div = (a: number, b: number) => statNaN(a, b, a / b)
+const square = (a: number) => statNaN(a, a, a * a)
+const sqrt = (a: number) => (a !== a ? a : Math.sqrt(a))
+const log = (a: number) => (a !== a ? a : Math.log(a))
+const exp = (a: number) => (a !== a ? a : Math.exp(a))
+
+/** Scanning in order, the first number `better` prefers to the best so far. A leading NaN stays. */
+function extreme(nums: number[], better: (x: number, best: number) => boolean) {
+  let best = nums[0]!
+  for (const x of nums) if (better(x, best)) best = x
+  return best
 }
 
 /**

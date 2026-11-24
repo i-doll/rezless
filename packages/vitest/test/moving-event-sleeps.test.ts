@@ -399,8 +399,7 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     b.linkset.advanceTime(1_500)
     const taken = b.world.attemptAvatarTake(b.avatar, b.linkset.prims[0]!, { copy }).object!
     b.linkset.advanceTime(1_000)
-    // rezless removes a taken object at once, so its scripts never run that moving_end.
-    expect(b.log().map((line) => line.split(' ')[0])).toEqual(copy ? ['moving_start', 'moving_end', 'moving_start'] : ['moving_start'])
+    expect(b.log().map((line) => line.split(' ')[0])).toEqual(copy ? ['moving_start', 'moving_end', 'moving_start'] : ['moving_start', 'moving_end'])
     seedRlvInventory(b.avatar, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: taken, assetType: 'object' }] })
     const rezzed = b.world.attemptAvatarRez(b.avatar, 'taken', { x: 128, y: 130, z: 100 }).object!
     rezzed.advanceTime(1_000)

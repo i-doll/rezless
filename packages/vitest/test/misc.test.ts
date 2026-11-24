@@ -265,14 +265,13 @@ describe('Phase 3 — object lifecycle and appearance', () => {
     expect(s.now).toBe(2000)
   })
 
-  it('llSleep of NaN sleeps one frame', async () => {
+  it('llSleep of NaN sleeps one frame, and of -NaN not at all', async () => {
     // In-world: selfreset_nan.iw (two runs) llSleep((float)"nan") took 0.044 s and llSleep((float)"-nan") 0.0 s.
-    // A JS NaN has no sign, so -nan can't be told apart and sleeps one frame too.
     const s = await run(`float a; float b;
       default { touch_start(integer n) { float t0 = llGetTime(); llSleep((float)"nan"); a = llGetTime() - t0; t0 = llGetTime(); llSleep((float)"-nan"); b = llGetTime() - t0; } }`)
     s.fire('touch_start', { num_detected: 1 })
     expect(s.global('a')).toBeCloseTo(1 / 45)
-    expect(s.global('b')).toBeCloseTo(1 / 45)
+    expect(s.global('b')).toBe(0)
   })
 
   it('llDie inside a queue-dispatched handler stops further drains', async () => {

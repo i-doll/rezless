@@ -1,4 +1,4 @@
-import { clearTargetMotion, slackenTargetMotion } from './builtins/motion.js'
+import { clearTargetMotion, forgetMoving, slackenTargetMotion } from './builtins/motion.js'
 import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
@@ -47,6 +47,7 @@ import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
 import { faceTextureIsItem } from './builtins/slua-result-kinds.js'
 import { typedList, listElementTypes } from './values/list-types.js'
+import { boxedMap } from './values/nan.js'
 import { NULL_KEY } from './values/types.js'
 import { execHandler, StateChangeSignal } from './interpreter.js'
 import { buildCoveragePlan, CoverageCollector } from './coverage.js'
@@ -1102,6 +1103,7 @@ export class Script {
     if (!this.running) return
     if (!this.started) {
       this.started = true
+      forgetMoving(this)
       if (this.slua) {
         // The script's top level is its state_entry.
         this.beginSluaMain()
@@ -1138,6 +1140,7 @@ export class Script {
   queueStart(): void {
     if (this.started || this.dead) return
     this.started = true
+    forgetMoving(this)
     // A script loaded stopped keeps its first event until it is started.
     if (this.running) this.clockView.schedule(this.now, 'state_entry')
     else this.parkedEvents.push({ at: this.now, event: 'state_entry', payload: {} })
@@ -1190,8 +1193,8 @@ export class Script {
       for (const g of this.ast.globals) {
         const value = this.global(g.name)
         const saved = Array.isArray(value)
-          ? typedList(structuredClone(value), listElementTypes(value) ?? [])
-          : structuredClone(value)
+          ? typedList(boxedMap(value, copyValue), listElementTypes(value) ?? [])
+          : copyValue(value)
         copy.setGlobal(g.name, saved)
       }
       copy.state.currentState = this.state.currentState
@@ -1326,6 +1329,7 @@ export class Script {
     for (const e of waiting) if (e.event === 'state_entry') clock.schedule(this, this.now, e.event, e.payload)
     if (!this.started) {
       this.started = true
+      forgetMoving(this)
       this.clockView.schedule(this.now, 'state_entry')
     }
     // In-world: an object rezzed with start parameter 2, taken back and rezzed with 3 inside one
@@ -1388,6 +1392,7 @@ export class Script {
 
   private boot(): void {
     this.started = true
+    forgetMoving(this)
     if (this.slua) {
       this.beginSluaMain()
       return
@@ -1562,6 +1567,13 @@ export class Script {
     return this.task?.wakeAt
   }
 
+  /** Whether the handler is busy, as a loop that never sleeps is: until `wakeAt`, or running on after a busy call. */
+  get busy(): boolean {
+    return this.task?.busy === true || this.busyRun
+  }
+
+  private busyRun = false
+
   /** Virtual time the running handler began at, or undefined when the script is idle. */
   get handlerStartedAt(): number | undefined {
     return this.task?.startedAt
@@ -1626,7 +1638,9 @@ export class Script {
     this.quietAttach = false
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
+    const outerBusy = this.busyRun
     this.handling = true
+    this.busyRun = task.busy === true
     try {
       r = task.run.next()
     } catch (e) {
@@ -1634,10 +1648,11 @@ export class Script {
       throw e
     } finally {
       this.handling = outer
+      this.busyRun = outerBusy
       if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {
-      this.task = { ...task, wakeAt: r.value.until }
+      this.task = { ...task, wakeAt: r.value.until, busy: r.value.busy === true }
       this.linkset.clock.releaseAtWake(this, task.startedAt)
       return
     }
@@ -1837,7 +1852,7 @@ export class Script {
   }
 
   /** An `ll.*` call from SLua: the same builtin, mock or stub an LSL script would reach. */
-  private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null } {
+  private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null; busyMs: number | null } {
     const spec = BUILTIN_SPECS[name as keyof typeof BUILTIN_SPECS] as BuiltinSpec
     const engine = this.slua!
     // SLua passes floats to LSL functions as 32-bit floats.
@@ -1846,9 +1861,9 @@ export class Script {
     // Memory is the VM's own count, answered through the usual dispatch (logging, llDie, removal).
     const vmMemory = this.sluaMemoryBuiltin(name, lslArgs)
     if (!mocks[name] && vmMemory) mocks = { ...mocks, [name]: vmMemory }
-    const { result, delayMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
+    const { result, delayMs, busyMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
-    return { value, delayMs }
+    return { value, delayMs, busyMs }
   }
 
   /** The VM-backed implementation of a memory builtin, or undefined for the rest. */
@@ -1974,6 +1989,7 @@ export class Script {
     if (!this.running) return
     if (this.parkedEvents.length === 0) return
     const events = this.parkedEvents.splice(0, this.parkedEvents.length)
+    if (events.some(e => e.event === 'state_entry')) forgetMoving(this)
     const at = this.now
     for (const e of events) {
       this.clockView.schedule(at, e.event, e.payload)
@@ -2002,6 +2018,8 @@ interface Task {
   readonly run: Generator<Suspension, boolean, unknown>
   readonly startedAt: number
   readonly wakeAt: number
+  /** Busy computing until `wakeAt` rather than asleep. */
+  readonly busy?: boolean
   /** For SLua code: the event it runs for and that event's payload, so a copy can carry it on. */
   readonly slua?: { readonly event: string; readonly payload: Record<string, unknown> }
   /** For an LSL handler: what a copy needs to run it again up to where it sleeps. */
@@ -2177,3 +2195,8 @@ function buildConstantsEnv(): Env {
 /** The (empty) LSL program an SLua script carries for the parts of Script that read one. */
 const SLUA_MEMORY_LIMIT = 131072
 const SLUA_PLACEHOLDER: Ast = parse('default {}', '<slua>').script
+
+/** A copy of a global's value or list element. structuredClone would drop a NaN's sign. */
+function copyValue(value: LslValue): LslValue {
+  return typeof value === 'object' && !Array.isArray(value) ? { ...value } : value
+}

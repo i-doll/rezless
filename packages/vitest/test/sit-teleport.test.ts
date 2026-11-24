@@ -348,7 +348,9 @@ it('follows the current seat transform and preserves it when standing', async ()
   world.standAvatar(avatar)
   expect(avatar.position.x).toBeCloseTo(15)
   expect(avatar.position.y).toBeCloseTo(21)
-  expect(avatar.rotation.z).toBeCloseTo(Math.SQRT1_2)
+  // In-world (Aditi, SLua Tideland, 2026-11-24): right after standing, OBJECT_ROT read the local
+  // rotation the seat showed, not turned by the root (see avatar-link-rotation-lag).
+  expect(avatar.rotation).toEqual({ x: 0, y: 0, z: 0, s: 1 })
 })
 // In-world: seat-lifecycle.lsl llDie -> info 54 then 262 while falling, then 6.
 // Aditi, SLua Tideland, 2026-11-01. Gravity/standing displacement are not simulated.

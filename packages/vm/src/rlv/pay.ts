@@ -3,6 +3,7 @@ import type { Script } from '../script.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { ViewerProfile } from './profiles.js'
 import type { RlvRestriction } from './restrictions.js'
+import { getRlvViewerState } from './viewstate.js'
 
 export function paySupport(profile: ViewerProfile, behaviour: string, option: string): RlvRestriction['support'] | undefined {
   if (behaviour !== 'pay' && behaviour !== 'buy') return undefined
@@ -31,7 +32,12 @@ export interface AvatarBuyAction {
   readonly reason?: string
   readonly restrictions: readonly RlvRestriction[]
 }
-/** `menu: true` models paying through the viewer's Pay menu, offered only when the prim or its root has a running money handler. */
+/**
+ * `menu: true` models paying through the viewer's Pay menu: on an object it is offered only when the prim or its
+ * root has a running money handler, and on another avatar's attachment it pays the wearer as an avatar.
+ * It is not offered on the payer's own attachment. Under RLVa it pays an avatar only when @shownames lets the
+ * payer see that avatar's name.
+ */
 export interface AvatarPayOptions {
   readonly menu?: boolean
 }
@@ -60,6 +66,12 @@ function denials(avatar: WorldAvatar, behaviour: 'pay' | 'buy'): readonly RlvRes
     .filter(rule => rule.support === 'enforced' && rule.behaviour === behaviour && !rule.option)
 }
 
+function nameDenials(avatar: WorldAvatar, recipient: string): readonly RlvRestriction[] {
+  if (avatar.viewer.profile !== 'rlva') return []
+  const names = getRlvViewerState(avatar, { target: recipient }).find(effect => effect.behaviour === 'shownames')!
+  return names.restricted ? names.rules.filter(rule => !rule.option) : []
+}
+
 /** Inject a completed avatar payment after checking the viewer's payment permission. */
 export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim | WorldAvatar, amount: number, options: AvatarPayOptions = {}): AvatarPayAction {
   let recipient: string | undefined
@@ -81,16 +93,12 @@ export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim
   } else {
     if (!livePrim(world, target)) return record('unsupported', 'target')
     const object = target.linkset!
-    if (object.attachment) {
-      const wearer = world.avatars.find(a => a.key.toLowerCase() === object.attachment!.avatar.toLowerCase())
-      if (!wearer) return record('unsupported', 'target')
-      recipient = wearer.key
-      kind = 'avatar'
-    } else {
-      prim = target
-      recipient = object.owner
-      kind = 'object'
-    }
+    const wearer = object.attachment && world.avatars.find(a => a.key.toLowerCase() === object.attachment!.avatar.toLowerCase())
+    if (object.attachment && !wearer) return record('unsupported', 'target')
+    if (options.menu && wearer === avatar) return record('unsupported', 'not-payable')
+    recipient = wearer ? wearer.key : object.owner
+    kind = wearer && options.menu ? 'avatar' : 'object'
+    if (kind === 'object') prim = target
   }
   const handlers = (p: Prim) => p.scripts.filter(s => s.running && s.handles('money'))
   let scripts: Script[] = []
@@ -100,7 +108,7 @@ export function attemptAvatarPay(world: World, avatar: WorldAvatar, target: Prim
     if (!scripts.length && prim !== root) scripts = handlers(root)
     if (options.menu && !scripts.length) return record('unsupported', 'not-payable')
   }
-  const blocks = denials(avatar, kind === 'avatar' ? 'pay' : 'buy')
+  const blocks = [...denials(avatar, kind === 'avatar' ? 'pay' : 'buy'), ...(kind === 'avatar' && options.menu ? nameDenials(avatar, recipient!) : [])]
   if (blocks.length) return record('blocked', blocks[0]!.behaviour, blocks)
   const result = record('paid')
   if (prim) {
