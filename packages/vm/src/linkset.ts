@@ -581,10 +581,10 @@ export class Linkset {
    * keeps the linkset data; when `prim` is the root, the rest stay linked
    * under the next prim with no data. Every prim of both parts gets
    * changed(CHANGED_LINK), and avatars seated on the object stand. A lone
-   * prim only loses its sitters.
+   * prim only loses its sitters. `caller` is the script that broke the link.
    */
-  breakOff(prim: Prim): void {
-    this.standSitters()
+  breakOff(prim: Prim, caller?: Script): void {
+    this.standSitters(caller)
     if (this.prims.length < 2) return
     const rest = this.prims.filter((p) => p !== prim)
     const all = [...this.prims]
@@ -598,9 +598,12 @@ export class Linkset {
     this.raiseLinkChanged(all)
   }
 
-  /** llBreakAllLinks: break every prim apart; each gets changed(CHANGED_LINK). */
-  breakAll(): void {
-    this.standSitters()
+  /**
+   * llBreakAllLinks: break every prim apart; each gets changed(CHANGED_LINK).
+   * `caller` is the script that broke the links.
+   */
+  breakAll(caller?: Script): void {
+    this.standSitters(caller)
     if (this.prims.length < 2) return
     const all = [...this.prims]
     for (const p of all.slice(1)) this.splitOff([p])
@@ -609,8 +612,14 @@ export class Linkset {
   }
 
   /** Unlinking a prim stands everyone seated on the object. */
-  private standSitters(): void {
-    for (const avatar of this.sitters()) this.world!.standAvatar(avatar)
+  private standSitters(caller?: Script): void {
+    // In-world, after a sleep the SLua caller of llBreakLink or llBreakAllLinks got changed(32)
+    // ahead of a link message it sent next with one sitter, and behind it with another, as with
+    // llUnSit. Both get the order rezless gives llUnSit.
+    for (const avatar of this.sitters()) {
+      if (caller?.language === 'slua') this.world!.unsitFrom(avatar, caller)
+      else this.world!.standAvatar(avatar)
+    }
   }
 
   /** Move `prims` into a new linkset in this one's world and region, with no linkset data. */
