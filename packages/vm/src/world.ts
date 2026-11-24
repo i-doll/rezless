@@ -100,6 +100,14 @@ export interface WorldAvatarOptions extends WorldObjectOptions {
   readonly friends?: readonly string[]
   /** Virtual destination for llTeleportAgentHome; never inferred from a real account. */
   readonly home?: AvatarDestination
+  /**
+   * Whether an SLua stand of this sitter by llUnSit, llBreakLink or llBreakAllLinks holds the
+   * calling script into the next simulator frame, so every script gets changed(CHANGED_LINK)
+   * ahead of a link message sent after the call. In Second Life that happened after a sleep
+   * with sitters wearing hundreds of attached prims, and sometimes when the script did other
+   * work in the frame of the call. Default false.
+   */
+  readonly standTakesFrame?: boolean
 }
 
 export interface AvatarDestination {
@@ -133,6 +141,8 @@ export interface WorldAvatar extends WorldEntity {
   turnSeated(rotation: Rotation): void
   /** A rotation requested while seated, applied when the avatar stands. */
   standingRotation: Rotation | null
+  /** See {@link WorldAvatarOptions.standTakesFrame}. */
+  standTakesFrame: boolean
   home: AvatarDestination | null
   /** Sound the link sound calls of the object it sits on gave it. */
   readonly sound: PrimSoundState
@@ -603,6 +613,7 @@ export class World {
         turns.push({ at: world.clock.now + SEATED_TURN_DELAY, orientation: { ...value } })
       },
       standingRotation: null,
+      standTakesFrame: opts.standTakesFrame ?? false,
       sound: { current: null, queueing: false, radius: 0, triggers: [], preloads: [] },
       textureAnim: { mode: 0, face: 0, sizex: 0, sizey: 0, start: 0, length: 0, rate: 0 },
       home: opts.home ? { region: opts.home.region, position: { ...opts.home.position } } : null,

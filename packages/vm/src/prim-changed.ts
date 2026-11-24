@@ -40,8 +40,12 @@ function raiseChanged(script: Script, changes: number, mergesWith = MERGED_CHANG
   const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
     && ((e.payload['changes'] as number) & MERGED_CHANGES) !== 0)
   const into = waiting.filter(e => ((e.payload['changes'] as number) & ~mergesWith) === 0)
-  // A busy handler gets what the clock gives any event that comes up while it is busy.
-  const merge = script.busy ? undefined : into.find(e => cameUp(e) >= script.resumedAt) ?? (into.length >= 2 ? into.at(-1) : undefined)
+  // A busy handler gets what the clock gives any event that comes up while it is busy, but
+  // changes made in one frame are one change. In-world, a script busy in another handler got
+  // one changed for two or four recolours of its prim in one frame, and two for two recolours
+  // 0.1 s apart.
+  const merge = script.busy ? into.find(e => e.raisedAt === clock.now)
+    : into.find(e => cameUp(e) >= script.resumedAt) ?? (into.length >= 2 ? into.at(-1) : undefined)
   if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
   else clock.scheduleNextFrame(script, 'changed', { changes })
 }

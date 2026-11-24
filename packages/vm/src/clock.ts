@@ -757,7 +757,7 @@ export class LinksetClock {
       ({ at, target, event, payload, ...(at > this.now && { held: false, raisedAt: this.now }) })
     const raised = waited.filter((e) => queued && !queued.has(e))
     const early = waited.filter((e) => !raised.includes(e))
-    this.queue.push(...early.filter((e) => !this.heldBack(e, since)).map(plain))
+    this.queue.push(...this.byDue(early.filter((e) => !this.heldBack(e, since))).map(plain))
     const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined)
     this.fit(raised, MAX_PENDING_EVENTS - this.pending(script) - counted(released), (e) => this.heldBack(e, since))
     // In-world: a land contact held through a sleep ran land_collision_start, the link message
@@ -772,6 +772,24 @@ export class LinksetClock {
       this.queue.push(at > this.now ? { ...e, at, raisedAt: this.now } : e)
     }
     this.queue.push(...this.release(script, raised.filter((e) => this.heldBack(e, since)), false))
+  }
+
+  /**
+   * `events` in queue order, with each one that came up before it fell due, and is due by now,
+   * moved behind those that came up before it fell due. In-world, a child busy in an earlier
+   * handler got a link message sent straight after llUnSit, llSetLinkColor or llBreakLink ahead
+   * of the changed the call raised a frame later.
+   */
+  private byDue(events: QueuedEvent[]): QueuedEvent[] {
+    const out = [...events]
+    for (const e of events) {
+      if (e.raisedAt === undefined || e.at > this.now) continue
+      let i = out.indexOf(e)
+      out.splice(i, 1)
+      while (i < out.length && cameUp(out[i]!) < e.at) i++
+      out.splice(i, 0, e)
+    }
+    return out
   }
 
   /**

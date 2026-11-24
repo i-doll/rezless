@@ -65,11 +65,11 @@ const SLUA = {
 
 type Language = 'lsl' | 'slua'
 
-async function run(language: Language, command: string, seated = true) {
+async function run(language: Language, command: string, seated = true, standTakesFrame = false) {
   const sources = language === 'lsl' ? LSL : SLUA
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
-  const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 } })
+  const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 }, standTakesFrame })
   const script = (name: string, source: string) => ({ name, language, source: { source } })
   const { linkset, scripts } = await loadLinkset({
     world, region: 'home', owner: AVATAR, position: { x: 114, y: 47, z: 20 },
@@ -137,8 +137,10 @@ describe('SLua: llBreakLink with a sitter, then llMessageLinked', () => {
 // the root, with nothing else running, and llMessageLinked(LINK_SET) after it
 // (Aditi, SLua Tideland, 2026-11-24): link_message, then changed(32), in every
 // script, 6 of 6 runs over both test avatars. The change came a frame after
-// the call and the link message in the frame of the call. rezless gives the
-// order of the quiet region.
+// the call and the link message in the frame of the call. Two objects
+// breaking in the same frame mostly kept that order too
+// (link-change-order.test.ts).
+// rezless gives the order of the quiet region.
 describe('LSL: llBreakLink with a sitter, then llMessageLinked', () => {
   it.each(['K', 'J'])('queues link_message before changed (%s)', async (command) => {
     const out = await run('lsl', command)
@@ -167,7 +169,8 @@ describe('LSL: llBreakLink with a sitter, then llMessageLinked', () => {
 // hold the caller. A script that depends on either order can break in Second
 // Life. Avatars in rezless wear nothing, so rezless gives the order of a
 // sitter wearing few attached prims: after a sleep the stand's changed(32)
-// comes a frame late with the link change, as in LSL.
+// comes a frame late with the link change, as in LSL. An avatar added with
+// standTakesFrame gives the order of a sitter wearing many.
 describe('SLua: llSleep, then llBreakLink with a sitter, then llMessageLinked', () => {
   // In-world, with the second test avatar wearing one attached prim: "Z" and
   // "Y" (2 runs each) -> link_message, then changed(32), in every script left
@@ -183,8 +186,8 @@ describe('SLua: llSleep, then llBreakLink with a sitter, then llMessageLinked', 
   // In-world, with the first test avatar: "Z" (3 runs) and "Y" (2 runs) ->
   // changed(32), then link_message, in every script, the caller that slept
   // included.
-  it.fails.each(['Z', 'Y'])('queues changed first in every script, as for a sitter wearing many attached prims (%s)', async (command) => {
-    const out = await run('slua', command)
+  it.each(['Z', 'Y'])('queues changed first in every script for a sitter whose stand takes a frame (%s)', async (command) => {
+    const out = await run('slua', command, true, true)
     expect(out.ctl).toEqual([...start(command), ...changedFirst(command)])
     expect(out.seat).toEqual(changedFirst(command))
     expect(out.kid).toEqual(changedFirst(command))
@@ -275,10 +278,10 @@ const BREAKS = {
     LLEvents:on("link_message", function(s, num, m, id) rep("lm " .. m .. info()) end)`,
 }
 
-async function runBreak(language: Language, command: 'A' | 'B') {
+async function runBreak(language: Language, command: 'A' | 'B', standTakesFrame = false) {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
-  const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 } })
+  const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 }, standTakesFrame })
   const script = (name: string, source: string) => ({ name, language, source: { source } })
   const { linkset, scripts } = await loadLinkset({
     world, region: 'home', owner: AVATAR, position: { x: 114, y: 47, z: 20 },
@@ -318,8 +321,8 @@ describe('llSleep, then llBreakLink(LINK_THIS) on a seated lone prim or llBreakA
   // In-world, with the first test avatar: "A" and "B", 2 runs each ->
   // changed(32), then link_message, in the root's scripts, the caller that
   // slept included.
-  it.fails.each(['A', 'B'] as const)('SLua queues changed first in the root, as for a sitter wearing many attached prims (%s)', async (command) => {
-    const out = await runBreak('slua', command)
+  it.each(['A', 'B'] as const)('SLua queues changed first in the root for a sitter whose stand takes a frame (%s)', async (command) => {
+    const out = await runBreak('slua', command, true)
     expect(out.ctl!.slice(2)).toEqual(first('changed 32', `lm ${command}`))
     expect(out.seat).toEqual(first('changed 32', `lm ${command}`))
   })
@@ -364,10 +367,10 @@ describe('a touch during the sleep before llBreakLink with a sitter', () => {
       LLEvents:on("changed", function(c) ll.OwnerSay("changed " .. tostring(c)) end)
       LLEvents:on("link_message", function(s, num, m, id) ll.OwnerSay("lm") end)`,
   }
-  const touched = async (language: Language) => {
+  const touched = async (language: Language, standTakesFrame = false) => {
     const world = new World()
     world.addRegion('home', { x: 0, y: 0 })
-    const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 } })
+    const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 }, standTakesFrame })
     const { linkset, scripts } = await loadLinkset({
       world, region: 'home', owner: AVATAR, position: { x: 114, y: 47, z: 20 },
       prims: [{ scripts: [{ name: 'ctl', language, source: { source: SOURCES[language] } }] }, {}],
@@ -394,5 +397,9 @@ describe('a touch during the sleep before llBreakLink with a sitter', () => {
 
   it('SLua runs the touch, then link_message, then changed, as for a sitter wearing few attached prims', async () => {
     expect(await touched('slua')).toEqual(['touch', 'lm', 'changed 32'])
+  })
+
+  it('SLua runs the touch, then changed, then link_message, for a sitter whose stand takes a frame', async () => {
+    expect(await touched('slua', true)).toEqual(['touch', 'changed 32', 'lm'])
   })
 })
