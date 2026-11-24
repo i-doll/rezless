@@ -49,7 +49,8 @@ it('gives the scripts of an object rezzed from inventory the experience set on t
 // llGetExperienceDetails(NULL_KEY) = [Fifth Column, <owner>, <id>, 17, "not allowed to run in
 // current location", NULL_KEY]; llRequestExperiencePermissions -> experience_permissions_denied(owner, 17);
 // llReadKeyValue of a missing key -> "0,14"; llAttachToAvatarTemp -> "Cannot find the agent to
-// attach to." with permissions 0 and nothing attached (Aditi, SLua Tideland, 2026-11-24).
+// attach to." with permissions 0 and nothing attached (Aditi, SLua Tideland, 2026-11-24). The rezzer
+// was compiled without an experience.
 it('carries the experience into the rezzed copy where the land refuses it', async () => {
   const xp = new Experience({ name: 'Fifth Column', owner: OWNER, allowedHere: false, agents: [OWNER] })
   const { got, debug } = await rez(payload(xp))
@@ -60,9 +61,12 @@ it('carries the experience into the rezzed copy where the land refuses it', asyn
 
 // In-world: the same script compiled without an experience, rezzed the same way, read 0 and [];
 // its request was denied with 5, its read answered "0,5", and llAttachToAvatarTemp said "Cannot
-// find the agent to attach to." (Aditi, SLua Tideland, 2026-11-24). The rezzer there had no
-// experience; a script takes its experience from its own compile, so the rezzer's doesn't pass on
-// (https://wiki.secondlife.com/wiki/LlRequestExperiencePermissions).
+// find the agent to attach to." (Aditi, SLua Tideland, 2026-11-24).
+// In-world: a rezzer script compiled with "Fifth Column" (its own llGetExperienceDetails named it,
+// state 17) rezzed a payload whose script was compiled without one; the payload read
+// llGetExperienceDetails(NULL_KEY) = [] and was denied with 5. The other way round, a rezzer
+// without an experience rezzed a payload compiled with "Fifth Column", which read the experience
+// with state 17 and was denied with 17 (Aditi, SLua Tideland, 2026-11-24).
 it('leaves an object without an experience refused, even when the rezzer has one', async () => {
   const rezzerXp = new Experience({ agents: [OWNER] })
   const { child, got, debug, rezzer } = await rez(payload(), rezzerXp)
