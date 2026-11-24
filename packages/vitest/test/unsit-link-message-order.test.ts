@@ -9,6 +9,8 @@ const NULL = '00000000-0000-0000-0000-000000000000'
 // E to H, ctl first sends the child "sleep" (llSleep(3.0)) or "busy" (a 3 s
 // llGetTime spin, here a call that keeps the script busy for 3 s) and sleeps
 // 0.5 s, so the child is still in that handler when the two events arrive.
+// "W" stands in for #699's 0.5 s llGetTime spin before llUnSit, here an
+// llSetText that keeps the script busy for 0.5 s.
 const LSL = {
   ctl: `string info() { return " n=" + (string)llGetNumberOfPrims() + " st=" + (string)llAvatarOnSitTarget() + " rt=" + (string)llAvatarOnLinkSitTarget(1); }
     rep(string s) { llOwnerSay("ctl " + s); }
@@ -23,6 +25,7 @@ const LSL = {
         else if (m == "C") { llUnSit(a); llSleep(1.0); rep("woke" + info()); llMessageLinked(LINK_SET, 3, "C", ""); rep("end" + info()); }
         else if (m == "D") { llMessageLinked(LINK_SET, 4, "D", ""); llSleep(1.0); rep("woke" + info()); llUnSit(a); rep("end" + info()); }
         else if (m == "I") { llSleep(0.5); llUnSit(a); llMessageLinked(LINK_SET, 7, "I", ""); rep("end" + info()); }
+        else if (m == "W") { llSetText("", ZERO_VECTOR, 0.0); llUnSit(a); llMessageLinked(LINK_SET, 8, "W", ""); rep("end" + info()); }
         else {
           string w = "sleep"; if (m == "G" || m == "H") w = "busy";
           llMessageLinked(LINK_ALL_CHILDREN, 9, w, ""); llSleep(0.5); rep("sent " + w + info());
@@ -97,6 +100,7 @@ async function run(language: Language, command: string, standTakesFrame = false)
   })
   linkset.prims[1]!.params.position = { x: 0, y: 0.6, z: 0 }
   scripts.log2!.mock('llSetText', (ctx) => { ctx.busy(3000); return undefined })
+  scripts.ctl!.mock('llSetText', (ctx) => { ctx.busy(500); return undefined })
   for (const s of Object.values(scripts)) s.start()
   linkset.advanceTime(1000)
   expect(world.sitAvatar(avatar, linkset.prims[0]!)).toBe(true)
@@ -333,6 +337,16 @@ describe('LSL: llUnSit, then llMessageLinked', () => {
     const out = await run('lsl', 'I')
     expect(out.ctl).toEqual([`cmd I${seated}`, `end${stood}`, ...order('lm I', 'changed 32')])
     logs(out, 'lm I', 'changed 32')
+  })
+
+  // In-world (#699): a 0.5 s llGetTime spin, then llUnSit and
+  // llMessageLinked, run from a controller that logged timestamps instead of
+  // this one -> link_message, then changed(32), in every script. Runs after a
+  // sleep or a spin gave that order in 16 of 17.
+  it('queues link_message first in every script after the caller was busy', async () => {
+    const out = await run('lsl', 'W')
+    expect(out.ctl).toEqual([`cmd W${seated}`, `end${stood}`, ...order('lm W', 'changed 32')])
+    logs(out, 'lm W', 'changed 32')
   })
 
   // In-world (LSL, #716): the stand's change came a frame after the call, behind the link
