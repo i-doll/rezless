@@ -87,6 +87,46 @@ describe('SLua scripts', () => {
     expect(s).toHaveSaid(0, 'region: Tideland')
   })
 
+  it('answers ll.GetTime and llcompat.GetTime from a mock of llGetTime, as llGetTime in LSL', async () => {
+    const lsl = await loadScript({ source: 'default { state_entry() { llOwnerSay((string)llGetTime()); } }' })
+    lsl.mock('llGetTime', () => 42.5)
+    lsl.start()
+    expect(lsl).toHaveSaid(0, '42.500000')
+
+    const s = await slua(`ll.OwnerSay(ll.GetTime() .. " " .. llcompat.GetTime())`)
+    s.mock('llGetTime', () => 0.1)
+    s.start()
+    expect(s).toHaveSaid(0, '0.1 0.1')
+    expect(s.calls.filter((c) => c.name === 'llGetTime')).toHaveLength(2)
+  })
+
+  it('keeps os.clock and LLTimers on the script clock when llGetTime is mocked', async () => {
+    const s = await slua(`LLTimers:once(1.5, function() ll.OwnerSay(ll.GetTime() .. " " .. os.clock()) end)`)
+    s.mock('llGetTime', () => 42.5)
+    s.start()
+    s.advanceTime(2000)
+    expect(s).toHaveSaid(0, '42.5 1.5')
+  })
+
+  // SLua's own ll.GetTime (secondlife/slua VM/src/lll.cpp ll_get_time) returns the script clock as a double, the
+  // value os.clock reads; only an LSL script's llGetTime is cut to a 32-bit float.
+  it('reads ll.GetTime as a double from the script clock when no mock is set, and logs no call', async () => {
+    const s = await slua(`LLEvents:on("touch_start", function()
+      ll.OwnerSay(ll.GetTime() .. " " .. llcompat.GetTime() .. " " .. tostring(ll.GetTime() == os.clock()))
+    end)`)
+    s.start()
+    s.advanceTime(100)
+    s.fire('touch_start', { num_detected: 1, detected: [{ key: 'k', name: 'A' }] })
+    expect(s).toHaveSaid(0, '0.1 0.1 true')
+    expect(s.calls.some((c) => c.name === 'llGetTime')).toBe(false)
+  })
+
+  it('reads ll.GetTime in a script that removed itself, since SLua answers it in its own VM', async () => {
+    const s = await slua(`ll.RemoveInventory(ll.GetScriptName()); ll.OwnerSay("after " .. ll.GetTime())`)
+    s.start()
+    expect(s.chat.map((c) => c.text)).toEqual(['after 0'])
+  })
+
   it('reads and writes globals', async () => {
     const s = await slua(`count = 1; LLEvents:on("touch_start", function() count += 1 end)`)
     s.start()

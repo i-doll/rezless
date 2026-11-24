@@ -966,7 +966,9 @@ expect(s).toHaveSaid(0, 'Hello, Alice!')
   collision, sensor and damage handlers receive their `DetectedEvent` list.
   `LLTimers` and `ll.Sleep` run on the virtual clock. Handlers for events
   SLua doesn't deliver are refused, as in SLua. `ll.GetTime`, `os.clock`
-  and `LLTimers` share one clock, which restarts on a reset. `LLTimers`
+  and `LLTimers` share one clock, which restarts on a reset. A mock of
+  `llGetTime` answers `ll.GetTime` and `llcompat.GetTime`, as it answers
+  `llGetTime` in LSL; `os.clock` and `LLTimers` keep the script's clock. `LLTimers`
   sets the script's timer, which lags as `llSetTimerEvent`'s does, so a
   `timer` handler of your own can also see ticks that come before a
   callback is due and run none.
