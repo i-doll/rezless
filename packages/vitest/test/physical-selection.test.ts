@@ -161,6 +161,44 @@ describe('an impulse, push or move target during a selection', () => {
   })
 })
 
+describe('a selection of an object with a move target', () => {
+  // In-world: llMoveToTarget 0.3 m up with tau 0.3, and an inspect 0.2 s later while the box rose,
+  // two runs -> moving_end at the selection 0.26 and 0.31 s after the call, the box standing where
+  // it was; moving_start 0.59 and 0.71 s after the call as the viewer let go, and moving_end only
+  // as it reached the target 1.5 s later.
+  it('stops an object on its way to a move target, and leaves its arrival to the test', async () => {
+    const b = await resting()
+    send(b, 'mtt')
+    b.linkset.advanceTime(200)
+    b.world.attemptAvatarEdit(b.avatar, b.prim)
+    const z = b.prim.params.position.z
+    b.linkset.advanceTime(300)
+    expect(b.prim.params.position.z).toBe(z)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 2'])
+    b.linkset.advanceTime(1_500)
+    expect(b.prim.params.position.z).toBeGreaterThan(z)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 2', 'moving_start 6'])
+    b.linkset.setVelocity({ x: 0, y: 0, z: 0 })
+    b.linkset.advanceTime(200)
+    expect(b.log().at(-1)).toBe('moving_end 21')
+  })
+
+  // In-world: the same box hanging at its target, its moving_end 1.75 to 1.79 s after the call,
+  // inspected 3 s after the call, three runs -> no event, and it stayed at the target.
+  it('gives an object hanging at its move target no event at a selection', async () => {
+    const b = await resting()
+    send(b, 'mtt')
+    b.linkset.advanceTime(1_800)
+    b.linkset.setVelocity({ x: 0, y: 0, z: 0 })
+    b.linkset.advanceTime(1_200)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 19'])
+    b.world.attemptAvatarEdit(b.avatar, b.prim)
+    b.linkset.advanceTime(2_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 19'])
+    expect(b.prim.params.position.z).toBeCloseTo(100.3, 3)
+  })
+})
+
 describe('the viewer rezzing a physical item', () => {
   function rezTaken(b: Box, taken: Linkset) {
     seedRlvInventory(b.avatar, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: taken, assetType: 'object' }] })

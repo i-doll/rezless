@@ -333,10 +333,10 @@ const DUPLICATE_HELD_MS = 200
 const RELEASE_SETTLE_MS = 700
 
 /**
- * The restart due when the viewer lets go of a physical object it selected, and whether a move
- * target set during the selection waits for it.
+ * The restart due when the viewer lets go of a physical object it selected, whether a move
+ * target set during the selection waits for it, and whether the object moved when selected.
  */
-interface Selection { cancel: () => void; target: boolean }
+interface Selection { cancel: () => void; target: boolean; moving: boolean }
 const releases = new WeakMap<Linkset, Selection>()
 
 /** A velocity set or a physics switch during the selection leaves the motion to the test. */
@@ -350,16 +350,24 @@ export function heldBySelection(linkset: Linkset): boolean {
   return releases.has(linkset)
 }
 
-function releaseLater(linkset: Linkset, state: PhysicalMotion, ms: number): void {
+/**
+ * In-world: a box an edit selected on its way to a move target got moving_end at the selection
+ * and stood still; when the viewer let go it got moving_start, went on to the target and got
+ * moving_end as it arrived, two runs. A box hanging at its target got no event at the selection
+ * or the release, three runs (Aditi, SLua Tideland, 2026-11-24).
+ */
+function releaseLater(linkset: Linkset, state: PhysicalMotion, ms: number, moving: boolean): void {
   const root = linkset.prims[0]!
-  const selection: Selection = { cancel: () => {}, target: false }
+  const selection: Selection = { cancel: () => {}, target: false, moving }
   selection.cancel = linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + ms, () => {
     releases.delete(linkset)
     if (!(root.statusFlags & STATUS_PHYSICS) || physicalMotion.get(linkset) !== state) return
+    // A move target moves the object on from the release, and its rest is the test's to set.
+    const targeted = !!acting(root.targetMotion.move)
+    if (targeted && !selection.target && !selection.moving) return
     state.moving = true
     raiseMoving(root, 'moving_start', linkset.clock.now)
-    // A move target that waited for the release moves the object on; its rest is the test's.
-    if (!(selection.target && acting(root.targetMotion.move))) settleLater(linkset, state, RELEASE_SETTLE_MS)
+    if (!targeted) settleLater(linkset, state, RELEASE_SETTLE_MS)
   })
   releases.set(linkset, selection)
 }
@@ -381,11 +389,12 @@ export function selectPhysical(linkset: Linkset, ms: number = SELECTION_MS.copy)
   physicalMotion.set(linkset, state)
   state.settle?.()
   state.settle = undefined
-  if (state.moving) {
+  const moving = state.moving
+  if (moving) {
     state.moving = false
     raiseMoving(root, 'moving_end', linkset.clock.now)
   }
-  releaseLater(linkset, state, ms)
+  releaseLater(linkset, state, ms, moving)
   return true
 }
 
@@ -412,7 +421,7 @@ export function duplicatedPhysical(copy: Linkset, selected: boolean): void {
     state.moving = false
     raiseMoving(root, 'moving_end', copy.clock.now)
   })
-  releaseLater(copy, state, SELECTION_MS.copy)
+  releaseLater(copy, state, SELECTION_MS.copy, true)
 }
 
 /**
