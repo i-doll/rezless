@@ -448,8 +448,7 @@ describe('a copy of a crashed script', () => {
     // read on.
     ['lsl', 'left set running', true],
     // In-world: the copy of a crashed SLua script left set running said nothing and its checkbox
-    // read off, though the original's read on. So did one set running with llSetScriptState TRUE
-    // after the crash. The copy of an SLua script that never crashed ran.
+    // read off. So did one set running with llSetScriptState TRUE after the crash. The copy of an SLua script that never crashed ran.
     ['slua', 'left set running', false],
     ['slua', 'set running with llSetScriptState', false],
     ['slua', 'never crashed', true],
@@ -460,7 +459,7 @@ describe('a copy of a crashed script', () => {
     ['lsl', 'stopped and started again', true],
     ['slua', 'stopped and started again', true],
     // In-world: Duplicate of the object rezzed from a take. The stuck LSL script's copy said
-    // "entry 0" and read 1, while the original read 0. The crashed SLua script's copy said
+    // "entry 0" and read 1. The crashed SLua script's copy said
     // "entry 0" and read 1, whether the script had been left set running or stopped and started
     // again before the take.
     ['lsl', 'stopped and started again, then taken and rezzed', true],
