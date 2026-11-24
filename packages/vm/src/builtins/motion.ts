@@ -109,7 +109,8 @@ export function forgetMoving(script: Script): void {
  * Tideland, 2026-11-23).
  */
 function raiseFor(clock: LinksetClock, script: Script, event: MovingEvent, at: number): void {
-  if (script.dead) return
+  // A script that has not started is told how its object moves when it starts.
+  if (script.dead || !script.hasStarted) return
   if (script.handling || script.wakeAt !== undefined) {
     hold(script, event)
     return
@@ -124,7 +125,7 @@ function raiseFor(clock: LinksetClock, script: Script, event: MovingEvent, at: n
  * moving_start takes away a moving_end that waits.
  */
 export function queueMoving(clock: LinksetClock, script: Script, event: MovingEvent, at: number): void {
-  if (script.dead) return
+  if (script.dead || !script.hasStarted) return
   // A change queued now replaces one the script was still to be told of.
   held.delete(script)
   given.set(script, event)
@@ -302,12 +303,12 @@ export function selectMotion(linkset: Linkset, ms: number): boolean {
   if (motion && selecting.has(motion)) return true
   if (!motion?.playing) return false
   motion.command(KFM_CMD_PAUSE)
-  selecting.add(motion)
-  const stops = motion.stops
+  selecting.set(motion, motion.stops)
   linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0]?.keyframedMotion !== motion } },
     linkset.clock.now + ms, () => {
+      const plays = selecting.get(motion) === motion.stops
       selecting.delete(motion)
-      if (motion.stops === stops) motion.command(KFM_CMD_PLAY)
+      if (plays) motion.command(KFM_CMD_PLAY)
     })
   return true
 }
@@ -331,8 +332,16 @@ export function endBeforeTake(linkset: Linkset): void {
   }
 }
 
-/** Motion a viewer selection has paused and not let go of yet. */
-const selecting = new WeakSet<KeyframedMotion>()
+/**
+ * Motion a viewer selection has paused and not let go of yet, with the stop count it plays again
+ * at when the viewer lets go. A KFM_CMD_PLAY while the selection holds it waits for that.
+ * In-world: a script's KFM_CMD_PLAY in the moving_end of an edit selection gave moving_start as
+ * late as without it, and one in the moving_end of a Take Copy's selection gave moving_start only
+ * as the viewer let go, 0.8 s and 9.4 s later, with the copy still. A KFM_CMD_STOP and then a
+ * KFM_CMD_PLAY did the same at an edit (two runs) and a Take Copy (Aditi, SLua Tideland,
+ * 2026-11-24).
+ */
+const selecting = new WeakMap<KeyframedMotion, number>()
 
 /**
  * A copy taken of a selected object holds its motion paused and has been told of no motion:
@@ -484,6 +493,8 @@ export class KeyframedMotion {
       this.held=this.transform()
       this.cancel?.();this.cancel=undefined
       if (command===KFM_CMD_STOP) { this.elapsed=0;this.stops++;this.rebuild() }
+    } else if (command===KFM_CMD_PLAY && selecting.has(this)) {
+      selecting.set(this,this.stops)
     } else if (command===KFM_CMD_PLAY && !this.playing) {
       if (this.completed) {
         this.completed=false

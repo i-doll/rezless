@@ -428,6 +428,24 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
     expect(b.log()).toEqual(['moving_start 0', 'moving_end 10', 'moving_start 17'])
   })
 
+  // In-world: a script that played the motion in its moving_end handler at an edit selection got
+  // moving_start 0.36 to 0.42 s later, three runs, as late as without the call: 0.33 to 0.42 s,
+  // three runs. One that stopped and then played it got moving_start 0.36 and 0.42 s later, and
+  // the motion played on (Aditi, SLua Tideland, 2026-11-24).
+  it.each([
+    'llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);',
+    'llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]); llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);',
+  ])('plays the motion again only when the viewer lets go, after a script played it: %s', async (call) => {
+    const b = await box(looper.replace('moving_end() { add("moving_end"); }',
+      `moving_end() { add("moving_end"); ${call} }`))
+    send(b, 'go')
+    b.linkset.advanceTime(1_000)
+    b.world.attemptAvatarEdit(b.avatar, b.linkset.prims[0]!)
+    b.linkset.advanceTime(1_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 10', 'moving_start 14'])
+    expect(b.linkset.prims[0]!.keyframedMotion!.playing).toBe(true)
+  })
+
   // In-world: a script that stopped the motion in its moving_end handler at a Duplicate got no
   // moving_start, and the motion stayed stopped.
   it('leaves the motion stopped when a script stopped it while the viewer held the object', async () => {
