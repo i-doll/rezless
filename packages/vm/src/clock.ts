@@ -365,10 +365,10 @@ export class LinksetClock {
     return pending >= MAX_PENDING_EVENTS
   }
 
-  /** Whether an event of `event`'s kind waits for `target`, one that came up after `since` if given. */
+  /** Whether an event of `event`'s kind waits for `target`; with `since`, one that came up while busy after it. */
   private waitsFor(target: Script, event: string, since?: number): boolean {
     const kinds = event === 'collision_end' ? ['collision', 'collision_end'] : [busyKind(event)]
-    return this.queue.some((e) => e.target === target && !e.held && e.at <= this.now && (since === undefined || e.at > since)
+    return this.queue.some((e) => e.target === target && !e.held && e.at <= this.now && (since === undefined || e.at > since && e.busy === true)
       && kinds.includes(busyKind(e.event)))
   }
 

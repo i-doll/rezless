@@ -352,3 +352,28 @@ it('keeps a saved tick apart from a missed one in a handler that only slept', as
   made.linkset.advanceTime(8_100)
   expect(script.global('log')).toEqual(['end', 'timer', 'timer'])
 })
+
+// In-world: a 3 s timer and a click in each of two 8 s sleeps in a row gave timer, the first
+// click, timer and the second click. A handler that only sleeps keeps that order.
+it('keeps a timer between the clicks of two sleeps in a handler that only slept', async () => {
+  const world = new World()
+  world.addRegion('home', { x: 0, y: 0 })
+  world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
+  const made = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'main', source: { source: `list log;
+    default {
+      state_entry() { llListen(5, "", "", ""); }
+      timer() { log += "timer"; }
+      touch_start(integer n) { log += "touch_start"; }
+      listen(integer c, string n, key i, string m) { llSetTimerEvent(3.0); llSleep(8.0); llSleep(8.0); log += "end"; }
+    }` } }] }] })
+  const script = made.scripts.main!
+  script.start()
+  const queue = (event: string, payload: Record<string, unknown> = {}) => world.clock.schedule(script, world.clock.now, event, payload)
+  queue('listen', { channel: 5, name: 'owner', id: OWNER, msg: 'x' })
+  made.linkset.advanceTime(2_000)
+  queue('touch_start', { num_detected: 1, detected: [{ key: OWNER, name: 'owner' }] })
+  made.linkset.advanceTime(8_000)
+  queue('touch_start', { num_detected: 1, detected: [{ key: OWNER, name: 'owner' }] })
+  made.linkset.advanceTime(6_100)
+  expect(script.global('log')).toEqual(['end', 'timer', 'touch_start', 'timer', 'touch_start'])
+})
