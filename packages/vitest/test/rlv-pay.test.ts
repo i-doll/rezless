@@ -77,7 +77,7 @@ it('applies buy to original, copy and contents requests, including free purchase
   }
 })
 
-it('pays an attachment wearer as an avatar and never delivers money to the attachment', async () => {
+it('pays an attachment wearer as an avatar through the Pay menu and never delivers money to the attachment', async () => {
   const pair = await loadRlvPair({ source })
   for (const profile of ['rlv', 'rlva'] as const) {
     const f = pair[profile]
@@ -86,9 +86,9 @@ it('pays an attachment wearer as an avatar and never delivers money to the attac
     const t = await vendor(f), root = t.linkset.prims[0]!
     t.linkset.attachToAvatar(wearer.key, 5)
     command(f, '@buy=n')
-    expect(f.pay(root, 1)).toMatchObject({ status: 'paid', recipient: wearer.key, kind: 'avatar' })
+    expect(f.pay(root, 1, { menu: true })).toMatchObject({ status: 'paid', recipient: wearer.key, kind: 'avatar' })
     command(f, '@pay=n')
-    expect(f.pay(root, 1).status, profile).toBe(profile === 'rlva' ? 'blocked' : 'paid')
+    expect(f.pay(root, 1, { menu: true }).status, profile).toBe(profile === 'rlva' ? 'blocked' : 'paid')
     expect(t.scripts.vendor!.global('count')).toBe(0)
     f.world.setObjectSale(root, { type: 'copy', price: 10 })
     expect(f.buy(root).status).toBe('unsupported')
