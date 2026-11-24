@@ -6,9 +6,10 @@ import { loadLinkset, World } from '../src/index.js'
 // In-world: SLua Tideland on the Aditi beta grid (2026-11-24), Mono. A prim cast rays past an
 // avatar with RC_REJECT_TYPES RC_REJECT_LAND | RC_REJECT_PHYSICAL | RC_REJECT_NONPHYSICAL,
 // RC_DATA_FLAGS RC_GET_NORMAL and RC_MAX_HITS 1, each from and to an offset from the avatar's
-// OBJECT_POS, and reported the hit position less OBJECT_POS and the normal: horizontal rays
-// through the avatar's axis along eight or more directions at heights 0.05 m apart, rays toward
-// the avatar from 24 directions, and vertical rays down and up at offsets up to 0.5 m.
+// OBJECT_POS, and reported the hit position less OBJECT_POS and the normal. Most sweeps cast
+// horizontal rays through the avatar's axis along two to eight directions at heights 0.05 m
+// apart and vertical rays down and up beside the axis; some added rays toward the avatar from
+// 24 directions or a grid of rays straight down through it.
 // fixtures/avatar-ray-hits.json holds every ray and what it hit, or null for none, with the
 // avatar's llGetAgentSize height, OBJECT_ROT, pose and how many decimals the probe printed.
 // - Standing: two avatars, 1.70672 ("tall", also turned 40.85 degrees) and 1.65382 m ("short"),
@@ -19,7 +20,9 @@ import { loadLinkset, World } from '../src/index.js'
 //   turned sit; with the sit animation replaced by "stand" the rays hit the same places.
 // - Sitting on the ground at 1.13977, 1.55859, 1.70672 (twice, turned differently) and
 //   2.20989 m. Rays straight down through the avatar to 1.5 m below it, and horizontal rays
-//   5 mm apart, found its top flat at the avatar's position.
+//   5 mm apart, found its top flat at the avatar's position. OBJECT_POS moved less than 15 mm
+//   between standing and sitting on the ground at each height, so the hull hangs above the
+//   floor the avatar stood on, as it did in-world.
 // The hits lie on flat faces of a convex hull for each pose, not on a capsule or a box. Two
 // rays straight up along an edge of the seated hull reported the mean of the two faces'
 // normals; they are left out, as the standing rays along an edge reported one face's normal.
@@ -52,11 +55,13 @@ async function world(name: string) {
   const avatar = w.addAvatar({ region: 'ray', username: 'probe', position: AT, rotation: { x, y, z, s }, size: { x: 0.45, y: 0.6, z: size } })
   if (pose === 'ground') w.sitAvatarOnGround(avatar)
   if (pose === 'seated') {
+    // The sit turns the avatar as it was turned in-world, so the hull turns with the seated avatar.
     const seat = await loadLinkset({ world: w, region: 'ray', position: { x: 120, y: 120, z: 100 }, prims: [{ name: 'seat' }] })
-    expect(w.sitAvatar(avatar, seat.prims[0]!, { position: { x: 0, y: 0, z: 1 } })).toBe(true)
+    expect(w.sitAvatar(avatar, seat.prims[0]!, { position: { x: 0, y: 0, z: 1 }, rotation: { x, y, z, s } })).toBe(true)
   }
-  // Rays were cast in the region's frame around the avatar as it stood in-world; turn them with it.
   const r = avatar.rotation
+  if (pose === 'seated') expect(Math.abs(r.x * x + r.y * y + r.z * z + r.s * s)).toBeCloseTo(1, 4)
+  // Rays were cast in the region's frame around the avatar as it stood in-world; turn them with it.
   const from = multiply(r, { x: -x, y: -y, z: -z, s })
   const at = avatar.position
   const place = (p: readonly number[]) => {
@@ -88,7 +93,7 @@ describe('llCastRay on an avatar', () => {
         // within 1.5 mm of where it was hit in-world.
         const matches = SHIFTS.some(([dx, dy, dz]) => {
           const shift = (p: readonly number[]) => [p[0]! + dx!, p[1]! + dy!, p[2]! + dz!]
-          const hits = w.castRay('ray', place(shift(from)), place(shift(to)), { rejectTypes: 6, detectPhantom: false })
+          const hits = w.castRay('ray', place(shift(from)), place(shift(to)), { rejectTypes: 14, detectPhantom: false })
           if (!hit) return hits.length === 0
           if (hits.length !== 1 || hits[0]!.key !== avatar.key) return false
           const p = back(hits[0]!.position)
