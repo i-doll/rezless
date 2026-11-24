@@ -51,21 +51,25 @@ async function setup(rootBody: string, childBody = '', filter?: string) {
   })
   for (const s of Object.values(scripts)) s.start()
   const heard = (name: string) => scripts[name]!.global('heard')
-  return { scripts, linkset, heard }
+  const touch = (name: string, ms = 100) => {
+    scripts[name]!.fire('touch_start', { num_detected: 1 })
+    linkset.advanceTime(ms)
+  }
+  return { scripts, linkset, heard, touch }
 }
 
 describe('chat sent by a script reaches listens in other prims', () => {
   for (const fn of ['llSay', 'llShout', 'llWhisper', 'llRegionSay']) {
     it(`${fn} from the root is heard by the child only`, async () => {
-      const { scripts, heard } = await setup(`${fn}(5, "hi");`)
-      scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+      const { touch, heard } = await setup(`${fn}(5, "hi");`)
+      touch('rootSender')
       expect(heard('childListener')).toEqual([`5|RZ root|${ROOT}|hi`])
       expect(heard('rootListener')).toEqual([])
     })
 
     it(`${fn} from the child is heard by the root only, named after the child prim`, async () => {
-      const { scripts, heard } = await setup('', `${fn}(5, "yo");`)
-      scripts['childSender']!.fire('touch_start', { num_detected: 1 })
+      const { touch, heard } = await setup('', `${fn}(5, "yo");`)
+      touch('childSender')
       expect(heard('rootListener')).toEqual([`5|RZ child|${CHILD}|yo`])
       expect(heard('childListener')).toEqual([])
     })
@@ -97,34 +101,35 @@ describe('chat sent by a script reaches listens in other prims', () => {
     })
     scripts['self']!.start()
     scripts['self']!.fire('touch_start', { num_detected: 1 })
+    scripts['self']!.advanceTime(100)
     expect(scripts['self']!.global('hits')).toBe(0)
   })
 
   it('llRegionSayTo a prim key is heard only by that prim', async () => {
-    const { scripts, heard } = await setup(`llRegionSayTo("${CHILD}", 5, "to child");`, `llRegionSayTo("${ROOT}", 0, "to root");`)
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
-    scripts['childSender']!.fire('touch_start', { num_detected: 1 })
+    const { touch, heard } = await setup(`llRegionSayTo("${CHILD}", 5, "to child");`, `llRegionSayTo("${ROOT}", 0, "to root");`)
+    touch('rootSender')
+    touch('childSender')
     expect(heard('childListener')).toEqual([`5|RZ root|${ROOT}|to child`])
     expect(heard('rootListener')).toEqual([`0|RZ child|${CHILD}|to root`])
   })
 
   it("llRegionSayTo the sender's own prim, or NULL_KEY, is heard by nobody", async () => {
-    const { scripts, heard } = await setup(`llRegionSayTo("${ROOT}", 5, "self"); llRegionSayTo(NULL_KEY, 5, "null");`)
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+    const { touch, heard } = await setup(`llRegionSayTo("${ROOT}", 5, "self"); llRegionSayTo(NULL_KEY, 5, "null");`)
+    touch('rootSender')
     expect(heard('rootListener')).toEqual([])
     expect(heard('childListener')).toEqual([])
   })
 
   it('llOwnerSay and llInstantMessage never trigger a listen', async () => {
-    const { scripts, heard } = await setup(`llOwnerSay("owner"); llInstantMessage("${CHILD}", "im");`)
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+    const { touch, heard } = await setup(`llOwnerSay("owner"); llInstantMessage("${CHILD}", "im");`)
+    touch('rootSender')
     expect(heard('childListener')).toEqual([])
     expect(heard('rootListener')).toEqual([])
   })
 
   it('DEBUG_CHANNEL errors are heard in other prims, not the sender prim', async () => {
-    const { scripts, heard } = await setup('llRegionSay(0, "x");')
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+    const { touch, heard } = await setup('llRegionSay(0, "x");')
+    touch('rootSender')
     expect(heard('childListener')).toEqual([
       `${DEBUG_CHANNEL}|RZ root|${ROOT}|Cannot use llRegionSay() on channel 0.`,
     ])
@@ -132,26 +137,26 @@ describe('chat sent by a script reaches listens in other prims', () => {
   })
 
   it('delivers through the event queue, in order, after the sending handler returns', async () => {
-    const { scripts, heard } = await setup('llSay(5, "a"); llSleep(1.0); llSay(5, "b");')
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+    const { touch, heard } = await setup('llSay(5, "a"); llSleep(1.0); llSay(5, "b");')
+    touch('rootSender')
     expect(heard('childListener')).toEqual([`5|RZ root|${ROOT}|a`, `5|RZ root|${ROOT}|b`])
   })
 
   it('counts toward the 64-event cap', async () => {
-    const { scripts, heard } = await setup('integer i; for (i = 0; i < 70; i++) llSay(5, (string)i);')
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+    const { touch, heard } = await setup('integer i; for (i = 0; i < 70; i++) llSay(5, (string)i);')
+    touch('rootSender', 2000)
     expect(heard('childListener')).toHaveLength(64)
   })
 
   it('applies listen filters against the sending prim name and key', async () => {
-    const { scripts, heard } = await setup('llSay(5, "go"); llSay(5, "stop");', '', `"RZ root", "${ROOT}", "go"`)
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+    const { touch, heard } = await setup('llSay(5, "go"); llSay(5, "stop");', '', `"RZ root", "${ROOT}", "go"`)
+    touch('rootSender')
     expect(heard('childListener')).toEqual([`5|RZ root|${ROOT}|go`])
   })
 
   it('still records the chat on the sender', async () => {
-    const { scripts } = await setup('llSay(5, "hi");')
-    scripts['rootSender']!.fire('touch_start', { num_detected: 1 })
+    const { scripts, touch } = await setup('llSay(5, "hi");')
+    touch('rootSender')
     expect(scripts['rootSender']!.chat).toEqual([{ channel: 5, text: 'hi', type: 'say' }])
   })
 })

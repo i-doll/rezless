@@ -55,6 +55,7 @@ describe('chat to another avatar\'s attachments', () => {
       llRegionSayTo("${worn.prims[0]!.key}", -4832, "to prim negative");
     } }`)
     sender.linkset.touch(0)
+    sender.linkset.advanceTime(500)
     expect(worn.script.global('heard')).toEqual([
       4832, 'say', 4832, 'region', 4832, 'to avatar', -4832, 'to avatar negative',
       0, 'to prim zero', -4832, 'to prim negative',
@@ -71,6 +72,7 @@ describe('chat to another avatar\'s attachments', () => {
       llRegionSayTo("${OTHER}", 4832, "to avatar");
     } }`)
     sender.linkset.touch(0)
+    sender.linkset.advanceTime(500)
     expect(rezzed.script.global('heard')).toEqual([0, 'zero', 4832, 'positive'])
   })
 })
@@ -90,6 +92,7 @@ describe('another resident\'s object on DEBUG_CHANNEL', () => {
       llGiveMoney(llGetOwner(), 1);
     } }`)
     erring.linkset.touch(0)
+    erring.linkset.advanceTime(500)
     const expected = [DEBUG, 'explicit', DEBUG, 'Script trying to debit L$ from owner but PERMISSION_DEBIT permission not set!']
     expect(rezzed.script.global('heard')).toEqual(expected)
     expect(worn.script.global('heard')).toEqual(expected)

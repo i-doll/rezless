@@ -139,6 +139,7 @@ describe('changed colour and material events', () => {
         default{state_entry(){llSleep(1.0);ready=1;}changed(integer c){seen += [ready,c];}}` } },
     ] }] })
     linkset.startAll([scripts.setter!, scripts.observer!])
+    linkset.advanceTime(100)
     expect(scripts.observer!.global('seen')).toEqual([1,2])
   })
 

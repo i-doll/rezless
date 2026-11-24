@@ -26,6 +26,7 @@ async function make(f: Fixture, source: string, language: 'lsl' | 'slua' = 'lsl'
     prims: [{ scripts: [{ name: 'main', source: { source }, ...(language === 'slua' ? { language } : {}) }] }] })
   const script = made.scripts.main!
   script.start()
+  made.linkset.advanceTime(100)
   return { linkset: made.linkset, script }
 }
 
@@ -103,7 +104,7 @@ describe('an LSL handler asleep when its object is copied', () => {
     const copy = rez(f, saved)
     copy.linkset.advanceTime(82_000)
     expect(copy.script.global('log')).toEqual(['begin'])
-    copy.linkset.advanceTime(1_000)
+    copy.linkset.advanceTime(1_100)
     expect(copy.script.global('log')).toEqual(['begin', 'end 11', 'rez'])
   })
 
@@ -114,7 +115,7 @@ describe('an LSL handler asleep when its object is copied', () => {
     const saved = take(linkset)
     f.world.clock.advance(45_000)
     const copy = rez(f, saved)
-    copy.linkset.advanceTime(85_000)
+    copy.linkset.advanceTime(85_100)
     expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez'])
   })
 
@@ -129,7 +130,7 @@ describe('an LSL handler asleep when its object is copied', () => {
     const copy = rez(f, saved)
     copy.linkset.advanceTime(18_000)
     expect(copy.script.global('log')).toEqual(['begin'])
-    copy.linkset.advanceTime(1_000)
+    copy.linkset.advanceTime(1_100)
     expect(copy.script.global('log')).toEqual(['begin', 'end at 20', 'rez'])
     expect(copy.script.calls.filter(c => c.name === 'llEmail')).toEqual([])
   })
@@ -157,7 +158,7 @@ describe('an LSL handler asleep when its object is copied', () => {
     linkset.advanceTime(35_000)
     expect(script.global('log')).toEqual(['begin', 'end 100 at 90'])
     expect(copy.script.global('log')).toEqual(['begin'])
-    linkset.advanceTime(45_000)
+    linkset.advanceTime(45_100)
     expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez'])
     expect(script.global('log')).toEqual(['begin', 'end 100 at 90'])
   })
@@ -170,7 +171,7 @@ describe('an LSL handler asleep when its object is copied', () => {
     const first = rez(f, saved)
     first.linkset.advanceTime(1_000)
     const second = rez(f, saved)
-    first.linkset.advanceTime(84_000)
+    first.linkset.advanceTime(84_100)
     expect(first.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez'])
     expect(second.script.global('log')).toEqual(['begin'])
     first.linkset.advanceTime(1_000)
@@ -247,7 +248,7 @@ describe('an LSL handler asleep when its object is copied', () => {
     const copy = rez(f, made.linkset.copy())
     copy.linkset.advanceTime(86_000)
     expect(copy.script.global('log')).toEqual(['begin'])
-    copy.linkset.advanceTime(1_000)
+    copy.linkset.advanceTime(1_100)
     expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'attach 0'])
   })
 
@@ -288,7 +289,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
       prims: [{ scripts: [{ name: 'main', source: { source: 'list log; default { state_entry() { log += "entry"; } on_rez(integer p) { log += "rez"; } }' } }] }] })
     made.scripts.main!.queueStart()
     const copy = rez(f, take(made.linkset))
-    copy.linkset.advanceTime(0)
+    copy.linkset.advanceTime(100)
     expect(copy.script.global('log')).toEqual(['entry', 'rez'])
   })
 
@@ -302,7 +303,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     queue(f, script, 'listen', heard('a'))
     queue(f, script, 'touch_start', touched)
     const copy = rez(f, take(linkset))
-    copy.linkset.advanceTime(85_000)
+    copy.linkset.advanceTime(85_100)
     expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'heard a', 'touch by Bob'])
   })
 
@@ -347,7 +348,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     first.linkset.advanceTime(3_000)
     f.world.sitAvatar(f.avatar, first.linkset.prims[0]!)
     const second = rez(f, take(first.linkset))
-    second.linkset.advanceTime(82_000)
+    second.linkset.advanceTime(82_100)
     expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'rez', 'changed 32'])
   })
 
@@ -362,7 +363,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     queue(f, first.script, 'listen', heard('b'))
     first.linkset.advanceTime(3_000)
     const second = rez(f, take(first.linkset))
-    second.linkset.advanceTime(82_000)
+    second.linkset.advanceTime(82_100)
     expect(second.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'heard b', 'rez'])
   })
 
@@ -373,7 +374,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     const { f, linkset, script } = await asleep('sleep')
     for (let i = 0; i < lines; i++) queue(f, script, 'listen', heard(`${i}`))
     const copy = rez(f, take(linkset))
-    copy.linkset.advanceTime(85_000)
+    copy.linkset.advanceTime(87_000)
     const heardAll = Array.from({ length: lines }, (_, i) => `heard ${i}`)
     expect(copy.script.global('log')).toEqual(['begin', 'end 100 at 90', ...(rezzed ? ['rez'] : []), ...heardAll])
   })
@@ -396,7 +397,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     rlv.script.start()
     rlv.script.fire('touch_start', { num_detected: 1 })
     const worn = world.linksets.find(l => l.attachment && l !== rlv.script.linkset && l.allScripts().length)!
-    worn.advanceTime(86_000)
+    worn.advanceTime(86_500)
     expect(worn.allScripts()[0]!.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'heard c', 'attach 1'])
   })
 
@@ -415,7 +416,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     made.linkset.detachFromAvatar()
     f.world.clock.advance(10_000)
     made.linkset.attachToAvatar(OWNER, 5)
-    made.linkset.advanceTime(87_000)
+    made.linkset.advanceTime(87_500)
     expect(made.script.global('log')).toEqual(['begin', 'end 100 at 90', 'rez', 'heard b', 'attach 0', 'attach 1'])
   })
 
@@ -443,11 +444,11 @@ describe('events waiting for a handler that is asleep when its object is copied'
     const f = await fixture()
     const made = await make(f, sleeper)
     made.linkset.attachToAvatar(OWNER, 5)
-    made.linkset.advanceTime(0)
+    made.linkset.advanceTime(100)
     made.script.setGlobal('log', [])
     made.linkset.detachFromAvatar()
     made.linkset.attachToAvatar(OWNER, 5)
-    made.linkset.advanceTime(0)
+    made.linkset.advanceTime(100)
     expect(made.script.global('log')).toEqual(['attach 0', 'rez', 'attach 1'])
   })
 
@@ -539,7 +540,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     queue(f, made.script, 'listen', heard('a'))
     queue(f, made.script, 'touch_start', touched)
     const copy = rez(f, take(made.linkset))
-    copy.linkset.advanceTime(85_000)
+    copy.linkset.advanceTime(85_100)
     expect(copy.script.global('log')).toEqual(['begin', 'end', 'rez', 'heard a', 'touch by Bob'])
   })
 
@@ -564,7 +565,7 @@ describe('events waiting for a handler that is asleep when its object is copied'
     const { f, linkset, script } = await asleep('three')
     queue(f, script, 'touch_start', touched)
     const copy = rez(f, take(linkset))
-    copy.linkset.advanceTime(85_000)
+    copy.linkset.advanceTime(85_100)
     expect(copy.script.global('log')).toEqual(['exit', 'three begin', 'three end', 'three rez', 'three touch by Bob'])
   })
 })
@@ -626,7 +627,7 @@ describe('taking an object through the viewer', () => {
     expect(f.avatar.sittingOn).toBe(s.root)
     expect(f.world.attemptAvatarTake(f.avatar, s.root, { copy: true }).status).toBe('taken')
     expect(f.avatar.sittingOn).toBeNull()
-    s.linkset.advanceTime(0)
+    s.linkset.advanceTime(100)
     expect(s.script.global('log')).toEqual(['changed 32', 'changed 32'])
   })
 

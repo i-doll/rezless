@@ -16,8 +16,10 @@ describe('multi-script counter + display', () => {
     scripts['counter']!.start()
     scripts['display']!.start()
     scripts['counter']!.fire('touch_start', { num_detected: 1 })
+    scripts['counter']!.advanceTime(100)
     expect(scripts['display']!.text?.text).toBe('count: 1')
     scripts['counter']!.fire('touch_start', { num_detected: 1 })
+    scripts['counter']!.advanceTime(100)
     expect(scripts['display']!.text?.text).toBe('count: 2')
   })
 
@@ -45,6 +47,7 @@ describe('multi-script counter + display', () => {
     scripts['display']!.start()
     scripts['peeker']!.start()
     scripts['peeker']!.fire('touch_start', { num_detected: 1 })
+    scripts['peeker']!.advanceTime(100)
     expect(scripts['display']!.text?.text).toBe('count: 99')
   })
 })

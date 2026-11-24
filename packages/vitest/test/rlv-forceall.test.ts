@@ -31,7 +31,7 @@ async function fixtures() {
 }
 type Fixture = Awaited<ReturnType<typeof fixtures>>['rlv']
 function send(f: Fixture, command: string) {
- f.script.host.description = command; f.script.fire('touch_start', { num_detected: 1 })
+ f.script.host.description = command; f.script.fire('touch_start', { num_detected: 1 }); f.script.advanceTime(100)
 }
 function worn(f: Fixture) {
  return f.world.linksets.filter(l => l.attachment).map(l => f.avatar.viewer.inventory.attachmentItem(l.prims[0]!.key)!.id).sort()

@@ -403,7 +403,7 @@ describe('permissions on a rezzed copy', () => {
     return f
   }
   const only = (object: Linkset) => {
-    object.advanceTime(0)
+    object.advanceTime(100)
     return object.allScripts()[0]!
   }
   /** Rez `saved` from the avatar's inventory, as dragging the item onto the ground does. */
@@ -510,7 +510,7 @@ describe('permissions on a rezzed copy', () => {
     const left = ANIMATION | ATTACH | TRACK | OVERRIDE
     if (how === 'worn again') {
       f.linkset.attachToAvatar(OWNER, 5)
-      f.linkset.advanceTime(0)
+      f.linkset.advanceTime(100)
       expect(f.script.global('rezzed')).toEqual([left, OWNER])
     } else expect(rez(f, f.linkset.copy()).global('rezzed')).toEqual([left, OWNER])
   })
@@ -642,7 +642,7 @@ describe('autoGrantPermissions in the loaders', () => {
     const avatar = world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
     for (const script of linkset.allScripts()) script.start()
     expect(world.sitAvatar(avatar, linkset.prims[0]!)).toBe(true)
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
   }
 
   it('loadLinkset sets it for every script of the linkset', async () => {

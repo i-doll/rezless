@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset, loadScript } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
+
 async function load(source: string) {
   return loadScript({ source })
 }
@@ -129,8 +131,9 @@ describe('Phase 3 — virtual clock + timers', () => {
     `)
     s.start()
     expect(s.global('first')).toBe(1)
-    expect(s.global('second')).toBe(2)
     expect(s.now).toBe(2_000)
+    s.advanceTime(SIM_FRAME_MS)
+    expect(s.global('second')).toBe(2)
   })
 
   it('vm.advanceTime drains multiple scheduled fires in order', async () => {
@@ -365,6 +368,7 @@ describe('timer after a long handler', () => {
       }
     `)
     s.start()
+    s.advanceTime(SIM_FRAME_MS)
     expect(s.global('ticks')).toBe(1)
     s.advanceTime(999)
     expect(s.global('ticks')).toBe(1)

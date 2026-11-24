@@ -67,6 +67,7 @@ async function setup() {
     return linkset
   }
   const a = await wear('A', ['s1', 's2'], 1)
+  a.advanceTime(1000)
   const rezzed = async (source: string) => {
     const { linkset, scripts } = await loadLinkset({ world, region: 'SLua Tideland', owner: OWNER,
       prims: [{ name: 'probe C', scripts: [{ name: 'probe s1', source: { source } }] }] })
@@ -228,7 +229,7 @@ it('keeps each avatar\'s map count in each region', async () => {
   world.addRegion('SLua Tombolo', { x: 40960, y: 23552 })
   const avatar = world.avatars.find(x => x.key === OWNER)!
   // The probe sleeps between calls, so the teleport waits on the clock rather than for it to finish.
-  a.clock.scheduleTask(a.allScripts()[0]!, 6_500, () => world.teleportAvatar(avatar, { x: 40960 + 128, y: 23552 + 128, z: 60 }))
+  a.clock.scheduleTask(a.allScripts()[0]!, a.clock.now + 6_500, () => world.teleportAvatar(avatar, { x: 40960 + 128, y: 23552 + 128, z: 60 }))
   go('go A1 35 d 30@0/1')
   a.advanceTime(31_000)
   expect(shown(35)).toEqual([...range(4), ...range(4, 7)])

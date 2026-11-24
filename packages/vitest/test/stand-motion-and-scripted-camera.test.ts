@@ -94,7 +94,7 @@ async function fixture() {
   worn.linkset.attachToAvatar(OWNER, 5)
   for (const p of [seat, other, watcher, worn]) avatar.viewer.session.bind(p.linkset, avatar)
   const advance = (ms: number) => watcher.linkset.advanceTime(ms)
-  const sit = (p: Probe = seat) => { expect(world.userSitAvatar(avatar, p.prim)).toBe(true); advance(0) }
+  const sit = (p: Probe = seat) => { expect(world.userSitAvatar(avatar, p.prim)).toBe(true); advance(100) }
   const stand = () => { expect(world.userStandAvatar(avatar)).toBe(true); advance(0) }
   return { world, avatar, seat, other, watcher, worn, advance, sit, stand }
 }
@@ -270,6 +270,7 @@ describe('llGetAgentInfo and llGetAnimation as the avatar stands', () => {
     f.seat.send('ask', 4096)
     f.seat.script.grantPermissions()
     f.seat.send('tplocal')
+    f.advance(100)
     expect(f.seat.changes().at(-1)).toEqual([AGENT_IN_AIR, 'Falling Down'])
     f.advance(1000)
     expect(f.watcher.read()).toEqual([0, 'Standing'])

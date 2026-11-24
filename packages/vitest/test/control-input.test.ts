@@ -68,20 +68,20 @@ type Fixture = Awaited<ReturnType<typeof fixture>>
 
 function tell(script: Script, command: string) {
   script.fire('link_message', { sender_num: 1, num: 0, str: command, id: NULL_KEY })
-  script.linkset.advanceTime(0)
+  script.linkset.advanceTime(100)
 }
 
 /** The keys the avatar holds, one control event per agent update, as the viewer sends them. */
 function hold(script: Script, level: number, updates = 3) {
   for (let i = 0; i < updates; i++) script.sendControl(level)
   script.sendControl(0)
-  script.linkset.advanceTime(0)
+  script.linkset.advanceTime(100)
 }
 
 async function seated() {
   const f = await fixture()
   expect(f.world.userSitAvatar(f.avatar, f.linkset.prims[0]!)).toBe(true)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   tell(f.script, `perm ${SEATED}`)
   return f
 }
@@ -169,12 +169,12 @@ describe('when control events stop', () => {
     tell(f.script, `take ${CONTROL_FWD} 1 0`)
     clear(f)
     f.world.standAvatar(f.avatar)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     hold(f.script, CONTROL_FWD)
     // In-world: then the avatar sat on the seat again with no new request -> forward gave no event
     // until the script asked for 3076 and took forward again.
     expect(f.world.userSitAvatar(f.avatar, f.linkset.prims[1]!)).toBe(true)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     hold(f.script, CONTROL_FWD)
     expect(events(f)).toEqual([])
     expect(perms(f.script)).toBe(PERMISSION_TRACK_CAMERA)
@@ -189,7 +189,7 @@ describe('when control events stop', () => {
   it('stops when the script releases the controls', async () => {
     const f = await fixture()
     f.linkset.attachToAvatar(OWNER, 5)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     tell(f.script, `perm ${PERMISSION_TAKE_CONTROLS | PERMISSION_ATTACH}`)
     tell(f.script, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
     tell(f.script, 'release')
@@ -205,13 +205,13 @@ describe('when control events stop', () => {
   it('stops for good once the attachment is detached', async () => {
     const f = await fixture()
     f.linkset.attachToAvatar(OWNER, 5)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     tell(f.script, `perm ${PERMISSION_TAKE_CONTROLS | PERMISSION_ATTACH}`)
     tell(f.script, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
     f.linkset.detachFromAvatar()
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     f.linkset.attachToAvatar(OWNER, 5)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     clear(f)
     hold(f.script, CONTROL_BACK)
     expect(events(f)).toEqual([])
@@ -241,7 +241,7 @@ describe('controls through a take and a rez', () => {
     const id = `item-${++items}`
     seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id, kind: 'item', parentId: null, name: 'probe', object: saved, assetType: 'object' }] })
     const object = f.world.attemptAvatarRez(f.avatar, id, { x: 11, y: 12, z: 20 }).object!
-    object.advanceTime(0)
+    object.advanceTime(100)
     return object.allScripts()[0]!
   }
 
@@ -308,7 +308,7 @@ describe('controls through a take and a rez', () => {
     rlv.script.host.description = '@attach:direct=force'
     rlv.script.fire('touch_start', { num_detected: 1 })
     const worn = world.linksets.find(l => l.attachment && l !== rlv.script.linkset && l.allScripts().length)!.allScripts()[0]!
-    worn.linkset.advanceTime(0)
+    worn.linkset.advanceTime(100)
     worn.setGlobal('got', [])
     hold(worn, CONTROL_BACK, 1)
     expect(worn.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
@@ -323,7 +323,7 @@ describe('controls through a take and a rez', () => {
     rezzer.scripts.rezzer!.start()
     tell(rezzer.scripts.rezzer!, 'rez')
     const copy = f.world.linksets.at(-1)!.allScripts()[0]!
-    copy.linkset.advanceTime(0)
+    copy.linkset.advanceTime(100)
     copy.setGlobal('got', [])
     hold(copy, CONTROL_BACK, 1)
     expect(copy.global('got')).toEqual([CONTROL_BACK, CONTROL_BACK, 0, CONTROL_BACK])
@@ -345,15 +345,15 @@ describe('a sit request on another prim of the seat', () => {
     if (targets !== 'both') f.linkset.prims[1]!.params.sitTarget = { ...f.linkset.prims[1]!.params.sitTarget, enabled: false }
     if (targets === 'none') f.linkset.prims[0]!.params.sitTarget = { ...f.linkset.prims[0]!.params.sitTarget, enabled: false }
     expect(f.world.userSitAvatar(f.avatar, f.linkset.prims[from]!)).toBe(true)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     expect(f.avatar.sittingOn).toBe(f.linkset.prims[from])
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     tell(f.script, `perm ${SEATED}`)
     tell(f.script, `take ${CONTROL_FWD} 1 0`)
     tell(f.script, 'cam')
     clear(f)
     expect(f.world.userSitAvatar(f.avatar, f.linkset.prims[1 - from]!)).toBe(true)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     expect(f.avatar.sittingOn).toBe(f.linkset.prims[from])
     expect(got(f)).toEqual([])
     expect(perms(f.script)).toBe(SEATED)
@@ -395,7 +395,7 @@ describe('controls held for another avatar through a copy', () => {
   function rez(f: Fixture, saved: Linkset) {
     seedRlvInventory(f.avatar, { sharedRootId: null, entries: [{ id: 'bob-item', kind: 'item', parentId: null, name: 'probe', object: saved, assetType: 'object' }] })
     const object = f.world.attemptAvatarRez(f.avatar, 'bob-item', { x: 11, y: 12, z: 20 }).object!
-    object.advanceTime(0)
+    object.advanceTime(100)
     return object.allScripts()[0]!
   }
 
@@ -427,7 +427,7 @@ describe('controls held for another avatar through a copy', () => {
       rezzer.scripts.rezzer!.start()
       tell(rezzer.scripts.rezzer!, 'rez')
       copy = f.world.linksets.at(-1)!.allScripts()[0]!
-      copy.linkset.advanceTime(0)
+      copy.linkset.advanceTime(100)
     } else {
       if (how === 'take') f.linkset.remove()
       copy = rez(f, saved)
@@ -443,13 +443,13 @@ describe('controls held for another avatar through a copy', () => {
   it.each(['Take Copy', 'take'] as const)('drops them for a sitter who is not the owner when the seat is copied from under it (%s)', async (how) => {
     const f = await forBob()
     expect(f.world.userSitAvatar(f.bob, f.linkset.prims[0]!)).toBe(true)
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     tell(f.script, `permk ${SEATED} ${BOB}`)
     tell(f.script, `take ${CONTROL_FWD | CONTROL_BACK} 1 0`)
     clear(f)
     const saved = f.linkset.copy()
     expect(f.bob.sittingOn).toBeNull()
-    f.linkset.advanceTime(0)
+    f.linkset.advanceTime(100)
     expect(got(f)).toEqual(['changed 32'])
     expect(perms(f.script)).toBe(PERMISSION_TRACK_CAMERA)
     if (how === 'take') f.linkset.remove()

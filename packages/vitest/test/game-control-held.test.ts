@@ -57,10 +57,10 @@ async function box() {
   const gc = scripts.gc!
   gc.start()
   linkset.advanceTime(0)
-  const say = (m: string, script: Script = gc) => { world.clock.schedule(script, world.clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: m }); script.linkset.advanceTime(0) }
+  const say = (m: string, script: Script = gc) => { world.clock.schedule(script, world.clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: m }); script.linkset.advanceTime(100) }
   say('perm')
   gc.grantPermissions()
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   // In-world the probe had run a press and a release before each measurement.
   gc.sendGameControl(OWNER, { buttons: 1 })
   gc.sendGameControl(OWNER, {})
@@ -87,6 +87,7 @@ it('drops the input that waited for a game_control handler asleep through a take
   expect(f.log(copy)).toEqual(['ev 1 0/1 xs 0', 'woke -1/0', 'rez -1/0'])
   copy.sendGameControl(OWNER, { buttons: 1 })
   copy.sendGameControl(OWNER, {})
+  object.advanceTime(100)
   expect(f.log(copy).slice(3)).toEqual(['ev 1 0/1 xs 0', 'ev 0 0/0 xs 0'])
 })
 
@@ -223,6 +224,7 @@ it('drops the input carried into a state with no game_control handler at a take 
   expect(f.log(copy)).toEqual(['ev 1 0/1 xs 0', 'woke 0/1', 'three entry 0/1', 'entry -1/0'])
   copy.sendGameControl(OWNER, { buttons: 2 })
   copy.sendGameControl(OWNER, {})
+  object.advanceTime(100)
   expect(f.log(copy).slice(4)).toEqual(['ev 2 0/2 xs 0', 'ev 0 0/0 xs 0'])
 })
 
@@ -284,7 +286,7 @@ async function landBox() {
   land.start()
   linkset.advanceTime(0)
   land.grantPermissions()
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   return { ...f, land, landLinkset: linkset }
 }
 

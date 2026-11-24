@@ -35,6 +35,8 @@ const stopper = `default {
     link_message(integer f, integer n, string s, key id) { if (s == "stop") llSetScriptState("sleeper", FALSE); }
   }`
 
+const SIM_FRAME_MS = 1000 / 45
+
 const OWNER = 'abcdefab-1111-1111-1111-111111111111'
 
 async function box() {
@@ -185,7 +187,7 @@ describe('land_collision held through a sleep', () => {
     f.link('sleep reset', 2_000)
     f.linkset.advanceTime(1_500)
     contact(f, 6, false)
-    f.linkset.advanceTime(2_000 - f.linkset.clock.now)
+    f.linkset.advanceTime(2_000 + 2 * SIM_FRAME_MS - f.linkset.clock.now)
     expect(f.log()).toEqual([])
     for (let i = 0; i < 15; i++) {
       f.linkset.advanceTime(44)

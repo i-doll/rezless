@@ -135,7 +135,7 @@ LLEvents:on("touch_end", function(d) table.insert(got, "end") table.insert(got, 
     linkset.advanceTime(2000)
     linkset.touch(0, { hold: 3500 })
     linkset.advanceTime(2000)
-    expect(gotOf(scripts.s!)).toEqual(['start', 22, 1000, 2000, 3000, 4000, 'end', 4000])
+    expect(gotOf(scripts.s!)).toEqual(['start', 22, 1000, 2000, 3000, 4000, 'end', 4022])
   })
 
   describe.each<Lang>(['LSL', 'SLua'])('a click passed to an %s root and stuck there', (lang) => {
@@ -362,7 +362,7 @@ describe('a link change during a held click', () => {
     const { got, touches } = recorder(made.scripts)
     expect(got('root')).toEqual(['start', 2, 'touch', 2])
     made.linkset.deliverLinkMessage(1, 1, 0, 'b', '')
-    made.linkset.advanceTime(0)
+    made.linkset.advanceTime(100)
     expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, expect.closeTo(5500, -2)])
     const n = touches('root')
     made.linkset.advanceTime(1000)
@@ -554,7 +554,7 @@ describe('a click the root keeps after a link break', () => {
     made.linkset.advanceTime(1000)
     made.linkset.touch(0)
     const { got } = recorder(made.scripts)
-    expect(got('root').slice(7)).toEqual(['end', 0, 2000, 'start', 0, 'touch', 0, 'end', 0, 0])
+    expect(got('root').slice(7)).toEqual(['end', 0, 2000, 'start', 0, 'touch', 0, 'end', 0, 44])
   })
 
   const passedAndBroken = async () => {
@@ -570,7 +570,7 @@ describe('a click the root keeps after a link break', () => {
     made.linkset.touch(2, { hold: 2500 })
     made.linkset.advanceTime(1000)
     made.linkset.touch(0)
-    expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 0, 0])
+    expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 0, 44])
   })
 
   it('keeps the click through a stop, and the script gets no touch once it runs again', async () => {
@@ -608,7 +608,7 @@ describe('a link change made in the viewer during a held click', () => {
     made.linkset.advanceTime(1000)
     made.linkset.touch(0)
     const { got } = recorder(made.scripts)
-    expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, 1000, 'touch', 0, 'end', 0, expect.any(Number)])
+    expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, 1022, 'touch', 0, 'end', 0, expect.any(Number)])
   })
 
   it('Unlink of a child while the root is clicked ends the click at once and raises touch_end alone at the release', async () => {
@@ -618,7 +618,7 @@ describe('a link change made in the viewer during a held click', () => {
     at(made, 1000, () => made.linkset.breakOff(made.linkset.prims[1]!))
     made.linkset.touch(1, { hold: 3000 })
     const { got } = recorder(made.scripts)
-    expect(got('root')).toEqual(['start', 1, 'touch', 1, 'end', 1, 1000, 'end', 0, 3000])
+    expect(got('root')).toEqual(['start', 1, 'touch', 1, 'end', 1, 1022, 'end', 0, 3000])
   })
 
   it('Unlink of the root ends a click passed to it, and the release reaches nobody', async () => {
@@ -632,7 +632,7 @@ describe('a link change made in the viewer during a held click', () => {
     made.linkset.advanceTime(1000)
     root.linkset!.touch(0)
     const { got } = recorder(made.scripts)
-    expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, 1000, 'touch', 0, 'end', 0, expect.any(Number)])
+    expect(got('root')).toEqual(['start', 2, 'touch', 2, 'end', 2, 1022, 'touch', 0, 'end', 0, expect.any(Number)])
   })
 
   it('Unlink of a clicked child with its own touch script leaves its click running', async () => {
@@ -641,7 +641,7 @@ describe('a link change made in the viewer during a held click', () => {
     at(made, 1000, () => made.linkset.breakOff(made.linkset.prims[1]!))
     made.linkset.touch(2, { hold: 3000 })
     const { got } = recorder(made.scripts)
-    expect(got('child')).toEqual(['start', 2, 'touch', 2, 'end', 0, 3000])
+    expect(got('child')).toEqual(['start', 2, 'touch', 2, 'end', 0, 3022])
     expect(got('root')).toEqual([])
   })
 
@@ -659,7 +659,7 @@ describe('a link change made in the viewer during a held click', () => {
       const { made, b } = await two([[{ name: 'root' }], [empty]])
       at(made, 1000, () => made.linkset.absorb(b.linkset))
       made.linkset.touch(2, { hold: 3000 })
-      expect(recorder(made.scripts).got('root')).toEqual(['start', 2, 'touch', 2, 'end', 3, 3000])
+      expect(recorder(made.scripts).got('root')).toEqual(['start', 2, 'touch', 2, 'end', 3, 3022])
     })
 
     it('of another prim under a clicked lone prim keeps the click, and touch_end reads link 1', async () => {
@@ -667,7 +667,7 @@ describe('a link change made in the viewer during a held click', () => {
       const { made, b } = await two([[{ name: 'root' }]])
       at(made, 1000, () => made.linkset.absorb(b.linkset))
       made.linkset.touch(0, { hold: 3000 })
-      expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 1, 3000])
+      expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 1, 3022])
     })
 
     it('of a clicked lone prim under another keeps the click, and touch_end reads link 2', async () => {
@@ -675,7 +675,7 @@ describe('a link change made in the viewer during a held click', () => {
       const { made, b } = await two([[{ name: 'root' }]])
       at(made, 1000, () => b.linkset.absorb(made.linkset))
       made.linkset.touch(0, { hold: 3000 })
-      expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 2, 3000])
+      expect(recorder(made.scripts).got('root')).toEqual(['start', 0, 'touch', 0, 'end', 2, 3022])
     })
   })
 })

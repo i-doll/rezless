@@ -41,7 +41,7 @@ it('requires an explicit decision and materializes accepted shared content befor
   expect(folder).toMatchObject({ name: '~Gift', parentId: 'root', kind: 'folder' })
   const item = f.avatar.viewer.inventory.snapshot().find(e => e.parentId === result.folderId)!
   expect(item).toMatchObject({ name: 'gift', kind: 'item', content: { notecardLines: ['original'] } })
-  f.script.advanceTime(0)
+  f.script.advanceTime(100)
   expect(f.script.global('events')).toEqual(['23402:', `23401:/accepted_in_rlv inv_offer ${profile === 'rlv' ? '#RLV/~Gift' : '~Gift'}`, '23402:~Gift'])
  }
 })
@@ -51,7 +51,7 @@ it('declines once without creating content or allowing a subsequent acceptance',
   const offer = f.script.inventoryOffers[0]!
   expect(respond(f.avatar, offer, { accept: false, allowSharedRouting: true }).status).toBe('declined')
   expect(respond(f.avatar, offer, { accept: true, allowSharedRouting: true })).toMatchObject({ status: 'refused', reason: 'already-resolved' })
-  f.script.advanceTime(0)
+  f.script.advanceTime(100)
   expect(f.avatar.viewer.inventory.snapshot()).toEqual([root])
   expect(f.script.global('events')).toEqual(['23402:', '23401:/declined inv_offer #RLV/~Gift', '23402:'])
  }
@@ -63,7 +63,7 @@ it('defaults acceptance to ordinary inventory and honors an explicit shared-rout
    const result = respond(f.avatar, f.script.inventoryOffers[0]!, options)
    expect(result.status).toBe('accepted-in-inventory')
    expect(f.avatar.viewer.inventory.snapshot().find(e => e.id === result.folderId)).toMatchObject({ name: '#RLV/~Gift', parentId: null })
-   f.script.advanceTime(0)
+   f.script.advanceTime(100)
    expect(f.script.global('events')).toEqual(['23402:', '23401:/accepted_in_inv inv_offer #RLV/~Gift', '23402:'])
   }
  }
@@ -75,7 +75,7 @@ it('keeps the forbid-give setting authoritative even with an explicit shared-rou
   f.script.host.addInventory(gift()); f.script.start()
   expect(respond(f.avatar, f.script.inventoryOffers[0]!, { accept: true, allowSharedRouting: true }).status).toBe('accepted-in-inventory')
   expect(f.avatar.viewer.inventory.snapshot().filter(e => e.parentId === 'root')).toEqual([])
-  f.script.advanceTime(0)
+  f.script.advanceTime(100)
   expect(f.script.global('events')).toEqual(['23402:', '23401:/accepted_in_inv inv_offer #RLV/~Gift', '23402:'])
  }
 })
@@ -84,7 +84,7 @@ for (const name of ['Ordinary', '#RLV/No tilde', '#rlv/~Wrong case']) {
  for (const accept of [true, false]) it(`distinguishes ${name} ${accept ? 'acceptance' : 'decline'} notifications by profile`, async () => {
   for (const [profile, f] of Object.entries(await pair(name))) {
    expect(respond(f.avatar, f.script.inventoryOffers[0]!, { accept, allowSharedRouting: true }).status).toBe(accept ? 'accepted-in-inventory' : 'declined')
-   f.script.advanceTime(0)
+   f.script.advanceTime(100)
    expect(f.script.global('events')).toEqual(profile === 'rlv'
     ? ['23402:', `23401:/${accept ? 'accepted_in_inv' : 'declined'} inv_offer ${name}`, '23402:'] : ['23402:'])
   }
@@ -126,7 +126,7 @@ it('retains the missing-root profile difference', async () => {
   const result = respond(f.avatar, f.script.inventoryOffers[0]!, { accept: true, allowSharedRouting: true })
   expect(result.status).toBe(profile === 'rlva' ? 'accepted-in-shared' : 'accepted-in-inventory')
   expect(f.avatar.viewer.inventory.sharedRootId === null).toBe(profile === 'rlv')
-  f.script.advanceTime(0)
+  f.script.advanceTime(100)
   expect(f.script.global('events')).toEqual(profile === 'rlv'
    ? ['23402:', '23401:/accepted_in_inv inv_offer #RLV/~Gift', '23402:']
    : ['23402:', '23401:/accepted_in_rlv inv_offer ~Gift', '23402:~Gift'])
@@ -139,7 +139,7 @@ it('retains the RLVa four-segment maximum and Kokua deeper routing', async () =>
   expect(result.status).toBe('accepted-in-shared')
   expect(result).toMatchObject({ routed: profile === 'rlv' })
   expect(f.avatar.viewer.inventory.snapshot().find(e => e.id === result.folderId)).toMatchObject({ name: profile === 'rlv' ? 'D' : '#RLV/~A/B/C/D' })
-  f.script.advanceTime(0)
+  f.script.advanceTime(100)
   expect(f.script.global('events')).toEqual(profile === 'rlv'
    ? ['23402:', '23401:/accepted_in_rlv inv_offer #RLV/~A/B/C/D', '23402:~A'] : ['23402:'])
  }
@@ -206,7 +206,7 @@ it('delivers third-party offers only to the recipient and retains transfer permi
   script.host.addInventory(makeInventoryItem({ name: 'private', type: InventoryType.NOTECARD, permMask: { base: PERM_ALL, owner: PERM_ALL & ~PERM_TRANSFER, next: PERM_ALL, group: 0, everyone: 0 } }))
   script.start()
   const result = respond(recipient, script.inventoryOffers[0]!, { accept: true, allowSharedRouting: true })
-  script.advanceTime(0)
+  script.advanceTime(100)
   expect(listener.scripts.listen!.global('notices')).toEqual([recipient.key, `/accepted_in_rlv inv_offer ${profile === 'rlv' ? '#RLV/~Gift' : '~Gift'}`])
   expect(recipient.viewer.inventory.snapshot().filter(e => e.parentId === result.folderId)).toMatchObject([
    { name: 'gift', content: { permMask: { owner: PERM_TRANSFER, base: PERM_TRANSFER } } }])
@@ -225,7 +225,7 @@ it('uses existing notification channel, substring and truncation policies for of
  for (const [profile, f] of Object.entries(fixtures)) {
   f.script.host.addInventory(gift()); f.script.start()
   respond(f.avatar, f.script.inventoryOffers[0]!, { accept: true })
-  f.script.advanceTime(0)
+  f.script.advanceTime(100)
   const notice = '/accepted_in_inv inv_offer ' + name
   expect(f.script.global('notices')).toEqual(profile === 'rlv'
    ? ['23401:' + notice.slice(0, 1023), '-23401:' + notice.slice(0, 254)]
@@ -286,7 +286,7 @@ for (const modifiable of [true, false]) it(`retains accepted object metadata for
   const item = f.avatar.viewer.inventory.snapshot().find(e => e.parentId === result.folderId)!
   expect(item).toMatchObject({ assetType: 'object', object: definition.linkset, modifiable })
   expect(f.world.linksets.filter(l => l.attachment)).toEqual([])
-  const send = (command: string) => { f.script.host.description = command; f.script.linkset.touch(0) }
+  const send = (command: string) => { f.script.host.description = command; f.script.linkset.touch(0); f.script.advanceTime(100) }
   send('@getinvworn:~Gift=23402')
   expect(f.script.global('replies')).toEqual(['|10'])
   send('@attachover:~Gift=force')

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { loadLinkset, loadRlvPair, setRlvViewerReady, resetRlvViewerSession, setRlvObjectAvailable, seedRlvInventory, World } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
+
 // Wiki: https://wiki.secondlife.com/wiki/LSL_Protocol/RestrainedLoveAPI#Architecture
 // In-world: startup child -> versionnew then versionnum before ordered /tploc and empty
 // status replies. Worn probe -> repeated version replies before status replies; one-time
@@ -162,13 +164,13 @@ it('session reset drops queued replies without deleting unrelated simulator even
   const receiver = extra.scripts.receiver!
   receiver.start()
   world.clock.schedule(receiver, world.clock.now, 'timer')
-  receiver.advanceTime(0)
+  receiver.advanceTime(SIM_FRAME_MS)
   const sender = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
     prims: [{ scripts: [{ name: 'sender', source: { source: 'default { state_entry() { llOwnerSay("@versionnum=722221"); } }' } }] }] })
   sender.scripts.sender!.start()
   world.clock.schedule(receiver, world.clock.now + 1, 'touch_start', { num_detected: 1 })
   avatar.viewer.session.reset()
-  receiver.advanceTime(1000)
+  receiver.advanceTime(1100)
   expect(receiver.global('replies')).toEqual([])
   expect(receiver.chat.filter(entry => entry.text === 'touch')).toHaveLength(1)
 })
@@ -216,7 +218,7 @@ for (const profile of ['rlv', 'rlva'] as const) {
     receiver.scripts.receiver!.start()
     script.start()
     script.linkset.remove()
-    receiver.linkset.advanceTime(profile === 'rlv' ? 10000 : 30000)
+    receiver.linkset.advanceTime(profile === 'rlv' ? 10100 : 30100)
     expect(receiver.scripts.receiver!.global('notices')).toEqual(profile === 'rlv'
       ? ['/sendchat=n', '/sendchat=y', '/tploc=n', '/clear', '/tploc=y']
       : ['/notify:722222=n', '/sendchat=n', '/sendchat=y', '/tploc=n', '/clear'])
@@ -286,11 +288,11 @@ it('reset preserves simulator chat queued by the same avatar', async () => {
   const sender = await loadLinkset({ world, region: avatar.region, owner: avatar.key,
     prims: [{ scripts: [{ name: 'sender', source: { source: 'default { state_entry() { llOwnerSay("@versionnum=722221"); } }' } }] }] })
   world.clock.schedule(script, world.clock.now, 'timer')
-  script.advanceTime(0)
+  script.advanceTime(SIM_FRAME_MS)
   sender.scripts.sender!.start()
   world.clock.schedule(script, world.clock.now, 'listen', { channel: 722221, name: avatar.name, id: avatar.key, msg: 'simulator' })
   resetRlvViewerSession(avatar)
-  script.advanceTime(1000)
+  script.advanceTime(1100)
   expect(script.global('replies')).toEqual(['simulator'])
 })
 
@@ -341,13 +343,13 @@ it('delivers the retained batch through LSL listens after the early version flus
     script.start()
     if (profile === 'rlva') {
       avatar.viewer.session.setStartupPhase('misc')
-      script.advanceTime(2000)
+      script.advanceTime(2100)
       expect(script.global('replies')).toEqual(['RestrainedLove viewer v3.4.3 (RLVa 2.4.2)', '3040300'])
     } else {
       expect(script.global('replies')).toEqual(['2093500', 'RestrainedLove viewer v2.09.35.00 (26.4.0)'])
     }
     setRlvViewerReady(avatar)
-    script.advanceTime(0)
+    script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(['/tploc', ''])
   }
 })
@@ -389,7 +391,7 @@ it('RLVa keeps its collector until the next tick even if the last rule clears', 
   const { avatar, script, world } = pair.rlva
   script.start()
   script.fire('touch_start', { num_detected: 1 })
-  world.clock.advance(10000)
+  world.clock.advance(10000 - SIM_FRAME_MS)
   script.fire('touch_start', { num_detected: 1 })
   script.linkset.remove()
   world.clock.advance(19999)
@@ -477,7 +479,7 @@ for (const profile of ['rlv', 'rlva'] as const) {
     const other = world.addAvatar({ username: 'new owner', region: avatar.region, viewer: { profile } })
     script.linkset.owner = other.key
     setRlvViewerReady(avatar)
-    script.advanceTime(0)
+    script.advanceTime(200)
     expect(script.global('replies')).toEqual(profile === 'rlva'
       ? ['1', 'Chest', 'Outfit', 'Outfit', '|30'] : ['1', 'Outfit', 'Outfit', '|30'])
     expect(other.viewer.commandLog).toEqual([])

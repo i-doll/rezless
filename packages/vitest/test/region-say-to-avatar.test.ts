@@ -52,11 +52,13 @@ it.each([34542, -34542, 0])('routes avatar-targeted channel %i from rezzed and H
     }`)
   const expected = channel === 0 ? [] : [channel, 'sender', tx.prims[0]!.key, 'hello']
   tx.linkset.touch(0)
+  tx.linkset.advanceTime(100)
   for (const receiver of [item.scripts.root!, item.scripts.child!, second.scripts.root!]) {
     expect(receiver.global('heard')).toEqual(expected)
   }
   tx.linkset.attachToAvatar(OWNER, 31)
   tx.linkset.touch(0)
+  tx.linkset.advanceTime(100)
   for (const receiver of [item.scripts.root!, item.scripts.child!, second.scripts.root!]) {
     expect(receiver.global('heard')).toEqual([...expected, ...expected])
   }
@@ -71,10 +73,12 @@ it('keeps avatar delivery within the sender region and follows the wearer on reg
     touch_start(integer n){llRegionSayTo("${OWNER}", -34542, "hello");}
   }`)
   tx.linkset.touch(0)
+  tx.linkset.advanceTime(100)
   expect(item.scripts.root!.global('heard')).toEqual([])
   expect(second.scripts.root!.global('heard')).toEqual([])
   world.avatars.find(a => a.key === OWNER)!.region = 'away'
   tx.linkset.touch(0)
+  tx.linkset.advanceTime(100)
   expect(item.scripts.root!.global('heard')).toEqual([-34542, 'sender', tx.prims[0]!.key, 'hello'])
   expect(second.scripts.root!.global('heard')).toEqual([-34542, 'sender', tx.prims[0]!.key, 'hello'])
 })
@@ -91,6 +95,7 @@ it('preserves direct prim delivery on zero and negative channels without forward
     llRegionSayTo("33333333-3333-3333-3333-333333333333", -34542, "absent");
   }}`)
   tx.linkset.touch(0)
+  tx.linkset.advanceTime(100)
   expect(item.scripts.child!.global('heard')).toEqual([
     0, 'sender', tx.prims[0]!.key, 'zero',
     -34542, 'sender', tx.prims[0]!.key, 'negative',
@@ -116,5 +121,6 @@ it('applies listen name, key and message filters to avatar delivery', async () =
     }`)
   receiver.linkset.attachToAvatar(OWNER, 6)
   tx.linkset.touch(0)
+  tx.linkset.advanceTime(100)
   expect(receiver.scripts.root!.global('heard')).toEqual([-34542, 'sender', tx.prims[0]!.key, 'hello'])
 })

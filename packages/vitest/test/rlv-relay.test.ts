@@ -29,6 +29,7 @@ async function fixture(profile: ViewerProfile, authorizedController = controller
     sender.setGlobal('target', target)
     sender.setGlobal('ident', ident)
     sender.fire('touch_start', { num_detected: 1 })
+    sender.advanceTime(1000)
   }
   const ack = (command: string, reply = 'ok', sender = controllerKey, ident = 'CaseSensitive') =>
     `${ident},${sender},${command},${reply}`

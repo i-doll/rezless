@@ -26,9 +26,9 @@ describe('lamp.lsl', () => {
   it('steps the brightness on a long press, turning the lamp on', () => {
     s.linkset.touch(0, { hold: 1500 })
     expect(s.text?.text).toBe('on, brightness 2')
-    s.linkset.touch(0, { hold: 1000 })
+    s.linkset.touch(0, { hold: 1500 })
     expect(s.text?.text).toBe('on, brightness 3')
-    s.linkset.touch(0, { hold: 1000 })
+    s.linkset.touch(0, { hold: 1500 })
     expect(s.text?.text).toBe('on, brightness 1')
   })
 

@@ -44,7 +44,7 @@ async function worn() {
   ] }] })
   linkset.attachToAvatar(OWNER, 5)
   for (const s of Object.values(scripts)) s.start()
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   const gc = scripts.gc!
   const say = (m: string, script: Script = gc) => world.clock.schedule(script, world.clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: m })
   // The first wear's attach event is not part of any probe.
@@ -75,8 +75,10 @@ it('raises nothing for an all-zero first state', async () => {
   f.gc.sendGameControl(OWNER, {})
   expect(f.log()).toEqual([])
   f.gc.sendGameControl(OWNER, { buttons: 4, axes: [0.5] })
+  f.linkset.advanceTime(100)
   f.gc.sendGameControl(OWNER, {})
   f.gc.sendGameControl(OWNER, {})
+  f.linkset.advanceTime(100)
   expect(f.log()).toEqual(['ev 4 0/4/5', 'ev 0 0/0/5'])
 })
 
@@ -87,10 +89,10 @@ it('reads nothing in a script that holds the permission but has no game_control 
   const f = await worn()
   f.gc.sendGameControl(OWNER, { buttons: 4 })
   f.say('held', f.nop)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   f.gc.sendGameControl(OWNER, {})
   f.say('after', f.nop)
-  f.linkset.advanceTime(0)
+  f.linkset.advanceTime(100)
   expect(f.log(f.nop)).toEqual(['held -1/0/0', 'after -1/0/0'])
   expect(f.nop.state.permissions.granted).toBe(1 << 20)
 })
@@ -266,8 +268,8 @@ it('keeps the old values in a state with no game_control handler, and drops the 
   linkset.attachToAvatar(OWNER, 5)
   const s = scripts.main!
   s.start()
-  linkset.advanceTime(0)
-  const say = (m: string) => { world.clock.schedule(s, world.clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: m }); linkset.advanceTime(0) }
+  linkset.advanceTime(100)
+  const say = (m: string) => { world.clock.schedule(s, world.clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: m }); linkset.advanceTime(100) }
   s.sendGameControl(OWNER, { buttons: 1 })
   s.sendGameControl(OWNER, {})
   say('two')

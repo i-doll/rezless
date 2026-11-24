@@ -146,6 +146,7 @@ it('queues replies until yielding and does not turn inventory offers into shared
   for (const { avatar, script } of Object.values(pair)) {
     seedRlvInventory(avatar, { sharedRootId: 'r', entries: [folder('r', null, '#RLV'), folder('f', 'r', 'Seeded')] })
     script.start()
+    script.linkset.advanceTime(100)
     expect(script.global('before')).toBe(0)
     expect(script.global('after')).toBe(0)
     expect(script.global('replies')).toEqual(['Seeded'])

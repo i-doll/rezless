@@ -12,6 +12,7 @@ async function fixture() {
   const visit = (counter = 'visitors') => {
     script.host.description = counter
     script.fire('touch_start', { num_detected: 1 })
+    script.advanceTime(100)
   }
   return { experience, script, visit }
 }
@@ -63,7 +64,7 @@ describe('Experience visitor counter', () => {
     expect(experience.store.get('visitors')).toBe('12')
     expect(script.dataserverRequests.map(request => request.fulfilled)).toEqual([true, false])
     experience.release()
-    script.advanceTime(0)
+    script.advanceTime(100)
     expect(script.chat.map(entry => entry.text)).toEqual(['visitors: read 12', 'visitors: saved 13'])
     expect(experience.store.get('visitors')).toBe('13')
     visit()

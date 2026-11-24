@@ -215,6 +215,19 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // SLua raises a held click's touch every frame, so it came up in the first frame and
       // listed i doll alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
+      // A touch still waiting for its frame takes the place of a new one, and lists this click too.
+      if (!running) {
+        const { own, other } = waitingTouches(s, 'touch', by)
+        // Only a touch that came up while the script was idle takes this click too, and not before
+        // the click's own touch_start: a touch that waited through a handler keeps its avatars.
+        if (other && !own && cameUp(other) >= s.clockView.lastEndedAt && !waitingTouches(s, 'touch_start', by).own) {
+          other.payload['detected'] = [...detectedIn(other), ...click.detected]
+          other.payload['num_detected'] = detectedIn(other).length
+          click.touched = true
+          click.lastTouch = click.detected
+        }
+        if (own || other) continue
+      }
       if (running && s.busy) spunAt.set(s, clock.now)
       const touches = running ? waitingTouches(s, 'touch', by) : { own: undefined, other: undefined }
       const waiting = touches.other
@@ -1261,11 +1274,13 @@ export class Linkset {
 
   /**
    * Finish the handlers already active or queued on `scripts`, including
-   * their reset/state-change chains. Future recurring events do not extend
+   * their reset/state-change chains, moving the clock on to each wake and to
+   * the frame each queued event runs in. Future recurring events do not extend
    * this call indefinitely; tests run those with advanceTime.
    */
   settle(scripts: ReadonlyArray<Script>): void {
     const pending = this.clock.pendingEvents()
+    // An event a handler raised waits for a later frame: the call doesn't wait for it.
     const goals = scripts.map(script => ({
       script,
       completed: script.clockView.completedHandlers + Number(script.wakeAt !== undefined) +
@@ -1274,13 +1289,16 @@ export class Linkset {
     this.drainQueue()
     for (;;) {
       let at = Infinity
+      const queued = this.clock.nextQueued()
       for (const { script, completed } of goals) {
         // Inventory suspends sleeping detach handlers until the object is worn
         // again. They cannot complete as goals of this settling call.
         // A script whose handler is still on the call stack wakes once that handler returns.
         if (script.running && !script.handling && script.linkset.peers.includes(script.linkset) &&
-            script.clockView.completedHandlers < completed && script.wakeAt !== undefined) {
-          at = Math.min(at, script.wakeAt)
+            script.clockView.completedHandlers < completed) {
+          // An idle script runs its next queued event a frame after its last handler ended.
+          const due = script.wakeAt ?? queued.get(script)?.due
+          if (due !== undefined) at = Math.min(at, due)
         }
       }
       if (at === Infinity) return

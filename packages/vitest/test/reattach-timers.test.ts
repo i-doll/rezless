@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import { loadLinkset, World } from '../src/index.js'
 
 const OWNER = '11111111-1111-1111-1111-111111111111'
+const SIM_FRAME_MS = 1000 / 45
 
 // https://wiki.secondlife.com/wiki/LlGetTime
 // https://wiki.secondlife.com/wiki/LlSetTimerEvent
@@ -44,15 +45,16 @@ it('pauses script time and the remaining timer interval over repeated inventory 
     linkset.advanceTime(2000)
     linkset.touch(0)
     expect(linkset.attachment).toBeNull()
+    linkset.advanceTime(100)
     const before = (script.global('events') as string[]).length
     linkset.advanceTime(30000)
     expect((script.global('events') as string[]).length).toBe(before)
     linkset.attachToAvatar(OWNER, 6)
-    linkset.advanceTime(0)
+    linkset.advanceTime(SIM_FRAME_MS)
     expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach'])
-    expect(script.global('elapsed')).toBe(2 + round * 5)
+    expect(script.global('elapsed')).toBe(Math.fround(2 + round * 5 + SIM_FRAME_MS / 1000))
     expect(script.global('unix')).toBe(32 + round * 35)
-    linkset.advanceTime(2999)
+    linkset.advanceTime(2999 - SIM_FRAME_MS)
     expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach'])
     linkset.advanceTime(1)
     expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer'])
@@ -70,10 +72,10 @@ it('delivers one already-due timer after rez and attach while retaining its cade
   const before = (script.global('events') as string[]).length
   linkset.advanceTime(30000)
   linkset.attachToAvatar(OWNER, 6)
-  linkset.advanceTime(0)
+  linkset.advanceTime(2 * SIM_FRAME_MS)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer'])
-  expect(script.global('elapsed')).toBe(6)
-  linkset.advanceTime(3999)
+  expect(script.global('elapsed')).toBe(Math.fround(6 + 2 * SIM_FRAME_MS / 1000))
+  linkset.advanceTime(3999 - 2 * SIM_FRAME_MS)
   expect((script.global('events') as string[]).slice(before)).toHaveLength(3)
   linkset.advanceTime(1)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer'])
@@ -93,9 +95,9 @@ it('starts a full interval again after a saved timer overdue by more than its in
   const before = (script.global('events') as string[]).length
   linkset.advanceTime(30000)
   linkset.attachToAvatar(OWNER, 6)
-  linkset.advanceTime(0)
+  linkset.advanceTime(2 * SIM_FRAME_MS)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer'])
-  linkset.advanceTime(4999)
+  linkset.advanceTime(4999 - 2 * SIM_FRAME_MS)
   expect((script.global('events') as string[]).slice(before)).toHaveLength(3)
   linkset.advanceTime(1)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer'])
@@ -111,7 +113,7 @@ it('keeps a timer cancelled by the detach handler cancelled on rewear', async ()
   linkset.attachToAvatar(OWNER, 6)
   linkset.advanceTime(10000)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach'])
-  expect(script.global('elapsed')).toBe(2)
+  expect(script.global('elapsed')).toBe(Math.fround(2 + SIM_FRAME_MS / 1000))
 })
 
 it.each(['llResetTime();', 'previous=llGetAndResetTime();'])(
@@ -119,12 +121,13 @@ it.each(['llResetTime();', 'previous=llGetAndResetTime();'])(
     const { script, linkset } = await fixture(reset)
     linkset.advanceTime(2000)
     linkset.touch(0)
+    linkset.advanceTime(SIM_FRAME_MS)
     expect(script.global('previous')).toBe(reset.startsWith('previous') ? 2 : 0)
     linkset.advanceTime(30000)
     linkset.attachToAvatar(OWNER, 6)
-    linkset.advanceTime(0)
-    expect(script.global('elapsed')).toBe(0)
-    linkset.advanceTime(3000)
+    linkset.advanceTime(SIM_FRAME_MS)
+    expect(script.global('elapsed')).toBe(Math.fround(SIM_FRAME_MS / 1000))
+    linkset.advanceTime(3000 - SIM_FRAME_MS)
     expect(script.global('elapsed')).toBe(3)
   },
 )
@@ -142,8 +145,8 @@ it('leaves another object on the shared clock running while the attachment is in
   expect(other.scripts.other!.global('ticks')).toBe(6)
   expect(other.scripts.other!.global('elapsed')).toBe(30)
   linkset.attachToAvatar(OWNER, 6)
-  linkset.advanceTime(0)
-  expect(script.global('elapsed')).toBe(2)
+  linkset.advanceTime(SIM_FRAME_MS)
+  expect(script.global('elapsed')).toBe(Math.fround(2 + SIM_FRAME_MS / 1000))
 })
 
 it('does not generate a saved timer event for a stopped script', async () => {
@@ -170,12 +173,12 @@ it('keeps the saved timer separate from a tick missed by a sleeping rez handler'
   linkset.advanceTime(30000)
   const before = (script.global('events') as string[]).length
   linkset.attachToAvatar(OWNER, 6)
-  linkset.advanceTime(10000)
+  linkset.advanceTime(10000 + 4 * SIM_FRAME_MS)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer'])
-  expect(script.global('elapsed')).toBe(21)
+  expect(script.global('elapsed')).toBe(Math.fround(21 + 4 * SIM_FRAME_MS / 1000))
   linkset.advanceTime(4999)
   expect((script.global('events') as string[]).slice(before)).toHaveLength(4)
   linkset.advanceTime(1)
   expect((script.global('events') as string[]).slice(before)).toEqual(['rez', 'attach', 'timer', 'timer', 'timer'])
-  expect(script.global('elapsed')).toBe(26)
+  expect(script.global('elapsed')).toBe(Math.fround(26 + 4 * SIM_FRAME_MS / 1000))
 })

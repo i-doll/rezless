@@ -125,9 +125,9 @@ experience.failNext(1, (request) =>
 experience.hold()
 // Start or drive scripts using this experience: operations and answers now wait.
 experience.release(1) // apply and answer the oldest request; keep holding new requests
-s.advanceTime(0)      // dispatch its dataserver event
+s.advanceTime(100)    // dispatch its dataserver event
 experience.release() // apply and answer all remaining requests, then resume automatic answers
-s.advanceTime(0)
+s.advanceTime(100)
 ```
 
 `failNext` accepts a positive integer XP_ERROR code and an optional predicate over
@@ -140,7 +140,7 @@ so competing checked updates see earlier released writes and can answer `0,15`
 releases at most that many requests in arrival order. Until release, their
 `dataserverRequests` entries have `fulfilled: false`. Release schedules answers
 at each requesting script's current virtual time; advance each affected linkset
-with `advanceTime(0)` to dispatch them to the scripts in its prim.
+by a frame or more to dispatch them to the scripts in its prim.
 
 ### `Script` handle
 
@@ -221,6 +221,8 @@ s.setAgentInRegion(key, present = true)          // region-presence override, sh
 `start`, `fire`, `reset`, `deliverChat`, `grantPermissions` and the `respondTo*` calls return only after the handlers they started have finished; if one sleeps, the clock moves to its wake time while the other scripts keep running.
 
 Recurring events created during those handlers do not extend the synchronous call forever. Use `advanceTime` to continue their handlers.
+
+A script runs one queued event per simulator frame (1/45 s), as in Second Life: its next event or timer tick runs a frame after its previous handler ended, and in LSL a `changed` right after a `changed`, or a tick right after a tick, waits two frames. An event a handler raises, such as a link message, chat or a change, runs a frame later at the earliest. The calls above move the clock on, a frame per event, until the script they deliver to has run as many handlers as it had events waiting, the delivered one included; advance time to run what comes after. This is a breaking change: before, queued events ran one after another at the same instant.
 
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 

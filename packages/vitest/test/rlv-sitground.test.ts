@@ -298,7 +298,7 @@ describe('locks on @sitground=force', () => {
     issue(f.script, '@standtp=y')
     f.seat()
     expect(f.world.userStandAvatar(f.avatar)).toBe(true)
-    f.wait(0)
+    f.wait(100)
     expect(f.script.global('seen')).toEqual([48, 0, 48, 0])
     expect(f.sitting()).toBe(0)
     f.wait(GROUND_BY_MS)

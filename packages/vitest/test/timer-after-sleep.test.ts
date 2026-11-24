@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { loadLinkset, NULL_KEY, type Linkset } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
+
 // https://wiki.secondlife.com/wiki/LlSetTimerEvent
 // https://wiki.secondlife.com/wiki/LlMinEventDelay
 // https://wiki.secondlife.com/wiki/LlSetScriptState
@@ -10,17 +12,21 @@ import { loadLinkset, NULL_KEY, type Linkset } from '../src/index.js'
 // sent the link messages and called llSetScriptState on a fixed schedule. Every case ran at least
 // twice, and most three to six times, with the same result each time.
 
-/** Virtual times, in ms, of each tick while the clock ran for `ms`; two ticks at one time show twice. */
+/**
+ * Virtual times of each tick while the clock ran for `ms`, read on every whole `step` ms of the
+ * clock, so a tick between two reads shows at the later one; two ticks at one time show twice.
+ */
 function tickTimes(linkset: Linkset, ticks: () => number, ms: number, step = 50): number[] {
   const out: number[] = []
   let last = ticks()
-  for (let elapsed = 0; elapsed < ms; elapsed += step) {
-    linkset.advanceTime(step)
+  for (const until = linkset.clock.now + ms; linkset.clock.now < until;) {
+    linkset.advanceTime((Math.floor(linkset.clock.now / step + 1e-9) + 1) * step - linkset.clock.now)
     const now = ticks()
-    for (; last < now; last++) out.push(linkset.clock.now)
+    for (; last < now; last++) out.push(Math.round(linkset.clock.now))
   }
   return out
 }
+
 
 async function freshStart(interval: number, sleep: number) {
   const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `
@@ -37,7 +43,8 @@ async function freshStart(interval: number, sleep: number) {
   const s = scripts['s']!
   s.start()
   // The start runs state_entry and the sleeping handler through to the wake.
-  expect(linkset.clock.now).toBe(sleep * 1000)
+  expect(linkset.clock.now).toBe(sleep * 1000 + SIM_FRAME_MS)
+  linkset.advanceTime(sleep * 1000 + 50 - linkset.clock.now)
   expect(s.global('ticks')).toBe(1)
   return { linkset, ticks: () => s.global('ticks') as number }
 }
@@ -70,20 +77,20 @@ describe('a timer after a start and a sleep in a queued handler', () => {
     // timer and a 9 s sleep at the wake and then 4 s after it; a 1 s timer and a 3 s sleep at the
     // wake and then every 1 s after it.
     const two = await freshStart(2, 5)
-    expect(tickTimes(two.linkset, two.ticks, 4100)).toEqual([7000, 9000])
+    expect(tickTimes(two.linkset, two.ticks, 4100)).toEqual([7050, 9050])
     const four = await freshStart(4, 9)
-    expect(tickTimes(four.linkset, four.ticks, 4100)).toEqual([13_000])
+    expect(tickTimes(four.linkset, four.ticks, 4100)).toEqual([13_050])
     const one = await freshStart(1, 3)
-    expect(tickTimes(one.linkset, one.ticks, 2100)).toEqual([4000, 5000])
+    expect(tickTimes(one.linkset, one.ticks, 2100)).toEqual([4050, 5050])
   })
 })
 
-const timed = `integer ticks; float next;
+const timed = `integer ticks; float next; float setAt; float delayAt;
   default {
     link_message(integer s, integer n, string m, key k) {
-      if (n == 1) llSetTimerEvent((float)m);
+      if (n == 1) { llSetTimerEvent((float)m); setAt = llGetTime(); }
       else if (n == 2) next = (float)m;
-      else if (n == 4) llMinEventDelay((float)m);
+      else if (n == 4) { llMinEventDelay((float)m); delayAt = llGetTime(); }
       else if (n == 7) llSleep((float)m);
       else if (n == 9) { llSetTimerEvent(4.0); llSleep((float)m); }
       else if (n == 10) { llSleep((float)m); llSetTimerEvent(4.0); }
@@ -130,7 +137,7 @@ async function rig() {
   for (const s of Object.values(loaded.scripts)) s.start()
   const tell = (m: string) => loaded.scripts['ctl']!.fire('link_message', { sender_num: 1, num: 900, str: m, id: NULL_KEY })
   const at = (ms: number) => loaded.linkset.advanceTime(ms - loaded.linkset.clock.now)
-  return { linkset: loaded.linkset, tell, at, ticks: () => t.global('ticks') as number }
+  return { linkset: loaded.linkset, tell, at, ticks: () => t.global('ticks') as number, calledAt: (name: string) => Number(t.global(name)) * 1000 }
 }
 
 /** A timer of `interval` ms set at 0, a queued `sleep` s handler and a stop at `stopAt`, a start at `startAt`. */
@@ -150,16 +157,16 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     // 9 s to two timer events 45 ms apart, then ticked at 12 s, in two runs. A 6 s sleep woke at
     // 11 s to two events and then ticked at 12 s.
     const four = await stoppedWithSleep(4000, 4, 1000, 5000)
-    expect(tickTimes(four.linkset, four.ticks, 7500)).toEqual([9000, 9000, 12_000])
+    expect(tickTimes(four.linkset, four.ticks, 7500)).toEqual([9050, 9100, 12_050])
     const six = await stoppedWithSleep(4000, 6, 1000, 5000)
-    expect(tickTimes(six.linkset, six.ticks, 7500)).toEqual([11_000, 11_000, 12_000])
+    expect(tickTimes(six.linkset, six.ticks, 7500)).toEqual([11_050, 11_100, 12_050])
   })
 
   it('gives only the caught-up tick when no tick came due during the sleep', async () => {
     // In-world: the same with a 2 s sleep woke at 7 s to one timer event, then ticked at 8 s and
     // every 4 s, in two runs.
     const r = await stoppedWithSleep(4000, 2, 1000, 5000)
-    expect(tickTimes(r.linkset, r.ticks, 7500)).toEqual([7000, 8000, 12_000])
+    expect(tickTimes(r.linkset, r.ticks, 7500)).toEqual([7050, 8050, 12_050])
   })
 
   it('starts the interval again from the wake when more than one tick came due during the sleep', async () => {
@@ -169,11 +176,11 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     // 45 ms apart and then ticked every second from the second, in six runs. With three ticks
     // missed while stopped, a 1 s and a 2 s timer did the same.
     const four = await stoppedWithSleep(4000, 5.1, 1000, 7000)
-    expect(tickTimes(four.linkset, four.ticks, 9500)).toEqual([12_100, 12_100, 16_100])
+    expect(tickTimes(four.linkset, four.ticks, 9500)).toEqual([12_150, 12_200, 16_200])
     const one = await stoppedWithSleep(1000, 5, 250, 1750)
-    expect(tickTimes(one.linkset, one.ticks, 7000)).toEqual([6750, 6750, 7750, 8750])
+    expect(tickTimes(one.linkset, one.ticks, 7100)).toEqual([6800, 6850, 7850, 8850])
     const missed = await stoppedWithSleep(1000, 5, 250, 3750)
-    expect(tickTimes(missed.linkset, missed.ticks, 7100)).toEqual([8750, 8750, 9750, 10_750])
+    expect(tickTimes(missed.linkset, missed.ticks, 7100)).toEqual([8800, 8850, 9850, 10_850])
   })
 
   it('gives one tick at the wake when it was stopped and started during the sleep', async () => {
@@ -189,7 +196,7 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
       r.tell('stop')
       r.at(startAt)
       r.tell('start')
-      expect(tickTimes(r.linkset, r.ticks, 16_100 - startAt)).toEqual([10_000, 13_000, 16_000])
+      expect(tickTimes(r.linkset, r.ticks, 16_100 - startAt)).toEqual([10_100, 13_100, 16_100])
     }
   })
 
@@ -208,7 +215,7 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
       r.tell('stop')
       r.at(5000)
       r.tell('start')
-      expect(tickTimes(r.linkset, r.ticks, 13_600)).toEqual([10_500, 14_500, 18_500])
+      expect(tickTimes(r.linkset, r.ticks, 13_600)).toEqual([10_550, 14_550, 18_550])
     }
   })
 
@@ -217,7 +224,7 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     // 0.4 s and started at 1.4 s, each with a 5 s or 8 s sleep queued, woke to one timer event
     // and then ticked an interval after it.
     const r = await stoppedWithSleep(2000, 5, 400, 1400)
-    expect(tickTimes(r.linkset, r.ticks, 8000)).toEqual([6400, 8400])
+    expect(tickTimes(r.linkset, r.ticks, 8000)).toEqual([6450, 8450])
   })
 
   it('gives one tick at the start when ticks were missed and nothing slept', async () => {
@@ -225,11 +232,13 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     // once queued gave one timer event at the start and then ticked every 4 s from it, in two
     // runs. Started at 5 s, it ticked at the start and then at 8 s.
     const many = await stoppedWithSleep(4000, 0, 1000, 9500)
+    many.linkset.advanceTime(50)
     expect(many.ticks()).toBe(1)
-    expect(tickTimes(many.linkset, many.ticks, 8500)).toEqual([13_500, 17_500])
+    expect(tickTimes(many.linkset, many.ticks, 8450)).toEqual([13_500, 17_500])
     const one = await stoppedWithSleep(4000, 0, 1000, 5000)
+    one.linkset.advanceTime(50)
     expect(one.ticks()).toBe(1)
-    expect(tickTimes(one.linkset, one.ticks, 7500)).toEqual([8000, 12_000])
+    expect(tickTimes(one.linkset, one.ticks, 7450)).toEqual([8050, 12_050])
   })
 
   it('leaves the lag of the tick due during the sleep', async () => {
@@ -253,7 +262,7 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     // woke to one timer event, then ticked 1.0 s after the start and every second from there, in
     // two runs.
     const r = await stoppedWithSleep(1000, 0.75, 250, 3750)
-    expect(tickTimes(r.linkset, r.ticks, 2100)).toEqual([4500, 4750, 5750])
+    expect(tickTimes(r.linkset, r.ticks, 2100)).toEqual([4550, 4750, 5750])
   })
 
   it('gives both ticks when the waiting handler sets the timer before it sleeps', async () => {
@@ -261,7 +270,7 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     // and slept 4 s, started at 5 s, woke at 9 s to two timer events and ticked again at 12 s, in
     // two runs.
     const r = await stoppedWithSleep(4000, 4, 1000, 5000, 'qs+stop')
-    expect(tickTimes(r.linkset, r.ticks, 7100)).toEqual([9000, 9000, 12_000])
+    expect(tickTimes(r.linkset, r.ticks, 7100)).toEqual([9050, 9100, 12_050])
   })
 
   it('keeps the start\'s lag when the caught-up tick\'s handler sets the timer after the wake', async () => {
@@ -277,7 +286,7 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
       r.tell(`q+stop:${sleep}`)
       r.at(5000)
       r.tell('start')
-      expect(tickTimes(r.linkset, r.ticks, wake - 5000 + 4000)).toEqual([wake, wake + 3000])
+      expect(tickTimes(r.linkset, r.ticks, wake - 5000 + 4000)).toEqual([wake + 50, wake + 3050])
     }
   })
 })
@@ -293,14 +302,14 @@ describe('a waiting handler that changes the interval before the caught-up tick'
     // In-world: a 2 s timer changed to 4 s with a 3 s sleep woke at 8 s to one timer event, then
     // ticked 4.0 s after the call and every 4 s from there.
     const short = await changed(2000, 4000, 3)
-    expect(tickTimes(short.linkset, short.ticks, 12_100)).toEqual([8000, 9000, 13_000, 17_000])
+    expect(tickTimes(short.linkset, short.ticks, 12_100)).toEqual([8050, 9000, 13_000, 17_000])
     // In-world: with a 4 s sleep it woke at 9 s to two timer events 45 ms apart and ticked again
     // 8.0 s after the call; with a 5 s sleep it woke at 10 s to two and ticked 8.0 s after the
     // call. A tick on the old 2 s schedule, at 10 s with a 4 s sleep, never came.
     const even = await changed(2000, 4000, 4)
-    expect(tickTimes(even.linkset, even.ticks, 12_100)).toEqual([9000, 9000, 13_000, 17_000])
+    expect(tickTimes(even.linkset, even.ticks, 12_100)).toEqual([9050, 9100, 13_000, 17_000])
     const long = await changed(2000, 4000, 5)
-    expect(tickTimes(long.linkset, long.ticks, 12_100)).toEqual([10_000, 10_000, 13_000, 17_000])
+    expect(tickTimes(long.linkset, long.ticks, 12_100)).toEqual([10_050, 10_100, 13_000, 17_000])
   })
 
   it('starts the new schedule earlier by the start\'s lag when one tick was missed', async () => {
@@ -309,21 +318,22 @@ describe('a waiting handler that changes the interval before the caught-up tick'
     // changed to 6 s with a 4 s sleep woke at 9 s to one timer event and ticked 10.0 s after the
     // timer was set, then every 6 s.
     const now = await changed(4000, 2000, 0)
+    now.linkset.advanceTime(50)
     expect(now.ticks()).toBe(1)
-    expect(tickTimes(now.linkset, now.ticks, 3100)).toEqual([6000, 8000])
+    expect(tickTimes(now.linkset, now.ticks, 3050)).toEqual([6050, 8050])
     const longer = await changed(4000, 6000, 4)
-    expect(tickTimes(longer.linkset, longer.ticks, 11_100)).toEqual([9000, 10_000, 16_000])
+    expect(tickTimes(longer.linkset, longer.ticks, 11_100)).toEqual([9050, 10_050, 16_050])
     // In-world: a 4 s timer changed to 2 s with a 4 s sleep woke at 9 s to two timer events and
     // ticked 2.0 s after the second, then every 2 s.
     const shorter = await changed(4000, 2000, 4)
-    expect(tickTimes(shorter.linkset, shorter.ticks, 8100)).toEqual([9000, 9000, 11_000, 13_000])
+    expect(tickTimes(shorter.linkset, shorter.ticks, 8100)).toEqual([9050, 9100, 11_100, 13_100])
     // In-world: a 4 s timer changed to 2 s with no sleep, and llSetTimerEvent(4) 0.55 s after the
     // start, before the tick due on the 2 s schedule, ticked 2.95 s after that call: the start's
     // 1 s lag still held.
     const later = await changed(4000, 2000, 0)
     later.at(5500)
     later.tell('1:4.0')
-    expect(tickTimes(later.linkset, later.ticks, 3100)).toEqual([8500])
+    expect(tickTimes(later.linkset, later.ticks, 3100)).toEqual([8550])
   })
 
   it('applies to a waiting handler of a script stopped during another handler\'s sleep', async () => {
@@ -340,8 +350,9 @@ describe('a waiting handler that changes the interval before the caught-up tick'
     r.tell('stop')
     r.at(7000)
     r.tell('start')
+    r.linkset.advanceTime(100)
     expect(r.ticks()).toBe(2)
-    expect(tickTimes(r.linkset, r.ticks, 3100)).toEqual([8000, 10_000])
+    expect(tickTimes(r.linkset, r.ticks, 3000)).toEqual([8050, 10_050])
   })
 
   it('drops the tick that follows when the caught-up tick\'s handler sets the timer', async () => {
@@ -355,8 +366,9 @@ describe('a waiting handler that changes the interval before the caught-up tick'
     r.tell('qc+stop:2,0')
     r.at(7000)
     r.tell('start')
+    r.linkset.advanceTime(50)
     expect(r.ticks()).toBe(1)
-    expect(tickTimes(r.linkset, r.ticks, 5100)).toEqual([8000, 12_000])
+    expect(tickTimes(r.linkset, r.ticks, 5050)).toEqual([8050, 12_050])
   })
 
   it('leaves no lag for a call made after the next tick on the old schedule', async () => {
@@ -371,7 +383,7 @@ describe('a waiting handler that changes the interval before the caught-up tick'
       r.tell('stop')
       r.at(startAt)
       r.tell('start')
-      expect(tickTimes(r.linkset, r.ticks, 18_100 - startAt)).toEqual([10_000, 14_000, 18_000])
+      expect(tickTimes(r.linkset, r.ticks, 18_100 - startAt)).toEqual([10_100, 14_100, 18_100])
     }
   })
 })
@@ -413,7 +425,7 @@ describe('an SLua LLTimers timer after a stop, a start and a sleep in a queued h
     ] as const) {
       const r = await sluaRig(interval, sleep, stopAt, startAt)
       const span = wake - startAt + 2 * interval + 100
-      expect(tickTimes(r.linkset, r.ticks, span)).toEqual([wake, wake + interval, wake + 2 * interval])
+      expect(tickTimes(r.linkset, r.ticks, span)).toEqual([wake + 50, wake + interval + 50, wake + 2 * interval + 50])
     }
   })
 
@@ -423,7 +435,7 @@ describe('an SLua LLTimers timer after a stop, a start and a sleep in a queued h
     // with a 5 s sleep.
     for (const [interval, sleep, stopAt, startAt, wake] of [[4000, 4, 1000, 5000, 9000], [1000, 5, 250, 1750, 6750]] as const) {
       const r = await sluaRig(interval, sleep, stopAt, startAt)
-      expect(tickTimes(r.linkset, r.raw, wake - startAt + 100)).toEqual([wake])
+      expect(tickTimes(r.linkset, r.raw, wake - startAt + 100)).toEqual([wake + 50])
     }
   })
 })
@@ -454,7 +466,7 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     /** Records the raw timer events and callbacks since the last look at the current virtual time. */
     const look = () => {
       for (const [name, out] of [['raw', raw], ['ticks', callbacks]] as const) {
-        for (let n = Number(t.global(name)); out.length < n;) out.push(loaded.linkset.clock.now)
+        for (let n = Number(t.global(name)); out.length < n;) out.push(Math.round(loaded.linkset.clock.now))
       }
     }
     const tell = (m: string) => {
@@ -465,9 +477,12 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
       loaded.linkset.advanceTime(ms - loaded.linkset.clock.now)
       look()
     }
-    /** Raw timer events and callbacks from `from` on, by virtual time, until `until`. */
+    /**
+     * Raw timer events and callbacks from `from` on, by virtual time, until `until`, read every
+     * 50 ms of the clock: a tick a frame after a whole second shows 50 ms after it.
+     */
     const trace = (until: number, from = 0) => {
-      for (; loaded.linkset.clock.now < until;) at(loaded.linkset.clock.now + 50)
+      for (; loaded.linkset.clock.now < until;) at((Math.floor(loaded.linkset.clock.now / 50 + 1e-9) + 1) * 50)
       return { raw: raw.filter((t) => t >= from), callbacks: callbacks.filter((t) => t >= from) }
     }
     return { tell, at, trace }
@@ -489,11 +504,11 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     // its callback at the wake, 9.03 s. The timer then ticked at 12.05 s with no callback, 4 s
     // less the start's 1 s lag after the wake, and again at 13.03 s, where the callback ran.
     const slept = await stopped('1:4', 1000, 5000, '4')
-    expect(slept.trace(17_100)).toEqual({ raw: [9000, 12_000, 13_000, 17_000], callbacks: [9000, 13_000, 17_000] })
+    expect(slept.trace(17_100)).toEqual({ raw: [9050, 12_050, 13_050, 17_050], callbacks: [9050, 13_050, 17_050] })
     // In-world: started at 5 s with no sleep, it ran the callback at the start, ticked at 7.0 s
     // with no callback, and ran it at 8.0 s.
     const plain = await stopped('1:4', 1000, 5000)
-    expect(plain.trace(8100)).toEqual({ raw: [5000, 7000, 8000], callbacks: [5000, 8000] })
+    expect(plain.trace(8100)).toEqual({ raw: [5000, 7050, 8050], callbacks: [5000, 8050] })
   })
 
   it('sees an extra tick at once when the lag is as long as the time to the next callback', async () => {
@@ -502,13 +517,13 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     // 6.5 s it did the same; at 6.5 s the extra tick lagged the next by 1 s, so it also ticked at
     // 6.96 s with no callback. LLTimers:every(5) stopped at 1 s and started at 8 s ran the
     // callback at the start, ticked at 8.02 s and 9.0 s with no callback, and ran it at 10 s.
-    for (const [startAt, raw] of [[6000, [6000, 6000, 8000]], [7000, [7000, 7000, 8000]], [7500, [7500, 7500, 8000]],
-      [6500, [6500, 6500, 7000, 8000]]] as const) {
+    for (const [startAt, raw] of [[6000, [6000, 6050, 8050]], [7000, [7000, 7050, 8050]], [7500, [7500, 7550, 8050]],
+      [6500, [6500, 6550, 7100, 8050]]] as const) {
       const r = await stopped('1:4', 1000, startAt)
-      expect(r.trace(8100)).toEqual({ raw, callbacks: [startAt, 8000] })
+      expect(r.trace(8100)).toEqual({ raw, callbacks: [startAt, 8050] })
     }
     const five = await stopped('1:5', 1000, 8000)
-    expect(five.trace(10_100)).toEqual({ raw: [8000, 8000, 9000, 10_000], callbacks: [8000, 10_000] })
+    expect(five.trace(10_100)).toEqual({ raw: [8000, 8050, 9100, 10_050], callbacks: [8000, 10_050] })
   })
 
   it('sees no extra tick after a start that missed more than one tick', async () => {
@@ -525,11 +540,11 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     const one = await stopped('2:4', 1000, 7000)
     one.at(9000)
     one.tell('2:1')
-    expect(one.trace(10_100, 9000)).toEqual({ raw: [9000, 10_000], callbacks: [10_000] })
+    expect(one.trace(10_100, 9000)).toEqual({ raw: [9050, 10_050], callbacks: [10_050] })
     const five = await stopped('2:4', 1000, 7000)
     five.at(9000)
     five.tell('2:5')
-    expect(five.trace(14_100, 9000)).toEqual({ raw: [11_000, 14_000], callbacks: [14_000] })
+    expect(five.trace(14_100, 9000)).toEqual({ raw: [11_050, 14_050], callbacks: [14_050] })
   })
 
   it('starts a later timer early by the lag an earlier run left', async () => {
@@ -538,9 +553,9 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     // ticked 3.0 s after it with no callback and ran it at 4.0 s, in three runs: the start's 1 s lag
     // outlived the run.
     const plain = await stopped('2:4', 1000, 5000, '4')
-    expect(plain.trace(14_000)).toEqual({ raw: [9000], callbacks: [9000] })
+    expect(plain.trace(14_000)).toEqual({ raw: [9050], callbacks: [9050] })
     plain.tell('1:4')
-    expect(plain.trace(18_100, 14_000)).toEqual({ raw: [17_000, 18_000], callbacks: [18_000] })
+    expect(plain.trace(18_100, 14_000)).toEqual({ raw: [17_050, 18_050], callbacks: [18_050] })
   })
 
   it('sees no extra tick at a start when the earlier run\'s lag made it miss two ticks', async () => {
@@ -553,15 +568,27 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     // does gave the same in as many runs of each of these. A start at 7 s comes as the early second
     // tick falls due: after a once(4) run stopped at 1 s and started at 5 s with no sleep, which
     // leaves the same lag, the SLua script did not tick again and the LSL one did, in one run each.
-    for (const [startAt, raw] of [[7000, [21_000, 22_000]], [6500, [20_500, 20_500, 22_000]], [7500, [21_500, 22_000]]] as const) {
-      const r = await stopped('2:4', 1000, 5000, '4')
+    // The script runs each LLTimers call a frame after the control script sends it: the stops and
+    // starts here count from that frame, as the probe's times count from the call.
+    const read = (ms: number) => Math.ceil(ms / 50 - 1e-9) * 50
+    for (const [startAt, raw] of [[7000, [7000, 8000]], [6500, [6500, 6500 + SIM_FRAME_MS, 8000]], [7500, [7500, 8000]]] as const) {
+      const r = await sluaRig()
+      r.tell('2:4')
+      const once = SIM_FRAME_MS
+      r.at(once + 1000)
+      r.tell('q+stop:4')
+      r.at(once + 5000)
+      r.tell('start')
       r.trace(14_000)
       r.tell('1:4')
-      r.at(15_000)
+      const every = 14_000 + SIM_FRAME_MS
+      r.at(every + 1000)
       r.tell('stop')
-      r.at(14_000 + startAt)
+      r.at(every + startAt)
       r.tell('start')
-      expect(r.trace(22_100, 14_000)).toEqual({ raw, callbacks: [14_000 + startAt, 22_000] })
+      // The caught-up tick runs as the start is made, and the trace notes it then.
+      const seen = (t: number) => t === startAt ? Math.round(every + t) : read(every + t)
+      expect(r.trace(22_100, 14_000)).toEqual({ raw: raw.map(seen), callbacks: [seen(startAt), seen(8000)] })
     }
   })
 
@@ -573,12 +600,12 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     held.tell('1:4')
     held.at(3000)
     held.tell('7:2')
-    expect(held.trace(8100)).toEqual({ raw: [5000, 7000, 8000], callbacks: [5000, 8000] })
+    expect(held.trace(8100)).toEqual({ raw: [5050, 7000, 8050], callbacks: [5050, 8050] })
     const longer = await sluaRig()
     longer.tell('1:4')
     longer.at(3000)
     longer.tell('7:5.5')
-    expect(longer.trace(12_600)).toEqual({ raw: [8500, 12_500], callbacks: [8500, 12_500] })
+    expect(longer.trace(12_600)).toEqual({ raw: [8550, 12_550], callbacks: [8550, 12_550] })
   })
 
   it('sees one tick per callback for a timer that keeps time', async () => {
@@ -588,7 +615,9 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
       ['1:2.5', [2500]], ['2:2', [2000]]] as const) {
       const r = await sluaRig()
       r.tell(set)
-      expect(r.trace(3100)).toEqual({ raw: times, callbacks: times })
+      // Each tick runs a frame after the second, and shows at the next read.
+      const read = times.map((t) => t + 50)
+      expect(r.trace(3100)).toEqual({ raw: read, callbacks: read })
     }
   })
 })
@@ -600,11 +629,13 @@ describe('the lag a held tick leaves', () => {
     // 3.00 s after the call. With a 1 s or 2 s timer the call ticked 4.0 s after it, in three runs.
     // A 2 s timer and a 4 s sleep, held just past two intervals, ticked 4.0 s after the call in
     // two runs.
-    for (const [interval, sleep, after] of [[4, 5, 3000], [2, 5, 4000], [1, 5, 4000], [2, 4, 4000]] as const) {
+    // The call reaches the timer script a frame after the tell: a tick 4.0 s after it shows at the
+    // read 50 ms later.
+    for (const [interval, sleep, after] of [[4, 5, 3000], [2, 5, 4050], [1, 5, 4050], [2, 4, 4050]] as const) {
       const r = await rig()
       r.tell(`1:${interval}.0`)
       r.tell(`7:${sleep}.0`)
-      r.at(sleep * 1000)
+      r.at(sleep * 1000 + 100)
       expect(r.ticks()).toBe(1)
       r.tell('8:')
       r.at(sleep * 1000 + 550)
@@ -621,21 +652,25 @@ describe('the lag a held tick leaves', () => {
     r.tell('1:3.0')
     r.tell('2:4.0')
     r.tell('10:10.0')
-    r.at(10_000)
+    r.at(10_200)
     expect(r.ticks()).toBe(1)
-    expect(tickTimes(r.linkset, r.ticks, 4100)).toEqual([14_000])
+    expect(tickTimes(r.linkset, r.ticks, 4100)).toEqual([14_150])
   })
 
   it('lags a tick llMinEventDelay held back for less than an interval', async () => {
     // In-world: llMinEventDelay(2.5) and llSetTimerEvent(2) ticked 2.51 s after the call, and
     // llSetTimerEvent(4) in that timer handler ticked 3.49 s later, in two runs. With
     // llMinEventDelay(3) the tick came at 3.0 s and the next 3.0 s after the call.
-    for (const [delay, first, after] of [[2.5, 2500, 3500], [3, 3000, 3000]] as const) {
+    // The three calls reach the script a frame or more apart: each tick is read here against the
+    // call it follows, the first against llMinEventDelay and the second against llSetTimerEvent(2).
+    for (const [delay, first, total] of [[2.5, 2500, 6000], [3, 3000, 6000]] as const) {
       const r = await rig()
       r.tell(`4:${delay}`)
       r.tell('2:4.0')
       r.tell('1:2.0')
-      expect(tickTimes(r.linkset, r.ticks, first + after + 100)).toEqual([first, first + after])
+      const [one, two] = tickTimes(r.linkset, r.ticks, total + 300, 1)
+      expect(one! - r.calledAt('delayAt')).toBeCloseTo(first, -1.5)
+      expect(two! - r.calledAt('setAt')).toBeCloseTo(total, -1.5)
     }
   })
 
@@ -648,7 +683,8 @@ describe('the lag a held tick leaves', () => {
       r.tell(`4:${delay}`)
       r.tell('2:4.0')
       r.tell('1:0.5')
-      expect(tickTimes(r.linkset, r.ticks, delay * 1000 + 4100)).toEqual([delay * 1000, delay * 1000 + 4000])
+      r.at(100)
+      expect(tickTimes(r.linkset, r.ticks, delay * 1000 + 4100)).toEqual([delay * 1000 + 50, delay * 1000 + 4050])
     }
   })
 
@@ -658,7 +694,7 @@ describe('the lag a held tick leaves', () => {
     const r = await rig()
     r.tell('4:2.5')
     r.tell('1:2.0')
-    expect(tickTimes(r.linkset, r.ticks, 10_100)).toEqual([2500, 5000, 7500, 10_000])
+    expect(tickTimes(r.linkset, r.ticks, 10_100)).toEqual([2550, 5050, 7550, 10_050])
   })
 })
 
@@ -666,7 +702,7 @@ describe('a timer handler that sleeps', () => {
   it('ticks as each sleep ends when the sleep is longer than the interval', async () => {
     // In-world: a 1 s timer whose handler slept 1.5 s ticked every 1.56 s, and one whose handler
     // slept 1.2 s every 1.27 s: as each handler ended, with the region's own delay on top.
-    for (const sleep of [1.5, 1.2]) {
+    for (const [sleep, want] of [[1.5, [1000, 2550, 4090, 5630, 7180]], [1.2, [1000, 2250, 3490, 4730, 5980]]] as const) {
       const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `
         integer ticks;
         default {
@@ -677,8 +713,8 @@ describe('a timer handler that sleeps', () => {
       const s = scripts['s']!
       s.start()
       // A float sleep runs a fraction of a millisecond over, so read the times to the nearest 10 ms.
-      const times = tickTimes(linkset, () => s.global('ticks') as number, 1000 + 4 * sleep * 1000 + 50, 1)
-      expect(times.map((t) => Math.round(t / 10) * 10)).toEqual([0, 1, 2, 3, 4].map((k) => 1000 + k * sleep * 1000))
+      const times = tickTimes(linkset, () => s.global('ticks') as number, 1000 + 4 * (sleep * 1000 + 2 * SIM_FRAME_MS) + 50, 1)
+      expect(times.map((t) => Math.round(t / 10) * 10)).toEqual(want)
     }
   })
 })

@@ -17,15 +17,20 @@ const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const OBJECT_NAME = 1, OBJECT_POS = 3, OBJECT_ROT = 4, OBJECT_OWNER = 6, OBJECT_RUNNING_SCRIPT_COUNT = 9
 const OBJECT_TOTAL_SCRIPT_COUNT = 10, OBJECT_SCRIPT_MEMORY = 11, OBJECT_STREAMING_COST = 15, OBJECT_ATTACHED_SLOTS_AVAILABLE = 35
 const OBJECT_ACCOUNT_LEVEL = 41, OBJECT_MASS = 43, OBJECT_PRIM_COUNT = 30, OBJECT_TOTAL_INVENTORY_COUNT = 31
+const SIM_FRAME_MS = 1000 / 45
 
 const source = `
-  key o; list out; list details;
+  key o; list out; list details; list later;
+  list rd() {
+    return [llKey2Name(o), llGetUsername(o), llGetDisplayName(o), llGetAgentInfo(o),
+      llGetAnimation(o), llGetAgentSize(o) != ZERO_VECTOR, llListFindList(llGetAgentList(AGENT_LIST_REGION, []), [o]) != -1,
+      llList2String(llGetAttachedList(o), 0), llGetListLength(llGetObjectDetails(o, [OBJECT_NAME]))];
+  }
   default {
     state_entry() { o = llGetOwner(); llSitTarget(<0.0, 0.0, 0.6>, ZERO_ROTATION); }
     link_message(integer s, integer n, string str, key id) {
-      if (str == "rd") out = [llKey2Name(o), llGetUsername(o), llGetDisplayName(o), llGetAgentInfo(o),
-        llGetAnimation(o), llGetAgentSize(o) != ZERO_VECTOR, llListFindList(llGetAgentList(AGENT_LIST_REGION, []), [o]) != -1,
-        llList2String(llGetAttachedList(o), 0), llGetListLength(llGetObjectDetails(o, [OBJECT_NAME]))];
+      if (str == "rd") out = rd();
+      else if (str == "rd3") { out = rd(); llSetText("", ZERO_VECTOR, 20.0); later = [llKey2Name(o)]; llSetText("", ZERO_VECTOR, 10.0); later += rd(); }
       else if (str == "details") {
         list flags = llCSV2List((string)id); list typed; integer i;
         for (; i < llGetListLength(flags); ++i) typed += (integer)llList2String(flags, i);
@@ -40,6 +45,8 @@ async function probe(world: World) {
   const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner: OWNER, position: { x: 128, y: 128, z: 20 },
     prims: [{ scripts: [{ name: 'probe', source: { source } }] }] })
   const script = scripts['probe']!
+  // The in-world watch read in a loop on llGetTime: here a call keeps the handler busy as long.
+  script.mock('llSetText', (ctx, args) => { ctx.busy(Number(args[2])); return undefined })
   script.start()
   linkset.advanceTime(0)
   const send = (str: string, id = '') => {
@@ -47,9 +54,15 @@ async function probe(world: World) {
     linkset.advanceTime(0)
   }
   const read = () => { send('rd'); return script.global('out') as unknown[] }
+  /** Reads in one handler at once, 20 ms later (the name) and 30 ms later, as the in-world watch's loop did. */
+  const readThrice = () => {
+    send('rd3')
+    const later = script.global('later') as unknown[]
+    return [script.global('out') as unknown[], later[0], later.slice(1)] as const
+  }
   const language = () => { send('lang'); return (script.global('out') as unknown[])[0] }
   const details = (flags: number[]) => { send('details', flags.join(',')); return script.global('details') as unknown[] }
-  return { linkset, send, read, details, language, prim: linkset.prims[0]! }
+  return { linkset, send, read, readThrice, details, language, prim: linkset.prims[0]! }
 }
 
 async function fixture() {
@@ -63,6 +76,7 @@ async function fixture() {
   const watcher = await probe(world)
   for (const p of [seat, watcher]) avatar.viewer.session.bind(p.linkset, avatar)
   const advance = (ms: number) => watcher.linkset.advanceTime(ms)
+  advance(100)
   const teleport = (region: 'home' | 'north' | 'far') => {
     const corner = world.corner(region)
     expect(world.teleportAvatar(avatar, { x: corner.x + 118, y: corner.y + 48, z: 30 })).toBe(true)
@@ -83,11 +97,10 @@ describe('a seat that dies under the avatar', () => {
     expect(f.world.userSitAvatar(f.avatar, f.seat.prim)).toBe(true)
     f.advance(1000)
     f.seat.send('die')
-    expect(f.watcher.read()).toEqual([...GONE, 'NOT FOUND', 0])
-    f.advance(20)
-    expect(f.watcher.read()[0]).toBe('')
-    f.advance(10)
-    expect(f.watcher.read()).toEqual([...NAMES, 0x100, 'Striding', 1, 1, expect.anything(), 1])
+    const [now, twenty, thirty] = f.watcher.readThrice()
+    expect(now).toEqual([...GONE, 'NOT FOUND', 0])
+    expect(twenty).toBe('')
+    expect(thirty).toEqual([...NAMES, 0x100, 'Striding', 1, 1, expect.anything(), 1])
   })
 })
 
@@ -102,7 +115,7 @@ describe('the region an avatar leaves, while it reads "Init"', () => {
     expect(f.watcher.read()).toEqual([...NAMES, 0, 'Init', 1, 1, '', 1])
     expect(f.watcher.details([OBJECT_POS, OBJECT_RUNNING_SCRIPT_COUNT])).toEqual([{ x: 128, y: 128, z: 20 }, 0])
     expect(f.watcher.language()).toBe('en')
-    f.advance(210)
+    f.advance(210 - 2 * SIM_FRAME_MS)
     expect(f.watcher.read()).toEqual([...NAMES, 0, '', 0, 1, '', 1])
     f.advance(20)
     expect(f.watcher.read()).toEqual([...NAMES, 0, '', 0, 0, 'NOT ON REGION', 1])

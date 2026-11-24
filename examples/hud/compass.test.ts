@@ -31,7 +31,7 @@ describe('compass.lsl', () => {
   ])('points at the landmark from a camera at %o', (pos, text) => {
     s.grantPermissions()
     s.setCamera({ pos, rot: FACING_EAST })
-    s.advanceTime(500)
+    s.advanceTime(600)
     expect(s.text?.text).toBe(text)
   })
 
@@ -53,6 +53,7 @@ describe('compass.lsl', () => {
   it('takes itself off when clicked', () => {
     s.grantPermissions()
     s.linkset.touch(0)
+    s.advanceTime(100)
     expect(s.linkset.attachment).toBeNull()
     expect(s.timerInterval).toBe(0)
   })

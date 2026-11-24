@@ -77,6 +77,7 @@ async function tideland(senderBody: string, senderPos: Vector = { x: 118, y: 46,
     r.setGlobal('subject', subject)
     const before = r.chat.length
     r.fire('timer')
+    r.advanceTime(100)
     return r.chat.slice(before).map((c) => c.text)
   }
   return { s, r, bystander, send, fetch }
@@ -222,6 +223,7 @@ describe('llEmail', () => {
       objectKey: RECEIVER_KEY,
     })
     s.start()
+    s.advanceTime(100)
     expect(s.chat.map((c) => c.text)).toEqual([`${TO} self`])
   })
 

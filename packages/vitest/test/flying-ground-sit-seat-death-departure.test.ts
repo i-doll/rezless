@@ -15,6 +15,7 @@ const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const AGENT_FLYING = 0x1, AGENT_ATTACHMENTS = 0x2, AGENT_SCRIPTED = 0x4, AGENT_SITTING = 0x10
 const AGENT_ON_OBJECT = 0x20, AGENT_WALKING = 0x80, AGENT_IN_AIR = 0x100
 const MOTION = AGENT_FLYING | AGENT_SITTING | AGENT_ON_OBJECT | AGENT_WALKING | AGENT_IN_AIR
+const SIM_FRAME_MS = 1000 / 45
 
 const source = (sitTarget: boolean) => `
   key o; list log;
@@ -44,11 +45,12 @@ async function probe(world: World, region = 'home', sitTarget = false) {
 
 type Probe = Awaited<ReturnType<typeof probe>>
 
-/** Each [masked bits, animation] the probe read in turn, with when it started and ended (ms). */
+/** Each [masked bits, animation] the probe read in turn, a frame apart, with when it started and ended (ms). */
 function watch(p: Probe, advance: (ms: number) => void, ms: number) {
   const out: { bits: number, state: string, from: number, to: number }[] = []
-  for (let t = 0; t <= ms; t += 10) {
-    if (t) advance(10)
+  for (let i = 0; i * SIM_FRAME_MS <= ms; i++) {
+    const t = i * SIM_FRAME_MS
+    if (i) advance(SIM_FRAME_MS)
     const [bits, state] = p.read()
     const last = out.at(-1)
     if (last && last.bits === (bits & MOTION) && last.state === state) last.to = t
@@ -69,6 +71,7 @@ async function fixture() {
   const watcher = await probe(world)
   for (const p of [seat, watcher]) avatar.viewer.session.bind(p.linkset, avatar)
   const advance = (ms: number) => watcher.linkset.advanceTime(ms)
+  advance(100)
   const sit = () => { expect(world.userSitAvatar(avatar, seat.prim)).toBe(true); advance(1000) }
   const fly = () => { avatar.info |= AGENT_FLYING | AGENT_IN_AIR }
   return { world, avatar, seat, watcher, advance, sit, fly }

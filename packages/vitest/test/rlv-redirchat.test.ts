@@ -172,6 +172,7 @@ it('redirects stay separate from script chat and automatic query replies', async
     const other = await loadLinkset({ world: f.world, region: f.avatar.region, prims: [{ scripts: [{ name: 'sender',
       source: { source: 'default { state_entry() { llSay(0,"script"); } }' } }] }] })
     other.scripts.sender!.start()
+    f.script.advanceTime(100)
     expect(f.script.global('heard')).toContain('script')
     expect(f.chatActions).toEqual([])
   }

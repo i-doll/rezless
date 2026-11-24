@@ -152,11 +152,13 @@ async function emitter(f: Awaited<ReturnType<typeof loadRlvPair>>['rlv'], source
     prims: [{ scripts: [{ name: 'emitter', source: { source } }] }] })
   const script = loaded.scripts.emitter!
   script.start()
+  script.advanceTime(100)
   return script
 }
 function command(script: Awaited<ReturnType<typeof emitter>>, text: string) {
   script.host.description = text
   script.fire('touch_start', { num_detected: 1 })
+  script.advanceTime(100)
 }
 
 // In-world: a second prim's remove leaves the registration active; reset and
@@ -172,6 +174,7 @@ it('scopes registration removal and clear to the registering prim', async () => 
     const first = f.script.global('notices') as string[]
     expect(first.slice(-3)).toEqual(['/sit=n', '/sit=y', '/clear'])
     subscriber.fire('touch_start', { num_detected: 1 })
+    subscriber.advanceTime(100)
     const before = (f.script.global('notices') as string[]).length
     command(f.script, '@sit=n,sit=y')
     expect((f.script.global('notices') as string[]).length).toBe(before)
@@ -189,6 +192,7 @@ it('keeps subscriptions across script reset, state change and removal, then coll
     command(f.script, '@sit=n,sit=y')
     expect((f.script.global('notices') as string[]).slice(-2)).toEqual(['/sit=n', '/sit=y'])
     subscriber.fire('touch_start', { num_detected: 1 })
+    subscriber.advanceTime(100)
     expect(subscriber.host.scripts).toEqual([])
     command(f.script, '@sit=n,sit=y')
     expect((f.script.global('notices') as string[]).slice(-2)).toEqual(['/sit=n', '/sit=y'])
@@ -196,7 +200,7 @@ it('keeps subscriptions across script reset, state change and removal, then coll
     command(f.script, '@sit=n,sit=y')
     expect((f.script.global('notices') as string[]).slice(-2)).toEqual(['/sit=n', '/sit=y'])
     f.world.clock.advance(35000)
-    f.script.advanceTime(0)
+    f.script.advanceTime(100)
     expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
     const before = (f.script.global('notices') as string[]).length
     command(f.script, '@sit=n,sit=y')
@@ -215,7 +219,7 @@ it('notifies collection through clear while suppressing RLVa internal removals',
     const before = (f.script.global('notices') as string[]).length
     restricted.linkset.remove()
     f.world.clock.advance(35000)
-    f.script.advanceTime(0)
+    f.script.advanceTime(100)
     expect((f.script.global('notices') as string[]).slice(before)).toEqual(profile === 'rlv'
       ? ['/clear', '/sit=y', '/unsit=y'] : ['/clear'])
     expect(f.avatar.viewer.restrictions.snapshot().map(r => r.rule)).toEqual(['notify:22001'])
@@ -277,7 +281,7 @@ for (const replacement of ['absent', 'disabled'] as const) {
       if (replacement === 'disabled') f.world.addAvatar({ username: 'replacement', key: f.avatar.key, region: f.avatar.region })
       subscriber.linkset.remove()
       f.world.clock.advance(35000)
-      f.script.advanceTime(0)
+      f.script.advanceTime(100)
       expect(f.avatar.viewer.restrictions.snapshot()).toEqual([])
       expect(f.script.global('notices')).toEqual(before)
     }
@@ -305,7 +309,7 @@ for (const targetProfile of ['disabled', 'opposite'] as const) {
       const before = (f.script.global('notices') as string[]).length
       restricted.linkset.remove()
       f.world.clock.advance(35000)
-      f.script.advanceTime(0)
+      f.script.advanceTime(100)
       expect((f.script.global('notices') as string[]).slice(before)).toEqual(profile === 'rlv' ? ['/clear', '/sit=y'] : ['/clear'])
       expect(target.viewer.restrictions.snapshot()).toEqual([])
     }

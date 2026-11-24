@@ -3,7 +3,7 @@ import { gameControlAvatars, receiveGameControl, sameGameControl, type GameContr
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
 import { withCollisionFilter } from './builtins/collision.js'
-import { copySensors, runMissedSensor, stopSensors } from './builtins/sensor.js'
+import { copySensors, holdOwedSensor, runMissedSensor, stopSensors } from './builtins/sensor.js'
 import {
   enterDamageEvent,
   leaveDamageEvent,
@@ -55,7 +55,7 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView, cameUp } from './clock.js'
+import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, SIM_FRAME_MS, ScriptClockView, cameUp, toMicroseconds } from './clock.js'
 import type { QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, touchHandlerEnded, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
@@ -252,6 +252,8 @@ export class Script {
   private slua: SluaEngine | null = null
   /** Whether the rez events of this trip out of inventory are queued. A detach starts the next trip. */
   rezQueued = false
+  /** A revived script rezzed by another object starts its timer and scans when its on_rez runs. */
+  private startsAtRez = false
   /** Set on a copy of an object that was taken from under a sitter, until it is rezzed. */
   private unseated = false
   /** A copy rezzed for a new owner: its first rez says changed(CHANGED_OWNER). */
@@ -1135,7 +1137,9 @@ export class Script {
     }
     withCollisionFilter(this, eventName, payload, p => {
       const started = this.handles(eventName) ? [this] : []
-      if (this.task || this.handling || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
+      // A script that ran a handler this frame, or has events waiting, queues the event behind them.
+      if (this.task || this.handling || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now) ||
+          this.clockView.nextEventAt(eventName) > this.now || this.linkset.clock.nextEventDue(this) !== undefined) {
         this.clockView.schedule(this.now, eventName, p)
       } else this.deliver(eventName, p)
       this.linkset.settle(started)
@@ -1376,6 +1380,13 @@ export class Script {
     if (room > 0 && !rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // A worn object coming back from inventory restores its timer later, in resumeFromInventory.
     if (revived && !this.clockView.inInventory) this.clockView.catchUpTimer(false)
+    // In-world: a crashed script rezzed by another object ran state_entry a frame after the call
+    // and on_rez a frame later; its next ticks came 4 s, 8 s and 12 s after on_rez and its next
+    // scans 7 s and 14 s after it. Its start is when on_rez runs.
+    if (revived && room > 0 && !this.clockView.inInventory) {
+      this.startsAtRez = true
+      holdOwedSensor(this)
+    }
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
       const detected = e.payload['detected']
@@ -1561,6 +1572,7 @@ export class Script {
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
     this.clockView.resetReference()
+    this.clockView.restarted()
     // A held running-state change, from a sibling or for one, outlives the script's own events.
     this.linkset.clock.landContactRestarted(this, true)
     this.linkset.clock.purgeTarget(this, Infinity, ['__running', '__scriptState'])
@@ -1601,6 +1613,11 @@ export class Script {
     if (event === '__running') {
       this.applyHeldChanges(payload['ops'] as Array<{ running?: boolean; reset?: true }>)
       return
+    }
+    if (event === 'on_rez' && this.startsAtRez) {
+      this.startsAtRez = false
+      this.clockView.startedNow()
+      runMissedSensor(this)
     }
     if (event === '__unseated' || event === '__ownerChanged') {
       // Queued behind on_rez. A wear queues attach next, and the changed event comes after that.
@@ -1747,12 +1764,15 @@ export class Script {
     this.handling = true
     this.busyRun = task.busy === true
     this.stepping = task
+    const clock = this.linkset.clock
+    clock.handlersRunning++
     try {
       r = task.run.next()
     } catch (e) {
       this.finish(task, queued)
       throw e
     } finally {
+      clock.handlersRunning--
       this.handling = outer
       this.busyRun = outerBusy
       this.stepping = outerTask
@@ -1764,6 +1784,8 @@ export class Script {
       return
     }
     this.finish(task, queued)
+    // The last handler of a state change chain is the one that ended.
+    this.clockView.handlerEnded(task.slua?.event ?? this.chainEvent ?? task.lsl?.handler.name ?? 'state_entry')
     this.clockView.finishHandler(r.value)
     if (r.value) {
       if (this.detachedInHandler && this.clockView.inInventory) this.resetPastWear = true
@@ -1861,8 +1883,8 @@ export class Script {
         // state_exit and state_entry run outside the game_control handler that changed state.
         const fromGameControl = this.inGameControl
         this.inGameControl = false
-        // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
-        if (this.clearDamageAdjustment()) yield { until: this.now }
+        // In-world (main grid, 2026-11-23): the other scripts' final_damage ran 46 ms before state_exit.
+        if (this.clearDamageAdjustment()) yield { until: this.now + 2 * SIM_FRAME_MS }
         if (this.state.lifecycle.removed) return false
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
@@ -1922,9 +1944,13 @@ export class Script {
       {
         call: (name, args) => this.sluaCall(name, args),
         now: () => this.now,
-        clock: () => this.clockView.elapsedSeconds(),
+        clock: () => toMicroseconds(this.clockView.elapsedSeconds()),
         unixTime: () => this.clockView.unixMicros() / 1e6,
-        setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
+        // The tick falls due at the first microsecond the clock reads on or after the time asked for.
+        setTimer: (seconds) => {
+          const now = this.clockView.elapsedSeconds()
+          this.clockView.setTimer(seconds > 0 ? (Math.ceil((toMicroseconds(now) + seconds) * 1e6 - 1e-6) / 1e6 - now) * 1000 : seconds)
+        },
         print: (text) => this.sluaPrint(text),
         faceTextureIsItem: (face) => faceTextureIsItem(this.host, face),
       },
@@ -1966,8 +1992,8 @@ export class Script {
   private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null; busyMs: number | null } {
     const spec = BUILTIN_SPECS[name as keyof typeof BUILTIN_SPECS] as BuiltinSpec
     const engine = this.slua!
-    // SLua's own ll.GetTime reads the script clock as a double, without an LSL call; only a test's mock replaces it.
-    if (name === 'llGetTime' && !this.mocks[name]) return { value: this.clockView.elapsedSeconds(), delayMs: null, busyMs: null }
+    // SLua's own ll.GetTime reads the script clock to the microsecond, without an LSL call; only a test's mock replaces it.
+    if (name === 'llGetTime' && !this.mocks[name]) return { value: toMicroseconds(this.clockView.elapsedSeconds()), delayMs: null, busyMs: null }
     // SLua passes floats to LSL functions as 32-bit floats.
     const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
     let mocks = this.mocks
@@ -2116,10 +2142,7 @@ export class Script {
     if (this.parkedEvents.length === 0) return
     const events = this.parkedEvents.splice(0, this.parkedEvents.length)
     if (events.some(e => e.event === 'state_entry')) forgetMoving(this)
-    const at = this.now
-    for (const e of events) {
-      this.clockView.schedule(at, e.event, e.payload)
-    }
+    this.linkset.clock.scheduleWaiting(this, events)
   }
 }
 

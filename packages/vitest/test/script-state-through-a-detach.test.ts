@@ -39,8 +39,8 @@ async function worn(mode: number) {
   const t = scripts['T']!
   for (const s of Object.values(scripts)) s.start()
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(0)
-  const say = (m: string) => { t.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' }); linkset.advanceTime(0) }
+  linkset.advanceTime(100)
+  const say = (m: string) => { t.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' }); linkset.advanceTime(100) }
   say('two')
   t.setGlobal('log', [])
   /** Run `m` in T; its handler is busy when the object detaches, with a chat line waiting. */
@@ -51,10 +51,10 @@ async function worn(mode: number) {
       return undefined
     })
     t.fire('link_message', { sender_num: 0, num: 0, str: m, id: '' })
-    linkset.advanceTime(0)
+    linkset.advanceTime(100)
   }
-  const detach = () => { linkset.detachFromAvatar(); linkset.advanceTime(0) }
-  const wear = () => { linkset.attachToAvatar(OWNER, 5); linkset.advanceTime(0) }
+  const detach = () => { linkset.detachFromAvatar(); linkset.advanceTime(100) }
+  const wear = () => { linkset.attachToAvatar(OWNER, 5); linkset.advanceTime(100) }
   return { linkset, t, say, busy, detach, wear, log: () => t.global('log') }
 }
 

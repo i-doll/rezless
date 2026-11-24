@@ -51,16 +51,20 @@ describe('avatar reply origin', () => {
       avatar.position = { x: 230.1, y: 0, z: 0 }
       script.start()
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 2 : 1)
       avatar.position = { x: 150.1, y: 0, z: 0 }
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 3 : 2)
       avatar.position = { x: 149.9, y: 0, z: 0 }
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 3 : 2)
       avatar.region = 'neighbour'
       avatar.position = { x: 1, y: 0, z: 0 }
       script.fire('touch_start', { num_detected: 1 })
+      script.advanceTime(100)
       expect(script.global('replies')).toBe(profile === 'rlv' ? 5 : 3)
     }
   })
@@ -82,11 +86,11 @@ describe('reply payload limits', () => {
       const { script, avatar } = pair[profile]
       script.start()
       sendViewerReply(script.linkset, avatar, 216101, 'A'.repeat(1022) + 'éZ')
-      script.advanceTime(1)
+      script.advanceTime(100)
       expect(script.global('reply')).toBe('A'.repeat(1022) + (profile === 'rlv' ? '\uFFFD' : ''))
       expect(script.global('replies')).toBe(1)
       sendViewerReply(script.linkset, avatar, -216101, 'A'.repeat(253) + 'éZ')
-      script.advanceTime(1)
+      script.advanceTime(100)
       expect(script.global('reply')).toBe(profile === 'rlv' ? 'A'.repeat(253) + '\uFFFD' : 'A'.repeat(1022))
       expect(script.global('replies')).toBe(profile === 'rlv' ? 2 : 1)
     }
@@ -104,13 +108,13 @@ it('preserves a leading BOM and empty data while refusing invalid channels witho
     for (const channel of [0, 1.5, 2147483648, -2147483649, NaN]) {
       expect(sendViewerReply(script.linkset, avatar, channel, '')).toBeUndefined()
     }
-    script.advanceTime(1)
+    script.advanceTime(100)
     expect(script.global('replies')).toBe(0)
     sendViewerReply(script.linkset, avatar, 216101, '\uFEFFhello')
-    script.advanceTime(1)
+    script.advanceTime(100)
     expect(script.global('reply')).toBe('\uFEFFhello')
     sendViewerReply(script.linkset, avatar, 216101, '')
-    script.advanceTime(1)
+    script.advanceTime(100)
     expect(script.global('reply')).toBe('')
     expect(script.global('replies')).toBe(2)
   }
@@ -131,7 +135,7 @@ it('keeps direct replies inert for disabled avatars', async () => {
   const script = scripts.listener!
   script.start()
   expect(sendViewerReply(script.linkset, avatar, 216101, 'hello')).toBeUndefined()
-  script.advanceTime(1)
+  script.advanceTime(100)
   expect(script.global('replies')).toBe(0)
 })
 
@@ -146,9 +150,11 @@ it('limits negative dialog delivery at 20 m from the current avatar', async () =
     script.start()
     script.host.params.position = { x: 19.9, y: 0, z: 0 }
     script.fire('touch_start', { num_detected: 1 })
+    script.advanceTime(100)
     expect(script.global('replies')).toBe(profile === 'rlv' ? 1 : 0)
     script.host.params.position = { x: 20.1, y: 0, z: 0 }
     script.fire('touch_start', { num_detected: 1 })
+    script.advanceTime(100)
     expect(script.global('replies')).toBe(profile === 'rlv' ? 1 : 0)
   }
 })
@@ -163,11 +169,11 @@ it('delivers the ASCII byte ceiling in one event for both transports', async () 
     const { script, avatar } = pair[profile]
     script.start()
     sendViewerReply(script.linkset, avatar, 216101, 'x'.repeat(1200))
-    script.advanceTime(1)
+    script.advanceTime(100)
     expect(script.global('reply')).toBe('x'.repeat(1023))
     expect(script.global('replies')).toBe(1)
     sendViewerReply(script.linkset, avatar, -216101, 'y'.repeat(300))
-    script.advanceTime(1)
+    script.advanceTime(100)
     expect(script.global('reply')).toBe(profile === 'rlv' ? 'y'.repeat(254) : 'x'.repeat(1023))
     expect(script.global('replies')).toBe(profile === 'rlv' ? 2 : 1)
   }

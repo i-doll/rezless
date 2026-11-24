@@ -238,6 +238,7 @@ describe('sendHttpRequest', () => {
   it('times out with a 504 after 25 seconds without an answer', async () => {
     const s = await loadScript({ source: server('') })
     s.start()
+    s.advanceTime(100)
     const req = s.sendHttpRequest(s.urls[0]!)
     expect(req.response).toBeUndefined()
     s.advanceTime(24_999)

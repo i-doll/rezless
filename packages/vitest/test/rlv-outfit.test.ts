@@ -96,19 +96,19 @@ it('changes replies when wearables or mapped world attachments change, counting 
       clothing('shirt', 'mixed'), { id: 'object', parentId: 'mixed', name: 'Object (chest)', kind: 'item' as const, assetType: 'object' as const }],
       wornAttachments: [{ itemId: 'object', rootKey: attachment.linkset.prims[0]!.key }] }
     seedRlvInventory(avatar, config)
-    script.start(); script.fire('touch_start', { num_detected: 1 })
+    script.start(); script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect(script.global('replies')).toEqual(['|10', '0'])
     attachment.linkset.attachToAvatar(avatar.key, 1)
-    script.fire('touch_start', { num_detected: 1 })
+    script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(['|20', '0'])
     seedRlvInventory(avatar, { ...config, wornWearables: ['shirt'] })
-    script.fire('touch_start', { num_detected: 1 })
+    script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(['|30', '1'])
     attachment.linkset.detachFromAvatar()
-    script.fire('touch_start', { num_detected: 1 })
+    script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(['|20', '1'])
     seedRlvInventory(avatar, config)
-    script.fire('touch_start', { num_detected: 1 })
+    script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(['|10', '0'])
   }
 })
@@ -149,10 +149,10 @@ it('pins Kokua no-mod sentinels and direct RLVa folded-folder occupancy', async 
       folder('folded', 'parent', '(chest)', true),
       { id: 'item', parentId: 'folded', name: 'Object', kind: 'item', assetType: 'object', modifiable: false },
     ], wornAttachments: [{ itemId: 'item', rootKey: attachment.linkset.prims[0]!.key }] })
-    script.start(); script.fire('touch_start', { num_detected: 1 })
+    script.start(); script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect(script.global('replies')).toEqual(profile === 'rlv' ? ['|11,(chest)|10', '|10'] : ['|10', '|10'])
     attachment.linkset.attachToAvatar(avatar.key, 1)
-    script.fire('touch_start', { num_detected: 1 })
+    script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(profile === 'rlv' ? ['|33,(chest)|30', '|30'] : ['|30', '|30'])
     expect(avatar.viewer.commandLog.at(-1)).toMatchObject({ status: 'replied' })
     expect(avatar.viewer.diagnostics).toEqual([])

@@ -110,8 +110,9 @@ describe('a root left holding a click that ended in its child', () => {
     // root got about 22 touch events a second throughout.
     const { copy, got, touches } = await stuck()
     const before = touches('root') as number
+    const from = copy.clock.now
     copy.touch(2)
-    copy.advanceTime(1000)
+    copy.advanceTime(from + 1000 - copy.clock.now)
     expect(got('child')).toEqual(['end', 2, 'start', 2, 'end', 2])
     expect(touches('child')).toBe(1)
     expect(got('root')).toEqual(['start', 2])

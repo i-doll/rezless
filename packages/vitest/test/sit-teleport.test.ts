@@ -97,8 +97,9 @@ it('unsits an avatar on this object and fires a second link change', async () =>
     default {state_entry(){llSitTarget(<0,0,1>,ZERO_ROTATION);llSitOnLink(llGetOwner(),1);}
     changed(integer c){if(c&CHANGED_LINK)++changes;}
     touch_start(integer n){llUnSit(llGetOwner());sitter=llAvatarOnSitTarget();}}`, xp())
-  script.start(); script.fire('touch_start', { num_detected: 1 })
+  script.start(); script.advanceTime(100); script.fire('touch_start', { num_detected: 1 })
   expect(script.global('sitter')).toBe('00000000-0000-0000-0000-000000000000')
+  script.advanceTime(100)
   expect(script.global('changes')).toBe(2)
 })
 
@@ -204,11 +205,12 @@ it('makes a viewer sit visible to both root and child scripts', async () => {
     touch_start(integer n){llUnSit(llGetOwner());}}`)
   script.start()
   expect(world.sitAvatar(avatar, prims[1]!)).toBe(true)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   expect(script.global('root')).toBe('00000000-0000-0000-0000-000000000000')
   expect(script.global('child')).toBe(OWNER)
   expect(script.global('changes')).toBe(1)
   script.fire('touch_start', { num_detected: 1 })
+  linkset.advanceTime(100)
   expect(script.global('child')).toBe('00000000-0000-0000-0000-000000000000')
   expect(script.global('changes')).toBe(2)
 })

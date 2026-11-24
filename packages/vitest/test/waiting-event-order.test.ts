@@ -100,7 +100,7 @@ async function asleep(command = 'sleep') {
 }
 
 function logAfterSleep(made: { linkset: Linkset; script: Script }) {
-  made.linkset.advanceTime(8_500)
+  made.linkset.advanceTime(10_000)
   return (made.script.global('log') as string[]).slice(2)
 }
 
@@ -459,7 +459,7 @@ describe('a timer tick that fell due while a handler slept', () => {
         timer() {
           log += "timer " + (string)llRound(llGetTime());
           if (armed && ${where === 'timer' ? 'TRUE' : 'FALSE'}) llSetTimerEvent(20.0);
-          if (llGetTime() > 9.5) llSetTimerEvent(0.0);
+          if (llGetTime() > 10.0) llSetTimerEvent(0.0);
         }
         touch_start(integer n) { log += "touch"; ${where === 'touch' ? 'llSetTimerEvent(1.0);' : ''} } }` } },
       { name: 'ctl', source: { source: 'default { link_message(integer from, integer n, string s, key id) { llSetScriptState("main", n); } }' } },
@@ -693,7 +693,7 @@ describe('events held back in an object that is taken while its handler sleeps',
     const f = await fixture()
     const made = await make(f, probe)
     made.linkset.attachToAvatar(OWNER, 5)
-    made.linkset.advanceTime(0)
+    made.linkset.advanceTime(100)
     made.script.setGlobal('log', [])
     queue(f, made.script, 'listen', heard('sleep'))
     made.linkset.advanceTime(2_000)
@@ -718,7 +718,7 @@ describe('events held back in an object that is taken while its handler sleeps',
       on_rez(integer p) { log += "rez"; }
       attach(key id) { log += "attach"; } }`)
     made.linkset.attachToAvatar(OWNER, 5)
-    made.linkset.advanceTime(0)
+    made.linkset.advanceTime(100)
     made.script.setGlobal('log', [])
     touch(f, made.script, 3)
     made.linkset.advanceTime(2_000)
@@ -735,7 +735,7 @@ describe('events held back in an object that is taken while its handler sleeps',
     const f = await fixture()
     const made = await make(f, probe)
     made.linkset.attachToAvatar(OWNER, 5)
-    made.linkset.advanceTime(0)
+    made.linkset.advanceTime(100)
     made.script.setGlobal('log', [])
     queue(f, made.script, 'listen', heard('sleep'))
     made.linkset.advanceTime(2_000)
@@ -813,7 +813,7 @@ describe('on_rez and attach among the events waiting for a sleeping handler', ()
     const f = await fixture()
     const made = await make(f, probe)
     made.linkset.attachToAvatar(OWNER, 5)
-    made.linkset.advanceTime(0)
+    made.linkset.advanceTime(100)
     made.script.setGlobal('log', [])
     queue(f, made.script, 'listen', heard('sleep'))
     made.linkset.advanceTime(2_000)

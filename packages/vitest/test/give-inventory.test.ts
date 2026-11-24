@@ -149,7 +149,7 @@ async function pair(foreign = false, drop = false, region = 'test') {
 
 it('copies into a World prim without delay and fires CHANGED_INVENTORY', async () => {
   // In-world: give 1 -> dt .044 s, receiver changes=1 c=1 count=2.
-  const { s, receiver } = await pair(); s.linkset.touch(0)
+  const { s, receiver } = await pair(); s.linkset.touch(0); s.linkset.advanceTime(100)
   expect(receiver.prims[0]!.inventory.find(i => i.name === 'gift')?.notecardLines).toEqual(['hello'])
   expect(receiver.scripts.receiver!.global('changes')).toBe(1)
   expect(s.global('done')).toBe(1)
@@ -174,7 +174,7 @@ it('requires inventory drop for a foreign-owned prim and uses CHANGED_ALLOWED_DR
   const denied = await pair(true); denied.s.linkset.touch(0)
   expect(denied.receiver.prims[0]!.inventory.map(i => i.name)).not.toContain('gift')
   expect(errors(denied.s).join()).toContain('Blocked by permissions')
-  const allowed = await pair(true, true); allowed.s.linkset.touch(0)
+  const allowed = await pair(true, true); allowed.s.linkset.touch(0); allowed.s.linkset.advanceTime(100)
   expect(allowed.receiver.prims[0]!.inventory.map(i => i.name)).toContain('gift')
   expect(allowed.receiver.scripts.receiver!.global('changes')).toBe(64)
 })

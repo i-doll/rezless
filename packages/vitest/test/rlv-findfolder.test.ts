@@ -80,14 +80,14 @@ it('maps inventory item identity to live attachments without exposing unshared p
    wornAttachments:[{itemId:'i1',rootKey:a.prims[0]!.key},{itemId:'i2',rootKey:b.prims[0]!.key},
     {itemId:'i3',rootKey:unshared.prims[0]!.key}]})
   a.linkset.attachToAvatar(avatar.key,1); b.linkset.attachToAvatar(avatar.key,1); unshared.linkset.attachToAvatar(avatar.key,1)
-  script.start();script.fire('touch_start',{num_detected:1})
+  script.start();script.fire('touch_start',{num_detected:1});script.advanceTime(100)
   const first = avatar.viewer.profile === 'rlv' ? ['Same','Same,Same/Nested,'] : ['Same','Same,Same/Nested']
   expect(script.global('replies')).toEqual(first)
   a.linkset.detachFromAvatar()
-  script.fire('touch_start',{num_detected:1})
+  script.fire('touch_start',{num_detected:1});script.advanceTime(100)
   expect(script.global('replies')).toEqual([...first,'Same/Nested',avatar.viewer.profile === 'rlv' ? 'Same/Nested,' : 'Same/Nested'])
   b.linkset.detachFromAvatar()
-  script.fire('touch_start',{num_detected:1})
+  script.fire('touch_start',{num_detected:1});script.advanceTime(100)
   expect((script.global('replies') as string[]).slice(-2)).toEqual(['',''])
  }
 })
@@ -211,13 +211,13 @@ it('uses current attachment order after reattachment and ignores another avatar 
       { id: 'i2', parentId: 'b', name: 'Same', kind: 'item' }],
       wornAttachments: [{ itemId: 'i2', rootKey: b.prims[0]!.key }, { itemId: 'i1', rootKey: a.prims[0]!.key }] })
     a.linkset.attachToAvatar(avatar.key, 1); b.linkset.attachToAvatar(avatar.key, 1)
-    script.start(); script.fire('touch_start', { num_detected: 1 })
+    script.start(); script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect(script.global('replies')).toEqual(['Zulu', 'Zulu,Alpha'])
     a.linkset.detachFromAvatar(); a.linkset.attachToAvatar(avatar.key, 1)
-    script.fire('touch_start', { num_detected: 1 })
+    script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(['Alpha', 'Alpha,Zulu'])
     b.linkset.dead = true
-    script.fire('touch_start', { num_detected: 1 })
+    script.fire('touch_start', { num_detected: 1 }); script.advanceTime(100)
     expect((script.global('replies') as string[]).slice(-2)).toEqual(['Zulu', 'Zulu'])
   }
 })

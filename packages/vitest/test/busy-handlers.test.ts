@@ -43,6 +43,7 @@ async function make(ms: number) {
   ] })
   const script = made.scripts.main!
   for (const s of Object.values(made.scripts)) s.start()
+  made.linkset.advanceTime(100)
   script.setGlobal('spin', ms / 1000)
   script.mock('llOwnerSay', (ctx) => { ctx.busy(ms); return undefined })
   const clock = world.clock
@@ -144,7 +145,7 @@ describe('a handler that is busy, not asleep', () => {
     say(`timer ${seconds}`)
     wait(before)
     begin('busy')
-    wait(ms)
+    wait(ms + 100)
     expect(log()).toEqual(['begin', 'end', 'timer', 'timer'])
     wait(seconds * 1000)
     expect(log()).toEqual(['begin', 'end', 'timer', 'timer', 'timer'])
@@ -158,7 +159,7 @@ describe('a handler that is busy, not asleep', () => {
     say('timer 3')
     begin('busy')
     wait(500); drop('x1'); wait(3_000); click(1); wait(4_000); drop('x2'); wait(2_000); click(2)
-    wait(1_500)
+    wait(1_800)
     expect(log()).toEqual(['begin', 'end', 'changed 1', 'timer', 'touch_start 1', 'touch 1', 'touch_end 1',
       'changed 1', 'timer', 'touch_start 2', 'touch 2', 'touch_end 2'])
   })
@@ -188,7 +189,7 @@ describe('a handler that is busy, not asleep', () => {
     wait(500)
     begin('busy')
     for (let n = 1; n <= 70; n++) link(n)
-    wait(6_000)
+    wait(8_000)
     expect(log()).toEqual(['begin', 'end', ...Array.from({ length: 64 }, (_, i) => `link ${i + 1}`), 'timer'])
   })
 
@@ -200,7 +201,7 @@ describe('a handler that is busy, not asleep', () => {
     wait(100)
     begin('busy')
     wait(3_000); link(1); wait(4_000); link(1); link(2)
-    wait(2_000)
+    wait(2_300)
     expect(log()).toEqual(['begin', 'end', 'sensor', 'link 1', 'link 1', 'link 2', 'sensor'])
   })
 
@@ -212,7 +213,7 @@ describe('a handler that is busy, not asleep', () => {
     say('timer 5')
     begin('busy')
     wait(500); drop('x1'); wait(2_000); click(1); wait(3_000); drop('x2'); wait(1_500); click(2)
-    wait(5_000)
+    wait(5_300)
     expect(log()).toEqual(['begin', 'end', 'changed 1', 'touch_start 1', 'touch 1', 'touch_end 1', 'timer',
       'changed 1', 'touch_start 2', 'touch 2', 'touch_end 2', 'timer'])
   })
@@ -224,13 +225,13 @@ describe('a handler that is busy, not asleep', () => {
     const { begin, wait, drop, click, link, log } = await make(13_000)
     begin('busy')
     wait(1_000); drop('x1'); wait(2_000); drop('x2'); wait(2_000); link(1); wait(2_000); drop('x3'); wait(2_000); link(1); link(2)
-    wait(4_000)
+    wait(4_300)
     expect(log()).toEqual(['begin', 'end', 'changed 1', 'link 1', 'link 1', 'link 2', 'changed 1'])
     const touched = await make(13_000)
     touched.begin('busy')
     touched.wait(1_000); touched.click(1); touched.wait(2_000); touched.click(2); touched.wait(2_000); touched.link(1)
     touched.wait(2_000); touched.click(3); touched.wait(2_000); touched.link(1); touched.link(2)
-    touched.wait(4_000)
+    touched.wait(4_300)
     expect(touched.log()).toEqual(['begin', 'end', 'touch_start 1', 'touch 1', 'touch_end 1', 'link 1', 'link 1', 'link 2',
       'touch_start 2', 'touch 3', 'touch_end 3'])
   })

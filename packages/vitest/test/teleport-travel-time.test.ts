@@ -48,7 +48,7 @@ async function fixture(profile: typeof profiles[number]) {
   script.start()
   script.linkset.attachToAvatar(avatar.key, 39)
   script.grantPermissions()
-  script.advanceTime(0)
+  script.advanceTime(100)
   const loaded = await loadLinkset({ world, region: 'RLV fixture', owner: avatar.key, position: { x: 120, y: 49, z: 30 },
     prims: [{ name: 'seat', scripts: [{ name: 'seat', source: { source: seatSource } }] }] })
   loaded.scripts['seat']!.start()

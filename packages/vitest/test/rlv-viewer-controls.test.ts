@@ -25,6 +25,7 @@ type Fixture = Awaited<ReturnType<typeof fixtures>>['rlv']
 function send(f: Fixture, command: string) {
  f.script.host.description = command
  f.script.fire('touch_start', { num_detected: 1 })
+ f.script.linkset.advanceTime(100)
 }
 const worn = (f: Fixture) => f.world.linksets.filter(l => l.attachment).length
 
@@ -118,7 +119,7 @@ describe('opt-in viewer controls', () => {
    if (lifecycle === 'remove') send(f, 'remove')
    if (lifecycle === 'unlisten') f.script.fire('listen', { channel: 1, name: '', id: f.avatar.key, message: '' })
    f.avatar.viewer.release()
-   f.script.linkset.advanceTime(0)
+   f.script.linkset.advanceTime(100)
    expect(receiver.scripts.receiver!.global('replies')).toEqual(['Wear'])
    if (lifecycle === 'reset') expect(f.script.global('replies')).toEqual(['Wear'])
    if (lifecycle === 'unlisten') expect(f.script.global('replies')).toEqual([])

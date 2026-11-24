@@ -63,6 +63,7 @@ async function fixture(extra = '') {
   linkset.attachToAvatar(OWNER, 5)
   linkset.advanceTime(0)
   script.grantPermissions()
+  linkset.advanceTime(100)
   const events = () => script.global('events') as string[]
   const out = () => {
     script.fire('touch_start', { num_detected: 1 })
@@ -77,12 +78,15 @@ async function fixture(extra = '') {
 // floats, id the owner. Buttons 0 and 3 with axes 1, -1 and 0.75 on axis 5 -> 9|1.000000,
 // -0.999969, 0, 0, 0, 0.749992.
 it('raises game_control when the input changes, with six canonical float axes', async () => {
-  const { script, events } = await fixture()
+  const { script, events, linkset } = await fixture()
   script.sendGameControl(OWNER.toUpperCase(), { buttons: 1, axes: [0.5, -0.25] })
   script.sendGameControl(OWNER, { buttons: 1, axes: [0.5, -0.25] })
   script.sendGameControl(OWNER, { buttons: 1, axes: [0.5, -0.25] })
+  linkset.advanceTime(100)
   script.sendGameControl(OWNER)
+  linkset.advanceTime(100)
   script.sendGameControl(OWNER, { buttons: 9, axes: [1, -1, 0, 0, 0, 0.75] })
+  linkset.advanceTime(100)
   expect(events()).toEqual([
     `${OWNER}|1|0.500015, -0.250000, 0.000000, 0.000000, 0.000000, 0.000000`,
     `${OWNER}|0|0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000`,
@@ -116,10 +120,12 @@ it.each([
 // 0.500015, -0.500015. Flycam mode axes 5 and 6 at -0.5 and 1 -> -0.500000, 1.000000. Without
 // mode buttons the viewer sent its canonical buttons there, which the mode buttons read.
 it('reads cursor pixels as sent and scales the normalized cursor axes evenly', async () => {
-  const { script } = await fixture()
+  const { script, linkset } = await fixture()
   script.sendGameControl(OWNER, { mode: 4, modeAxes: [0.5, -0.5, 16384, -16384, 0.5, -0.5] })
   expect(script.global('semantic')).toEqual([Math.fround(16384 / 32767), -0.5, 16384, -16384, Math.fround(16384 / 32767), Math.fround(-16384 / 32767)])
+  linkset.advanceTime(100)
   script.sendGameControl(OWNER, { mode: 2, buttons: 16, modeAxes: [0, 0, 0, 0, 0, -0.5, 1] })
+  linkset.advanceTime(100)
   expect(script.global('semantic')).toEqual([0, 0, 0, 0, 0, -0.5, 1])
   expect(script.global('buttons')).toBe(16)
 })
@@ -128,10 +134,13 @@ it('reads cursor pixels as sent and scales the normalized cursor axes evenly', a
 // mouselook mode, each held 0.5 s with no canonical input -> six events, each with button_levels
 // 0 and zero axes, reading m0 0.500015 on axis 2, m0 4096, m1 4096 and the releases between.
 it('raises game_control for a change in the mode values alone', async () => {
-  const { script, events } = await fixture()
+  const { script, events, linkset } = await fixture()
   script.sendGameControl(OWNER, { modeAxes: [0, 0, 0.5] })
+  linkset.advanceTime(100)
   script.sendGameControl(OWNER, { modeButtons: 4096 })
+  linkset.advanceTime(100)
   script.sendGameControl(OWNER, { mode: 1, modeButtons: 4096 })
+  linkset.advanceTime(100)
   expect(events()).toHaveLength(3)
   expect(script.global('mode')).toBe(1)
   expect(script.global('buttons')).toBe(4096)
@@ -155,8 +164,9 @@ it('raises game_control only in scripts holding the permission from that avatar'
   script.sendGameControl(OTHER, { buttons: 2 })
   expect(events()).toHaveLength(1)
   script.fire('listen', { channel: 0, name: 'x', id: OWNER, msg: String(1 << 20) })
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   script.sendGameControl(OWNER, { buttons: 4 })
+  linkset.advanceTime(100)
   expect(events()).toHaveLength(2)
 })
 
@@ -208,13 +218,15 @@ it('reaches a seat and an attachment alike, and a seat after its sitter stands',
   const sitter = seat.scripts.seat!
   sitter.start()
   expect(world.sitAvatar(avatar, seat.linkset.prims[0]!)).toBe(true)
-  seat.linkset.advanceTime(0)
+  seat.linkset.advanceTime(100)
   script.sendGameControl(OWNER, { mode: 3, buttons: 64, axes: [0, 0, 0.5] })
+  seat.linkset.advanceTime(100)
   expect(sitter.global('events')).toEqual(events())
   expect(events()).toHaveLength(1)
   world.standAvatar(avatar)
-  seat.linkset.advanceTime(0)
+  seat.linkset.advanceTime(100)
   sitter.sendGameControl(OWNER, { buttons: 128 })
+  seat.linkset.advanceTime(100)
   expect(sitter.global('events')).toHaveLength(2)
   expect(sitter.global('mode')).toBe(0)
 })
@@ -228,10 +240,11 @@ it('keeps the permission through a detach and forgets the last event values', as
   linkset.detachFromAvatar()
   script.sendGameControl(OWNER, { buttons: 256 })
   linkset.attachToAvatar(OWNER, 5)
-  linkset.advanceTime(0)
+  linkset.advanceTime(100)
   expect(out()).toEqual([-1, 0, []])
   expect(script.global('perms')).toBe(1 << 20)
   script.sendGameControl(OWNER, { buttons: 512 })
+  linkset.advanceTime(100)
   expect(events().map(e => e.split('|')[1])).toEqual(['1', '512'])
 })
 
@@ -257,7 +270,9 @@ it('works in a standalone script and keeps its values through a hand-fired event
   const script = await loadScript({ source: probe(), owner: OWNER })
   script.start()
   script.grantPermissions()
+  script.linkset.advanceTime(100)
   script.sendGameControl(OWNER, { mode: 1, buttons: 512 })
+  script.linkset.advanceTime(100)
   expect(script.global('mode')).toBe(1)
   script.fire('game_control', { id: OWNER, button_levels: 4, axes: [0, 0] })
   expect(script.global('mode')).toBe(1)

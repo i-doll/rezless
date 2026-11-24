@@ -69,8 +69,8 @@ it('gives the same position for a single advance or many smaller advances',async
 })
 it.each(['0','-1','.01','.044'])('disables an existing move with invalid tau %s',async tau=>{
   const s=await mover(undefined,true,`llMoveToTarget(<-4,0,0>,${tau});`);s.advanceTime(300)
-  const held=sample(s).p
   action(s,4)
+  const held=sample(s).p
   s.advanceTime(5000)
   expect(sample(s).p).toEqual(held)
 })
@@ -84,8 +84,8 @@ it.each([[64,true],[64.01,false],[64.9,false],[65,false],[65.1,false]])(
     expect(sample(s).p.x>0).toBe(moves)
   })
 it('a distant replacement cancels existing movement',async()=>{
-  const s=await mover(undefined,true,'llMoveToTarget(llGetPos()+<65,0,0>,1);');s.advanceTime(300);const held=sample(s).p
-  action(s,4)
+  const s=await mover(undefined,true,'llMoveToTarget(llGetPos()+<65,0,0>,1);');s.advanceTime(300)
+  action(s,4);const held=sample(s).p
   s.advanceTime(5000);expect(sample(s).p).toEqual(held)
 })
 it('stores a nonphysical move and pauses it while physics is disabled',async()=>{
@@ -93,7 +93,7 @@ it('stores a nonphysical move and pauses it while physics is disabled',async()=>
   expect(sample(s).p.x).toBe(0)
   action(s,1);s.advanceTime(1000);expect(sample(s).p.x).toBeCloseTo(2.528,2)
   action(s,2);const held=sample(s).p;s.advanceTime(1000);expect(sample(s).p).toEqual(held)
-  action(s,1);s.advanceTime(1000);expect(sample(s).p.x).toBeCloseTo(3.459,2)
+  action(s,1);s.advanceTime(1000);expect(sample(s).p.x).toBeCloseTo(3.471,2)
 })
 it('stop holds position and rotation without coasting',async()=>{
   const s=await mover('llMoveToTarget(<4,0,0>,1);llRotLookAt(llEuler2Rot(<0,0,PI_BY_TWO>),1,1);')
@@ -112,7 +112,7 @@ it.each(['llLookAt(<4,0,0>,1,1);','llRotLookAt(llEuler2Rot(<0,PI_BY_TWO,0>),1,1)
   })
 it.each(['.2','1','2'])('converges physical rotation with strength %s',async strength=>{
   const s=await mover(`llRotLookAt(llEuler2Rot(<0,0,PI_BY_TWO>),${strength},1);`)
-  expect(sample(s).r.z).toBe(0);s.advanceTime(200)
+  expect(s.host.params.rotation.z).toBe(0);s.advanceTime(200)
   expect(sample(s).r.z).toBeGreaterThan(0);expect(sample(s).r.z).toBeLessThan(.70711)
   s.advanceTime(30000);expect(sample(s).r.z).toBeCloseTo(Math.SQRT1_2,4)
 })
@@ -122,14 +122,15 @@ it('uses strength and damping, capping damping at one',async()=>{
   const c=await mover('llRotLookAt(llEuler2Rot(<0,0,PI_BY_TWO>),1,2);')
   const d=await mover('llRotLookAt(llEuler2Rot(<0,0,PI_BY_TWO>),1,.2);')
   for(const s of [a,b,c,d])s.advanceTime(500)
-  expect(sample(a).r.z).toBeGreaterThan(sample(b).r.z)
-  expect(sample(a).r).toEqual(sample(c).r)
-  expect(sample(d).r.z).toBeGreaterThan(sample(a).r.z)
+  const [ra,rb,rc,rd]=[a,b,c,d].map(s=>sample(s).r)
+  expect(ra!.z).toBeGreaterThan(rb!.z)
+  expect(ra).toEqual(rc)
+  expect(rd!.z).toBeGreaterThan(ra!.z)
 })
 it.each(['0','-1','.01','.044'])('invalid physical strength %s stops turning',async strength=>{
   const s=await mover('llRotLookAt(llEuler2Rot(<0,0,PI_BY_TWO>),1,1);',true,`llRotLookAt(llEuler2Rot(<0,0,-PI_BY_TWO>),${strength},1);`)
-  s.advanceTime(300);const held=sample(s).r
-  action(s,4)
+  s.advanceTime(300)
+  action(s,4);const held=sample(s).r
   s.advanceTime(5000);expect(sample(s).r).toEqual(held)
 })
 it('accepts .044444 physical strength',async()=>{
@@ -237,10 +238,11 @@ it('copies plain target state onto a fresh inventory clock and rebinds reset own
     touch_start(integer n){llMoveToTarget(<4,0,0>,1);llRotLookAt(llEuler2Rot(<0,0,PI_BY_TWO>),1,1);}}`})
   owner.start();owner.fire('touch_start',{num_detected:1});s.advanceTime(300)
   const saved=s.linkset.copy(),copy=saved.prims[0]!,script=copy.findScript(s.scriptName)!
-  const before=sample(s)
+  const pose=()=>structuredClone({p:s.host.params.position,r:s.host.params.rotation})
+  const before=pose()
   saved.advanceTime(1000)
   expect(copy.params.position.x).toBeGreaterThan(2)
-  expect(sample(s)).toEqual(before)
+  expect(pose()).toEqual(before)
   copy.findScript('owner')!.reset();const held=sample(script)
   saved.advanceTime(5000);expect(sample(script)).toEqual(held)
 })
@@ -287,9 +289,10 @@ it('reanchors coupled integration after an external pose change',async()=>{
   const a=await mover(call),b=await mover(call)
   for(const s of [a,b]){s.advanceTime(137);s.host.params.position={x:1,y:1,z:0}}
   a.advanceTime(1000);for(let i=0;i<10;i++)b.advanceTime(100)
-  expect(sample(a).p.x).toBeCloseTo(2.896,2)
-  expect(sample(a).p.y).toBeCloseTo(.368,2)
-  for(const axis of ['x','y','z','s'] as const)expect(sample(a).r[axis]).toBeCloseTo(sample(b).r[axis],6)
+  const sa=sample(a),sb=sample(b)
+  expect(sa.p.x).toBeCloseTo(2.896,2)
+  expect(sa.p.y).toBeCloseTo(.368,2)
+  for(const axis of ['x','y','z','s'] as const)expect(sa.r[axis]).toBeCloseTo(sb.r[axis],6)
 })
 it('reanchors coupled integration when the script replaces its target',async()=>{
   const call='llMoveToTarget(<4,0,0>,1);llLookAt(<0,4,0>,1,1);'
@@ -297,8 +300,9 @@ it('reanchors coupled integration when the script replaces its target',async()=>
   const a=await mover(call,true,replacement),b=await mover(call,true,replacement)
   for(const s of [a,b]){s.advanceTime(137);action(s,4)}
   a.advanceTime(1033);for(let i=0;i<10;i++)b.advanceTime(100);b.advanceTime(33)
-  expect(sample(a).p.y).toBeGreaterThan(2)
-  for(const axis of ['x','y','z','s'] as const)expect(sample(a).r[axis]).toBeCloseTo(sample(b).r[axis],6)
+  const sa=sample(a),sb=sample(b)
+  expect(sa.p.y).toBeGreaterThan(2)
+  for(const axis of ['x','y','z','s'] as const)expect(sa.r[axis]).toBeCloseTo(sb.r[axis],6)
 })
 
 // https://wiki.secondlife.com/wiki/LlLookAt#Caveats documents caller-side root
