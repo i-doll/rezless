@@ -197,6 +197,27 @@ describe('a selection of an object with a move target', () => {
     expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 19'])
     expect(b.prim.params.position.z).toBeCloseTo(100.3, 3)
   })
+
+  // In-world: the same box hanging 0.3 m up at its target, then a Duplicate 1.2 m to the side,
+  // three runs -> the original got no event and stayed at the target. The copy ran state_entry
+  // physical, got moving_start as it appeared, fell 0.27 m to the platform with no sideways move
+  // toward the original's target, and got moving_end as it landed 0.24 to 0.28 s in, then
+  // moving_start 0.53 to 0.79 s in and moving_end 1.24 to 1.48 s in, as other Duplicate copies do.
+  it('gives the Duplicate copy of an object hanging at its move target no move target', async () => {
+    const b = await resting()
+    send(b, 'mtt')
+    b.linkset.advanceTime(1_800)
+    b.linkset.setVelocity({ x: 0, y: 0, z: 0 })
+    b.linkset.advanceTime(1_200)
+    const copy = b.linkset.duplicate({ x: 0, y: 1.2, z: 0 })
+    const at = { ...copy.prims[0]!.params.position }
+    b.linkset.advanceTime(3_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 19'])
+    expect(b.prim.params.position.z).toBeCloseTo(100.3, 3)
+    expect(logOf(copy)).toEqual(['moving_start 0', 'moving_end 2', 'moving_start 7', 'moving_end 14'])
+    expect(copy.prims[0]!.targetMotion.move).toBeNull()
+    expect(copy.prims[0]!.params.position).toEqual(at)
+  })
 })
 
 describe('the viewer rezzing a physical item', () => {

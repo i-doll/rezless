@@ -103,6 +103,16 @@ describe('a shift-drag copy of an object whose targeting script is stopped', () 
     copy.advanceTime(4_000)
     expect(copy.prims[0]!.params.position.z).toBeCloseTo(GROUND + 1, 2)
   })
+
+  it('keeps the look target acting in the copy', async () => {
+    const f = await box()
+    f.m.running = false
+    const copy = f.linkset.duplicate()
+    const root = copy.prims[0]!.params
+    root.rotation = { x: 0, y: 0, z: 0, s: 1 }
+    copy.advanceTime(4_000)
+    expect(root.rotation.z).toBeCloseTo(Math.SQRT1_2, 2)
+  })
 })
 
 // In-world: M stopped on a Math Error (a division by zero) while the box held its target. The box
