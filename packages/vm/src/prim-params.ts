@@ -489,6 +489,31 @@ export function faceIndices(p: PrimParams, face: number): number[] {
   return face < p.faces.length ? [face] : []
 }
 
+/** How far a rezzed root moves per position rule. */
+const MAX_ROOT_MOVE = 10
+/** How far a worn root sits from its attachment point. */
+const MAX_ATTACHMENT_OFFSET = 3.5
+
+/**
+ * Where a position rule puts the prim. A rezzed root moves at most 10 m toward the target, from
+ * where it is when the rule runs; a worn root's offset is cut to 3.5 m; a child goes where it is told.
+ */
+function placedPosition(prim: Prim, target: Vector): Vector {
+  const root = prim.linkset?.prims[0]
+  if (root && root !== prim) return target
+  if (prim.linkset?.attachment) {
+    const length = Math.hypot(target.x, target.y, target.z)
+    const k = length > MAX_ATTACHMENT_OFFSET ? MAX_ATTACHMENT_OFFSET / length : 1
+    return { x: target.x * k, y: target.y * k, z: target.z * k }
+  }
+  const from = prim.params.position
+  const dx = target.x - from.x, dy = target.y - from.y, dz = target.z - from.z
+  const distance = Math.hypot(dx, dy, dz)
+  if (distance <= MAX_ROOT_MOVE) return target
+  const k = MAX_ROOT_MOVE / distance
+  return { x: from.x + dx * k, y: from.y + dy * k, z: from.z + dz * k }
+}
+
 const facesOf = (p: PrimParams, faceArg: LslValue | undefined): number[] => faceIndices(p, num(faceArg, 0) | 0)
 
 /**
@@ -581,7 +606,7 @@ export function writePrimParam(
     }
     case PRIM_POSITION:
     case PRIM_POS_LOCAL:
-      p.position = asVec(rules[cursor])
+      p.position = placedPosition(prim, asVec(rules[cursor]))
       return 1
     case PRIM_ROTATION: {
       const requested = asRot(rules[cursor])

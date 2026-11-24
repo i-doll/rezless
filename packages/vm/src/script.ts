@@ -123,6 +123,8 @@ export interface ScriptOptions {
   readonly objectName?: string
   /** Script name returned by llGetScriptName. Defaults to filename basename or "script". */
   readonly scriptName?: string
+  /** The script item's creator, returned by llGetInventoryCreator. Defaults to NULL_KEY, as for a Library script. */
+  readonly creator?: string
   /**
    * Host prim. If omitted, a 1-prim default linkset is auto-allocated. Pass
    * a prim that's already been added to a Linkset to opt into multi-script.
@@ -412,7 +414,7 @@ export class Script {
     // construction (e.g. a Stack-Heap Collision in a global) leaves no trace.
     this.instanceId = scriptInstanceId(host, this.scriptName)
     if (!host.scripts.includes(this)) {
-      host.addScript(this)
+      host.addScript(this, options.creator === undefined ? {} : { creator: options.creator })
     }
   }
 
@@ -1990,6 +1992,8 @@ export class Script {
   private sluaCall(name: string, args: LslValue[]): { value: LslValue | undefined; delayMs: number | null; busyMs: number | null } {
     const spec = BUILTIN_SPECS[name as keyof typeof BUILTIN_SPECS] as BuiltinSpec
     const engine = this.slua!
+    // SLua's own ll.GetTime reads the script clock as a double, without an LSL call; only a test's mock replaces it.
+    if (name === 'llGetTime' && !this.mocks[name]) return { value: this.clockView.elapsedSeconds(), delayMs: null, busyMs: null }
     // SLua passes floats to LSL functions as 32-bit floats.
     const lslArgs = args.map((a, i) => (spec.params[i]?.type === 'float' ? toFloat32Value(a, 'float') : a))
     let mocks = this.mocks
@@ -1997,6 +2001,7 @@ export class Script {
     const vmMemory = this.sluaMemoryBuiltin(name, lslArgs)
     if (!mocks[name] && vmMemory) mocks = { ...mocks, [name]: vmMemory }
     const { result, delayMs, busyMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
+    if (name === 'llGetTime') return { value: result ?? 0, delayMs, busyMs }
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
     return { value, delayMs, busyMs }
   }
