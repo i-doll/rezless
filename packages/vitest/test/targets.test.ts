@@ -63,9 +63,10 @@ it.each([
   'llSetPrimitiveParams([PRIM_ROTATION,llEuler2Rot(<0,0,PI_BY_TWO>)]);',
   'llSetLinkPrimitiveParamsFast(LINK_THIS,[PRIM_ROT_LOCAL,llEuler2Rot(<0,0,PI_BY_TWO>)]);',
 ])('checks rotation after %s', async (rotate) => {
+  // ourrot is the inverse of the object's rotation: see 'gives the inverse of the rotation as ourrot'.
   const s = await loadScript({ source: `integer h;list out;
     default {state_entry(){h=llRotTarget(llEuler2Rot(<0,0,PI_BY_TWO>),.1);${rotate}}
-      at_rot_target(integer n,rotation t,rotation r){out=[n,llAngleBetween(t,r)];llRotTargetRemove(n);}}
+      at_rot_target(integer n,rotation t,rotation r){out=[n,llAngleBetween(<-t.x,-t.y,-t.z,t.s>,r)];llRotTargetRemove(n);}}
   ` })
   s.start();s.advanceTime(1000)
   const out = s.global('out') as number[]

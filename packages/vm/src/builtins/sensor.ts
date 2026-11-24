@@ -117,9 +117,11 @@ function query(args: Parameters<BuiltinImpl>[1]): Scan {
 
 function targets(script: Script): WorldEntity[] {
   const world = script.linkset.world
-  const out = [...(world?.objects ?? []), ...(world?.avatars ?? [])]
+  // In-world, a sensor found no attachment, and one in an attachment did not find its wearer.
+  const wearer = script.linkset.wearer
+  const out = [...(world?.objects ?? []), ...(world?.avatars ?? []).filter((avatar) => avatar !== wearer)]
   for (const linkset of script.linkset.peers) {
-    if (linkset === script.linkset || linkset.dead || !linkset.prims.length) continue
+    if (linkset === script.linkset || linkset.dead || !linkset.prims.length || linkset.attachment) continue
     const root = linkset.prims[0]!
     const scripts = linkset.allScripts().filter((s) => !s.dead)
     const properties = world?.sensorProperties.get(linkset)

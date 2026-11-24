@@ -40,6 +40,19 @@ function normalized(r: Rotation): Rotation {
   const n = Math.hypot(r.x, r.y, r.z, r.s)
   return n > 0 ? { x: r.x / n, y: r.y / n, z: r.z / n, s: r.s / n } : { ...ZERO_ROTATION }
 }
+/**
+ * Where a relative REZ_POS counts from. In-world, in a worn object it was the rezzing prim's place one
+ * level up: a child's in its attachment, from the root's offset and turn on the point, and the root's
+ * from the wearer's place and turn, or from the avatar's on its seat when the wearer sat.
+ */
+function relativeOrigin(ctx: CallContext): Vector {
+  const wearer = ctx.linkset.wearer
+  if (!wearer) return ctx.prim.regionPosition()
+  const root = ctx.linkset.prims[0]!
+  const parent = ctx.prim === root ? wearer.sitPlacement ?? wearer : root.params
+  return add(parent.position, rotateVector(ctx.prim.params.position, parent.rotation))
+}
+
 function defaults(ctx: CallContext): Options {
   return {
     position: { ...ctx.prim.regionPosition() }, rotation: { ...ZERO_ROTATION },
@@ -96,7 +109,7 @@ function options(ctx: CallContext, list: readonly LslValue[]): Options | string 
       case C.REZ_PARAM: o.param = value as number; break
       case C.REZ_FLAGS: o.flags = value as number; break
       case C.REZ_POS:
-        o.position = list[i + 1] ? add(ctx.prim.regionPosition(), value as Vector) : { ...value as Vector }
+        o.position = list[i + 1] ? add(relativeOrigin(ctx), value as Vector) : { ...value as Vector }
         o.atRoot = !!list[i + 2]
         break
       case C.REZ_ROT:

@@ -461,16 +461,19 @@ export class Prim {
   /**
    * Position in region coordinates. `params.position` is the region
    * position of a root or lone prim and the root-relative offset of a child.
+   * A worn object's root reads as at its wearer, whatever its offset on the
+   * attachment point, and its children are placed around that.
    */
   regionPosition(): Vector {
     const local = this.params.position
     const root = this.linkset?.prims[0]
-    if (!root || root === this) return local
-    const { x, y, z, s } = root.params.rotation
+    const wearer = this.linkset?.wearer
+    if (!root || root === this) return wearer?.position ?? local
+    const { x, y, z, s } = wearer?.rotation ?? root.params.rotation
     const tx = 2 * (y * local.z - z * local.y)
     const ty = 2 * (z * local.x - x * local.z)
     const tz = 2 * (x * local.y - y * local.x)
-    const origin = root.params.position
+    const origin = wearer?.position ?? root.params.position
     return {
       x: origin.x + local.x + s * tx + (y * tz - z * ty),
       y: origin.y + local.y + s * ty + (z * tx - x * tz),
@@ -481,11 +484,13 @@ export class Prim {
   /**
    * Rotation in region coordinates. `params.rotation` is the region rotation
    * of a root or lone prim and the rotation relative to the root of a child.
+   * A worn object's root reads as turned as its wearer is.
    */
   regionRotation(): Rotation {
     const root = this.linkset?.prims[0]
-    if (!root || root === this) return this.params.rotation
-    return mulRotation(this.params.rotation, root.params.rotation)
+    const wearer = this.linkset?.wearer
+    if (!root || root === this) return wearer?.rotation ?? this.params.rotation
+    return mulRotation(this.params.rotation, wearer?.rotation ?? root.params.rotation)
   }
 
   /** The values whose change makes the region work out the object's server cost again. */

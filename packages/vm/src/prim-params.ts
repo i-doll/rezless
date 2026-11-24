@@ -1106,16 +1106,8 @@ export function readPrimParam(
       return { values: [prim.regionPosition()], consumed: 0 }
     case PRIM_POS_LOCAL:
       return { values: [p.position], consumed: 0 }
-    case PRIM_ROTATION: {
-      const linkset = prim.linkset
-      const wearer = linkset?.attachment
-        ? linkset.world?.avatars.find(avatar => avatar.key.toLowerCase() === linkset.attachment!.avatar.toLowerCase())
-        : undefined
-      const rotation = wearer
-        ? prim === linkset!.prims[0] ? wearer.rotation : mulRotation(p.rotation, wearer.rotation)
-        : prim.regionRotation()
-      return { values: [rotation], consumed: 0 }
-    }
+    case PRIM_ROTATION:
+      return { values: [prim.regionRotation()], consumed: 0 }
     case PRIM_ROT_LOCAL:
       return { values: [p.rotation], consumed: 0 }
     case PRIM_SIZE:
