@@ -736,16 +736,31 @@ export class LinksetClock {
    * event, in their order. Called when a handler that took time finishes,
    * so the events that waited for it follow other scripts' events at that
    * instant. The events held back since it began, at `since`, follow the
-   * others, with a timer tick that fell due ahead of them.
+   * others, with a timer tick that fell due ahead of them, and ahead of the events raised since
+   * the handler last woke: those not in `queued`, the queue as it was at that wake.
    */
-  requeue(script: Script, since: number): void {
+  requeue(script: Script, since: number, queued?: ReadonlySet<QueuedEvent>): void {
     const waited = this.queue.filter((e) => e.target === script && cameUp(e) <= this.now)
     this.purgeWhere((e) => waited.includes(e))
     // One that falls due later keeps its place in time and is not held back by a later handler.
     const plain = ({ at, target, event, payload }: QueuedEvent): QueuedEvent =>
       ({ at, target, event, payload, ...(at > this.now && { held: false, raisedAt: this.now }) })
-    this.queue.push(...waited.filter((e) => !this.heldBack(e, since)).map(plain))
-    this.release(script, waited.filter((e) => this.heldBack(e, since)), false)
+    const raised = waited.filter((e) => queued && !queued.has(e))
+    const early = waited.filter((e) => !raised.includes(e))
+    this.queue.push(...early.filter((e) => !this.heldBack(e, since)).map(plain))
+    const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length > 0)
+    // In-world: a land contact held through a sleep ran land_collision_start, the link message
+    // sent after the wake, a land_collision, the change made after the wake a frame later, then
+    // the other land_collision events and land_collision_end: one per physics step after the wake.
+    const steps = raised.length ? released.filter((e) => e.event === 'land_collision' || e.event === 'land_collision_end') : []
+    this.queue.push(...released.filter((e) => !steps.includes(e)))
+    this.queue.push(...raised.filter((e) => !this.heldBack(e, since)).map(plain))
+    let step = 0
+    for (const e of steps) {
+      const at = this.now + 2 * SIM_FRAME_MS * (e.event === 'land_collision' ? step++ : Math.max(0, step - 1))
+      this.queue.push(at > this.now ? { ...e, at, raisedAt: this.now } : e)
+    }
+    this.queue.push(...this.release(script, raised.filter((e) => this.heldBack(e, since)), false))
   }
 
   /**
@@ -754,9 +769,10 @@ export class LinksetClock {
    * until the handler ends. In-world, a colour change in each of three sleeps gave two
    * changed events, and changes held in the first sleep ran ahead of chat from the second.
    * A sensor result is one kind: a no_sensor held in a second sleep stayed held while the
-   * sensor event released at the first wake waited.
+   * sensor event released at the first wake waited. They go ahead of the events raised since
+   * the handler last woke: those not in `queued`, the queue as it was at that wake.
    */
-  releaseAtWake(script: Script, since: number): void {
+  releaseAtWake(script: Script, since: number, queued?: ReadonlySet<QueuedEvent>): void {
     const kind = (e: QueuedEvent) => heldKind(e.event)
     const waited = this.queue.filter((e) => e.target === script && cameUp(e) <= this.now)
     const waiting = new Set(waited.filter((e) => HELD_ORDER.has(e.event) && !this.heldBack(e, since)).map(kind))
@@ -764,13 +780,20 @@ export class LinksetClock {
     const contact = (e: QueuedEvent) => e.busy === true && COLLISION_EVENTS.has(e.event) && this.heldBack(e, since)
     const contactStays = waited.some((e) => contact(e) && waiting.has(kind(e)))
     const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)) && !(contactStays && contact(e)))
-    if (!held.length) return
+    const raised = queued ? this.queue.findIndex((e) => e.target === script && !queued.has(e)) : -1
+    if (!held.length && raised < 0) return
     this.purgeWhere((e) => held.includes(e))
-    this.release(script, held, waiting.has('timer'))
+    const early = held.filter((e) => !queued || queued.has(e))
+    this.queue.splice(raised < 0 ? this.queue.length : raised, 0, ...this.release(script, early, waiting.has('timer'), raised >= 0))
+    this.queue.push(...this.release(script, held.filter((e) => !early.includes(e)), waiting.has('timer')))
   }
 
-  /** Queue held-back events behind the others, merged and in the held order. */
-  private release(script: Script, events: QueuedEvent[], timerWaits: boolean): void {
+  /**
+   * Held-back events to queue behind the others, merged and in the held order. With `ahead`,
+   * events the handler raised after its wake wait behind them, so a tick that fell due in the
+   * sleep is queued even with nothing else held.
+   */
+  private release(script: Script, events: QueuedEvent[], timerWaits: boolean, ahead = false): QueuedEvent[] {
     // In-world: a handler busy and then asleep ran what it held in the sleep in the held order, a
     // change held in the busy part among them, unless all of it was held as when busy.
     const inOrder = events.every((e) => e.busy)
@@ -791,13 +814,14 @@ export class LinksetClock {
     // In-world: a 3 s timer, a click in each of two 8 s sleeps in a row -> timer, the first
     // click, timer, the second click. The ticks that fell due during one sleep give one event,
     // released with the other held events. With nothing else held the tick is left to
-    // takeNextDue, which gives one tick after several sleeps, as measured on the main grid.
+    // takeNextDue, which gives one tick after several sleeps, as measured on the main grid. A tick
+    // that fell due in a 4 s sleep ran ahead of a link message sent after the wake.
     let pending = script.parkedEvents.length + events.length
     for (const e of this.queue) if (e.target === script) pending++
     // In-world: a 1 s timer through a handler busy for 6 s and then asleep for 6 s gave two timer
     // events: the tick held in the busy part stands for those in the sleep.
     const busyTick = events.some((e) => e.busy && e.event === 'timer')
-    if (held.length && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
+    if ((held.length || ahead) && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
         !timerWaits && (busyTick || !held.some((e) => e.event === 'timer'))) {
       if (!busyTick) held.push({ at: this.now, target: script, event: 'timer', payload: {}, held: false })
       // As in takeNextDue: an overdue tick keeps the old schedule if that is still ahead.
@@ -823,7 +847,7 @@ export class LinksetClock {
       if (inOrder) slots.forEach((i, n) => { held[i] = contact[n]! })
       else held.splice(0, held.length, ...held.filter((e) => !COLLISION_EVENTS.has(e.event)), ...contact)
     }
-    this.queue.push(...held)
+    return held
   }
 
   /**

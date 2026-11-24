@@ -1665,7 +1665,9 @@ export class Script {
     const task = this.task
     if (!task) return
     this.task = null
-    this.step(task)
+    // In-world: a touch that came up in a sleep ran ahead of the link message and the changed the
+    // handler raised after it woke, in LSL and SLua.
+    this.step(task, task.busy ? undefined : new Set(this.linkset.clock.pendingEvents()))
   }
 
   private begin(handler: EventHandler, args: ReadonlyArray<EvalResult>, payload: Record<string, unknown>): void {
@@ -1698,7 +1700,8 @@ export class Script {
     copy.task = { run, lsl, ...this.sleepIn(copy, task) }
   }
 
-  private step(task: Task): void {
+  /** `queued`, for a handler that wakes from a sleep: the queue as it was at the wake. */
+  private step(task: Task, queued?: ReadonlySet<QueuedEvent>): void {
     this.resumedAt = this.now
     this.quietAttach = false
     let r: IteratorResult<Suspension, boolean>
@@ -1709,7 +1712,7 @@ export class Script {
     try {
       r = task.run.next()
     } catch (e) {
-      this.finish(task)
+      this.finish(task, queued)
       throw e
     } finally {
       this.handling = outer
@@ -1718,10 +1721,10 @@ export class Script {
     }
     if (!r.done) {
       this.task = { ...task, wakeAt: r.value.until, busy: r.value.busy === true }
-      this.linkset.clock.releaseAtWake(this, task.startedAt)
+      this.linkset.clock.releaseAtWake(this, task.startedAt, queued)
       return
     }
-    this.finish(task)
+    this.finish(task, queued)
     this.clockView.finishHandler(r.value)
     if (r.value) {
       if (this.detachedInHandler && this.clockView.inInventory) this.resetPastWear = true
@@ -1729,10 +1732,10 @@ export class Script {
     }
   }
 
-  private finish(task: Task): void {
+  private finish(task: Task, queued?: ReadonlySet<QueuedEvent>): void {
     if (this.now === task.startedAt) return
     this.clockView.busyUntilMs = this.now
-    this.linkset.clock.requeue(this, task.startedAt)
+    this.linkset.clock.requeue(this, task.startedAt, queued)
   }
 
   private abandon(): void {
