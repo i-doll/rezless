@@ -284,11 +284,15 @@ others send from `state_entry`, after its own `state_entry`. A stopped script
 runs `state_entry` when it is set running.
 Starting scripts one at a time with `start()` works differently: a link
 message sent before a script starts never reaches it, as in Second Life.
-A rezzed object starts its scripts over a few frames, in an order that
-changes from rez to rez, so a script can miss the messages sent by scripts
+A duplicated object starts its scripts over a few frames, in an order that
+changes from copy to copy, so a script can miss the messages sent by scripts
 that started before it. To test that, pass the scripts to start:
 `linkset.startAll([scripts['display']])`, `linkset.advanceTime(22)`, then
-`linkset.startAll()` for the rest.
+`linkset.startAll()` for the rest. For a copy, make it with
+`linkset.duplicate(offset, { startScripts: false })` and start its scripts the
+same way with `copy.startAll`. An object
+rezzed from inventory runs all its scripts' `on_rez` handlers together, so
+each script gets the link messages the others send from `on_rez`.
 
 `scripts` is a flat name → `Script` lookup keyed by inventory name; duplicate
 names across prims throw to prevent silent overwrites. Each `Script` is the
@@ -1326,7 +1330,7 @@ object it can't edit.
 `linkset.duplicate(offset)` is a shift-drag copy, or with an `offset` the viewer's Duplicate:
 a new object at the original's place plus `offset`, for an object in the world that its owner
 may copy. The region leaves the copy's last script out of its count. The copy's scripts start from the top with `state_entry` and no `on_rez` (a stopped
-script stays stopped until it is started). The copy of a crashed script runs when the script is set running, except an SLua one,
+script stays stopped until it is started). They all start together, unless the test passes `{ startScripts: false }`; then each waits until the test passes it to `copy.startAll`. The copy of a crashed script runs when the script is set running, except an SLua one,
 whose copy runs only if it was stopped and started again, or taken and rezzed or worn from inventory, since the crash. An avatar sitting on the original stays there.
 `linkset.dropFromAvatar(position)` drops a worn object to the ground, at `position` or where
 its wearer stands. It keeps its key and its scripts' state, they get `attach(NULL_KEY)`, the
