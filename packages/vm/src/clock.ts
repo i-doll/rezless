@@ -186,11 +186,10 @@ const BUSY_HELD: ReadonlySet<string> = new Set([...CHANGED_EVENTS, ...TOUCH_EVEN
 
 /**
  * Events a busy handler drops when one of their kind already waits for it. In-world, a second
- * contact with the platform gave no collision_start of its own, a second contact with land no
- * land collision events at all, and a target crossed and left, or reached, gave only the
+ * contact with land gave no land collision events at all, and a target crossed and left, or reached, gave only the
  * not_at_target or not_at_rot_target that waited from before.
  */
-const BUSY_DROPPED: ReadonlySet<string> = new Set(['collision_start', 'land_collision_start', 'land_collision', 'land_collision_end',
+const BUSY_DROPPED: ReadonlySet<string> = new Set(['land_collision_start', 'land_collision', 'land_collision_end',
   'at_target', 'not_at_target', 'at_rot_target', 'not_at_rot_target'])
 
 /**
@@ -203,7 +202,11 @@ function busyKind(event: string): string {
   if (event === 'not_at_rot_target') return 'at_rot_target'
   return heldKind(event)
 }
-const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'collision', 'collision_end'])
+const COLLISION_ORDER = ['collision_start', 'collision', 'collision_end']
+const COLLISION_EVENTS: ReadonlySet<string> = new Set(COLLISION_ORDER)
+
+const detectedKeys = (payload: Record<string, unknown>) =>
+  ((payload['detected'] as ReadonlyArray<{ key?: string }> | undefined) ?? []).flatMap((d) => d.key ? [d.key.toLowerCase()] : [])
 
 /**
  * In-world: a box dropped onto bare land once or twice in sleeps of 6, 10 and 16 s, six runs,
@@ -327,8 +330,9 @@ export class LinksetClock {
     let busy = false
     if (held === undefined && at <= this.now) {
       if (target.busy) {
-        if (BUSY_DROPPED.has(event) && this.waitsFor(target, event)) return
-        held = busy = BUSY_HELD.has(event) && this.waitsFor(target, event)
+        const collision = COLLISION_EVENTS.has(event) ? this.busyCollisionHeld(target, event, payload) : false
+        if (collision === undefined || BUSY_DROPPED.has(event) && this.waitsFor(target, event)) return
+        held = busy = COLLISION_EVENTS.has(event) ? collision : BUSY_HELD.has(event) && this.waitsFor(target, event)
       } else if (wakeAt !== undefined && wakeAt > this.now) {
         held = true
         // In-world: in the sleep of a handler that was busy first, a click or a change whose kind
@@ -363,6 +367,22 @@ export class LinksetClock {
     let pending = target.parkedEvents.filter(e => !HELD_CONTROL.has(e.event)).length
     for (const e of this.queue) if (e.target === target && !HELD_CONTROL.has(e.event)) pending++
     return pending >= MAX_PENDING_EVENTS
+  }
+
+  /**
+   * Whether a busy handler holds a collision event back, or undefined when it drops it. In-world,
+   * the first contact's collision_start, first collision and collision_end, when none of its
+   * collisions was held, ran where they came up; a later contact was held whole and merged with
+   * the held events. A collision_start from an object already in a held collision was dropped.
+   */
+  private busyCollisionHeld(target: Script, event: string, payload: Record<string, unknown>): boolean | undefined {
+    const waiting = this.queue.filter((e) => e.target === target && e.at <= this.now && COLLISION_EVENTS.has(e.event))
+    const waits = (kind: string, held?: boolean) => waiting.some((e) => e.event === kind && (held === undefined || !!e.held === held))
+    if (event === 'collision') return waits('collision') || waits('collision_end')
+    if (event === 'collision_end') return waits('collision_end') || waits('collision', true)
+    if (!waits('collision_start')) return false
+    const keys = detectedKeys(payload)
+    return waiting.some((e) => e.held && e.event === 'collision' && detectedKeys(e.payload).some((k) => keys.includes(k))) ? undefined : true
   }
 
   /** Whether an event of `event`'s kind waits for `target`; with `since`, one that came up while busy after it. */
@@ -767,6 +787,13 @@ export class LinksetClock {
     const rank = (e: QueuedEvent) => e === lands[0] ? HELD_ORDER.get('changed')! + 0.5
       : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
+    else {
+      // In-world: a busy handler's held collision, collision_end and a later contact's
+      // collision_start ran as collision_start, collision, collision_end.
+      const slots = held.flatMap((e, i) => COLLISION_EVENTS.has(e.event) ? [i] : [])
+      const contact = slots.map((i) => held[i]!).sort((a, b) => COLLISION_ORDER.indexOf(a.event) - COLLISION_ORDER.indexOf(b.event))
+      slots.forEach((i, n) => { held[i] = contact[n]! })
+    }
     this.queue.push(...held)
   }
 
