@@ -5,6 +5,7 @@ import { NULL_KEY } from '../values/types.js'
 import type { Linkset } from '../linkset.js'
 import type { EnvironmentAsset } from '../world.js'
 import { sayError } from './debug.js'
+import { WindowThrottle } from '../throttle.js'
 
 /** Requests made by the script. Floater requests include the simulator's rejection code. */
 export type ViewerRequest =
@@ -75,9 +76,30 @@ function mapAgent(ctx: CallContext): string | undefined {
   return toucher
 }
 
-export const llMapDestination: BuiltinImpl = (ctx, args) => {
+const MAP_THROTTLED = 'Too many llMapDestination() function calls; halted until average falls.'
+const mapThrottles = new WeakMap<object, Map<string, WindowThrottle>>()
+
+// In-world the limit is 4 maps and beacons for each avatar shown them, whoever owns the
+// objects, counted over 4 s periods by a sliding window, and a call past it shuts them
+// until the end of the next period. Refused calls count. A call that would show nobody
+// isn't counted, but a refused call uses up the click's one showing. Each region keeps its
+// own count: an avatar refused maps got 4 more as soon as it arrived in another region.
+function mapShown(ctx: CallContext): string | undefined {
   const agent = mapAgent(ctx)
-  if (agent !== undefined && isAgentInRegion(ctx, agent)) ctx.state.viewerRequests.push({
+  if (agent === undefined || !isAgentInRegion(ctx, agent)) return undefined
+  let byAgent = mapThrottles.get(ctx.linkset.clock)
+  if (!byAgent) mapThrottles.set(ctx.linkset.clock, byAgent = new Map())
+  const id = `${ctx.linkset.region ?? ''}\n${agent}`
+  let throttle = byAgent.get(id)
+  if (!throttle) byAgent.set(id, throttle = new WindowThrottle(4_000, 4))
+  if (throttle.take(ctx.state.clock.now) === 'open') return agent
+  sayError(ctx, MAP_THROTTLED)
+  return undefined
+}
+
+export const llMapDestination: BuiltinImpl = (ctx, args) => {
+  const agent = mapShown(ctx)
+  if (agent !== undefined) ctx.state.viewerRequests.push({
     kind: 'mapDestination', agent, region: args[0] as string,
     position: { ...args[1] as Vector }, lookAt: { ...args[2] as Vector },
   })
@@ -85,9 +107,9 @@ export const llMapDestination: BuiltinImpl = (ctx, args) => {
 }
 
 export const llMapBeacon: BuiltinImpl = (ctx, args) => {
-  const agent = mapAgent(ctx)
+  const agent = mapShown(ctx)
   const options = args[2] as ReadonlyArray<LslValue>
-  if (agent !== undefined && isAgentInRegion(ctx, agent)) ctx.state.viewerRequests.push({
+  if (agent !== undefined) ctx.state.viewerRequests.push({
     kind: 'mapBeacon', agent, region: args[0] as string,
     position: { ...args[1] as Vector }, options: [...options],
   })

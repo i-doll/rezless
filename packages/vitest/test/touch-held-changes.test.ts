@@ -495,9 +495,9 @@ default {
     // In-world: with calls in touch_start, every touch and touch_end, held 2.5 s, the first
     // touch's map was dropped, and the second touch's and touch_end's showed, in two runs. With
     // no call in touch_start, the first touch's showed and so did each later one, a second apart,
-    // and touch_end's. Runs made within seconds of other map calls also had calls dropped with
-    // "Too many llMapDestination() function calls; halted until average falls." on DEBUG_CHANNEL,
-    // and some without it; the runs here were 12 s apart.
+    // and touch_end's. Runs made within seconds of other map calls also had calls refused by the
+    // map throttle, some of them past the error flood cap (map-throttle.test.ts); the runs here
+    // were 12 s apart.
     expect(await mapped(mapper(true, 2, 1), { hold: 2500 })).toEqual([1, 102, 210])
     expect(await mapped(mapper(false, 3, 1), { hold: 4000 })).toEqual([101, 102, 103, 210])
   })
