@@ -611,9 +611,9 @@ export class Linkset {
 
   /** Unlinking a prim stands everyone seated on the object. */
   private standSitters(caller?: Script): void {
-    // In-world: as with llUnSit, an SLua llBreakLink or llBreakAllLinks stood the sitter in the
-    // frame it was called, and the caller got that changed(32) ahead of a link message it sent
-    // next, also after a sleep.
+    // In-world, after a sleep the SLua caller of llBreakLink or llBreakAllLinks got changed(32)
+    // ahead of a link message it sent next with one sitter, and behind it with another, as with
+    // llUnSit. Both get the order rezless gives llUnSit.
     for (const avatar of this.sitters()) {
       if (caller?.language === 'slua') this.world!.unsitFrom(avatar, caller)
       else this.world!.standAvatar(avatar)

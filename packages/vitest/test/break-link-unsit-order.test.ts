@@ -129,11 +129,20 @@ describe.each(['lsl', 'slua'] as const)('llBreakLink with a sitter, then llMessa
   })
 })
 
+// In SLua the order after a sleep depended on which test avatar sat. With one,
+// the caller of llBreakLink or llBreakAllLinks got changed(32) before its
+// link_message in 15 of 15 runs over four sessions. With the other, it got
+// link_message first in 7 of 7 runs over two sessions, one of them shared
+// with the first avatar, runs taking turns, on the same kind of seat. A
+// script that depends on either order can break in Second Life. llUnSit gave
+// the same two orders, less steadily with the first avatar (3 of 6 runs
+// changed first). rezless gives the first avatar's order, which is the order
+// it gives for llUnSit in SLua.
 describe('SLua: llSleep, then llBreakLink with a sitter, then llMessageLinked', () => {
-  // In-world: "Z" (3 runs) and "Y" (2 runs) -> changed(32), then
-  // link_message, in every script, the caller that slept included, as for
-  // llUnSit after a sleep.
-  it.each(['Z', 'Y'])('queues changed before link_message in every script (%s)', async (command) => {
+  // In-world, with the first avatar: "Z" (3 runs) and "Y" (2 runs) ->
+  // changed(32), then link_message, in every script, the caller that slept
+  // included.
+  it.each(['Z', 'Y'])('queues changed before link_message in every script, one of the orders Second Life gives (%s)', async (command) => {
     const out = await run('slua', command)
     expect(out.ctl).toEqual([...start(command), ...changedFirst(command)])
     expect(out.seat).toEqual(changedFirst(command))
@@ -259,10 +268,10 @@ async function runBreak(language: Language, command: 'A' | 'B') {
 describe('llSleep, then llBreakLink(LINK_THIS) on a seated lone prim or llBreakAllLinks, then llMessageLinked', () => {
   const first = (a: string, b: string) => [`${a} n=1`, `${b} n=1`]
 
-  // In-world: "A" and "B", 2 runs each -> changed(32), then link_message, in
-  // the root's scripts, the caller that slept included. The child broken off
-  // by "B" got changed(32) alone.
-  it.each(['A', 'B'] as const)('SLua queues changed first in the root (%s)', async (command) => {
+  // In-world, with the first avatar: "A" and "B", 2 runs each ->
+  // changed(32), then link_message, in the root's scripts, the caller that
+  // slept included. The child broken off by "B" got changed(32) alone.
+  it.each(['A', 'B'] as const)('SLua queues changed first in the root, one of the orders Second Life gives (%s)', async (command) => {
     const out = await runBreak('slua', command)
     const seated = command === 'A' ? ' n=2' : ' n=3'
     expect(out.ctl).toEqual([`cmd ${command}${seated}`, 'end n=1', ...first('changed 32', `lm ${command}`)])
@@ -276,11 +285,69 @@ describe('llSleep, then llBreakLink(LINK_THIS) on a seated lone prim or llBreakA
     const out = await runBreak('lsl', command)
     const seated = command === 'A' ? ' n=2' : ' n=3'
     expect(out.ctl).toEqual([`cmd ${command}${seated}`, 'end n=1', ...first(`lm ${command}`, 'changed 32')])
+    if (command === 'B') expect(out.kid).toEqual(['changed 32 n=1'])
   })
 
   // rezless holds back only the caller's change after its handler slept.
   it.fails.each(['A', 'B'] as const)('LSL gives the logger in the root link_message first (%s)', async (command) => {
     const out = await runBreak('lsl', command)
     expect(out.seat).toEqual(first(`lm ${command}`, 'changed 32'))
+  })
+})
+
+// A third probe: a two-prim seat holding only a controller, which slept 4 s,
+// broke off the child with llBreakLink(2), then called
+// llMessageLinked(LINK_THIS). The owner touched the seat during the sleep.
+// In-world the touch ran first in every run: then link_message and
+// changed(32) in LSL (2 of 2), and in SLua changed(32) and link_message with
+// the first avatar (2 of 2), link_message and changed(32) with the other
+// (2 of 2). rezless runs the touch after both.
+describe('a touch during the sleep before llBreakLink with a sitter', () => {
+  const SOURCES = {
+    lsl: `rep(string s) { llOwnerSay(s); }
+      default {
+        state_entry() { llSitTarget(<0.0, 0.0, 0.5>, ZERO_ROTATION); llListen(7723, "", NULL_KEY, ""); llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
+        listen(integer c, string n, key id, string m) { llSleep(4.0); llBreakLink(2); llMessageLinked(LINK_THIS, 1, m, ""); }
+        touch_start(integer n) { rep("touch"); }
+        changed(integer c) { rep("changed " + (string)c); }
+        link_message(integer s, integer num, string m, key id) { rep("lm"); }
+      }`,
+    slua: `ll.SitTarget(vector(0, 0, 0.5), rotation(0, 0, 0, 1))
+      ll.Listen(7723, "", "", "")
+      ll.RequestPermissions(ll.GetOwner(), PERMISSION_CHANGE_LINKS)
+      LLEvents:on("listen", function(c, n, id, m) ll.Sleep(4); ll.BreakLink(2); ll.MessageLinked(LINK_THIS, 1, m, "") end)
+      LLEvents:on("touch_start", function(n) ll.OwnerSay("touch") end)
+      LLEvents:on("changed", function(c) ll.OwnerSay("changed " .. tostring(c)) end)
+      LLEvents:on("link_message", function(s, num, m, id) ll.OwnerSay("lm") end)`,
+  }
+  const touched = async (language: Language) => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const avatar = world.addAvatar({ region: 'home', key: AVATAR, name: 'Test Resident', username: 'test', position: { x: 114, y: 46, z: 20 } })
+    const { linkset, scripts } = await loadLinkset({
+      world, region: 'home', owner: AVATAR, position: { x: 114, y: 47, z: 20 },
+      prims: [{ scripts: [{ name: 'ctl', language, source: { source: SOURCES[language] } }] }, {}],
+    })
+    linkset.prims[1]!.params.position = { x: 0, y: 0.6, z: 0 }
+    linkset.startAll()
+    linkset.advanceTime(500)
+    scripts.ctl!.grantPermissions()
+    linkset.advanceTime(500)
+    expect(world.sitAvatar(avatar, linkset.prims[0]!)).toBe(true)
+    linkset.advanceTime(2000)
+    const before = scripts.ctl!.chat.length
+    linkset.deliverChat({ channel: 7723, name: 'Test Resident', key: AVATAR, message: 'T' })
+    linkset.advanceTime(1500)
+    linkset.touch(1, { avatar: { key: AVATAR, name: 'Test Resident' } })
+    for (let i = 0; i < 60; i++) linkset.advanceTime(100)
+    return scripts.ctl!.chat.slice(before).map((c) => c.text)
+  }
+
+  it.fails('LSL runs the touch, then link_message, then changed', async () => {
+    expect(await touched('lsl')).toEqual(['touch', 'lm', 'changed 32'])
+  })
+
+  it.fails('SLua runs the touch first, then changed and link_message as without it', async () => {
+    expect(await touched('slua')).toEqual(['touch', 'changed 32', 'lm'])
   })
 })
