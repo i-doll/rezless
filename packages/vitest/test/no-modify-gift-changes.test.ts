@@ -175,3 +175,121 @@ describe('gifts from other objects in the same frame as one from inside the link
     expect(insideFirst.seen('give')).toEqual([64])
   })
 })
+
+// In-world (Aditi, SLua Tideland, 2026-11-24, Firestorm RLVa): the same kind of no-modify object as
+// above, with one or two other objects of the same owner giving notecards on a chat line. C1's LSL
+// script and C2's SLua script could also sleep or spin in a loop on llGetTime on that line. Each
+// script reported its gifts and events with llGetTimestamp; the simulator ran a frame every 22 ms.
+describe('gifts into an object its owner cannot modify, frames apart or at a waiting script', () => {
+  const rc = (link: number) => `llSetLinkColor(${link}, <1.0, 0.0, 0.0>, ALL_SIDES);`
+  // Another object gives with `gift(link)`; llOwnerSay stands in for a loop on llGetTime that keeps
+  // the handler busy for that many ms.
+  const gift = (link: number) => `llGiveInventory(LINK${link}, "gift");`
+  const spin = (ms: number) => `llOwnerSay("${ms}");`
+  const handler = (body: string) => `list seen; default {
+    link_message(integer s, integer n, string m, key k) { ${body} }
+    changed(integer c) { seen += c; }
+  }`
+
+  /**
+   * On one link message, run each of `root` in its own script in the root, `c1` in C1's script, `c2`
+   * in C2's and each of `outside` in another object; the other objects' handlers first, unless `rootFirst`.
+   */
+  async function run({ root = [], c1 = '', c2 = '', outside = [], rootFirst = false }: { root?: string[]; c1?: string; c2?: string; outside?: string[]; rootFirst?: boolean }) {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    const made = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [
+      { name: 'R', inventory: [notecard('nc'), notecard('nc2')], scripts: [
+        ...root.map((body, i) => ({ name: `give${i}`, source: { source: handler(body) } })),
+        { name: 'log', source: { source: logger } },
+      ] },
+      { name: 'C1', scripts: [{ name: 'c1', source: { source: handler(c1) } }] },
+      { name: 'C2', scripts: [{ name: 'c2', language: 'slua' as const, source: { source: `seen = {}
+        LLEvents:on("link_message", function() ${c2} end)
+        LLEvents:on("changed", function(c) table.insert(seen, c) end)` } }] },
+      { name: 'C3', scripts: [{ name: 'quiet', source: { source: 'default { state_entry() { } }' } }] },
+    ] })
+    for (const prim of made.prims) {
+      prim.permMask = { base: NO_MODIFY, owner: NO_MODIFY, group: 0, everyone: 0, next: NO_MODIFY }
+      prim.allowInventoryDrop = prim.linkNumber !== 1
+    }
+    made.linkset.startAll()
+    const others = await Promise.all(outside.map(async (body) => {
+      const source = handler(body.replace(/LINK(\d)/g, (_, link: string) => `"${made.prims[Number(link) - 1]!.key}"`))
+      const other = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ inventory: [notecard('gift')], scripts: [{ name: 'out', source: { source } }] }] })
+      other.linkset.startAll()
+      return other.scripts['out']!
+    }))
+    const givers = root.map((_, i) => made.scripts[`give${i}`]!)
+    const scripts = [made.scripts['c1']!, made.scripts['c2']!, ...(rootFirst ? [...givers, ...others] : [...others, ...givers])]
+    for (const script of scripts) script.mock('llOwnerSay', (ctx, args) => { ctx.busy(Number(args[0])); return undefined })
+    made.linkset.advanceTime(1000)
+    for (const script of scripts) world.clock.schedule(script, world.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: '' })
+    for (let i = 0; i < 40; i++) made.linkset.advanceTime(100)
+    return (name: string) => made.scripts[name]!.global('seen')
+  }
+
+  // In-world: another object gave into C1 twice with a spin of 5, 10, 20, 40 or 100 ms between the
+  // gifts, or llSleep(0.05) -> two changed(64) (23 of 23), also where C1's script had run neither when
+  // the second gift landed: the gifts landed a frame or more apart. Spins on llGetTimestamp of 0 to 15
+  // ms gave the same (20 of 20): the giver always went on in the next frame, so no shorter gap could be
+  // made. The root's SLua script giving into C1 twice with a spin of 5 to 40 ms (12 of 12), the LSL
+  // one with 10 or 40 ms (6 of 6), and the root's gift then another object's 10 to 40 ms later (9 of
+  // 9) gave two as well. rezless keeps gifts apart that land any time apart; the gaps here are a frame or more.
+  it('raise a change for each frame a gift lands in', async () => {
+    for (const between of [spin(25), spin(45), spin(100), 'llSleep(0.05);']) {
+      expect((await run({ outside: [`${gift(2)} ${between} ${gift(2)}`] }))('c1')).toEqual([64, 64])
+    }
+    expect((await run({ root: [`llGiveInventory(llGetLinkKey(2), "nc"); ${spin(25)} llGiveInventory(llGetLinkKey(2), "nc2");`] }))('c1')).toEqual([64, 64])
+    expect((await run({ root: ['llGiveInventory(llGetLinkKey(2), "nc");'], outside: [`${spin(25)} ${gift(2)}`] }))('c1')).toEqual([64, 64])
+  })
+
+  // In-world: C1's script slept 1.5 s while the root's script recoloured C1 and another object gave
+  // into it, 0.2 s apart in either order -> one changed(66) when it woke (4 of 4 each); C2's SLua
+  // script the same (3 of 3). Two other objects' gifts -> one changed(64) (3 of 3); another object's
+  // gift, then the root's -> one changed(64) (3 of 3).
+  it('merge into one change at a sleeping script', async () => {
+    const asleep = { c1: 'llSleep(1.5);' }
+    expect((await run({ ...asleep, root: [`llSleep(0.2); ${rc(2)}`], outside: [`llSleep(0.4); ${gift(2)}`] }))('c1')).toEqual([66])
+    expect((await run({ ...asleep, root: [`llSleep(0.4); ${rc(2)}`], outside: [`llSleep(0.2); ${gift(2)}`] }))('c1')).toEqual([66])
+    expect((await run({ c2: 'll.Sleep(1.5)', root: [`llSleep(0.2); ${rc(3)}`], outside: [`llSleep(0.4); ${gift(3)}`] }))('c2')).toEqual([66])
+    expect((await run({ ...asleep, outside: [`llSleep(0.2); ${gift(2)}`, `llSleep(0.4); ${gift(2)}`] }))('c1')).toEqual([64])
+    expect((await run({ ...asleep, root: ['llSleep(0.4); llGiveInventory(llGetLinkKey(2), "nc");'], outside: [`llSleep(0.2); ${gift(2)}`] }))('c1')).toEqual([64])
+  })
+
+  // In-world: C1's script spun 1.5 s in a loop on llGetTime instead -> a recolour then another object's
+  // gift gave changed(2), then changed(64) (4 of 4); the gift then the recolour gave changed(64), then
+  // changed(2) (4 of 4); two other objects' gifts, or another object's gift then the root's, gave two
+  // changed(64) (3 of 3 each).
+  it('keep the first change apart at a busy script', async () => {
+    const busy = { c1: spin(1500) }
+    expect((await run({ ...busy, root: [`llSleep(0.2); ${rc(2)}`], outside: [`llSleep(0.4); ${gift(2)}`] }))('c1')).toEqual([2, 64])
+    expect((await run({ ...busy, root: [`llSleep(0.4); ${rc(2)}`], outside: [`llSleep(0.2); ${gift(2)}`] }))('c1')).toEqual([64, 2])
+    expect((await run({ ...busy, outside: [`llSleep(0.2); ${gift(2)}`, `llSleep(0.4); ${gift(2)}`] }))('c1')).toEqual([64, 64])
+    expect((await run({ ...busy, root: ['llSleep(0.4); llGiveInventory(llGetLinkKey(2), "nc");'], outside: [`llSleep(0.2); ${gift(2)}`] }))('c1')).toEqual([64, 64])
+  })
+
+  // In-world: another object, the root's SLua script and the root's LSL script gave into C3 in one
+  // frame -> each giving script got two changed(64) (4 of 4): the other object's drop waited for both
+  // of them, and the second script's gift merged into one of the changes waiting for the first. The
+  // root's idle LSL and SLua loggers each got two (4 of 4), as they ran the other object's change in
+  // that frame before the root's scripts gave; rezless runs every handler of a frame before the
+  // changes, so they get one, as with one giving script in the root above. rezless treats LSL and
+  // SLua givers alike, so the test uses two LSL scripts.
+  //
+  // In-world: with one root script spinning 20 or 60 ms before giving, so that the other object's
+  // gift landed while it was busy or in the same frame, the giving script got two (34 of 34, LSL and
+  // SLua). With both root scripts giving, after spins of 20 and 60 ms in either order, the one that
+  // waited longer got two (20 of 20). The one that gave first got two in 17 of 20 runs, where the other
+  // script's gift landed before its second change ran, and three in 3 (SLua), where it landed after.
+  // Not followed: a script's second waiting change ran one frame (SLua) or two frames (LSL) after its
+  // first; rezless runs them back to back, so there the first giver always gets three.
+  it('merge a second inside script\'s gift into a giver\'s waiting change', async () => {
+    const seen = await run({ root: ['llGiveInventory(llGetLinkKey(4), "nc");', 'llGiveInventory(llGetLinkKey(4), "nc2");'], outside: [gift(4)] })
+    expect(seen('give0')).toEqual([64, 64])
+    expect(seen('give1')).toEqual([64, 64])
+    expect(seen('log')).toEqual([64])
+    const busyGiver = await run({ root: [`${spin(20)} llGiveInventory(llGetLinkKey(4), "nc");`], outside: [gift(4)], rootFirst: true })
+    expect(busyGiver('give0')).toEqual([64, 64])
+  })
+})
