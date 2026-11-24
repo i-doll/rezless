@@ -1599,7 +1599,8 @@ when the prim or its root has a running money handler; otherwise the payment is 
 reason `not-payable`. A payment to an attachment goes to its wearer and runs its
 handlers as on a rezzed object, while the Pay menu on an attachment pays the wearer
 as an avatar, checked by `pay`, with no money event, and isn't offered on your own
-attachment. Purchases capture
+attachment. Under RLVa the Pay menu on an avatar or its attachment is also blocked
+while `shownames` hides that avatar's name. Purchases capture
 requests without money events. Balances, settlement and purchase inventory delivery are outside the fixture.
 
 ## License
