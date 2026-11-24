@@ -128,6 +128,7 @@ describe('two avatars clicking while a handler sleeps', () => {
 
   const lslLog = (start: number, touch: number, end: number | 'spin' = 0) => `
     list got = [];
+    integer spinTimer;
     string who(integer n) { string w; integer i; for (i = 0; i < n; ++i) w += llGetSubString(llDetectedName(i), 0, 0); return w; }
     default {
       state_entry() { llListen(5, "", NULL_KEY, ""); }
@@ -139,7 +140,7 @@ describe('two avatars clicking while a handler sleeps', () => {
         else if (m == "delay") { got += "D"; llInstantMessage(llGetOwner(), ""); }
         else { got += "L"; llSleep(3); }
       }
-      timer() { got += "X"; llSleep(3); }
+      timer() { if (spinTimer) { got += "Y"; llOwnerSay("spin"); } else { got += "X"; llSleep(3); } }
       touch_start(integer n) { got += "S" + who(n); llSleep(${start}); }
       touch(integer n) { got += "T" + who(n); llSleep(${touch}); }
       touch_end(integer n) { got += "E" + who(n); ${end === 'spin' ? 'llOwnerSay("spin")' : `llSleep(${end})`}; }
@@ -167,9 +168,9 @@ describe('two avatars clicking while a handler sleeps', () => {
    * i, f: press as i doll or fivebot; I, F: release; L: a listen that sleeps 3 s; P: one that
    * spins 3 s; M: one that only logs; X: a timer event that sleeps 3 s; Q: a listen that spins
    * 1.5 s, then sleeps 1.5 s; R: one that sleeps 1.5 s, then spins 1.5 s; D: one that waits out
-   * llInstantMessage's 2 s delay.
+   * llInstantMessage's 2 s delay; Y: a timer event that spins 3 s.
    */
-  type Step = 'i' | 'I' | 'f' | 'F' | 'L' | 'P' | 'M' | 'X' | 'Q' | 'R' | 'D'
+  type Step = 'i' | 'I' | 'f' | 'F' | 'L' | 'P' | 'M' | 'X' | 'Q' | 'R' | 'D' | 'Y'
 
   /** Run `steps` at their times (ms), with Linkset.press and release, and give the log with runs of one touch event shown once. */
   async function run(lang: 'lsl' | 'slua', start: number, touch: number, steps: Record<number, Step>, end: number | 'spin' = 0) {
@@ -190,7 +191,8 @@ describe('two avatars clicking while a handler sleeps', () => {
       else if (step === 'F') linkset.release(FIVEBOT)
       else {
         const msg = { M: 'mark', P: 'spin', Q: 'spin-sleep', R: 'sleep-spin', D: 'delay' }[step as string] ?? 'sleep'
-        if (step === 'X') linkset.clock.schedule(s, linkset.clock.now, 'timer')
+        if (step === 'Y') s.setGlobal('spinTimer', 1)
+        if (step === 'X' || step === 'Y') linkset.clock.schedule(s, linkset.clock.now, 'timer')
         else linkset.clock.schedule(s, linkset.clock.now, 'listen', { channel: 5, name: 'fivebot', id: FIVEBOT.key, msg })
         linkset.drainQueue()
       }
@@ -431,6 +433,36 @@ describe('two avatars clicking while a handler sleeps', () => {
       for (const busy of ['R', 'D'] as const) {
         expect(await run('lsl', 0, 0, { 0: 'i', 300: busy, 1000: 'f', 1300: 'F', 4000: 'I' })).toBe(`Si Ti ${busy} Tif Ef Ti Ei`)
         expect(await run('lsl', 0, 0, { 0: 'i', 320: busy, 1000: 'f', 1300: 'F', 4000: 'I' })).toBe(`Si Ti ${busy} Ti Ef Ti Ei`)
+      }
+    })
+
+    it('in LSL a click pressed while the handler spins stays out of the touch waiting from a sleep', async () => {
+      // In-world (Aditi, SLua Tideland, 2026-11-24): i doll held 4 s, a listen 0.3 s in slept
+      // 1.5 s and then spun 1.5 s, and fivebot clicked for 0.3 s 0.4 s into the spin -> the touch
+      // after the handler listed i doll alone, 6 runs of 6: 3 with the listen one frame (0.022 s)
+      // after i doll's last touch, where a click in the sleep was listed, and 3 two frames after.
+      for (const at of [300, 320]) {
+        expect(await run('lsl', 0, 0, { 0: 'i', [at]: 'R', 2200: 'f', 2500: 'F', 4000: 'I' })).toBe('Si Ti R Ti Ef Ti Ei')
+      }
+    })
+
+    it('in LSL a click pressed in the sleep after a spin stays out of the touch that came up in the spin', async () => {
+      // In-world (Aditi, SLua Tideland, 2026-11-24): i doll held 4 s, a listen 0.3 s in spun
+      // 1.5 s and then slept 1.5 s, and fivebot clicked for 0.3 s 0.5 s into the sleep -> the
+      // touch after the wake listed i doll alone, 8 runs of 8, 3 of them with the listen one
+      // frame after i doll's last touch.
+      for (const at of [300, 320]) {
+        expect(await run('lsl', 0, 0, { 0: 'i', [at]: 'Q', 2300: 'f', 2600: 'F', 4000: 'I' })).toBe('Si Ti Q Ti Ef Ti Ei')
+      }
+    })
+
+    it('in LSL a timer that spins keeps a click pressed during it out of the waiting touch', async () => {
+      // In-world (Aditi, SLua Tideland, 2026-11-24): i doll held 4 s, a timer 0.3 s in spun 3 s
+      // and fivebot clicked for 0.3 s 0.4 to 0.5 s into the spin -> after the spin i doll's touch
+      // alone, then fivebot's touch_end, 6 runs of 6: 4 with the timer one frame after i doll's
+      // last touch, 2 in the frame of one.
+      for (const at of [300, 320]) {
+        expect(await run('lsl', 0, 0, { 0: 'i', [at]: 'Y', 1000: 'f', 1300: 'F', 4000: 'I' })).toBe('Si Ti Y Ti Ef Ti Ei')
       }
     })
 
