@@ -763,6 +763,8 @@ export class ScriptClockView {
   private followsOwed = false
   /** Whether an llSetTimerEvent call made the owed tick due, so a later call replaces it. */
   private owedBySet = false
+  /** When the first tick is due on the schedule of a call made while a start's tick is owed. */
+  private owedSetDueMs: number | undefined
   /** Virtual time at which the script's last handler finished, when it took time (llSleep, delays). */
   busyUntilMs = 0
   /** llMinEventDelay in ms; 0 = none. */
@@ -809,6 +811,7 @@ export class ScriptClockView {
     this.timerPassedAt = undefined
     this.owedBySet = false
     this.followsOwed = false
+    this.owedSetDueMs = undefined
   }
 
   /** The script stopped running. */
@@ -838,8 +841,10 @@ export class ScriptClockView {
     this.followsOwed = false
     const kept = (late ?? due) + this.timerIntervalMs
     const bySet = this.owedBySet
+    const setDue = this.owedSetDueMs
     this.timerLateDueMs = undefined
     this.owedBySet = false
+    this.owedSetDueMs = undefined
     this.timerNextFireMs = kept > at ? kept : at + this.timerIntervalMs
     // In-world: a tick held through one interval, by a sleep or llMinEventDelay, kept the
     // schedule and left its lateness as the lag; one held through more left neither.
@@ -852,9 +857,10 @@ export class ScriptClockView {
     this.timerLagMs = (bySet || at < this.owedNextMs) && this.owedTickLags ? (passed ?? at) - late : 0
     if (bySet || !this.owedWhileStopped) return
     // In-world: after a start that missed more than one tick, the next came an interval after the
-    // start. A script that slept in a waiting handler while that tick fell due woke to the
-    // caught-up tick and then that one. One stopped during its own sleep woke to one.
-    const running = kept > this.owedStartMs ? kept : this.owedStartMs + this.timerIntervalMs
+    // start, and after a call before the caught-up tick ran, on the call's schedule. A script that
+    // slept in a waiting handler while that tick fell due woke to the caught-up tick and then that
+    // one. One stopped during its own sleep woke to one.
+    const running = setDue ?? (kept > this.owedStartMs ? kept : this.owedStartMs + this.timerIntervalMs)
     this.timerNextFireMs = running
     this.followsOwed = running <= at
   }
@@ -904,8 +910,12 @@ export class ScriptClockView {
     }
     this.followsOwed = false
     this.timerIntervalMs = intervalMs
-    // A tick still owed from before the script started keeps its place; only the interval changes.
-    if (this.timerLateDueMs !== undefined && !this.owedBySet) return
+    // A tick still owed from before the script started keeps its place. After a tick missed while
+    // stopped, the call starts the schedule of the ticks after it, earlier by the lag the start left.
+    if (this.timerLateDueMs !== undefined && !this.owedBySet) {
+      if (this.owedWhileStopped) this.owedSetDueMs = this.now + intervalMs - this.timerLagMs
+      return
+    }
     this.timerPassedAt = undefined
     // A lag moves the first tick earlier. One that would be due already is owed: it fires once the
     // handler ends, unless a later call replaces it.
@@ -978,6 +988,7 @@ export class ScriptClockView {
     this.timerPassedAt = undefined
     this.followsOwed = false
     this.owedWhileStopped = false
+    this.owedSetDueMs = undefined
     for (const e of this.linksetClock.pendingEvents()) {
       if (e.target === this.self() && e.event === 'timer') {
         delete e.payload['__due']
