@@ -84,10 +84,7 @@ export const llSetPos: BuiltinImpl = (ctx, args) => {
 
 export const llGetPos: BuiltinImpl = (ctx) => ctx.prim.regionPosition()
 export const llGetLocalPos: BuiltinImpl = (ctx) => ctx.prim.params.position
-export const llGetRootPosition: BuiltinImpl = (ctx) => {
-  const root = ctx.linkset.prims[0] ?? ctx.prim
-  return root.params.position
-}
+export const llGetRootPosition: BuiltinImpl = (ctx) => (ctx.linkset.prims[0] ?? ctx.prim).regionPosition()
 
 export const llSetRot: BuiltinImpl = (ctx, args) => {
   ctx.prim.setPrimParam(PRIM_ROTATION, [rotOf(args[0])], 0)

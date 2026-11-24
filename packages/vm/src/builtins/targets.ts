@@ -2,6 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { Script } from '../script.js'
 import type { Rotation, Vector } from '../values/types.js'
 import { ZERO_ROTATION } from '../values/types.js'
+import { conjugate } from '../values/ops.js'
 import { rotTargetAngle } from './math.js'
 
 /** Aditi's stationary single-target handlers ran about once every 44 ms. */
@@ -58,7 +59,8 @@ function emit(script: Script, event: string, payload: Record<string, unknown> = 
 
 function check(script: Script, entries: Targets): void {
   if (!script.running || script.dead) return
-  const root = script.linkset.prims[0]!
+  // In-world, an attachment of a seated wearer tracks the root of the seat.
+  const root = script.linkset.wearer?.sittingOn?.linkset?.prims[0] ?? script.linkset.prims[0]!
   const position = root.regionPosition()
   const rotation = root.regionRotation()
   if (entries.positions.length) {
@@ -78,7 +80,7 @@ function check(script: Script, entries: Targets): void {
     for (const target of entries.rotations) {
       if (rotTargetAngle(target.value, rotation) < target.range) {
         reached = true
-        emit(script, 'at_rot_target', { handle: target.handle, targetrot: { ...target.value }, ourrot: { ...rotation } })
+        emit(script, 'at_rot_target', { handle: target.handle, targetrot: { ...target.value }, ourrot: conjugate(rotation) })
       }
     }
     if (!reached) emit(script, 'not_at_rot_target')

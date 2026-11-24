@@ -1267,7 +1267,8 @@ export function castRayBoxes(linksets: readonly Linkset[], entities: readonly Wo
     if (hit) hits.push({ ...hit, key, rootKey, linkNumber })
   }
   for (const linkset of linksets) {
-    if (linkset.dead) continue
+    // In-world, no ray hit an attachment.
+    if (linkset.dead || linkset.attachment) continue
     const root = linkset.prims[0]!
     for (const prim of linkset.prims) {
       if (prim.params.physicsShapeType === 1) continue

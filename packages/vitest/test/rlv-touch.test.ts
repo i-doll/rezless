@@ -14,7 +14,8 @@ function restrict(f: Fixture, command: string) {
 }
 async function target(f: Fixture, kind: 'world' | 'self' | 'other' | 'hud' = 'world', distance = 2) {
   const owner = kind === 'other'
-    ? f.world.addAvatar({ username: 'other', region: f.avatar.region }).key : f.avatar.key
+    // A worn object is where its wearer is.
+    ? f.world.addAvatar({ username: 'other', region: f.avatar.region, position: { x: distance, y: 0, z: 0 } }).key : f.avatar.key
   const loaded = await loadLinkset({ world: f.world, owner, region: f.avatar.region,
     prims: [{ scripts: [{ name: 'receiver', source: { source: receiver } }] }] })
   const prim = loaded.linkset.prims[0]!
