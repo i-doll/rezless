@@ -136,10 +136,10 @@ describe('a handler that is busy, not asleep', () => {
   // In-world: with a 1 s timer, a 6 s busy handler was followed by two timer events at once and
   // then one a second; with a 3 s timer and 10 s, or a 2 s timer and 15 s, by two as well.
   // Asleep for 6 s, it was followed by one.
-  it.each([[1, 6_000], [3, 10_000], [2, 15_000]])('gives two timer events after it, with a %i s timer', async (seconds, ms) => {
+  it.each([[1, 6_000, 500], [3, 10_000, 500], [2, 15_000, 500], [1, 6_000, 0]])('gives two timer events after it, with a %i s timer', async (seconds, ms, before) => {
     const { begin, wait, say, log } = await make(ms)
     say(`timer ${seconds}`)
-    wait(500)
+    wait(before)
     begin('busy')
     wait(ms)
     expect(log()).toEqual(['begin', 'end', 'timer', 'timer'])

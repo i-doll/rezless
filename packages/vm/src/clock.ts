@@ -573,7 +573,7 @@ export class LinksetClock {
           waking = s
         }
         const tick = Math.max(s.clockView.timerNextFireMs, this.now)
-        if (s.busy && s.clockView.timerIntervalMs > 0 && tick < w && tick <= horizon && tick < tickAt && (!this.full(s) || this.queue.some((e) => e.target === s && e.event === 'timer' && e.held))) {
+        if (s.busy && s.clockView.timerIntervalMs > 0 && tick <= w && tick <= horizon && tick < tickAt && (!this.full(s) || this.queue.some((e) => e.target === s && e.event === 'timer' && e.held))) {
           tickAt = tick
           ticking = s
         }
