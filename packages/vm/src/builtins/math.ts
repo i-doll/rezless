@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, rot, vec } from '../values/types.js'
-import { normalizeRotation, rotateVector, squaredLengthF32 } from '../values/ops.js'
+import { normalizeRotation } from '../values/ops.js'
 import { NEGATIVE_NAN, POSITIVE_NAN, addFloat, mulFloat, nanResult, subFloat } from '../values/nan.js'
 
 /** llAbs(integer val) — absolute value (integer). */
@@ -345,31 +345,23 @@ function matrixToRotation(m: number[][]): Rotation {
   return rot(q[0]!, q[1]!, q[2]!, q[3]!)
 }
 
-const AXES: Row[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-
 /**
- * An axis turned by a rotation. A NaN or infinite rotation, or one whose
- * squared length overflows a float, is normalised as Second Life does it, in
- * single precision, and the axis read from its matrix: a NaN or overflowing
- * rotation gives the unturned axis, and an infinite part becomes a NaN.
+ * An axis turned by a rotation, as Second Life works it out: the rotation is
+ * normalised in single precision and the axis read from its single-precision
+ * matrix, with parts below the smallest normal float flushed to zero. A NaN
+ * rotation, one of length 1e-7 or less, or one whose squared length overflows
+ * a float gives the unturned axis, and an infinite part becomes a NaN.
  */
 function rotationAxis(arg: LslValue | undefined, row: 0 | 1 | 2): Vector {
-  const q = (arg as Rotation | undefined) ?? rot(0, 0, 0, 1)
-  const axis = AXES[row]!
-  const length = Math.hypot(q.x, q.y, q.z, q.s)
-  if (length === 0) return vec(axis[0], axis[1], axis[2])
-  if (Number.isFinite(squaredLengthF32(q))) {
-    const v = rotateVector(vec(axis[0], axis[1], axis[2]), rot(q.x / length, q.y / length, q.z / length, q.s / length))
-    return vec(flushTiny(v.x), flushTiny(v.y), flushTiny(v.z))
-  }
-  const { x, y, z, s } = unitRotation(q)
+  const { x, y, z, s } = unitRotation(arg)
   const twice = (n: number) => f32(2 * f32(n))
   const plus = (a: number, b: number, c: number, d: number) => twice(addFloat(f32(mulFloat(a, b)), f32(mulFloat(c, d))))
   const minus = (a: number, b: number, c: number, d: number) => twice(subFloat(f32(mulFloat(a, b)), f32(mulFloat(c, d))))
   const one = (a: number, b: number) => f32(subFloat(1, twice(addFloat(f32(mulFloat(a, a)), f32(mulFloat(b, b))))))
-  if (row === 0) return vec(one(y, z), plus(x, y, z, s), minus(x, z, y, s))
-  if (row === 1) return vec(minus(x, y, z, s), one(x, z), plus(y, z, x, s))
-  return vec(plus(x, z, y, s), minus(y, z, x, s), one(x, y))
+  const axis = (a: number, b: number, c: number) => vec(flushTiny(a), flushTiny(b), flushTiny(c))
+  if (row === 0) return axis(one(y, z), plus(x, y, z, s), minus(x, z, y, s))
+  if (row === 1) return axis(minus(x, y, z, s), one(x, z), plus(y, z, x, s))
+  return axis(plus(x, z, y, s), minus(y, z, x, s), one(x, y))
 }
 
 /** llRot2Fwd(rotation q) — the x axis rotated by q, normalised. */

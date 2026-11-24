@@ -292,9 +292,9 @@ default {
     expect(await said(NEGATIVE)).toEqual(NEGATIVE_IN_WORLD)
   })
 
-  it.fails('llRot2Fwd of <1.3e19, 0, 1.3e19, 0> prints its x as -0.000000', () => {
-    // In-world: <-0.000000, 0.000000, 1.000000>. The squared length fits a float, so this takes
-    // the ordinary path, which gives 0.000000 here.
+  it('llRot2Fwd of <1.3e19, 0, 1.3e19, 0> prints its x as -0.000000', () => {
+    // In-world: <-0.000000, 0.000000, 1.000000>. The x is -2^-23 from the single-precision
+    // matrix, as rotation 7 in rotation-axes-non-unit.test.ts measured to the bit.
     expect(got.get('E2')).toBe(IN_WORLD.get('E2'))
   })
 })
