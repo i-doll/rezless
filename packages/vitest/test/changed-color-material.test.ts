@@ -125,6 +125,7 @@ describe('changed colour and material events', () => {
         default{state_entry(){++entries;ready=1;}changed(integer c){seen += [ready,c];}}` } },
     ] }] })
     scripts.setter!.start()
+    scripts.setter!.advanceTime(100)
     // A loaded script the test has not started loses the events other scripts raise at it.
     expect([scripts.observer!.hasStarted, scripts.observer!.global('seen')]).toEqual([false, []])
     scripts.observer!.start()
