@@ -215,6 +215,11 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // SLua raises a held click's touch every frame, so it came up in the first frame and
       // listed i doll alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
+      // A touch still waiting for its frame takes the place of a new one.
+      if (!running) {
+        const { own, other } = waitingTouches(s, 'touch', by)
+        if (own || other) continue
+      }
       if (running && s.busy) spunAt.set(s, clock.now)
       const touches = running ? waitingTouches(s, 'touch', by) : { own: undefined, other: undefined }
       const waiting = touches.other

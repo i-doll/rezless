@@ -292,8 +292,12 @@ function delayedUntil(e: QueuedEvent): number {
   return e.event === 'touch' ? v.touchDelayUntil() : 0
 }
 
-/** Events that run whenever they are due, however recently the script's last handler ended. */
-const PACING_EXEMPT: ReadonlySet<string> = new Set(['__reset', ...HELD_CONTROL])
+/**
+ * Events that run whenever they are due, however recently the script's last handler ended. A
+ * change in running state held from a handler that was busy at a detach waits its turn: in-world,
+ * the worn script ran on_rez and attach before it.
+ */
+const PACING_EXEMPT: ReadonlySet<string> = new Set(['__reset'])
 
 /**
  * Events of which LSL runs a second waiting one two simulator frames after the first. In-world,
@@ -370,6 +374,17 @@ export class LinksetClock {
 
   /** How many script handlers are running now, one inside another when a handler drives another. */
   handlersRunning = 0
+  private requeueing = false
+
+  /** Queue again events that were waiting for a stopped script: they came up before, not now. */
+  scheduleWaiting(target: Script, events: ReadonlyArray<{ event: string; payload: Record<string, unknown> }>): void {
+    this.requeueing = true
+    try {
+      for (const e of events) this.schedule(target, this.now, e.event, e.payload)
+    } finally {
+      this.requeueing = false
+    }
+  }
 
   /**
    * Schedule a one-shot event on `target`'s handler at virtual time `at`.
@@ -381,6 +396,8 @@ export class LinksetClock {
    * later, at `dueAt`, keeps what it was judged then.
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, dueAt = at): void {
+    // In-world: a link message, chat or a change a handler raised ran a frame later at the earliest.
+    const notBefore = held === undefined && !this.requeueing && this.handlersRunning > 0 && (NEXT_FRAME.has(event) || !event.startsWith('__')) ? this.now + SIM_FRAME_MS : 0
     if (event !== '__reset' && !target.running) return
     // In-world: an event raised at a script that had not started yet was lost.
     if (!target.hasStarted && !event.startsWith('__')) return
@@ -407,8 +424,6 @@ export class LinksetClock {
     }
     held &&= HELD_ORDER.has(event)
     if (dueAt > at) held ??= false
-    // In-world: a link message, chat or a change a handler raised ran a frame later at the earliest.
-    const notBefore = this.handlersRunning > 0 && NEXT_FRAME.has(event) ? this.now + SIM_FRAME_MS : 0
     const queued: QueuedEvent = { at: dueAt, ...(dueAt > at && { raisedAt: at }), ...(notBefore > dueAt && { notBefore }), target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy) && { busy: true }) }
     // In-world: a release in the first sleep of a game_control handler and a press in its second
     // gave one event, for the press. A release that waited from a listen handler's sleep and a
@@ -672,18 +687,26 @@ export class LinksetClock {
 
   private takeNextEventOrTask(scripts: ReadonlyArray<Script>, horizon: number): QueuedEvent | 'task' | null {
     for (const script of this.unseenMoving.keys()) {
-      if (!script.handling && script.wakeAt === undefined) this.settleMoving(script, this.now)
+      // A script is told once its state_entry has run.
+      if (!script.handling && script.wakeAt === undefined && !this.queue.some((e) => e.target === script && e.event === 'state_entry')) {
+        this.settleMoving(script, this.now)
+      }
     }
     let bestIdx = -1
     let bestAt = Infinity
-    for (const { index, due } of this.nextEvents().values()) {
+    // When the event would have run had its script not run another a frame before: a timer's lag
+    // does not count that frame.
+    let bestWaited = Infinity
+    for (const { index, due, waited } of this.nextEvents().values()) {
       if (due <= horizon && (due < bestAt || due === bestAt && index < bestIdx)) {
         bestAt = due
         bestIdx = index
+        bestWaited = waited
       }
     }
     let bestTimerScript: Script | null = null
     let bestTimerAt = Infinity
+    let bestTimerWaited = Infinity
     let waking: Script | null = null
     let wakeAt = Infinity
     // In-world: the first tick that fell due while a handler was busy waited where it came up, and
@@ -710,9 +733,11 @@ export class LinksetClock {
       }
       const v = s.clockView
       if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon) {
-        const due = Math.max(v.timerNextFireMs, v.busyUntilMs, v.delayedUntilMs, v.nextEventAt('timer'))
+        const waited = Math.max(v.timerNextFireMs, v.busyUntilMs, v.delayedUntilMs)
+        const due = Math.max(waited, v.nextEventAt('timer'))
         if (due <= horizon && due < bestTimerAt) {
           bestTimerAt = due
+          bestTimerWaited = waited
           bestTimerScript = s
         }
       }
@@ -762,12 +787,13 @@ export class LinksetClock {
         const interval = ev.payload['__interval']
         // In-world: a held tick that a call let run after more than one interval left no lag.
         const once = typeof interval !== 'number' || due + interval > at
-        tv.timerLate(once ? (typeof passed === 'number' ? passed : at) - due : 0)
+        tv.timerLate(once ? (typeof passed === 'number' ? passed : Math.min(at, bestWaited)) - due : 0)
       } else {
         // In-world: a tick that waited behind another handler had the lag it had when that handler started.
-        if (tv.timerIntervalMs > 0 && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= at
+        const started = Math.min(at, bestWaited)
+        if (tv.timerIntervalMs > 0 && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= started
         for (const e of this.queue) {
-          if (e.target === ev.target && e.event === 'timer' && typeof e.payload['__due'] === 'number' && e.at <= bestAt) e.payload['__passedAt'] ??= at
+          if (e.target === ev.target && e.event === 'timer' && typeof e.payload['__due'] === 'number' && e.at <= bestAt) e.payload['__passedAt'] ??= started
         }
       }
       return bestAt > ev.at ? { ...ev, at: bestAt } : ev
@@ -776,7 +802,7 @@ export class LinksetClock {
       const at = bestTimerAt
       const v = bestTimerScript.clockView
       // A tick held back while the script was down keeps the old schedule if that is still ahead.
-      v.timerFired(at)
+      v.timerFired(at, bestTimerWaited)
       return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
     if (waking) this.settleMoving(waking, wakeAt)
@@ -789,7 +815,7 @@ export class LinksetClock {
    * one that came up earlier goes ahead of one judged before it came up: in-world, link messages
    * sent after a colour change ran ahead of the change, which came up a frame after the call.
    */
-  private nextEvents(): Map<Script, { index: number; due: number }> {
+  private nextEvents(): Map<Script, { index: number; due: number; waited: number }> {
     // The first event of a script that llMinEventDelay holds back, and when it may run: the
     // events queued behind it wait for it.
     const heldFrom = new Map<Script, { index: number; until: number }>()
@@ -798,7 +824,7 @@ export class LinksetClock {
       const until = delayedUntil(e)
       if (until > e.at && WAITS_BEHIND.has(e.event) && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
     }
-    const next = new Map<Script, { index: number; due: number }>()
+    const next = new Map<Script, { index: number; due: number; waited: number }>()
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
       const v = e.target.clockView
@@ -808,12 +834,13 @@ export class LinksetClock {
       // In-world: a link message sent while a touch_start waited for llMinEventDelay ran at once,
       // and the click's touch and touch_end waited behind the touch_start.
       if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
+      const waited = due
       if (!PACING_EXEMPT.has(e.event)) due = Math.max(due, e.notBefore ?? 0, v.nextEventAt(e.event))
       if (e.target.handling || !(e.event === '__reset' || (e.event === '__running' && !e.target.running) ||
           (e.target.wakeAt === undefined && !e.target.detachedInHandler))) continue
       const mine = next.get(e.target)
       const first = mine && this.queue[mine.index]!
-      if (!mine || due < mine.due || due === mine.due && first!.raisedAt !== undefined && e.at < first!.at) next.set(e.target, { index: i, due })
+      if (!mine || due < mine.due || due === mine.due && first!.raisedAt !== undefined && e.at < first!.at) next.set(e.target, { index: i, due, waited })
     }
     return next
   }
@@ -1174,7 +1201,7 @@ export class ScriptClockView {
    * and there is no lag. An owed tick is followed at once by the next tick when that is due by the
    * time it runs: on the schedule the timer had, or on that of a call made while it was owed.
    */
-  timerFired(at: number): void {
+  timerFired(at: number, lagAt = at): void {
     const late = this.timerLateDueMs
     const due = this.timerNextFireMs
     const passed = this.timerPassedAt
@@ -1190,7 +1217,7 @@ export class ScriptClockView {
     // In-world: a tick held through one interval, by a sleep or llMinEventDelay, kept the
     // schedule and left its lateness as the lag; one held through more left neither.
     if (late === undefined) {
-      this.timerLate(kept > at ? (passed ?? at) - due : 0)
+      this.timerLate(kept > at ? (passed ?? lagAt) - due : 0)
       return
     }
     // A start that missed more than one tick leaves no lag, and nor does a tick that ran after
@@ -1201,7 +1228,7 @@ export class ScriptClockView {
     // it ran left none.
     const overdue = !bySet && at >= this.owedNextMs
     const lags = bySet ? kept > at : !overdue || this.owedWhileStopped
-    this.timerLagMs = lags && this.owedTickLags ? (overdue ? this.owedStartMs : passed ?? at) - late : 0
+    this.timerLagMs = lags && this.owedTickLags ? (overdue ? this.owedStartMs : passed ?? lagAt) - late : 0
     if (bySet || (setDue === undefined && !this.owedWhileStopped)) return
     // In-world: after a start that missed more than one tick, the next came an interval after the
     // start, and after a call before the caught-up tick ran, on the call's schedule. A script that

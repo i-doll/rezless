@@ -55,7 +55,7 @@ import type { CoverageReport } from './coverage.js'
 import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
-import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView, cameUp } from './clock.js'
+import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, SIM_FRAME_MS, ScriptClockView, cameUp } from './clock.js'
 import type { QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, touchHandlerEnded, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
@@ -1133,7 +1133,9 @@ export class Script {
     }
     withCollisionFilter(this, eventName, payload, p => {
       const started = this.handles(eventName) ? [this] : []
-      if (this.task || this.handling || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now)) {
+      // A script that ran a handler this frame, or has events waiting, queues the event behind them.
+      if (this.task || this.handling || (DELAYED_EVENTS.has(eventName) && this.clockView.delayedUntilMs > this.now) ||
+          this.clockView.nextEventAt(eventName) > this.now || this.linkset.clock.nextEventDue(this) !== undefined) {
         this.clockView.schedule(this.now, eventName, p)
       } else this.deliver(eventName, p)
       this.linkset.settle(started)
@@ -1863,8 +1865,8 @@ export class Script {
         // state_exit and state_entry run outside the game_control handler that changed state.
         const fromGameControl = this.inGameControl
         this.inGameControl = false
-        // In-world (main grid, 2026-11-23): the other scripts' final_damage ran before state_exit.
-        if (this.clearDamageAdjustment()) yield { until: this.now }
+        // In-world (main grid, 2026-11-23): the other scripts' final_damage ran 46 ms before state_exit.
+        if (this.clearDamageAdjustment()) yield { until: this.now + 2 * SIM_FRAME_MS }
         if (this.state.lifecycle.removed) return false
         const target = e.target
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
@@ -2115,10 +2117,7 @@ export class Script {
     if (this.parkedEvents.length === 0) return
     const events = this.parkedEvents.splice(0, this.parkedEvents.length)
     if (events.some(e => e.event === 'state_entry')) forgetMoving(this)
-    const at = this.now
-    for (const e of events) {
-      this.clockView.schedule(at, e.event, e.payload)
-    }
+    this.linkset.clock.scheduleWaiting(this, events)
   }
 }
 
