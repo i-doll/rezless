@@ -124,7 +124,7 @@ describe('a user function Mono cannot run', () => {
     // In-world: state two's timer called fn -> "gfn (int)", "at LSL .etwotimer ()", "at UserScript.OnTimer ()".
     const said = await crash(`integer fn(integer a) { ${BAD} return a; }
       default { state_entry() { state two; } }
-      state two { state_entry() { llSetTimerEvent(0.5); } timer() { llSetTimerEvent(0.0); fn(3); } }`, (s) => s.advanceTime(500))
+      state two { state_entry() { llSetTimerEvent(0.5); } timer() { llSetTimerEvent(0.0); fn(3); } }`, (s) => s.advanceTime(600))
     expect(said[1]).toBe(text('gfn (int)', ['LSL .etwotimer ()', 'UserScript.OnTimer ()']))
   })
 

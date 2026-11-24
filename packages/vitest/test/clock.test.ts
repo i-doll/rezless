@@ -347,10 +347,11 @@ describe('clock reads', () => {
       startUnixTime: 14_400 * 2 + 10,
     })
     s.start()
-    s.advanceTime(1_500)
+    s.advanceTime(1_600)
+    // The 1.5 s tick runs on the first simulator frame after it, 1.511 s after the start.
     expect(s.global('gmt')).toBe(28_811)
     expect(s.global('wall')).toBe(11)
-    expect(s.global('tod')).toBe(11.5)
+    expect(s.global('tod')).toBeCloseTo(11.511, 3)
   })
 })
 

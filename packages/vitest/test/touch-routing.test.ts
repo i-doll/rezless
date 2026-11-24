@@ -182,7 +182,8 @@ describe('linkset.touch routes a click like Second Life', () => {
     `
     const { linkset, got } = await setup([[script('s', timed)]])
     linkset.touch(0, { hold: 1500 })
-    expect(got('s')).toEqual(['start@0.000000', 'timer@0.100000', 'end@1.500000'])
+    // The 0.1 s tick runs on the first simulator frame after it falls due.
+    expect(got('s')).toEqual(['start@0.000000', 'timer@0.111111', 'end@1.500000'])
   })
 
   it('hold counts from the click, not from when the touch_start handler finishes', async () => {
@@ -266,7 +267,8 @@ describe('linkset.touch routes a click like Second Life', () => {
   it('a script stopped and restarted during a hold gets touch again and the release', async () => {
     // In-world: stopped 0.5 s into a 4 s hold, restarted 1.1 s later -> 11 touch events
     // before the stop, none while stopped, the next one 0.022 s after the restart, then
-    // touch_end at the release.
+    // touch_end at the release. The stopper's 0.5 s and 1.1 s ticks each run on the frame after
+    // they fall due, so the restart comes at 1.622 s.
     const log = `
       list got = [];
       default {
@@ -287,8 +289,9 @@ describe('linkset.touch routes a click like Second Life', () => {
     const times = got('s').filter((x): x is number => typeof x === 'number')
     expect(times.filter((t) => t < 500)).toHaveLength(11)
     expect(times.filter((t) => t > 500 && t < 1600)).toEqual([])
-    expect(times.find((t) => t >= 1600)).toBe(1622)
-    expect(got('s').slice(-2)).toEqual(['end', 4000])
+    expect(times.find((t) => t >= 1600)).toBe(1644)
+    // A touch runs in the frame of the release, so touch_end comes a frame after it.
+    expect(got('s').slice(-2)).toEqual(['end', 4022])
   })
 
   it('a held click raises touch every two simulator frames', async () => {

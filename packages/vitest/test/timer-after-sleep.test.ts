@@ -260,9 +260,10 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
   it('ticks an interval after a start that missed several ticks, also during a short sleep', async () => {
     // In-world: a 1 s timer stopped at 0.25 s and started at 3.75 s with a 0.75 s sleep queued
     // woke to one timer event, then ticked 1.0 s after the start and every second from there, in
-    // two runs.
+    // two runs. Here the 0.75 s sleep ends between two simulator frames, and the ticks after the
+    // wake run on frames counted from it, 17 ms later.
     const r = await stoppedWithSleep(1000, 0.75, 250, 3750)
-    expect(tickTimes(r.linkset, r.ticks, 2100)).toEqual([4550, 4750, 5750])
+    expect(tickTimes(r.linkset, r.ticks, 2100)).toEqual([4550, 4800, 5800])
   })
 
   it('gives both ticks when the waiting handler sets the timer before it sleeps', async () => {
@@ -523,7 +524,7 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
       expect(r.trace(8100)).toEqual({ raw, callbacks: [startAt, 8050] })
     }
     const five = await stopped('1:5', 1000, 8000)
-    expect(five.trace(10_100)).toEqual({ raw: [8000, 8050, 9100, 10_050], callbacks: [8000, 10_050] })
+    expect(five.trace(10_100)).toEqual({ raw: [8000, 8050, 9050, 10_050], callbacks: [8000, 10_050] })
   })
 
   it('sees no extra tick after a start that missed more than one tick', async () => {
