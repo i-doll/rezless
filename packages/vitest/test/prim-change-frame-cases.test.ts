@@ -105,11 +105,12 @@ async function probe(language: Language, commands: string[]) {
   for (const command of commands) {
     const seen = { ctl: scripts.ctl!.chat.length, sib: scripts.sib!.chat.length }
     const touch = command.startsWith('T')
+    const sent = linkset.clock.now
     linkset.deliverChat({ channel: language === 'lsl' ? 7707 : 7708, name: 'Test Resident', key: AVATAR, message: touch ? 'H' + command.slice(1) : command })
-    // In-world the click came about 1 s after the command, while ctl's listen handler slept. A
-    // handler's sleep here runs through the test's advance, so the click is queued for then.
+    // In-world the click came about 1 s after the command. ctl's listen handler, sleep
+    // included, runs inside deliverChat, so the click is queued 1 s after the command was sent.
     const detected = [{ key: AVATAR, name: 'Test Resident', touchFace: 0 }]
-    if (touch) for (const event of ['touch_start', 'touch', 'touch_end']) linkset.clock.schedule(scripts.sib!, linkset.clock.now + 1000, event, { num_detected: 1, detected })
+    if (touch) for (const event of ['touch_start', 'touch', 'touch_end']) linkset.clock.schedule(scripts.sib!, sent + 1000, event, { num_detected: 1, detected })
     for (let i = 0; i < 50; i++) linkset.advanceTime(100)
     out.push({ ctl: said('ctl', seen.ctl), sib: said('sib', seen.sib) })
   }
