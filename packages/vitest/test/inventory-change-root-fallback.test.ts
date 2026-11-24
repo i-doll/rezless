@@ -518,7 +518,7 @@ describe('changes to a child whose scripts do not handle changed', () => {
   }
 
   // In-world: two gifts into C1 from the root's giver -> the giver and the idle logger each said
-  // one changed(1) in 3 of 4 runs (the batch's first run gave two each). From C2's giver -> one
+  // one changed(1) in 2 of 3 runs (the first run gave two each). From C2's giver -> one
   // changed(1) in the root's scripts, 4 of 4. Into C3, from the root or C2 -> one, 3 of 3.
   it.each([
     ['the root', 'R', 'C1'], ['another child', 'C2', 'C1'], ['the root', 'R', 'C3'], ['another child', 'C2', 'C3'],
@@ -530,8 +530,8 @@ describe('changes to a child whose scripts do not handle changed', () => {
 
   // In-world: llSetLinkColor, llSetLinkAlpha or a PRIM_TYPE change on C1 or C3 -> the root's
   // scripts said changed(2), changed(2) and changed(4) (8 runs). A second object, whose child's
-  // script had no changed handler: llSetLinkMedia on the child -> changed(2048) in the root's
-  // scripts (2 runs), llSetLinkRenderMaterial -> changed(4096) (2 runs).
+  // script had no changed handler: llSetLinkMedia or llClearLinkMedia on the child -> changed(2048)
+  // in the root's scripts (3 runs), llSetLinkRenderMaterial -> changed(4096) (4 runs).
   it.each([
     ['colour', 'llSetLinkColor(L, <1.0, 0.0, 0.0>, ALL_SIDES);', 2],
     ['alpha', 'llSetLinkAlpha(L, 0.5, ALL_SIDES);', 2],
