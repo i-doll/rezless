@@ -144,7 +144,7 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       merged[at] = { ...first, payload: { ...first.payload, num_detected: entries.length, detected: entries } }
       continue
     }
-    if (!TOUCH_EVENTS.has(e.event) || !keyed) {
+    if (!TOUCH_EVENTS.has(e.event) || !keyed || e.payload[LATE_TOUCH_START]) {
       merged.push(e)
       continue
     }
@@ -177,6 +177,8 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
 }
 
 const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
+/** Marks a touch_start raised while the touch_start handler ran on: it waits behind the touch_end. */
+export const LATE_TOUCH_START = '__late'
 /** Marks the touch events one merge made, which keep their order when released. */
 const TOUCH_GROUP = '__touches'
 
@@ -453,13 +455,13 @@ export class LinksetClock {
    * click by i doll and then one by fivebot gave i doll's touch_start and touch, then a delay
    * later fivebot's touch_start(1), and touch(2) and touch_end(2) listing both by last click.
    */
-  scheduleTouch(target: Script, event: string, payload: Record<string, unknown>): void {
+  scheduleTouch(target: Script, event: string, payload: Record<string, unknown>, held?: false): void {
     // A sleeping script's events go through the sleep's own merge in schedule().
     if (target.clockView.minEventDelayMs > 0 && target.running && target.wakeAt === undefined) {
       const before = this.queue.filter((e) => e.target === target && !e.held && TOUCH_EVENTS.has(e.event))
       if (this.mergeWaiting(target, before, { at: this.now, target, event, payload })) return
     }
-    this.schedule(target, this.now, event, payload)
+    this.schedule(target, this.now, event, payload, held)
   }
 
   /**
@@ -926,7 +928,8 @@ export class LinksetClock {
     // second land_collision and collision_end: six of eight runs over two probes, three of them
     // with collision_end come before the land contact. A single land_collision ran behind changed.
     const rank = (e: QueuedEvent) => e === lands[0] ? HELD_ORDER.get('changed')! + 0.5
-      : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5 : HELD_ORDER.get(e.event)!
+      : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5
+      : e.payload[LATE_TOUCH_START] ? HELD_ORDER.get('touch_end')! + 0.5 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
     // In-world: a busy handler's held collision, collision_end and a later contact's
     // collision_start ran as collision_start, collision, collision_end. With a change held in

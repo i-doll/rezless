@@ -270,6 +270,9 @@ linkset.deliverChat({ channel: 0, name: 'Alice', key: 'k', message: 'hi' })
 linkset.touch(2, { face: 0, st: { x: 0.5, y: 0.5, z: 0 }, hold: 1_500, avatar: { key: 'k', name: 'Alice' } })
                                         // click link 2; reaches the scripts Second Life would
                                         //   deliver it to, honouring llPassTouches
+linkset.press(2, { avatar: { key: 'k', name: 'Alice' } })
+linkset.release({ key: 'k' })           // hold a click until its release, to overlap avatars'
+                                        //   clicks in any order; advance time to run the events
 linkset.linkedMessages                  // every llMessageLinked across the linkset
 linkset.clearLinkedMessages()
 linkset.clock.now                       // current virtual time in ms
