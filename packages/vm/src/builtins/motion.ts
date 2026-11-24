@@ -133,19 +133,25 @@ export function queueMoving(clock: LinksetClock, script: Script, event: MovingEv
 }
 
 /** Whether a physical object's scripts were told it moves, and the settle that will end it. */
-interface PhysicalMotion { moving: boolean; settle?: (() => void) | undefined }
+interface PhysicalMotion { moving: boolean; settle?: (() => void) | undefined; settleMs?: number }
 const physicalMotion = new WeakMap<Linkset, PhysicalMotion>()
 
 /**
  * In-world: moving_end came when the physics engine put the object to rest, and llGetVel read
  * exactly zero from then on. It came 0.09 to 0.13 s after llSetVelocity(ZERO_VECTOR) stopped a
- * floating box, and 0.13 to 0.18 s after physics was switched on for a box resting on the
- * platform. A box floating at 0.04 m/s or more never came to rest; at 0.001 to 0.035 m/s the
- * engine stopped it after 0.8 to 2.2 s. Later runs of physics switched on for a box at rest took
- * longer: 0.78 to 0.83 s in 24 runs (convex and prim physics shapes alike), and 1.6 and 2.0 s for
- * a box that had rested a while. When an object comes to rest is left to the test.
+ * floating box. A box floating at 0.04 m/s or more never came to rest; at 0.001 to 0.035 m/s the
+ * engine stopped it after 0.8 to 2.2 s. When an object comes to rest is left to the test.
  */
 export const SETTLE_MS = 133
+
+/**
+ * How long an object resting on something takes to come to rest again once physics is switched
+ * on. In-world: 0.73 to 0.80 s in 45 runs, whatever the box's size, shape, rest time before the
+ * switch or the call that switched it; the first switch for a new box took 0.86 to 0.97 s. A box
+ * 1 to 2 cm above the surface fell and rested in 0.15 to 0.26 s, which is a fall for the test to
+ * set.
+ */
+export const PHYSICS_ON_SETTLE_MS = 800
 
 /** The velocity the object was rezzed or placed with, which llGetVel reads unless a test set one. */
 function launchVelocity(linkset: Linkset): Vector {
@@ -156,10 +162,11 @@ function velocityOf(linkset: Linkset): Vector {
 }
 const still = (v: Vector) => v.x === 0 && v.y === 0 && v.z === 0
 
-function settleLater(linkset: Linkset, state: PhysicalMotion): void {
+function settleLater(linkset: Linkset, state: PhysicalMotion, ms = SETTLE_MS): void {
   if (state.settle || !state.moving) return
   const root = linkset.prims[0]!
-  state.settle = linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + SETTLE_MS, () => {
+  state.settleMs = ms
+  state.settle = linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + ms, () => {
     state.settle = undefined
     // A copy rezzed with a velocity during the settle is still moving.
     if (!still(velocityOf(linkset))) return
@@ -184,7 +191,7 @@ export function copyPhysicalMotion(from: Linkset, to: Linkset): void {
   if (!state) return
   const copied: PhysicalMotion = { moving: state.moving }
   physicalMotion.set(to, copied)
-  if (state.settle) settleLater(to, copied)
+  if (state.settle) settleLater(to, copied, state.settleMs)
 }
 
 /**
@@ -208,7 +215,7 @@ export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
   const state: PhysicalMotion = { moving: true }
   physicalMotion.set(linkset, state)
   raiseMoving(root, 'moving_start', linkset.clock.now)
-  if (still(velocityOf(linkset))) settleLater(linkset, state)
+  if (still(velocityOf(linkset))) settleLater(linkset, state, PHYSICS_ON_SETTLE_MS)
 }
 
 /**

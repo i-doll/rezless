@@ -141,17 +141,34 @@ describe('moving events from physical motion', () => {
       }
     }`
 
-  // In-world, twice: llSetStatus(STATUS_PHYSICS, TRUE) for a box resting on the platform ->
-  // moving_start at once, moving_end 0.13 and 0.18 s later, when llGetVel first read exactly
-  // zero. Four 0.3 m drops gave moving_end 1.25 to 1.33 s after physics was switched on, again
-  // as llGetVel first read zero.
+  // In-world: physics switched on for a box resting on the platform -> moving_start 0.04 to
+  // 0.11 s later and moving_end 0.73 to 0.80 s after the call in 45 runs; the first switch for
+  // each of five new boxes took 0.86 to 0.97 s (Aditi, SLua Tideland, 2026-11-24). Rest times of 0.2 to 30 s before the switch,
+  // 0.2, 0.5 and 1 m boxes, a 0.5 m cylinder, llSetStatus and llSetPrimitiveParams, a box sunk
+  // 5 mm into the platform and one left where physics had put it all gave the same. A box
+  // 1 to 2 cm above the platform came to rest 0.15 to 0.26 s after the switch; 3 mm to 5 cm
+  // above, it bounced, with up to five start and end pairs. Four 0.3 m drops gave moving_end
+  // 1.25 to 1.33 s after physics was switched on, as llGetVel first read zero.
   it.each(['on', 'link'])('starts when physics is switched on (%s), and ends as the object rests', async (command) => {
     const b = await box(physical)
     send(b, command)
-    b.linkset.advanceTime(100)
+    b.linkset.advanceTime(700)
     expect(b.log()).toEqual(['moving_start 0'])
-    b.linkset.advanceTime(1_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 1'])
+    b.linkset.advanceTime(200)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 8'])
+  })
+
+  // A copy made while the object settles settles in full again, with the delay the original had.
+  it('settles a copy made during a physics switch with the same delay', async () => {
+    const b = await box(physical)
+    send(b, 'on')
+    b.linkset.advanceTime(100)
+    const copy = b.linkset.duplicate()
+    const ends = () => (copy.allScripts()[0]!.global('log') as string[]).filter((line) => line.startsWith('moving_end'))
+    copy.advanceTime(700)
+    expect(ends()).toEqual([])
+    copy.advanceTime(200)
+    expect(ends()).toHaveLength(1)
   })
 
   // In-world: a box floating at 0.04, 0.05 or 0.5 m/s for 5 to 6 s never got moving_end. At
@@ -179,7 +196,7 @@ describe('moving events from physical motion', () => {
     b.linkset.advanceTime(1_000)
     b.linkset.setVelocity({ x: 0, y: 0, z: 0 })
     b.linkset.advanceTime(1_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 1', 'moving_start 10', 'moving_end 21'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 8', 'moving_start 10', 'moving_end 21'])
   })
 
   // In-world: a box floating at 0.5 m/s whose physics was switched off -> moving_end.
@@ -210,7 +227,7 @@ describe('moving events from physical motion', () => {
     b.linkset.advanceTime(1_000)
     send(b, 'off')
     b.linkset.advanceTime(1_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 1'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 8'])
   })
 
   it('ends a copy of a moving physical object when its velocity becomes zero', async () => {
