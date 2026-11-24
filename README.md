@@ -262,7 +262,8 @@ linkset.deliverChat({ channel: 0, name: 'Alice', key: 'k', message: 'hi' })
 linkset.touch(2, { face: 0, st: { x: 0.5, y: 0.5, z: 0 }, hold: 1_500, avatar: { key: 'k', name: 'Alice' } })
                                         // click link 2; reaches the scripts Second Life would
                                         //   deliver it to, honouring llPassTouches. A held click
-                                        //   raises `touch` every 2000/45 ms until the release, and
+                                        //   raises `touch` every 2000/45 ms in LSL and every
+                                        //   1000/45 ms in SLua until the release, and
                                         //   a script stopped at the release keeps getting `touch`
                                         //   until that avatar's next click; `pos`, `normal` and
                                         //   `binormal` set the other llDetectedTouch* values
