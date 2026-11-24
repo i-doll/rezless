@@ -847,7 +847,8 @@ export class LinksetClock {
       // and the click's touch and touch_end waited behind the touch_start.
       if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
       const waited = due
-      if (!PACING_EXEMPT.has(e.event)) due = Math.max(due, v.nextEventAt(e.event))
+      // Picked by the one-frame pace; the second frame an LSL changed or tick may wait is added below.
+      if (!PACING_EXEMPT.has(e.event)) due = Math.max(due, v.nextEventAt(''))
       if (e.target.handling || !(e.event === '__reset' || (e.event === '__running' && !e.target.running) ||
           (e.target.wakeAt === undefined && !e.target.detachedInHandler))) continue
       const mine = next.get(e.target)
@@ -856,7 +857,10 @@ export class LinksetClock {
     }
     // The one picked runs no sooner than the frame after the handler that raised it; the events
     // queued behind it wait for it.
-    for (const e of next.values()) e.due = Math.max(e.due, this.queue[e.index]!.notBefore ?? 0)
+    for (const [script, e] of next) {
+      const { event, notBefore = 0 } = this.queue[e.index]!
+      e.due = Math.max(e.due, notBefore, PACING_EXEMPT.has(event) ? 0 : script.clockView.nextEventAt(event))
+    }
     return next
   }
 

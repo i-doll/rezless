@@ -270,3 +270,23 @@ describe('a timer next to events that take every frame', () => {
     expect(JSON.parse(JSON.stringify(scripts['s']!.global('log')))).toEqual(['0', '1', '2', '3', '4', 'tick', '5', '6', '7', '8', '9'])
   })
 })
+
+describe('a changed waiting two frames in LSL', () => {
+  // The second frame comes on top of the queue's order: a link message that came up after the
+  // waiting change still runs behind it.
+  it('keeps a link message that came up after it behind it', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `list log;
+      default {
+        link_message(integer s, integer n, string m, key k) { log += "lm"; }
+        changed(integer c) { log += "ch"; }
+      }` } }] }] })
+    const s = scripts['s']!
+    linkset.startAll()
+    linkset.advanceTime(100)
+    s.fire('changed', { change: 2 })
+    linkset.clock.schedule(s, linkset.clock.now, 'changed', { change: 2 })
+    linkset.clock.schedule(s, linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: '' })
+    linkset.advanceTime(500)
+    expect(JSON.parse(JSON.stringify(s.global('log')))).toEqual(['ch', 'ch', 'lm'])
+  })
+})
