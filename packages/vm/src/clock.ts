@@ -181,7 +181,28 @@ const heldKind = (event: string) => CHANGED_EVENTS.has(event) ? 'changed' : even
  * clicks merged, two timer events for one to seven ticks, two sensor events for four scans and
  * two changed events for two colour changes, or for a drop and a colour change.
  */
-const BUSY_HELD: ReadonlySet<string> = new Set([...CHANGED_EVENTS, ...TOUCH_EVENTS, 'timer', ...SENSOR_EVENTS])
+const BUSY_HELD: ReadonlySet<string> = new Set([...CHANGED_EVENTS, ...TOUCH_EVENTS, 'timer', ...SENSOR_EVENTS,
+  'collision', 'collision_end', 'game_control'])
+
+/**
+ * Events a busy handler drops when one of their kind already waits for it. In-world, a second
+ * contact with the platform gave no collision_start of its own, a second contact with land no
+ * land collision events at all, and a target crossed and left, or reached, gave only the
+ * not_at_target or not_at_rot_target that waited from before.
+ */
+const BUSY_DROPPED: ReadonlySet<string> = new Set(['collision_start', 'land_collision_start', 'land_collision', 'land_collision_end',
+  'at_target', 'not_at_target', 'at_rot_target', 'not_at_rot_target'])
+
+/**
+ * The kind a busy handler holds back or drops an event by. In-world, a collision_end that came
+ * up while the contact's first collision waited was held back with the later collision events.
+ */
+function busyKind(event: string): string {
+  if (event === 'collision_end') return 'collision'
+  if (event === 'not_at_target') return 'at_target'
+  if (event === 'not_at_rot_target') return 'at_rot_target'
+  return heldKind(event)
+}
 const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'collision', 'collision_end'])
 
 /**
@@ -304,7 +325,10 @@ export class LinksetClock {
     const wakeAt = target.wakeAt
     // A busy handler holds events back until it sleeps or ends, also those it raises itself.
     if (held === undefined && at <= this.now) {
-      if (target.busy) held = this.waitsFor(target, event)
+      if (target.busy) {
+        if (BUSY_DROPPED.has(event) && this.waitsFor(target, event)) return
+        held = BUSY_HELD.has(event) && this.waitsFor(target, event)
+      }
       else if (wakeAt !== undefined && wakeAt > this.now) held = true
     }
     held &&= HELD_ORDER.has(event)
@@ -314,7 +338,7 @@ export class LinksetClock {
     // press in the sleep of the touch_start handler that ran next gave two.
     if (held && event === 'game_control') {
       const since = target.handlerStartedAt
-      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && e.payload['heldFor'] === since && e.at <= this.now)
+      const waiting = this.queue.findIndex((e) => e.target === target && e.event === event && (!target.busy || e.held) && e.payload['heldFor'] === since && e.at <= this.now)
       if (waiting >= 0) {
         this.queue[waiting] = { ...this.queue[waiting]!, payload }
         return
@@ -335,11 +359,10 @@ export class LinksetClock {
     return pending >= MAX_PENDING_EVENTS
   }
 
-  /** Whether an event of `event`'s kind, of those a busy handler holds back, waits for `target`. */
+  /** Whether an event of `event`'s kind waits for the busy `target`. */
   private waitsFor(target: Script, event: string): boolean {
-    if (!BUSY_HELD.has(event)) return false
-    const kind = heldKind(event)
-    return this.queue.some((e) => e.target === target && !e.held && e.at <= this.now && heldKind(e.event) === kind)
+    const kind = busyKind(event)
+    return this.queue.some((e) => e.target === target && !e.held && e.at <= this.now && busyKind(e.event) === kind)
   }
 
   /**
@@ -695,7 +718,9 @@ export class LinksetClock {
 
   /** Queue held-back events behind the others, merged and in the held order. */
   private release(script: Script, events: QueuedEvent[], timerWaits: boolean): void {
-    const inOrder = events.every((e) => e.busy)
+    // In-world: a handler busy and then asleep ran a change held in its busy part and one in its
+    // sleep as one, ahead of a click made later in the sleep.
+    const inOrder = events.some((e) => e.busy)
     const merged = mergeHeld(events.sort((a, b) => a.at - b.at))
     // The contact goes on past the wake when no end of it was held.
     const open = !merged.some((e) => e.event === 'land_collision_end' && !e.payload[REOPENED])
@@ -716,9 +741,10 @@ export class LinksetClock {
     // takeNextDue, which gives one tick after several sleeps, as measured on the main grid.
     let pending = script.parkedEvents.length + events.length
     for (const e of this.queue) if (e.target === script) pending++
-    if (held.length && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now &&
-        !timerWaits && !held.some((e) => e.event === 'timer')) {
-      held.push({ at: this.now, target: script, event: 'timer', payload: {}, held: false })
+    // In-world: a 1 s timer through a handler busy for 6 s and then asleep for 6 s gave two timer
+    // events: the tick held in the busy part stands for those in the sleep.
+    if (held.length && pending < MAX_PENDING_EVENTS && script.running && v.timerIntervalMs > 0 && v.timerNextFireMs <= this.now && !timerWaits) {
+      if (!held.some((e) => e.event === 'timer')) held.push({ at: this.now, target: script, event: 'timer', payload: {}, held: false })
       // As in takeNextDue: an overdue tick keeps the old schedule if that is still ahead.
       // In-world: its lag is how late it was at the wake, even when another handler held it longer.
       v.timerFired(this.now)

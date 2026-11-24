@@ -230,7 +230,7 @@ A handler that only computes takes no time unless a mock says so. Call `ctx.busy
 s.mock('llOwnerSay', (ctx) => { ctx.busy(10_000); return undefined }) // this call spins for 10 s
 ```
 
-Events that come up while a handler is busy wait for it and run in the order they came up. A `changed`, touch, `timer` or `sensor` event that comes up while one of its kind already waits is held back and merged as in a sleep, and the merged event runs after the others. A handler that sleeps instead holds back every such event. On the Aditi grid an empty `for` loop took about 0.2 s per 100,000 rounds in LSL (Mono) and about 0.24 s in SLua.
+Events that come up while a handler is busy wait for it and run in the order they came up. A `changed`, touch, `timer`, `sensor`, `collision`, `collision_end` or `game_control` event that comes up while one of its kind already waits is held back and merged as in a sleep, and the merged event runs after the others. A `collision_start`, land collision or target event that comes up while one of its kind already waits is dropped. A handler that sleeps instead holds back every such event. An object taken or copied while its handler is busy carries the handler on busy after it is rezzed. On the Aditi grid an empty `for` loop took about 0.2 s per 100,000 rounds in LSL (Mono) and about 0.24 s in SLua.
 
 ### `loadLinkset(input)` → `Promise<LoadedLinkset>`
 

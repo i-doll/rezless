@@ -1585,10 +1585,15 @@ export class Script {
     this.task = { ...this.task, startedAt: this.task.startedAt + ms, wakeAt: this.task.wakeAt + ms }
   }
 
-  /** When `task` started and wakes on `copy`'s clock. A sleep does not run down in inventory. */
-  private sleepIn(copy: Script, task: Task): Pick<Task, 'startedAt' | 'wakeAt'> {
+  /**
+   * When `task` started and wakes on `copy`'s clock, and whether it is busy until then. A sleep
+   * does not run down in inventory. In-world, a handler busy in a loop on llGetTime when its
+   * object was taken, or a copy of it, went on busy after the rez, and llGetTime had not moved
+   * while it was in inventory.
+   */
+  private sleepIn(copy: Script, task: Task): Pick<Task, 'startedAt' | 'wakeAt' | 'busy'> {
     const now = Math.max(this.clockView.stoppedAt, task.startedAt)
-    return { startedAt: copy.now - (now - task.startedAt), wakeAt: copy.now + Math.max(0, task.wakeAt - now) }
+    return { startedAt: copy.now - (now - task.startedAt), wakeAt: copy.now + Math.max(0, task.wakeAt - now), ...(task.busy && { busy: true }) }
   }
 
   /** Internal: invoked by `Linkset.drainQueue` when a sleeping handler's wake time comes. */
