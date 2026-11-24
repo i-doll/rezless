@@ -116,8 +116,8 @@ describe('motion that starts and ends while a handler sleeps', () => {
     }`
 
   // In-world: physics switched on for a box at rest on the platform -> moving_start at once and
-  // moving_end when it came to rest; in a sleep of 1 s, as it rested 0.8 s in, neither. In a
-  // 0.05 s sleep moving_start came after the sleep.
+  // moving_end when it came to rest 0.8 s in; in a sleep of 1 s, neither. In a 0.05 s sleep
+  // moving_start came after the sleep; in a 0.5 s sleep, both.
   it('gives neither event when physics switched on comes to rest inside the sleep', async () => {
     const b = await box(physical)
     send(b, 'on,1.0')
@@ -129,7 +129,14 @@ describe('motion that starts and ends while a handler sleeps', () => {
     const b = await box(physical)
     send(b, 'on,0.05')
     b.linkset.advanceTime(3_000)
-    expect(b.log()).toEqual(['moving_start 1', 'moving_end 1'])
+    expect(b.log()).toEqual(['moving_start 1', 'moving_end 8'])
+  })
+
+  it('gives both when physics switched on is still settling at the end of a 0.5 s sleep', async () => {
+    const b = await box(physical)
+    send(b, 'on,0.5')
+    b.linkset.advanceTime(3_000)
+    expect(b.log()).toEqual(['moving_start 5', 'moving_end 8'])
   })
 
   // In-world: a hop from llApplyImpulse or llPushObject in a 3 s sleep -> neither, two runs each.
