@@ -12,6 +12,7 @@ import type { Linkset, Script } from '../src/index.js'
 // A separate object of the same owner, and the root's own script, gave a notecard or loaded a
 // script on a chat command.
 const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const MATERIAL = 'f35823e6-40dc-d992-f4cc-85a4cb5464c0'
 const logger = 'list seen; list counts; default { changed(integer c) { seen += c; counts += llGetInventoryNumber(INVENTORY_ALL); } }'
 const silent = 'integer ran; default { state_entry() { ran = 1; } }'
 const notecard = (name: string) => makeInventoryItem({ name, type: InventoryType.NOTECARD, notecardLines: ['probe'] })
@@ -490,5 +491,101 @@ describe('owner drops one after another', () => {
     made.linkset.advanceTime(100)
     expect(s.global('seen')).toEqual([1, 1])
     expect(s.global('counts')).toEqual([2, 3])
+  })
+})
+
+// In-world (Aditi, SLua Tideland, 2026-11-24): a four-prim object. The root held a giving script
+// with a changed handler and an idle logging script; C1's script had no changed handler, C2 held
+// a giving script, C3 had no script. Each giving script gave notecards or recoloured a child on a
+// chat command.
+describe('changes to a child whose scripts do not handle changed', () => {
+  const giver = `list seen; default {
+      link_message(integer s, integer n, string m, key k) { BODY }
+      changed(integer c) { seen += c; }
+    }`
+  async function fallback(from: 'R' | 'C2', body: string) {
+    const made = await loadLinkset({ owner: OWNER, prims: [
+      { name: 'R', inventory: [notecard('nc'), notecard('nc2')], scripts: [script('give', giver.replace('BODY', from === 'R' ? body : '')), script('log', logger)] },
+      { name: 'C1', scripts: [script('quiet', silent)] },
+      { name: 'C2', inventory: [notecard('nc'), notecard('nc2')], scripts: [script('cgive', giver.replace('BODY', from === 'C2' ? body : ''))] },
+      { name: 'C3' },
+    ] })
+    made.linkset.startAll()
+    made.linkset.advanceTime(1000)
+    made.scripts[from === 'R' ? 'give' : 'cgive']!.fire('link_message', { sender_num: 1, num: 0, str: '', id: '' })
+    for (let i = 0; i < 20; i++) made.linkset.advanceTime(100)
+    return { give: made.scripts['give']!.global('seen'), log: made.scripts['log']!.global('seen'), child: made.scripts['cgive']!.global('seen') }
+  }
+
+  // In-world: two gifts into C1 from the root's giver -> the giver and the idle logger each said
+  // one changed(1) in 2 of 3 runs (the first run gave two each). From C2's giver -> one
+  // changed(1) in the root's scripts, 4 of 4. Into C3, from the root or C2 -> one, 3 of 3.
+  it.each([
+    ['the root', 'R', 'C1'], ['another child', 'C2', 'C1'], ['the root', 'R', 'C3'], ['another child', 'C2', 'C3'],
+  ] as const)('gives the root\'s scripts one changed for two gifts from %s into %s', async (_from, from, to) => {
+    const { give, log } = await fallback(from, `llGiveInventory(llGetLinkKey(${to.slice(1) === '1' ? 2 : 4}), "nc"); llGiveInventory(llGetLinkKey(${to.slice(1) === '1' ? 2 : 4}), "nc2");`)
+    expect(log).toEqual([1])
+    expect(give).toEqual([1])
+  })
+
+  // In-world: llSetLinkColor, llSetLinkAlpha or a PRIM_TYPE change on C1 or C3 -> the root's
+  // scripts said changed(2), changed(2) and changed(4) (8 runs). A second object, whose child's
+  // script had no changed handler: llSetLinkMedia or llClearLinkMedia on the child -> changed(2048)
+  // in the root's scripts (3 runs), llSetLinkRenderMaterial -> changed(4096) (4 runs).
+  it.each([
+    ['colour', 'llSetLinkColor(L, <1.0, 0.0, 0.0>, ALL_SIDES);', 2],
+    ['alpha', 'llSetLinkAlpha(L, 0.5, ALL_SIDES);', 2],
+    ['shape', 'llSetLinkPrimitiveParamsFast(L, [PRIM_TYPE, PRIM_TYPE_BOX, PRIM_HOLE_DEFAULT, <0.0, 1.0, 0.0>, 0.3, ZERO_VECTOR, <1.0, 1.0, 0.0>, ZERO_VECTOR]);', 4],
+    ['media', 'llSetLinkMedia(L, 0, [PRIM_MEDIA_HOME_URL, "http://example.com/"]);', 2048],
+    ['render material', `llSetLinkRenderMaterial(L, "${MATERIAL}", ALL_SIDES);`, 4096],
+  ] as const)('reaches the root\'s scripts for a change of %s', async (_kind, call, bit) => {
+    for (const link of [2, 4]) {
+      const { give, log } = await fallback('R', call.replace('(L,', `(${link},`))
+      expect(log).toEqual([bit])
+      expect(give).toEqual([bit])
+    }
+  })
+
+  // In-world: a two-prim object whose child's only script had no changed handler and changed its
+  // own prim on a chat command: llSetColor, llSetAlpha -> changed(2) in the root's script;
+  // llSetPrimMediaParams -> changed(2048) (2 runs); llSetRenderMaterial, set and cleared ->
+  // changed(4096) (2 runs).
+  it.each([
+    ['llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES);', 2],
+    ['llSetAlpha(0.5, ALL_SIDES);', 2],
+    ['llSetPrimMediaParams(0, [PRIM_MEDIA_HOME_URL, "http://example.com/"]);', 2048],
+    [`llSetRenderMaterial("${MATERIAL}", ALL_SIDES);`, 4096],
+  ] as const)('reaches the root\'s scripts for a child script\'s own %s', async (call, bit) => {
+    const made = await loadLinkset({ owner: OWNER, prims: [
+      { name: 'R', scripts: [script('log', logger)] },
+      { name: 'C1', scripts: [script('own', `default { link_message(integer s, integer n, string m, key k) { ${call} } }`)] },
+    ] })
+    made.linkset.startAll()
+    made.linkset.advanceTime(1000)
+    made.scripts['own']!.fire('link_message', { sender_num: 1, num: 0, str: '', id: '' })
+    for (let i = 0; i < 20; i++) made.linkset.advanceTime(100)
+    expect(made.scripts['log']!.global('seen')).toEqual([bit])
+  })
+
+  // In-world: llScaleByFactor in the second object -> one changed(8) in each root script and in
+  // the child script that handles changed (4 runs).
+  it('gives the root\'s scripts one changed for a scale of the whole object', async () => {
+    const { give, log, child } = await fallback('R', 'llScaleByFactor(1.1);')
+    expect(log).toEqual([8])
+    expect(give).toEqual([8])
+    expect(child).toEqual([8])
+  })
+
+  // In-world: llSetLinkColor on C1 or C3 then a gift into it -> one changed(3) in the root's
+  // scripts in 8 of 9 runs; a gift, a recolour and a second gift -> one changed(3), 2 of 2. A gift
+  // then the recolour gave one changed(3) in 2 runs and changed(1) then changed(2) in 3, so that
+  // order is not pinned.
+  it.each([
+    ['a recolour then a gift', 'llSetLinkColor(2, <1.0, 0.0, 0.0>, ALL_SIDES); llGiveInventory(llGetLinkKey(2), "nc");'],
+    ['a gift, a recolour and a gift', 'llGiveInventory(llGetLinkKey(2), "nc"); llSetLinkColor(2, <1.0, 0.0, 0.0>, ALL_SIDES); llGiveInventory(llGetLinkKey(2), "nc2");'],
+  ])('gives the root\'s scripts one changed for %s', async (_order, body) => {
+    const { give, log } = await fallback('R', body)
+    expect(log).toEqual([3])
+    expect(give).toEqual([3])
   })
 })

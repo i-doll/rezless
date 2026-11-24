@@ -413,18 +413,18 @@ export class Prim {
    * scripts that get it.
    */
   #queueOwnerEdit(changes = CHANGED_INVENTORY): Script[] {
-    const scripts = this.inventoryChangeListeners()
+    const scripts = this.changeListeners()
     for (const script of scripts) queueInventoryChanged(script, changes)
     return scripts
   }
 
   /**
-   * The scripts that hear of an owner edit, a gift or a remote script load into this prim. A
-   * stopped script, or one that has not started yet, never hears of it. When no script in a
-   * child prim handles `changed`, the root's scripts hear of it instead. `arriving` is a script
+   * The scripts that hear of a change to this prim: an owner edit, a gift, a remote script load
+   * or a prim setter's change. A stopped script, or one that has not started yet, never hears of
+   * it. When no script in a child prim handles `changed`, the root's scripts hear of it instead. `arriving` is a script
    * the change itself brings, which neither hears of it nor counts as handling it.
    */
-  inventoryChangeListeners(arriving?: Script): Script[] {
+  changeListeners(arriving?: Script): Script[] {
     const linkset = this.linkset
     if (!linkset) return []
     const hearing = (prim: Prim) => prim.scripts.filter((script) => script !== arriving && hearsInventoryChange(script))
