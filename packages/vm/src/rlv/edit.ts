@@ -9,7 +9,7 @@ import type { RlvRestriction } from './restrictions.js'
 import { isRlvDetachLocked } from './detach.js'
 import { isRlvInventoryWearLocked } from './outfit.js'
 import { rlvaPieMenuDenials } from './touch.js'
-import { rezzedMoving, SELECTION_MS, selectMotion, stillCopy } from '../builtins/motion.js'
+import { endBeforeTake, rezzedMoving, SELECTION_MS, selectMotion, stillCopy } from '../builtins/motion.js'
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 const switches = new Set(['editworld', 'editattach', 'rez', 'interact'])
@@ -160,6 +160,7 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
   const paused = selectMotion(linkset, SELECTION_MS.copy)
   if (!foreign) {
+    if (paused && !copy) endBeforeTake(linkset)
     const object = linkset.copy()
     if (paused) stillCopy(object)
     if (!copy) linkset.remove()
