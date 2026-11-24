@@ -8,10 +8,7 @@ import { loadLinkset, loadScript, World } from '../src/index.js'
 // 0.5 m box made with object.create. Each printed its expressions with llList2CSV through
 // llOwnerSay. P is (float)"nan", N is (float)"-nan" and inf is (float)"inf", all globals, so the
 // compiler can't fold anything.
-//
-// Not covered yet: vector * rotation, rotation * rotation, division by a rotation and the ll
-// rotation functions still use plain arithmetic, so the sign of a NaN through them can differ
-// from Second Life.
+
 
 const GLOBALS = 'float P; float N; float inf; float one = 1.0; float two = 2.0; float zero = 0.0;'
 const INIT = 'P = (float)"nan"; N = (float)"-nan"; inf = (float)"inf";'
@@ -312,9 +309,199 @@ describe('the NaN sign through llListStatistics', () => {
       .toBe('-nan, 1.000000, -nan, -nan, nan, -nan, 2.000000')
   })
 
-  // In-world: MEDIAN of [3.0, 1.0, N, 2.0, 5.0] gave -nan and of [2.0, P, N] -nan. The VM sorts
-  // a list holding a NaN in another order than the simulator, so it picks 3.0 and nan.
-  it.fails('MEDIAN of a longer list holding a NaN picks the element Second Life does', async () => {
-    expect(await csv([stat('MEDIAN', '3.0, 1.0, N, 2.0, 5.0'), stat('MEDIAN', 'two, P, N')].join(', '))).toBe('-nan, -nan')
+  it('MEDIAN sorts with an insertion sort, so nothing moves past a NaN', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-24): MEDIAN of [3.0, 1.0, N, 2.0, 5.0] -nan,
+    // [two, P, N] nan, [2.0, P, N] nan, [one, P, N] nan, [two, N, P] -nan, [P, two, N] 2.0 and
+    // [P, N, two] -nan. Every one of 332 lists (all orders of 1, 2, N; 1, P, N; 1, 2, 3, N;
+    // 1, 2, P, N; 1, 2, 3, 4, N and 1, 2, 3, P, N, and lists of 7 to 25 numbers with one NaN)
+    // gave the median of an insertion sort on <.
+    expect(await csv([stat('MEDIAN', '3.0, 1.0, N, 2.0, 5.0'), stat('MEDIAN', 'two, P, N'), stat('MEDIAN', '2.0, P, N'), stat('MEDIAN', 'one, P, N'), stat('MEDIAN', 'two, N, P'), stat('MEDIAN', 'P, two, N'), stat('MEDIAN', 'P, N, two')].join(', ')))
+      .toBe('-nan, nan, nan, nan, -nan, 2.000000, -nan')
+    // In-world: [1, 4, 2, N, 3] gave 4.0 (the 2 can't move past the NaN), [2, 3, N, 1, 4] -nan,
+    // [1, 3, 4, 2, N] 3.0, [1, 2, 3, N, 4] 3.0 and [4, N, 1, 2, 3] 1.0.
+    expect(await csv([stat('MEDIAN', '1.0, 4.0, 2.0, N, 3.0'), stat('MEDIAN', '2.0, 3.0, N, 1.0, 4.0'), stat('MEDIAN', '1.0, 3.0, 4.0, 2.0, N'), stat('MEDIAN', '1.0, 2.0, 3.0, N, 4.0'), stat('MEDIAN', '4.0, N, 1.0, 2.0, 3.0')].join(', ')))
+      .toBe('4.000000, -nan, 3.000000, 3.000000, 1.000000')
+  })
+
+  it('MEDIAN of a list longer than 16 still sorts by insertion', async () => {
+    // In-world: these 17 to 21 numbers with one NaN gave 6.0, 16.0 and 10.0.
+    const list = (s: string) => [...s].map((c) => (c === 'N' ? 'N' : c === 'P' ? 'P' : `${parseInt(c, 36)}.0`)).join(', ')
+    expect(await csv([stat('MEDIAN', list('7aPceb123496g85df')), stat('MEDIAN', list('6d9i3ha8g7c2N5f14eb')), stat('MEDIAN', list('N24b1fjdc59ih8ke637ga'))].join(', ')))
+      .toBe('6.000000, 16.000000, 10.000000')
+  })
+})
+
+describe('the NaN sign through rotations', () => {
+  // In-world (Aditi, SLua Tideland, 2026-11-24), Mono. RN = <N, 0, 0, 1>, RP = <P, 0, 0, 1>,
+  // RSN = <0, 0, 0, N>, RSP = <0, 0, 0, P>, RNP = <N, P, 0, 1>, RPN = <P, N, 0, 1>, RNN and RPP
+  // all N or all P, Q = <0.1, 0.2, 0.3, 0.9>, V = <1, 2, 3>, VN = <N, 0, 0>, VP = <P, 0, 0>,
+  // VNP = <N, P, 0>.
+  const ROTS = `rotation RN = <N, 0.0, 0.0, 1.0>; rotation RP = <P, 0.0, 0.0, 1.0>;
+    rotation RSN = <0.0, 0.0, 0.0, N>; rotation RSP = <0.0, 0.0, 0.0, P>;
+    rotation RNP = <N, P, 0.0, 1.0>; rotation RPN = <P, N, 0.0, 1.0>;
+    rotation RNN = <N, N, N, N>; rotation RPP = <P, P, P, P>; rotation Q = <0.1, 0.2, 0.3, 0.9>;
+    vector V = <1.0, 2.0, 3.0>; vector VN = <N, 0.0, 0.0>; vector VP = <P, 0.0, 0.0>; vector VNP = <N, P, 0.0>;
+    rotation RI = <inf, 0.0, 0.0, 1.0>; vector VI = <inf, 0.0, 0.0>;`
+  const all = (sign: string, n: number) => `<${Array(n).fill(sign).join(', ')}>`
+
+  it('a vector times a rotation follows the float rules in every term', async () => {
+    // In-world: V * RN, V * RSN, VN * Q and VN * RN gave -nan in every part, V * RP, V * RSP, VP * Q
+    // and VP * RP nan, and V * RNP, V * RPN, VNP * Q, VP * RN and VN * RP nan: two NaNs give -nan
+    // only when both are negative.
+    expect(await csv('V * RN, V * RP, V * RSN, V * RSP, V * RNP, V * RPN, VN * Q, VP * Q, VNP * Q, VN * ZERO_ROTATION, VP * RN, VN * RP, VN * RN, VP * RP', ROTS))
+      .toBe([all('-nan', 3), all('nan', 3), all('-nan', 3), all('nan', 3), all('nan', 3), all('nan', 3), all('-nan', 3), all('nan', 3), all('nan', 3), all('-nan', 3), all('nan', 3), all('nan', 3), all('-nan', 3), all('nan', 3)].join(', '))
+  })
+
+  it('a rotation times a rotation follows the float rules in every term', async () => {
+    // In-world: RN * Q, Q * RN, RSN * Q, Q * RSN and RN * RN gave -nan in every part; RP * Q, Q * RP,
+    // RN * RP, RP * RN, RNP * RPN, RNN * RPP, RPP * RNN and RSN * RSP nan.
+    expect(await csv('RN * Q, Q * RN, RP * Q, Q * RP, RSN * Q, Q * RSN, RN * RP, RP * RN, RN * RN, RNP * RPN, RNN * RPP, RPP * RNN, RSN * RSP', ROTS))
+      .toBe([all('-nan', 4), all('-nan', 4), all('nan', 4), all('nan', 4), all('-nan', 4), all('-nan', 4), all('nan', 4), all('nan', 4), all('-nan', 4), all('nan', 4), all('nan', 4), all('nan', 4), all('nan', 4)].join(', '))
+  })
+
+  it('a division by a rotation inverts the divisor, then passes on the first NaN it meets', async () => {
+    // In-world: dividing turns the divisor's x, y and z NaNs over, and each part of the result
+    // takes the first NaN in an order of its own (the pair-by-pair table covers every order).
+    // V / RN, V / RP, V / RSN, V / RSP, V / RNP, V / RPN:
+    expect(await csv('V / RN, V / RP, V / RSN, V / RSP, V / RNP, V / RPN', ROTS))
+      .toBe('<nan, nan, nan>, <-nan, -nan, -nan>, <-nan, -nan, -nan>, <nan, nan, nan>, <-nan, -nan, nan>, <nan, nan, -nan>')
+    // VN / Q, VP / Q, VNP / Q, VP / RN, VN / RP, VN / RN:
+    expect(await csv('VN / Q, VP / Q, VNP / Q, VP / RN, VN / RP, VN / RN', ROTS))
+      .toBe('<-nan, -nan, -nan>, <nan, nan, nan>, <nan, -nan, -nan>, <nan, nan, nan>, <-nan, -nan, -nan>, <nan, -nan, -nan>')
+    // RN / Q, Q / RN, RP / Q, Q / RP, RSN / Q, Q / RSN:
+    expect(await csv('RN / Q, Q / RN, RP / Q, Q / RP, RSN / Q, Q / RSN', ROTS))
+      .toBe([all('-nan', 4), all('nan', 4), all('nan', 4), all('-nan', 4), all('-nan', 4), all('-nan', 4)].join(', '))
+    // RN / RP, RP / RN, RN / RN, RNP / RPN, RNN / RPP:
+    expect(await csv('RN / RP, RP / RN, RN / RN, RNP / RPN, RNN / RPP', ROTS))
+      .toBe('<-nan, -nan, -nan, -nan>, <nan, nan, nan, nan>, <nan, -nan, nan, -nan>, <-nan, -nan, -nan, -nan>, <-nan, -nan, -nan, nan>')
+  })
+
+  it('an infinity makes a negative NaN where it meets a zero', async () => {
+    // In-world: V * RI, VI * Q, RI * Q, Q * RI, V / RI, Q / RI, VI * ZERO_ROTATION and VI / ZERO_ROTATION.
+    expect(await csv('V * RI, VI * Q, RI * Q, Q * RI, V / RI, Q / RI, VI * ZERO_ROTATION, VI / ZERO_ROTATION', ROTS))
+      .toBe('<-nan, -nan, -nan>, <-nan, inf, -nan>, <inf, inf, -inf, -inf>, <inf, -inf, inf, -inf>, <-nan, -nan, -nan>, <-inf, inf, -inf, inf>, <-nan, -nan, -nan>, <-nan, -nan, -nan>')
+  })
+
+  it('llRot2Fwd, llRot2Left and llRot2Up of a NaN rotation are the unturned axes', async () => {
+    // In-world: llRot2Fwd(RN), llRot2Fwd(RP), llRot2Left(RN), llRot2Up(RN), llRot2Fwd(RSN) and
+    // llRot2Fwd(RPP) gave the axes themselves; llRot2Fwd(RI) gave <1.000000, -nan, -nan>.
+    expect(await csv('llRot2Fwd(RN), llRot2Fwd(RP), llRot2Left(RN), llRot2Up(RN), llRot2Fwd(RSN), llRot2Fwd(RPP), llRot2Fwd(RI)', ROTS))
+      .toBe('<1.000000, 0.000000, 0.000000>, <1.000000, 0.000000, 0.000000>, <0.000000, 1.000000, 0.000000>, <0.000000, 0.000000, 1.000000>, <1.000000, 0.000000, 0.000000>, <1.000000, 0.000000, 0.000000>, <1.000000, -nan, -nan>')
+  })
+
+  it('the other ll rotation functions read a NaN as no rotation', async () => {
+    // In-world: every llRot2Euler below gave ZERO_VECTOR; llRot2Axis and llRot2Angle ZERO_VECTOR
+    // and 0.0, except llRot2Angle(RI) PI; llAxisAngle2Rot, llRotBetween and llAxes2Rot
+    // ZERO_ROTATION; llAngleBetween 0.0.
+    const zv = '<0.000000, 0.000000, 0.000000>'
+    const zr = '<0.000000, 0.000000, 0.000000, 1.000000>'
+    expect(await csv('llRot2Euler(RN), llRot2Euler(RP), llRot2Euler(RSN), llRot2Euler(RNN), llRot2Euler(RPP), llRot2Euler(RI)', ROTS)).toBe(Array(6).fill(zv).join(', '))
+    expect(await csv('llRot2Axis(RN), llRot2Axis(RP), llRot2Angle(RN), llRot2Angle(RP), llRot2Angle(RSN), llRot2Axis(RSN), llRot2Angle(RI)', ROTS))
+      .toBe(`${zv}, ${zv}, 0.000000, 0.000000, 0.000000, ${zv}, 3.141593`)
+    expect(await csv('llAxisAngle2Rot(<1.0, 0.0, 0.0>, N), llAxisAngle2Rot(<1.0, 0.0, 0.0>, P), llAxisAngle2Rot(VN, one), llAxisAngle2Rot(VP, one), llAxisAngle2Rot(<1.0, 0.0, 0.0>, inf)', ROTS))
+      .toBe(Array(5).fill(zr).join(', '))
+    expect(await csv('llRotBetween(VN, <1.0, 0.0, 0.0>), llRotBetween(<1.0, 0.0, 0.0>, VP), llRotBetween(VN, VP), llAngleBetween(RN, ZERO_ROTATION), llAngleBetween(ZERO_ROTATION, RP), llAngleBetween(RN, RP)', ROTS))
+      .toBe(`${zr}, ${zr}, ${zr}, 0.000000, 0.000000, 0.000000`)
+    expect(await csv('llAxes2Rot(VN, <0.0, 1.0, 0.0>, <0.0, 0.0, 1.0>), llAxes2Rot(VP, <0.0, 1.0, 0.0>, <0.0, 0.0, 1.0>), llAxes2Rot(<1.0, 0.0, 0.0>, <0.0, 1.0, 0.0>, <0.0, 0.0, N>)', ROTS))
+      .toBe(Array(3).fill(zr).join(', '))
+  })
+
+  it('llEuler2Rot turns a NaN angle by the lowest step count', async () => {
+    // In-world: llEuler2Rot(VN), (VP), (VNP), (<0, N, 0>) and (VI).
+    expect(await csv('llEuler2Rot(VN), llEuler2Rot(VP), llEuler2Rot(VNP), llEuler2Rot(<0.0, N, 0.0>), llEuler2Rot(VI)', ROTS))
+      .toBe('<0.217045, 0.000000, 0.000000, 0.976162>, <0.217045, 0.000000, 0.000000, 0.976162>, <0.211871, 0.211871, 0.047109, 0.952891>, <0.000000, 0.217045, 0.000000, 0.976162>, <0.217045, 0.000000, 0.000000, 0.976162>')
+  })
+})
+
+describe('the NaN sign in SLua', () => {
+  // In-world (Aditi, SLua Tideland, 2026-11-24): one SLua script printed each table with
+  // ll.List2CSV through ll.OwnerSay. P is math.abs(0/0), N is -P and inf is math.huge.
+  async function slua(exprs: string, setup = '') {
+    const s = await loadScript({
+      language: 'slua',
+      source: `local P = math.abs(0/0)\nlocal N = -P\nlocal inf = math.huge\n${setup}\nll.OwnerSay(ll.List2CSV({${exprs}}))`,
+    })
+    s.start()
+    return s.chat[0]?.text
+  }
+
+  it('Luau arithmetic passes on the first NaN', async () => {
+    // In-world: P, N, tostring(P), tostring(N), 0/0, tostring(0/0), -(0/0) and P + N, N + P,
+    // N + N, P * N, N * P, N * N, N + 1, 1 - N, inf - inf, 0 * inf, -inf + inf.
+    expect(await slua('P, N, tostring(P), tostring(N), 0/0, tostring(0/0), -(0/0)')).toBe('nan, -nan, nan, nan, -nan, nan, nan')
+    expect(await slua('P + N, N + P, N + N, P * N, N * P, N * N, N + 1, 1 - N, inf - inf, 0 * inf, -inf + inf'))
+      .toBe('nan, -nan, -nan, nan, -nan, -nan, -nan, -nan, -nan, -nan, -nan')
+  })
+
+  it('the math functions give the same signs as Mono, except llSqrt of a negative number', async () => {
+    // In-world: ll.Sqrt(-inf) and ll.Sqrt(-2) gave nan, where Mono gives -nan.
+    expect(await slua('ll.Fabs(N), ll.Fabs(P), ll.Sqrt(N), ll.Sqrt(P), ll.Sqrt(-inf), ll.Sqrt(-2)')).toBe('-nan, nan, -nan, nan, nan, nan')
+    expect(await slua('ll.Pow(N, 2), ll.Pow(P, 2), ll.Pow(2, N), ll.Pow(2, P), ll.Pow(N, 0), ll.Pow(1, N), ll.Pow(-2, 0.5), ll.Pow(1, inf), ll.Pow(-1, inf), ll.Pow(-8, 1/3), ll.Pow(N, N), ll.Pow(-2, N)'))
+      .toBe('nan, nan, nan, nan, nan, nan, -nan, nan, nan, -nan, nan, nan')
+    expect(await slua('ll.Sin(N), ll.Sin(P), ll.Cos(N), ll.Cos(P), ll.Tan(N), ll.Tan(P), ll.Cos(inf), ll.Cos(-inf), ll.Sin(-inf), ll.Tan(-inf)'))
+      .toBe('-nan, nan, -nan, nan, -nan, nan, -nan, -nan, -nan, -nan')
+    expect(await slua('ll.Atan2(N, 1), ll.Atan2(P, 1), ll.Atan2(1, N), ll.Atan2(1, P), ll.Atan2(inf, inf), ll.Atan2(-inf, inf), ll.Atan2(inf, -inf), ll.Atan2(-inf, -inf), ll.Atan2(N, P), ll.Atan2(P, N), ll.Atan2(N, N)'))
+      .toBe('-nan, nan, -nan, nan, nan, nan, nan, nan, nan, nan, -nan')
+    expect(await slua('ll.Log(N), ll.Log10(N), ll.Log(P), ll.Frand(N), ll.Frand(P)')).toBe('0, 0, 0, -nan, nan')
+  })
+
+  it('ll.Acos of a NaN is a positive NaN, as in Mono', async () => {
+    // In-world: ll.Asin(N) -nan, ll.Asin(P) nan, ll.Acos(N) nan, ll.Acos(P) nan, and nan for ±2.
+    expect(await slua('ll.Asin(N), ll.Asin(P), ll.Acos(N), ll.Acos(P), ll.Asin(-2), ll.Acos(-2), ll.Asin(2), ll.Acos(2)'))
+      .toBe('-nan, nan, nan, nan, nan, nan, nan, nan')
+  })
+
+  it('the vector functions', async () => {
+    // In-world: these two lines.
+    expect(await slua('ll.VecMag(vector(N, 0, 0)), ll.VecMag(vector(P, 0, 0)), ll.VecNorm(vector(N, 0, 0)), ll.VecNorm(vector(P, 0, 0)), ll.VecDist(vector(N, 0, 0), vector(0, 0, 0)), ll.VecDist(vector(P, 0, 0), vector(0, 0, 0))'))
+      .toBe('-nan, nan, <0.000000, 0.000000, 0.000000>, <0.000000, 0.000000, 0.000000>, -nan, nan')
+    expect(await slua('ll.VecMag(vector(P, N, 0)), ll.VecMag(vector(N, P, 0)), ll.VecMag(vector(N, N, 0)), ll.VecDist(vector(P, 0, 0), vector(N, 0, 0)), ll.VecDist(vector(N, 0, 0), vector(P, 0, 0)), ll.VecDist(vector(inf, 0, 0), vector(inf, 0, 0)), ll.VecMag(vector(inf, 0, 0)), ll.VecNorm(vector(inf, 0, 0))'))
+      .toBe('-nan, nan, -nan, nan, -nan, -nan, inf, <-nan, 0.000000, 0.000000>')
+    // In-world: -V, V * 2, 2 * V, V + W, V - W, V * W and vector(1, 2, 3) / N with V = vector(N, P, 1), W = vector(P, N, 1).
+    expect(await slua('-V, V * 2, 2 * V, V + W, V - W, V * W, vector(1, 2, 3) / N', 'local V = vector(N, P, 1)\nlocal W = vector(P, N, 1)'))
+      .toBe('<nan, -nan, -1.000000>, <-nan, nan, 2.000000>, <-nan, nan, 2.000000>, <-nan, nan, 2.000000>, <-nan, nan, 0.000000>, <-nan, nan, 1.000000>, <-nan, -nan, -nan>')
+  })
+
+  it('llListStatistics, llListSort and llList2Json as in Mono', async () => {
+    const st = (op: string, l: string) => `ll.ListStatistics(LIST_STAT_${op}, {${l}})`
+    // In-world: these lines.
+    expect(await slua([st('SUM', 'N, 1'), st('SUM', '1, N'), st('SUM', 'P, N'), st('SUM', 'N, P'), st('SUM', '1, P, N'), st('SUM', 'N, N, P')].join(', '))).toBe('-nan, -nan, nan, -nan, nan, -nan')
+    expect(await slua([st('MEAN', 'N'), st('MEAN', 'P, N'), st('MEAN', 'N, P'), st('SUM_SQUARES', 'N'), st('SUM_SQUARES', 'P, N'), st('SUM_SQUARES', 'N, P')].join(', '))).toBe('-nan, nan, -nan, -nan, nan, -nan')
+    expect(await slua([st('STD_DEV', 'N, 1'), st('STD_DEV', 'P, 1'), st('STD_DEV', '1, N'), st('GEOMETRIC_MEAN', 'N'), st('GEOMETRIC_MEAN', 'P'), st('GEOMETRIC_MEAN', '1, N')].join(', '))).toBe('-nan, nan, -nan, -nan, nan, -nan')
+    expect(await slua([st('MIN', 'N, 1'), st('MIN', '1, N'), st('MIN', '1, N, 0'), st('MIN', 'P, N'), st('MIN', 'N, P'), st('MAX', 'N, 1'), st('MAX', '1, N'), st('MAX', 'P, N'), st('MAX', 'N, P')].join(', '))).toBe('-nan, 1, 0, nan, -nan, -nan, 1, nan, -nan')
+    expect(await slua([st('RANGE', 'N'), st('RANGE', 'N, 1'), st('RANGE', '1, N'), st('RANGE', 'P, N'), st('SUM', 'inf, -inf'), st('MEAN', 'inf, -inf'), st('STD_DEV', 'inf, 1'), st('RANGE', 'inf, -inf')].join(', '))).toBe('-nan, -nan, 0, nan, -nan, -nan, -nan, inf')
+    expect(await slua([st('MEDIAN', 'N'), st('MEDIAN', 'N, 1, 2'), st('MEDIAN', '1, N, 2'), st('MEDIAN', 'P, N'), st('MEDIAN', 'N, P'), st('MEDIAN', '3, N, 1, 2'), st('MEDIAN', 'N, 3, 1, 2, 5'), st('MEDIAN', '3, 1, N, 2, 5'), st('MEDIAN', '2, P, N')].join(', ')))
+      .toBe('-nan, 1, -nan, -nan, nan, -nan, 2, -nan, nan')
+    // In-world: ll.ListSort of {P, N}, {N, P}, {1, N, 2} and {N, P, 1, N}, one after the other, and
+    // ll.List2Json(JSON_ARRAY, {N, P, vector(N, P, 0)}).
+    const cat = 'local function cat(...) local r = {} for _, l in {...} do for _, v in l do table.insert(r, v) end end return table.unpack(r) end'
+    expect(await slua('cat(ll.ListSort({P, N}, 1, 1), ll.ListSort({N, P}, 1, 1), ll.ListSort({1, N, 2}, 1, 1), ll.ListSort({N, P, 1, N}, 1, 1))', cat))
+      .toBe('-nan, nan, nan, -nan, 2, -nan, 1, -nan, 1, nan, -nan')
+    expect(await slua('ll.List2Json(JSON_ARRAY, {N, P, vector(N, P, 0)})')).toBe('[-nan,nan,"<-nan, nan, 0.000000>"]')
+  })
+
+  it('rotations and the ll rotation functions', async () => {
+    // In-world, with RN = quaternion(N, 0, 0, 1), RP = quaternion(P, 0, 0, 1), RNP = quaternion(N, P, 0, 1),
+    // Q = quaternion(0.1, 0.2, 0.3, 0.9) and V = vector(1, 2, 3): these lines.
+    const setup = 'local RN = quaternion(N, 0, 0, 1)\nlocal RP = quaternion(P, 0, 0, 1)\nlocal RNP = quaternion(N, P, 0, 1)\nlocal Q = quaternion(0.1, 0.2, 0.3, 0.9)\nlocal V = vector(1, 2, 3)'
+    expect(await slua('V * RN, V * RP, V * RNP, V / RN, V / RP', setup))
+      .toBe('<-nan, -nan, -nan>, <nan, nan, nan>, <-nan, nan, -nan>, <nan, nan, nan>, <-nan, -nan, -nan>')
+    expect(await slua('RN * Q, Q * RN, RP * Q, RN * RP, RP * RN, RN / Q, -RN', setup))
+      .toBe('<-nan, -nan, -nan, -nan>, <-nan, -nan, -nan, -nan>, <nan, nan, nan, nan>, <-nan, -nan, nan, nan>, <nan, nan, -nan, -nan>, <-nan, -nan, -nan, -nan>, <nan, -0.000000, -0.000000, -1.000000>')
+    expect(await slua('ll.Rot2Euler(RN), ll.Rot2Euler(RP), ll.Euler2Rot(vector(N, 0, 0)), ll.Euler2Rot(vector(P, 0, 0)), ll.Rot2Fwd(RN), ll.Rot2Fwd(RP), ll.Rot2Angle(RN), ll.Rot2Axis(RN)', setup))
+      .toBe('<0.000000, 0.000000, 0.000000>, <0.000000, 0.000000, 0.000000>, <0.217045, 0.000000, 0.000000, 0.976162>, <0.217045, 0.000000, 0.000000, 0.976162>, <1.000000, 0.000000, 0.000000>, <1.000000, 0.000000, 0.000000>, 0, <0.000000, 0.000000, 0.000000>')
+    const zr = '<0.000000, 0.000000, 0.000000, 1.000000>'
+    expect(await slua('ll.AxisAngle2Rot(vector(1, 0, 0), N), ll.AxisAngle2Rot(vector(1, 0, 0), P), ll.AxisAngle2Rot(vector(N, 0, 0), 1), ll.RotBetween(vector(N, 0, 0), vector(1, 0, 0)), ll.AngleBetween(RN, quaternion(0, 0, 0, 1)), ll.AngleBetween(quaternion(0, 0, 0, 1), RP), ll.Axes2Rot(vector(N, 0, 0), vector(0, 1, 0), vector(0, 0, 1))', setup))
+      .toBe(`${zr}, ${zr}, ${zr}, ${zr}, 0, 0, ${zr}`)
+  })
+
+  // In-world: ll.List2Float({"-nan"}, 1) and ll.List2Float({"-NaN"}, 1) gave -nan, Q / RN gave
+  // -nan in every part and RN + RP <nan, 0.000000, 0.000000, 2.000000>. SLua's own list
+  // function and quaternion operators give nan, nan, <nan, nan, nan, nan> and
+  // <-nan, 0.000000, 0.000000, 2.000000> here.
+  it.fails('ll.List2Float of "-nan" and the quaternion / and + give the signs Second Life does', async () => {
+    const setup = 'local RN = quaternion(N, 0, 0, 1)\nlocal RP = quaternion(P, 0, 0, 1)\nlocal Q = quaternion(0.1, 0.2, 0.3, 0.9)'
+    expect(await slua('ll.List2Float({"-nan"}, 1), ll.List2Float({"-NaN"}, 1), Q / RN, RN + RP', setup))
+      .toBe('-nan, -nan, <-nan, -nan, -nan, -nan>, <nan, 0.000000, 0.000000, 2.000000>')
   })
 })

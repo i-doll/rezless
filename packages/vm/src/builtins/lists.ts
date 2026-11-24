@@ -499,7 +499,7 @@ export const llListStatistics: BuiltinImpl = (_ctx, args) => {
     case LIST_STAT_MEAN:
       return mean
     case LIST_STAT_MEDIAN: {
-      const sorted = boxedMap(nums, (n) => n).sort((a, b) => a - b)
+      const sorted = insertionSorted(nums)
       const mid = sorted.length >> 1
       return sorted.length % 2 ? sorted[mid]! : div(add(sorted[mid]!, sorted[mid - 1]!), 2)
     }
@@ -534,6 +534,21 @@ const square = (a: number) => statNaN(a, a, a * a)
 const sqrt = (a: number) => (a !== a ? a : Math.sqrt(a))
 const log = (a: number) => (a !== a ? a : Math.log(a))
 const exp = (a: number) => (a !== a ? a : Math.exp(a))
+
+/**
+ * The numbers sorted as Second Life sorts them for MEDIAN: an insertion sort
+ * on `<`, so nothing moves past a NaN.
+ */
+function insertionSorted(nums: number[]) {
+  const out = boxedMap(nums, (n) => n)
+  for (let i = 1; i < out.length; i++) {
+    const v = out[i]!
+    let j = i
+    for (; j > 0 && v < out[j - 1]!; j--) out[j] = out[j - 1]!
+    out[j] = v
+  }
+  return out
+}
 
 /** Scanning in order, the first number `better` prefers to the best so far. A leading NaN stays. */
 function extreme(nums: number[], better: (x: number, best: number) => boolean) {
