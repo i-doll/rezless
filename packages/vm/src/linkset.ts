@@ -437,7 +437,7 @@ export class Linkset {
     const copy = new Linkset({ owner: this.owner, animesh: this.animesh, ...(this.world ? { world: this.world } : {}),
       ...(region === undefined ? {} : { region }) }, this.world ? undefined : this)
     // In-world: the copy of a stopped script was stopped too. Started, it ran state_entry.
-    this.fill(copy, (script, prim) => Object.assign(script.copyTo(prim, { fresh: true }), { running: script.running }))
+    this.fill(copy, (script, prim) => Object.assign(script.copyTo(prim, { fresh: true }), { running: script.runsWhenDuplicated }))
     // In-world: the copy of a box hanging at its move target fell to the platform at once, and
     // the copy of a box turning to its look target stopped turning.
     copy.prims[0]!.targetMotion = { move: null, look: null }

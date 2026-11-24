@@ -1479,6 +1479,16 @@ export class Script {
     this.stuck = undefined
   }
 
+  /**
+   * Whether the copy the viewer's Duplicate makes of this script runs. In-world: the copy of a
+   * crashed LSL script ran when its checkbox was on. The copy of a crashed SLua script ran only
+   * once it had been stopped and started again since the crash.
+   */
+  get runsWhenDuplicated(): boolean {
+    if (!this.crashed) return this.running
+    return this.crashedRunning && (!this.slua || this.stoppedCrashed)
+  }
+
   /** What llGetScriptState reads: a stuck script that was reset reads its Running checkbox. */
   get readsRunning(): boolean {
     return this.isRunning || (this.stuck === 'reset' && this.crashedRunning)
