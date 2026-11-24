@@ -423,9 +423,11 @@ export class Linkset {
   /**
    * Copy a rezzed object where it stands, as a shift-drag in the viewer does, or `offset` from
    * it, as the viewer's Duplicate does, and return the copy. The copy's scripts start from the
-   * top, and an avatar sitting on the original stays.
+   * top, and an avatar sitting on the original stays. They start together; with
+   * `startScripts: false` they wait for `startAll`, so a test can start them in groups, as
+   * Second Life does.
    */
-  duplicate(offset: Vector = ZERO_VECTOR): Linkset {
+  duplicate(offset: Vector = ZERO_VECTOR, { startScripts = true }: { startScripts?: boolean } = {}): Linkset {
     if (this.dead || this.attachment || !this.prims.length || !this.peers.includes(this)) throw new Error('duplicate: only a rezzed object can be copied')
     // A no-copy item makes the object that holds it no-copy to its owner.
     if (this.prims.some(prim => !(prim.permMask.owner & PERM_COPY) || prim.inventory.some(item => !(item.permMask.owner & PERM_COPY)))) {
@@ -446,7 +448,7 @@ export class Linkset {
     // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
     // two scripts were both counted read 0.75: the region leaves out the copy's last script.
     copy.countedScripts = Math.max(0, copy.allScripts().length - 1)
-    for (const script of copy.allScripts()) script.queueStart()
+    if (startScripts) for (const script of copy.allScripts()) script.queueStart()
     duplicatedPhysical(copy, selected)
     return copy
   }
