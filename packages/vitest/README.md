@@ -224,6 +224,14 @@ Recurring events created during those handlers do not extend the synchronous cal
 
 A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses for that long after the mock returns.
 
+A handler that only computes takes no time unless a mock says so. Call `ctx.busy(ms)` in a mock to keep the script busy in its handler for that long after the mock returns, as a loop that never sleeps does; `llGetTime` moves on and other scripts run meanwhile.
+
+```ts
+s.mock('llOwnerSay', (ctx) => { ctx.busy(10_000); return undefined }) // this call spins for 10 s
+```
+
+Events that come up while a handler is busy wait for it and run in the order they came up. A `changed`, touch, `timer` or `sensor` event that comes up while one of its kind already waits is held back and merged as in a sleep, and the merged event runs after the others. A handler that sleeps instead holds back every such event. On the Aditi grid an empty `for` loop took about 0.2 s per 100,000 rounds in LSL (Mono) and about 0.24 s in SLua.
+
 ### `loadLinkset(input)` → `Promise<LoadedLinkset>`
 
 For tests that exercise more than one script — sibling scripts in the same
