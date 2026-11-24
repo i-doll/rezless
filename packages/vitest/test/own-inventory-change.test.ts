@@ -188,3 +188,41 @@ it('removes a no-copy script that gives itself to its own prim', async () => {
   expect(scripts.probe!.chat.map((c) => c.text)).toEqual([])
   expect(prims[0]!.inventory.map((i) => i.name)).toEqual([])
 })
+
+// In-world (Aditi, SLua Tideland, 2026-11-24): an LSL script gave a notecard to its own prim and
+// went straight to `state two`, whose state_entry and changed handler said their events, then came
+// back to default 1.5 s later. Over 20 runs, "two entry" then "two changed 1" in 16, and the change
+// was lost in 4; default never heard of it. Going to `state three`, which has no changed handler,
+// lost the change in 4 of 4 runs. llSetColor then `state two` gave "two changed 2" in 8 of 8.
+describe('a gift to the own prim followed by a state change', () => {
+  const source = (to: string) => `default {
+      touch_start(integer d) { llGiveInventory(llGetKey(), "nc"); state ${to}; }
+      changed(integer c) { llOwnerSay("default changed " + (string)c); }
+    }
+    state two {
+      state_entry() { llOwnerSay("two entry"); llSetTimerEvent(1.5); }
+      changed(integer c) { llOwnerSay("two changed " + (string)c); }
+      timer() { llSetTimerEvent(0.0); state default; }
+    }
+    state three {
+      state_entry() { llOwnerSay("three entry"); llSetTimerEvent(1.5); }
+      timer() { llSetTimerEvent(0.0); state default; }
+    }`
+
+  async function run(to: string) {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ inventory: [notecard('nc')], scripts: [{ name: 'probe', source: { source: source(to) } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(1000)
+    linkset.touch(1)
+    for (let i = 0; i < 30; i++) linkset.advanceTime(100)
+    return scripts.probe!.chat.map((c) => c.text)
+  }
+
+  it('raises changed in the new state', async () => {
+    expect(await run('two')).toEqual(['two entry', 'two changed 1'])
+  })
+
+  it('loses the change in a new state with no changed handler', async () => {
+    expect(await run('three')).toEqual(['three entry'])
+  })
+})

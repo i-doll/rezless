@@ -3,7 +3,7 @@ import type { Script } from './script.js'
 import { cameUp } from './clock.js'
 import type { LslValue } from './values/types.js'
 import {
-  CHANGED_COLOR, CHANGED_INVENTORY, CHANGED_MEDIA, CHANGED_RENDER_MATERIAL, CHANGED_SCALE, CHANGED_SHAPE,
+  CHANGED_ALLOWED_DROP, CHANGED_COLOR, CHANGED_INVENTORY, CHANGED_MEDIA, CHANGED_RENDER_MATERIAL, CHANGED_SCALE, CHANGED_SHAPE,
   PRIM_COLOR, PRIM_GLTF_BASE_COLOR, PRIM_GLTF_EMISSIVE, PRIM_GLTF_METALLIC_ROUGHNESS,
   PRIM_GLTF_NORMAL, PRIM_RENDER_MATERIAL, PRIM_SIZE, PRIM_TYPE, PRIM_TYPE_SCULPT,
 } from './generated/constants.js'
@@ -15,12 +15,11 @@ const MERGED_CHANGES = PRIM_CHANGES | CHANGED_INVENTORY
  * Queue a prim setter's changes, merging bits within each script's pending events. In-world,
  * a script's llSetColor, llSetLinkColor, llSetAlpha, llSetScale, PRIM_COLOR or llSetLinkMedia
  * raised changed a simulator frame after the call, in every script of the changed prim, behind
- * a link message sent straight after it.
+ * a link message sent straight after it. A colour, alpha, shape, media or render material change
+ * of a child whose scripts had no changed handler reached the root's scripts instead.
  */
 export function raisePrimChanged(prim: Prim, changes: number): void {
-  for (const script of prim.scripts) {
-    if (script.running && script.hasStarted) raiseChanged(script, changes)
-  }
+  for (const script of prim.changeListeners()) raiseChanged(script, changes)
 }
 
 /**
@@ -32,6 +31,27 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
 export function raiseInventoryChanged(script: Script): void {
   raiseChanged(script, CHANGED_INVENTORY)
 }
+
+/**
+ * Queue a CHANGED_ALLOWED_DROP for `script` now, merged into a change raised for it this frame.
+ * In-world, inside an object its owner could not modify, two gifts into a prim in one handler gave
+ * one changed(64), and a recolour then a gift gave one changed(66); a gift then a recolour gave
+ * changed(64), then changed(2).
+ */
+export function raiseDropChanged(script: Script): void {
+  const clock = script.linkset.clock
+  const merge = clock.pendingEvents().find(e => e.target === script && e.event === 'changed' && cameUp(e) === clock.now
+    && (insideDrops.has(e.payload) || ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0))
+  if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | CHANGED_ALLOWED_DROP
+  else {
+    const payload = { changes: CHANGED_ALLOWED_DROP }
+    insideDrops.add(payload)
+    clock.schedule(script, clock.now, 'changed', payload)
+  }
+}
+
+// Drops raised by gifts from inside the linkset. A drop from another object keeps its own event.
+const insideDrops = new WeakSet<object>()
 
 function raiseChanged(script: Script, changes: number): void {
   const clock = script.linkset.clock
