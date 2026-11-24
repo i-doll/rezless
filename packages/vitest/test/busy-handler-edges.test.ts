@@ -62,6 +62,8 @@ async function make(busy: number, nap = 0) {
   const say = (msg: string) => { queue('listen', { channel: 5, name: 'owner', id: OWNER, msg }); wait(0) }
   return {
     linkset, avatar, say, wait, queue,
+    /** Queue an event now to come up `ms` later. */
+    queueIn: (ms: number, event: string, payload: Record<string, unknown> = {}) => clock.schedule(s, clock.now + ms, event, payload),
     script: () => s,
     link: (n: number) => queue('link_message', { sender_num: 1, num: n, str: '', id: '' }),
     paint: () => linkset.allScripts().find((x) => x.scriptName === 'painter')!.fire('link_message', { sender_num: 1, num: 0, str: 'paint', id: '' }),
@@ -274,6 +276,18 @@ describe('a handler that is busy and then sleeps', () => {
 
   // In-world: a 1 s timer set 0.5 s before a handler busy for 6 s and then asleep for 6 s gave
   // two timer events at its end and the next a second later.
+  // An event queued while the handler is busy but due in its sleep is held as the sleep holds
+  // it, as if it had been queued when it came up.
+  it('holds an event queued in the busy part for the sleep as the sleep holds it', async () => {
+    const f = await make(6_000, 6_000)
+    f.say('busy')
+    f.wait(1_000)
+    f.queueIn(6_000, 'changed', { changes: 2 })
+    f.queueIn(7_000, 'touch_start', { num_detected: 1, detected: [{ key: OWNER, name: 'owner', touchFace: 1 }] })
+    f.wait(12_000)
+    expect(f.log()).toEqual(['begin', 'end', 'touch_start 1', 'changed 2'])
+  })
+
   it('gives two timer events after it', async () => {
     const f = await make(6_000, 6_000)
     f.say('timer')

@@ -337,7 +337,7 @@ export class LinksetClock {
       }
     }
     held &&= HELD_ORDER.has(event)
-    const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }), ...((target.busy || held && busy) && { busy: true }) }
+    const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy) && { busy: true }) }
     // In-world: a release in the first sleep of a game_control handler and a press in its second
     // gave one event, for the press. A release that waited from a listen handler's sleep and a
     // press in the sleep of the touch_start handler that ran next gave two. The first input of a
