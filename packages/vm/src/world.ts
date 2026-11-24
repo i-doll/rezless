@@ -1121,7 +1121,7 @@ export class World {
       lookAt = landing.lookAt ?? lookAt
     }
     const sameRegion = avatar.region === region.name
-    wearerTeleported(this, avatar, () => {
+    wearerTeleported(this, avatar, !sameRegion, () => {
       this.relocateAvatar(avatar, region.name, position)
       cancelSeatRequests(avatar, sameRegion)
       teleportPendingGroundSit(avatar, sameRegion)

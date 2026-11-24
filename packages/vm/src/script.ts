@@ -1,4 +1,4 @@
-import { clearTargetMotion, forgetMoving, slackenTargetMotion } from './builtins/motion.js'
+import { clearTargetMotion, forgetMoving, resetTargetMotion, slackenTargetMotion } from './builtins/motion.js'
 import { gameControlAvatars, receiveGameControl, sameGameControl, type GameControlInput, type GameControlSnapshot } from './builtins/game-control.js'
 import { CHANGED_LINK, CHANGED_OWNER, PERMISSION_GAME_CONTROL, PROFILE_SCRIPT_MEMORY } from './generated/constants.js'
 import { clearTargets, copyTargets } from './builtins/targets.js'
@@ -1476,7 +1476,7 @@ export class Script {
     this.state.controls.taken = null
     stopSensors(this)
     clearTargets(this)
-    clearTargetMotion(this)
+    resetTargetMotion(this)
     this.clockView.resetTimer()
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0

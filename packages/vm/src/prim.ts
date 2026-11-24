@@ -1,6 +1,6 @@
 import type { VehicleSettings } from './builtins/vehicles.js'
 import type { PhysicsState } from './builtins/physics.js'
-import { TargetMotionStepper, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
+import { TargetMotionStepper, whileEditing, type KeyframedMotion, type TargetMotionState } from './builtins/motion.js'
 import type { CollisionFilter, CollisionSound } from './builtins/collision.js'
 import { rememberNotecardAsset } from './builtins/notecard-search.js'
 import type { Script } from './script.js'
@@ -382,19 +382,21 @@ export class Prim {
   #ownerEditedScript(script: Script, start: () => void): void {
     const linkset = script.linkset
     const running = script.running
-    script.running = false
-    this.#arriving = script
     let idle: Script[] | undefined
-    try {
-      const hearing = this.#queueOwnerEdit()
-      if (hearing.length) {
-        idle = hearing.filter((other) => other.wakeAt === undefined)
-        linkset.drainQueue()
+    whileEditing(script, () => {
+      script.running = false
+      this.#arriving = script
+      try {
+        const hearing = this.#queueOwnerEdit()
+        if (hearing.length) {
+          idle = hearing.filter((other) => other.wakeAt === undefined)
+          linkset.drainQueue()
+        }
+      } finally {
+        this.#arriving = undefined
+        script.running = running
       }
-    } finally {
-      this.#arriving = undefined
-      script.running = running
-    }
+    })
     if (!script.dead) start()
     if (idle) linkset.settle(idle)
   }
