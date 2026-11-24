@@ -1315,7 +1315,7 @@ object it can't edit.
 a new object at the original's place plus `offset`, for an object in the world that its owner
 may copy. The region leaves the copy's last script out of its count. The copy's scripts start from the top with `state_entry` and no `on_rez` (a stopped
 script stays stopped until it is started). The copy of a crashed script runs when the script is set running, except an SLua one,
-whose copy runs only if it was stopped and started again since the crash. An avatar sitting on the original stays there.
+whose copy runs only if it was stopped and started again, or taken and rezzed, since the crash. An avatar sitting on the original stays there.
 `linkset.dropFromAvatar(position)` drops a worn object to the ground, at `position` or where
 its wearer stands. It keeps its key and its scripts' state, they get `attach(NULL_KEY)`, the
 region counts its scripts again, its inventory item is gone, and RLV restrictions it set stay

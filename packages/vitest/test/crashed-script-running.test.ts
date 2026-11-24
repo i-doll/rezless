@@ -419,7 +419,7 @@ describe('a copy of a crashed script', () => {
 
   it('comes out of a Take Copy of an LSL script left set running as out of a take', async () => {
     // In-world: Take Copy of the crashed object, then a rez of the copy -> "entry 42", "on_rez 42"
-    // and ticks with g 42. The original stayed down and llGetScriptState read 0 there.
+    // and ticks with g 42. The original stayed down.
     const r = await rig('lsl')
     r.crash()
     r.wait(5000)
@@ -444,30 +444,40 @@ describe('a copy of a crashed script', () => {
   })
 
   it.each<[Lang, string, boolean]>([
-    // In-world: the copy of an LSL script left set running said "entry 0" and ticked, its
-    // checkbox on and llGetScriptState 1.
+    // In-world: the copy of a crashed LSL script left set running said "entry 0" and its checkbox
+    // read on.
     ['lsl', 'left set running', true],
-    // In-world: the copy of an SLua script left set running said nothing, its checkbox off and
-    // llGetScriptState 0, though the original's checkbox read on. So did one set running with
-    // llSetScriptState TRUE after the crash. A copy of an SLua script that never crashed ran.
+    // In-world: the copy of a crashed SLua script left set running said nothing and its checkbox
+    // read off, though the original's read on. So did one set running with llSetScriptState TRUE
+    // after the crash. The copy of an SLua script that never crashed ran.
     ['slua', 'left set running', false],
     ['slua', 'set running with llSetScriptState', false],
-    // In-world: stopped with llSetScriptState FALSE, the copy's checkbox was off, and turned on
+    ['slua', 'never crashed', true],
+    // In-world: stopped with llSetScriptState FALSE, the copy's checkbox read off, and turned on
     // it said "entry 0". Stopped and started again, the copy said "entry 0" and read 1.
     ['lsl', 'stopped', false],
     ['slua', 'stopped', false],
     ['lsl', 'stopped and started again', true],
     ['slua', 'stopped and started again', true],
+    // In-world: Duplicate of the object rezzed from a take. The stuck LSL script's copy said
+    // "entry 0" and read 1, while the original read 0. The crashed SLua script's copy said
+    // "entry 0" and read 1, whether the script had been left set running or stopped and started
+    // again before the take.
+    ['lsl', 'stopped and started again, then taken and rezzed', true],
+    ['slua', 'left set running, then taken and rezzed', true],
+    ['slua', 'stopped and started again, then taken and rezzed', true],
   ])('the viewer’s Duplicate of a %s script %s runs: %s', async (lang, how, runs) => {
     const r = await rig(lang)
-    r.crash()
+    if (how !== 'never crashed') r.crash()
     if (how === 'set running with llSetScriptState') r.tell('start')
     if (how.startsWith('stopped')) r.tell('stop')
-    if (how === 'stopped and started again') r.tell('start')
+    if (how.startsWith('stopped and started again')) r.tell('start')
+    if (how.endsWith('taken and rezzed')) r.takeAndRez()
     const said = r.debug().length
     const copy = r.duplicate()
     expect(copy.crashed).toBe(false)
     expect(copy.running).toBe(runs)
+    expect(copy.readsRunning).toBe(runs)
     expect(copyLog(copy)).toEqual(runs ? ['entry 0'] : [])
     expect(r.debug()).toHaveLength(said)
     expect(copy.chat.filter(c => c.channel === DEBUG_CHANNEL)).toEqual([])
@@ -476,7 +486,7 @@ describe('a copy of a crashed script', () => {
       copy.linkset.advanceTime(0)
       expect(copyLog(copy)).toEqual(['entry 0'])
     }
-    expect(r.scripts().a.crashed).toBe(true)
+    expect(r.scripts().a.crashed).toBe(how !== 'never crashed')
   })
 })
 
@@ -511,6 +521,7 @@ describe('a crashed LSL script reset while stopped', () => {
     r.crash()
     r.tell('stop')
     r.tell('reset')
+    r.tell('state')
     r.tell('start')
     r.tell('state')
     r.takeAndRez()
@@ -521,7 +532,7 @@ describe('a crashed LSL script reset while stopped', () => {
     r.tell('state')
     r.send('ping')
     r.wait(5000)
-    expect(r.states()).toEqual([0, 0, 1])
+    expect(r.states()).toEqual([0, 0, 0, 1])
     expect(r.log()).toEqual([])
   })
 })

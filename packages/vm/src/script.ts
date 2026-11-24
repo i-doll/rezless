@@ -200,6 +200,8 @@ export class Script {
   private crashedRunning = false
   /** A crashed script that has been stopped since its crash. */
   private stoppedCrashed = false
+  /** A crashed SLua script rezzed or worn from inventory since its crash. */
+  private rezzedCrashed = false
   /**
    * A crashed LSL script stopped and started again comes out of inventory stuck: it runs nothing
    * until it is recompiled, and a reset only makes it read as running.
@@ -1215,6 +1217,7 @@ export class Script {
     copy.crashed = this.crashed
     copy.crashedRunning = this.crashedRunning
     copy.stoppedCrashed = this.stoppedCrashed
+    copy.rezzedCrashed = this.rezzedCrashed
     copy.stuck = this.stuck
     Object.assign(copy.state.random, this.state.random)
     // In-world: a copy rezzed by its new owner held nothing, even a permission the new owner had
@@ -1307,7 +1310,10 @@ export class Script {
     // stays crashed and its new prim says the error again.
     // In-world: a crashed LSL script that was stopped and started again came out saying nothing,
     // and stayed down through resets until it was recompiled.
-    if (this.crashed && this.slua) this.sayCrash()
+    if (this.crashed && this.slua) {
+      this.sayCrash()
+      this.rezzedCrashed = true
+    }
     if (this.crashed && !this.slua && this.stoppedCrashed) this.stuck = 'down'
     const revived = this.crashed && !this.slua && !this.stuck
     if (revived) {
@@ -1476,17 +1482,19 @@ export class Script {
     this.crashed = false
     this.crashedRunning = false
     this.stoppedCrashed = false
+    this.rezzedCrashed = false
     this.stuck = undefined
   }
 
   /**
    * Whether the copy the viewer's Duplicate makes of this script runs. In-world: the copy of a
-   * crashed LSL script ran when its checkbox was on. The copy of a crashed SLua script ran only
-   * once it had been stopped and started again since the crash.
+   * crashed LSL script ran when its checkbox was on, stuck or not. The copy of a crashed SLua
+   * script ran only once it had been stopped and started again, or taken and rezzed, since the
+   * crash.
    */
   get runsWhenDuplicated(): boolean {
     if (!this.crashed) return this.running
-    return this.crashedRunning && (!this.slua || this.stoppedCrashed)
+    return this.crashedRunning && (!this.slua || this.stoppedCrashed || this.rezzedCrashed)
   }
 
   /** What llGetScriptState reads: a stuck script that was reset reads its Running checkbox. */
@@ -2013,6 +2021,7 @@ export class Script {
     this.crashed = true
     this.crashedRunning = this.isRunning
     this.stoppedCrashed = false
+    this.rezzedCrashed = false
     // A crashed script's move target never stops acting.
     if (this.isRunning) this.clockView.stopped()
     this.isRunning = false
