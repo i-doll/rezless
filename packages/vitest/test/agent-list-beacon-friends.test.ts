@@ -117,7 +117,8 @@ describe('llMapBeacon audiences', () => {
   it('shows an attachment\'s beacon to its owner only', async () => {
     const { script, linkset } = await setup()
     linkset.attachToAvatar(OWNER, 5)
-    script.advanceTime(2000)
+    // Past the map throttle's 4 calls in 4 s (map-throttle.test.ts), as the in-world steps were.
+    script.advanceTime(10_000)
     linkset.touch(0, { avatar: { key: OWNER, name: 'i Doll' } })
     linkset.touch(0, { avatar: { key: OTHER, name: 'fivebot' } })
     script.deliverChat({ channel: 5, name: 'fivebot', key: OTHER, message: 'x' })
