@@ -242,17 +242,17 @@ describe('llEuler2Rot near a quarter turn', () => {
     // A matrix entry within 1e-10 of 1 or -1 clears the rest of its row and column, off the
     // diagonal as on it: <1.5707964 + 1.4e-5, 0, 0> gave exactly <0.70710677, 0, 0, 0.70710677>,
     // and 1.42e-5 away did not. With the zeros kept as the arithmetic signs them, <-PI_BY_TWO, 0, 0>
-    // gives y = -0 and <-1.5707822, 0, 0> y = 0, as measured. 156 match to the last bit and the
-    // rest within 2 floats, as other rotations do.
+    // gives y = -0 and <-1.5707822, 0, 0> y = 0, as measured. 163 match to the last bit (156
+    // before the rest of each angle was stepped in single precision) and the rest within one float.
     const got = await euler2Rot(QUARTER.map(([v]) => v))
     const want = QUARTER.map(([, q]) => q.split(',').map(fromExact))
     for (const [i, q] of want.entries()) {
       for (const [k, v] of q.entries()) {
-        expect(Math.abs(got[i]![k]! - v), QUARTER[i]![0]).toBeLessThan(1.2e-7)
+        expect(Math.abs(got[i]![k]! - v), QUARTER[i]![0]).toBeLessThan(6e-8)
         if (v === 0 || got[i]![k] === 0) expect(Object.is(got[i]![k], v), `${QUARTER[i]![0]} part ${k}`).toBe(true)
       }
     }
-    expect(want.filter((q, i) => q.every((v, k) => Object.is(got[i]![k], v))).length).toBe(156)
+    expect(want.filter((q, i) => q.every((v, k) => Object.is(got[i]![k], v))).length).toBe(163)
   })
 })
 
