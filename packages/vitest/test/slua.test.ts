@@ -100,6 +100,13 @@ describe('SLua scripts', () => {
     expect(s.calls.filter((c) => c.name === 'llGetTime')).toHaveLength(2)
   })
 
+  it('reads 0 from a mock of llGetTime that returns nothing, as LSL does', async () => {
+    const s = await slua(`ll.OwnerSay(ll.GetTime() .. " " .. llcompat.GetTime())`)
+    s.mock('llGetTime', () => undefined)
+    s.start()
+    expect(s).toHaveSaid(0, '0 0')
+  })
+
   it('keeps os.clock and LLTimers on the script clock when llGetTime is mocked', async () => {
     const s = await slua(`LLTimers:once(1.5, function() ll.OwnerSay(ll.GetTime() .. " " .. os.clock()) end)`)
     s.mock('llGetTime', () => 42.5)

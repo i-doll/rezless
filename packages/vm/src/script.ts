@@ -1929,7 +1929,7 @@ export class Script {
     const vmMemory = this.sluaMemoryBuiltin(name, lslArgs)
     if (!mocks[name] && vmMemory) mocks = { ...mocks, [name]: vmMemory }
     const { result, delayMs, busyMs } = invokeBuiltin({ state: this.state, mocks, script: this }, name, lslArgs)
-    if (name === 'llGetTime') return { value: result, delayMs, busyMs }
+    if (name === 'llGetTime') return { value: result ?? 0, delayMs, busyMs }
     const value = spec.returnType === 'void' ? undefined : toFloat32Value(result ?? defaultEvalFor(spec.returnType as LslType).value, spec.returnType as LslType)
     return { value, delayMs, busyMs }
   }
