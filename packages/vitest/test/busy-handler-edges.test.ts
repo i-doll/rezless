@@ -237,6 +237,41 @@ describe('a handler that is busy and then sleeps', () => {
     expect(g.log()).toEqual(['begin', 'end', 'changed 2', 'touch_start 1', 'touch 1', 'touch_end 1', 'changed 2', 'touch_start 2', 'touch 2', 'touch_end 2'])
   })
 
+  // In-world, twice: colour changes 1 s and 3 s in, then in the sleep a click 7 s in and a drop
+  // onto the platform 7.8 s in, lifted 9.5 s in -> changed, then in the order a sleep gives:
+  // collision_start, collision, the click, the second changed and collision_end. Colour changes
+  // 1, 3 and 8 s in and a click 7 s in gave changed, the click and changed.
+  it('runs what the sleep held in the held order, with the change held in the busy part', async () => {
+    const f = await make(6_000, 6_000)
+    f.say('busy')
+    f.wait(1_000); f.paint(); f.wait(2_000); f.paint()
+    f.wait(4_000); f.click(1); f.wait(1_100); f.bump()
+    f.wait(5_000)
+    expect(f.log()).toEqual(['begin', 'end', 'changed 2', 'collision_start', 'collision', 'touch_start 1', 'touch 1', 'touch_end 1', 'changed 2', 'collision_end'])
+    const g = await make(6_000, 6_000)
+    g.say('busy')
+    g.wait(1_000); g.paint(); g.wait(2_000); g.paint(); g.wait(4_000); g.click(1); g.wait(1_000); g.paint()
+    g.wait(5_000)
+    expect(g.log()).toEqual(['begin', 'end', 'changed 2', 'touch_start 1', 'touch 1', 'touch_end 1', 'changed 2'])
+  })
+
+  // In-world, worn: a button pressed and let go 1 s in, then another 7.6 s in, with link
+  // messages 3 s and 9 s in -> game_control for the first press, both link messages, then one
+  // game_control for the last release. A third press 2 s in, in the busy part, gave the same.
+  it('keeps the first game_control from the busy part and merges the rest', async () => {
+    const f = await make(6_000, 6_000)
+    f.linkset.attachToAvatar(OWNER, 1)
+    f.say('gc')
+    f.say('busy')
+    const gc = (buttons: number) => f.script().sendGameControl(OWNER, { buttons })
+    f.wait(1_000); gc(2); f.wait(600); gc(0); f.wait(600); gc(8); f.wait(600); gc(0)
+    f.wait(200); f.link(1)
+    f.wait(4_600); gc(4); f.wait(600); gc(0)
+    f.wait(800); f.link(2)
+    f.wait(3_100)
+    expect(f.log()).toEqual(['begin', 'end', 'game_control 2', 'link 1', 'link 2', 'game_control 0'])
+  })
+
   // In-world: a 1 s timer set 0.5 s before a handler busy for 6 s and then asleep for 6 s gave
   // two timer events at its end and the next a second later.
   it('gives two timer events after it', async () => {
@@ -256,6 +291,9 @@ describe('an object taken while a handler is busy', () => {
   // went on busy after the rez: it ended when llGetTime read 20 s, 24 s after it began, so the
   // time in inventory did not count. on_rez ran after it, then two colour changes made 4 s and
   // 5 s after the rez gave changed(2) twice, as a busy handler gets them.
+  // A second run, taken 3.5 s in and rezzed 4 s later, was clicked on faces 1, 2 and 3 at 2, 4
+  // and 6 s after the rez: the first click whole, then touch_start on face 2 with touch and
+  // touch_end on face 3, as a busy handler gets them. A sleeping one merges all three.
   it('carries the handler on busy, not asleep', async () => {
     const f = await make(20_000)
     f.say('busy')
@@ -264,6 +302,13 @@ describe('an object taken while a handler is busy', () => {
     f.wait(4_000); f.paint(); f.wait(1_000); f.paint()
     f.wait(12_000)
     expect(f.log()).toEqual(['begin', 'end', 'rez', 'changed 2', 'changed 2'])
+    const g = await make(20_000)
+    g.say('busy')
+    g.wait(3_500)
+    g.takeAndRez(4_000)
+    for (const face of [1, 2, 3]) { g.wait(2_000); g.click(face) }
+    g.wait(13_000)
+    expect(g.log()).toEqual(['begin', 'end', 'rez', 'touch_start 1', 'touch 1', 'touch_end 1', 'touch_start 2', 'touch 3', 'touch_end 3'])
   })
 
   // In-world: a copy taken 3.5 s into a 14 s busy handler and rezzed 2 s later ran the handler
@@ -280,4 +325,30 @@ describe('an object taken while a handler is busy', () => {
     expect(f.log()).toEqual(['begin', 'end', 'rez', 'changed 2', 'changed 2'])
     expect(original.script.global('log')).toEqual(['begin', 'end', 'changed 2', 'changed 2'])
   })
+})
+
+// In-world (Aditi, SLua Tideland, 2026-11-01): the tick a worn object saved over a detach and a
+// tick missed in a sleep ran as two timer events. A handler that only sleeps keeps that.
+it('keeps a saved tick apart from a missed one in a handler that only slept', async () => {
+  const world = new World()
+  world.addRegion('home', { x: 0, y: 0 })
+  world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
+  const made = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'main', source: { source: `list log;
+    default {
+      state_entry() { llSetTimerEvent(1.0); llListen(5, "", "", ""); }
+      timer() { log += "timer"; }
+      listen(integer c, string n, key i, string m) { llSleep(10); log += "end"; }
+    }` } }] }] })
+  const script = made.scripts.main!
+  script.start()
+  made.linkset.attachToAvatar(OWNER, 1)
+  made.linkset.advanceTime(300)
+  world.clock.schedule(script, world.clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: 'x' })
+  made.linkset.advanceTime(0)
+  made.linkset.advanceTime(2_000)
+  made.linkset.detachFromAvatar()
+  made.linkset.advanceTime(2_000)
+  made.linkset.attachToAvatar(OWNER, 1)
+  made.linkset.advanceTime(8_100)
+  expect(script.global('log')).toEqual(['end', 'timer', 'timer'])
 })
