@@ -396,13 +396,14 @@ describe('llEuler2Rot', () => {
         if (q[k] === 0 || r[k] === 0) expect(Object.is(r[k], q[k]), `${EULER2ROT[i]![0]} part ${k}`).toBe(true)
       }
     }
-    // The last bits are still open. With the whole turns taken off in degrees, matrices in single
-    // precision with the rows made orthogonal as llRot2Euler makes them give 256 of these exactly
-    // (233 before), and the rest within 2.1e-7.
+    // The last bits are still open. With the whole turns taken off in degrees, the rest scaled to
+    // 1e-7 degree steps in single precision, and matrices in single precision with the rows made
+    // orthogonal as llRot2Euler makes them, 282 of these come out exactly (256 before), and the
+    // rest within one float.
     const exact = EULER2ROT.filter(([, q], i) => q.every((v, k) => got[i]![k] === f32(v))).length
     const worst = Math.max(...EULER2ROT.flatMap(([, q], i) => q.map((v, k) => Math.abs(got[i]![k]! - f32(v)))))
-    expect(exact).toBe(256)
-    expect(worst).toBeLessThan(2.1e-7)
+    expect(exact).toBe(282)
+    expect(worst).toBeLessThan(6e-8)
   })
 })
 
@@ -614,20 +615,19 @@ const OPPOSITE: Array<[string, string, string]> = [
 ]
 
 describe('llRotBetween of opposite vectors', () => {
-  it('turns about the x axis less its part along a unit vector, to within a float', async () => {
+  it('turns about the x axis less its part along the unit vector of a, in single precision', async () => {
     const got = await rotations(OPPOSITE.map(([a, b]) => `llRotBetween(${a}, ${b})`))
     // In-world: <1, t, 0>, <1, 0, t>, <1, t, t>, <1, t, -t>, <2, 0, 2t>, <1, -t, t> and
     // <0.5, t, 2t> for t from 0.001 to 4, 20 random vectors against their negatives and twice
     // their negatives, and 11 others, against vectors pointing the other way. The x component
-    // for small t shows single-precision cancellation: the unit vector is made with its length in
-    // double precision, and the axis is u . u - u.x * u.x, -u.y * u.x, -u.z * u.x. Which rounding
-    // the grid uses is still open: this way 66 come out exact (62 did before) and the rest within
-    // one float (1.3e-5 before), <1, 1, 1> to <-1, -1, -1> among them.
+    // for small t shows single-precision cancellation. With u the single-precision unit vector
+    // along a and c = u.x / (u . u), the axis is 1 - c * u.x, -c * u.y, -c * u.z, all in single
+    // precision, and all 142 come out exact (66 did before).
     const want = OPPOSITE.map(([, , q]) => q.slice(1, -1).split(',').map(Number))
     const exact = want.filter((q, i) => q.every((v, k) => got[i]![k] === f32(v))).length
     const worst = Math.max(...want.flatMap((q, i) => q.map((v, k) => Math.abs(got[i]![k]! - f32(v)))))
-    expect(exact).toBe(66)
-    expect(worst).toBeLessThan(1.2e-7)
+    expect(exact).toBe(142)
+    expect(worst).toBe(0)
   })
 
   it('gives no rotation for vectors of length 1e-30, in Mono and SLua', async () => {

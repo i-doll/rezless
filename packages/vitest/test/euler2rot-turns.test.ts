@@ -119,19 +119,19 @@ describe('llEuler2Rot of huge angles', () => {
     // its whole turns, truncated to a 32-bit integer and multiplied back as a float, less one more
     // turn when the rest is past 180 degrees: 5e6 radians turned 16 degrees short of 5e6 radians less whole
     // turns, 2e7 radians 16 degrees past, and 3e8 radians 128 degrees short. 1.5e10 radians and up
-    // have more turns than fit, and turn as a NaN angle does. 21 of the 30 match to the last bit
-    // and 27 within 3e-7. 1e9 radians, which leaves 2015 degrees after the turns come off, is
-    // 1.9e-6 out, and the precision of a rest that large is still open.
+    // have more turns than fit, and turn as a NaN angle does. The rest is multiplied by 1e7 as a
+    // float before it is rounded to whole steps, so 1e9 radians, which leaves 2015 degrees after
+    // the turns come off, keeps only a float's digits of it. 23 of the 30 match to the last bit
+    // (21 when the rest was stepped in double precision) and the rest within one float.
     const got = (await euler2Rot(HUGE.map(([v]) => v))).map((line) => line.split(',').map(fromExact))
     const want = HUGE.map(([, q]) => q.split(',').map(fromExact))
     for (const [i, q] of want.entries()) {
       for (const [k, v] of q.entries()) {
-        expect(Math.abs(got[i]![k]! - v), HUGE[i]![0]).toBeLessThan(2e-6)
+        expect(Math.abs(got[i]![k]! - v), HUGE[i]![0]).toBeLessThan(6e-8)
         if (v === 0) expect(Object.is(got[i]![k], v), HUGE[i]![0]).toBe(true)
       }
     }
-    expect(want.filter((q, i) => q.every((v, k) => got[i]![k] === v)).length).toBe(21)
-    expect(want.filter((q, i) => q.every((v, k) => Math.abs(got[i]![k]! - v) < 3e-7)).length).toBe(27)
+    expect(want.filter((q, i) => q.every((v, k) => got[i]![k] === v)).length).toBe(23)
   })
 })
 
@@ -173,9 +173,9 @@ describe('llEuler2Rot of huge negative angles', () => {
   })
 
   // In-world: -1.4e10 radians gave 12380024p-24, 0, 0, 11322985p-24, a turn of 95.107 degrees.
-  // rezless turns it 128.572 degrees: the angle left is about -5e8 radians, where one float is 32
-  // radians, and the two differ by that one float. Which rounding the grid uses there is open.
-  it.fails('turns -1.4e10 radians as Second Life does', async () => {
+  // The angle left is about -2.9e10 degrees, where one float is 2048 degrees, and the grid rounds
+  // it to a float before stepping it: stepped in double precision it turned 128.572 degrees.
+  it('turns -1.4e10 radians as Second Life does', async () => {
     const [line] = await euler2Rot(['<-1.4e10, 0, 0>'])
     expect(line).toBe('12380024p-24,0,0,11322985p-24')
   })
@@ -233,8 +233,8 @@ describe('llEuler2Rot with a half turn and other turns', () => {
   it('matches the grid to within a float', async () => {
     // In-world (2026-11-23, Mono): PI is 180.0000025 degrees, past 180, so it comes out as a turn
     // just short of -180 degrees and the rotation's sign follows from that: <PI, 1, PI_BY_TWO> gave
-    // the rotation rezless used to give negated. 2 of these match to the last bit and the rest
-    // within 1.2e-7, as other rotations do.
+    // the rotation rezless used to give negated. 6 of these match to the last bit (2 when the rest
+    // of each angle was stepped in double precision) and the rest within one float.
     const want: Array<[string, string]> = [
       ['<PI, 1, PI_BY_TWO>', '10411010p-24,-10411010p-24,11375123p-25,-11375123p-25'],
       ['<0.5, 0.5, PI>', '16086854p-26,-16086853p-26,15750304p-24,-16430583p-28'],
@@ -251,9 +251,9 @@ describe('llEuler2Rot with a half turn and other turns', () => {
     const got = (await euler2Rot(want.map(([v]) => v))).map((line) => line.split(',').map(fromExact))
     const exact = want.filter(([, q], i) => q.split(',').map(fromExact).every((v, k) => Object.is(got[i]![k], v))).length
     for (const [i, [v, q]] of want.entries()) {
-      for (const [k, x] of q.split(',').map(fromExact).entries()) expect(Math.abs(got[i]![k]! - x), v).toBeLessThan(1.2e-7)
+      for (const [k, x] of q.split(',').map(fromExact).entries()) expect(Math.abs(got[i]![k]! - x), v).toBeLessThan(6e-8)
     }
-    expect(exact).toBe(2)
+    expect(exact).toBe(6)
   })
 
   // In-world: <PI_BY_TWO, PI_BY_TWO, PI> gave <0.5, -0.5, 0.5, -0.5>. Every part is a half, so the
@@ -309,5 +309,88 @@ describe('a tiny rotation on a child prim', () => {
     const global = cases.map(([, g]) => g)
     const local = cases.map(([, , l]) => l)
     expect(said(scripts.probe!)).toEqual([...global, ...local, ...global, ...local])
+  })
+})
+
+/** In-world (2026-11-24, Mono): small angles whose rest, times 1e7 as a float, ends in exactly a half. */
+const HALF_STEPS: Array<[string, string]> = [
+  ['<0.009999999776482582, 0, 0>', '10737374p-31,0,0,16777006p-24'],
+  ['<-0.009999999776482582, 0, 0>', '-10737374p-31,-0,0,16777006p-24'],
+  ['<0.010000001639127731, 0, 0>', '10737375p-31,0,0,16777006p-24'],
+  ['<-0.010000001639127731, 0, 0>', '-10737375p-31,-0,0,16777006p-24'],
+  ['<0.014000000432133675, 0, 0>', '15032264p-31,0,0,16776805p-24'],
+  ['<-0.014000000432133675, 0, 0>', '-15032264p-31,-0,0,16776805p-24'],
+  ['<0.014000002294778824, 0, 0>', '15032265p-31,0,0,16776805p-24'],
+  ['<-0.014000002294778824, 0, 0>', '-15032265p-31,-0,0,16776805p-24'],
+  ['<0.0005000027595087886, 0, 0>', '8589998p-35,0,0,16777215p-24'],
+  ['<-0.0005000027595087886, 0, 0>', '-8589998p-35,-0,0,16777215p-24'],
+  ['<0.0010000012116506696, 0, 0>', '8589953p-34,0,0,16777214p-24'],
+  ['<-0.0010000012116506696, 0, 0>', '-8589953p-34,-0,0,16777214p-24'],
+  ['<0.0020000033546239138, 0, 0>', '8589952p-33,0,0,16777208p-24'],
+  ['<-0.0020000033546239138, 0, 0>', '-8589952p-33,-0,0,16777208p-24'],
+  ['<0.0030000037513673306, 0, 0>', '12884918p-33,0,0,16777197p-24'],
+  ['<-0.0030000037513673306, 0, 0>', '-12884918p-33,-0,0,16777197p-24'],
+  ['<0.005000002682209015, 0, 0>', '10737414p-32,0,0,16777164p-24'],
+  ['<-0.005000002682209015, 0, 0>', '-10737414p-32,-0,0,16777164p-24'],
+  ['<0.00700000487267971, 0, 0>', '15032368p-32,0,0,16777113p-24'],
+  ['<-0.00700000487267971, 0, 0>', '-15032368p-32,-0,0,16777113p-24'],
+  ['<0, 0.009999999776482582, 0>', '0,10737374p-31,0,16777006p-24'],
+  ['<0, -0.009999999776482582, 0>', '0,-10737374p-31,0,16777006p-24'],
+  ['<0, 0.010000001639127731, 0>', '0,10737375p-31,0,16777006p-24'],
+  ['<0, -0.010000001639127731, 0>', '0,-10737375p-31,0,16777006p-24'],
+  ['<0, 0.014000000432133675, 0>', '0,15032264p-31,0,16776805p-24'],
+  ['<0, -0.014000000432133675, 0>', '0,-15032264p-31,0,16776805p-24'],
+  ['<0, 0.014000002294778824, 0>', '0,15032265p-31,0,16776805p-24'],
+  ['<0, -0.014000002294778824, 0>', '0,-15032265p-31,0,16776805p-24'],
+  ['<0, 0.0005000027595087886, 0>', '0,8589998p-35,0,16777215p-24'],
+  ['<0, -0.0005000027595087886, 0>', '0,-8589998p-35,0,16777215p-24'],
+  ['<0, 0.0010000012116506696, 0>', '0,8589953p-34,0,16777214p-24'],
+  ['<0, -0.0010000012116506696, 0>', '0,-8589953p-34,0,16777214p-24'],
+  ['<0, 0.0020000033546239138, 0>', '0,8589952p-33,0,16777208p-24'],
+  ['<0, -0.0020000033546239138, 0>', '0,-8589952p-33,0,16777208p-24'],
+  ['<0, 0.0030000037513673306, 0>', '0,12884918p-33,0,16777197p-24'],
+  ['<0, -0.0030000037513673306, 0>', '0,-12884918p-33,0,16777197p-24'],
+  ['<0, 0.005000002682209015, 0>', '0,10737414p-32,0,16777164p-24'],
+  ['<0, -0.005000002682209015, 0>', '0,-10737414p-32,0,16777164p-24'],
+  ['<0, 0.00700000487267971, 0>', '0,15032368p-32,0,16777113p-24'],
+  ['<0, -0.00700000487267971, 0>', '0,-15032368p-32,0,16777113p-24'],
+  ['<0, 0, 0.009999999776482582>', '0,0,10737374p-31,16777006p-24'],
+  ['<0, 0, -0.009999999776482582>', '0,-0,-10737374p-31,16777006p-24'],
+  ['<0, 0, 0.010000001639127731>', '0,0,10737375p-31,16777006p-24'],
+  ['<0, 0, -0.010000001639127731>', '0,-0,-10737375p-31,16777006p-24'],
+  ['<0, 0, 0.014000000432133675>', '0,0,15032264p-31,16776805p-24'],
+  ['<0, 0, -0.014000000432133675>', '0,-0,-15032264p-31,16776805p-24'],
+  ['<0, 0, 0.014000002294778824>', '0,0,15032265p-31,16776805p-24'],
+  ['<0, 0, -0.014000002294778824>', '0,-0,-15032265p-31,16776805p-24'],
+  ['<0, 0, 0.0005000027595087886>', '0,0,8589998p-35,16777215p-24'],
+  ['<0, 0, -0.0005000027595087886>', '0,-0,-8589998p-35,16777215p-24'],
+  ['<0, 0, 0.0010000012116506696>', '0,0,8589953p-34,16777214p-24'],
+  ['<0, 0, -0.0010000012116506696>', '0,-0,-8589953p-34,16777214p-24'],
+  ['<0, 0, 0.0020000033546239138>', '0,0,8589952p-33,16777208p-24'],
+  ['<0, 0, -0.0020000033546239138>', '0,-0,-8589952p-33,16777208p-24'],
+  ['<0, 0, 0.0030000037513673306>', '0,0,12884918p-33,16777197p-24'],
+  ['<0, 0, -0.0030000037513673306>', '0,-0,-12884918p-33,16777197p-24'],
+  ['<0, 0, 0.005000002682209015>', '0,0,10737414p-32,16777164p-24'],
+  ['<0, 0, -0.005000002682209015>', '0,-0,-10737414p-32,16777164p-24'],
+  ['<0, 0, 0.00700000487267971>', '0,0,15032368p-32,16777113p-24'],
+  ['<0, 0, -0.00700000487267971>', '0,-0,-15032368p-32,16777113p-24'],
+]
+
+describe('llEuler2Rot of an angle on a half step', () => {
+  it('rounds the half away from zero, so a negative angle turns as far as its positive', async () => {
+    // In-world: these 10 angles from 0.0005 to 0.014 radians, and their negatives, about each
+    // axis, run twice with the same results. Each lands on half a 1e-7 degree step once its
+    // degrees are multiplied by 1e7 as a float; every negative angle gave the exact negative of
+    // its positive's rotation, so the half rounds away from zero. All match to the last bit but
+    // 0.0030000037 and its negative, one float off about each axis.
+    const got = (await euler2Rot(HALF_STEPS.map(([v]) => v))).map((line) => line.split(',').map(fromExact))
+    const want = HALF_STEPS.map(([, q]) => q.split(',').map(fromExact))
+    for (const [i, q] of want.entries()) {
+      for (const [k, v] of q.entries()) {
+        expect(Math.abs(got[i]![k]! - v), HALF_STEPS[i]![0]).toBeLessThan(3e-10)
+        if (v === 0) expect(Object.is(got[i]![k], v), HALF_STEPS[i]![0]).toBe(true)
+      }
+    }
+    expect(want.filter((q, i) => q.every((v, k) => got[i]![k] === v)).length).toBe(54)
   })
 })

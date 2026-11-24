@@ -245,8 +245,10 @@ const toSigned = (n: number, bits: number) => (Math.abs(n) < 2 ** (bits - 1) ? n
 /**
  * Second Life takes the whole turns off each llEuler2Rot angle in degrees, truncating them to a
  * 32-bit integer and multiplying them back as a float, takes one more turn off a rest past 180
- * degrees either way, then steps it to 1e-7 degrees through a 64-bit integer. Past about 2.3e6
- * radians the float product is off by multiples of 8 degrees. A NaN or infinite angle, or one whose
+ * degrees either way, then multiplies the rest by 1e7 as a float and rounds that, halves away from
+ * zero, through a 64-bit integer, so a rest of thousands of degrees keeps only a float's digits.
+ * Past about 2.3e6 radians the float product is off by multiples of 8 degrees. A NaN or infinite
+ * angle, or one whose
  * steps don't fit, becomes the lowest step count, a turn of about 25.07 degrees. Turns that don't
  * fit become -2^31, which leaves too many steps for a positive angle but not for a negative one
  * down to about -2.9e10 radians.
@@ -256,7 +258,8 @@ function stepEuler(radians: number) {
   degrees -= f32(360 * f32(toSigned(Math.trunc(degrees / 360), 32)))
   if (degrees > 180) degrees -= 360
   else if (degrees < -180) degrees += 360
-  const steps = toSigned(Math.round(degrees * 1e7), 64)
+  const scaled = f32(f32(degrees) * 1e7)
+  const steps = toSigned(scaled < 0 ? -Math.round(-scaled) : Math.round(scaled), 64)
   return f32(f32(steps / 1e7) * DEG_TO_RAD)
 }
 
@@ -439,8 +442,8 @@ const PARALLEL_DOT = f32(0.99999)
  * ZERO_ROTATION, as does an infinite or NaN component. Directions within about
  * 0.26 degrees of each other count as equal (ZERO_ROTATION), and within 0.26
  * degrees of opposite as opposite. Opposite vectors turn half a circle about
- * the x axis with its component along a removed, or about z when less than
- * 1e-5 of that axis is left.
+ * the x axis with its component along a's unit vector removed in single
+ * precision, or about z when less than 1e-5 of that axis is left.
  */
 export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   const row = (v: LslValue | undefined): Row => {
@@ -459,12 +462,8 @@ export const llRotBetween: BuiltinImpl = (_ctx, args) => {
   const cos = dot3(ua, ub)
   if (cos > PARALLEL_DOT) return rot(0, 0, 0, 1)
   if (cos < -PARALLEL_DOT) {
-    // A unit vector u along a, from its length in double precision; the axis is u . u - u.x * u.x, -u.y * u.x, -u.z * u.x.
-    const k = f32(1 / Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]))
-    const u: Row = [f32(a[0] * k), f32(a[1] * k), f32(a[2] * k)]
-    const uu = dot3(u, u)
-    const along = f32(u[0] * u[0])
-    const side: Row = [f32(uu - along), f32(0 - f32(u[1] * u[0])), f32(0 - f32(u[2] * u[0]))]
+    const c = f32(ua[0] / dot3(ua, ua))
+    const side: Row = [f32(1 - f32(c * ua[0])), f32(0 - f32(c * ua[1])), f32(0 - f32(c * ua[2]))]
     if (!(f32(Math.sqrt(dot3(side, side))) >= ROT_BETWEEN_MIN_LENGTH)) return rot(0, 0, 1, 0)
     const axis = unitRow(side)
     return rot(axis[0], axis[1], axis[2], 0)

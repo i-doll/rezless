@@ -766,7 +766,7 @@ describe('results below the smallest normal float', () => {
 })
 
 describe('llEuler2Rot', () => {
-  it('gives every zero measured and stays within 2.4e-7 of the rest', async () => {
+  it('gives every zero measured and stays within 6e-8 of the rest', async () => {
     const got: number[][] = []
     for (let start = 0; start < EULER2ROT.length; start += 60) {
       const chunk = EULER2ROT.slice(start, start + 60).map(([e]) => `<${e.join(', ')}>`)
@@ -796,12 +796,12 @@ describe('llEuler2Rot', () => {
     }
     // The 96 turns from -0.3 to 6.1437 radians were measured again on 2026-11-23 with the angles
     // written out as above: the first time they were added up in the script, and 38 of the sums
-    // weren't the floats shown. The last bits are still open: 372 of these come out exact (311
-    // before).
+    // weren't the floats shown. The last bits are still open: 398 of these come out exact (372
+    // before, 311 before that), and the rest within 6e-8.
     const exact = EULER2ROT.filter(([, q], i) => q.every((v, k) => got[i]![k] === Math.fround(v))).length
     const worst = Math.max(...EULER2ROT.flatMap(([, q], i) => q.map((v, k) => Math.abs(got[i]![k]! - Math.fround(v)))))
-    expect(exact).toBe(372)
-    expect(worst).toBeLessThan(2.4e-7)
+    expect(exact).toBe(398)
+    expect(worst).toBeLessThan(6e-8)
   })
 })
 
