@@ -483,6 +483,16 @@ export class LinksetClock {
     return true
   }
 
+  /** Move `target`'s last queued `event` ahead of its first waiting `of` event that was let through its sleep. */
+  putAhead(target: Script, event: string, of: string): void {
+    let from = this.queue.length - 1
+    while (from >= 0 && !(this.queue[from]!.target === target && this.queue[from]!.event === event)) from--
+    const to = this.queue.findIndex((e) => e.target === target && e.event === of && e.held === false && e.at <= this.now)
+    if (from < 0 || to < 0 || to > from) return
+    const [moved] = this.queue.splice(from, 1)
+    this.queue.splice(to, 0, { ...moved!, at: Math.min(moved!.at, this.queue[to]!.at) })
+  }
+
   /** Remove the queued events that `match`, leaving the others as they are. */
   purgeWhere(match: (e: QueuedEvent) => boolean): void {
     for (let i = this.queue.length - 1; i >= 0; i--) if (match(this.queue[i]!)) this.queue.splice(i, 1)

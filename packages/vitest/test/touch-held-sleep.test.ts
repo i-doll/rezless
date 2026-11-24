@@ -299,6 +299,13 @@ describe('two avatars clicking while a handler sleeps', () => {
     })
   })
 
+  it('a click whose first touch falls in the handler\'s first frame adds no touch of its own', async () => {
+    // fivebot's first touch comes on i doll's next one, 11 ms after the timer starts. A touch
+    // that came up in the handler's first frame took no other avatar in the runs above, so
+    // fivebot gets no touch here either.
+    expect(await run('slua', 0, 0, { 0: 'i', 300: 'X', 305: 'f', 1000: 'F', 4000: 'I' })).toBe('Si Ti X Ti Sf Ef Ti Ei')
+  })
+
   describe('another handler sleeping', () => {
     it('a click pressed while another is held raises no touch_start in LSL, and one in SLua', async () => {
       // In-world: i doll held 4 s, a listen 0.3 s in slept 3 s and fivebot clicked for 0.3 s

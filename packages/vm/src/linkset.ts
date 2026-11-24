@@ -186,7 +186,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
     if (!raising(s)) continue
     // In-world: while i doll and fivebot both held a click, each touch listed both, i doll first,
     // in LSL and SLua.
-    const raised = { held: [] as DetectedEntry[], plain: [] as DetectedEntry[] }
+    let raised: { detected: DetectedEntry[]; plain: boolean } | undefined
     for (const [by, click] of s.heldClicks) {
       if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
       click.dueAt += repeatMs(s)
@@ -202,21 +202,24 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // listed i doll alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
       const touches = running ? waitingTouches(s, 'touch', by) : { own: false, other: undefined }
-      if (touches.other) {
-        const other = touches.other
-        const detected = detectedIn(other)
-        if (s.handlerEvent !== 'touch_start' && cameUp(other) >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !detected.some((d) => d.key?.toLowerCase() === by)) {
-          other.payload['detected'] = [...detected, ...click.detected]
-          other.payload['num_detected'] = detected.length + click.detected.length
+      const waiting = touches.other
+      if (waiting || running && raised) {
+        const listed = waiting ? detectedIn(waiting) : raised!.detected
+        const came = waiting ? cameUp(waiting) : clock.now
+        if (s.handlerEvent !== 'touch_start' && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
+          if (waiting) {
+            waiting.payload['detected'] = [...listed, ...click.detected]
+            waiting.payload['num_detected'] = listed.length + click.detected.length
+          } else raised!.detected.push(...click.detected)
+          click.lastTouch = click.detected
         }
         click.touched = true
         continue
       }
       // In-world: a held click's touch from a sleep in touch_start, or a spin in listen, after
       // its touch_start ran, came ahead of a listen that came up later; its touch_end waited
-      // behind that listen. In LSL, i doll's touch from a touch_end sleep ran behind the
-      // touch_start of fivebot's click in the sleep, 4 runs of 4; in SLua ahead of it, 2 of 2.
-      const plain = running && !waitingTouches(s, 'touch_start', by).own && !(s.language !== 'slua' && s.handlerEvent === 'touch_end')
+      // behind that listen.
+      const plain = running && !waitingTouches(s, 'touch_start', by).own
       if (touches.own) continue
       // In-world: a map call in the first touch of a held click showed nothing after one in
       // touch_start, and one in a later touch showed the map again.
@@ -225,10 +228,10 @@ function raiseHeldTouches(clock: LinksetClock): void {
       const detected = !last ? click.detected : deliveredTouches.get(s)?.has(last[0]!) ? fresh(click.detected) : last
       click.touched = true
       click.lastTouch = detected
-      raised[plain ? 'plain' : 'held'].push(...detected)
+      if (raised) raised.detected.push(...detected)
+      else raised = { detected: [...detected], plain }
     }
-    if (raised.held.length) scheduleTouch(s, 'touch', raised.held)
-    if (raised.plain.length) scheduleTouch(s, 'touch', raised.plain, { held: false })
+    if (raised) scheduleTouch(s, 'touch', raised.detected, raised.plain ? { held: false } : undefined)
   }
 }
 
@@ -1146,7 +1149,13 @@ export class Linkset {
       // touch_end waited, raised its touch_start behind that touch_end, in LSL and SLua.
       const late = s.handlerEvent === 'touch_start' &&
         ([...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut) || waitingTouches(s, 'touch_end', by).other !== undefined)
-      if (!s.heldClicks.has(by) && !crowded) scheduleTouch(s, 'touch_start', detected, late ? { late } : undefined)
+      if (!s.heldClicks.has(by) && !crowded) {
+        // In-world: i doll's touch that waited through an LSL touch_end sleep ran behind the
+        // touch_start of fivebot's click in the sleep, 4 runs of 4; in SLua ahead of it, 2 of 2.
+        const ahead = s.language !== 'slua' && s.handlerEvent === 'touch_end' && waitingTouches(s, 'touch', by).other?.held === false
+        scheduleTouch(s, 'touch_start', detected, late ? { late } : ahead ? { held: false } : undefined)
+        if (ahead) this.clock.putAhead(s, 'touch_start', 'touch')
+      }
       // In-world: fivebot's touches came on the frames of i doll's held click, merged with them.
       const beat = [...s.heldClicks].find(([k, c]) => k !== by && c.repeating && !c.released && !c.cut)?.[1].dueAt
       const dueAt = beat === undefined ? firstAt : beat > this.clock.now + 1e-6 ? beat : beat + repeatMs(s)
