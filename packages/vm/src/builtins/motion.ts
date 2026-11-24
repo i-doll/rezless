@@ -7,7 +7,7 @@ import { conjugate, mulRotation } from '../values/ops.js'
 import { ruleElementType } from '../values/list-types.js'
 import { KFM_COMMAND, KFM_DATA, KFM_MODE, KFM_ROTATION, KFM_TRANSLATION,
   KFM_FORWARD, KFM_LOOP, KFM_REVERSE, KFM_PING_PONG,
-  KFM_CMD_PLAY, KFM_CMD_PAUSE, KFM_CMD_STOP, STATUS_PHYSICS,
+  KFM_CMD_PLAY, KFM_CMD_PAUSE, KFM_CMD_STOP, STATUS_PHYSICS, AGENT_SITTING,
   PRIM_PHYSICS_SHAPE_PRIM } from '../generated/constants.js'
 import { llGround } from './ground.js'
 import type { Script } from '../script.js'
@@ -725,9 +725,10 @@ export const llSetKeyframedMotion: BuiltinImpl = (ctx,args) => {
   if (!moving) raiseMoving(root,'moving_start',ctx.state.clock.now)
 }
 
+// In-world: in a worn root or child, llSetRegionPos returned 0 and moved nothing, even to where it was.
 export const llSetRegionPos: BuiltinImpl = (ctx,args) => {
   const target=args[0] as Vector,root=ctx.linkset.prims[0]!
-  if (!vector(target) || target.x < -10 || target.x>266 || target.y < -10 || target.y>266 || target.z<0 || target.z>4096
+  if (ctx.linkset.attachment || !vector(target) || target.x < -10 || target.x>266 || target.y < -10 || target.y>266 || target.z<0 || target.z>4096
     || root.statusFlags&STATUS_PHYSICS || root.keyframedMotion?.playing) return 0
   const from=ctx.prim.regionPosition()
   const ground=Number(llGround(ctx,[subtract(target,from)]))
@@ -835,7 +836,7 @@ export class TargetMotionStepper {
       return
     }
     const move = acting(this.prim.targetMotion.move), look = acting(this.prim.targetMotion.look)
-    if (!(this.prim.statusFlags & STATUS_PHYSICS) || !move || !look || !('position' in look.target)) {
+    if (!(this.prim.statusFlags & STATUS_PHYSICS) || this.prim.linkset?.wearer || !move || !look || !('position' in look.target)) {
       this.coupled = undefined
       advanceTargetMotion(this.prim, (now - from) / 1000)
       return
@@ -858,15 +859,28 @@ export class TargetMotionStepper {
   }
 }
 
-/** Nominal exponential kinematics. No gravity, angular wobble, contacts or inertia. */
+const approach = (from: Vector, to: Vector, t: number): Vector =>
+  ({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, z: from.z + (to.z - from.z) * t })
+
+/**
+ * Nominal exponential kinematics. No gravity, angular wobble, contacts or inertia. A worn object's
+ * move target moves its standing wearer instead. In-world: llMoveToTarget in a worn root or child
+ * took the wearer to the target. There the wearer fell when it stopped; here it stays.
+ */
 function advanceTargetMotion(prim: Prim, seconds: number): void {
+  const wearer = prim.linkset?.wearer
+  if (wearer) {
+    const move = acting(prim.targetMotion.move)
+    if (!move || wearer.info & AGENT_SITTING) return
+    const from = wearer.position, f = Math.fround
+    // A wearer at the target to single precision isn't moved, so a sit it is walking to stays pending.
+    if (f(from.x) === f(move.target.x) && f(from.y) === f(move.target.y) && f(from.z) === f(move.target.z)) return
+    wearer.position = approach(from, move.target, -Math.expm1(-seconds / move.tau))
+    return
+  }
   if (!(prim.statusFlags & STATUS_PHYSICS)) return
   const move = acting(prim.targetMotion.move), look = acting(prim.targetMotion.look)
-  if (move) {
-    const from = prim.params.position, t = -Math.expm1(-seconds / move.tau)
-    prim.params.position = { x: from.x + (move.target.x - from.x) * t,
-      y: from.y + (move.target.y - from.y) * t, z: from.z + (move.target.z - from.z) * t }
-  }
+  if (move) prim.params.position = approach(prim.params.position, move.target, -Math.expm1(-seconds / move.tau))
   if (look) {
     const target = 'rotation' in look.target ? look.target.rotation : lookRotation(prim.params.position, look.target.position)
     prim.params.rotation = interpolate(normalize(prim.params.rotation), target,
