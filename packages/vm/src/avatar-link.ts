@@ -74,7 +74,7 @@ export function writeAvatarLinkParam(avatar: WorldAvatar, param: number, value: 
       return 1
     case PRIM_ROT_LOCAL:
       if (!isRotation(value)) return null
-      avatar.sitPlacement = { ...placed, rotation: storedRotation(value) }
+      avatar.turnSeated(storedRotation(value))
       return 1
     case PRIM_ROTATION: {
       if (!isRotation(value)) return null
@@ -82,7 +82,7 @@ export function writeAvatarLinkParam(avatar: WorldAvatar, param: number, value: 
       // and any other is stored as PRIM_ROT_LOCAL stores it and taken times the root's.
       const same = (['x', 'y', 'z', 's'] as const).every((k) => Math.fround(value[k]) === Math.fround(placed.rotation[k]))
       const root = avatar.sittingOn!.linkset!.prims[0]!
-      if (!same) avatar.sitPlacement = { ...placed, rotation: mulRotationF32(storedRotation(value), root.params.rotation) }
+      if (!same) avatar.turnSeated(mulRotationF32(storedRotation(value), root.params.rotation))
       return 1
     }
     default:

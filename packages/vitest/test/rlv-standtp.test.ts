@@ -234,12 +234,14 @@ it('names the zero-global-origin guard and preserves facing', async () => {
     avatar.position = { x: 0, y: 0, z: 0 }
     script.host.params.rotation = { x: 0, y: 0, z: Math.SQRT1_2, s: Math.SQRT1_2 }
     issue(script, '@standtp=n,sit:' + script.host.key + '=force')
-    const facing = { ...avatar.rotation }
+    script.linkset.advanceTime(400)
+    const facing = { ...avatar.sitPlacement!.rotation }
     script.host.params.position = { ...moved }
     const seated = { ...avatar.position }
     fixture.userStand()
     expect(avatar.position).toEqual(profile === 'rlv' ? { x: 0, y: 0, z: 0 } : seated)
-    // Standing retains the seat's yaw; the return teleport adds no look-at change.
+    // Standing keeps the local rotation the seat showed (see avatar-link-rotation-lag); the
+    // return teleport adds no look-at change.
     expect(avatar.rotation).toEqual(facing)
   }
 })
