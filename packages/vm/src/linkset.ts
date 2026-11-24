@@ -813,7 +813,7 @@ export class Linkset {
     const at = this.clock.now
     for (const p of targets) {
       for (const s of p.scripts) {
-        if (s.running) this.clock.schedule(s, at, 'link_message', { sender_num: senderLink, num, str, id })
+        if (s.running && s.hasStarted) this.clock.schedule(s, at, 'link_message', { sender_num: senderLink, num, str, id })
       }
     }
   }
@@ -996,6 +996,21 @@ export class Linkset {
     const until = this.clock.now + ms
     this.drainQueue(until)
     if (this.clock.now < until) this.clock.now = until
+  }
+
+  /**
+   * Start `scripts` (by default every script in the object) together, as one frame of a rezzed
+   * object does, and finish their state_entry handlers. Each one gets the link messages the
+   * others send from state_entry, after its own state_entry. Scripts already started are left
+   * alone; a stopped one runs state_entry when it is set running. A script started later, by a
+   * later call or by `start()`, misses messages sent before it starts.
+   */
+  startAll(scripts: Iterable<Script> = this.allScripts()): void {
+    const batch = [...scripts]
+    if (batch.some(s => s.linkset !== this)) throw new Error('startAll: a script is not in this object')
+    const starting = batch.filter(s => !s.hasStarted)
+    for (const s of starting) s.queueStart()
+    this.settle(starting)
   }
 
   /**

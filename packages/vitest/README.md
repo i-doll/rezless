@@ -260,8 +260,7 @@ const { linkset, prims, scripts } = await loadLinkset({
   ],
 })
 
-scripts['counter'].start()
-scripts['display'].start()
+linkset.startAll()                      // start every script together, as resetting them all does
 scripts['counter'].fire('touch_start', { num_detected: 1 })
 expect(scripts['display'].text?.text).toBe('count: 1')
 
@@ -277,6 +276,19 @@ linkset.clock.now                       // current virtual time in ms
 linkset.clock.pendingEvents()           // snapshot of queued one-shot events:
                                         //   [{ at, target, event, payload }, ...]
 ```
+
+`linkset.startAll()` starts every script that hasn't started yet in one
+batch, as resetting all of an object's scripts does in Second Life, then runs
+their `state_entry` handlers. Each running script gets the link messages the
+others send from `state_entry`, after its own `state_entry`. A stopped script
+runs `state_entry` when it is set running.
+Starting scripts one at a time with `start()` works differently: a link
+message sent before a script starts never reaches it, as in Second Life.
+A rezzed object starts its scripts over a few frames, in an order that
+changes from rez to rez, so a script can miss the messages sent by scripts
+that started before it. To test that, pass the scripts to start:
+`linkset.startAll([scripts['display']])`, `linkset.advanceTime(22)`, then
+`linkset.startAll()` for the rest.
 
 `scripts` is a flat name → `Script` lookup keyed by inventory name; duplicate
 names across prims throw to prevent silent overwrites. Each `Script` is the
