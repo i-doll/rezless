@@ -1656,6 +1656,14 @@ export class Script {
     return this.task?.startedAt
   }
 
+  /** The event whose handler is running, or undefined when the script is idle. */
+  get handlerEvent(): string | undefined {
+    return this.task?.slua?.event ?? (this.task?.lsl && this.chainEvent)
+  }
+
+  /** The LSL handler running in the current chain: a state change runs state_exit and state_entry in it. */
+  private chainEvent: string | undefined
+
   /** Whether the running handler has gone on past the instant it began, after a sleep or a busy spell. */
   get handlerWentOn(): boolean {
     const startedAt = this.stepping?.startedAt
@@ -1840,6 +1848,7 @@ export class Script {
     while (pending && !this.state.lifecycle.dead) {
       const { handler: h, args: a } = pending
       pending = null
+      this.chainEvent = h.name
       try {
         yield* execHandler(ctx, h, a)
       } catch (e) {
@@ -1856,6 +1865,7 @@ export class Script {
         if (target === this.state.currentState || this.state.lifecycle.dead) continue
         const exit = this.handlersByState.get(this.state.currentState)?.get('state_exit')
         if (exit) {
+          this.chainEvent = 'state_exit'
           try {
             yield* execHandler(ctx, exit, [])
           } catch (e2) {
