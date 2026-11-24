@@ -294,3 +294,62 @@ default {
     expect(ys(script)).toEqual([0, 1])
   })
 })
+
+// In-world (Aditi, SLua Tideland, 2026-11-24): i doll's rezzed object held six scripts whose
+// touch_start slept 10 s and then made one call each, with its own position. fivebot clicked
+// it and teleported to SLua Tombolo; it had arrived before the calls, which found it gone from
+// the region (llGetAgentSize was ZERO_VECTOR). fivebot's viewer still got the first 4 maps in
+// SLua Tombolo, and the object said the error twice. 1.5 s later fivebot's worn object made 5
+// calls a second apart in SLua Tombolo: the first 4 showed and the fifth was refused, as from a
+// fresh count. The same run with llMapBeacon gave the same 4 and 2 errors.
+// A third run had fivebot log out right after the click: the six calls said nothing.
+describe('maps for a clicker who left the region during the event', () => {
+  const sleeper = (call: string) => `default {
+  touch_start(integer n) {
+    integer i = (integer)llGetSubString(llGetScriptName(), -1, -1);
+    llSleep(10.0);
+    ${call};
+  }
+}`
+  const clicked = async (world: World, call: string) => {
+    const { linkset } = await loadLinkset({ world, region: 'SLua Tideland', owner: OWNER,
+      prims: [{ name: 'probe map', scripts: range(6).map(i => ({ name: `probe ${i}`, source: { source: sleeper(call) } })) }] })
+    for (const s of linkset.allScripts()) s.start()
+    return linkset
+  }
+  const calls = {
+    llMapDestination: 'llMapDestination("SLua Tideland", <10 + i, 20, 30>, ZERO_VECTOR)',
+    llMapBeacon: 'llMapBeacon("SLua Tideland", <10 + i, 20, 30>, [])',
+  }
+
+  it.each(Object.entries(calls))('%s shows the map in the new region and counts it in the old one', async (_, call) => {
+    const { world, errors, wear, scripts } = await setup()
+    world.addRegion('SLua Tombolo', { x: 40960, y: 23552 })
+    const fivebot = world.avatars.find(x => x.key === OTHER)!
+    const worn = await wear('F', ['s1'], 1, OTHER)
+    const c = await clicked(world, call)
+    // The click runs its sleeping event through, so the teleport is set on the clock first.
+    c.clock.scheduleTask(scripts()[0]!, c.clock.now + 2_000, () => world.teleportAvatar(fivebot, { x: 40960 + 128, y: 23552 + 128, z: 30 }))
+    c.touch(0, { avatar: { key: OTHER, name: 'fivebot' } })
+    expect(fivebot.region).toBe('SLua Tombolo')
+    const requests = c.allScripts().flatMap(s => s.viewerRequests)
+    expect(requests).toHaveLength(4)
+    expect(requests.every(r => r.agent === OTHER)).toBe(true)
+    expect(errors(c.allScripts())).toEqual([ERROR, ERROR])
+    worn.advanceTime(1_500)
+    for (const s of worn.allScripts()) s.deliverChat({ channel: 7730, name: 'fivebot', key: OTHER, message: 'go F1 36 d 5@0/1' })
+    worn.advanceTime(6_000)
+    expect(worn.allScripts().flatMap(s => s.viewerRequests)).toHaveLength(4)
+    expect(errors(worn.allScripts())).toEqual([ERROR])
+  })
+
+  it('shows nothing and says nothing to a clicker who logged out', async () => {
+    const { world, errors, scripts } = await setup()
+    const c = await clicked(world, calls.llMapDestination)
+    const gone = '33333333-3333-3333-3333-333333333333'
+    c.clock.scheduleTask(scripts()[0]!, c.clock.now + 2_000, () => c.allScripts()[0]!.setAgentInRegion(gone, false))
+    c.touch(0, { avatar: { key: gone, name: 'Gone' } })
+    expect(c.allScripts().flatMap(s => s.viewerRequests)).toEqual([])
+    expect(errors(c.allScripts())).toEqual([])
+  })
+})
