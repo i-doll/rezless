@@ -3,8 +3,8 @@ import type { Prim } from '../prim.js'
 import type { WorldAvatar } from '../world.js'
 import type { PrimShape } from '../prim-params.js'
 import type { Script } from '../script.js'
-import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR, type LslType, type LslValue, type Rotation, type Vector } from '../values/types.js'
-import { mulRotation, rotateVector } from '../values/ops.js'
+import { NULL_KEY, ZERO_ROTATION, ZERO_VECTOR, type LslType, type LslValue, type Vector } from '../values/types.js'
+import { rotateVector } from '../values/ops.js'
 import { markLuaResult, ruleElementType, typedList, type LuaResultKind } from '../values/list-types.js'
 import { objectDetailLuaKind } from './slua-result-kinds.js'
 import { formatTimestamp } from './time.js'
@@ -74,6 +74,7 @@ import {
   OBJECT_VOLUME_DETECT,
   PERM_ALL,
   PRIM_PHYSICS_SHAPE_NONE,
+  PRIM_ROTATION,
   PRIM_TEXT,
   PRIM_TYPE_BOX,
   PRIM_TYPE_CYLINDER,
@@ -299,11 +300,6 @@ function combinedPerms(prim: Prim): number[] {
     )
 }
 
-function regionRotation(prim: Prim): Rotation {
-  const root = rootOf(prim)
-  return root === prim ? prim.params.rotation : mulRotation(prim.params.rotation, root.params.rotation)
-}
-
 const scriptsOf = (prim: Prim): Script[] => primsOf(prim).flatMap((p) => p.scripts)
 /** What OBJECT_SCRIPT_MEMORY counts for an SLua script, whatever its limit or use. */
 const SLUA_SCRIPT_MEMORY = 4096
@@ -329,7 +325,7 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
     case OBJECT_POS:
       return [[prim.regionPosition(), 'vector']]
     case OBJECT_ROT:
-      return [[regionRotation(prim), 'rotation']]
+      return [[prim.getPrimParam(PRIM_ROTATION, [], 0)!.values[0]!, 'rotation']]
     case OBJECT_VELOCITY:
       return [[prim.linkset?.rez?.velocity ?? prim.linkset?.world?.sensorProperties.get(prim.linkset)?.velocity ?? ZERO_VECTOR, 'vector']]
     case OBJECT_OMEGA: {
