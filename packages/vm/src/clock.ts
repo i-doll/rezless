@@ -299,6 +299,9 @@ function delayedUntil(e: QueuedEvent): number {
  */
 const PACING_EXEMPT: ReadonlySet<string> = new Set(['__reset'])
 
+/** The events llTarget and llRotTarget raise at each check. */
+const TARGET_EVENTS: ReadonlySet<string> = new Set(['at_target', 'not_at_target', 'at_rot_target', 'not_at_rot_target'])
+
 /**
  * Events of which LSL runs a second waiting one two simulator frames after the first. In-world,
  * two waiting changed events and the ticks of a timer set shorter than two frames ran 2 frames
@@ -697,7 +700,8 @@ export class LinksetClock {
     // When the event would have run had its script not run another a frame before: a timer's lag
     // does not count that frame.
     let bestWaited = Infinity
-    for (const { index, due, waited } of this.nextEvents().values()) {
+    const queued = this.nextEvents()
+    for (const { index, due, waited } of queued.values()) {
       if (due <= horizon && (due < bestAt || due === bestAt && index < bestIdx)) {
         bestAt = due
         bestIdx = index
@@ -734,7 +738,11 @@ export class LinksetClock {
       const v = s.clockView
       if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon) {
         const waited = Math.max(v.timerNextFireMs, v.busyUntilMs, v.delayedUntilMs)
-        const due = Math.max(waited, v.nextEventAt('timer'))
+        // In-world: a crashed script with an overdue tick, rezzed again, ran state_entry and on_rez
+        // first: a tick waits behind events raised before it fell due that wait for their frame.
+        const ahead = queued.get(s)
+        const first = ahead && this.queue[ahead.index]!
+        const due = Math.max(waited, v.nextEventAt('timer'), first?.notBefore !== undefined && first.at <= v.timerNextFireMs ? ahead!.due : 0)
         if (due <= horizon && due < bestTimerAt) {
           bestTimerAt = due
           bestTimerWaited = waited
@@ -771,12 +779,16 @@ export class LinksetClock {
     const ownTimer = own?.clockView
     const sensorWaits = !!own?.running && !!ownTimer && ownTimer.timerIntervalMs > 0 && bestAt <= bestTimerAt &&
       (bestAt === ownTimer.delayedUntilMs || waiting!.at === ownTimer.timerNextFireMs) &&
-      bestAt === Math.max(ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs)
+      bestAt === Math.max(ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs, ownTimer.nextEventAt('timer'))
     if (sensorWaits) {
       bestTimerScript = own
       bestTimerAt = bestAt
     }
-    if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && bestAt <= wakeAt) {
+    // A tick that fell due before a target event came up runs ahead of it: in-world, a timer ticked
+    // on time while at_target and at_rot_target events took every frame.
+    const tickFirst = !!waiting && waiting.target === bestTimerScript && bestAt === bestTimerAt && TARGET_EVENTS.has(waiting.event) &&
+      bestTimerScript.clockView.timerNextFireMs < waiting.at
+    if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && !tickFirst && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
       const at = Math.max(bestAt, this.now)
@@ -835,13 +847,16 @@ export class LinksetClock {
       // and the click's touch and touch_end waited behind the touch_start.
       if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
       const waited = due
-      if (!PACING_EXEMPT.has(e.event)) due = Math.max(due, e.notBefore ?? 0, v.nextEventAt(e.event))
+      if (!PACING_EXEMPT.has(e.event)) due = Math.max(due, v.nextEventAt(e.event))
       if (e.target.handling || !(e.event === '__reset' || (e.event === '__running' && !e.target.running) ||
           (e.target.wakeAt === undefined && !e.target.detachedInHandler))) continue
       const mine = next.get(e.target)
       const first = mine && this.queue[mine.index]!
       if (!mine || due < mine.due || due === mine.due && first!.raisedAt !== undefined && e.at < first!.at) next.set(e.target, { index: i, due, waited })
     }
+    // The one picked runs no sooner than the frame after the handler that raised it; the events
+    // queued behind it wait for it.
+    for (const e of next.values()) e.due = Math.max(e.due, this.queue[e.index]!.notBefore ?? 0)
     return next
   }
 

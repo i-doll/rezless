@@ -1926,7 +1926,8 @@ export class Script {
       {
         call: (name, args) => this.sluaCall(name, args),
         now: () => this.now,
-        clock: () => this.clockView.elapsedSeconds(),
+        // To the microsecond, so a tick LLTimers set for a time between milliseconds reads that time back.
+        clock: () => Math.round(this.clockView.elapsedSeconds() * 1e6) / 1e6,
         unixTime: () => this.clockView.unixMicros() / 1e6,
         setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
         print: (text) => this.sluaPrint(text),
