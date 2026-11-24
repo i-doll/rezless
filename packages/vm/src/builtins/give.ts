@@ -1,6 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType, forNextOwner, freeInventoryName, queueInventoryChanged } from '../inventory.js'
+import { raiseInventoryChanged } from '../prim-changed.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
@@ -47,12 +48,16 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
     return
   }
   const copies = items.map(i => snapshot(i, foreign))
+  // In-world: a gift to the giver's own prim added no item, but its scripts still heard of it, and
+  // a no-copy item given there was gone.
+  const own = prim === ctx.prim
   if (prim) {
-    for (const item of copies) {
+    if (!own) for (const item of copies) {
       prim.placeInventory({ ...item, name: freeInventoryName(prim.inventory, item.name), acquireTimeMs: ctx.state.clock.now })
     }
     for (const script of prim.inventoryChangeListeners()) {
       if (dropped) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
+      else if (prim.linkset === ctx.linkset) raiseInventoryChanged(script, own)
       else queueInventoryChanged(script)
     }
   }

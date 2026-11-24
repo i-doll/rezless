@@ -201,9 +201,8 @@ describe('a timer tick that fell due in a sleep, with the queue full after the w
   })
 
   // In-world: the same with llGiveInventory(llGetKey(), llGetScriptName()) in place of
-  // llSetColor -> no changed either (2 runs of each). rezless raises the inventory change at the
-  // call, ahead of the messages, so the 63rd message is lost instead.
-  it.fails.each(['', AGAIN])('takes the room of an inventory change made before 63 link messages (then: %s)', async (after) => {
+  // llSetColor -> no changed either (2 runs of each).
+  it.each(['', AGAIN])('takes the room of an inventory change made before 63 link messages (then: %s)', async (after) => {
     expect(await fill(63, { before: 'llGiveInventory(llGetKey(), llGetScriptName());', after })).toEqual(['timer after 0', 'lm 1', 'lm 63'])
   })
 })

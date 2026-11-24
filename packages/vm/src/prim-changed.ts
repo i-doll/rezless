@@ -1,13 +1,15 @@
 import type { Prim } from './prim.js'
+import type { Script } from './script.js'
 import { cameUp } from './clock.js'
 import type { LslValue } from './values/types.js'
 import {
-  CHANGED_COLOR, CHANGED_MEDIA, CHANGED_RENDER_MATERIAL, CHANGED_SCALE, CHANGED_SHAPE,
+  CHANGED_COLOR, CHANGED_INVENTORY, CHANGED_MEDIA, CHANGED_RENDER_MATERIAL, CHANGED_SCALE, CHANGED_SHAPE,
   PRIM_COLOR, PRIM_GLTF_BASE_COLOR, PRIM_GLTF_EMISSIVE, PRIM_GLTF_METALLIC_ROUGHNESS,
   PRIM_GLTF_NORMAL, PRIM_RENDER_MATERIAL, PRIM_SIZE, PRIM_TYPE, PRIM_TYPE_SCULPT,
 } from './generated/constants.js'
 
 const PRIM_CHANGES = CHANGED_COLOR | CHANGED_MEDIA | CHANGED_RENDER_MATERIAL | CHANGED_SCALE | CHANGED_SHAPE
+const MERGED_CHANGES = PRIM_CHANGES | CHANGED_INVENTORY
 
 /**
  * Queue a prim setter's changes, merging bits within each script's pending events. In-world,
@@ -16,16 +18,32 @@ const PRIM_CHANGES = CHANGED_COLOR | CHANGED_MEDIA | CHANGED_RENDER_MATERIAL | C
  * a link message sent straight after it.
  */
 export function raisePrimChanged(prim: Prim, changes: number): void {
-  const clock = prim.linkset!.clock
   for (const script of prim.scripts) {
-    if (!script.running || !script.hasStarted) continue
-    const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
-      && ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0)
-    // A busy handler gets what the clock gives any event that comes up while it is busy.
-    const merge = script.busy ? undefined : waiting.find(e => cameUp(e) >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
-    if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
-    else clock.scheduleNextFrame(script, 'changed', { changes })
+    if (script.running && script.hasStarted) raiseChanged(script, changes)
   }
+}
+
+/**
+ * Queue an inventory change for `script` a simulator frame from now, merged into a change still
+ * waiting for it. In-world, gifts to the giver's own prim and llSetColor in one handler gave
+ * every script there one changed, in any order, and a gift with llSetLinkColor into an idle
+ * child gave it one changed(3). Two gifts from another prim to an idle script could give it one
+ * changed or two; it gets two here, as an earlier probe measured.
+ */
+export function raiseInventoryChanged(script: Script, fromOwnPrim: boolean): void {
+  const idle = !script.handling && script.handlerStartedAt === undefined
+  raiseChanged(script, CHANGED_INVENTORY, idle && !fromOwnPrim ? PRIM_CHANGES : MERGED_CHANGES)
+}
+
+function raiseChanged(script: Script, changes: number, mergesWith = MERGED_CHANGES): void {
+  const clock = script.linkset.clock
+  const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
+    && ((e.payload['changes'] as number) & MERGED_CHANGES) !== 0)
+  const into = waiting.filter(e => ((e.payload['changes'] as number) & ~mergesWith) === 0)
+  // A busy handler gets what the clock gives any event that comes up while it is busy.
+  const merge = script.busy ? undefined : into.find(e => cameUp(e) >= script.resumedAt) ?? (waiting.length >= 2 ? into.at(-1) : undefined)
+  if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
+  else clock.scheduleNextFrame(script, 'changed', { changes })
 }
 
 function snapshot(prim: Prim, rule: number): string | undefined {
