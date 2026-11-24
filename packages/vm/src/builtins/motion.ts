@@ -271,9 +271,16 @@ export function setVelocity(linkset: Linkset, velocity: Vector): void {
  * moving_end 2 s later as the box hung at the target; to where the box rested, moving_start and
  * moving_end 0.35 s later. None of them gave an event for a box that was not physical.
  */
-export function setMoving(linkset: Linkset): void {
+export function setMoving(linkset: Linkset, target = false): void {
   const root = linkset.prims[0]
   if (!root || !(root.statusFlags & STATUS_PHYSICS)) return
+  // In-world: an impulse or a push on a box the viewer held selected did nothing, and a move
+  // target waited until the viewer let go of it.
+  const selection = releases.get(linkset)
+  if (selection) {
+    selection.target ||= target
+    return
+  }
   const state = motionOf(linkset)
   physicalMotion.set(linkset, state)
   dropRelease(linkset)
@@ -289,10 +296,11 @@ export function setMoving(linkset: Linkset): void {
  * with REZ_FLAG_PHYSICAL or from a physical item, got on_rez, moving_start straight after it,
  * and moving_end as it came to rest on the platform 0.84 to 1.27 s later; rezzed in contact with
  * the platform, 0.88 to 0.93 s after on_rez (FIRST_PHYSICS_SETTLE_MS later here, unless it was
- * rezzed with a velocity). The viewer rezzing a physical item gave on_rez, moving_start and
- * moving_end 0.26 s later in two runs of three (SETTLE_MS later here, not yet probed again). A
- * box a script rezzed not physical with llRezObject, llRezAtRoot or llRezObjectWithParams got
- * on_rez, moving_start and moving_end, seven runs; one the viewer rezzed got neither.
+ * rezzed with a velocity). The viewer rezzing a physical item onto the platform gave on_rez only,
+ * 13 runs; one it rezzed above the platform had fallen before on_rez ran, and the next switch to
+ * physical of such a box took a later switch's 0.8 s. A box a script rezzed not physical with
+ * llRezObject, llRezAtRoot or llRezObjectWithParams got on_rez, moving_start and moving_end,
+ * seven runs; one the viewer rezzed got neither.
  */
 export function rezzedMoving(object: Linkset, byScript: boolean): void {
   const root = object.prims[0]
@@ -306,11 +314,15 @@ export function rezzedMoving(object: Linkset, byScript: boolean): void {
     return
   }
   physicalMotion.get(object)?.settle?.()
+  physicalBefore.add(object)
+  if (!byScript) {
+    physicalMotion.set(object, { moving: !still(velocityOf(object)) })
+    return
+  }
   const state: PhysicalMotion = { moving: true }
   physicalMotion.set(object, state)
   raiseMoving(root, 'moving_start', object.clock.now)
-  physicalBefore.add(object)
-  if (still(velocityOf(object))) settleLater(object, state, byScript ? FIRST_PHYSICS_SETTLE_MS : SETTLE_MS)
+  if (still(velocityOf(object))) settleLater(object, state, FIRST_PHYSICS_SETTLE_MS)
 }
 
 /**
@@ -320,34 +332,56 @@ export function rezzedMoving(object: Linkset, byScript: boolean): void {
 const DUPLICATE_HELD_MS = 200
 const RELEASE_SETTLE_MS = 700
 
-/** The restart due when the viewer lets go of a physical object a Duplicate selected. */
-const releases = new WeakMap<Linkset, () => void>()
+/**
+ * The restart due when the viewer lets go of a physical object it selected, whether a move
+ * target set during the selection waits for it, and whether the object moved when selected.
+ */
+interface Selection { cancel: () => void; target: boolean; moving: boolean }
+const releases = new WeakMap<Linkset, Selection>()
 
-/** A velocity, a push or an impulse during the selection leaves the motion to the test. */
+/** A velocity set or a physics switch during the selection leaves the motion to the test. */
 function dropRelease(linkset: Linkset): void {
-  releases.get(linkset)?.()
+  releases.get(linkset)?.cancel()
   releases.delete(linkset)
 }
 
-function releaseLater(linkset: Linkset, state: PhysicalMotion): void {
-  const root = linkset.prims[0]!
-  releases.set(linkset, linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + SELECTION_MS.copy, () => {
-    releases.delete(linkset)
-    if (!(root.statusFlags & STATUS_PHYSICS) || physicalMotion.get(linkset) !== state) return
-    state.moving = true
-    raiseMoving(root, 'moving_start', linkset.clock.now)
-    settleLater(linkset, state, RELEASE_SETTLE_MS)
-  }))
+/** Whether the viewer holds the physical object selected, which keeps a move target from acting. */
+export function heldBySelection(linkset: Linkset): boolean {
+  return releases.has(linkset)
 }
 
 /**
- * The viewer selects a physical object at rest or settling to Duplicate it, which stops it until
- * the viewer lets go. In-world: a box switched physical just before a Duplicate got moving_end as
- * it was selected; the original, settling or at rest, got moving_start 0.53 to 0.69 s after the
- * copy appeared and moving_end 0.64 to 0.76 s after that (5 runs). Call before the copy is made;
- * returns whether the object was physical and at rest or settling.
+ * In-world: a box an edit selected on its way to a move target got moving_end at the selection
+ * and stood still; when the viewer let go it got moving_start, went on to the target and got
+ * moving_end as it arrived, two runs. A box hanging at its target got no event at the selection
+ * or the release, three runs (Aditi, SLua Tideland, 2026-11-24).
  */
-export function selectPhysical(linkset: Linkset): boolean {
+function releaseLater(linkset: Linkset, state: PhysicalMotion, ms: number, moving: boolean): void {
+  const root = linkset.prims[0]!
+  const selection: Selection = { cancel: () => {}, target: false, moving }
+  selection.cancel = linkset.clock.scheduleTask({ get dead() { return linkset.dead || linkset.prims[0] !== root } }, linkset.clock.now + ms, () => {
+    releases.delete(linkset)
+    if (!(root.statusFlags & STATUS_PHYSICS) || physicalMotion.get(linkset) !== state) return
+    // A move target moves the object on from the release, and its rest is the test's to set.
+    const targeted = !!acting(root.targetMotion.move)
+    if (targeted && !selection.target && !selection.moving) return
+    state.moving = true
+    raiseMoving(root, 'moving_start', linkset.clock.now)
+    if (!targeted) settleLater(linkset, state, RELEASE_SETTLE_MS)
+  })
+  releases.set(linkset, selection)
+}
+
+/**
+ * The viewer selects a physical object at rest or settling to edit, Duplicate or take it, which
+ * stops it until the viewer lets go `ms` later. In-world: a box switched physical just
+ * before a Duplicate got moving_end as it was selected; the original, settling or at rest, got
+ * moving_start 0.53 to 0.69 s after the copy appeared and moving_end 0.64 to 0.76 s after that
+ * (5 runs). An edit and a Take Copy gave the same, with moving_end 0.51 to 0.76 s after the
+ * release (Aditi, SLua Tideland, 2026-11-24). Call before any copy is made; returns whether the
+ * object was physical and at rest or settling.
+ */
+export function selectPhysical(linkset: Linkset, ms: number = SELECTION_MS.copy): boolean {
   const root = linkset.prims[0]
   if (!root || !(root.statusFlags & STATUS_PHYSICS) || !still(velocityOf(linkset))) return false
   if (releases.has(linkset)) return true
@@ -355,11 +389,12 @@ export function selectPhysical(linkset: Linkset): boolean {
   physicalMotion.set(linkset, state)
   state.settle?.()
   state.settle = undefined
-  if (state.moving) {
+  const moving = state.moving
+  if (moving) {
     state.moving = false
     raiseMoving(root, 'moving_end', linkset.clock.now)
   }
-  releaseLater(linkset, state)
+  releaseLater(linkset, state, ms, moving)
   return true
 }
 
@@ -386,7 +421,7 @@ export function duplicatedPhysical(copy: Linkset, selected: boolean): void {
     state.moving = false
     raiseMoving(root, 'moving_end', copy.clock.now)
   })
-  releaseLater(copy, state)
+  releaseLater(copy, state, SELECTION_MS.copy, true)
 }
 
 /**
@@ -796,6 +831,10 @@ export class TargetMotionStepper {
     const from = this.previous
     this.previous = now
     if (now <= from) return
+    if (this.prim.linkset && heldBySelection(this.prim.linkset)) {
+      this.coupled = undefined
+      return
+    }
     const move = acting(this.prim.targetMotion.move), look = acting(this.prim.targetMotion.look)
     if (!(this.prim.statusFlags & STATUS_PHYSICS) || !move || !look || !('position' in look.target)) {
       this.coupled = undefined
@@ -854,7 +893,7 @@ export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
   // In-world: edge-64 moved, edge-64.01 and distance-64.9 did not.
   if (Math.hypot(delta.x, delta.y, delta.z) > 64) return
   root.targetMotion.move = { owner: initiator, target: { ...target }, tau, ...slackOf(held) }
-  setMoving(ctx.linkset)
+  setMoving(ctx.linkset, true)
 }
 // In-world: llStopMoveToTarget gave moving_start when the box fell from the target, and nothing
 // when it rested where it was; the fall is left to the test.

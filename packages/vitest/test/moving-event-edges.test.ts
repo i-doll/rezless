@@ -207,7 +207,9 @@ describe('moving events from physical motion', () => {
     expect(copyLog(copy)).toEqual(['moving_start 0', 'moving_end 2', 'moving_start 7', 'moving_end 14'])
   })
 
-  it('leaves an object an impulse sets moving during the Duplicate selection to the test', async () => {
+  // In-world: an impulse during the Duplicate selection did nothing (2026-11-24, see
+  // physical-selection.test.ts).
+  it('drops an impulse 0.3 s into the Duplicate selection', async () => {
     const b = await box(`${physical.replace('else if (m == "off")', 'else if (m == "imp") llApplyImpulse(<0, 0, 1>, FALSE);\n        else if (m == "off")')}`)
     send(b, 'on')
     b.linkset.advanceTime(2_000)
@@ -215,7 +217,7 @@ describe('moving events from physical motion', () => {
     b.linkset.advanceTime(300)
     send(b, 'imp')
     b.linkset.advanceTime(2_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 4', 'moving_end 11'])
     expect(copyLog(copy)).toEqual(['moving_start 0', 'moving_end 2', 'moving_start 7', 'moving_end 14'])
   })
 

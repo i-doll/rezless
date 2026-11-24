@@ -193,6 +193,25 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     }
   })
 
+  it('ticks an interval after the wake when the script was stopped in its own sleep', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-24): a 4 s timer and a handler that slept 10 s from
+    // 0.5 s, stopped at 1 s and started at 5 s, woke at 10.5 s to one timer event. llSetTimerEvent(4)
+    // in that event's handler ticked at 14.5 s and 18.5 s, in three runs: the start left no lag.
+    // Without the call it ticked at 14.49 s and 18.49 s, in one run.
+    for (const call of [true, false]) {
+      const r = await rig()
+      r.tell('1:4.0')
+      if (call) r.tell('2:4.0')
+      r.at(500)
+      r.tell('7:10.0')
+      r.at(1000)
+      r.tell('stop')
+      r.at(5000)
+      r.tell('start')
+      expect(tickTimes(r.linkset, r.ticks, 13_600)).toEqual([10_500, 14_500, 18_500])
+    }
+  })
+
   it('gives one tick at the wake when no tick was missed while stopped', async () => {
     // In-world: a 1 s timer stopped at 0.2 s and started at 0.7 s, and a 2 s timer stopped at
     // 0.4 s and started at 1.4 s, each with a 5 s or 8 s sleep queued, woke to one timer event
@@ -511,6 +530,39 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     five.at(9000)
     five.tell('2:5')
     expect(five.trace(14_100, 9000)).toEqual({ raw: [11_000, 14_000], callbacks: [14_000] })
+  })
+
+  it('starts a later timer early by the lag an earlier run left', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-24): LLTimers:once(4), stopped at 1 s with a 4 s
+    // sleep queued and started at 5 s, ran at the wake, 9 s. A new LLTimers:every(4) set later
+    // ticked 3.0 s after it with no callback and ran it at 4.0 s, in three runs: the start's 1 s lag
+    // outlived the run.
+    const plain = await stopped('2:4', 1000, 5000, '4')
+    expect(plain.trace(14_000)).toEqual({ raw: [9000], callbacks: [9000] })
+    plain.tell('1:4')
+    expect(plain.trace(18_100, 14_000)).toEqual({ raw: [17_000, 18_000], callbacks: [18_000] })
+  })
+
+  it('sees no extra tick at a start when the earlier run\'s lag made it miss two ticks', async () => {
+    // In-world: after that once(4) run, LLTimers:every(4) stopped at 1 s and started at 7 s ran the
+    // callback at the start and at 8 s with no other tick, in two runs: its first tick, 1 s early
+    // at 3 s, and the one at 7 s both fell while it was stopped, so the start left no lag. After a
+    // run that left no lag, or after a script reset, the same timer ticked again at once with no
+    // callback, in six runs. Started at 6.5 s, with one tick missed, it ticked again at once in two
+    // runs; started at 7.5 s it did not, in two runs. An LSL script that set its timer as LLTimers
+    // does gave the same in as many runs of each of these. A start at 7 s comes as the early second
+    // tick falls due: after a once(4) run stopped at 1 s and started at 5 s with no sleep, which
+    // leaves the same lag, the SLua script did not tick again and the LSL one did, in one run each.
+    for (const [startAt, raw] of [[7000, [21_000, 22_000]], [6500, [20_500, 20_500, 22_000]], [7500, [21_500, 22_000]]] as const) {
+      const r = await stopped('2:4', 1000, 5000, '4')
+      r.trace(14_000)
+      r.tell('1:4')
+      r.at(15_000)
+      r.tell('stop')
+      r.at(14_000 + startAt)
+      r.tell('start')
+      expect(r.trace(22_100, 14_000)).toEqual({ raw, callbacks: [14_000 + startAt, 22_000] })
+    }
   })
 
   it('sees the lag of a tick a sleep held back through one interval', async () => {
