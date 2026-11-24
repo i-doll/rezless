@@ -47,6 +47,7 @@ import { Mulberry32 } from './random.js'
 import { inventoryItemName } from './inventory.js'
 import { faceTextureIsItem } from './builtins/slua-result-kinds.js'
 import { typedList, listElementTypes } from './values/list-types.js'
+import { boxedMap } from './values/nan.js'
 import { NULL_KEY } from './values/types.js'
 import { execHandler, StateChangeSignal } from './interpreter.js'
 import { buildCoveragePlan, CoverageCollector } from './coverage.js'
@@ -1190,8 +1191,8 @@ export class Script {
       for (const g of this.ast.globals) {
         const value = this.global(g.name)
         const saved = Array.isArray(value)
-          ? typedList(structuredClone(value), listElementTypes(value) ?? [])
-          : structuredClone(value)
+          ? typedList(boxedMap(value, copyValue), listElementTypes(value) ?? [])
+          : copyValue(value)
         copy.setGlobal(g.name, saved)
       }
       copy.state.currentState = this.state.currentState
@@ -2177,3 +2178,8 @@ function buildConstantsEnv(): Env {
 /** The (empty) LSL program an SLua script carries for the parts of Script that read one. */
 const SLUA_MEMORY_LIMIT = 131072
 const SLUA_PLACEHOLDER: Ast = parse('default {}', '<slua>').script
+
+/** A copy of a global's value or list element. structuredClone would drop a NaN's sign. */
+function copyValue(value: LslValue): LslValue {
+  return typeof value === 'object' && !Array.isArray(value) ? { ...value } : value
+}

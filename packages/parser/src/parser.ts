@@ -605,8 +605,9 @@ class Parser {
     if (t.kind === 'op') {
       if (t.text === '-' || t.text === '!' || t.text === '~') {
         this.advance()
-        // Operand may be a cast: `!(integer)s`, `-(float)x`.
-        const arg = this.parseCast()
+        // Operand may be a cast: `!(integer)s`, `-(float)x`. SL's grammar
+        // binds `-` looser than `*`, `/` and `%`: `-a * b` is `-(a * b)`.
+        const arg = t.text === '-' ? this.parseMultiplicative() : this.parseCast()
         if (!arg) return null
         return {
           kind: 'UnaryExpression',

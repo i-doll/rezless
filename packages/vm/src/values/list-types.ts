@@ -1,5 +1,6 @@
 import type { LslType, LslValue } from './types.js'
 import { toFloat32 } from './types.js'
+import { boxedArray, boxedMap } from './nan.js'
 
 /**
  * LSL list elements keep their own type, but list values here are plain JS
@@ -32,7 +33,7 @@ export function scriptList(
   values: LslValue[],
   types: ReadonlyArray<LslType | undefined>,
 ): ReadonlyArray<LslValue> {
-  return typedList(values.map((v, i) => (types[i] === 'float' ? toFloat32(v as number) : v)), types)
+  return typedList(boxedMap(values, (v, i) => (types[i] === 'float' ? toFloat32(v as number) : v)), types)
 }
 
 /** The recorded element types of `list`, or undefined if none were recorded. */
@@ -72,7 +73,7 @@ export function markLuaList(list: ReadonlyArray<LslValue>, kinds: ReadonlyArray<
 export function luaNumbersAsFloats(list: ReadonlyArray<LslValue>): ReadonlyArray<LslValue> {
   const kinds = luaKinds.get(list)
   if (!kinds) return list
-  const values = list.map((v, i) => (kinds[i] === 'number' ? toFloat32(v as number) : v))
+  const values = boxedMap(list, (v, i) => (kinds[i] === 'number' ? toFloat32(v as number) : v))
   const types = values.map((_, i) => (kinds[i] === 'number' ? 'float' : listElementType(list, i)))
   return markLuaList(typedList(values, types), kinds)
 }
@@ -119,7 +120,7 @@ export function sliceList(list: ReadonlyArray<LslValue>, start: number, end?: nu
 
 /** Concatenate lists, keeping element types. */
 export function concatLists(...lists: ReadonlyArray<LslValue>[]): ReadonlyArray<LslValue> {
-  const values: LslValue[] = []
+  const values = boxedArray<LslValue>()
   const types: (LslType | undefined)[] = []
   for (const list of lists) {
     const t = elementTypes.get(list)

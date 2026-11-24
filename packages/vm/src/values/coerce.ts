@@ -2,6 +2,7 @@ import type { EvalResult, LslType, LslValue } from './types.js'
 import { ZERO_VECTOR, ZERO_ROTATION, NULL_KEY, isVector, isRotation, toInt32, toFloat32 } from './types.js'
 import { formatFloat, formatList, formatVector, formatRotation } from './format.js'
 import { scriptList } from './list-types.js'
+import { boxedArray, boxedOf, signedNaN } from './nan.js'
 
 /**
  * Coerce a runtime value to a target LSL type.
@@ -53,7 +54,7 @@ export function coerce(from: EvalResult, target: LslType): EvalResult {
     case 'list': {
       if (Array.isArray(v)) return { type: 'list', value: v }
       // Wrap any single value as a one-element list.
-      return { type: 'list', value: scriptList([v as LslValue], [from.type]) }
+      return { type: 'list', value: scriptList(boxedOf(v as LslValue), [from.type]) }
     }
     case 'void':
       throw new Error('cannot coerce to void')
@@ -149,7 +150,7 @@ function scanFloat(s: string, start: number): { value: number; end: number } | n
   const body = text.replace(/^[+-]/, '').toLowerCase()
   let value: number
   if (body.startsWith('inf')) value = Infinity
-  else if (body === 'nan') value = NaN
+  else if (body === 'nan') return { value: signedNaN(sign < 0), end: start + text.length }
   else if (m[1]) {
     const int = m[2] ?? ''
     const frac = m[3] ?? ''
@@ -167,7 +168,7 @@ function scanFloat(s: string, start: number): { value: number; end: number } | n
  */
 function scanComponents(s: string, count: number): number[] | null {
   if (s[0] !== '<') return null
-  const out: number[] = []
+  const out = boxedArray<number>()
   let i = 1
   while (out.length < count) {
     if (out.length > 0) {

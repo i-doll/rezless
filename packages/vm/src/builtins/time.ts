@@ -1,5 +1,6 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { toFloat32, toInt32 } from '../values/types.js'
+import { isNegativeNaN } from '../values/nan.js'
 
 /**
  * Time and timer built-ins. All operate on the virtual clock; no real
@@ -35,7 +36,7 @@ const FRAME_MS = 1000 / 45
  * llSleep(float sec) — suspends the script on the virtual clock.
  *
  * Per LSL:
- *   - `sec <= 0` is a no-op; the script does not sleep at all.
+ *   - `sec <= 0` (or a negative NaN) is a no-op; the script does not sleep at all.
  *   - For positive `sec`, the wait is at least one server frame (~22.22 ms
  *     at 45 Hz), so e.g. `llSleep(0.001)` actually waits ~22 ms.
  *
@@ -44,7 +45,7 @@ const FRAME_MS = 1000 / 45
  */
 export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0
-  if (seconds <= 0) return undefined
+  if (seconds <= 0 || isNegativeNaN(seconds)) return undefined
   ctx.sleep(Number.isNaN(seconds) ? FRAME_MS : Math.max(FRAME_MS, seconds * 1000))
   return undefined
 }

@@ -33,6 +33,7 @@ import { defaultEvalFor, isVector, isRotation, rot, toFloat32, toFloat32Value, v
 import { coerce } from './values/coerce.js'
 import { scriptList } from './values/list-types.js'
 import { applyBinary, applyUnary, reduceCompound, truthy } from './values/ops.js'
+import { boxedMap } from './values/nan.js'
 import { Env, stored } from './env.js'
 import { own } from './own.js'
 import { CONSTANT_TABLE } from './generated/constants_table.js'
@@ -601,10 +602,9 @@ function* evalExpression(ctx: InterpreterContext, env: Env, expr: Expression): E
  * between integer and float: a number literal (negative ones included), an
  * LSL constant, or such a cast of one. It folds no other operators, and not
  * through parentheses, except the one pair a cast's grammar absorbs
- * (`(float)(1)`). A negated LSL constant only folds where `negatedConstant`
- * allows it (on the left of * / %, which SLua parses as `-(K * x)`).
+ * (`(float)(1)`).
  */
-function isFoldedConstant(e: Expression, castOperand: boolean, negatedConstant = false): boolean {
+function isFoldedConstant(e: Expression, castOperand: boolean): boolean {
   if ((e.parens ?? 0) > (castOperand ? 1 : 0)) return false
   switch (e.kind) {
     case 'IntegerLiteral':
@@ -614,8 +614,7 @@ function isFoldedConstant(e: Expression, castOperand: boolean, negatedConstant =
       return own(CONSTANT_TABLE, e.name) !== undefined
     case 'UnaryExpression':
       if (e.operator !== '-' || e.argument.parens) return false
-      return e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral' ||
-        (negatedConstant && e.argument.kind === 'Identifier' && own(CONSTANT_TABLE, e.argument.name) !== undefined)
+      return e.argument.kind === 'IntegerLiteral' || e.argument.kind === 'FloatLiteral'
     case 'CastExpression':
       return (e.targetType === 'integer' || e.targetType === 'float') && isFoldedConstant(e.argument, true)
     default:
@@ -644,7 +643,7 @@ function* evalListLiteral(ctx: InterpreterContext, env: Env, e: ListLiteral): Ex
   return {
     type: 'list',
     value: scriptList(
-      elements.map((r) => r.value),
+      boxedMap(elements, (r) => r.value),
       elements.map((r) => r.type),
     ),
   }
@@ -661,10 +660,7 @@ function* evalBinary(ctx: InterpreterContext, env: Env, e: BinaryExpression): Ex
     if (e.right.kind !== 'CastExpression' || current.type === right.type) right = current
   }
   // An integer constant that meets a float is converted at compile time, to float32.
-  // SLua parses `-K * x` as `-(K * x)`, so a negated LSL constant on the left
-  // of * / % still meets the float as a constant.
-  const negatedOk = e.operator === '*' || e.operator === '/' || e.operator === '%'
-  if (left.type === 'integer' && right.type === 'float' && isFoldedConstant(e.left, false, negatedOk)) left = toFloatConstant(left)
+  if (left.type === 'integer' && right.type === 'float' && isFoldedConstant(e.left, false)) left = toFloatConstant(left)
   if (right.type === 'integer' && left.type === 'float' && isFoldedConstant(e.right, false)) right = toFloatConstant(right)
   return applyBinary(e.operator, left, right)
 }
@@ -825,7 +821,7 @@ function* evalCall(ctx: InterpreterContext, env: Env, call: CallExpression): Exe
   const spec = specFor(call.callee)
   const declared = own(ctx.functions, call.callee)
   // A number passed for a float parameter becomes a 32-bit float before the call.
-  const rawArgs: LslValue[] = evalArgs.map((r, i) =>
+  const rawArgs: LslValue[] = boxedMap(evalArgs, (r, i) =>
     (r.type === 'integer' || r.type === 'float') && (spec?.params[i]?.type ?? declared?.params?.[i]) === 'float'
       ? toFloat32(r.value as number)
       : r.value,

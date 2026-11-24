@@ -3,6 +3,7 @@ import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './
 import { coerce, stringify } from './coerce.js'
 import { concatLists, scriptList } from './list-types.js'
 import { RuntimeError } from '../memory.js'
+import { addFloat, boxedOf, mulFloat, negateFloat, subFloat } from './nan.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -20,14 +21,14 @@ export function applyUnary(op: '-' | '!' | '~', arg: EvalResult): EvalResult {
     case '-':
       if (arg.type === 'integer')
         return { type: 'integer', value: toInt32(-(arg.value as number)) }
-      if (arg.type === 'float') return { type: 'float', value: -(arg.value as number) }
+      if (arg.type === 'float') return { type: 'float', value: negateFloat(arg.value as number) }
       if (isVector(arg.value)) {
         const v = arg.value
-        return { type: 'vector', value: vec(-v.x, -v.y, -v.z) }
+        return { type: 'vector', value: vec(negateFloat(v.x), negateFloat(v.y), negateFloat(v.z)) }
       }
       if (isRotation(arg.value)) {
         const r = arg.value
-        return { type: 'rotation', value: rot(-r.x, -r.y, -r.z, -r.s) }
+        return { type: 'rotation', value: rot(negateFloat(r.x), negateFloat(r.y), negateFloat(r.z), negateFloat(r.s)) }
       }
       throw new Error(`unary '-' not defined for ${arg.type}`)
     case '!':
@@ -219,25 +220,25 @@ function opAdd(a: EvalResult, b: EvalResult): EvalResult {
   }
   // List concat / append / prepend
   if (a.type === 'list' || b.type === 'list') {
-    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : scriptList([a.value], [a.type])
-    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : scriptList([b.value], [b.type])
+    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : scriptList(boxedOf(a.value), [a.type])
+    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : scriptList(boxedOf(b.value), [b.type])
     return { type: 'list', value: concatLists(left, right) }
   }
   // Vector / rotation
   if (isVector(a.value) && isVector(b.value)) {
     return {
       type: 'vector',
-      value: vec(a.value.x + b.value.x, a.value.y + b.value.y, a.value.z + b.value.z),
+      value: vec(addFloat(a.value.x, b.value.x), addFloat(a.value.y, b.value.y), addFloat(a.value.z, b.value.z)),
     }
   }
   if (isRotation(a.value) && isRotation(b.value)) {
     return {
       type: 'rotation',
       value: rot(
-        a.value.x + b.value.x,
-        a.value.y + b.value.y,
-        a.value.z + b.value.z,
-        a.value.s + b.value.s,
+        addFloat(a.value.x, b.value.x),
+        addFloat(a.value.y, b.value.y),
+        addFloat(a.value.z, b.value.z),
+        addFloat(a.value.s, b.value.s),
       ),
     }
   }
@@ -247,7 +248,7 @@ function opAdd(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32((x.value as number) + (y.value as number)) }
-    return { type: 'float', value: (x.value as number) + (y.value as number) }
+    return { type: 'float', value: addFloat(x.value as number, y.value as number) }
   }
   throw new Error(`cannot add ${a.type} and ${b.type}`)
 }
@@ -256,17 +257,17 @@ function opSub(a: EvalResult, b: EvalResult): EvalResult {
   if (isVector(a.value) && isVector(b.value)) {
     return {
       type: 'vector',
-      value: vec(a.value.x - b.value.x, a.value.y - b.value.y, a.value.z - b.value.z),
+      value: vec(subFloat(a.value.x, b.value.x), subFloat(a.value.y, b.value.y), subFloat(a.value.z, b.value.z)),
     }
   }
   if (isRotation(a.value) && isRotation(b.value)) {
     return {
       type: 'rotation',
       value: rot(
-        a.value.x - b.value.x,
-        a.value.y - b.value.y,
-        a.value.z - b.value.z,
-        a.value.s - b.value.s,
+        subFloat(a.value.x, b.value.x),
+        subFloat(a.value.y, b.value.y),
+        subFloat(a.value.z, b.value.z),
+        subFloat(a.value.s, b.value.s),
       ),
     }
   }
@@ -275,7 +276,7 @@ function opSub(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32((x.value as number) - (y.value as number)) }
-    return { type: 'float', value: (x.value as number) - (y.value as number) }
+    return { type: 'float', value: subFloat(x.value as number, y.value as number) }
   }
   throw new Error(`cannot subtract ${b.type} from ${a.type}`)
 }
@@ -285,17 +286,17 @@ function opMul(a: EvalResult, b: EvalResult): EvalResult {
   if (isVector(a.value) && isVector(b.value)) {
     return {
       type: 'float',
-      value: toFloat32(a.value.x * b.value.x + a.value.y * b.value.y + a.value.z * b.value.z),
+      value: toFloat32(addFloat(addFloat(mulFloat(a.value.x, b.value.x), mulFloat(a.value.y, b.value.y)), mulFloat(a.value.z, b.value.z))),
     }
   }
   // vector * float / float * vector → scale
   if (isVector(a.value) && (b.type === 'integer' || b.type === 'float')) {
     const k = toFloat32(b.value as number)
-    return { type: 'vector', value: vec(a.value.x * k, a.value.y * k, a.value.z * k) }
+    return { type: 'vector', value: vec(mulFloat(a.value.x, k), mulFloat(a.value.y, k), mulFloat(a.value.z, k)) }
   }
   if ((a.type === 'integer' || a.type === 'float') && isVector(b.value)) {
     const k = toFloat32(a.value as number)
-    return { type: 'vector', value: vec(b.value.x * k, b.value.y * k, b.value.z * k) }
+    return { type: 'vector', value: vec(mulFloat(b.value.x, k), mulFloat(b.value.y, k), mulFloat(b.value.z, k)) }
   }
   // vector * rotation → rotate vector
   if (isVector(a.value) && isRotation(b.value)) {
@@ -311,7 +312,7 @@ function opMul(a: EvalResult, b: EvalResult): EvalResult {
     const [x, y] = p
     if (x.type === 'integer')
       return { type: 'integer', value: toInt32(Math.imul(x.value as number, y.value as number)) }
-    return { type: 'float', value: (x.value as number) * (y.value as number) }
+    return { type: 'float', value: mulFloat(x.value as number, y.value as number) }
   }
   throw new Error(`cannot multiply ${a.type} and ${b.type}`)
 }
@@ -322,8 +323,8 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
     const k = toFloat32(b.value as number)
     if (k === 0) throw new RuntimeError('Math Error')
     // Mono multiplies by the float reciprocal rather than dividing.
-    const m = toFloat32(1 / k)
-    return { type: 'vector', value: vec(a.value.x * m, a.value.y * m, a.value.z * m) }
+    const m = k === k ? toFloat32(1 / k) : k
+    return { type: 'vector', value: vec(mulFloat(a.value.x, m), mulFloat(a.value.y, m), mulFloat(a.value.z, m)) }
   }
   // vector / rotation → rotate by inverse
   if (isVector(a.value) && isRotation(b.value)) {
@@ -359,7 +360,11 @@ function opMod(a: EvalResult, b: EvalResult): EvalResult {
     const v = b.value
     return {
       type: 'vector',
-      value: vec(u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x),
+      value: vec(
+        subFloat(mulFloat(u.y, v.z), mulFloat(u.z, v.y)),
+        subFloat(mulFloat(u.z, v.x), mulFloat(u.x, v.z)),
+        subFloat(mulFloat(u.x, v.y), mulFloat(u.y, v.x)),
+      ),
     }
   }
   // numeric (integer modulo only in LSL)
