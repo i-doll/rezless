@@ -101,7 +101,8 @@ export const llGetRot: BuiltinImpl = (ctx) => ctx.prim.getPrimParam(PRIM_ROTATIO
 export const llGetLocalRot: BuiltinImpl = (ctx) => ctx.prim.params.rotation
 export const llGetRootRotation: BuiltinImpl = (ctx) => {
   const root = ctx.linkset.prims[0] ?? ctx.prim
-  return root.params.rotation
+  // In an attachment, the wearer's rotation, as llGetRot gives in the root.
+  return root.getPrimParam(PRIM_ROTATION, [], 0)!.values[0]
 }
 
 export const llSetScale: BuiltinImpl = (ctx, args) => {
