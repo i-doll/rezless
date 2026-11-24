@@ -67,9 +67,7 @@ describe('values written through other paths', () => {
     expect(written(await said('paths.lsl', 'lsl'))).toEqual(written(fixture('paths.txt').trimEnd().split('\n')))
   })
 
-  // In-world: Z0 and Z14 read the empty member of {"a":,"z":1} and {"a":1,"m":,"z":1} as
-  // JSON_INVALID; the VM reads an empty member followed by a comma as JSON_NULL.
-  it.fails('reads back every row as Second Life did', async () => {
+  it('reads back every row as Second Life did', async () => {
     expect(await said('paths.lsl', 'lsl')).toEqual(fixture('paths.txt').trimEnd().split('\n'))
   })
 })
