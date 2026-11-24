@@ -951,10 +951,11 @@ export class Linkset {
     const passing = prim !== root && pass !== PASS_ALWAYS && pass !== PASS_NEVER
     const route = () => {
       const own = handlers(prim)
-      return passing && own.length === 0 ? handlers(root) : own
+      if (prim === root) return own
+      const now = prim.params.passTouches
+      return now === PASS_ALWAYS || (now !== PASS_NEVER && own.length === 0) ? [...own, ...handlers(root)] : own
     }
     const receivers = route()
-    if (prim !== root && pass === PASS_ALWAYS) receivers.push(...handlers(root))
     const avatar = opts.avatar ?? { key: this.owner, name: '' }
     const by = avatar.key.toLowerCase()
     const detected: DetectedEntry[] = [
@@ -988,9 +989,10 @@ export class Linkset {
     // In-world: the release went where a click would have gone at that moment. A click passed to
     // the root while the child's touch scripts had not started, or were stopped, ended in the
     // child once one of them ran; the root got no touch_end and kept getting touch. A click
-    // taken by the child's only touch script, stopped before the release, raised touch_end in
-    // the root. A script reached only by the release got touch_end alone, which also ended a
-    // click it was still holding.
+    // taken by the child's only touch script, stopped or moved to a state with no touch
+    // handler before the release, raised touch_end in the root. A child that set PASS_NEVER
+    // during a passed click kept the release from the root. A script reached only by the
+    // release got touch_end alone, which also ended a click it was still holding.
     const released = passing ? route() : receivers
     const late = released.filter((s) => !clicks.has(s))
     for (const s of late) {

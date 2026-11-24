@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { loadLinkset } from '../src/index.js'
 
+const NULL_KEY = '00000000-0000-0000-0000-000000000000'
+
 // Measured on Aditi, SLua Tideland, 2026-11-24, with a two-prim box: 50 probe scripts in the root
 // and one in the child, each compiled on its own, so that a copy started its root scripts over
 // about a second and the child's script after them. Each script logged its state_entry,
@@ -198,13 +200,79 @@ default { touch_start(integer k) { got += ["start", llDetectedLinkNumber(0)]; } 
     setRunning(800, false)
     linkset.touch(2, { hold: 2000 })
     linkset.touch(1)
+    const stuck = touches('child')
     setRunning(500, true)
     linkset.touch(2, { hold: 2000 })
     expect(got('child')).toEqual(['start', 2, 'end', 2])
     const child = touches('child')
+    expect(child).toBeGreaterThan(stuck + 30)
     const root = touches('root')
     linkset.advanceTime(1000)
     expect(touches('child')).toBe(child)
     expect(touches('root')).toBe(root + 23)
+  })
+
+  it('raises touch_end in the root when the child script that took the click changes to a state with no touch handler', async () => {
+    // In-world: the child's touch_start moved it to a state with no touch handler 0.5 s into a
+    // 1.5 s hold. The root got touch_end at the release, with no touch_start and no touch. Back
+    // in its first state, the child's next click raised no touch_start, one touch and touch_end.
+    const child = `list got; integer n; integer went;
+default {
+  touch_start(integer k) { got += ["start", llDetectedLinkNumber(0)]; if (!went) { went = TRUE; llSetTimerEvent(0.5); } }
+  touch(integer k) { ++n; }
+  touch_end(integer k) { got += ["end", llDetectedLinkNumber(0)]; }
+  timer() { llSetTimerEvent(0); state idle; }
+}
+state idle { link_message(integer s, integer k, string m, key id) { state default; } }`
+    const { linkset, got, touches } = await box(child)
+    linkset.touch(2, { hold: 1500 })
+    linkset.advanceTime(100)
+    expect(got('root')).toEqual(['end', 2])
+    expect(touches('root')).toBe(0)
+    expect(got('child')).toEqual(['start', 2])
+    linkset.deliverLinkMessage(1, 2, 0, 'back', NULL_KEY)
+    linkset.advanceTime(100)
+    const before = touches('child')
+    linkset.touch(2)
+    expect(got('child')).toEqual(['start', 2, 'end', 2])
+    expect(touches('child')).toBe(before + 1)
+  })
+
+  it('keeps the release from the root when the child sets PASS_NEVER during a passed click', async () => {
+    // In-world: the click passed to the root, and the child's script called
+    // llPassTouches(PASS_NEVER) 0.5 s into a 1.5 s hold. The root got no touch_end and kept
+    // getting touch, and the child's next click reached nobody.
+    const passer = 'default { link_message(integer s, integer n, string m, key k) { llPassTouches(PASS_NEVER); } }'
+    const { linkset, scripts, got, touches } = await box(passer)
+    linkset.clock.scheduleTask(scripts.child!, linkset.clock.now + 500, () => linkset.deliverLinkMessage(1, 2, 0, 'go', NULL_KEY))
+    linkset.touch(2, { hold: 1500 })
+    linkset.advanceTime(100)
+    expect(got('root')).toEqual(['start', 2])
+    const held = touches('root')
+    linkset.touch(2)
+    linkset.advanceTime(1000)
+    expect(got('root')).toEqual(['start', 2])
+    expect(touches('root')).toBe(held + 23)
+  })
+
+  it('raises touch_end alone in a root script that starts during a click passed to the root', async () => {
+    // In-world, twice: a root script added not running, set running 0.5 s into a 1.5 s hold on a
+    // child with no scripts, got touch_end at the release, with no touch_start and no touch.
+    const { linkset, scripts } = await loadLinkset({ owner: OWNER, prims: [
+      { scripts: [
+        { name: 'root', source: { source: LSL, filename: 'root.lsl' } },
+        { name: 'late', source: { source: LSL, filename: 'late.lsl' } },
+      ] },
+      { scripts: [] },
+    ] })
+    scripts.late!.running = false
+    linkset.startAll([scripts.root!])
+    linkset.advanceTime(1000)
+    linkset.clock.scheduleTask(scripts.late!, linkset.clock.now + 500, () => { scripts.late!.running = true; scripts.late!.start() })
+    linkset.touch(2, { hold: 1500 })
+    linkset.advanceTime(100)
+    expect(scripts.root!.global('got')).toEqual(['start', 2, 'end', 2])
+    expect(scripts.late!.global('got')).toEqual(['end', 2])
+    expect(scripts.late!.global('n')).toBe(0)
   })
 })
