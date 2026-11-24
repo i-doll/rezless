@@ -18,6 +18,7 @@ async function said(source: string) {
     return [label!, rest!]
   }))
 }
+const vectors = (csv: string) => csv.match(/<[^>]*>/g)!
 const table = (lines: string[]) => new Map(lines.map((l) => {
   const [label, rest] = l.split(' | ')
   return [label!, rest!]
@@ -212,6 +213,7 @@ default {
   ])
 
   it('rounds every step to single precision, in the order Second Life sums the terms', async () => {
+    // In-world: every one of the 60 results below, to the last printed digit.
     expect(await said(PROBE)).toEqual(IN_WORLD)
   })
 })
@@ -219,7 +221,7 @@ default {
 describe('signed zeros and NaN signs in a division by a rotation', () => {
   // z is (float)"0" and nz its negation; P, N, inf and ninf as above. Z1 to Z3 are divisions with
   // zero parts, Z4 the matching products, F1 divisions where a NaN part, an infinity and a zero
-  // meet. E1 and E2 are llRot2Fwd, llRot2Left and llRot2Up of rotations near the largest float.
+  // meet. E1, E2, G1 and G2 are llRot2Fwd, llRot2Left and llRot2Up of rotations near the largest float.
   const PROBE = `float z; float nz; float e; float f;
 say(string label, list l) { llSay(0, label + " | " + llList2CSV(l)); }
 default {
@@ -251,10 +253,25 @@ default {
   const SIGNS_IN_WORLD = table([
     'F1 | <nan, -nan, -nan>, <nan, nan, -nan>, <nan, nan, nan>, <nan, -nan, -nan>, <nan, nan, -nan>, <-nan, nan, -nan>, <-nan, nan, -nan>, <nan, -nan, -nan>',
   ])
+  const NEGATIVE = `float b; float c;
+default {
+  state_entry() {
+    b = (float)"1e20"; c = (float)"1e19";
+    rotation M1 = <-b, b, b, -b>; rotation M2 = <-c, -c, -c, -c>; rotation M3 = <-b, 0.0, 0.0, 0.0>; rotation M4 = <0.0, -b, 0.0, b>; rotation M5 = <b, -b, -b, b>;
+    llSay(0, "G1 | " + llList2CSV([llRot2Fwd(M1), llRot2Left(M1), llRot2Up(M1), llRot2Fwd(M2), llRot2Left(M2), llRot2Up(M2)]));
+    llSay(0, "G2 | " + llList2CSV([llRot2Fwd(M3), llRot2Left(M3), llRot2Up(M3), llRot2Fwd(M4), llRot2Left(M4), llRot2Up(M4), llRot2Fwd(M5), llRot2Left(M5), llRot2Up(M5)]));
+  }
+}`
+  const NEGATIVE_IN_WORLD = table([
+    'G1 | <1.000000, -0.000000, 0.000000>, <0.000000, 1.000000, 0.000000>, <-0.000000, 0.000000, 1.000000>, <1.000000, 0.000000, 0.000000>, <0.000000, 1.000000, 0.000000>, <0.000000, 0.000000, 1.000000>',
+    'G2 | <1.000000, 0.000000, -0.000000>, <-0.000000, 1.000000, 0.000000>, <0.000000, 0.000000, 1.000000>, <1.000000, 0.000000, 0.000000>, <-0.000000, 1.000000, 0.000000>, <0.000000, -0.000000, 1.000000>, <1.000000, -0.000000, 0.000000>, <0.000000, 1.000000, 0.000000>, <-0.000000, 0.000000, 1.000000>',
+  ])
   let got: Map<string, string>
   beforeAll(async () => { got = await said(PROBE) })
 
   it('gives the zero signs Second Life gives', () => {
+    // In-world: <0.5, 2, 0> / <0, -1, 0, 0> gave <-0.500000, 2.000000, -0.000000> but
+    // <1, -1, 0> / <0, 0, 0, -1> gave <1.000000, -1.000000, 0.000000> (Z1).
     for (const label of ['Z1', 'Z2', 'Z3', 'Z4']) expect(got.get(label), label).toBe(IN_WORLD.get(label))
   })
 
@@ -266,7 +283,13 @@ default {
     // In-world: <1e19, 1e19, 1e19, 1e19>, where no square overflows but their sum does, gave the
     // unturned axes too.
     expect(got.get('E1')).toBe(IN_WORLD.get('E1'))
-    expect(got.get('E2')!.split('>, ').slice(0, 3)).toEqual(IN_WORLD.get('E2')!.split('>, ').slice(0, 3))
+    expect(vectors(got.get('E2')!).slice(0, 3)).toEqual(vectors(IN_WORLD.get('E2')!).slice(0, 3))
+  })
+
+  it('keeps the signs of the zeros of an overflowing rotation with negative parts', async () => {
+    // In-world: llRot2Fwd(<-1e20, 1e20, 1e20, -1e20>) gave <1.000000, -0.000000, 0.000000>, and
+    // so on (G1, G2).
+    expect(await said(NEGATIVE)).toEqual(NEGATIVE_IN_WORLD)
   })
 
   it.fails('llRot2Fwd of <1.3e19, 0, 1.3e19, 0> prints its x as -0.000000', () => {

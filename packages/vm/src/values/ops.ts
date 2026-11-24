@@ -421,6 +421,12 @@ const positiveNaN = (n: number) => n !== n && !isNegativeNaN(n)
  */
 const productNaN = (anyPositive: boolean) => (anyPositive ? POSITIVE_NAN : NEGATIVE_NAN)
 
+/** A rotation's squared length, summed in single precision. */
+export function squaredLengthF32(q: Rotation) {
+  const f32 = Math.fround
+  return f32(f32(f32(f32(q.x * q.x) + f32(q.y * q.y)) + f32(q.z * q.z)) + f32(q.s * q.s))
+}
+
 /**
  * Second Life's quaternion normalise, in single precision: it leaves a
  * rotation within 1e-6 of unit length as it is, and turns one of length 1e-7
@@ -428,7 +434,7 @@ const productNaN = (anyPositive: boolean) => (anyPositive ? POSITIVE_NAN : NEGAT
  */
 export function normalizeRotation(q: Rotation): Rotation {
   const f32 = Math.fround
-  const m = f32(Math.sqrt(f32(f32(f32(f32(q.x * q.x) + f32(q.y * q.y)) + f32(q.z * q.z)) + f32(q.s * q.s))))
+  const m = f32(Math.sqrt(squaredLengthF32(q)))
   if (!(m > f32(1e-7))) return rot(0, 0, 0, 1)
   if (Math.abs(f32(1 - m)) <= 1e-6) return q
   const k = f32(1 / m)
@@ -452,7 +458,8 @@ const negatePart = (p: Part): Part => (typeof p === 'number' ? -p : p.negative ?
 /** A NaN made from two numbers (inf - inf, 0 * inf) is negative. */
 const made = (r: number): Part => (r === r ? Math.fround(r) : NEGATIVE_PART)
 
-// Each step is single precision, and a NaN operand passes on with its sign, the left one first.
+// Each step is single precision, and a NaN operand passes on with its sign. Unlike a script's
+// float operators (nanResult), when both are NaN the left one wins, as measured.
 const pAdd = (a: Part, b: Part) => (typeof a !== 'number' ? a : typeof b !== 'number' ? b : made(a + b))
 const pSub = (a: Part, b: Part) => (typeof a !== 'number' ? a : typeof b !== 'number' ? b : made(a - b))
 const pMul = (a: Part, b: Part) => (typeof a !== 'number' ? a : typeof b !== 'number' ? b : made(a * b))
@@ -478,9 +485,9 @@ function divideRotation(a: Rotation, b: Rotation): Rotation {
 }
 
 /**
- * LSL `v / q`: v turned by q's conjugate i, as i * (v * q) in two quaternion
- * products, every step in single precision with the terms summed in Mono's
- * order.
+ * LSL `v / q`: v turned by q's conjugate i, as the Hamilton products t = i v
+ * and then t q, every step in single precision with the terms summed in
+ * Mono's order.
  */
 function divideVector(v: Vector, q: Rotation): Vector {
   const vx = part(v.x), vy = part(v.y), vz = part(v.z)

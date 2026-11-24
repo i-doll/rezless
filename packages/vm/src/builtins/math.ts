@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, rot, vec } from '../values/types.js'
-import { normalizeRotation, rotateVector } from '../values/ops.js'
+import { normalizeRotation, rotateVector, squaredLengthF32 } from '../values/ops.js'
 import { NEGATIVE_NAN, POSITIVE_NAN, addFloat, mulFloat, nanResult, subFloat } from '../values/nan.js'
 
 /** llAbs(integer val) — absolute value (integer). */
@@ -355,7 +355,7 @@ function rotationAxis(arg: LslValue | undefined, row: 0 | 1 | 2): Vector {
   const axis = AXES[row]!
   const length = Math.hypot(q.x, q.y, q.z, q.s)
   if (length === 0) return vec(axis[0], axis[1], axis[2])
-  if (Number.isFinite(f32(f32(f32(f32(q.x * q.x) + f32(q.y * q.y)) + f32(q.z * q.z)) + f32(q.s * q.s)))) {
+  if (Number.isFinite(squaredLengthF32(q))) {
     const v = rotateVector(vec(axis[0], axis[1], axis[2]), rot(q.x / length, q.y / length, q.z / length, q.s / length))
     return vec(flushTiny(v.x), flushTiny(v.y), flushTiny(v.z))
   }
