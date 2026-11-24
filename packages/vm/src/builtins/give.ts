@@ -1,7 +1,7 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { InventoryItem } from '../inventory.js'
 import { InventoryType, forNextOwner, freeInventoryName, queueInventoryChanged } from '../inventory.js'
-import { raiseInventoryChanged } from '../prim-changed.js'
+import { raiseDropChanged, raiseInventoryChanged } from '../prim-changed.js'
 import type { Prim } from '../prim.js'
 import type { LslValue } from '../values/types.js'
 import { NULL_KEY } from '../values/types.js'
@@ -55,10 +55,12 @@ function deliver(ctx: CallContext, kind: InventoryOffer['kind'], target: string,
     if (!own) for (const item of copies) {
       prim.placeInventory({ ...item, name: freeInventoryName(prim.inventory, item.name), acquireTimeMs: ctx.state.clock.now })
     }
-    for (const script of prim.inventoryChangeListeners()) {
-      if (dropped) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
-      else if (prim.linkset === ctx.linkset) raiseInventoryChanged(script)
-      else queueInventoryChanged(script)
+    for (const script of prim.changeListeners()) {
+      if (prim.linkset !== ctx.linkset) {
+        if (dropped) ctx.state.clock.scheduleOn(script, ctx.state.clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
+        else queueInventoryChanged(script)
+      } else if (dropped) raiseDropChanged(script)
+      else raiseInventoryChanged(script)
     }
   }
   ctx.state.inventoryOffers.push({ kind, target, folder: prim ? null : folder, rootPath: [...rootPath], items: copies })
