@@ -104,14 +104,20 @@ describe('a shift-drag copy of an object whose targeting script is stopped', () 
     expect(copy.prims[0]!.params.position.z).toBeCloseTo(GROUND + 1, 2)
   })
 
-  it('keeps the look target acting in the copy', async () => {
+  // In-world (Aditi, SLua Tideland, 2026-11-24, three runs): a physical box with friction 0 whose
+  // script called llRotLookAt(90 degrees about Z, 2.0, 1.0) was stopped mid-turn with the Running
+  // checkbox, spun on past 90 degrees, and was duplicated 1.2 m to the side. Started in the copy,
+  // the script left the copy at 132 to 137 degrees for 8 s; started in the original, it turned
+  // the original back toward 90 degrees.
+  it('gives the copy no look target, even once the script starts in it', async () => {
     const f = await box()
     f.m.running = false
     const copy = f.linkset.duplicate()
     const root = copy.prims[0]!.params
     root.rotation = { x: 0, y: 0, z: 0, s: 1 }
+    copy.prims[0]!.findScript('M')!.running = true
     copy.advanceTime(4_000)
-    expect(root.rotation.z).toBeCloseTo(Math.SQRT1_2, 2)
+    expect(root.rotation).toEqual({ x: 0, y: 0, z: 0, s: 1 })
   })
 })
 
