@@ -345,17 +345,17 @@ function matrixToRotation(m: number[][]): Rotation {
 const AXES: Row[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 
 /**
- * An axis turned by a rotation. A NaN or infinite rotation is normalised as
- * Second Life does it, in single precision, and the axis read from its
- * matrix: a NaN rotation gives the unturned axis, and an infinite part
- * becomes a NaN.
+ * An axis turned by a rotation. A NaN or infinite rotation, or one whose
+ * squared length overflows a float, is normalised as Second Life does it, in
+ * single precision, and the axis read from its matrix: a NaN or overflowing
+ * rotation gives the unturned axis, and an infinite part becomes a NaN.
  */
 function rotationAxis(arg: LslValue | undefined, row: 0 | 1 | 2): Vector {
   const q = (arg as Rotation | undefined) ?? rot(0, 0, 0, 1)
   const axis = AXES[row]!
   const length = Math.hypot(q.x, q.y, q.z, q.s)
   if (length === 0) return vec(axis[0], axis[1], axis[2])
-  if (Number.isFinite(length)) {
+  if (Number.isFinite(f32(f32(f32(f32(q.x * q.x) + f32(q.y * q.y)) + f32(q.z * q.z)) + f32(q.s * q.s)))) {
     const v = rotateVector(vec(axis[0], axis[1], axis[2]), rot(q.x / length, q.y / length, q.z / length, q.s / length))
     return vec(flushTiny(v.x), flushTiny(v.y), flushTiny(v.z))
   }
