@@ -618,9 +618,11 @@ export class Linkset {
   private standSitters(caller?: Script): void {
     // In-world, after a sleep the SLua caller of llBreakLink or llBreakAllLinks got changed(32)
     // ahead of a link message it sent next with one sitter, and behind it with another, as with
-    // llUnSit. Both get the order rezless gives llUnSit.
+    // llUnSit. Both get the order rezless gives llUnSit. In LSL the stand's changed(32) came with
+    // the link change, a frame late.
     for (const avatar of this.sitters()) {
       if (caller?.language === 'slua') this.world!.unsitFrom(avatar, caller)
+      else if (caller) this.world!.unsitFrom(avatar, caller, true)
       else this.world!.standAvatar(avatar)
     }
   }

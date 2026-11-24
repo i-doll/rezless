@@ -1653,6 +1653,15 @@ export class Script {
     return this.task?.startedAt
   }
 
+  /** Whether the running handler has gone on past the instant it began, after a sleep or a busy spell. */
+  get handlerWentOn(): boolean {
+    const startedAt = this.stepping?.startedAt
+    return startedAt !== undefined && startedAt < this.now
+  }
+
+  /** The task whose handler is running now. */
+  private stepping: Task | null = null
+
   /**
    * In-world: a sleep did not run down while the worn object was in inventory. `since` is when
    * it went there; a handler that started later has only been asleep since its own start.
@@ -1718,8 +1727,10 @@ export class Script {
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
     const outerBusy = this.busyRun
+    const outerTask = this.stepping
     this.handling = true
     this.busyRun = task.busy === true
+    this.stepping = task
     try {
       r = task.run.next()
     } catch (e) {
@@ -1728,6 +1739,7 @@ export class Script {
     } finally {
       this.handling = outer
       this.busyRun = outerBusy
+      this.stepping = outerTask
       if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {
