@@ -12,6 +12,7 @@ const looper = `list log;
     moving_start() { log += "moving_start"; }
     moving_end() { if (llGetObjectDesc() == "sleeps") llSleep(1.0); log += "moving_end"; }
     on_rez(integer p) { log += "rez"; }
+    touch_start(integer n) { log += "touch"; llSleep(6.0); log += "woke"; }
     link_message(integer f, integer n, string m, key id) {
       if (m == "go") llSetKeyframedMotion([<0, 0, 0.3>, 1.0, <0, 0, -0.3>, 1.0], [KFM_MODE, KFM_LOOP, KFM_DATA, KFM_TRANSLATION]);
     }
@@ -48,6 +49,27 @@ describe('a script that first starts in a moving object', () => {
     b.linkset.advanceTime(100)
     expect(added.global('log')).toEqual(['entry', 'moving_start'])
     b.linkset.advanceTime(3_000)
+    expect(added.global('log')).toEqual(['entry', 'moving_start'])
+  })
+
+  // In-world: a script added stopped to a box in looping keyframed motion, then set running ->
+  // state_entry, then moving_start. The same script stopped, reset and set running again ->
+  // state_entry, then moving_start (Aditi, SLua Tideland, 2026-11-24).
+  it('tells a script added stopped that its object moves when it is started', async () => {
+    const b = await box()
+    go(b)
+    b.linkset.advanceTime(500)
+    const added = await addScript(b.prim, { name: 'added', source: { source: watcher } }, { running: false })
+    b.linkset.advanceTime(500)
+    expect(added.global('log')).toEqual([])
+    added.running = true
+    b.linkset.advanceTime(100)
+    expect(added.global('log')).toEqual(['entry', 'moving_start'])
+    added.running = false
+    added.reset()
+    b.linkset.advanceTime(500)
+    added.running = true
+    b.linkset.advanceTime(100)
     expect(added.global('log')).toEqual(['entry', 'moving_start'])
   })
 
@@ -92,5 +114,26 @@ describe('Take of an object in keyframed motion', () => {
     expect(logOf(b.linkset)).toEqual(['entry', 'moving_start'])
     rezzed.advanceTime(2_000)
     expect(logOf(rezzed)).toEqual(['entry', 'moving_start', 'moving_end', 'rez'])
+  })
+
+  // In-world: a looping box touched into a 6 s sleep and taken during it -> no moving_end before it
+  // went; the box rezzed from the item logged woke, rez and then moving_end. Take Copy in the same
+  // sleep -> the original woke with neither event, and the rezzed copy logged woke, rez and then
+  // moving_end (Aditi, SLua Tideland, 2026-11-24).
+  it.each([false, true])('gives a script asleep at the Take its moving_end after the rez (copy: %s)', async (copy) => {
+    const b = await box()
+    go(b)
+    b.linkset.advanceTime(1_500)
+    b.world.clock.schedule(b.script, b.world.clock.now, 'touch_start', { num_detected: 1 })
+    b.linkset.advanceTime(100)
+    const taken = b.world.attemptAvatarTake(b.avatar, b.prim, { copy }).object!
+    if (copy) {
+      b.linkset.advanceTime(7_000)
+      expect(logOf(b.linkset)).toEqual(['entry', 'moving_start', 'touch', 'woke'])
+    }
+    seedRlvInventory(b.avatar, { sharedRootId: null, entries: [{ id: 'taken', kind: 'item', parentId: null, name: 'probe', object: taken, assetType: 'object' }] })
+    const rezzed = b.world.attemptAvatarRez(b.avatar, 'taken', { x: 128, y: 130, z: 100 }).object!
+    rezzed.advanceTime(7_000)
+    expect(logOf(rezzed)).toEqual(['entry', 'moving_start', 'touch', 'woke', 'rez', 'moving_end'])
   })
 })

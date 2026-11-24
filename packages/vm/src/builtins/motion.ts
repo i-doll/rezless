@@ -335,13 +335,14 @@ const selecting = new WeakSet<KeyframedMotion>()
 
 /**
  * A copy taken of a selected object holds its motion paused and has been told of no motion:
- * in-world the object rezzed from the item got on_rez only.
+ * in-world the object rezzed from the item got on_rez only. A script asleep in a handler at the
+ * Take or Take Copy keeps the moving_end it was not told yet: the rezzed object finished the
+ * handler, got on_rez and then moving_end (Aditi, SLua Tideland, 2026-11-24).
  */
 export function stillCopy(copy: Linkset): void {
   for (const script of copy.allScripts()) {
     copy.clock.purgeWhere((e) => e.target === script && (e.event === 'moving_start' || e.event === 'moving_end'))
-    held.delete(script)
-    given.set(script, 'moving_end')
+    if (!held.has(script)) given.set(script, 'moving_end')
   }
 }
 

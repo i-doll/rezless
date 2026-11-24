@@ -1977,6 +1977,7 @@ export class Script {
     if (!this.running) return
     if (this.parkedEvents.length === 0) return
     const events = this.parkedEvents.splice(0, this.parkedEvents.length)
+    if (events.some(e => e.event === 'state_entry')) forgetMoving(this)
     const at = this.now
     for (const e of events) {
       this.clockView.schedule(at, e.event, e.payload)
