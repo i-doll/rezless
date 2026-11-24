@@ -123,6 +123,8 @@ export interface ScriptOptions {
   readonly objectName?: string
   /** Script name returned by llGetScriptName. Defaults to filename basename or "script". */
   readonly scriptName?: string
+  /** The script item's creator, returned by llGetInventoryCreator. Defaults to NULL_KEY, as for a Library script. */
+  readonly creator?: string
   /**
    * Host prim. If omitted, a 1-prim default linkset is auto-allocated. Pass
    * a prim that's already been added to a Linkset to opt into multi-script.
@@ -410,7 +412,7 @@ export class Script {
     // construction (e.g. a Stack-Heap Collision in a global) leaves no trace.
     this.instanceId = scriptInstanceId(host, this.scriptName)
     if (!host.scripts.includes(this)) {
-      host.addScript(this)
+      host.addScript(this, options.creator === undefined ? {} : { creator: options.creator })
     }
   }
 

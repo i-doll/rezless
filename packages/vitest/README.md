@@ -94,6 +94,7 @@ await loadScript({
   objectKey: 'cccc-dddd-...',     // optional, derived from filename
   objectName: 'StarterCube',      // optional, "Object" default
   scriptName: 'greeter',          // optional, derived from filename
+  creator: 'eeee-ffff-...',       // optional, the key llGetInventoryCreator returns for the script, NULL_KEY default. Also a loadLinkset and addScript script option
   autoGrantPermissions: 'none',   // optional: 'sl', 'none' or (request) => boolean; default is the world's setting. Also a loadLinkset option, per linkset and per script
   functions: {                    // optional, unlisted functions you'll mock
     llNewThing: { returns: 'integer', params: ['string'] },
