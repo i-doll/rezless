@@ -5,7 +5,7 @@ import { pauseTargets, resumeTargets } from './builtins/targets.js'
 import { flushDamageEvents } from './builtins/damage.js'
 import { playCollisionSounds, playLandSound } from './builtins/collision.js'
 import { copyMovingState, copyPhysicalMotion, duplicatedPhysical, queueMoving, SELECTION_MS, selectMotion, selectPhysical, setVelocity } from './builtins/motion.js'
-import { LATE_TOUCH_START, LinksetClock, cameUp, type QueuedEvent } from './clock.js'
+import { LATE_TOUCH_START, LinksetClock, SIM_FRAME_MS, cameUp, type QueuedEvent } from './clock.js'
 import { Prim } from './prim.js'
 import { restepRezzedShape } from './prim-params.js'
 import type { Script } from './script.js'
@@ -120,15 +120,17 @@ function repeater(clock: LinksetClock) {
 
 function scheduleTouch(s: Script, event: string, detected: ReadonlyArray<DetectedEntry>, extra?: { held?: false; late?: true }): void {
   if (!s.handles(event)) return
-  s.linkset.clock.scheduleTouch(s, event, { num_detected: 1, detected, ...(extra?.late && { [LATE_TOUCH_START]: true }) }, extra?.held)
+  s.linkset.clock.scheduleTouch(s, event, { num_detected: detected.length, detected, ...(extra?.late && { [LATE_TOUCH_START]: true }) }, extra?.held)
 }
+
+const detectedIn = (e: QueuedEvent) => (e.payload['detected'] as ReadonlyArray<DetectedEntry> | undefined) ?? []
 
 /** The touch events waiting for `s` that list the avatar `by`, or that list someone else. */
 function waitingTouches(s: Script, event: string, by: string) {
-  const lists = (e: QueuedEvent) => ((e.payload['detected'] as ReadonlyArray<DetectedEntry> | undefined) ?? []).some((d) => d.key?.toLowerCase() === by)
+  const lists = (e: QueuedEvent) => detectedIn(e).some((d) => d.key?.toLowerCase() === by)
   const clock = s.linkset.clock
   const waiting = clock.pendingEvents().filter((e) => e.target === s && e.event === event && e.at <= clock.now)
-  return { own: waiting.some(lists), other: waiting.some((e) => !lists(e)) }
+  return { own: waiting.some(lists), other: waiting.find((e) => !lists(e)) }
 }
 
 /**
@@ -182,6 +184,9 @@ const repeatMs = (s: Script) => s.language === 'slua' ? TOUCH_REPEAT_MS / 2 : TO
 function raiseHeldTouches(clock: LinksetClock): void {
   for (const s of repeater(clock).scripts) {
     if (!raising(s)) continue
+    // In-world: while i doll and fivebot both held a click, each touch listed both, i doll first,
+    // in LSL and SLua.
+    const raised = { held: [] as DetectedEntry[], plain: [] as DetectedEntry[] }
     for (const [by, click] of s.heldClicks) {
       if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
       click.dueAt += repeatMs(s)
@@ -190,19 +195,29 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // sleep kept one.
       if (!s.handles('touch') || s.handlerEvent === 'touch') continue
       // In-world: while another handler slept or spun, fivebot's held click raised no touch of
-      // its own when i doll's touch waited. In three runs each with a listen and a timer
-      // sleeping, i doll's touch listed fivebot too in half of them; it lists i doll alone here.
+      // its own when i doll's touch waited. In LSL, i doll's touch listed fivebot too when it
+      // came up a frame or more after the handler started (5 of 13 runs with a timer that slept
+      // 3 s), and listed i doll alone when it came up in the handler's first frame (the other
+      // 8). SLua raises a held click's touch every frame, so it came up in the first frame and
+      // listed i doll alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
-      const touches = running ? waitingTouches(s, 'touch', by) : { own: false, other: false }
+      const touches = running ? waitingTouches(s, 'touch', by) : { own: false, other: undefined }
       if (touches.other) {
+        const other = touches.other
+        const detected = detectedIn(other)
+        if (s.handlerEvent !== 'touch_start' && cameUp(other) >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !detected.some((d) => d.key?.toLowerCase() === by)) {
+          other.payload['detected'] = [...detected, ...click.detected]
+          other.payload['num_detected'] = detected.length + click.detected.length
+        }
         click.touched = true
         continue
       }
       // In-world: a held click's touch from a sleep in touch_start, or a spin in listen, after
       // its touch_start ran, came ahead of a listen that came up later; its touch_end waited
-      // behind that listen.
-      const plain = running && !waitingTouches(s, 'touch_start', by).own
-      if (plain && touches.own) continue
+      // behind that listen. In LSL, i doll's touch from a touch_end sleep ran behind the
+      // touch_start of fivebot's click in the sleep, 4 runs of 4; in SLua ahead of it, 2 of 2.
+      const plain = running && !waitingTouches(s, 'touch_start', by).own && !(s.language !== 'slua' && s.handlerEvent === 'touch_end')
+      if (touches.own) continue
       // In-world: a map call in the first touch of a held click showed nothing after one in
       // touch_start, and one in a later touch showed the map again.
       // A touch raised before the last one ran merges into it and keeps its data.
@@ -210,8 +225,10 @@ function raiseHeldTouches(clock: LinksetClock): void {
       const detected = !last ? click.detected : deliveredTouches.get(s)?.has(last[0]!) ? fresh(click.detected) : last
       click.touched = true
       click.lastTouch = detected
-      scheduleTouch(s, 'touch', detected, plain ? { held: false } : undefined)
+      raised[plain ? 'plain' : 'held'].push(...detected)
     }
+    if (raised.held.length) scheduleTouch(s, 'touch', raised.held)
+    if (raised.plain.length) scheduleTouch(s, 'touch', raised.plain, { held: false })
   }
 }
 
@@ -1120,16 +1137,20 @@ export class Linkset {
     const firstAt = this.clock.now + firstTouchMs
     for (const s of receivers.filter(live)) {
       // In-world: a script still holding this avatar's earlier click raised no touch_start. Nor
-      // did an LSL script whose touch, touch_start, timer or listen handler slept, or whose listen
-      // spun, while another avatar's click was held; SLua raised it.
-      const crowded = s.language !== 'slua' && s.handlerEvent !== undefined &&
+      // did an LSL script while another avatar's click was held, whether its handlers were idle
+      // (6 runs of 6) or its touch, touch_start, timer or listen handler slept or spun; SLua
+      // raised it. A click pressed while the LSL touch_end handler slept raised it (4 runs of 4).
+      const crowded = s.language !== 'slua' && s.handlerEvent !== 'touch_end' &&
         [...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut)
       // In-world: fivebot's click in a touch_start sleep, while i doll held a click or i doll's
       // touch_end waited, raised its touch_start behind that touch_end, in LSL and SLua.
       const late = s.handlerEvent === 'touch_start' &&
-        ([...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut) || waitingTouches(s, 'touch_end', by).other)
+        ([...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut) || waitingTouches(s, 'touch_end', by).other !== undefined)
       if (!s.heldClicks.has(by) && !crowded) scheduleTouch(s, 'touch_start', detected, late ? { late } : undefined)
-      const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt: firstAt }
+      // In-world: fivebot's touches came on the frames of i doll's held click, merged with them.
+      const beat = [...s.heldClicks].find(([k, c]) => k !== by && c.repeating && !c.released && !c.cut)?.[1].dueAt
+      const dueAt = beat === undefined ? firstAt : beat > this.clock.now + 1e-6 ? beat : beat + repeatMs(s)
+      const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt }
       s.heldClicks.set(by, click)
       clicks.set(s, click)
       repeater(this.clock).scripts.add(s)
