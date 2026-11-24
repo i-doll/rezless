@@ -183,6 +183,9 @@ export class Script {
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
   get hasStarted() { return this.started }
+  /** Left unstarted on purpose, as a duplicate's scripts can be: events raised at it are lost until it starts. */
+  private waiting = false
+  get waitsToStart() { return this.waiting }
   private readonly stubs: 'allow' | 'warn' | 'throw'
   private readonly warnedStubs = new Set<string>()
   /** Per-script clock facade (timer state + time reference). */
@@ -1106,11 +1109,13 @@ export class Script {
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events. An event
-   * fired at a stopped or crashed script is lost, as in Second Life.
+   * fired at a stopped or crashed script is lost, as in Second Life, and so is
+   * one fired at a copy's script that waits for `startAll`.
    */
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
     if (!this.running) return
+    if (this.waiting) return
     if (!this.started) {
       this.started = true
       forgetMoving(this)
@@ -1136,20 +1141,29 @@ export class Script {
   }
 
   /**
-   * Run state_entry of the default state. If the script has been auto-started
-   * (e.g. by an earlier fire), this is a no-op.
+   * Run state_entry of the default state, or for a stopped script, once it is
+   * set running. If the script has been auto-started (e.g. by an earlier fire),
+   * this is a no-op.
    */
   start(): void {
     if (this.state.lifecycle.dead) return
     if (this.started) return
+    // A stopped script runs state_entry once it is set running, as with startAll.
+    if (!this.running) return this.queueStart()
     this.boot()
     this.linkset.settle([this])
+  }
+
+  /** Leave this script unstarted until a start: until then, events raised at it are lost. */
+  holdStart(): void {
+    if (!this.started) this.waiting = true
   }
 
   /** Queue a fresh inventory script's first event without waiting for its handler. */
   queueStart(): void {
     if (this.started || this.dead) return
     this.started = true
+    this.waiting = false
     forgetMoving(this)
     // A script loaded stopped keeps its first event until it is started.
     if (this.running) this.clockView.schedule(this.now, 'state_entry')
@@ -1413,6 +1427,7 @@ export class Script {
 
   private boot(): void {
     this.started = true
+    this.waiting = false
     forgetMoving(this)
     if (this.slua) {
       this.beginSluaMain()

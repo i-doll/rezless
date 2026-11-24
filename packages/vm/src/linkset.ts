@@ -448,7 +448,10 @@ export class Linkset {
     // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
     // two scripts were both counted read 0.75: the region leaves out the copy's last script.
     copy.countedScripts = Math.max(0, copy.allScripts().length - 1)
-    if (startScripts) for (const script of copy.allScripts()) script.queueStart()
+    for (const script of copy.allScripts()) {
+      if (startScripts) script.queueStart()
+      else script.holdStart()
+    }
     duplicatedPhysical(copy, selected)
     return copy
   }
@@ -926,9 +929,9 @@ export class Linkset {
         : this.prims.find((p) => p.linkNumber === link)
     if (!prim) throw new Error(`touch: no prim with link number ${link}`)
     const root = this.prims[0]!
-    for (const s of new Set([...prim.scripts, ...root.scripts])) if (s.running) s.start()
+    for (const s of new Set([...prim.scripts, ...root.scripts])) if (s.running && !s.waitsToStart) s.start()
     const handlers = (p: Prim) =>
-      p.scripts.filter((s) => s.running && !s.dead && TOUCH_EVENTS.some((e) => s.handles(e)))
+      p.scripts.filter((s) => s.running && !s.dead && s.hasStarted && TOUCH_EVENTS.some((e) => s.handles(e)))
     const receivers = handlers(prim)
     const pass = prim.params.passTouches
     if (prim !== root && (pass === PASS_ALWAYS || (pass !== PASS_NEVER && receivers.length === 0))) {

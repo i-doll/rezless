@@ -19,8 +19,8 @@ async function fixtures() {
    prims: [{ scripts: [{ name: 'events', source: { source: `list events; default { attach(key id) { events += [(string)id,llGetAttached()]; } touch_start(integer n) { llOwnerSay(llGetObjectDesc()); } }` } }] }, { scripts: [{ name: 'child', source: { source } }] }] })
   const b = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{}] })
   const nested = await loadLinkset({ world, region: avatar.region, owner: avatar.key, prims: [{}] })
-  a.linkset.attachToAvatar(avatar.key, 1); b.linkset.attachToAvatar(avatar.key, 5); nested.linkset.attachToAvatar(avatar.key, 2)
   a.scripts.events!.start(); a.scripts.child!.start()
+  a.linkset.attachToAvatar(avatar.key, 1); b.linkset.attachToAvatar(avatar.key, 5); nested.linkset.attachToAvatar(avatar.key, 2)
   seedRlvInventory(avatar, { sharedRootId: 'root', entries: [
    { id: 'root', parentId: null, kind: 'folder', name: '#RLV' },
    { id: 'direct', parentId: 'root', kind: 'folder', name: 'Direct' },

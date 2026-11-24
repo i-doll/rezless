@@ -324,6 +324,8 @@ export class LinksetClock {
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean): void {
     if (event !== '__reset' && !target.running) return
+    // In-world: an event raised at a script that had not started yet was lost.
+    if (!target.hasStarted && !event.startsWith('__')) return
     // Due now, in the middle of a sleep: held back even at the instant the handler began.
     const wakeAt = target.wakeAt
     // A busy handler holds events back until it sleeps or ends, also those it raises itself.
