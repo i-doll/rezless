@@ -41,10 +41,17 @@ export function raiseInventoryChanged(script: Script): void {
 export function raiseDropChanged(script: Script): void {
   const clock = script.linkset.clock
   const merge = clock.pendingEvents().find(e => e.target === script && e.event === 'changed' && cameUp(e) === clock.now
-    && ((e.payload['changes'] as number) & (PRIM_CHANGES | CHANGED_ALLOWED_DROP)) !== 0)
+    && (insideDrops.has(e.payload) || ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0))
   if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | CHANGED_ALLOWED_DROP
-  else clock.schedule(script, clock.now, 'changed', { changes: CHANGED_ALLOWED_DROP })
+  else {
+    const payload = { changes: CHANGED_ALLOWED_DROP }
+    insideDrops.add(payload)
+    clock.schedule(script, clock.now, 'changed', payload)
+  }
 }
+
+// Drops raised by gifts from inside the linkset. A drop from another object keeps its own event.
+const insideDrops = new WeakSet<object>()
 
 function raiseChanged(script: Script, changes: number): void {
   const clock = script.linkset.clock

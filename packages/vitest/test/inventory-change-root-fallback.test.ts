@@ -546,6 +546,27 @@ describe('changes to a child whose scripts do not handle changed', () => {
     }
   })
 
+  // In-world: a two-prim object whose child's only script had no changed handler and changed its
+  // own prim on a chat command: llSetColor, llSetAlpha -> changed(2) in the root's script;
+  // llSetPrimMediaParams -> changed(2048) (2 runs); llSetRenderMaterial, set and cleared ->
+  // changed(4096) (2 runs).
+  it.each([
+    ['llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES);', 2],
+    ['llSetAlpha(0.5, ALL_SIDES);', 2],
+    ['llSetPrimMediaParams(0, [PRIM_MEDIA_HOME_URL, "http://example.com/"]);', 2048],
+    [`llSetRenderMaterial("${MATERIAL}", ALL_SIDES);`, 4096],
+  ] as const)('reaches the root\'s scripts for a child script\'s own %s', async (call, bit) => {
+    const made = await loadLinkset({ owner: OWNER, prims: [
+      { name: 'R', scripts: [script('log', logger)] },
+      { name: 'C1', scripts: [script('own', `default { link_message(integer s, integer n, string m, key k) { ${call} } }`)] },
+    ] })
+    made.linkset.startAll()
+    made.linkset.advanceTime(1000)
+    made.scripts['own']!.fire('link_message', { sender_num: 1, num: 0, str: '', id: '' })
+    for (let i = 0; i < 20; i++) made.linkset.advanceTime(100)
+    expect(made.scripts['log']!.global('seen')).toEqual([bit])
+  })
+
   // In-world: llScaleByFactor in the second object -> one changed(8) in each root script and in
   // the child script that handles changed (4 runs).
   it('gives the root\'s scripts one changed for a scale of the whole object', async () => {
