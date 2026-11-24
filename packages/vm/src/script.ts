@@ -1562,10 +1562,12 @@ export class Script {
     return this.task?.wakeAt
   }
 
-  /** Whether the handler is busy computing until `wakeAt`, as a loop that never sleeps is, rather than asleep. */
+  /** Whether the handler is busy, as a loop that never sleeps is: until `wakeAt`, or running on after a busy call. */
   get busy(): boolean {
-    return this.task?.busy === true
+    return this.task?.busy === true || this.busyRun
   }
+
+  private busyRun = false
 
   /** Virtual time the running handler began at, or undefined when the script is idle. */
   get handlerStartedAt(): number | undefined {
@@ -1631,7 +1633,9 @@ export class Script {
     this.quietAttach = false
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
+    const outerBusy = this.busyRun
     this.handling = true
+    this.busyRun = task.busy === true
     try {
       r = task.run.next()
     } catch (e) {
@@ -1639,6 +1643,7 @@ export class Script {
       throw e
     } finally {
       this.handling = outer
+      this.busyRun = outerBusy
       if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {

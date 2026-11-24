@@ -301,8 +301,10 @@ export class LinksetClock {
     if (event !== '__reset' && !target.running) return
     // Due now, in the middle of a sleep: held back even at the instant the handler began.
     const wakeAt = target.wakeAt
-    if (held === undefined && at <= this.now && wakeAt !== undefined && wakeAt > this.now) {
-      held = !target.busy || this.waitsFor(target, event)
+    // A busy handler holds events back until it sleeps or ends, also those it raises itself.
+    if (held === undefined && at <= this.now) {
+      if (target.busy) held = this.waitsFor(target, event)
+      else if (wakeAt !== undefined && wakeAt > this.now) held = true
     }
     held &&= HELD_ORDER.has(event)
     const queued: QueuedEvent = { at, target, event, payload, ...(held !== undefined && { held }), ...(held && target.busy && { busy: true }) }
@@ -321,12 +323,15 @@ export class LinksetClock {
       // A click or a change that merges into one already held back takes no room of its own.
       if (this.mergeWaiting(target, this.queue.filter((e) => e.target === target && e.held && e.at <= this.now), queued)) return
     }
-    if (event !== '__reset' && !HELD_CONTROL.has(event)) {
-      let pending = target.parkedEvents.filter(e => !HELD_CONTROL.has(e.event)).length
-      for (const e of this.queue) if (e.target === target && !HELD_CONTROL.has(e.event)) pending++
-      if (pending >= MAX_PENDING_EVENTS) return
-    }
+    if (event !== '__reset' && !HELD_CONTROL.has(event) && this.full(target)) return
     this.queue.push(queued)
+  }
+
+  /** Whether `target` holds as many queued events as it can. */
+  private full(target: Script): boolean {
+    let pending = target.parkedEvents.filter(e => !HELD_CONTROL.has(e.event)).length
+    for (const e of this.queue) if (e.target === target && !HELD_CONTROL.has(e.event)) pending++
+    return pending >= MAX_PENDING_EVENTS
   }
 
   /** Whether an event of `event`'s kind, of those a busy handler holds back, waits for `target`. */
@@ -566,7 +571,7 @@ export class LinksetClock {
           waking = s
         }
         const tick = Math.max(s.clockView.timerNextFireMs, this.now)
-        if (s.busy && s.clockView.timerIntervalMs > 0 && tick < w && tick <= horizon && tick < tickAt && !this.waitsFor(s, 'timer')) {
+        if (s.busy && s.clockView.timerIntervalMs > 0 && tick < w && tick <= horizon && tick < tickAt && !this.waitsFor(s, 'timer') && !this.full(s)) {
           tickAt = tick
           ticking = s
         }

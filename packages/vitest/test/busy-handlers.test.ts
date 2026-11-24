@@ -17,6 +17,7 @@ const probe = `list log; float spin;
       else if (m == "sleep") { log += "begin"; llSleep(spin); log += "end"; }
       else if (llGetSubString(m, 0, 5) == "timer ") llSetTimerEvent((float)llGetSubString(m, 6, -1));
       else if (m == "sensor") llSensorRepeat("", NULL_KEY, AGENT, 20.0, PI, 2.0);
+      else if (m == "raise") { llSetText("", ZERO_VECTOR, 0); llSetColor(<1, 0, 0>, ALL_SIDES); llMessageLinked(LINK_THIS, 7, "", ""); }
       else log += "heard " + m;
     }
     link_message(integer from, integer n, string s, key id) { log += "link " + (string)n; }
@@ -77,6 +78,15 @@ describe('a handler that is busy, not asleep', () => {
     expect(script.now - before).toBe(2_500)
   })
 
+  // The handler is still busy when it raises an event itself, so the event keeps its place.
+  it('keeps the events the handler raises after the busy call in the order it raised them', async () => {
+    const { script, say, wait, log } = await make(3_000)
+    script.mock('llSetText', (ctx) => { ctx.busy(3_000); return undefined })
+    say('raise')
+    wait(3_000)
+    expect(log()).toEqual(['changed 2', 'link 7'])
+  })
+
   // In-world: two notecards dropped in 3 s apart gave changed(1) twice after the handler; three
   // drops 3 s apart also gave two. Asleep, two drops gave one.
   it.each([[2, 2], [3, 2]])('gives two changed events for %i owner drops', async (drops, events) => {
@@ -133,6 +143,18 @@ describe('a handler that is busy, not asleep', () => {
     expect(log()).toEqual(['begin', 'end', 'timer', 'timer'])
     wait(seconds * 1000)
     expect(log()).toEqual(['begin', 'end', 'timer', 'timer', 'timer'])
+  })
+
+  // With 64 events waiting no tick fits in, so the ticks collapse into one after the handler, as
+  // they do after a sleep.
+  it('gives one timer event after it when its queue is full', async () => {
+    const { begin, wait, say, link, log } = await make(6_000)
+    say('timer 1')
+    wait(500)
+    begin('busy')
+    for (let n = 1; n <= 70; n++) link(n)
+    wait(6_000)
+    expect(log()).toEqual(['begin', 'end', ...Array.from({ length: 64 }, (_, i) => `link ${i + 1}`), 'timer'])
   })
 
   // In-world: a 2 s repeating sensor on the avatar and a 9 s busy handler, with a link message
