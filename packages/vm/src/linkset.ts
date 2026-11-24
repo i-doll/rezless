@@ -634,7 +634,7 @@ export class Linkset {
       : first.statusFlags & (STATUS_PHYSICS | STATUS_PHANTOM) | STATUS_ROTATE_X | STATUS_ROTATE_Y | STATUS_ROTATE_Z
     // In-world, a prim unlinked from an object that detects volume still does.
     const volumeDetect = first.volumeDetect
-    const placed = prims.map((p) => ({ p, pos: p.regionPosition(), rot: p.regionRotation() }))
+    const placed = prims.map((p) => ({ p, pos: p.framePosition(), rot: p.frameRotation() }))
     // A sitter stays where it is in the region when its object gets another root.
     const seated = (this.world?.avatars ?? [])
       .filter((a) => a.sittingOn !== null && prims.includes(a.sittingOn))

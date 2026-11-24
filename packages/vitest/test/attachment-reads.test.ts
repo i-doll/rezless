@@ -406,3 +406,17 @@ describe('llCastRay and attachments', () => {
     expect(f.one('T ray 1 2.5 0 0.4 -3 0 0.4')).toBe('653 T0 ray 1 0')
   })
 })
+
+describe('link changes in an attachment', () => {
+  it('keep the root on its attachment point', async () => {
+    // Whether the region lets a worn object break a link is not covered here; either way the
+    // root's offset and turn on the point stay as they were.
+    const f = await fixture(STANDING.at, STANDING.turn)
+    const script = f.chest.allScripts().find((s) => s.host === f.chest.prims[0])!
+    f.chest.breakOff(f.chest.prims[1]!)
+    expect(f.chest.prims).toHaveLength(1)
+    expect(script.host.params.position).toEqual(v(0.3, 0, 0.1))
+    expect(script.host.params.rotation).toEqual(yaw(-90))
+    expectLine(f.one('C0 pos'), { gp: [...Object.values(STANDING.at)], lp: [0.3, 0, 0.1] })
+  })
+})
