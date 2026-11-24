@@ -222,6 +222,7 @@ export function physicsSwitched(linkset: Linkset, wasPhysical: boolean): void {
   if (!root || !!(root.statusFlags & STATUS_PHYSICS) === wasPhysical) return
   const before = motionOf(linkset)
   before.settle?.()
+  dropRelease(linkset)
   if (wasPhysical) {
     physicalMotion.delete(linkset)
     // In-world: a box floating at 0.5 m/s whose physics was switched off got moving_end, and

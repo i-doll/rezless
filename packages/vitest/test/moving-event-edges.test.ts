@@ -232,6 +232,20 @@ describe('moving events from physical motion', () => {
     expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 21', 'moving_end 23'])
   })
 
+  it('selects an object switched off and on again during a Duplicate selection for the next Duplicate', async () => {
+    const b = await box(physical)
+    send(b, 'on')
+    b.linkset.advanceTime(2_000)
+    b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    b.linkset.advanceTime(100)
+    send(b, 'off')
+    send(b, 'on')
+    b.linkset.advanceTime(100)
+    b.linkset.duplicate({ x: 0, y: 1, z: 0 })
+    b.linkset.advanceTime(2_000)
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 9', 'moving_start 0', 'moving_end 1', 'moving_start 8', 'moving_end 15'])
+  })
+
   it('gives the copy of a physical object that moves no Duplicate selection', async () => {
     const b = await box(physical)
     b.linkset.setVelocity({ x: 0.5, y: 0, z: 0 })
