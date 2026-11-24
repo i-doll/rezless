@@ -51,8 +51,26 @@ default { state_entry() {
     ${calls.map((call, i) => `if (c == ${i}) ${call};`).join('\n    ')}
     out += loc(${L}) - s;
     llSetLinkPrimitiveParamsFast(${L}, [PRIM_POS_LOCAL, s]);
-    if (llVecDist(loc(${L}), s) > 0.001) { if (${L} == 1 && !llGetAttached()) llSetRegionPos(s); }
   }
+} }
+`
+
+/** The several-rule calls of the probe, aimed at link L, each from where L started. */
+const multi = (L: number) => `
+list out;
+vector s;
+next() { out += loc(${L}) - s; llSetLinkPrimitiveParamsFast(${L}, [PRIM_POS_LOCAL, s]); if (${L} == 1) llSetRegionPos(s); }
+default { state_entry() {
+  s = loc(${L});
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_POSITION, s + <8,0,0>, PRIM_POSITION, s + <16,0,0>]); next();
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]); next();
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]); next();
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_POS_LOCAL, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]); next();
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_LINK_TARGET, ${L}, PRIM_POSITION, s + <50,0,0>, PRIM_LINK_TARGET, ${L}, PRIM_POSITION, s + <50,0,0>]); next();
+  llSetLinkPrimitiveParamsFast(LINK_SET, [PRIM_LINK_TARGET, ${L}, PRIM_POSITION, s + <50,0,0>]); next();
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_POSITION, s + <50,0,0>]);
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_POSITION, s + <50,0,0>]); next();
+  llSetLinkPrimitiveParamsFast(${L}, [PRIM_POSITION, s + <50,0,0>, PRIM_SIZE, <0.5,0.5,0.5>]); next();
 } }
 `
 
@@ -97,23 +115,7 @@ describe('PRIM_POSITION on a rezzed root', () => {
   // blocks -> 20; one PRIM_LINK_TARGET from LINK_SET -> 10; two calls in one event -> 20;
   // PRIM_POSITION then PRIM_SIZE -> 10.
   it('takes each position rule from where the root is by then, so rules add up', async () => {
-    const { scripts } = await object(`
-      list out;
-      vector s;
-      next() { out += loc(1) - s; llSetRegionPos(s); }
-      default { state_entry() {
-        s = loc(1);
-        llSetLinkPrimitiveParamsFast(1, [PRIM_POSITION, s + <8,0,0>, PRIM_POSITION, s + <16,0,0>]); next();
-        llSetLinkPrimitiveParamsFast(1, [PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]); next();
-        llSetLinkPrimitiveParamsFast(1, [PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]); next();
-        llSetLinkPrimitiveParamsFast(1, [PRIM_POS_LOCAL, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]); next();
-        llSetLinkPrimitiveParamsFast(1, [PRIM_LINK_TARGET, 1, PRIM_POSITION, s + <50,0,0>, PRIM_LINK_TARGET, 1, PRIM_POSITION, s + <50,0,0>]); next();
-        llSetLinkPrimitiveParamsFast(LINK_SET, [PRIM_LINK_TARGET, 1, PRIM_POSITION, s + <50,0,0>]); next();
-        llSetLinkPrimitiveParamsFast(1, [PRIM_POSITION, s + <50,0,0>]);
-        llSetLinkPrimitiveParamsFast(1, [PRIM_POSITION, s + <50,0,0>]); next();
-        llSetLinkPrimitiveParamsFast(1, [PRIM_POSITION, s + <50,0,0>, PRIM_SIZE, <0.5,0.5,0.5>]); next();
-      } }
-    `)
+    const { scripts } = await object(multi(1))
     expectMoves(scripts.root!.global('out'), [16, 20, 40, 20, 20, 10, 20, 10].map((x) => v(x, 0, 0)))
   })
 
@@ -138,6 +140,43 @@ describe('PRIM_POSITION on a rezzed root', () => {
   })
 })
 
+describe('PRIM_POSITION on the root from a child script', () => {
+  // In-world: a script in the child moved the root with llSetLinkPrimitiveParamsFast(LINK_ROOT,
+  // [PRIM_POSITION, t]) and llSetLinkPrimitiveParams(LINK_ROOT, [PRIM_POS_LOCAL, t]). Rezzed, from
+  // s to s + <11,0,0> and s + <50,0,0> -> 10 m, s + <1,10,0> -> <0.99504,9.95037,0>, two entries of
+  // s + <50,0,0> -> 20. Worn on the chest, to <11,0,0> and <50,0,0> -> <3.5,0,0>, <1,10,0> ->
+  // <0.34826,3.48263,0>, two entries of <50,0,0> -> <3.5,0,0>.
+  const CHILD = (worn: boolean) => `
+list out;
+vector root() { return llList2Vector(llGetLinkPrimitiveParams(LINK_ROOT, [PRIM_POS_LOCAL]), 0); }
+back(vector s) { llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_POS_LOCAL, s]); if (!${worn ? 'TRUE' : 'FALSE'}) llSetRegionPos(s); }
+default { state_entry() {
+  vector s = root();
+  list offs = [<11,0,0>, <50,0,0>, <1,10,0>];
+  integer i;
+  for (i = 0; i < 3; ++i) {
+    vector t = llList2Vector(offs, i);
+    if (!${worn ? 'TRUE' : 'FALSE'}) t += s;
+    llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_POSITION, t]); out += root() - s; back(s);
+    llSetLinkPrimitiveParams(LINK_ROOT, [PRIM_POS_LOCAL, t]); out += root() - s; back(s);
+  }
+  llSetLinkPrimitiveParamsFast(LINK_ROOT, [PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]); out += root() - s;
+} }
+`
+
+  it('caps the rezzed root as the root\'s own script does', async () => {
+    const { scripts } = await object('default { state_entry() { } }', { child: CHILD(false) })
+    const diagonal = v(10 / Math.sqrt(101), 100 / Math.sqrt(101), 0)
+    expectMoves(scripts.child!.global('out'), [v(10, 0, 0), v(10, 0, 0), v(10, 0, 0), v(10, 0, 0), diagonal, diagonal, v(20, 0, 0)])
+  })
+
+  it('keeps the worn root within 3.5 m of its point', async () => {
+    const { scripts } = await object('default { state_entry() { } }', { point: 1, child: CHILD(true) })
+    const far = v(0.34826, 3.48263, 0)
+    expectMoves(scripts.child!.global('out'), [v(3.5, 0, 0), v(3.5, 0, 0), v(3.5, 0, 0), v(3.5, 0, 0), far, far, v(3.5, 0, 0)])
+  })
+})
+
 describe('PRIM_POSITION on a child prim', () => {
   // In-world: moving the child from the root with llSetLinkPrimitiveParams(Fast), PRIM_POSITION or
   // PRIM_POS_LOCAL, and from the child's own script with llSetPrimitiveParams and llSetPos, moved it
@@ -148,17 +187,11 @@ describe('PRIM_POSITION on a child prim', () => {
     expectMoves(scripts.child!.global('out'), times(3, full))
   })
 
-  // In-world: the root's multi-rule calls aimed at the child moved it 16, 50, 50, 50, 50, 50, 50, 50.
-  it('does not let several position rules add up', async () => {
-    const { scripts } = await object(`
-      list out;
-      default { state_entry() {
-        vector s = loc(2);
-        llSetLinkPrimitiveParamsFast(2, [PRIM_POSITION, s + <50,0,0>, PRIM_POSITION, s + <50,0,0>]);
-        out += loc(2) - s;
-      } }
-    `)
-    expectMoves(scripts.root!.global('out'), [v(50, 0, 0)])
+  // In-world: the same several-rule calls as on the rezzed root, aimed at the child, moved it
+  // 16, 50, 50, 50, 50, 50, 50, 50, rezzed, on the chest and on HUD center.
+  it.each([['rezzed', 0], ['worn on the chest', 1], ['worn on HUD center', 35]])('does not let several position rules add up, %s', async (_, point) => {
+    const { scripts } = await object(multi(2), { point })
+    expectMoves(scripts.root!.global('out'), [16, 50, 50, 50, 50, 50, 50, 50].map((x) => v(x, 0, 0)))
   })
 })
 
