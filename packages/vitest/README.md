@@ -3030,6 +3030,10 @@ rezzed object. Through the Pay menu (`{ menu: true }`), an attachment pays its
 wearer as an avatar: RLVa checks `pay` instead of `buy`, and no money event runs.
 The menu has no Pay item for your own attachment, so that payment is `unsupported`
 with reason `not-payable`.
+Under RLVa the Pay menu on another avatar, or on that avatar's attachment, is also
+`blocked` while `shownames` or `shownames_sec` hides the avatar's name. The reason
+names the first blocking rule. An exception for the avatar lifts it, as it does for names. Paying
+without the menu checks only `pay` or `buy`.
 `fixture.payActions` records `paid`, `blocked`, and `unsupported` outcomes,
 including the target, effective recipient, amount and deciding restrictions.
 
