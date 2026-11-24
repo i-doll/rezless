@@ -101,7 +101,9 @@ describe('the touch repeat rate in SLua', () => {
   it('raises touch every simulator frame in SLua and every second frame in LSL, in the same prim', async () => {
     // In-world: an LSL and an SLua script in one prim, held 2 s. The SLua script got touch
     // 0.021 s after touch_start and then every 0.022 s, 89 by the release; the LSL script got
-    // 44, every 0.044 s.
+    // 44, every 0.044 s. The in-world release came a frame late, and the first LSL touch two
+    // frames after touch_start, which other LSL probes did not show; rezless releases on time,
+    // so each gets one more.
     const timer = (lang: Lang) => lang === 'LSL'
       ? `list got; default { touch(integer k) { got += llGetTime(); } }`
       : `got = {} LLEvents:on("touch", function(d) table.insert(got, ll.GetTime()) end)`
@@ -119,7 +121,9 @@ describe('the touch repeat rate in SLua', () => {
 
   it('under llMinEventDelay an SLua held click raises touch once per delay, on its own beat', async () => {
     // In-world: ll.MinEventDelay(1.0) and a 3.5 s hold -> touch at 0.022, 1.022, 2.044, 3.067
-    // and 4.067 after touch_start, and touch_end at 4.089 right behind the last one.
+    // and 4.067 after touch_start, and touch_end at 4.089 right behind the last one. As in LSL,
+    // rezless runs a touch held back by the delay as soon as the delay is over, where in-world
+    // it ran on the next simulator frame, up to 0.022 s later.
     const log = `got = {}
 ll.MinEventDelay(1.0)
 local t0 = 0
@@ -217,6 +221,34 @@ describe('a pass setting changed during a held click on a child', () => {
       expect(got('child')).toEqual(['start', 2, 'touch', 2, 'end', 2, 2000])
       expect(got('root')).toEqual(['end', 2, expect.any(Number)])
     })
+})
+
+describe('a script that leaves its touch handlers during a held click', () => {
+  // In-world: the clicked script moved 0.5 s into a 2 s hold to a state with no touch handler,
+  // and back to its first state after the release. Its next click raised no touch_start, one
+  // touch and touch_end, on a lone prim and on a child that set PASS_NEVER alike.
+  const script = `list got; integer fired;
+default {
+  touch_start(integer k) { got += ["start"]; if (!fired) { fired = 1; llSetTimerEvent(0.5); } }
+  touch(integer k) { if (llList2String(got, -1) != "touch") got += ["touch"]; }
+  touch_end(integer k) { got += ["end"]; }
+  timer() { llSetTimerEvent(0); state other; }
+}
+state other {
+  link_message(integer s, integer n, string m, key k) { if (m == "back") state default; }
+}`
+  it.each([
+    ['a lone prim', [[{ name: 's', source: script }]], 0],
+    ['a PASS_NEVER child', [[], [{ name: 's', source: script }, { name: 'p', source: 'default { state_entry() { llPassTouches(PASS_NEVER); } }' }]], 2],
+  ] as const)('keeps the click on %s, so the next click raises no touch_start', async (_, prims, link) => {
+    const made = await build(prims)
+    made.linkset.touch(link, { hold: 2000 })
+    made.linkset.deliverLinkMessage(1, -1, 0, 'back', '')
+    made.linkset.advanceTime(1000)
+    made.linkset.touch(link)
+    // The script logs a run of touch events once, so the stuck click's touch and the next click's merge.
+    expect(gotOf(made.scripts.s!)).toEqual(['start', 'touch', 'end'])
+  })
 })
 
 describe('a link change during a held click', () => {
@@ -335,6 +367,30 @@ describe('a link change during a held click', () => {
     const n = touches('root')
     made.linkset.advanceTime(1000)
     expect(touches('root')).toBe(n)
+  })
+
+  it('llBreakLink leaves the click of a root script that is stopped at the time', async () => {
+    // In-world: a helper stopped the root's recorder 0.25 s into a 2 s hold on the root, and
+    // the root broke link 2 at 0.5 s. Set running again after the release, the recorder got
+    // touch 22 times a second and no touch_end.
+    const stopper = { name: 'stopper', source: `integer f;
+default {
+  link_message(integer s, integer n, string m, key k) {
+    if (m == "t" && !f) { f = 1; llSetTimerEvent(0.25); }
+    if (m == "go") llSetScriptState("root", TRUE);
+  }
+  timer() { llSetTimerEvent(0); llSetScriptState("root", FALSE); }
+}` }
+    const made = await build([[{ name: 'root' }, stopper, linker('llBreakLink(2);')], [{ name: 'e', source: 'default { state_entry() {} }' }]])
+    made.linkset.touch(1, { hold: 2000 })
+    made.linkset.advanceTime(1000)
+    made.linkset.deliverLinkMessage(0, 0, 0, 'go', '')
+    made.linkset.advanceTime(0)
+    const { got, touches } = recorder(made.scripts)
+    const n = touches('root')
+    made.linkset.advanceTime(1000)
+    expect(touches('root') - n).toBe(23)
+    expect(got('root')).toEqual(['start', 1, 'touch', 1])
   })
 
   it('llBreakLink from a child leaves the child\'s own click running', async () => {
