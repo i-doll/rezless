@@ -9,7 +9,7 @@ import type { RlvRestriction } from './restrictions.js'
 import { isRlvDetachLocked } from './detach.js'
 import { isRlvInventoryWearLocked } from './outfit.js'
 import { rlvaPieMenuDenials } from './touch.js'
-import { endBeforeTake, rezzedMoving, SELECTION_MS, selectMotion, stillCopy } from '../builtins/motion.js'
+import { endBeforeTake, rezzedMoving, SELECTION_MS, selectMotion, selectPhysical, stillCopy } from '../builtins/motion.js'
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 const switches = new Set(['editworld', 'editattach', 'rez', 'interact'])
@@ -96,6 +96,7 @@ export function attemptAvatarEdit(world: World, avatar: WorldAvatar, prim: Prim)
   const denials = editDenials(avatar, linkset)
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
   selectMotion(linkset, SELECTION_MS.edit)
+  selectPhysical(linkset, SELECTION_MS.edit)
   return record('opened')
 }
 
@@ -160,7 +161,9 @@ export function attemptAvatarTake(world: World, avatar: WorldAvatar, prim: Prim,
   if (denials.length) return record('blocked', denials[0]!.behaviour, denials)
   if (!foreign) {
     const paused = selectMotion(linkset, SELECTION_MS.copy)
-    if (paused) endBeforeTake(linkset)
+    // In-world: a Take or a Take Copy of a settling physical box ran the moving_end of its
+    // selection before the item was saved, four runs.
+    if (selectPhysical(linkset, SELECTION_MS.copy) || paused) endBeforeTake(linkset)
     // In-world: an llDie in that moving_end, at a Take or a Take Copy, left no item.
     if (linkset.dead) return record('unsupported', 'target')
     const object = linkset.copy()

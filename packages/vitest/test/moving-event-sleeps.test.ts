@@ -345,7 +345,10 @@ describe('moving events at a rez', () => {
 
   // In-world: the viewer rezzing a physical item onto the platform -> on_rez, moving_start 0.07 s
   // later and moving_end 0.26 s after that, two runs; rezzed 0.8 m above it, on_rez only, once.
-  it('starts a physical object the viewer rezzes', async () => {
+  // Measured again on 2026-11-24, 13 runs in contact with the platform or dropped onto it, the
+  // item rezzed at rest every time -> on_rez only; the fall from above ended before on_rez ran
+  // (see physical-selection.test.ts).
+  it('raises neither for a physical object the viewer rezzes', async () => {
     const w = world()
     const payload = await loadLinkset({ prims: [{ name: 'payload', scripts: [{ name: 'child', source: { source: child } }] }] })
     payload.scripts.child!.start()
@@ -353,7 +356,7 @@ describe('moving events at a rez', () => {
     seedRlvInventory(w.avatar, { sharedRootId: null, entries: [{ id: 'item', kind: 'item', parentId: null, name: 'payload', object: payload.linkset, assetType: 'object' }] })
     const rezzed = w.world.attemptAvatarRez(w.avatar, 'item', { x: 1, y: 2, z: 3 }).object!
     rezzed.advanceTime(1_000)
-    expect(logOf(rezzed)).toEqual(['rez', 'moving_start', 'moving_end'])
+    expect(logOf(rezzed)).toEqual(['rez'])
   })
 
   // In-world: a box whose looping keyframed motion its rezzer derezzed to inventory with
