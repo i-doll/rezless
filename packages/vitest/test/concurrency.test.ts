@@ -277,15 +277,14 @@ describe('after a script wakes', () => {
     const s = scripts['w_a']!
     s.fire('touch_start', { num_detected: 1 })
     expect(s.currentState).toBe('other')
+    s.fire('link_message', { num: 0, str: '', id: '' })
+    expect(s.now).toBe(2000)
+    expect(s.currentState).toBe('default')
+    s.fire('touch_start', { num_detected: 1 })
     expect(() => s.fire('touch_start', { num_detected: 1 })).toThrow('Stack-Heap Collision')
-    expect(log).toEqual(['0 entry 1', '1000 other'])
+    expect(log).toEqual(['0 entry 1', '1000 other', '2000 entry 1', '3000 other'])
     expect(s.chat.filter((c) => c.channel === DEBUG_CHANNEL).map((c) => c.text)[0]).toBe('Object [script:w_a] Script run-time error')
     expect(s.running).toBe(false)
-    s.running = true
-    s.fire('link_message', { num: 0, str: '', id: '' })
-    expect(s.now).toBe(3000)
-    expect(s.currentState).toBe('default')
-    expect(log.at(-1)).toBe('3000 entry 1')
   })
 })
 

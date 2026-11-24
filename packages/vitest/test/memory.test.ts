@@ -334,13 +334,12 @@ describe('script memory: Stack-Heap Collision', () => {
       memoryLimit: true,
     })
     s.start()
+    const before = s.state.memory.used
     expect(() => s.fire('listen', { channel: 0, name: 'n'.repeat(30), id: '', msg: 'm'.repeat(200) })).toThrow(
       'Stack-Heap Collision',
     )
-    s.running = true
-    s.fire('touch_start', { num_detected: 1 })
-    const [before, after] = reports(s)
-    expect(after).toBe(before)
+    s.state.memory.releaseStack()
+    expect(s.state.memory.used).toBe(before)
   })
 
   it('a reset rebuilds the globals at the default limit', async () => {

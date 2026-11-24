@@ -194,8 +194,17 @@ export class Script {
   readonly heldClicks = new Map<string, HeldTouch>()
   /** When false, drainQueue parks events instead of delivering them. */
   private isRunning = true
-  /** Set by a run-time error, until the script runs again. llSetScriptState can't start a crashed script. */
+  /** Set by a run-time error, until a reset, a recompile or a rez brings the script back. Setting it running does not. */
   crashed = false
+  /** The Running checkbox of a crashed script. It stays on through the crash. */
+  private crashedRunning = false
+  /** A crashed script that has been stopped since its crash. */
+  private stoppedCrashed = false
+  /**
+   * A crashed LSL script stopped and started again comes out of inventory stuck: it runs nothing
+   * until it is recompiled, and a reset only makes it read as running.
+   */
+  private stuck: 'down' | 'reset' | undefined
   /** What the run-time error said after its first line, to listeners and to the owner; a crashed SLua script says it again when rezzed. */
   private crashText = ''
   private crashShown = ''
@@ -1156,7 +1165,7 @@ export class Script {
     // In-world: a stopped LSL or SLua script came out of a take, a Take Copy or llDerezObject
     // reset. Started, it ran state_entry of the default state with its globals back at their
     // start and the default memory limit, and no on_rez. A sleep it was stopped in never ended.
-    const reset = !this.running && !this.crashed && !this.dead
+    const reset = !this.running && (!this.crashed || !this.crashedRunning) && !this.dead
     // In-world: an LSL handler that was asleep when the object was taken finished its sleep
     // after the rez, with its locals and llDetected* data, and ran to its end before on_rez.
     if (!opts.fresh && !reset && this.task?.lsl) this.carrySleepingHandler(copy, { ...this.task, lsl: this.task.lsl })
@@ -1204,6 +1213,9 @@ export class Script {
     // A saved object keeps the mark for every rez. A rezzed one has used it up.
     copy.unseated = !!opts.unseated || (this.unseated && !this.linkset.world)
     copy.crashed = this.crashed
+    copy.crashedRunning = this.crashedRunning
+    copy.stoppedCrashed = this.stoppedCrashed
+    copy.stuck = this.stuck
     Object.assign(copy.state.random, this.state.random)
     // In-world: a copy rezzed by its new owner held nothing, even a permission the new owner had
     // granted, and said changed(CHANGED_OWNER) after on_rez. A copy for the same owner keeps it.
@@ -1293,8 +1305,11 @@ export class Script {
     // Rezzed or attached from an inventory item, it runs state_entry of the
     // state it was in, with its globals, then on_rez. A crashed SLua script
     // stays crashed and its new prim says the error again.
+    // In-world: a crashed LSL script that was stopped and started again came out saying nothing,
+    // and stayed down through resets until it was recompiled.
     if (this.crashed && this.slua) this.sayCrash()
-    const revived = this.crashed && !this.slua
+    if (this.crashed && !this.slua && this.stoppedCrashed) this.stuck = 'down'
+    const revived = this.crashed && !this.slua && !this.stuck
     if (revived) {
       this.parkedEvents.length = 0
       this.isRunning = true
@@ -1382,7 +1397,8 @@ export class Script {
     for (const op of ops) {
       if (this.dead) return
       if (this.crashed) {
-        if (op.reset) this.recover()
+        if (op.reset) this.resetCrashed(false)
+        else this.running = op.running!
       } else if (op.reset) {
         if (this.running) this.restart()
       } else this.running = op.running!
@@ -1406,10 +1422,10 @@ export class Script {
    * cancel timers, and run state_entry. Used internally when llResetScript
    * is invoked from inside a handler; tests can also call it directly, as
    * the owner's Reset does. A sleeping handler is abandoned, a stopped
-   * script stays stopped, and a crashed one runs again.
+   * script stays stopped, and a crashed one runs again if it is set running.
    */
   reset(): void {
-    if (this.crashed && !this.dead) this.recover()
+    if (this.crashed && !this.dead) this.resetCrashed(true)
     else {
       this.restart()
       // Stopped: state_entry waits for the start.
@@ -1419,26 +1435,53 @@ export class Script {
   }
 
   /**
-   * A stopped script, neither crashed nor dead, that goes into inventory with its object comes
-   * back reset, its `state_entry` waiting for the start.
+   * A stopped script that goes into inventory with its object comes back reset, its
+   * `state_entry` waiting for the start. In-world: so did a crashed one that was stopped, by a
+   * take or a detach, and an SLua one did not say its error again.
    */
   resetIntoInventory(): void {
-    if (this.running || this.crashed || this.dead) return
+    if (this.running || this.dead || (this.crashed && this.crashedRunning)) return
     // The new SLua VM takes its limit from the state when restart() builds it.
     if (this.slua) this.state.memory.limit = SLUA_MEMORY_LIMIT
     this.restart()
+    this.clearCrash()
     this.queueStart()
   }
 
+  /** Save the script again, as the owner does: a stuck script runs again too. */
+  recompile(): void {
+    this.stuck = undefined
+    this.reset()
+  }
+
   /**
-   * llResetOtherScript on a crashed script: it reads as running at once and
-   * starts over with state_entry as its next event. Nothing it held or had
-   * waiting survives.
+   * A reset of a crashed script. Set running, it reads as running at once and starts over with
+   * state_entry as its next event, holding nothing it held or had waiting. Stopped, the owner's
+   * Reset leaves it reset and waiting for its start, and llResetOtherScript does nothing.
    */
-  recover(): void {
+  resetCrashed(byOwner: boolean): void {
+    if (this.stuck) {
+      this.stuck = 'reset'
+      return
+    }
+    if (!this.crashedRunning && !byOwner) return
+    const running = this.crashedRunning
     this.restart()
-    this.running = true
+    this.clearCrash()
+    if (running) this.running = true
     this.queueStart()
+  }
+
+  private clearCrash(): void {
+    this.crashed = false
+    this.crashedRunning = false
+    this.stoppedCrashed = false
+    this.stuck = undefined
+  }
+
+  /** What llGetScriptState reads: a stuck script that was reset reads its Running checkbox. */
+  get readsRunning(): boolean {
+    return this.isRunning || (this.stuck === 'reset' && this.crashedRunning)
   }
 
   private restart(): void {
@@ -1917,12 +1960,19 @@ export class Script {
     return this.isRunning
   }
 
+  /** The owner's Running checkbox, or llSetScriptState. A crashed script keeps the setting and stays down. */
   set running(value: boolean) {
+    if (this.crashed) {
+      if (!value) this.stoppedCrashed = true
+      this.crashedRunning = value
+      return
+    }
     const starting = value && !this.isRunning, stopping = !value && this.isRunning
     this.isRunning = value
-    if (value) this.crashed = false
-    if (stopping) this.clockView.stopped()
-    if (stopping && !this.crashed) slackenTargetMotion(this, true)
+    if (stopping) {
+      this.clockView.stopped()
+      slackenTargetMotion(this, true)
+    }
     if (starting) {
       slackenTargetMotion(this, false)
       this.catchUp()
@@ -1951,7 +2001,11 @@ export class Script {
     this.crashShown = error.shown
     this.sayCrash()
     this.crashed = true
-    this.running = false
+    this.crashedRunning = this.isRunning
+    this.stoppedCrashed = false
+    // A crashed script's move target never stops acting.
+    if (this.isRunning) this.clockView.stopped()
+    this.isRunning = false
   }
 
   private sayCrash(): void {

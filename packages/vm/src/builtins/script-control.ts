@@ -5,7 +5,7 @@ import { llResetScript } from './object.js'
 /**
  * llResetOtherScript(string name) — reset a sibling script in the same prim.
  * Says an error if no inventory item of that name exists; an inactive asset and a stopped script
- * are left alone, a crashed script runs again, and one
+ * are left alone, a crashed script that is set running runs again, and one
  * naming itself resets at once as with llResetScript. The reset is scheduled via a
  * synthetic `__reset` event so it runs on the next drain step rather than
  * re-entering the target while the caller's handler is still on the stack.
@@ -23,7 +23,7 @@ export const llResetOtherScript: BuiltinImpl = (ctx, args) => {
   if (target === ctx.script) return target.running ? llResetScript(ctx, []) : undefined
   if (pastWear(ctx, name, { reset: true })) return undefined
   if (target.crashed) {
-    if (!target.dead) target.recover()
+    if (!target.dead) target.resetCrashed(false)
     return undefined
   }
   if (!target.running) return undefined
@@ -41,7 +41,7 @@ function pastWear(ctx: CallContext, name: string, change: { running: boolean } |
   return true
 }
 
-/** llSetScriptState(string name, integer running) — enable/disable a script; one that stops itself stops at once. A crashed script stays down. */
+/** llSetScriptState(string name, integer running) — enable/disable a script; one that stops itself stops at once. A crashed script keeps the setting and stays down. */
 export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   const name = (args[0] as string | undefined) ?? ''
   const running = ((args[1] as number | undefined) ?? 0) !== 0
@@ -53,7 +53,6 @@ export const llSetScriptState: BuiltinImpl = (ctx, args) => {
   }
   // Held changes are judged after the wear, when a crashed LSL script may be running again.
   if (target !== ctx.script && pastWear(ctx, name, { running })) return undefined
-  if (target.crashed) return undefined
   target.running = running
   if (target === ctx.script && !running) ctx.sleep(0)
   return undefined
@@ -67,7 +66,7 @@ export const llGetScriptState: BuiltinImpl = (ctx, args) => {
     sayError(ctx, `Could not find script '${name}'.`)
     ctx.sleep(1000)
   }
-  return target && target.running ? 1 : 0
+  return target && target.readsRunning ? 1 : 0
 }
 
 /** llGetStartParameter() — the object's rez parameter; 0 once the script has reset. */

@@ -320,7 +320,7 @@ export class Prim {
     if (saved.type === InventoryType.NOTECARD && saved.key !== NULL_KEY) this.#notecardKeys().set(notecardText(saved.notecardLines), saved.key)
     const script = old.script
     if (!script || script.dead || !this.#live(script)) return this.#ownerEditedInventory()
-    this.#ownerEditedScript(script, () => script.reset())
+    this.#ownerEditedScript(script, () => script.recompile())
   }
 
   /**
@@ -382,9 +382,11 @@ export class Prim {
   #ownerEditedScript(script: Script, start: () => void): void {
     const linkset = script.linkset
     const running = script.running
+    // A crashed script is down already, and setting it would change its Running checkbox.
+    const crashed = script.crashed
     let idle: Script[] | undefined
     whileEditing(script, () => {
-      script.running = false
+      if (!crashed) script.running = false
       this.#arriving = script
       try {
         const hearing = this.#queueOwnerEdit()
@@ -394,7 +396,7 @@ export class Prim {
         }
       } finally {
         this.#arriving = undefined
-        script.running = running
+        if (!crashed) script.running = running
       }
     })
     if (!script.dead) start()
