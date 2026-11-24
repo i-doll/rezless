@@ -836,7 +836,7 @@ export class TargetMotionStepper {
       return
     }
     const move = acting(this.prim.targetMotion.move), look = acting(this.prim.targetMotion.look)
-    if (!(this.prim.statusFlags & STATUS_PHYSICS) || !move || !look || !('position' in look.target)) {
+    if (!(this.prim.statusFlags & STATUS_PHYSICS) || this.prim.linkset?.wearer || !move || !look || !('position' in look.target)) {
       this.coupled = undefined
       advanceTargetMotion(this.prim, (now - from) / 1000)
       return

@@ -1263,24 +1263,24 @@ interface Plane { readonly normal: Vector; readonly offset: number }
 const dot = (a: Vector, b: Vector) => a.x * b.x + a.y * b.y + a.z * b.z
 const minus = (a: Vector, b: Vector): Vector => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z })
 
-/** Ray heights of the avatar hull were measured on two avatars, this tall and {@link HULL_TALL}, by llGetAgentSize. */
-const HULL_SHORT = 1.65382
-const HULL_TALL = 1.70672
 const hullPlanes = new Map<number, readonly Plane[]>()
 
 /**
  * In-world, rays hit a standing avatar on a convex hull, not a box or a capsule. In the avatar's
- * frame it joins four rings: a 0.1 m square at the bottom, a hexagon at (0.225, ±0.1128),
- * (-0.1949, ±0.1128) and (0, ±0.2255), a hexagon at (±0.225, ±0.1005) and (0, ±0.3), and a 0.225
- * by 0.2 m rectangle at the top. From the avatar's position the rings were at -0.8765, -0.226,
- * 0.488 and 0.8765 m on the shorter avatar and -0.9035, -0.252, 0.505 and 0.9035 m on the taller;
- * other heights take the line through the two.
+ * frame, with x forward and heights from the avatar's position, it joins four rings, each given by
+ * its corners:
+ * - the bottom, at minus the top's height: (±0.05, ±0.05);
+ * - the low ring, 0.6511 m above the bottom: (0.225, ±0.1128), (-0.1949, ±0.1128), (0, ±0.2255);
+ * - the middle ring, 0.7789 of the way from the bottom to the top: (±0.225, ±0.1005), (0, ±0.3);
+ * - the top, 0.05 m above half the avatar's llGetAgentSize height: (±0.1125, ±0.1).
+ * The heights were measured on two avatars, 1.65382 and 1.70672 m tall: bottom, low, middle and
+ * top at -0.8765, -0.226, 0.488 and 0.8765 m on one, -0.9035, -0.252, 0.505 and 0.9035 m on the
+ * other, each within 1.1 mm of these rules. Other heights are not measured.
  */
 function avatarHull(height: number): readonly Plane[] {
   const cached = hullPlanes.get(height)
   if (cached) return cached
-  const level = (short: number, tall: number) => short + (tall - short) * (height - HULL_SHORT) / (HULL_TALL - HULL_SHORT)
-  const top = level(0.8765, 0.9035), low = level(-0.226, -0.252), middle = level(0.488, 0.505)
+  const top = height / 2 + 0.05, low = 0.6511 - top, middle = -top + 0.7789 * 2 * top
   const vertices: Vector[] = []
   for (const s of [1, -1]) {
     for (const t of [1, -1]) {

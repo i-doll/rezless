@@ -29,7 +29,7 @@ async function worn(root: string, child = '') {
     state_entry() { if (${JSON.stringify(body)} != "") llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS); }
     run_time_permissions(integer p) { ${body} }
     changed(integer c) { out += ["changed", c]; }
-  }`.replace('BOX', box.prims[0]!.key) })
+  }`.replaceAll('BOX', box.prims[0]!.key) })
   const { linkset, scripts } = await loadLinkset({
     world, region: 'home', owner: OWNER, position: v(118, 50, 1997.4),
     prims: [
