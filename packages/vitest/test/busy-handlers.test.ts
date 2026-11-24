@@ -29,6 +29,7 @@ const probe = `list log; float spin;
     sensor(integer n) { log += "sensor"; }
   }`
 
+const painter = `integer n; default { link_message(integer s, integer k, string m, key id) { if (m == "paint") llSetColor(<(float)(++n % 2), 0.5, 0>, ALL_SIDES); } }`
 const giver = `default { link_message(integer s, integer n, string m, key id) { if (m == "gift") llGiveInventory(llGetLinkKey(1), "g"); } }`
 const notecard = (name: string) => makeInventoryItem({ name, type: InventoryType.NOTECARD, notecardLines: ['x'] })
 
@@ -37,7 +38,7 @@ async function make(ms: number) {
   world.addRegion('home', { x: 0, y: 0 })
   world.addAvatar({ region: 'home', key: OWNER, username: 'owner' })
   const made = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [
-    { scripts: [{ name: 'main', source: { source: probe } }] },
+    { scripts: [{ name: 'main', source: { source: probe } }, { name: 'painter', source: { source: painter } }] },
     { inventory: [notecard('g')], scripts: [{ name: 'giver', source: { source: giver } }] },
   ] })
   const script = made.scripts.main!
@@ -61,6 +62,7 @@ async function make(ms: number) {
     },
     drop: (name: string) => { made.prims[0]!.addInventory(notecard(name)) },
     gift: () => made.scripts.giver!.fire('link_message', { sender_num: 1, num: 0, str: 'gift', id: '' }),
+    paint: () => made.scripts.painter!.fire('link_message', { sender_num: 1, num: 0, str: 'paint', id: '' }),
     log: () => script.global('log') as string[],
   }
 }
@@ -143,6 +145,36 @@ describe('a handler that is busy, not asleep', () => {
     expect(log()).toEqual(['begin', 'end', 'timer', 'timer'])
     wait(seconds * 1000)
     expect(log()).toEqual(['begin', 'end', 'timer', 'timer', 'timer'])
+  })
+
+  // In-world, with a 3 s timer: a drop, the first tick and a click, then a second drop, a later
+  // tick and a second click gave changed, timer, the click, changed, timer and the second click.
+  // With a 2 s timer and the second drop between ticks, the held changed ran before the timer.
+  it('runs the later ticks as one timer event where the last of them came up', async () => {
+    const { begin, wait, say, drop, click, log } = await make(11_000)
+    say('timer 3')
+    begin('busy')
+    wait(500); drop('x1'); wait(3_000); click(1); wait(4_000); drop('x2'); wait(2_000); click(2)
+    wait(1_500)
+    expect(log()).toEqual(['begin', 'end', 'changed 1', 'timer', 'touch_start 1', 'touch 1', 'touch_end 1',
+      'changed 1', 'timer', 'touch_start 2', 'touch 2', 'touch_end 2'])
+  })
+
+  // In-world: another script in the prim recoloured it twice, 3 s apart, during an 8 s busy
+  // handler: changed(2) twice. Asleep: once. A drop and then a recolour gave changed(1) and
+  // changed(2).
+  it('gives two changed events for two colour changes, and keeps a colour change apart from a drop', async () => {
+    for (const [how, first, expected] of [['busy', false, ['changed 2', 'changed 2']], ['sleep', false, ['changed 2']], ['busy', true, ['changed 1', 'changed 2']]] as const) {
+      const { begin, wait, drop, paint, log } = await make(8_000)
+      begin(how)
+      wait(2_000)
+      if (first) drop('x1')
+      else paint()
+      wait(3_000)
+      paint()
+      wait(8_000)
+      expect(log()).toEqual(['begin', 'end', ...expected])
+    }
   })
 
   // With 64 events waiting no tick fits in, so the ticks collapse into one after the handler, as

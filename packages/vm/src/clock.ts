@@ -178,7 +178,8 @@ const heldKind = (event: string) => CHANGED_EVENTS.has(event) ? 'changed' : even
  * it; the others, and the first of each kind, wait in the order they came up. Held events are
  * released behind them, also in the order they came up. In-world, a handler that spun in a loop
  * got two changed events for two or three drops or gifts, the first click whole and the later
- * clicks merged, two timer events for one to seven ticks and two sensor events for four scans.
+ * clicks merged, two timer events for one to seven ticks, two sensor events for four scans and
+ * two changed events for two colour changes, or for a drop and a colour change.
  */
 const BUSY_HELD: ReadonlySet<string> = new Set([...CHANGED_EVENTS, ...TOUCH_EVENTS, 'timer', ...SENSOR_EVENTS])
 const COLLISION_EVENTS: ReadonlySet<string> = new Set(['collision_start', 'collision', 'collision_end'])
@@ -556,7 +557,8 @@ export class LinksetClock {
     let bestTimerAt = Infinity
     let waking: Script | null = null
     let wakeAt = Infinity
-    // In-world: the first tick that fell due while a handler was busy waited where it came up.
+    // In-world: the first tick that fell due while a handler was busy waited where it came up, and
+    // the later ones gave one event that ran where the last of them came up among the held events.
     let ticking: Script | null = null
     let tickAt = Infinity
     for (const s of scripts) {
@@ -571,7 +573,7 @@ export class LinksetClock {
           waking = s
         }
         const tick = Math.max(s.clockView.timerNextFireMs, this.now)
-        if (s.busy && s.clockView.timerIntervalMs > 0 && tick < w && tick <= horizon && tick < tickAt && !this.waitsFor(s, 'timer') && !this.full(s)) {
+        if (s.busy && s.clockView.timerIntervalMs > 0 && tick < w && tick <= horizon && tick < tickAt && (!this.full(s) || this.queue.some((e) => e.target === s && e.event === 'timer' && e.held))) {
           tickAt = tick
           ticking = s
         }
@@ -596,7 +598,8 @@ export class LinksetClock {
     }
     if (ticking && tickAt <= nextEvent && (!task || tickAt < task.at)) {
       this.now = tickAt
-      this.schedule(ticking, tickAt, 'timer', {}, false)
+      this.purgeWhere((e) => e.target === ticking && e.event === 'timer' && e.held === true)
+      this.schedule(ticking, tickAt, 'timer')
       ticking.clockView.timerFired(tickAt)
       return 'task'
     }

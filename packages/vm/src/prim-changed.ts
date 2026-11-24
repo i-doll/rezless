@@ -16,7 +16,8 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
     script.queueStart()
     const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
       && ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0)
-    const merge = waiting.find(e => e.at >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
+    // A busy handler gets what the clock gives any event that comes up while it is busy.
+    const merge = script.busy ? undefined : waiting.find(e => e.at >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
     if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
     else clock.schedule(script, clock.now, 'changed', { changes })
   }
