@@ -1561,6 +1561,7 @@ export class Script {
     this.clockView.setMinEventDelay(0)
     this.startParameter = 0
     this.clockView.resetReference()
+    this.clockView.restarted()
     // A held running-state change, from a sibling or for one, outlives the script's own events.
     this.linkset.clock.landContactRestarted(this, true)
     this.linkset.clock.purgeTarget(this, Infinity, ['__running', '__scriptState'])
@@ -1767,7 +1768,8 @@ export class Script {
       return
     }
     this.finish(task, queued)
-    this.clockView.handlerEnded(task.slua?.event ?? task.lsl?.handler.name ?? 'state_entry')
+    // The last handler of a state change chain is the one that ended.
+    this.clockView.handlerEnded(task.slua?.event ?? this.chainEvent ?? task.lsl?.handler.name ?? 'state_entry')
     this.clockView.finishHandler(r.value)
     if (r.value) {
       if (this.detachedInHandler && this.clockView.inInventory) this.resetPastWear = true
@@ -1926,10 +1928,13 @@ export class Script {
       {
         call: (name, args) => this.sluaCall(name, args),
         now: () => this.now,
-        // To the microsecond, so a tick LLTimers set for a time between milliseconds reads that time back.
-        clock: () => Math.round(this.clockView.elapsedSeconds() * 1e6) / 1e6,
+        clock: () => sluaClock(this.clockView.elapsedSeconds()),
         unixTime: () => this.clockView.unixMicros() / 1e6,
-        setTimer: (seconds) => this.clockView.setTimer(seconds * 1000),
+        // The tick falls due at the first microsecond the clock reads on or after the time asked for.
+        setTimer: (seconds) => {
+          const now = this.clockView.elapsedSeconds()
+          this.clockView.setTimer(seconds > 0 ? (Math.ceil((sluaClock(now) + seconds) * 1e6 - 1e-6) / 1e6 - now) * 1000 : seconds)
+        },
         print: (text) => this.sluaPrint(text),
         faceTextureIsItem: (face) => faceTextureIsItem(this.host, face),
       },
@@ -2121,6 +2126,9 @@ export class Script {
     this.linkset.clock.scheduleWaiting(this, events)
   }
 }
+
+/** The SLua script clock in seconds, to the microsecond. */
+const sluaClock = (seconds: number) => Math.round(seconds * 1e6) / 1e6
 
 /** What a detected list reads once its object has been through inventory. */
 function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>): DetectedEntry[] {

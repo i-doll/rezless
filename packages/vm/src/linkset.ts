@@ -215,9 +215,17 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // SLua raises a held click's touch every frame, so it came up in the first frame and
       // listed i doll alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
-      // A touch still waiting for its frame takes the place of a new one.
+      // A touch still waiting for its frame takes the place of a new one, and lists this click too.
       if (!running) {
         const { own, other } = waitingTouches(s, 'touch', by)
+        // Only a touch that came up while the script was idle takes this click too, and not before
+        // the click's own touch_start: a touch that waited through a handler keeps its avatars.
+        if (other && !own && cameUp(other) >= s.clockView.lastEndedAt && !waitingTouches(s, 'touch_start', by).own) {
+          other.payload['detected'] = [...detectedIn(other), ...click.detected]
+          other.payload['num_detected'] = detectedIn(other).length
+          click.touched = true
+          click.lastTouch = click.detected
+        }
         if (own || other) continue
       }
       if (running && s.busy) spunAt.set(s, clock.now)
@@ -1272,6 +1280,7 @@ export class Linkset {
    */
   settle(scripts: ReadonlyArray<Script>): void {
     const pending = this.clock.pendingEvents()
+    // An event a handler raised waits for a later frame: the call doesn't wait for it.
     const goals = scripts.map(script => ({
       script,
       completed: script.clockView.completedHandlers + Number(script.wakeAt !== undefined) +

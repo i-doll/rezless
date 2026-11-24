@@ -283,8 +283,8 @@ describe('a changed waiting two frames in LSL', () => {
     const s = scripts['s']!
     linkset.startAll()
     linkset.advanceTime(100)
-    s.fire('changed', { change: 2 })
-    linkset.clock.schedule(s, linkset.clock.now, 'changed', { change: 2 })
+    s.fire('changed', { changes: 2 })
+    linkset.clock.schedule(s, linkset.clock.now, 'changed', { changes: 2 })
     linkset.clock.schedule(s, linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: '' })
     linkset.advanceTime(500)
     expect(JSON.parse(JSON.stringify(s.global('log')))).toEqual(['ch', 'ch', 'lm'])

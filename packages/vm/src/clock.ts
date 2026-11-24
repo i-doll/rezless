@@ -299,9 +299,6 @@ function delayedUntil(e: QueuedEvent): number {
  */
 const PACING_EXEMPT: ReadonlySet<string> = new Set(['__reset'])
 
-/** The events llTarget and llRotTarget raise at each check. */
-const TARGET_EVENTS: ReadonlySet<string> = new Set(['at_target', 'not_at_target', 'at_rot_target', 'not_at_rot_target'])
-
 /**
  * Events of which LSL runs a second waiting one two simulator frames after the first. In-world,
  * two waiting changed events and the ticks of a timer set shorter than two frames ran 2 frames
@@ -309,6 +306,9 @@ const TARGET_EVENTS: ReadonlySet<string> = new Set(['at_target', 'not_at_target'
  */
 const LSL_TWO_FRAMES: ReadonlySet<string> = new Set(['changed', 'timer'])
 
+
+/** The kind a reset leaves as the script's last handler: no event follows it closer than a frame. */
+const RESTART = '__restart'
 
 /** Linkset-wide clock. One instance per Linkset. */
 export class LinksetClock {
@@ -736,10 +736,11 @@ export class LinksetClock {
       if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon) {
         const waited = Math.max(v.timerNextFireMs, v.busyUntilMs, v.delayedUntilMs)
         // In-world: a crashed script with an overdue tick, rezzed again, ran state_entry and on_rez
-        // first: a tick waits behind events raised before it fell due that wait for their frame.
+        // first: a tick waits behind the start it belongs to.
         const ahead = queued.get(s)
         const first = ahead && this.queue[ahead.index]!
-        const due = Math.max(waited, v.nextEventAt('timer'), first?.notBefore !== undefined && first.at <= v.timerNextFireMs ? ahead!.due : 0)
+        const starting = first?.notBefore !== undefined && (first.event === 'state_entry' || first.event === 'on_rez') && first.at <= v.timerNextFireMs
+        const due = Math.max(waited, v.nextEventAt('timer'), starting ? ahead!.due : 0)
         if (due <= horizon && due < bestTimerAt) {
           bestTimerAt = due
           bestTimerWaited = waited
@@ -786,7 +787,7 @@ export class LinksetClock {
     // of it: in-world, a timer ticked on time while at_target and at_rot_target events took every
     // frame.
     const tickFirst = !!waiting && waiting.target === bestTimerScript && bestTimerAt - bestAt < 1e-6 &&
-      bestTimerWaited < waiting.at && waiting.at >= bestTimerScript.clockView.lastEndedAt
+      bestTimerWaited < waiting.at
     if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && !tickFirst && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
@@ -837,6 +838,7 @@ export class LinksetClock {
       if (until > e.at && WAITS_BEHIND.has(e.event) && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
     }
     const next = new Map<Script, { index: number; due: number; waited: number }>()
+    const resets = new Map<Script, { index: number; due: number; waited: number }>()
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
       const v = e.target.clockView
@@ -851,6 +853,11 @@ export class LinksetClock {
       if (!PACING_EXEMPT.has(e.event)) due = Math.max(due, v.nextEventAt(''))
       if (e.target.handling || !(e.event === '__reset' || (e.event === '__running' && !e.target.running) ||
           (e.target.wakeAt === undefined && !e.target.detachedInHandler))) continue
+      if (PACING_EXEMPT.has(e.event)) {
+        const reset = resets.get(e.target)
+        if (!reset || due < reset.due) resets.set(e.target, { index: i, due, waited })
+        continue
+      }
       const mine = next.get(e.target)
       const first = mine && this.queue[mine.index]!
       if (!mine || due < mine.due || due === mine.due && first!.raisedAt !== undefined && e.at < first!.at) next.set(e.target, { index: i, due, waited })
@@ -859,7 +866,13 @@ export class LinksetClock {
     // queued behind it wait for it.
     for (const [script, e] of next) {
       const { event, notBefore = 0 } = this.queue[e.index]!
-      e.due = Math.max(e.due, notBefore, PACING_EXEMPT.has(event) ? 0 : script.clockView.nextEventAt(event))
+      e.due = Math.max(e.due, notBefore, script.clockView.nextEventAt(event))
+    }
+    // A reset runs when it is due, ahead of an event still waiting for its frame: in-world, a link
+    // message sent just before llResetOtherScript never reached the reset script.
+    for (const [script, reset] of resets) {
+      const mine = next.get(script)
+      if (!mine || reset.due <= mine.due) next.set(script, reset)
     }
     return next
   }
@@ -1148,12 +1161,21 @@ export class ScriptClockView {
    * its own: link messages, chat, changed, a timer tick, clicks and collisions alike.
    */
   handlerEnded(event: string): void {
+    if (this.lastEnd?.event === RESTART && this.lastEnd.at === this.linksetClock.now) return
     this.lastEnd = { at: this.linksetClock.now, event: CHANGED_EVENTS.has(event) ? 'changed' : event }
   }
 
-  /** When the script's last handler ended. */
+  /** When the script's last handler ended, or a reset started it again. */
   get lastEndedAt(): number {
     return this.lastEnd?.at ?? -Infinity
+  }
+
+  /**
+   * A reset starts the script again now: its next event comes a frame later, whatever ran before,
+   * also when the handler that reset it ends after the reset.
+   */
+  restarted(): void {
+    this.lastEnd = { at: this.linksetClock.now, event: RESTART }
   }
 
   /** The earliest time the script may run `event` next. */
