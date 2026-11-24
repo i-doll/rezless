@@ -113,6 +113,29 @@ describe('moving events in worn objects', () => {
     expect(f.seen()).toEqual(all(['ms', 'tp', 'me']))
   })
 
+  // In-world: teleports between SLua Tideland and SLua Tombolo, its neighbour to the north, that
+  // landed the wearer standing on the ground gave changed(CHANGED_TELEPORT | CHANGED_REGION) and
+  // no moving event, five runs. Only a fall after landing raised moving_start and moving_end, in
+  // the new region; nothing came before the wearer left.
+  it('tells worn objects only of the change for a teleport into another region', async () => {
+    const f = await worn()
+    f.world.addRegion('north', { x: 0, y: 256 })
+    f.chest.advanceTime(100)
+    expect(f.world.teleportAvatar(f.avatar, v(116, 256 + 48, AT.z))).toBe(true)
+    f.chest.advanceTime(2000)
+    expect(f.avatar.region).toBe('north')
+    expect(f.seen()).toEqual(all(['tp']))
+  })
+
+  it('tells worn objects only of the change for a scripted teleport into another region', async () => {
+    const f = await worn({ root: `llTeleportAgentGlobalCoords(llGetOwner(), <0, 256, 0>, <116, 48, ${AT.z}>, <117, 48, ${AT.z}>);` })
+    f.world.addRegion('north', { x: 0, y: 256 })
+    f.run('root')
+    f.chest.advanceTime(2000)
+    expect(f.avatar.region).toBe('north')
+    expect(f.seen()).toEqual(all(['tp']))
+  })
+
   // In-world: sitting on a box 4 m away and sitting on the ground gave no moving event; standing
   // from either gave moving_start and moving_end 67 ms apart.
   it('says nothing when the wearer sits and tells it when it stands', async () => {
@@ -189,12 +212,12 @@ describe('move targets in two worn objects', () => {
 
   it('takes its own time to a target that changes on the way', async () => {
     const f = await worn({
-      root: `llMoveToTarget(<118, ${AT.y}, ${AT.z}>, 0.3);`,
+      root: `if (llGetListLength(out) == 0) llMoveToTarget(<118, ${AT.y}, ${AT.z}>, 0.3); else llMoveToTarget(<126, ${AT.y}, ${AT.z}>, 1000.0); out += [1];`,
       hand: `llMoveToTarget(<126, ${AT.y}, ${AT.z}>, 1000.0);`,
     })
     f.run('root', 'hand')
     f.chest.advanceTime(100)
-    f.scripts.root.running = false
+    f.run('root')
     f.chest.advanceTime(4000)
     expect(f.avatar.position.x).toBeLessThan(117)
     expect(f.seen().hand).toEqual(['ms'])
@@ -265,6 +288,42 @@ describe('move targets in two worn objects', () => {
     f.chest.advanceTime(10000)
     close(f.avatar.position, 116.5, 48, AT.z)
   })
+
+  const pair = () => worn({ root: `llMoveToTarget(<117, 47, ${AT.z}>, 0.3);`, hand: `llMoveToTarget(<116, 49, ${AT.z}>, 0.3);` })
+
+  // In-world: targets <117, 47> (chest) and <116, 49> (hand) left the wearer at <116.5, 47.99998>.
+  // After the chest's script reset, the wearer stayed there for 6 s; a short walk then took it to
+  // the hand's target, <116, 48.99998>.
+  it('holds the wearer still when the script holding one of two targets resets', async () => {
+    const f = await pair()
+    f.run('root', 'hand')
+    f.chest.advanceTime(10000)
+    close(f.avatar.position, 116.5, 48, AT.z)
+    f.scripts.root.reset()
+    f.chest.advanceTime(6000)
+    close(f.avatar.position, 116.5, 48, AT.z)
+    f.avatar.position = v(116.5, 48.5, AT.z)
+    f.chest.advanceTime(10000)
+    close(f.avatar.position, 116, 49, AT.z)
+  })
+
+  // In-world: with the same targets, setting the chest's script not running left the wearer at
+  // <116.5, 48.00002> for 7 s; a short walk took it to the hand's target. Setting the script
+  // running again brought the wearer back to <116.4997, 48.00057> within 1.4 s, with no walk.
+  it('holds the wearer still while the script holding one of two targets is stopped', async () => {
+    const f = await pair()
+    f.run('root', 'hand')
+    f.chest.advanceTime(10000)
+    f.scripts.root.running = false
+    f.chest.advanceTime(7000)
+    close(f.avatar.position, 116.5, 48, AT.z)
+    f.avatar.position = v(116.5, 48.5, AT.z)
+    f.chest.advanceTime(10000)
+    close(f.avatar.position, 116, 49, AT.z)
+    f.scripts.root.running = true
+    f.chest.advanceTime(10000)
+    close(f.avatar.position, 116.5, 48, AT.z)
+  })
 })
 
 describe('move targets and sitting', () => {
@@ -323,13 +382,49 @@ describe('look targets in a worn object', () => {
     near(euler(lookAt.chest.prims[0]!.params.rotation), [0, 90, 0])
     near(euler(lookAt.avatar.rotation), [0, 0, rotation])
   })
+
+  // In-world: llLookAt(wearer + offset, 1, 1) in the child (at <0.3, 0, 0> on the root) set the
+  // child's local rotation to the region-frame look rotation from the child's position, the
+  // wearer's position plus <0.3, 0, 0> turned by the wearer, whichever way the wearer faced
+  // (14 samples at four headings). Turning the root on its point changed nothing. For the raised
+  // target <3, 0, 4> the child's +Z pointed at the target, but the rotation about that axis
+  // differed from the one here by 0.15 to 1.4 degrees, about a quarter of the target's bearing
+  // the other way (-0.22 to -0.28 times it, four samples); no rule fitted, so only the aim is
+  // pinned for those.
+  it('turns the child to look from where it is in the region, whichever way the wearer faces', async () => {
+    const samples: Array<[number, ReturnType<typeof v>, ReturnType<typeof v>, number[]]> = [
+      [90, v(116, 48, AT.z), v(5, 0, 0), [0.02118, 0.70679, -0.02118, 0.70679]],
+      [90, v(116, 48, AT.z), v(0, 5, 0), [-0.5, 0.5, 0.5, 0.5]],
+      [90, v(116, 48, AT.z), v(-5, 0, 0), [0.70679, 0.02118, -0.70679, 0.02118]],
+      [90, v(116, 48, AT.z), v(3, 0, 4), [0.01974, 0.31675, -0.03550, 0.94764]],
+      [2 * Math.atan2(-0.99305, 0.11772) * 180 / Math.PI, v(116.0046, 48.09423, AT.z), v(5, 0, 0), [-0.00469, 0.70709, 0.00469, 0.70709]],
+      [2 * Math.atan2(-0.99305, 0.11772) * 180 / Math.PI, v(116.0046, 48.09423, AT.z), v(0, 5, 0), [-0.48543, 0.51416, 0.48543, 0.51416]],
+      [2 * Math.atan2(-0.99305, 0.11772) * 180 / Math.PI, v(116.0046, 48.09423, AT.z), v(3, 0, 4), [-0.00440, 0.33754, 0.00779, 0.94127]],
+    ]
+    for (const [heading, at, offset, expected] of samples) {
+      const f = await worn({ rotation: heading, child: `llLookAt(llList2Vector(llGetObjectDetails(llGetOwner(), [OBJECT_POS]), 0) + <${offset.x}, ${offset.y}, ${offset.z}>, 1, 1);` })
+      f.avatar.position = at
+      f.chest.prims[0]!.params.rotation = turn(90)
+      f.run('child')
+      f.chest.advanceTime(1000)
+      const r = f.chest.prims[1]!.params.rotation
+      if (offset.z) {
+        const [x, y, z, s] = expected as [number, number, number, number]
+        const up = (q: { x: number, y: number, z: number, s: number }) => [2 * (q.x * q.z + q.y * q.s), 2 * (q.y * q.z - q.x * q.s), 1 - 2 * (q.x * q.x + q.y * q.y)]
+        expect(up(r)).toEqual(up({ x, y, z, s }).map(n => expect.closeTo(n, 3)))
+        continue
+      }
+      const sign = Math.sign(r.s * expected[3]! || 1)
+      expect([r.x, r.y, r.z, r.s].map(n => n * sign)).toEqual(expected.map(n => expect.closeTo(n, 3)))
+    }
+  })
 })
 
 describe('break-links errors', () => {
   const PERM = 'Script trying to break links but PERMISSION_CHANGE_LINKS permission not set!'
   const EDIT = 'Unlink failed: no edit permissions.'
 
-  async function object(prims: number, body: string, opts: { grant: boolean, noModify?: boolean, from?: 'root' | 'child' }) {
+  async function object(prims: number, body: string, opts: { grant: boolean, noModify?: boolean, from?: 'root' | 'child', worn?: boolean }) {
     const world = new World()
     world.addRegion('home', { x: 0, y: 0 })
     world.addAvatar({ region: 'home', key: OWNER, username: 'probe', position: v(116, 48, 1997.42) })
@@ -342,6 +437,7 @@ describe('break-links errors', () => {
       prims: Array.from({ length: prims }, (_, i) => ({ name: i ? `child ${i}` : 'nomod', scripts: (i === 0) === (from === 'root') ? [script] : [] })),
     })
     if (opts.noModify) for (const prim of loaded.linkset.prims) prim.permMask = { ...prim.permMask, owner: prim.permMask.owner & ~PERM_MODIFY }
+    if (opts.worn) loaded.linkset.attachToAvatar(OWNER, 1)
     const listener = await loadLinkset({
       world, region: 'home', owner: OWNER, position: v(115, 51.5, 1997.3),
       prims: [{ name: 'listener', scripts: [{ name: 'listen', source: { source: 'list heard; default { state_entry() { llListen(DEBUG_CHANNEL, "", "", ""); } listen(integer c, string n, key i, string m) { heard += m; } }' } }] }],
@@ -392,5 +488,21 @@ describe('break-links errors', () => {
     const r = await object(2, 'llBreakLink(1); llBreakAllLinks();', { grant: true, noModify: true, from: 'child' })
     const suffix = ' {RootName nomod, RootPosition { 114.8, 50, 1997.45 }}'
     expect(r.errors).toEqual([EDIT + suffix, EDIT + suffix])
+  })
+
+  // In-world: the same no-modify object, worn on the chest by the avatar it was given to. With the
+  // permission granted, llBreakLink(2), (1), (LINK_THIS), (-1) and (0) and llBreakAllLinks in the
+  // root, and llBreakLink(1) and (2) and llBreakAllLinks in the child, said nothing, and the object
+  // stayed whole. Detached and rezzed, llBreakLink(2) told the owner "Unlink failed: no edit
+  // permissions." Without the permission, llBreakLink(2) gave the permission error.
+  it('says nothing in a worn no-modify object, given the permission', async () => {
+    const calls = 'llBreakLink(2); llBreakLink(1); llBreakLink(LINK_THIS); llBreakLink(-1); llBreakLink(0); llBreakAllLinks();'
+    const root = await object(2, calls, { grant: true, noModify: true, worn: true })
+    expect(root.errors).toEqual([])
+    expect(root.prims).toBe(2)
+    const child = await object(2, 'llBreakLink(1); llBreakLink(2); llBreakAllLinks();', { grant: true, noModify: true, worn: true, from: 'child' })
+    expect(child.errors).toEqual([])
+    const denied = await object(2, 'llBreakLink(2);', { grant: false, noModify: true, worn: true })
+    expect(denied.errors).toEqual([PERM])
   })
 })

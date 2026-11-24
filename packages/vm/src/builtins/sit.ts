@@ -107,7 +107,7 @@ function move(ctx: CallContext, key: string, destination: AvatarDestination, loo
   const local = destination.region === ctx.linkset.region
   const crossing = destination.region !== agent.region
   const world = ctx.linkset.world!
-  wearerTeleported(world, agent, () => {
+  wearerTeleported(world, agent, crossing, () => {
     world.relocateAvatar(agent, destination.region, destination.position)
     if (crossing) leaveRegionSeatRequests(agent)
     if (lookAt) agent.rotation = yawRotation(lookAt.x - (local ? destination.position.x : 0), lookAt.y - (local ? destination.position.y : 0))

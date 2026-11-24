@@ -774,13 +774,18 @@ function stopTargetMotion(prim: Prim, kind: 'move' | 'look', caller: TargetOwner
  * target once the script was started.
  */
 export function slackenTargetMotion(script: Script, slack: boolean): void {
-  const root = script.linkset.prims[0]!
-  for (const request of [root.targetMotion.move, root.targetMotion.look]) {
+  const root = script.linkset.prims[0]!, move = root.targetMotion.move
+  for (const request of [move, root.targetMotion.look]) {
     if (request?.owner.prim === script.host.key && request.owner.script === script.instanceId) {
       if (slack) request.slack = true
       else delete request.slack
     }
   }
+  if (move?.owner.prim !== script.host.key || move.owner.script !== script.instanceId) return
+  // In-world: setting the script that held one of two worn targets not running left the wearer
+  // where it was until a walk; setting it running again took the wearer back at once.
+  if (slack) holdWearer(script.linkset)
+  else wakeWearer(script.linkset)
 }
 
 // In-world: a sibling's new target, set while the script that owns the target was stopped, did
@@ -794,6 +799,16 @@ export function clearTargetMotion(script: Script): void {
   const root = script.linkset.prims[0]!, caller = { prim: script.host.key, script: script.instanceId }
   stopTargetMotion(root, 'move', caller)
   stopTargetMotion(root, 'look', caller)
+}
+
+/**
+ * Clear the targets of a script that resets. In-world: resetting the script that held one of two
+ * worn targets left the wearer where it was until a walk took it to the other target.
+ */
+export function resetTargetMotion(script: Script): void {
+  const root = script.linkset.prims[0]!, before = acting(root.targetMotion.move)
+  clearTargetMotion(script)
+  if (before && !root.targetMotion.move) holdWearer(script.linkset)
 }
 
 function lookRotation(position: Vector, target: Vector): Rotation {
@@ -942,11 +957,13 @@ function quietWearer(move: () => void): void {
 
 /**
  * Teleport a wearer with `relocate` and tell its objects with `report`. In-world, within the
- * region: moving_start, then changed(CHANGED_TELEPORT) 21 ms later, then moving_end.
+ * region: moving_start, then changed(CHANGED_TELEPORT) 21 ms later, then moving_end. Into another
+ * region, landing standing: changed(CHANGED_TELEPORT | CHANGED_REGION) alone, five runs.
  */
-export function wearerTeleported(world: World, avatar: WorldAvatar, relocate: () => void, report: () => void): void {
+export function wearerTeleported(world: World, avatar: WorldAvatar, crossing: boolean, relocate: () => void, report: () => void): void {
   quietWearer(relocate)
   interruptWearer(avatar)
+  if (crossing) { report(); return }
   raiseWorn(world, avatar, 'moving_start', true)
   report()
   raiseWorn(world, avatar, 'moving_end', true)
@@ -1060,12 +1077,8 @@ export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
   // In-world: edge-64 moved, edge-64.01 and distance-64.9 did not.
   if (Math.hypot(delta.x, delta.y, delta.z) > 64) return
   root.targetMotion.move = { owner: initiator, target: { ...target }, tau, ...slackOf(held) }
-  const wearer = ctx.linkset.wearer
   // In-world: a new target from either worn object made every held target pull again.
-  if (wearer && ctx.linkset.world) {
-    wearerMotionOf(wearer).dormant = false
-    pullWearer(ctx.linkset.world, wearer)
-  }
+  wakeWearer(ctx.linkset)
   setMoving(ctx.linkset, true)
 }
 // In-world: llStopMoveToTarget gave moving_start when the box fell from the target, and nothing
@@ -1073,13 +1086,27 @@ export const llMoveToTarget: BuiltinImpl = (ctx, args) => {
 export const llStopMoveToTarget: BuiltinImpl = ctx => {
   const root = ctx.linkset.prims[0]!, before = acting(root.targetMotion.move)
   stopTargetMotion(root, 'move', owner(ctx))
-  const wearer = ctx.linkset.wearer, world = ctx.linkset.world
-  if (!wearer || !world || !before || root.targetMotion.move) return
-  // In-world: when one of two worn targets stopped, the wearer stayed where it was, short of the
-  // other target, until a walk moved it or a new target was set.
+  if (before && !root.targetMotion.move) holdWearer(ctx.linkset)
+}
+
+/**
+ * A worn target has stopped acting. In-world: when one of two worn targets stopped, the wearer
+ * stayed where it was, short of the other target, until a walk moved it or a new target was set.
+ */
+function holdWearer(linkset: Linkset): void {
+  const wearer = linkset.wearer, world = linkset.world
+  if (!wearer || !world) return
   const state = wearerMotionOf(wearer)
-  if (wornBy(world, wearer).some(linkset => acting(linkset.prims[0]!.targetMotion.move))) state.dormant = true
+  if (wornBy(world, wearer).some(worn => acting(worn.prims[0]!.targetMotion.move))) state.dormant = true
   settleWearer(world, wearer, state)
+}
+
+/** A worn target acts again, and every held target with it. */
+function wakeWearer(linkset: Linkset): void {
+  const wearer = linkset.wearer, world = linkset.world
+  if (!wearer || !world) return
+  wearerMotionOf(wearer).dormant = false
+  pullWearer(world, wearer)
 }
 
 function setLook(ctx: CallContext, target: LookRequest['target'], strength: number, damping: number): void {
