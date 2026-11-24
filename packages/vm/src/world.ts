@@ -739,6 +739,14 @@ export class World {
     this.unseat(avatar, 'Striding')
   }
 
+  /**
+   * @internal Stand an avatar for llUnSit in `caller`, whose own changed(32) runs where it
+   * came up even after the handler slept.
+   */
+  unsitFrom(avatar: WorldAvatar, caller: Script): void {
+    this.unseat(avatar, 'Striding', false, caller)
+  }
+
   /** @internal A seat that is deleted drops its sitter, which reads "Striding" in the air longer. */
   dropFromRemovedSeat(avatar: WorldAvatar): void {
     // In-world: for one region frame after the seat died, in eight of ten runs, every read of the
@@ -754,7 +762,7 @@ export class World {
     return avatar.region === region && !(this.clock.now < (this.hiddenUntil.get(avatar) ?? 0))
   }
 
-  private unseat(avatar: WorldAvatar, motion: AnimationState | null, removed = false): void {
+  private unseat(avatar: WorldAvatar, motion: AnimationState | null, removed = false, caller?: Script): void {
     const sitting = !!(avatar.info & AGENT_SITTING)
     const previous = avatar.sittingOn?.linkset
     avatar.sittingOn = null
@@ -769,7 +777,7 @@ export class World {
       this.animate(avatar, 'Hovering Up')
     } else if (sitting && motion && !previous && avatar.info & AGENT_FLYING) this.hoverUp(avatar)
     else if (sitting && motion) this.landAvatar(avatar, motion, removed ? 'removed' : previous ? 'object' : 'ground')
-    if (previous) this.sitChanged(previous)
+    if (previous) this.sitChanged(previous, caller)
     if (sitting) wearerMoved(this, avatar)
     if (sitting) returnStandtpAvatar(this, avatar)
     if (previous) groundSitAfterStand(this, avatar)
@@ -1009,14 +1017,14 @@ export class World {
     setAnimationState(regionAnimations(this.clock, avatar.region), avatar.key, state)
   }
 
-  private sitChanged(linkset: Linkset): void {
+  private sitChanged(linkset: Linkset, caller?: Script): void {
     // Match the linkset's linking/unlinking event policy.
     const pending = this.clock.pendingEvents().filter(e => e.event === 'changed' && e.payload['changes'] === CHANGED_LINK)
     for (const script of linkset.allScripts()) {
       if (!script.running) continue
       const waiting = pending.filter(e => e.target === script)
       if (waiting.length >= 2 || waiting.some(e => e.at >= script.resumedAt)) continue
-      this.clock.schedule(script, this.clock.now, 'changed', { changes: CHANGED_LINK })
+      this.clock.schedule(script, this.clock.now, 'changed', { changes: CHANGED_LINK }, script === caller ? false : undefined)
     }
   }
 
