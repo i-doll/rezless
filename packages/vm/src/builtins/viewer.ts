@@ -84,9 +84,13 @@ const mapThrottles = new WeakMap<object, Map<string, WindowThrottle>>()
 // until the end of the next period. Refused calls count. A call that would show nobody
 // isn't counted, but a refused call uses up the click's one showing. Each region keeps its
 // own count: an avatar refused maps got 4 more as soon as it arrived in another region.
+// A clicker who left the region before the call still got the map in its new region, counted
+// in the object's region; one who logged out got nothing, and the calls said nothing.
 function mapShown(ctx: CallContext): string | undefined {
   const agent = mapAgent(ctx)
-  if (agent === undefined || !isAgentInRegion(ctx, agent)) return undefined
+  if (agent === undefined) return undefined
+  const online = ctx.linkset.world?.avatars.some(a => a.key.toLowerCase() === agent) || isAgentInRegion(ctx, agent)
+  if (!online) return undefined
   let byAgent = mapThrottles.get(ctx.linkset.clock)
   if (!byAgent) mapThrottles.set(ctx.linkset.clock, byAgent = new Map())
   const id = `${ctx.linkset.region ?? ''}\n${agent}`
