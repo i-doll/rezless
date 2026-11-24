@@ -183,6 +183,9 @@ export class Script {
   private readonly handlersByState: Map<string, Map<string, EventHandler>>
   private started = false
   get hasStarted() { return this.started }
+  /** Left unstarted on purpose, as a duplicate's scripts can be: events raised at it are lost until it starts. */
+  private waiting = false
+  get waitsToStart() { return this.waiting && !this.started }
   private readonly stubs: 'allow' | 'warn' | 'throw'
   private readonly warnedStubs = new Set<string>()
   /** Per-script clock facade (timer state + time reference). */
@@ -1106,11 +1109,13 @@ export class Script {
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events. An event
-   * fired at a stopped or crashed script is lost, as in Second Life.
+   * fired at a stopped or crashed script is lost, as in Second Life, and so is
+   * one fired at a copy's script that waits for `startAll`.
    */
   fire(eventName: string, payload: Record<string, unknown> = {}): void {
     if (this.state.lifecycle.dead) return
     if (!this.running) return
+    if (this.waitsToStart) return
     if (!this.started) {
       this.started = true
       forgetMoving(this)
@@ -1136,20 +1141,29 @@ export class Script {
   }
 
   /**
-   * Run state_entry of the default state. If the script has been auto-started
-   * (e.g. by an earlier fire), this is a no-op.
+   * Run state_entry of the default state, or for a stopped script, once it is
+   * set running. If the script has been auto-started (e.g. by an earlier fire),
+   * this is a no-op.
    */
   start(): void {
     if (this.state.lifecycle.dead) return
     if (this.started) return
+    // A stopped script runs state_entry once it is set running, as with startAll.
+    if (!this.running) return this.queueStart()
     this.boot()
     this.linkset.settle([this])
+  }
+
+  /** Leave this script unstarted until a start: until then, events raised at it are lost. */
+  holdStart(): void {
+    if (!this.started) this.waiting = true
   }
 
   /** Queue a fresh inventory script's first event without waiting for its handler. */
   queueStart(): void {
     if (this.started || this.dead) return
     this.started = true
+    this.waiting = false
     forgetMoving(this)
     // A script loaded stopped keeps its first event until it is started.
     if (this.running) this.clockView.schedule(this.now, 'state_entry')
@@ -1210,8 +1224,7 @@ export class Script {
       copy.state.currentState = this.state.currentState
     }
     copy.state.memory.limit = this.state.memory.limit
-    // An SLua script whose start is still queued has not run: the copy starts it.
-    copy.started = this.slua ? this.slua.started : this.started
+    copy.started = this.started
     // A saved object keeps the mark for every rez. A rezzed one has used it up.
     copy.unseated = !!opts.unseated || (this.unseated && !this.linkset.world)
     copy.crashed = this.crashed
@@ -1413,6 +1426,7 @@ export class Script {
 
   private boot(): void {
     this.started = true
+    this.waiting = false
     forgetMoving(this)
     if (this.slua) {
       this.beginSluaMain()
@@ -1639,6 +1653,15 @@ export class Script {
     return this.task?.startedAt
   }
 
+  /** Whether the running handler has gone on past the instant it began, after a sleep or a busy spell. */
+  get handlerWentOn(): boolean {
+    const startedAt = this.stepping?.startedAt
+    return startedAt !== undefined && startedAt < this.now
+  }
+
+  /** The task whose handler is running now. */
+  private stepping: Task | null = null
+
   /**
    * In-world: a sleep did not run down while the worn object was in inventory. `since` is when
    * it went there; a handler that started later has only been asleep since its own start.
@@ -1707,8 +1730,10 @@ export class Script {
     let r: IteratorResult<Suspension, boolean>
     const outer = this.handling
     const outerBusy = this.busyRun
+    const outerTask = this.stepping
     this.handling = true
     this.busyRun = task.busy === true
+    this.stepping = task
     try {
       r = task.run.next()
     } catch (e) {
@@ -1717,6 +1742,7 @@ export class Script {
     } finally {
       this.handling = outer
       this.busyRun = outerBusy
+      this.stepping = outerTask
       if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {

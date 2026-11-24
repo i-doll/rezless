@@ -61,9 +61,9 @@ export const llUnSit: BuiltinImpl = (ctx, args) => {
   const world = ctx.linkset.world!
   const land = world.parcelAt(agent.region, agent.position)
   if (!(agent.sittingOn?.linkset === ctx.linkset || (land && land.owner !== NULL_KEY && sameKey(land.owner, ctx.linkset.owner)))) return undefined
-  // In-world: in SLua llUnSit raised changed(32) in the frame it was called, and the caller got it
-  // ahead of a link message it sent next, also after a sleep. In LSL it mostly came a frame later.
-  if (ctx.script.language === 'slua') world.unsitFrom(agent, ctx.script)
+  // In-world: after a sleep, llUnSit raised changed(32) a frame later in every script, in LSL and,
+  // with a sitter wearing few attached prims, in SLua.
+  if (ctx.script.handlerWentOn) world.unsitFrom(agent)
   else world.standAvatar(agent)
   return undefined
 }

@@ -336,6 +336,8 @@ export class LinksetClock {
    */
   schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, dueAt = at): void {
     if (event !== '__reset' && !target.running) return
+    // In-world: an event raised at a script that had not started yet was lost.
+    if (!target.hasStarted && !event.startsWith('__')) return
     // In-world: the end of a land contact that came at the wake ran behind the held land_collision
     // events paced out after it.
     if (LAND_EVENTS.has(event) && held === undefined) {

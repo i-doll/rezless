@@ -117,11 +117,13 @@ const linkFirst = (command: string) => order(`lm ${command}`, 'changed 32')
 // target. Breaking a child off stood the avatar at once, so the llUnSit after
 // it did nothing: "K" gave what "J" gave and "Z" what "Y" gave. In every run
 // each script got one changed(32), and the prim broken off got nothing else.
-describe.each(['lsl', 'slua'] as const)('llBreakLink with a sitter, then llMessageLinked (%s)', (language) => {
-  // In-world: "K" (LSL 3 runs, SLua 2) and "J" (1 run each) -> changed(32),
-  // then link_message, in every script.
+describe('SLua: llBreakLink with a sitter, then llMessageLinked', () => {
+  // In-world: "K" (2 runs) and "J" (1 run) with the first test avatar ->
+  // changed(32), then link_message, in every script. With the second,
+  // wearing one attached prim, the same in 3 of 4 runs; in the other, the
+  // child's logger got link_message first.
   it.each(['K', 'J'])('queues changed before link_message (%s)', async (command) => {
-    const out = await run(language, command)
+    const out = await run('slua', command)
     expect(out.ctl).toEqual([...start(command), ...changedFirst(command)])
     expect(out.seat).toEqual(changedFirst(command))
     expect(out.kid).toEqual(changedFirst(command))
@@ -129,25 +131,63 @@ describe.each(['lsl', 'slua'] as const)('llBreakLink with a sitter, then llMessa
   })
 })
 
-// In SLua the order after a sleep depended on which test avatar sat. With one,
-// the caller of llBreakLink or llBreakAllLinks got changed(32) before its
-// link_message in 15 of 15 runs over four sessions. With the other, it got
-// link_message first in 7 of 7 runs over two sessions, one of them shared
-// with the first avatar, runs taking turns, on the same kind of seat. A
-// script that depends on either order can break in Second Life. llUnSit gave
-// the same two orders, less steadily with the first avatar (3 of 6 runs
-// changed first). rezless gives the first avatar's order, which is the order
-// it gives for llUnSit in SLua.
+// In-world (LSL): "K" (3 runs) and "J" (1 run) gave changed(32), then
+// link_message, in every script, while the other seat ran the same command in
+// the same frame. A later probe broke a child off a lone four-prim seat from
+// the root, with nothing else running, and llMessageLinked(LINK_SET) after it
+// (Aditi, SLua Tideland, 2026-11-24): link_message, then changed(32), in every
+// script, 6 of 6 runs over both test avatars. The change came a frame after
+// the call and the link message in the frame of the call. rezless gives the
+// order of the quiet region.
+describe('LSL: llBreakLink with a sitter, then llMessageLinked', () => {
+  it.each(['K', 'J'])('queues link_message before changed (%s)', async (command) => {
+    const out = await run('lsl', command)
+    expect(out.ctl).toEqual([...start(command), ...linkFirst(command)])
+    expect(out.seat).toEqual(linkFirst(command))
+    expect(out.kid).toEqual(linkFirst(command))
+    expect(out.brk).toEqual([`changed 32${alone}`])
+  })
+})
+
+// In SLua, changed(32) from a break that stood the sitter came at the end of
+// the simulator frame of the call. If the call held the caller past that
+// frame end, every script got changed(32) first; if the caller went on in the
+// same frame, link_message came first. On the Aditi beta grid (2026-11-24),
+// after a sleep, whoever owned the seat or gave the command:
+// - The first test avatar, wearing 557 attached prims: changed(32) first, 15
+//   of 15 runs in #702 and 7 of 7 in #709, one of them on a seat the second
+//   avatar owned.
+// - The second test avatar wearing 257 or 514 attached prims: the call held
+//   the caller a frame, changed(32) first, 4 of 4.
+// - The second test avatar wearing under 80 attached prims: link_message first
+//   in every script, 16 of 16 runs with the call straight after the sleep,
+//   "Z", "Y", "A" and "B" below included. A say and some reads between the
+//   sleep and the call made changed(32) first in 4 of 5 runs.
+// llUnSit gives the same two orders, though with 257 attached prims it didn't
+// hold the caller. A script that depends on either order can break in Second
+// Life. Avatars in rezless wear nothing, so rezless gives the order of a
+// sitter wearing few attached prims: after a sleep the stand's changed(32)
+// comes a frame late with the link change, as in LSL.
 describe('SLua: llSleep, then llBreakLink with a sitter, then llMessageLinked', () => {
-  // In-world, with the first avatar: "Z" (3 runs) and "Y" (2 runs) ->
+  // In-world, with the second test avatar wearing one attached prim: "Z" and
+  // "Y" (2 runs each) -> link_message, then changed(32), in every script left
+  // in the seat. The prim broken off got changed(32) alone.
+  it.each(['Z', 'Y'])('queues link_message before changed in every script (%s)', async (command) => {
+    const out = await run('slua', command)
+    expect(out.ctl).toEqual([...start(command), ...linkFirst(command)])
+    expect(out.seat).toEqual(linkFirst(command))
+    expect(out.kid).toEqual(linkFirst(command))
+    expect(out.brk).toEqual([`changed 32${alone}`])
+  })
+
+  // In-world, with the first test avatar: "Z" (3 runs) and "Y" (2 runs) ->
   // changed(32), then link_message, in every script, the caller that slept
   // included.
-  it.each(['Z', 'Y'])('queues changed before link_message in every script, one of the orders Second Life gives (%s)', async (command) => {
+  it.fails.each(['Z', 'Y'])('queues changed first in every script, as for a sitter wearing many attached prims (%s)', async (command) => {
     const out = await run('slua', command)
     expect(out.ctl).toEqual([...start(command), ...changedFirst(command)])
     expect(out.seat).toEqual(changedFirst(command))
     expect(out.kid).toEqual(changedFirst(command))
-    expect(out.brk).toEqual([`changed 32${alone}`])
   })
 })
 
@@ -160,9 +200,7 @@ describe('LSL: llSleep, then llBreakLink with a sitter, then llMessageLinked', (
     expect(out.brk).toEqual([`changed 32${alone}`])
   })
 
-  // rezless holds back only the caller's change after its handler slept, so
-  // the scripts that were not in a handler run changed(32) first.
-  it.fails.each(['Z', 'Y'])('gives the other scripts link_message first (%s)', async (command) => {
+  it.each(['Z', 'Y'])('gives the other scripts link_message first (%s)', async (command) => {
     const out = await run('lsl', command)
     expect(out.seat).toEqual(linkFirst(command))
     expect(out.kid).toEqual(linkFirst(command))
@@ -178,29 +216,27 @@ describe.each(['lsl', 'slua'] as const)('llSleep, then llBreakLink with no sitte
     expect(out.ctl).toEqual([...start(command, false), ...linkFirst(command)])
   })
 
-  // rezless runs changed(32) first in the scripts that were not in a handler.
-  it.fails.each(['Z', 'Y'])('gives the other scripts link_message first (%s)', async (command) => {
+  it.each(['Z', 'Y'])('gives the other scripts link_message first (%s)', async (command) => {
     const out = await run(language, command, false)
     expect(out.seat).toEqual(linkFirst(command))
     expect(out.kid).toEqual(linkFirst(command))
   })
 })
 
-// In-world, with no sleep and no sitter, LSL gave changed(32) first in the
-// root's two scripts and link_message first in the child's, 4 of 4 runs ("K"
-// 3, "J" 1). SLua varied: that order in 2 runs, link_message first in every
-// script in the other 2. rezless runs changed(32) first in every script.
+// In-world, with no sleep and no sitter, while the seated seat ran the same
+// command in the same frame, LSL gave changed(32) first in the root's two
+// scripts and link_message first in the child's, 4 of 4 runs ("K" 3, "J" 1).
+// SLua varied: that order in 2 runs, link_message first in every script in
+// the other 2. With nothing else running, LSL gave link_message first in every
+// script, 6 of 6 runs over both test avatars (the probe in the comment above
+// the LSL sitter tests). rezless gives that order.
 describe('LSL: llBreakLink with no sitter, then llMessageLinked', () => {
-  it('gives the root\'s scripts changed first', async () => {
+  it('gives every script link_message first', async () => {
     const out = await run('lsl', 'J', false)
-    expect(out.ctl).toEqual([...start('J', false), ...changedFirst('J')])
-    expect(out.seat).toEqual(changedFirst('J'))
-    expect(out.brk).toEqual([`changed 32${alone}`])
-  })
-
-  it.fails('gives the child link_message first', async () => {
-    const out = await run('lsl', 'J', false)
+    expect(out.ctl).toEqual([...start('J', false), ...linkFirst('J')])
+    expect(out.seat).toEqual(linkFirst('J'))
     expect(out.kid).toEqual(linkFirst('J'))
+    expect(out.brk).toEqual([`changed 32${alone}`])
   })
 })
 
@@ -268,15 +304,24 @@ async function runBreak(language: Language, command: 'A' | 'B') {
 describe('llSleep, then llBreakLink(LINK_THIS) on a seated lone prim or llBreakAllLinks, then llMessageLinked', () => {
   const first = (a: string, b: string) => [`${a} n=1`, `${b} n=1`]
 
-  // In-world, with the first avatar: "A" and "B", 2 runs each ->
-  // changed(32), then link_message, in the root's scripts, the caller that
-  // slept included. The child broken off by "B" got changed(32) alone.
-  it.each(['A', 'B'] as const)('SLua queues changed first in the root, one of the orders Second Life gives (%s)', async (command) => {
+  // In-world, with the second test avatar wearing one attached prim: "A" and
+  // "B", 3 runs each -> link_message, then changed(32), in the root's scripts.
+  // The child broken off by "B" got changed(32) alone.
+  it.each(['A', 'B'] as const)('SLua queues link_message first in the root (%s)', async (command) => {
     const out = await runBreak('slua', command)
     const seated = command === 'A' ? ' n=2' : ' n=3'
-    expect(out.ctl).toEqual([`cmd ${command}${seated}`, 'end n=1', ...first('changed 32', `lm ${command}`)])
-    expect(out.seat).toEqual(first('changed 32', `lm ${command}`))
+    expect(out.ctl).toEqual([`cmd ${command}${seated}`, 'end n=1', ...first(`lm ${command}`, 'changed 32')])
+    expect(out.seat).toEqual(first(`lm ${command}`, 'changed 32'))
     if (command === 'B') expect(out.kid).toEqual(['changed 32 n=1'])
+  })
+
+  // In-world, with the first test avatar: "A" and "B", 2 runs each ->
+  // changed(32), then link_message, in the root's scripts, the caller that
+  // slept included.
+  it.fails.each(['A', 'B'] as const)('SLua queues changed first in the root, as for a sitter wearing many attached prims (%s)', async (command) => {
+    const out = await runBreak('slua', command)
+    expect(out.ctl!.slice(2)).toEqual(first('changed 32', `lm ${command}`))
+    expect(out.seat).toEqual(first('changed 32', `lm ${command}`))
   })
 
   // In-world: "A" and "B", 2 runs each -> link_message, then changed(32), in
@@ -288,8 +333,7 @@ describe('llSleep, then llBreakLink(LINK_THIS) on a seated lone prim or llBreakA
     if (command === 'B') expect(out.kid).toEqual(['changed 32 n=1'])
   })
 
-  // rezless holds back only the caller's change after its handler slept.
-  it.fails.each(['A', 'B'] as const)('LSL gives the logger in the root link_message first (%s)', async (command) => {
+  it.each(['A', 'B'] as const)('LSL gives the logger in the root link_message first (%s)', async (command) => {
     const out = await runBreak('lsl', command)
     expect(out.seat).toEqual(first(`lm ${command}`, 'changed 32'))
   })
@@ -300,8 +344,8 @@ describe('llSleep, then llBreakLink(LINK_THIS) on a seated lone prim or llBreakA
 // llMessageLinked(LINK_THIS). The owner touched the seat during the sleep.
 // In-world the touch ran first in every run: then link_message and
 // changed(32) in LSL (2 of 2), and in SLua changed(32) and link_message with
-// the first avatar (2 of 2), link_message and changed(32) with the other
-// (2 of 2).
+// the first test avatar (2 of 2), link_message and changed(32) with the
+// second, which wore one attached prim (2 of 2).
 describe('a touch during the sleep before llBreakLink with a sitter', () => {
   const SOURCES = {
     lsl: `rep(string s) { llOwnerSay(s); }
@@ -348,7 +392,7 @@ describe('a touch during the sleep before llBreakLink with a sitter', () => {
     expect(await touched('lsl')).toEqual(['touch', 'lm', 'changed 32'])
   })
 
-  it('SLua runs the touch first, then changed and link_message as without it', async () => {
-    expect(await touched('slua')).toEqual(['touch', 'changed 32', 'lm'])
+  it('SLua runs the touch, then link_message, then changed, as for a sitter wearing few attached prims', async () => {
+    expect(await touched('slua')).toEqual(['touch', 'lm', 'changed 32'])
   })
 })

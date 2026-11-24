@@ -448,7 +448,10 @@ export class Linkset {
     // In-world: a copy of a box whose one script was counted read 0.5, and a copy of a box whose
     // two scripts were both counted read 0.75: the region leaves out the copy's last script.
     copy.countedScripts = Math.max(0, copy.allScripts().length - 1)
-    if (startScripts) for (const script of copy.allScripts()) script.queueStart()
+    for (const script of copy.allScripts()) {
+      if (startScripts) script.queueStart()
+      else script.holdStart()
+    }
     duplicatedPhysical(copy, selected)
     return copy
   }
@@ -613,11 +616,11 @@ export class Linkset {
 
   /** Unlinking a prim stands everyone seated on the object. */
   private standSitters(caller?: Script): void {
-    // In-world, after a sleep the SLua caller of llBreakLink or llBreakAllLinks got changed(32)
-    // ahead of a link message it sent next with one sitter, and behind it with another, as with
-    // llUnSit. Both get the order rezless gives llUnSit.
+    // In-world, the stand's changed(32) came with the link change, a frame late, in LSL and, after
+    // a sleep and with a sitter wearing few attached prims, in SLua.
+    const late = caller && (caller.language !== 'slua' || caller.handlerWentOn)
     for (const avatar of this.sitters()) {
-      if (caller?.language === 'slua') this.world!.unsitFrom(avatar, caller)
+      if (late) this.world!.unsitFrom(avatar)
       else this.world!.standAvatar(avatar)
     }
   }
@@ -918,9 +921,13 @@ export class Linkset {
    * Click link `link` as an avatar. Each script in that prim gets
    * `touch_start`, `touch` and `touch_end`, if it handles them. The click
    * also reaches the root's scripts when the prim set PASS_ALWAYS, or when
-   * no running script in it handles any touch event and it did not set
-   * PASS_NEVER. In every receiver llDetectedLinkNumber is `link` and
-   * llDetectedTouchFace is `face`.
+   * no running script in it that has started handles any touch event and it
+   * did not set PASS_NEVER. Without either setting, the release goes where
+   * a click would go at that moment: a script it reaches that did not get
+   * the click gets `touch_end` alone, and a clicked script it no longer
+   * reaches keeps getting `touch` as if stopped through the release. In
+   * every receiver llDetectedLinkNumber is `link` and llDetectedTouchFace is
+   * `face`.
    *
    * A click with no `hold` raises all three events at once. A held click
    * raises `touch_start`, then `touch` every TOUCH_REPEAT_MS, starting half
@@ -937,14 +944,18 @@ export class Linkset {
         : this.prims.find((p) => p.linkNumber === link)
     if (!prim) throw new Error(`touch: no prim with link number ${link}`)
     const root = this.prims[0]!
-    for (const s of new Set([...prim.scripts, ...root.scripts])) if (s.running) s.start()
+    for (const s of new Set([...prim.scripts, ...root.scripts])) if (s.running && !s.waitsToStart) s.start()
     const handlers = (p: Prim) =>
-      p.scripts.filter((s) => s.running && !s.dead && TOUCH_EVENTS.some((e) => s.handles(e)))
-    const receivers = handlers(prim)
+      p.scripts.filter((s) => s.running && !s.dead && s.hasStarted && TOUCH_EVENTS.some((e) => s.handles(e)))
     const pass = prim.params.passTouches
-    if (prim !== root && (pass === PASS_ALWAYS || (pass !== PASS_NEVER && receivers.length === 0))) {
-      receivers.push(...handlers(root))
+    const passing = prim !== root && pass !== PASS_ALWAYS && pass !== PASS_NEVER
+    const route = () => {
+      const own = handlers(prim)
+      if (prim === root) return own
+      const now = prim.params.passTouches
+      return now === PASS_ALWAYS || (now !== PASS_NEVER && own.length === 0) ? [...own, ...handlers(root)] : own
     }
+    const receivers = route()
     const avatar = opts.avatar ?? { key: this.owner, name: '' }
     const by = avatar.key.toLowerCase()
     const detected: DetectedEntry[] = [
@@ -975,8 +986,21 @@ export class Linkset {
       armTouches(this.clock)
       this.advanceTime(opts.hold)
     }
+    // In-world: the release went where a click would have gone at that moment. A click passed to
+    // the root while the child's touch scripts had not started, or were stopped, ended in the
+    // child once one of them ran; the root got no touch_end and kept getting touch. A click
+    // taken by the child's only touch script, stopped or moved to a state with no touch
+    // handler before the release, raised touch_end in the root. A child that set PASS_NEVER
+    // during a passed click kept the release from the root. A script reached only by the
+    // release got touch_end alone, which also ended a click it was still holding.
+    const released = passing ? route() : receivers
+    const late = released.filter((s) => !clicks.has(s))
+    for (const s of late) {
+      s.heldClicks.delete(by)
+      scheduleTouch(s, 'touch_end', detected)
+    }
     for (const [s, click] of clicks) {
-      if (!live(s)) {
+      if (!live(s) || !released.includes(s)) {
         click.released = true
         continue
       }
@@ -986,7 +1010,7 @@ export class Linkset {
       scheduleTouch(s, 'touch_end', click.detected)
     }
     armTouches(this.clock)
-    this.settle(receivers)
+    this.settle([...receivers, ...late])
   }
 
   private globalPosition(prim: Prim): Vector {

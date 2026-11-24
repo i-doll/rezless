@@ -118,29 +118,27 @@ describe('changed colour and material events', () => {
     expect(s.root).toEqual([2,4096,2])
   })
 
-  it('initializes an observer before delivering its first setter event', async () => {
+  it('loses a setter event raised before the observer starts', async () => {
     const { scripts } = await loadLinkset({ prims: [{ scripts: [
       { name: 'setter', source: { source: 'default{state_entry(){llSetColor(<1,0,0>,0);}}' } },
       { name: 'observer', source: { source: `integer ready; integer entries; list seen;
         default{state_entry(){++entries;ready=1;}changed(integer c){seen += [ready,c];}}` } },
     ] }] })
     scripts.setter!.start()
-    // The change comes a simulator frame after the call.
     scripts.setter!.advanceTime(100)
-    expect(scripts.observer!.global('seen')).toEqual([1,2])
+    // A loaded script the test has not started loses the events other scripts raise at it.
+    expect([scripts.observer!.hasStarted, scripts.observer!.global('seen')]).toEqual([false, []])
     scripts.observer!.start()
-    expect(scripts.observer!.global('entries')).toBe(1)
+    expect([scripts.observer!.global('entries'), scripts.observer!.global('seen')]).toEqual([1, []])
   })
 
   it('lets a sleeping observer finish initialization before its first change', async () => {
-    const { scripts } = await loadLinkset({ prims: [{ scripts: [
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [
       { name: 'setter', source: { source: 'default{state_entry(){llSetColor(<1,0,0>,0);}}' } },
       { name: 'observer', source: { source: `integer ready; list seen;
         default{state_entry(){llSleep(1.0);ready=1;}changed(integer c){seen += [ready,c];}}` } },
     ] }] })
-    scripts.setter!.start()
-    expect(scripts.observer!.global('seen')).toEqual([])
-    scripts.observer!.advanceTime(1000)
+    linkset.startAll([scripts.setter!, scripts.observer!])
     expect(scripts.observer!.global('seen')).toEqual([1,2])
   })
 
