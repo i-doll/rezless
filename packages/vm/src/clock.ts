@@ -378,11 +378,12 @@ export class LinksetClock {
   private busyCollisionHeld(target: Script, event: string, payload: Record<string, unknown>): boolean | undefined {
     const waiting = this.queue.filter((e) => e.target === target && e.at <= this.now && COLLISION_EVENTS.has(e.event))
     const waits = (kind: string, held?: boolean) => waiting.some((e) => e.event === kind && (held === undefined || !!e.held === held))
-    if (event === 'collision') return waits('collision') || waits('collision_end')
-    if (event === 'collision_end') return waits('collision_end') || waits('collision', true)
-    if (!waits('collision_start')) return false
     const keys = detectedKeys(payload)
-    return waiting.some((e) => e.held && e.event === 'collision' && detectedKeys(e.payload).some((k) => keys.includes(k))) ? undefined : true
+    const heldWith = (kind: string) => waiting.some((e) => e.held && e.event === kind && (!keys.length || detectedKeys(e.payload).some((k) => keys.includes(k))))
+    if (event === 'collision') return waits('collision') || waits('collision_end') || heldWith('collision_start')
+    if (event === 'collision_end') return waits('collision_end') || waits('collision', true) || heldWith('collision_start')
+    if (!waits('collision_start')) return false
+    return heldWith('collision') ? undefined : true
   }
 
   /** Whether an event of `event`'s kind waits for `target`; with `since`, one that came up while busy after it. */
@@ -737,7 +738,10 @@ export class LinksetClock {
     const kind = (e: QueuedEvent) => heldKind(e.event)
     const waited = this.queue.filter((e) => e.target === script && e.at <= this.now)
     const waiting = new Set(waited.filter((e) => HELD_ORDER.has(e.event) && !this.heldBack(e, since)).map(kind))
-    const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)))
+    // In-world: a contact held whole while busy stayed whole through the sleep that followed.
+    const contact = (e: QueuedEvent) => e.busy === true && COLLISION_EVENTS.has(e.event) && this.heldBack(e, since)
+    const contactStays = waited.some((e) => contact(e) && waiting.has(kind(e)))
+    const held = waited.filter((e) => this.heldBack(e, since) && !waiting.has(kind(e)) && !(contactStays && contact(e)))
     if (!held.length) return
     this.purgeWhere((e) => held.includes(e))
     this.release(script, held, waiting.has('timer'))

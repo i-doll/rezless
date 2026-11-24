@@ -17,30 +17,38 @@ const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const BALL = { key: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name: 'ball' }
 const PLATFORM = { key: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', name: 'platform' }
 
-const probe = `list log;
+const probe = `list log; float nap;
   default {
     state_entry() { llListen(5, "", "", ""); }
-    listen(integer c, string name, key id, string m) { log += "begin"; llOwnerSay("spin"); log += "end"; }
+    listen(integer c, string name, key id, string m) { log += "begin"; llOwnerSay("spin"); log += "end"; if (nap > 0) llSleep(nap); }
+    touch_start(integer n) { log += "touch_start " + (string)n; }
+    touch(integer n) { log += "touch " + (string)n; }
+    touch_end(integer n) { log += "touch_end " + (string)n; }
     link_message(integer from, integer n, string s, key id) { log += "link " + (string)n; }
     collision_start(integer n) { log += "collision_start " + llDetectedName(0) + " " + (string)n; }
     collision(integer n) { log += "collision " + llDetectedName(0) + " " + (string)n; }
     collision_end(integer n) { log += "collision_end " + llDetectedName(0) + " " + (string)n; }
   }`
 
-async function make(busy: number) {
+async function make(busy: number, nap = 0) {
   const world = new World()
   world.addRegion('home', { x: 0, y: 0 })
   const made = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'main', source: { source: probe } }] }] })
   const script = made.scripts.main!
   script.start()
+  script.setGlobal('nap', nap / 1000)
   script.mock('llOwnerSay', (ctx) => { ctx.busy(busy); return undefined })
   made.linkset.advanceTime(0)
   const clock = world.clock
   const wait = (ms: number) => made.linkset.advanceTime(ms)
-  const queue = (event: string, by = BALL) => clock.schedule(script, clock.now, event, { num_detected: 1, detected: [by] })
+  const queue = (event: string, by: typeof BALL | null = BALL) =>
+    clock.schedule(script, clock.now, event, by ? { num_detected: 1, detected: [by] } : { num_detected: 1 })
   return {
-    wait,
+    wait, queue,
     begin: () => { clock.schedule(script, clock.now, 'listen', { channel: 5, name: 'owner', id: OWNER, msg: 'busy' }); wait(0) },
+    click: () => {
+      for (const event of ['touch_start', 'touch', 'touch_end']) clock.schedule(script, clock.now, event, { num_detected: 1, detected: [{ key: OWNER, name: 'owner', touchFace: 0 }] })
+    },
     link: (n: number) => clock.schedule(script, clock.now, 'link_message', { sender_num: 1, num: n, str: '', id: '' }),
     /** The ball through the box with volume detect on: collision_start, then collision_end 0.13 s later. Takes 0.13 s. */
     pass: () => { queue('collision_start'); wait(130); queue('collision_end') },
@@ -165,5 +173,57 @@ describe('a second contact while a handler is busy', () => {
     f.wait(5_000)
     expect(f.log()).toEqual(['begin', 'end', 'collision_start ball 1', 'collision ball 1', 'collision_end ball 1', 'link 1', 'link 2',
       'collision_start platform 1', 'collision platform 1', 'collision_end platform 1'])
+  })
+
+  // Contacts from two objects a few milliseconds apart could not be timed in-world. They follow
+  // the measured rule that a contact after the first is held whole.
+  it('holds the collision of an object whose collision_start is held', async () => {
+    const f = await make(8_000)
+    f.begin()
+    f.wait(1_000); f.queue('collision_start'); f.wait(5); f.queue('collision_start', PLATFORM); f.queue('collision', PLATFORM); f.link(1)
+    f.wait(8_000)
+    expect(f.log()).toEqual(['begin', 'end', 'collision_start ball 1', 'link 1', 'collision_start platform 1', 'collision platform 1'])
+  })
+
+  // A collision event with no detected objects counts as from one already in a held collision,
+  // so a second drop still gives no collision_start of its own.
+  it('drops a collision_start with no detected objects behind a held collision', async () => {
+    const f = await make(11_000)
+    f.begin()
+    f.wait(900); f.drop(); f.wait(2_600); f.queue('collision_start', null); f.link(1)
+    f.wait(10_000)
+    expect(f.log()).toEqual(['begin', 'end', 'collision_start platform 1', 'collision platform 1', 'link 1',
+      'collision platform 1', 'collision_end platform 1'])
+  })
+
+  // In-world: the box dropped onto the platform 0.5 s into an 11 s busy handler, clicks 3.1 s
+  // and 3.5 s in, a link message 4.4 s in, the ball dropped onto the box 5 s in and a link
+  // message 8 s in, gave collision_start and collision, the first click whole, both link
+  // messages, the ball's collision_start, a collision with 2 detected, the second click and a
+  // collision_end with 2 detected.
+  it('runs a held click between the held collision and collision_end', async () => {
+    const f = await make(11_000)
+    f.begin()
+    f.wait(900); f.drop(); f.wait(870); f.click(); f.wait(400); f.click(); f.wait(900); f.link(1)
+    f.wait(800); f.hit(); f.wait(2_870); f.link(2)
+    f.wait(5_000)
+    expect(f.log()).toEqual(['begin', 'end', 'collision_start platform 1', 'collision platform 1', 'touch_start 1', 'touch 1', 'touch_end 1',
+      'link 1', 'link 2', 'collision_start ball 1', 'collision platform 2', 'touch_start 1', 'touch 1', 'touch_end 1', 'collision_end platform 2'])
+  })
+})
+
+describe('a contact while a handler is busy and then asleep', () => {
+  // In-world: a 6 s busy part and then llSleep(6). The ball lay in the box with volume detect on
+  // 0.5 s to 1.7 s in, a link message 2 s in, volume detect off, the ball dropped onto the box
+  // 3 s in and a link message 4.5 s in. After the sleep: the volume detect contact, both link
+  // messages, then the drop's collision_start, collision and collision_end.
+  it('keeps a held contact whole through the sleep', async () => {
+    const f = await make(6_000, 6_000)
+    f.begin()
+    f.wait(600); f.queue('collision_start'); f.wait(1_100); f.queue('collision_end'); f.wait(300); f.link(1)
+    f.wait(1_000); f.hit(); f.wait(1_370); f.link(2)
+    f.wait(10_000)
+    expect(f.log()).toEqual(['begin', 'end', 'collision_start ball 1', 'collision_end ball 1', 'link 1', 'link 2',
+      'collision_start ball 1', 'collision ball 1', 'collision_end ball 1'])
   })
 })
