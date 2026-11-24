@@ -300,6 +300,19 @@ describe('two avatars clicking while a handler sleeps', () => {
     })
   })
 
+  it('a held click runs beside a fired touch that carries no detected data', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(1, 0), filename: 's.lsl' } }] }] })
+    const s = scripts.s!
+    s.start()
+    linkset.advanceTime(0)
+    linkset.press(0, { avatar: IDOLL })
+    s.fire('touch', { num_detected: 1 })
+    linkset.advanceTime(2000)
+    linkset.release(IDOLL)
+    linkset.advanceTime(1000)
+    expect((s.global('got') as string[]).map((e) => e[0]).join('')).toMatch(/^STT*E$/)
+  })
+
   it('press and release refuse a second press or a release without a press', async () => {
     const { linkset } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0), filename: 's.lsl' } }] }] })
     linkset.press(0, { avatar: IDOLL })
