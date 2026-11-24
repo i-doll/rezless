@@ -385,6 +385,31 @@ describe('two avatars clicking while a handler sleeps', () => {
     expect(s.global('got')).toEqual(['Si', 'Ti', 'Ei', 'Tf'])
   })
 
+  it('a second click by the same avatar in a sleep gives the touch after the wake its face', async () => {
+    const src = `list got;
+      default {
+        state_entry() { llSetTimerEvent(0.1); }
+        timer() { llSetTimerEvent(0); llSleep(2); }
+        touch_start(integer n) { got += "S" + (string)llDetectedTouchFace(0); }
+        touch(integer n) { got += "T" + (string)llDetectedTouchFace(0); }
+        touch_end(integer n) { got += "E" + (string)llDetectedTouchFace(0); }
+      }`
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: src, filename: 's.lsl' } }] }] })
+    const s = scripts.s!
+    s.start()
+    linkset.advanceTime(500)
+    linkset.press(0, { avatar: IDOLL, face: 1 })
+    linkset.advanceTime(300)
+    linkset.release(IDOLL)
+    linkset.advanceTime(100)
+    linkset.press(0, { avatar: IDOLL, face: 2 })
+    linkset.advanceTime(3000)
+    linkset.release(IDOLL)
+    linkset.advanceTime(1000)
+    const got = s.global('got') as string[]
+    expect(got.slice(0, 3)).toEqual(['S1', 'T2', 'E1'])
+  })
+
   it('press and release refuse a second press or a release without a press', async () => {
     const { linkset } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0), filename: 's.lsl' } }] }] })
     linkset.press(0, { avatar: IDOLL })

@@ -130,7 +130,7 @@ function waitingTouches(s: Script, event: string, by: string) {
   const lists = (e: QueuedEvent) => detectedIn(e).some((d) => d.key?.toLowerCase() === by)
   const clock = s.linkset.clock
   const waiting = clock.pendingEvents().filter((e) => e.target === s && e.event === event && e.at <= clock.now)
-  return { own: waiting.some(lists), other: waiting.find((e) => !lists(e)) }
+  return { own: waiting.find(lists), other: waiting.find((e) => !lists(e)) }
 }
 
 /**
@@ -201,7 +201,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // 8). SLua raises a held click's touch every frame, so it came up in the first frame and
       // listed i doll alone, 4 runs of 4.
       const running = s.handlerEvent !== undefined
-      const touches = running ? waitingTouches(s, 'touch', by) : { own: false, other: undefined }
+      const touches = running ? waitingTouches(s, 'touch', by) : { own: undefined, other: undefined }
       const waiting = touches.other
       if (waiting || running && raised) {
         const listed = waiting ? detectedIn(waiting) : raised!.detected
@@ -220,7 +220,9 @@ function raiseHeldTouches(clock: LinksetClock): void {
       // its touch_start ran, came ahead of a listen that came up later; its touch_end waited
       // behind that listen.
       const plain = running && !waitingTouches(s, 'touch_start', by).own
-      if (touches.own) continue
+      // A touch already waiting with this click's data stays as it is, in its place among the
+      // avatars it lists; a new click by the same avatar replaces it in the held merge.
+      if (touches.own && (plain || detectedIn(touches.own).some((d) => click.detected.includes(d) || !!click.lastTouch?.includes(d)))) continue
       // In-world: a map call in the first touch of a held click showed nothing after one in
       // touch_start, and one in a later touch showed the map again.
       // A touch raised before the last one ran merges into it and keeps its data.
