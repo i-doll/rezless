@@ -240,10 +240,9 @@ describe("a script's own prim change in a handler that goes on", () => {
   })
 })
 
-// Changes that wait for their frame still merge as changes that came up then. A busy
-// handler gets two changed events for several changes, as measured with a painter
-// script in the busy-handler tests, and the caller's own back-to-back changes after a
-// busy call or a one-frame sleep merge as they did when they came up at the call.
+// Changes that wait for their frame still merge as changes that came up then. Changes
+// made in one frame give a busy script one changed event; changes in different frames
+// give it two, as measured with a painter script in the busy-handler tests.
 describe('changes that wait for their frame', () => {
   const ctl = `integer k; col() { ++k; llSetColor(<(k & 1), ((k >> 1) & 1), 0.5>, ALL_SIDES); }
     default {
@@ -273,12 +272,18 @@ describe('changes that wait for their frame', () => {
     return { ctl: scripts.ctl!.chat.map((c) => c.text), sib: scripts.sib!.chat.map((c) => c.text) }
   }
 
-  it('gives a busy script two changed events for four changes from another script', async () => {
-    expect((await run('other')).sib).toEqual(['busy done', 'changed 2', 'changed 2'])
+  // In-world: Aditi beta grid, SLua Tideland, Firestorm RLVa 2.4.2, 2026-11-24, LSL and
+  // SLua: four llSetColor calls straight after llSleep(0.1), with a script in the same
+  // prim busy in the link message sent before the sleep -> that script ran its link
+  // message and one changed(2), 2 of 2 runs each.
+  it('gives a busy script one changed event for four changes from another script in one frame', async () => {
+    expect((await run('other')).sib).toEqual(['busy done', 'changed 2'])
   })
 
-  it("merges the caller's own changes after a busy call", async () => {
-    expect((await run('spin')).ctl).toEqual(['end', 'changed 2', 'changed 2'])
+  // In-world, same grid and date, LSL and SLua: a 0.5 s llGetTime spin, then four
+  // llSetColor calls -> one changed(2) after the handler, 3 of 3 runs each.
+  it("merges the caller's own changes in one frame after a busy call", async () => {
+    expect((await run('spin')).ctl).toEqual(['end', 'changed 2'])
   })
 
   it('keeps a change apart from one made after a one-frame sleep', async () => {
