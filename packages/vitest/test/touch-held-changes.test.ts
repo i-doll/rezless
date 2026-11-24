@@ -502,6 +502,11 @@ default {
     expect(await mapped(mapper(false, 3, 1), { hold: 4000 })).toEqual([101, 102, 103, 210])
   })
 
+  it('shows the map from a held click\'s touch after another handler slept', async () => {
+    // The touch after a timer's sleep is a later touch of the click, as above, so its map shows.
+    expect(await mapped(mapper(false, 2, 0, 'llSleep(1.0);'), { hold: 2500 })).toEqual([101, 102])
+  })
+
   it('judges each script by the touch events it ran', async () => {
     // Another script in the prim running its first touch earlier doesn't make this script's new.
     const world = new World()

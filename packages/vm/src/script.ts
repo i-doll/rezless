@@ -57,7 +57,7 @@ import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, ScriptClockView, cameUp } from './clock.js'
 import type { QueuedEvent } from './clock.js'
-import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, type HeldTouch } from './linkset.js'
+import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, touchHandlerEnded, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
 import type { EventSpec } from './generated/events.js'
@@ -1773,6 +1773,7 @@ export class Script {
     if (this.now === task.startedAt) return
     this.clockView.busyUntilMs = this.now
     this.linkset.clock.requeue(this, task.startedAt, queued)
+    if ((task.slua?.event ?? task.lsl?.handler.name) === 'touch') touchHandlerEnded(this)
   }
 
   private abandon(): void {
