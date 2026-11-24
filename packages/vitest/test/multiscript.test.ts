@@ -463,6 +463,15 @@ describe('multi-script linkset', () => {
         expect(s.global('mine')).toBe(maker)
       })
 
+      it('stays on a copy of the object', async () => {
+        const { linkset } = await loadLinkset({
+          prims: [{ scripts: [{ source: { source: probe, filename: 'p.lsl' }, name: 'p', creator: maker }] }],
+        })
+        const copy = linkset.copy()
+        copy.allScripts()[0]!.start()
+        expect(copy.allScripts()[0]!.global('mine')).toBe(maker)
+      })
+
       // In-world: saving new source over another maker's script in the prim kept that maker as its
       // creator (Aditi, SLua Tideland, 2026-11-24).
       it('stays when the script is saved again', async () => {
