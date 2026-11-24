@@ -789,8 +789,6 @@ export class ScriptClockView {
    * start was. An LSL llSetTimerEvent call counts its interval from that much earlier.
    */
   timerLagMs = 0
-  /** False for an SLua script: its LLTimers timer has no lag. */
-  lags = true
   /** When the overdue tick first waited behind another event. */
   timerPassedAt: number | undefined
   /** Whether the owed tick leaves a lag when it fires. */
@@ -898,9 +896,15 @@ export class ScriptClockView {
       this.timerLate(kept > at ? (passed ?? at) - due : 0)
       return
     }
-    // A start that missed more than one tick, or whose tick ran after the next was due on the
-    // schedule it had, leaves no lag; a tick a call made due always does.
-    this.timerLagMs = (bySet || at < this.owedNextMs) && this.owedTickLags ? (passed ?? at) - late : 0
+    // A start that missed more than one tick leaves no lag, and nor does a tick that ran after
+    // the next was due on the schedule it had, unless a tick follows it: then the start's lag
+    // stays until that tick runs. In-world, a timer set again in the caught-up tick after a 4, 5
+    // or 6 s sleep queued at a start 1 s late came 1 s early. A tick a call made due leaves how
+    // late it was, unless that is a full interval or more: in-world, a 1 s timer due 2 s before
+    // it ran left none.
+    const overdue = !bySet && at >= this.owedNextMs
+    const lags = bySet ? kept > at : !overdue || this.owedWhileStopped
+    this.timerLagMs = lags && this.owedTickLags ? (overdue ? this.owedStartMs : passed ?? at) - late : 0
     if (bySet || (setDue === undefined && !this.owedWhileStopped)) return
     // In-world: after a start that missed more than one tick, the next came an interval after the
     // start, and after a call before the caught-up tick ran, on the call's schedule. A script that
@@ -913,7 +917,7 @@ export class ScriptClockView {
 
   /** A tick ran `ms` after it was due. */
   timerLate(ms: number): void {
-    this.timerLagMs = this.lags ? Math.max(0, ms) : 0
+    this.timerLagMs = Math.max(0, ms)
   }
 
   /**
@@ -932,14 +936,14 @@ export class ScriptClockView {
     this.timerNextFireMs = this.now
     // In-world: an LSL script started with llSetScriptState has the lag from the start, also when
     // a waiting event turns the timer off before the tick; with more than one tick missed it has
-    // none. An SLua script's LLTimers timer had none, and neither had a crashed script that came
-    // back in a rez.
+    // none. Neither had a crashed script that came back in a rez. An SLua script's timer, which
+    // LLTimers sets, lags the same way.
     this.owedBySet = false
     this.timerPassedAt = undefined
     this.owedStartMs = this.now
     this.owedWhileStopped = lag && !this.stoppedInHandler && this.timerLateDueMs >= this.stoppedAtMs
     this.owedNextMs = this.timerLateDueMs + this.timerIntervalMs
-    this.owedTickLags = lag && this.lags && this.owedNextMs > this.now
+    this.owedTickLags = lag && this.owedNextMs > this.now
     this.timerLagMs = this.owedTickLags ? this.now - this.timerLateDueMs : 0
   }
 

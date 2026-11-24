@@ -244,6 +244,23 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
     const r = await stoppedWithSleep(4000, 4, 1000, 5000, 'qs+stop')
     expect(tickTimes(r.linkset, r.ticks, 7100)).toEqual([9000, 9000, 12_000])
   })
+
+  it('keeps the start\'s lag when the caught-up tick\'s handler sets the timer after the wake', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-24, three runs each): a 4 s timer stopped at 1 s
+    // with a 5 s or 6 s sleep queued and started at 5 s woke to one timer event, whose handler
+    // called llSetTimerEvent(4), and ticked 3.0 s after it: the start's 1 s lag stayed, although
+    // the tick ran after the next was due.
+    for (const [sleep, wake] of [[5, 10_000], [6, 11_000]] as const) {
+      const r = await rig()
+      r.tell('1:4.0')
+      r.tell('2:4.0')
+      r.at(1000)
+      r.tell(`q+stop:${sleep}`)
+      r.at(5000)
+      r.tell('start')
+      expect(tickTimes(r.linkset, r.ticks, wake - 5000 + 4000)).toEqual([wake, wake + 3000])
+    }
+  })
 })
 
 describe('a waiting handler that changes the interval before the caught-up tick', () => {
@@ -388,6 +405,138 @@ describe('an SLua LLTimers timer after a stop, a start and a sleep in a queued h
     for (const [interval, sleep, stopAt, startAt, wake] of [[4000, 4, 1000, 5000, 9000], [1000, 5, 250, 1750, 6750]] as const) {
       const r = await sluaRig(interval, sleep, stopAt, startAt)
       expect(tickTimes(r.linkset, r.raw, wake - startAt + 100)).toEqual([wake])
+    }
+  })
+})
+
+describe('the timer events an LLEvents handler sees next to LLTimers', () => {
+  // https://wiki.secondlife.com/wiki/LLTimers
+  // LLTimers sets the script's timer to its next due callback after each tick. That timer lags as
+  // an LSL timer does, so a tick can come before the callback is due: LLTimers runs nothing on it
+  // and sets the timer again, and a raw timer handler sees that tick. Measured on the Aditi beta
+  // grid, SLua Tideland, 2026-11-24, each case three times. Ticks in-world come at simulator
+  // frames, about 22 ms apart, so a tick due a frame early also showed as a pair 22 ms apart.
+  async function sluaRig() {
+    const loaded = await loadLinkset({ prims: [{ scripts: [
+      { name: 't', language: 'slua', source: { source: `ticks = 0
+        raw = 0
+        LLEvents:on("timer", function() raw += 1 end)
+        LLEvents:on("link_message", function(s, n, m, id)
+          if n == 1 then LLTimers:every(tonumber(m), function() ticks += 1 end)
+          elseif n == 2 then LLTimers:once(tonumber(m), function() ticks += 1 end)
+          elseif n == 7 then ll.Sleep(tonumber(m)) end
+        end)` } },
+      { name: 'ctl', source: { source: control } },
+    ] }] })
+    const t = loaded.scripts['t']!
+    for (const s of Object.values(loaded.scripts)) s.start()
+    const raw: number[] = []
+    const callbacks: number[] = []
+    /** Records the raw timer events and callbacks since the last look at the current virtual time. */
+    const look = () => {
+      for (const [name, out] of [['raw', raw], ['ticks', callbacks]] as const) {
+        for (let n = Number(t.global(name)); out.length < n;) out.push(loaded.linkset.clock.now)
+      }
+    }
+    const tell = (m: string) => {
+      loaded.scripts['ctl']!.fire('link_message', { sender_num: 1, num: 900, str: m, id: NULL_KEY })
+      look()
+    }
+    const at = (ms: number) => {
+      loaded.linkset.advanceTime(ms - loaded.linkset.clock.now)
+      look()
+    }
+    /** Raw timer events and callbacks from `from` on, by virtual time, until `until`. */
+    const trace = (until: number, from = 0) => {
+      for (; loaded.linkset.clock.now < until;) at(loaded.linkset.clock.now + 50)
+      return { raw: raw.filter((t) => t >= from), callbacks: callbacks.filter((t) => t >= from) }
+    }
+    return { tell, at, trace }
+  }
+
+  /** A timer set at 0 by `set`, stopped at `stopAt` and started at `startAt`. */
+  async function stopped(set: string, stopAt: number, startAt: number, queue?: string) {
+    const r = await sluaRig()
+    r.tell(set)
+    r.at(stopAt)
+    r.tell(queue === undefined ? 'stop' : `q+stop:${queue}`)
+    r.at(startAt)
+    r.tell('start')
+    return r
+  }
+
+  it('sees a tick the start\'s lag brings before the callback is due', async () => {
+    // In-world: LLTimers:every(4), stopped at 1 s and started at 5 s with a 4 s sleep queued, ran
+    // its callback at the wake, 9.03 s. The timer then ticked at 12.05 s with no callback, 4 s
+    // less the start's 1 s lag after the wake, and again at 13.03 s, where the callback ran.
+    const slept = await stopped('1:4', 1000, 5000, '4')
+    expect(slept.trace(17_100)).toEqual({ raw: [9000, 12_000, 13_000, 17_000], callbacks: [9000, 13_000, 17_000] })
+    // In-world: started at 5 s with no sleep, it ran the callback at the start, ticked at 7.0 s
+    // with no callback, and ran it at 8.0 s.
+    const plain = await stopped('1:4', 1000, 5000)
+    expect(plain.trace(8100)).toEqual({ raw: [5000, 7000, 8000], callbacks: [5000, 8000] })
+  })
+
+  it('sees an extra tick at once when the lag is as long as the time to the next callback', async () => {
+    // In-world: LLTimers:every(4) stopped at 1 s and started at 6 s ran the callback at the start
+    // and ticked again 22 ms later with no callback, then ran it at 8 s. Started at 7 s, 7.5 s and
+    // 6.5 s it did the same; at 6.5 s the extra tick lagged the next by 1 s, so it also ticked at
+    // 6.96 s with no callback. LLTimers:every(5) stopped at 1 s and started at 8 s ran the
+    // callback at the start, ticked at 8.02 s and 9.0 s with no callback, and ran it at 10 s.
+    for (const [startAt, raw] of [[6000, [6000, 6000, 8000]], [7000, [7000, 7000, 8000]], [7500, [7500, 7500, 8000]],
+      [6500, [6500, 6500, 7000, 8000]]] as const) {
+      const r = await stopped('1:4', 1000, startAt)
+      expect(r.trace(8100)).toEqual({ raw, callbacks: [startAt, 8000] })
+    }
+    const five = await stopped('1:5', 1000, 8000)
+    expect(five.trace(10_100)).toEqual({ raw: [8000, 8000, 9000, 10_000], callbacks: [8000, 10_000] })
+  })
+
+  it('sees no extra tick after a start that missed more than one tick', async () => {
+    // In-world: LLTimers:every(3) stopped at 1 s and started at 7 s ticked at the start and at 10 s,
+    // running the callback each time.
+    const r = await stopped('1:3', 1000, 7000)
+    expect(r.trace(10_100)).toEqual({ raw: [7000, 10_000], callbacks: [7000, 10_000] })
+  })
+
+  it('keeps the lag after the last timer is gone', async () => {
+    // In-world: LLTimers:once(4), stopped at 1 s and started at 7 s, ran at the start. A new
+    // LLTimers:once(1) at 9 s ticked 22 ms later with no callback and ran at 10 s; a new
+    // LLTimers:once(5) at 9 s ticked at 11 s with no callback and ran at 14 s.
+    const one = await stopped('2:4', 1000, 7000)
+    one.at(9000)
+    one.tell('2:1')
+    expect(one.trace(10_100, 9000)).toEqual({ raw: [9000, 10_000], callbacks: [10_000] })
+    const five = await stopped('2:4', 1000, 7000)
+    five.at(9000)
+    five.tell('2:5')
+    expect(five.trace(14_100, 9000)).toEqual({ raw: [11_000, 14_000], callbacks: [14_000] })
+  })
+
+  it('sees the lag of a tick a sleep held back through one interval', async () => {
+    // In-world: LLTimers:every(4) with a 2 s sleep from 3 s ran its callback at the wake, 5 s,
+    // ticked at 7 s with no callback and ran it at 8 s. With a 5.5 s sleep it ran it at the wake,
+    // 8.5 s, and next at 12.5 s, with no other tick.
+    const held = await sluaRig()
+    held.tell('1:4')
+    held.at(3000)
+    held.tell('7:2')
+    expect(held.trace(8100)).toEqual({ raw: [5000, 7000, 8000], callbacks: [5000, 8000] })
+    const longer = await sluaRig()
+    longer.tell('1:4')
+    longer.at(3000)
+    longer.tell('7:5.5')
+    expect(longer.trace(12_600)).toEqual({ raw: [8500, 12_500], callbacks: [8500, 12_500] })
+  })
+
+  it('sees one tick per callback for a timer that keeps time', async () => {
+    // In-world: LLTimers:every(1), every(0.5) and every(2.5), and LLTimers:once(2), ran each
+    // callback on time; the only ticks without one came a frame before it.
+    for (const [set, times] of [['1:1', [1000, 2000, 3000]], ['1:0.5', [500, 1000, 1500, 2000, 2500, 3000]],
+      ['1:2.5', [2500]], ['2:2', [2000]]] as const) {
+      const r = await sluaRig()
+      r.tell(set)
+      expect(r.trace(3100)).toEqual({ raw: times, callbacks: times })
     }
   })
 })
