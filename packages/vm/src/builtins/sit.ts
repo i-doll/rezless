@@ -8,6 +8,7 @@ import { sayError } from './debug.js'
 import { isAgentInRegion } from './viewer.js'
 import { leaveRegionSeatRequests } from '../rlv/sit.js'
 import { wearerTeleported } from './motion.js'
+import { SIM_FRAME_MS } from '../clock.js'
 
 /** A teleport attempt. Accepted means the script's checks passed, not a network confirmation. */
 export interface TeleportRequest {
@@ -63,9 +64,18 @@ export const llUnSit: BuiltinImpl = (ctx, args) => {
   if (!(agent.sittingOn?.linkset === ctx.linkset || (land && land.owner !== NULL_KEY && sameKey(land.owner, ctx.linkset.owner)))) return undefined
   // In-world: after a sleep, llUnSit raised changed(32) a frame later in every script, in LSL and,
   // with a sitter wearing few attached prims, in SLua.
+  if (agent.sittingOn?.linkset === ctx.linkset) holdForStand(ctx, [agent])
   if (ctx.script.handlerWentOn) world.unsitFrom(agent)
   else world.standAvatar(agent)
   return undefined
+}
+
+/**
+ * In-world (SLua, after a sleep): standing a sitter wearing hundreds of attached prims held the
+ * caller into the next simulator frame, so the stand's changed(32) came up first.
+ */
+export function holdForStand(ctx: CallContext, sitters: readonly WorldAvatar[]): void {
+  if (ctx.script.language === 'slua' && ctx.script.handlerWentOn && sitters.some(a => a.standTakesFrame)) ctx.busy(SIM_FRAME_MS)
 }
 
 function yawRotation(x: number, y: number): Rotation {

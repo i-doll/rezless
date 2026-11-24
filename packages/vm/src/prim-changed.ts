@@ -21,8 +21,12 @@ export function raisePrimChanged(prim: Prim, changes: number): void {
     if (!script.running || !script.hasStarted) continue
     const waiting = clock.pendingEvents().filter(e => e.target === script && e.event === 'changed'
       && ((e.payload['changes'] as number) & PRIM_CHANGES) !== 0)
-    // A busy handler gets what the clock gives any event that comes up while it is busy.
-    const merge = script.busy ? undefined : waiting.find(e => cameUp(e) >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
+    // A busy handler gets what the clock gives any event that comes up while it is busy, but
+    // changes made in one frame are one change. In-world, a script busy in another handler got
+    // one changed for two or four recolours of its prim in one frame, and two for two recolours
+    // 0.1 s apart.
+    const merge = script.busy ? waiting.find(e => e.raisedAt === clock.now)
+      : waiting.find(e => cameUp(e) >= script.resumedAt) ?? (waiting.length >= 2 ? waiting.at(-1) : undefined)
     if (merge) merge.payload['changes'] = (merge.payload['changes'] as number) | changes
     else clock.scheduleNextFrame(script, 'changed', { changes })
   }
