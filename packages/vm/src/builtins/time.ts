@@ -1,7 +1,7 @@
 import type { BuiltinImpl } from '../runtime.js'
 import { toFloat32, toInt32 } from '../values/types.js'
 import { isNegativeNaN } from '../values/nan.js'
-import { SIM_FRAME_MS, toMicroseconds } from '../clock.js'
+import { SIM_FRAME_MS } from '../clock.js'
 
 /**
  * Time and timer built-ins. All operate on the virtual clock; no real
@@ -45,9 +45,7 @@ export const llSleep: BuiltinImpl = (ctx, args) => {
 
 /** llGetTime() — seconds since script start (or last llResetTime). */
 export const llGetTime: BuiltinImpl = (ctx) => {
-  const seconds = ctx.state.clock.elapsedSeconds()
-  // An SLua script reads one clock, to the microsecond, through ll.GetTime, os.clock and LLTimers.
-  return ctx.script.language === 'slua' ? toMicroseconds(seconds) : seconds
+  return ctx.state.clock.elapsedSeconds()
 }
 
 /** llGetAndResetTime() — returns elapsed and resets in one atomic step. */
