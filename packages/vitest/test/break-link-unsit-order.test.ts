@@ -178,8 +178,7 @@ describe.each(['lsl', 'slua'] as const)('llSleep, then llBreakLink with no sitte
     expect(out.ctl).toEqual([...start(command, false), ...linkFirst(command)])
   })
 
-  // rezless runs changed(32) first in the scripts that were not in a handler.
-  it.fails.each(['Z', 'Y'])('gives the other scripts link_message first (%s)', async (command) => {
+  it.each(['Z', 'Y'])('gives the other scripts link_message first (%s)', async (command) => {
     const out = await run(language, command, false)
     expect(out.seat).toEqual(linkFirst(command))
     expect(out.kid).toEqual(linkFirst(command))
@@ -189,16 +188,17 @@ describe.each(['lsl', 'slua'] as const)('llSleep, then llBreakLink with no sitte
 // In-world, with no sleep and no sitter, LSL gave changed(32) first in the
 // root's two scripts and link_message first in the child's, 4 of 4 runs ("K"
 // 3, "J" 1). SLua varied: that order in 2 runs, link_message first in every
-// script in the other 2. rezless runs changed(32) first in every script.
+// script in the other 2. Since #705 raises a script's own link change a frame
+// late, rezless runs link_message first in every script; #711 covers the root.
 describe('LSL: llBreakLink with no sitter, then llMessageLinked', () => {
-  it('gives the root\'s scripts changed first', async () => {
+  it.fails('gives the root\'s scripts changed first', async () => {
     const out = await run('lsl', 'J', false)
     expect(out.ctl).toEqual([...start('J', false), ...changedFirst('J')])
     expect(out.seat).toEqual(changedFirst('J'))
     expect(out.brk).toEqual([`changed 32${alone}`])
   })
 
-  it.fails('gives the child link_message first', async () => {
+  it('gives the child link_message first', async () => {
     const out = await run('lsl', 'J', false)
     expect(out.kid).toEqual(linkFirst('J'))
   })
