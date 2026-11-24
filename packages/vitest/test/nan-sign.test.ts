@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { loadScript } from '../src/index.js'
+import { loadLinkset, loadScript, World } from '../src/index.js'
 
 // https://wiki.secondlife.com/wiki/LlList2CSV
 // https://wiki.secondlife.com/wiki/LlListStatistics
 // https://wiki.secondlife.com/wiki/LSL_Operators
-// In-world: SLua Tideland on Aditi (2026-11-24), five probe scripts compiled for Mono in a
+// In-world: SLua Tideland on Aditi (2026-11-24), six probe scripts compiled for Mono in a
 // 0.5 m box made with object.create. Each printed its expressions with llList2CSV through
 // llOwnerSay. P is (float)"nan", N is (float)"-nan" and inf is (float)"inf", all globals, so the
 // compiler can't fold anything.
@@ -95,6 +95,14 @@ describe('the NaN sign through float arithmetic', () => {
     ])
   })
 
+  it('a negated integer literal is negated after the product too', async () => {
+    // In-world: -2147483648 / 2 gave 1073741824, -2147483648 * 1.0 2147483648.000000,
+    // -2147483648 % 3 2 and (-2147483648) / 2 -1073741824.
+    const s = await loadScript({ source: 'default { state_entry() { llSay(0, llList2CSV([-2147483648 / 2, -2147483648 * 1.0, -2147483648 % 3, (-2147483648) / 2])); } }' })
+    s.start()
+    expect(s.chat[0]?.text).toBe('1073741824, 2147483648.000000, 2, -1073741824')
+  })
+
   it('a vector divided by a float keeps the sign of each NaN', async () => {
     // In-world: <N, P, 1.0> / 2.0 gave <-nan, nan, 0.500000> and -<N, P, 1.0> / 2.0 <nan, -nan, -0.500000>.
     expect(await csv('<N, P, 1.0> / 2.0, -<N, P, 1.0> / 2.0')).toBe('<-nan, nan, 0.500000>, <nan, -nan, -0.500000>')
@@ -149,6 +157,33 @@ describe('the NaN sign through casts and lists', () => {
     // In-world: llList2Json(JSON_ARRAY, [N, P, <N, P, 0>]) and llList2Json(JSON_OBJECT, ["a", N]).
     expect(await csv('llList2Json(JSON_ARRAY, [N, P, <N, P, 0>]), llList2Json(JSON_OBJECT, ["a", N])'))
       .toBe('[-nan,nan,"<-nan, nan, 0.000000>"], {"a":-nan}')
+  })
+
+  it('(list) of a float keeps its sign', async () => {
+    // Not measured separately: a cast to list holds the float as it is.
+    expect(await csv('', 'list B; integer i; for (i = 0; i < 3; i++) B += (list)N; llSay(0, llList2CSV((list)N + B));'))
+      .toBe('-nan, -nan, -nan, -nan')
+  })
+
+  it('globals keep their NaN signs when the object is taken and rezzed again', async () => {
+    // In-world: after a take and a rez from inventory, on_rez printed the same line as
+    // state_entry had.
+    const owner = '00000000-0000-0000-0000-0000000000aa'
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    world.addAvatar({ region: 'home', key: owner, username: 'owner' })
+    const { linkset, scripts } = await loadLinkset({ world, region: 'home', owner, prims: [{ scripts: [{ name: 'a', source: { source: `
+      float G; list GL; vector GV; rotation GR; float GP;
+      default {
+        state_entry() { G = (float)"-nan"; GP = (float)"nan"; GL = [G, GP]; GV = <G, GP, G>; GR = <G, 0.0, GP, G>; }
+        on_rez(integer p) { llOwnerSay(llList2CSV([G, GP] + GL + [GV, GR])); } }` } }] }] })
+    scripts['a']!.start()
+    const copy = linkset.copy({ world, region: 'home', owner })
+    for (const script of copy.allScripts()) script.queueRez()
+    copy.advanceTime(0)
+    expect(copy.allScripts()[0]!.chat.map((c) => c.text)).toEqual([
+      '-nan, nan, -nan, nan, <-nan, nan, -nan>, <-nan, 0.000000, nan, -nan>',
+    ])
   })
 
   it('a NaN keeps its sign through many list operations', async () => {

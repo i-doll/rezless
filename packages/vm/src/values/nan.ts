@@ -1,8 +1,8 @@
 /**
  * A float NaN in Second Life keeps a sign bit: llList2CSV and llList2Json
  * print it as "nan" or "-nan". The VM keeps that sign in the sign bit of
- * the JavaScript NaN. JavaScript doesn't promise to keep it, so every
- * operation that makes or passes on a NaN sets the sign itself.
+ * the JavaScript NaN. JavaScript doesn't promise to keep it, so the
+ * operations measured in-world set the sign themselves.
  */
 
 const view = new DataView(new ArrayBuffer(8))
@@ -58,6 +58,13 @@ export function boxedArray<T>(): T[] {
   const out: unknown[] = [null]
   out.length = 0
   return out as T[]
+}
+
+/** A boxed array holding just `item`. */
+export function boxedOf<T>(item: T): T[] {
+  const out = boxedArray<T>()
+  out.push(item)
+  return out
 }
 
 /** `items.map(f)` into a boxed array. */

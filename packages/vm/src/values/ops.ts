@@ -3,7 +3,7 @@ import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './
 import { coerce, stringify } from './coerce.js'
 import { concatLists, scriptList } from './list-types.js'
 import { RuntimeError } from '../memory.js'
-import { addFloat, mulFloat, negateFloat, subFloat } from './nan.js'
+import { addFloat, boxedOf, mulFloat, negateFloat, subFloat } from './nan.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -220,8 +220,8 @@ function opAdd(a: EvalResult, b: EvalResult): EvalResult {
   }
   // List concat / append / prepend
   if (a.type === 'list' || b.type === 'list') {
-    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : scriptList([a.value], [a.type])
-    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : scriptList([b.value], [b.type])
+    const left = a.type === 'list' ? (a.value as ReadonlyArray<LslValue>) : scriptList(boxedOf(a.value), [a.type])
+    const right = b.type === 'list' ? (b.value as ReadonlyArray<LslValue>) : scriptList(boxedOf(b.value), [b.type])
     return { type: 'list', value: concatLists(left, right) }
   }
   // Vector / rotation
@@ -323,7 +323,7 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
     const k = toFloat32(b.value as number)
     if (k === 0) throw new RuntimeError('Math Error')
     // Mono multiplies by the float reciprocal rather than dividing.
-    const m = toFloat32(1 / k)
+    const m = k === k ? toFloat32(1 / k) : k
     return { type: 'vector', value: vec(mulFloat(a.value.x, m), mulFloat(a.value.y, m), mulFloat(a.value.z, m)) }
   }
   // vector / rotation → rotate by inverse
