@@ -10,6 +10,7 @@ import { KFM_COMMAND, KFM_DATA, KFM_MODE, KFM_ROTATION, KFM_TRANSLATION,
   KFM_CMD_PLAY, KFM_CMD_PAUSE, KFM_CMD_STOP, STATUS_PHYSICS, AGENT_SITTING,
   PRIM_PHYSICS_SHAPE_PRIM } from '../generated/constants.js'
 import { llGround } from './ground.js'
+import { matrixToRotation } from './math.js'
 import type { Script } from '../script.js'
 import type { Linkset } from '../linkset.js'
 import type { World, WorldAvatar } from '../world.js'
@@ -821,13 +822,10 @@ export function resetTargetMotion(script: Script): void {
 
 function lookRotation(position: Vector, target: Vector): Rotation {
   const delta = subtract(target, position), length = Math.hypot(delta.x, delta.y, delta.z)
-  if (!length) return { x: 1, y: 0, z: 0, s: 0 }
-  // Pitch +Z toward the target, then yaw around world +Z. This keeps +X below
-  // the horizon, rather than using the shortest rotation of +Z alone.
-  const pitch = Math.acos(Math.max(-1, Math.min(1, delta.z / length))) / 2
-  const yaw = Math.atan2(delta.y, delta.x) / 2
-  return { x: -Math.sin(pitch) * Math.sin(yaw), y: Math.sin(pitch) * Math.cos(yaw),
-    z: Math.cos(pitch) * Math.sin(yaw), s: Math.cos(pitch) * Math.cos(yaw) }
+  const dir = length ? [delta.x / length, delta.y / length, delta.z / length] : [0, 0, 0]
+  const [x, y, z] = dir as [number, number, number]
+  // Second Life leaves left = Z x dir unnormalised, so the turn about the aim drifts with elevation.
+  return normalize(matrixToRotation([[x * z, y * z, -(x * x + y * y)], [-y, x, 0], dir]))
 }
 
 const TARGET_STEP_MS = 10
