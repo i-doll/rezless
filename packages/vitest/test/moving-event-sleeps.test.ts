@@ -460,20 +460,23 @@ describe('Duplicate and Take of an object in keyframed motion', () => {
   // after the stop between the height it stopped at and 0.3 m above that (Aditi, SLua Tideland,
   // 2026-11-24).
   it.each([
-    ['llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);', 100.3],
-    ['llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]); llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);', 100.6],
-  ])('plays the original again only when a Duplicate lets go, after a script played it: %s', async (call, top) => {
+    ['llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);', false],
+    ['llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]); llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);', true],
+  ])('plays the original again only when a Duplicate lets go, after a script played it: %s', async (call, restarts) => {
     const b = await box(looper.replace('moving_end() { add("moving_end"); }',
       `moving_end() { add("moving_end"); ${call} }`))
     send(b, 'go')
-    b.linkset.advanceTime(1_000)
+    b.linkset.advanceTime(1_300)
+    const stopped = z(b.linkset)
     const copy = b.linkset.duplicate({ x: 0, y: -1.5, z: 0 })
     b.linkset.advanceTime(1_000)
-    expect(b.log()).toEqual(['moving_start 0', 'moving_end 10', 'moving_start 17'])
+    expect(b.log()).toEqual(['moving_start 0', 'moving_end 13', 'moving_start 20'])
     expect(b.linkset.prims[0]!.keyframedMotion!.playing).toBe(true)
-    let highest = 0
-    for (let i = 0; i < 40; i++) { b.linkset.advanceTime(100); highest = Math.max(highest, z(b.linkset)) }
-    expect(highest).toBeCloseTo(top, 1)
+    const heights: number[] = []
+    for (let i = 0; i < 40; i++) { b.linkset.advanceTime(100); heights.push(z(b.linkset)) }
+    const bottom = restarts ? stopped : 100
+    expect(Math.min(...heights)).toBeCloseTo(bottom, 1)
+    expect(Math.max(...heights)).toBeCloseTo(bottom + 0.3, 1)
     const still = z(copy)
     copy.advanceTime(1_000)
     expect(z(copy)).toBe(still)
