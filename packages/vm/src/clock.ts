@@ -483,14 +483,21 @@ export class LinksetClock {
     return true
   }
 
-  /** Move `target`'s last queued `event` ahead of its first waiting `of` event that was let through its sleep. */
-  putAhead(target: Script, event: string, of: string): void {
-    let from = this.queue.length - 1
-    while (from >= 0 && !(this.queue[from]!.target === target && this.queue[from]!.event === event)) from--
-    const to = this.queue.findIndex((e) => e.target === target && e.event === of && e.held === false && e.at <= this.now)
-    if (from < 0 || to < 0 || to > from) return
-    const [moved] = this.queue.splice(from, 1)
-    this.queue.splice(to, 0, { ...moved!, at: Math.min(moved!.at, this.queue[to]!.at) })
+  /**
+   * Let a touch_start held back in a sleep through, ahead of the touch waiting un-held for the
+   * same script that its click joined. touch_start events moved there one after another merge.
+   */
+  putAhead(start: QueuedEvent): void {
+    const waiting = (e: QueuedEvent) => e.target === start.target && e.event === 'touch' && e.held === false && e.at <= this.now
+    const from = this.queue.indexOf(start)
+    if (from < 0 || !this.queue.some(waiting)) return
+    this.queue.splice(from, 1)
+    const to = this.queue.findIndex(waiting)
+    const before = this.queue[to - 1]
+    if (before?.target === start.target && before.event === 'touch_start' && before.held === false) {
+      const detected = [...before.payload['detected'] as unknown[], ...start.payload['detected'] as unknown[]]
+      this.queue[to - 1] = { ...before, payload: { ...before.payload, num_detected: detected.length, detected } }
+    } else this.queue.splice(to, 0, { ...start, at: Math.min(start.at, this.queue[to]!.at), held: false })
   }
 
   /** Remove the queued events that `match`, leaving the others as they are. */

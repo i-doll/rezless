@@ -299,6 +299,35 @@ describe('two avatars clicking while a handler sleeps', () => {
     })
   })
 
+  it('a click in an LSL touch_end sleep runs its touch_start ahead of the touch it joined, whenever it presses', async () => {
+    // fivebot presses 10 ms into the sleep, before i doll's next touch comes up.
+    expect(await run('lsl', 0, 0, { 0: 'i', 500: 'f', 700: 'F', 710: 'f', 1010: 'F', 6000: 'I' }, 3)).toBe('Si Ti Tif Ef Sf Tif Ef Ti Ei')
+  })
+
+  it('touch_start events let through a touch_end sleep merge as held ones do', async () => {
+    const CAROL = { key: 'cccccccc-0000-0000-0000-000000000000', name: 'carol' }
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0, 3), filename: 's.lsl' } }] }] })
+    const t = scripts.s!
+    t.start(); linkset.advanceTime(0)
+    linkset.press(0, { avatar: IDOLL }); linkset.advanceTime(500)
+    linkset.press(0, { avatar: FIVEBOT }); linkset.advanceTime(200); linkset.release(FIVEBOT); linkset.advanceTime(800)
+    linkset.press(0, { avatar: FIVEBOT }); linkset.advanceTime(100); linkset.press(0, { avatar: CAROL }); linkset.advanceTime(200)
+    linkset.release(FIVEBOT); linkset.advanceTime(100); linkset.release(CAROL); linkset.advanceTime(4100); linkset.release(IDOLL); linkset.advanceTime(5000)
+    const got = t.global('got') as string[]
+    expect(got.filter((e, i) => !(e[0] === 'T' && got[i - 1] === e)).join(' ')).toBe('Si Ti Tif Ef Sfc Tifc Efc Ti Ei')
+  })
+
+  it('a held click does not join a waiting touch fired without detected data', async () => {
+    const l2 = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: lslLog(0, 0), filename: 's.lsl' } }] }] })
+    const u = l2.scripts.s!
+    u.start(); l2.linkset.advanceTime(0)
+    l2.linkset.press(0, { avatar: IDOLL }); l2.linkset.advanceTime(300)
+    l2.linkset.clock.schedule(u, l2.linkset.clock.now, 'listen', { channel: 5, name: 'x', id: FIVEBOT.key, msg: 'sleep' }); l2.linkset.drainQueue()
+    l2.linkset.advanceTime(100); u.fire('touch', { num_detected: 1 }); l2.linkset.advanceTime(3900); l2.linkset.release(IDOLL); l2.linkset.advanceTime(2000)
+    const g2 = u.global('got') as string[]
+    expect(g2.filter((e, i) => !(e[0] === 'T' && g2[i - 1] === e)).join(' ')).toBe('Si Ti L Ti T0 Ti Ei')
+  })
+
   it('a click whose first touch falls in the handler\'s first frame adds no touch of its own', async () => {
     // fivebot's first touch comes on i doll's next one, 11 ms after the timer starts. A touch
     // that came up in the handler's first frame took no other avatar in the runs above, so
