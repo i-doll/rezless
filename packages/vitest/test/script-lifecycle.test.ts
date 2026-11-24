@@ -483,7 +483,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
   async function caughtUp(stopAt: number, startAt: number, how = 'q+stop:2:') {
     const r = await rig({ source: timed })
     r.tell('msg:1:4.0')
-    r.linkset.advanceTime(SIM_FRAME_MS)
+    // The tell runs on until the timed script has made the call.
     const set = r.linkset.clock.now
     const at = (ms: number) => r.linkset.advanceTime(set + ms - r.linkset.clock.now)
     at(stopAt)
@@ -634,9 +634,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     expect(ticks()).toBe(1)
     at(12_400)
     tell('msg:1:4.0')
-    // Here 2.91 s after the call: the start was 3.02 s late and the two calls reached the script a
-    // frame apart, so the tick ran 1.09 s late.
-    expect(changes(linkset, ticks, 8000, origin)).toEqual([15_350, 19_350])
+    expect(changes(linkset, ticks, 8000, origin)).toEqual([15_400, 19_400])
   })
 
   it('takes the lag of a tick held through a sleep from the wake, not from when it runs', async () => {
@@ -720,8 +718,7 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     const { tell, at, linkset, ticks, origin } = await caughtUp(1000, 7000, 'q+stop:1:2.0')
     at(7500)
     tell('msg:1:4.0')
-    // Here 2.93 to 2.98 s after the call, as the second tick runs a frame after the first.
-    expect(changes(linkset, ticks, 4000, origin)).toEqual([10_500])
+    expect(changes(linkset, ticks, 4000, origin)).toEqual([10_450])
   })
 
   it('keeps the start\'s lag when a waiting handler runs before the caught-up tick', async () => {
@@ -1031,7 +1028,8 @@ describe('an object taken to inventory and rezzed again', () => {
     const payload = await loadLinkset({ prims: [{ scripts: [{ name: 'k', source: { source: carrier } }] }] })
     const { world, linkset, rez, take } = await rezzer(payload.linkset)
     const first = rez()
-    linkset.advanceTime(36_200 - world.clock.now)
+    // The rezzed script starts a frame after the rez call, and takes its time from there.
+    linkset.advanceTime(36_200 + SIM_FRAME_MS - world.clock.now)
     expect([first.global('ticks'), first.global('scans')]).toEqual([3, 5])
     take()
     expect(first.dead).toBe(true)
@@ -1042,8 +1040,8 @@ describe('an object taken to inventory and rezzed again', () => {
     expect(k.currentState).toBe('two')
     expect(k.global('g')).toBe(42)
     expect(k.global('log')).toEqual(['entry two', 'on_rez 7'])
-    // Each tick and scan waits a frame or more behind the target events that take every frame.
-    expect(fired(linkset, k, 25_000, start)).toEqual({ ticks: [3850, 13_900, 23_900], scans: [5850, 12_900, 19_900] })
+    // Times from the frame the copy's on_rez ran, two frames after the rez call.
+    expect(fired(linkset, k, 25_000, start + 2 * SIM_FRAME_MS)).toEqual({ ticks: [3800, 13_800, 23_800], scans: [5800, 12_800, 19_800] })
     expect(Number(k.global('ats'))).toBeGreaterThan(500)
     expect(Number(k.global('rats'))).toBeGreaterThan(500)
     linkset.routeChat(linkset.prims[0]!, 'say', 7, 'hello')

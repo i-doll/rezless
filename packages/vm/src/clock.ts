@@ -307,6 +307,9 @@ const PACING_EXEMPT: ReadonlySet<string> = new Set(['__reset'])
 const LSL_TWO_FRAMES: ReadonlySet<string> = new Set(['changed', 'timer'])
 
 
+/** The events llTarget and llRotTarget raise at each check. */
+const TARGET_EVENTS: ReadonlySet<string> = new Set(['at_target', 'not_at_target', 'at_rot_target', 'not_at_rot_target'])
+
 /** The kind a reset leaves as the script's last handler: no event follows it closer than a frame. */
 const RESTART = '__restart'
 
@@ -783,11 +786,13 @@ export class LinksetClock {
       bestTimerAt = bestAt
       bestTimerWaited = Math.max(ownTimer.timerNextFireMs, ownTimer.busyUntilMs, ownTimer.delayedUntilMs)
     }
-    // A tick that could have run before an event came up after the script's last handler runs ahead
-    // of it: in-world, a timer ticked on time while at_target and at_rot_target events took every
-    // frame.
+    // A tick that could have run before an event came up runs ahead of it.
+    // In-world: a timer ticked on time while at_target and at_rot_target events, checked as it fell
+    // due, took every frame; under llMinEventDelay a timer ran a frame ahead of a held click's touch
+    // on the same beat.
     const tickFirst = !!waiting && waiting.target === bestTimerScript && bestTimerAt - bestAt < 1e-6 &&
-      bestTimerWaited < waiting.at
+      (bestTimerWaited < waiting.at || bestTimerWaited === waiting.at && TARGET_EVENTS.has(waiting.event) ||
+        waiting.event === 'touch' && delayedUntil(waiting) > 0)
     if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && !tickFirst && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
@@ -815,7 +820,10 @@ export class LinksetClock {
       const at = bestTimerAt
       const v = bestTimerScript.clockView
       // A tick held back while the script was down keeps the old schedule if that is still ahead.
-      v.timerFired(at, bestTimerWaited)
+      // A tick that fell due before the script's last handler ended counts the frames it waited
+      // behind it: in-world, the second of two ticks at a start ran 45 ms after the first and its
+      // lag took those 45 ms. One that fell due later doesn't count the frame its script waited.
+      v.timerFired(at, v.timerNextFireMs < v.lastEndedAt ? at : bestTimerWaited)
       return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
     if (waking) this.settleMoving(waking, wakeAt)
@@ -860,7 +868,14 @@ export class LinksetClock {
       }
       const mine = next.get(e.target)
       const first = mine && this.queue[mine.index]!
-      if (!mine || due < mine.due || due === mine.due && first!.raisedAt !== undefined && e.at < first!.at) next.set(e.target, { index: i, due, waited })
+      // Of events due together, a target check's event yields to any other that came up since the
+      // script's last handler:
+      // in-world, a timer and a repeating sensor kept time while at_target and at_rot_target events
+      // took every frame.
+      if (!mine || due < mine.due || due === mine.due && (first!.raisedAt !== undefined && e.at < first!.at ||
+          TARGET_EVENTS.has(first!.event) && !TARGET_EVENTS.has(e.event) && e.at >= v.lastEndedAt)) {
+        next.set(e.target, { index: i, due, waited })
+      }
     }
     // The one picked runs no sooner than the frame after the handler that raised it; the events
     // queued behind it wait for it.
@@ -1358,7 +1373,7 @@ export class ScriptClockView {
    * touch after a touch_start is not delayed.
    */
   touchDelayUntil(): number {
-    return this.minEventDelayMs > 0 && !this.touchAfterStart ? this.touchDelayedUntilMs - 1e-6 : 0
+    return this.minEventDelayMs > 0 && !this.touchAfterStart ? this.touchDelayedUntilMs : 0
   }
 
   /** Under llMinEventDelay, held `touch` events are spaced from `touch_start` and from each other. */

@@ -253,8 +253,7 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
       r.tell('8:')
       r.at(wake + 600)
       r.tell('1:4.0')
-      // The call reaches the timer script a frame after the tell, so the tick shows at the next read.
-      expect(tickTimes(r.linkset, r.ticks, after + 100)).toEqual([wake + 600 + after + 50])
+      expect(tickTimes(r.linkset, r.ticks, after + 100)).toEqual([wake + 600 + after])
     }
   })
 
@@ -569,16 +568,27 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     // does gave the same in as many runs of each of these. A start at 7 s comes as the early second
     // tick falls due: after a once(4) run stopped at 1 s and started at 5 s with no sleep, which
     // leaves the same lag, the SLua script did not tick again and the LSL one did, in one run each.
-    for (const [startAt, raw] of [[7000, [21_044, 22_050]], [6500, [20_544, 20_600, 22_050]], [7500, [21_544, 22_050]]] as const) {
-      const r = await stopped('2:4', 1000, 5000, '4')
+    // The script runs each LLTimers call a frame after the control script sends it: the stops and
+    // starts here count from that frame, as the probe's times count from the call.
+    const read = (ms: number) => Math.ceil(ms / 50 - 1e-9) * 50
+    for (const [startAt, raw] of [[7000, [7000, 8000]], [6500, [6500, 6500 + SIM_FRAME_MS, 8000]], [7500, [7500, 8000]]] as const) {
+      const r = await sluaRig()
+      r.tell('2:4')
+      const once = SIM_FRAME_MS
+      r.at(once + 1000)
+      r.tell('q+stop:4')
+      r.at(once + 5000)
+      r.tell('start')
       r.trace(14_000)
       r.tell('1:4')
-      r.at(15_000)
+      const every = 14_000 + SIM_FRAME_MS
+      r.at(every + 1000)
       r.tell('stop')
-      // The timer was set two frames after the call that set it, so the start comes two frames later too.
-      r.at(14_000 + startAt + 2 * SIM_FRAME_MS)
+      r.at(every + startAt)
       r.tell('start')
-      expect(r.trace(22_100, 14_000)).toEqual({ raw, callbacks: [raw[0], 22_050] })
+      // The caught-up tick runs as the start is made, and the trace notes it then.
+      const seen = (t: number) => t === startAt ? Math.round(every + t) : read(every + t)
+      expect(r.trace(22_100, 14_000)).toEqual({ raw: raw.map(seen), callbacks: [seen(startAt), seen(8000)] })
     }
   })
 
@@ -590,7 +600,7 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     held.tell('1:4')
     held.at(3000)
     held.tell('7:2')
-    expect(held.trace(8100)).toEqual({ raw: [5050, 7050, 8050], callbacks: [5050, 8050] })
+    expect(held.trace(8100)).toEqual({ raw: [5050, 7000, 8050], callbacks: [5050, 8050] })
     const longer = await sluaRig()
     longer.tell('1:4')
     longer.at(3000)

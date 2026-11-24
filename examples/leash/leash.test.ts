@@ -66,7 +66,7 @@ describe('collar leash', () => {
     const f = await scene()
     f.grab()
     f.holder.position = position(51)
-    f.script.advanceTime(500)
+    f.script.advanceTime(600)
     f.script.fire('not_at_target')
     expect(f.script.callsOf('llMoveToTarget').length).toBeGreaterThan(0)
     if (boundary === 'region') f.holder.region = 'Harbor'
