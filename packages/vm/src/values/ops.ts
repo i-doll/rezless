@@ -330,6 +330,7 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
   if (isVector(a.value) && isRotation(b.value)) {
     const inverse = conjugate(b.value)
     const v = rotateVector(a.value, inverse)
+    if (v.x === v.x && v.y === v.y && v.z === v.z) return { type: 'vector', value: v }
     const parts = divisionParts(a.value, inverse)
     const nan = (r: number, c: number) => divisionNaN(r, parts, VECTOR_DIVISION_NAN_ORDER[c]!)
     return { type: 'vector', value: vec(nan(v.x, 0), nan(v.y, 1), nan(v.z, 2)) }
@@ -338,6 +339,7 @@ function opDiv(a: EvalResult, b: EvalResult): EvalResult {
   if (isRotation(a.value) && isRotation(b.value)) {
     const inverse = conjugate(b.value)
     const q = mulRotation(a.value, inverse)
+    if (q.x === q.x && q.y === q.y && q.z === q.z && q.s === q.s) return { type: 'rotation', value: q }
     const parts = divisionParts(a.value, inverse)
     const nan = (r: number, c: number) => divisionNaN(r, parts, ROTATION_DIVISION_NAN_ORDER[c]!)
     return { type: 'rotation', value: rot(nan(q.x, 0), nan(q.y, 1), nan(q.z, 2), nan(q.s, 3)) }
@@ -409,14 +411,25 @@ export function mulRotationF32(a: Rotation, b: Rotation): Rotation {
 
 /** The Hamilton product, with the NaN signs Mono gives. */
 function hamilton(a: Rotation, b: Rotation): Rotation {
-  const m = mulFloat
-  return rot(
-    subFloat(addFloat(addFloat(m(a.s, b.x), m(a.x, b.s)), m(a.y, b.z)), m(a.z, b.y)),
-    addFloat(addFloat(subFloat(m(a.s, b.y), m(a.x, b.z)), m(a.y, b.s)), m(a.z, b.x)),
-    addFloat(subFloat(addFloat(m(a.s, b.z), m(a.x, b.y)), m(a.y, b.x)), m(a.z, b.s)),
-    subFloat(subFloat(subFloat(m(a.s, b.s), m(a.x, b.x)), m(a.y, b.y)), m(a.z, b.z)),
+  const r = rot(
+    a.s * b.x + a.x * b.s + a.y * b.z - a.z * b.y,
+    a.s * b.y - a.x * b.z + a.y * b.s + a.z * b.x,
+    a.s * b.z + a.x * b.y - a.y * b.x + a.z * b.s,
+    a.s * b.s - a.x * b.x - a.y * b.y - a.z * b.z,
   )
+  if (r.x === r.x && r.y === r.y && r.z === r.z && r.s === r.s) return r
+  // Every part of the result uses every part of a and b.
+  const nan = productNaN(positiveNaN(a.x) || positiveNaN(a.y) || positiveNaN(a.z) || positiveNaN(a.s) || positiveNaN(b.x) || positiveNaN(b.y) || positiveNaN(b.z) || positiveNaN(b.s))
+  return rot(r.x === r.x ? r.x : nan, r.y === r.y ? r.y : nan, r.z === r.z ? r.z : nan, r.s === r.s ? r.s : nan)
 }
+
+const positiveNaN = (n: number) => n !== n && !isNegativeNaN(n)
+
+/**
+ * The NaN a product of rotations or a rotated vector gives, as Mono does:
+ * negative unless one of the parts it was made from is a positive NaN.
+ */
+const productNaN = (anyPositive: boolean) => (anyPositive ? POSITIVE_NAN : NEGATIVE_NAN)
 
 /**
  * Second Life's quaternion normalise, in single precision: it leaves a
@@ -492,11 +505,8 @@ export function rotateVector(v: Vector, q: Rotation): Vector {
     2 * x * z * vx + 2 * y * z * vy + z * z * vz - 2 * s * y * vx - y * y * vz + 2 * s * x * vy - x * x * vz + s * s * vz,
   )
   if (r.x === r.x && r.y === r.y && r.z === r.z) return r
-  // Every part of the result uses every part of v and q, so a NaN in it
-  // follows Mono's float rule over all of them: negative unless one is positive.
-  const positive = (n: number) => n !== n && !isNegativeNaN(n)
-  const anyPositive = positive(x) || positive(y) || positive(z) || positive(s) || positive(vx) || positive(vy) || positive(vz)
-  const nan = anyPositive ? POSITIVE_NAN : NEGATIVE_NAN
+  // Every part of the result uses every part of v and q.
+  const nan = productNaN(positiveNaN(x) || positiveNaN(y) || positiveNaN(z) || positiveNaN(s) || positiveNaN(vx) || positiveNaN(vy) || positiveNaN(vz))
   return vec(r.x === r.x ? r.x : nan, r.y === r.y ? r.y : nan, r.z === r.z ? r.z : nan)
 }
 

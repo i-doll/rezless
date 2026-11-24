@@ -537,10 +537,12 @@ const exp = (a: number) => (a !== a ? a : Math.exp(a))
 
 /**
  * The numbers sorted as Second Life sorts them for MEDIAN: an insertion sort
- * on `<`, so nothing moves past a NaN.
+ * on `<`, so nothing moves past a NaN. Without a NaN any stable sort gives
+ * the same order.
  */
 function insertionSorted(nums: number[]) {
   const out = boxedMap(nums, (n) => n)
+  if (!out.some((n) => n !== n)) return out.sort((a, b) => a - b)
   for (let i = 1; i < out.length; i++) {
     const v = out[i]!
     let j = i
