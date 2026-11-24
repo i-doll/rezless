@@ -176,7 +176,10 @@ function raiseHeldTouches(clock: LinksetClock): void {
     for (const click of s.heldClicks.values()) {
       if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
       click.dueAt += repeatMs(s)
-      if (!s.handles('touch')) continue
+      // In-world: a held click raised no touch while the touch handler ran on, asleep, busy or
+      // in a call's delay, so a release then left only touch_end; touch_start's or a timer's
+      // sleep kept one.
+      if (!s.handles('touch') || s.handlerEvent === 'touch') continue
       // In-world: a map call in the first touch of a held click showed nothing after one in
       // touch_start, and one in a later touch showed the map again.
       // A touch raised before the last one ran merges into it and keeps its data.
@@ -1032,8 +1035,10 @@ export class Linkset {
     const clicks = new Map<Script, HeldTouch>()
     const firstAt = this.clock.now + Math.min(TOUCH_REPEAT_MS / 2, opts.hold ?? 0)
     for (const s of clicked) {
-      // In-world: a script still holding this avatar's earlier click raised no touch_start.
-      if (!s.heldClicks.has(by)) scheduleTouch(s, 'touch_start', detected)
+      // In-world: a script still holding this avatar's earlier click raised no touch_start, nor
+      // did one whose touch handler ran on while another avatar's click was held.
+      const crowded = s.handlerEvent === 'touch' && [...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut)
+      if (!s.heldClicks.has(by) && !crowded) scheduleTouch(s, 'touch_start', detected)
       const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt: firstAt }
       s.heldClicks.set(by, click)
       clicks.set(s, click)
@@ -1068,8 +1073,9 @@ export class Linkset {
         continue
       }
       if (s.heldClicks.get(by) === click) s.heldClicks.delete(by)
-      // In-world: every click, however short, raised one touch, unless touch_start changed state.
-      if (!click.touched && click.repeating) scheduleTouch(s, 'touch', click.detected)
+      // In-world: every click, however short, raised one touch, unless touch_start changed state
+      // or the click came and went while the touch handler ran on.
+      if (!click.touched && click.repeating && s.handlerEvent !== 'touch') scheduleTouch(s, 'touch', click.detected)
       scheduleTouch(s, 'touch_end', now(click.detected))
     }
     armTouches(this.clock)

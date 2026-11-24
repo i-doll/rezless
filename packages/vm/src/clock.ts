@@ -165,10 +165,11 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
     } else if (part.kind === 'touch_end' || click.touch || !click.touch_end) click[part.kind] = part
   }
   const first = merged[touches]!
+  const tag = {}
   const group = TOUCH_KINDS.flatMap((kind): QueuedEvent[] => {
     const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => x.at - y.at || x.seq - y.seq)
     if (!kept.length) return []
-    const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at) }
+    const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at), [TOUCH_GROUP]: tag }
     return [{ ...first, at: Math.min(...kept.map((p) => p.at)), event: kind, payload }]
   })
   merged.splice(touches, 1, ...group)
@@ -176,6 +177,27 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
 }
 
 const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
+/** Marks the touch events one merge made, which keep their order when released. */
+const TOUCH_GROUP = '__touches'
+
+/**
+ * `events` by time, with each merged group of touch events kept in its order. In-world, a click
+ * in a touch handler's sleep after another avatar's release kept its touch_start, which sorting
+ * it behind the touch_end that avatar's release merged into would lose.
+ */
+function byTimeKeepingTouches(events: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
+  const sorted = [...events].sort((a, b) => a.at - b.at)
+  const groups = new Map<unknown, number[]>()
+  sorted.forEach((e, i) => {
+    const group = e.payload[TOUCH_GROUP]
+    if (group) groups.set(group, [...groups.get(group) ?? [], i])
+  })
+  for (const slots of groups.values()) {
+    const members = slots.map((i) => sorted[i]!).sort((a, b) => TOUCH_KINDS.indexOf(a.event as TouchKind) - TOUCH_KINDS.indexOf(b.event as TouchKind))
+    slots.forEach((i, k) => { sorted[i] = members[k]! })
+  }
+  return sorted
+}
 const SENSOR_EVENTS: ReadonlySet<string> = new Set(['sensor', 'no_sensor'])
 
 /** The kind an event is merged and held back by. */
@@ -864,7 +886,7 @@ export class LinksetClock {
     // In-world: a handler busy and then asleep ran what it held in the sleep in the held order, a
     // change held in the busy part among them, unless all of it was held as when busy.
     const inOrder = events.every((e) => e.busy)
-    const merged = mergeHeld(events.sort((a, b) => a.at - b.at))
+    const merged = mergeHeld(byTimeKeepingTouches(events))
     // The contact goes on past the wake when no end of it was held.
     const open = !merged.some((e) => e.event === 'land_collision_end' && !e.payload[REOPENED])
     const held = merged.filter((e) => !e.payload[REOPENED])
