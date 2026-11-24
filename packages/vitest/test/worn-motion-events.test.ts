@@ -26,7 +26,7 @@ const logger = (body = '') => ({ source: `list seen; list out;
     run_time_permissions(integer p) { ${body} llRequestPermissions(llGetOwner(), PERMISSION_CHANGE_LINKS | PERMISSION_TELEPORT); }
     moving_start() { seen += ["ms"]; }
     moving_end() { seen += ["me"]; }
-    changed(integer c) { if (c & CHANGED_TELEPORT) seen += ["tp"]; }
+    changed(integer c) { if (c & CHANGED_TELEPORT) seen += ["tp"]; if (c & CHANGED_REGION) seen += ["rg"]; }
   }` })
 
 async function worn(opts: { root?: string, child?: string, hand?: string, rotation?: number } = {}) {
@@ -124,7 +124,7 @@ describe('moving events in worn objects', () => {
     expect(f.world.teleportAvatar(f.avatar, v(116, 256 + 48, AT.z))).toBe(true)
     f.chest.advanceTime(2000)
     expect(f.avatar.region).toBe('north')
-    expect(f.seen()).toEqual(all(['tp']))
+    expect(f.seen()).toEqual(all(['tp', 'rg']))
   })
 
   it('tells worn objects only of the change for a scripted teleport into another region', async () => {
@@ -133,7 +133,25 @@ describe('moving events in worn objects', () => {
     f.run('root')
     f.chest.advanceTime(2000)
     expect(f.avatar.region).toBe('north')
-    expect(f.seen()).toEqual(all(['tp']))
+    expect(f.seen()).toEqual(all(['tp', 'rg']))
+  })
+
+  // In-world: a worn llMoveToTarget(<116, 240, 22.916>, 0.3) held the wearer on the ground in
+  // SLua Tideland; a teleport to <116, 230> in SLua Tombolo was followed by moving_start,
+  // changed 7 to 16 ms later, and moving_end 2.3 s after that with the wearer at <116, 239.9985>
+  // in SLua Tombolo, three runs: the target kept its region coordinates.
+  it('lets a worn move target take the wearer to the same region coordinates after a teleport into another region', async () => {
+    const f = await worn({ root: `llMoveToTarget(<116, 50, ${AT.z}>, 0.3);` })
+    f.world.addRegion('north', { x: 0, y: 256 })
+    f.avatar.position = v(116, 50, AT.z)
+    f.run('root')
+    f.chest.advanceTime(1000)
+    f.clear()
+    expect(f.world.teleportAvatar(f.avatar, v(116, 256 + 40, AT.z))).toBe(true)
+    f.chest.advanceTime(10000)
+    expect(f.avatar.region).toBe('north')
+    close(f.avatar.position, 116, 50, AT.z)
+    expect(f.seen()).toEqual(all(['ms', 'tp', 'rg', 'me']))
   })
 
   // In-world: sitting on a box 4 m away and sitting on the ground gave no moving event; standing
@@ -320,9 +338,51 @@ describe('move targets in two worn objects', () => {
     f.avatar.position = v(116.5, 48.5, AT.z)
     f.chest.advanceTime(10000)
     close(f.avatar.position, 116, 49, AT.z)
+    f.clear()
     f.scripts.root.running = true
+    f.chest.advanceTime(1400)
+    close(f.avatar.position, 116.5, 48, AT.z, 2)
+    expect(f.seen().hand).toEqual(['ms'])
+  })
+
+  // A script that crashes keeps its targets acting (see target-of-a-stopped-script), so starting it
+  // again lets nothing go that was held.
+  it('leaves a held wearer where it is when a crashed script holding a target starts again', async () => {
+    const f = await worn({
+      root: `integer zero; if (llGetListLength(out) == 0) llMoveToTarget(<117, 47, ${AT.z}>, 0.3); else zero = 1 / zero; out += [1];`,
+      hand: `llMoveToTarget(<116, 49, ${AT.z}>, 0.3);`,
+    })
+    f.run('root', 'hand')
     f.chest.advanceTime(10000)
+    f.scripts.hand.running = false
+    f.chest.advanceTime(1000)
+    expect(() => f.run('root')).toThrow()
+    expect(f.scripts.root.crashed).toBe(true)
+    f.scripts.root.running = true
+    f.chest.advanceTime(5000)
     close(f.avatar.position, 116.5, 48, AT.z)
+  })
+
+  it('holds a wearer still on its way when the script holding one of two targets stops', async () => {
+    const f = await pair()
+    f.run('root', 'hand')
+    f.chest.advanceTime(300)
+    const { x, y, z } = f.avatar.position
+    f.clear()
+    f.scripts.root.running = false
+    f.chest.advanceTime(5000)
+    close(f.avatar.position, x, y, z, 6)
+    expect(f.seen().hand).toEqual(['me'])
+  })
+
+  it('holds the wearer as for a reset when the owner saves the script holding one of two targets', async () => {
+    const f = await pair()
+    f.run('root', 'hand')
+    f.chest.advanceTime(300)
+    f.clear()
+    f.chest.prims[0]!.replaceInventory('root', {})
+    f.chest.advanceTime(100)
+    expect(f.seen().hand).toEqual(['me'])
   })
 })
 

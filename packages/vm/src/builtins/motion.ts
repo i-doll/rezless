@@ -774,18 +774,26 @@ function stopTargetMotion(prim: Prim, kind: 'move' | 'look', caller: TargetOwner
  * target once the script was started.
  */
 export function slackenTargetMotion(script: Script, slack: boolean): void {
-  const root = script.linkset.prims[0]!, move = root.targetMotion.move
+  if (editing.has(script)) return
+  const root = script.linkset.prims[0]!, move = root.targetMotion.move, wasSlack = !!move?.slack
   for (const request of [move, root.targetMotion.look]) {
     if (request?.owner.prim === script.host.key && request.owner.script === script.instanceId) {
       if (slack) request.slack = true
       else delete request.slack
     }
   }
-  if (move?.owner.prim !== script.host.key || move.owner.script !== script.instanceId) return
+  if (move?.owner.prim !== script.host.key || move.owner.script !== script.instanceId || wasSlack === slack) return
   // In-world: setting the script that held one of two worn targets not running left the wearer
   // where it was until a walk; setting it running again took the wearer back at once.
   if (slack) holdWearer(script.linkset)
   else wakeWearer(script.linkset)
+}
+
+const editing = new WeakSet<Script>()
+/** Run `edit`, in which `script` reads as not running, without its targets letting go. */
+export function whileEditing(script: Script, edit: () => void): void {
+  editing.add(script)
+  try { edit() } finally { editing.delete(script) }
 }
 
 // In-world: a sibling's new target, set while the script that owns the target was stopped, did
@@ -958,7 +966,9 @@ function quietWearer(move: () => void): void {
 /**
  * Teleport a wearer with `relocate` and tell its objects with `report`. In-world, within the
  * region: moving_start, then changed(CHANGED_TELEPORT) 21 ms later, then moving_end. Into another
- * region, landing standing: changed(CHANGED_TELEPORT | CHANGED_REGION) alone, five runs.
+ * region, landing standing: changed(CHANGED_TELEPORT | CHANGED_REGION) alone, five runs. A worn
+ * move target kept its region coordinates there and took the wearer to them, with moving_start
+ * before the change and moving_end at the target.
  */
 export function wearerTeleported(world: World, avatar: WorldAvatar, crossing: boolean, relocate: () => void, report: () => void): void {
   quietWearer(relocate)
