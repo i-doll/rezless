@@ -48,6 +48,7 @@ describe('motion that starts and ends while a handler sleeps', () => {
         else if (k == "x") { llSleep(s); llSetKeyframedMotion([], []); }
         else if (k == "ss2") { llSleep(0.3); llSleep(0.6); }
         else if (k == "s0") { llSleep(0.0); llSleep(1.0); }
+        else if (k == "bz") { llOwnerSay("spin"); llSleep(1.0); }
         else if (k == "sx") { llSleep(0.2); llSetKeyframedMotion([<0, 0, -0.3>, 0.4], [KFM_DATA, KFM_TRANSLATION]); llSleep(1.0); }
         else if (k == "pp") { llSleep(0.2); llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PAUSE]); llSleep(0.3);
           llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]); llSleep(1.0); }
@@ -87,8 +88,7 @@ describe('motion that starts and ends while a handler sleeps', () => {
   // In-world: a 0.5 s motion and sleeps of 0.3 and 0.6 s -> both after the handler, at 0.94 and
   // 0.98 to 1.0. A 0.2 s sleep, new keyframes for 0.4 s and a 1 s sleep -> both, at 1.22 to 1.27.
   // A 0.2 s sleep, a pause, a 0.3 s sleep, play and a 1 s sleep -> both, at 1.53 to 1.62. A 0.2 s
-  // sleep, a stop and a 0.5 s sleep -> both, at 0.73 to 0.8. A 0.01 or 0.05 s busy loop before a
-  // 1 s sleep gave both as well, which rezless cannot show: its handlers take no time but sleeps.
+  // sleep, a stop and a 0.5 s sleep -> both, at 0.73 to 0.8.
   it.each([
     ['ss2,0.5,0', ['moving_start 9', 'moving_end 10']],
     ['sx,0.5,0', ['moving_start 12', 'moving_end 12']],
@@ -99,6 +99,15 @@ describe('motion that starts and ends while a handler sleeps', () => {
     send(b, command)
     b.linkset.advanceTime(5_000)
     expect(b.log()).toEqual(expected)
+  })
+
+  // In-world: a 0.01 or 0.05 s busy loop before a 1 s sleep after a 0.5 s motion -> both.
+  it.each([10, 50])('gives both when the handler spins for %i ms before the sleep', async (ms) => {
+    const b = await box(mover)
+    b.script.mock('llOwnerSay', (ctx) => { ctx.busy(ms); return undefined })
+    send(b, 'bz,0.5,0')
+    b.linkset.advanceTime(5_000)
+    expect(b.log().map((l) => l.split(' ')[0])).toEqual(['moving_start', 'moving_end'])
   })
 
   const physical = `${logger}
