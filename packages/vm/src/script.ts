@@ -1404,6 +1404,10 @@ export class Script {
     }
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
+      // In-world: in SLua a detach and wear lost the touch of a click held back in the busy part
+      // behind another avatar's click, and kept its touch_start and touch_end (3 runs of 3); worn
+      // without the detach it ran (2 runs of 2). LSL kept the touch (2 runs of 2).
+      if (this.slua && e.event === 'touch' && e.held && e.busy && cameUp(e) <= (before?.spunUntil ?? -Infinity)) continue
       const detected = e.payload['detected']
       const payload = detached && isTouch(e.event) && Array.isArray(detected)
         ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload

@@ -25,7 +25,7 @@ export interface QueuedEvent {
   readonly held?: boolean
   /** Came up while the handler was busy, or held back as then: released in the order it came up. */
   readonly busy?: boolean
-  /** A touch event that came up in a busy part before a take or a detach: only the same avatar's clicks merge into it. */
+  /** A touch event that came up in a busy part before a take or a detach: a later click merges into the last of its kind. */
   readonly carried?: boolean
   /** When an event due later came up and was judged, if before `at`. */
   readonly raisedAt?: number
@@ -86,16 +86,11 @@ interface DetectedTouch { readonly key?: string }
  * takes the place of the earlier entry: the other prim, moved between the drops, read where
  * it was for the second.
  */
-function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
+function mergeHeld(events: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
+  const held = mergeIntoCarried(events)
   const merged: QueuedEvent[] = []
   const land = new Map<string, number>()
-  // In-world: a click after a take or a detach merged into the touch events its avatar's earlier
-  // click left waiting from a busy part, and another avatar's waiting touch kept to itself.
   const touches: { slot?: number; parts: TouchPart[] } = { parts: [] }
-  const carriedTouches: { slot?: number; parts: TouchPart[] } = { parts: [] }
-  const keysOf = (e: QueuedEvent) => TOUCH_EVENTS.has(e.event) ? detectedKeys(e.payload) : []
-  const uncarried = new Set(held.filter((e) => !e.carried).flatMap(keysOf))
-  const carriedKeys = new Set(held.filter((e) => e.carried).flatMap(keysOf).filter((k) => uncarried.has(k)))
   const collisions = new Map<string, number>()
   let changed: number | undefined
   let gameControl: number | undefined
@@ -153,29 +148,63 @@ function mergeHeld(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       merged[at] = { ...first, payload: { ...first.payload, num_detected: entries.length, detected: entries } }
       continue
     }
-    if (!TOUCH_EVENTS.has(e.event) || !keyed || e.payload[LATE_TOUCH_START] || e.carried && !detectedKeys(e.payload).some((k) => carriedKeys.has(k))) {
+    if (!TOUCH_EVENTS.has(e.event) || !keyed || e.payload[LATE_TOUCH_START] || e.payload[TOUCH_AHEAD] || e.carried) {
       merged.push(e)
       continue
     }
     // When each click came up; an event merged before carries its clicks' own times.
     const arrived = e.payload['__at'] as ReadonlyArray<number> | undefined
-    detected.forEach((entry, i) => {
-      const bucket = e.carried || carriedKeys.has(entry.key!.toLowerCase()) ? carriedTouches : touches
-      bucket.slot ??= merged.push(e) - 1
-      bucket.parts.push({ kind: e.event as TouchKind, entry, at: arrived?.[i] ?? e.at, seq: bucket.parts.length })
-    })
+    touches.slot ??= merged.push(e) - 1
+    detected.forEach((entry, i) => touches.parts.push({ kind: e.event as TouchKind, entry, at: arrived?.[i] ?? e.at, seq: touches.parts.length }))
   }
-  // The later slot first, so the earlier one keeps its index.
-  for (const bucket of [touches, carriedTouches].sort((a, b) => (b.slot ?? -1) - (a.slot ?? -1))) {
-    if (bucket.slot !== undefined) merged.splice(bucket.slot, 1, ...touchGroup(bucket.parts, merged[bucket.slot]!, bucket === carriedTouches))
-  }
+  if (touches.slot !== undefined) merged.splice(touches.slot, 1, ...touchGroup(touches.parts, merged[touches.slot]!))
   return merged
+}
+
+/**
+ * `held` with each new touch event merged into the last touch event of its kind carried out of
+ * a busy part through a take or a detach. In-world: after a detach and wear, fivebot's click on
+ * the worn object merged into the touch_start, touch and touch_end of i doll's click, the last
+ * carried, and not into those of fivebot's own earlier click, LSL and SLua 2 runs of 2 each.
+ * A click whose kind had no carried event kept its own: on a copy that carried only i doll's
+ * touch, fivebot's touch_start and touch_end ran on their own after it.
+ */
+function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
+  const out: QueuedEvent[] = []
+  const last = new Map<string, number>()
+  for (const e of held) {
+    const detected = e.payload['detected'] as ReadonlyArray<DetectedTouch> | undefined
+    if (!TOUCH_EVENTS.has(e.event) || !detected?.length || detected.some((d) => d.key === undefined) || e.payload[LATE_TOUCH_START]) {
+      out.push(e)
+      continue
+    }
+    if (e.carried) {
+      last.set(e.event, out.push(e) - 1)
+      continue
+    }
+    const at = last.get(e.event)
+    if (at === undefined) {
+      out.push(e)
+      continue
+    }
+    const into = out[at]!
+    const entries = [...into.payload['detected'] as DetectedTouch[]]
+    const times = [...(into.payload['__at'] as number[] | undefined) ?? entries.map(() => into.at)]
+    const arrived = e.payload['__at'] as ReadonlyArray<number> | undefined
+    detected.forEach((entry, i) => {
+      if (entries.some((x) => x.key!.toLowerCase() === entry.key!.toLowerCase())) return
+      entries.push(entry)
+      times.push(arrived?.[i] ?? e.at)
+    })
+    out[at] = { ...into, payload: { ...into.payload, num_detected: entries.length, detected: entries, __at: times } }
+  }
+  return out
 }
 
 type TouchPart = { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }
 
 /** The touch events `parts` merge into, made from `first`. */
-function touchGroup(parts: ReadonlyArray<TouchPart>, first: QueuedEvent, carried: boolean): QueuedEvent[] {
+function touchGroup(parts: ReadonlyArray<TouchPart>, first: QueuedEvent): QueuedEvent[] {
   const clicks = new Map<string, Partial<Record<TouchKind, TouchPart>>>()
   // The rules follow the order the events are in; the times only order each merged event's list.
   for (const part of parts) {
@@ -186,19 +215,20 @@ function touchGroup(parts: ReadonlyArray<TouchPart>, first: QueuedEvent, carried
       if (!click.touch_start && !click.touch && !click.touch_end) click.touch_start = part
     } else if (part.kind === 'touch_end' || click.touch || !click.touch_end) click[part.kind] = part
   }
-  const { carried: _, ...base } = first
   const tag = {}
   return TOUCH_KINDS.flatMap((kind): QueuedEvent[] => {
     const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => x.at - y.at || x.seq - y.seq)
     if (!kept.length) return []
     const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at), [TOUCH_GROUP]: tag }
-    return [{ ...base, at: Math.min(...kept.map((p) => p.at)), event: kind, payload, ...(carried && { carried }) }]
+    return [{ ...first, at: Math.min(...kept.map((p) => p.at)), event: kind, payload }]
   })
 }
 
 const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
 /** Marks a touch_start raised while the touch_start handler ran on: it waits behind the touch_end. */
 export const LATE_TOUCH_START = '__late'
+/** Marks a touch moved ahead of a touch_start that came up before it: it keeps that place. */
+const TOUCH_AHEAD = '__ahead'
 /** Marks the touch events one merge made, which keep their order when released. */
 const TOUCH_GROUP = '__touches'
 
@@ -561,6 +591,17 @@ export class LinksetClock {
       const detected = [...before.payload['detected'] as unknown[], ...start.payload['detected'] as unknown[]]
       this.queue[to - 1] = { ...before, payload: { ...before.payload, num_detected: detected.length, detected } }
     } else this.queue.splice(to, 0, { ...start, at: Math.min(start.at, this.queue[to]!.at), held: false })
+  }
+
+  /** Move the touch `target` raised last to just ahead of the last touch_start that lists `by`. */
+  putTouchAhead(target: Script, by: string): void {
+    const last = (match: (e: QueuedEvent) => boolean) => this.queue.reduce((found, e, i) => e.target === target && e.at <= this.now && match(e) ? i : found, -1)
+    const from = last((e) => e.event === 'touch')
+    const to = last((e) => e.event === 'touch_start' && detectedKeys(e.payload).includes(by))
+    if (to < 0 || from < to) return
+    const [touch] = this.queue.splice(from, 1)
+    const { [TOUCH_GROUP]: _, ...payload } = touch!.payload
+    this.queue.splice(to, 0, { ...touch!, at: Math.min(touch!.at, this.queue[to]!.at), payload: { ...payload, [TOUCH_AHEAD]: true } })
   }
 
   /** Remove the queued events that `match`, leaving the others as they are. */
@@ -1066,11 +1107,15 @@ export class LinksetClock {
       payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
     // In-world: touch events carried out of a busy part through a take ran first after on_rez:
     // another avatar's touch ran ahead of the touch_start and touch_end of a click on the copy,
-    // in LSL (2 runs of 2) and SLua (1 run). SLua ran the carried touch_start, touch and
-    // touch_end last to first, after a take (4 runs of 4) or a detach and wear (2 runs of 2);
-    // after a plain sleep it kept their order (1 run).
+    // in LSL (2 runs of 2) and SLua (1 run). SLua ran each click's carried touch_start, touch and
+    // touch_end last to first, after a take (4 runs of 4) or a detach and wear (2 runs of 2), and
+    // the clicks in the order they came: fivebot's touch_end, touch and touch_start, then i
+    // doll's touch_end and touch_start (5 runs of 5). After a plain sleep it kept their order
+    // (1 run).
     const carried = new Set(held.filter((_, i) => kept[i]!.carried))
-    const carriedRank = (e: QueuedEvent) => script.language === 'slua' ? -1 - TOUCH_KINDS.indexOf(e.event as TouchKind) : -1
+    const clickOf = (e: QueuedEvent) => detectedKeys(e.payload)[0]
+    const clickOrder = [...new Set(held.filter((e) => carried.has(e)).map(clickOf))]
+    const carriedRank = (e: QueuedEvent) => script.language === 'slua' ? clickOrder.indexOf(clickOf(e)) * TOUCH_KINDS.length - TOUCH_KINDS.indexOf(e.event as TouchKind) : 0
     const lands = held.filter((e) => e.event === 'land_collision')
     if (lands.length) {
       const tail: LandTail = { script, since: this.ran.get(script) ?? 0, ran: 0, dropped: 0, copies: new WeakMap() }
@@ -1110,8 +1155,8 @@ export class LinksetClock {
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
     if (carried.size) held.splice(0, held.length, ...held.filter((e) => carried.has(e)).sort((a, b) => carriedRank(a) - carriedRank(b)), ...held.filter((e) => !carried.has(e)))
     for (const [i, e] of held.entries()) {
-      if (!e.payload[LATE_TOUCH_START]) continue
-      const { [LATE_TOUCH_START]: _, ...payload } = e.payload
+      if (!e.payload[LATE_TOUCH_START] && !e.payload[TOUCH_AHEAD]) continue
+      const { [LATE_TOUCH_START]: _, [TOUCH_AHEAD]: __, ...payload } = e.payload
       held[i] = { ...e, payload }
     }
     // In-world: a busy handler's held collision, collision_end and a later contact's
