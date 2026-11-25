@@ -156,6 +156,7 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
     if (primInput.key !== undefined) primOpts.key = primInput.key
     if (primInput.name !== undefined) primOpts.name = primInput.name
     if (primInput.description !== undefined) primOpts.description = primInput.description
+    if (primInput.creator !== undefined) primOpts.creator = primInput.creator
     const prim = new Prim(primOpts)
     linkset.addPrim(prim)
     if (prims.length === 0 && input.position) prim.params.position = input.position

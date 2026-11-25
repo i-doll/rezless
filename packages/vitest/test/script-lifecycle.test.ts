@@ -714,6 +714,8 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     // one came 45 ms apart, then ticks 8.0 s after the timer was set and every 2 s. llSetTimerEvent(4)
     // 0.55 s after the start ticked 2.87 s after the call: the lag was how late the second tick
     // ran, due at 6 s, 2 s after the call less the start's 3 s lag, not the start's 3 s.
+    // rezless runs the two ticks a frame and three frames after the start, and the tick after
+    // llSetTimerEvent(4) 2.96 s after the call, 0.09 s later than measured.
     const plain = await caughtUp(1000, 7000, 'q+stop:1:2.0')
     plain.linkset.advanceTime(100)
     expect(plain.ticks()).toBe(2)

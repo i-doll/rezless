@@ -666,15 +666,16 @@ describe('the lag a held tick leaves', () => {
     // llSetTimerEvent(4) in that timer handler ticked 3.49 s later, in two runs. With
     // llMinEventDelay(3) the tick came at 3.0 s and the next 3.0 s after the call.
     // The three calls reach the script a frame or more apart: each tick is read here against the
-    // call it follows, the first against llMinEventDelay and the second against llSetTimerEvent(2).
-    for (const [delay, first, total] of [[2.5, 2500, 6000], [3, 3000, 6000]] as const) {
+    // call it follows, the first against llMinEventDelay and the second against llSetTimerEvent(2),
+    // to the nearest 10 ms.
+    for (const [delay, first, total] of [[2.5, 2510, 6000], [3, 3000, 6000]] as const) {
       const r = await rig()
       r.tell(`4:${delay}`)
       r.tell('2:4.0')
       r.tell('1:2.0')
       const [one, two] = tickTimes(r.linkset, r.ticks, total + 300, 1)
-      expect(one! - r.calledAt('delayAt')).toBeCloseTo(first, -1.5)
-      expect(two! - r.calledAt('setAt')).toBeCloseTo(total, -1.5)
+      expect(Math.round((one! - r.calledAt('delayAt')) / 10) * 10).toBe(first)
+      expect(Math.round((two! - r.calledAt('setAt')) / 10) * 10).toBe(total)
     }
   })
 

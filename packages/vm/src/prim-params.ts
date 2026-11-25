@@ -928,10 +928,10 @@ const plainText = (s: string): string => s.replace(/[|\n]/g, '?')
 
 const f32 = Math.fround
 
-/** Second Life's range limit. A NaN passes through it. */
+/** Second Life's range limit. An invalid value passes through it unchanged. */
 const limit = (v: number, min: number, max: number) => (v < min ? min : v > max ? max : v)
 
-/** A float cast to a 32-bit integer, so never -0; NaN and anything out of range give the lowest one. */
+/** A float cast to a 32-bit integer, so never -0; an invalid value and anything out of range give the lowest one. */
 const toInt32 = (v: number) => (v > -2147483649 && v < 2147483648 ? Math.trunc(v) + 0 : -2147483648)
 
 /** Profile cuts and hollow are kept in steps of 0.00001, cut off toward zero. */
@@ -1654,10 +1654,10 @@ function faceRoles(shape: PrimShape): FaceRole[] {
   if (hollow) roles.push('inner')
   if (ends) roles.push('bottom')
   if (cutFaces) roles.push('cutStart', 'cutEnd')
-  // Measured only as a count on a cut, hollow box with a NaN top size x: 3 faces, not 7. Keeping
+  // Measured only as a count on a cut, hollow box with an invalid top size x: 3 faces, not 7. Keeping
   // the outer sides and the inner face, on every box, is a choice that isn't measured.
   if (shape.kind === SHAPE_BOX && Number.isNaN(shape.topSize.x)) return roles.filter((r) => typeof r === 'number' || r === 'inner')
-  // The count is a byte. Only a NaN cut, which is kept as -21474.83648, gets that far.
+  // The count is a byte. Only an invalid cut, which is kept as -21474.83648, gets that far.
   return roles.slice(0, (roles.length - Math.min(sideCount, 255) + sideCount) & 0xff)
 }
 

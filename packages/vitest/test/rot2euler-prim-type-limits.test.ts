@@ -1202,7 +1202,7 @@ describe('faces of a shape', () => {
     expect(said(s)).toEqual(FACE_ORDER.flatMap(([, shown]) => shown))
   })
 
-  it('gives a box with a NaN cut end no faces, and white untextured ones afterwards', async () => {
+  it('gives a box with an invalid cut end no faces, and white untextured ones afterwards', async () => {
     const s = await run(`
       default {
         state_entry() {
@@ -1217,16 +1217,16 @@ describe('faces of a shape', () => {
           llSay(0, llList2CSV([llGetNumberOfSides(), llGetColor(0), llGetColor(5)] + llGetPrimitiveParams([PRIM_TEXTURE, 0, PRIM_TEXTURE, 5])));
         }
       }`)
-    // In-world: a box with every face painted and textured, then a NaN cut end, then a plain box
+    // In-world: a box with every face painted and textured, then an invalid cut end, then a plain box
     // again, from a script compiled for Mono. Other prim types were not
-    // measured with a NaN or an infinity from LSL.
+    // measured with an invalid value from LSL.
     expect(said(s)).toEqual([
       '0, 0, 0, 1.000000, 1.000000, <1.000000, 1.000000, 1.000000>, <1.000000, 1.000000, 1.000000>, 00000000-0000-0000-0000-000000000000',
       '6, <1.000000, 1.000000, 1.000000>, <1.000000, 1.000000, 1.000000>, 00000000-0000-0000-0000-000000000000, <1.000000, 1.000000, 0.000000>, <0.000000, 0.000000, 0.000000>, 0.000000, 00000000-0000-0000-0000-000000000000, <1.000000, 1.000000, 0.000000>, <0.000000, 0.000000, 0.000000>, 0.000000',
     ])
   })
 
-  it('reads a NaN cut or hollow as 0 in SLua', async () => {
+  it('reads an invalid cut or hollow as 0 in SLua', async () => {
     const s = await runSlua(`
       local nan, inf = 0 / 0, math.huge
       local function set(kind, cut, hollow)
@@ -1241,7 +1241,7 @@ describe('faces of a shape', () => {
       end`)
     // In-world: Aditi beta grid, region Lua Beta IsNeat (2026-11-14), an SLua script on a
     // cylinder and then a prism, one value replaced at a time. Each line is the cut, the hollow
-    // and llGetNumberOfSides. A NaN end also moves the begin to 0.
+    // and llGetNumberOfSides. An invalid end also moves the begin to 0.
     expect(said(s)).toEqual([
       '0,0.8 0.5 6', '0,0.02 0.5 6', '0,0.02 0.5 6', '0.78,0.8 0.5 6', '0,0.02 0.5 6', '0.25,0.75 0 5', '0.25,0.75 0.95 6', '0.25,0.75 0 5',
       '0,0.8 0.5 8', '0,0.02 0.5 6', '0,0.02 0.5 6', '0.78,0.8 0.5 6', '0,0.02 0.5 6', '0.25,0.75 0 7', '0.25,0.75 0.95 8', '0.25,0.75 0 7',

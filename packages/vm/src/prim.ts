@@ -69,6 +69,8 @@ export interface PrimOptions {
   readonly key?: string
   readonly name?: string
   readonly description?: string
+  /** The avatar who made the prim, read by llGetCreator and OBJECT_CREATOR. Defaults to the object's owner. */
+  readonly creator?: string
 }
 
 /** `origin` plus `local` turned by `rotation`. */
@@ -196,12 +198,18 @@ export class Prim {
   }
   /** Virtual time in ms when the prim joined its linkset. */
   createdAt = 0
+  /** The avatar who made the prim, or undefined for the object's owner. */
+  madeBy: string | undefined
+
+  /** The avatar who made the prim: `madeBy`, or else the object's owner. */
+  get creator(): string { return this.madeBy ?? this.linkset?.owner ?? NULL_KEY }
 
   constructor(opts: PrimOptions = {}) {
     this.key = opts.key ?? deterministicKey(`prim/${++primsMade}`)
     this.name = opts.name ?? 'Object'
     this.description = opts.description ?? ''
     this.appearance.description = this.description
+    this.madeBy = opts.creator
   }
 
   /** Add a script to this prim's inventory and roster. `creator` defaults to NULL_KEY, as for a Library script. */
