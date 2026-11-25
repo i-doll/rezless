@@ -251,6 +251,8 @@ const { linkset, prims, scripts } = await loadLinkset({
       ],
       inventory: [
         // notecards, textures, … addressable via llGetInventory* / llGetNotecardLine
+        // makeInventoryItem({ name, type, creator }): creator is what llGetInventoryCreator
+        //   returns, NULL_KEY by default. An object in `objects` reads its root prim's creator
       ],
     },
     {
@@ -418,6 +420,8 @@ ZERO_VECTOR, ZERO_ROTATION, 42)` and `receiver.lsl` stores
 and the rezzing prim receives `object_rez` with the new root key. An inventory
 item made with `makeInventoryItem({ name, type: InventoryType.OBJECT, object:
 savedLinkset })` supplies an existing linkset instead of an inline definition.
+Either way, `llGetInventoryCreator` on the item reads the creator of the
+object's root prim.
 
 Give an object definition an `experience` to compile its scripts with one, so
 the rezzed copy can use experience functions such as

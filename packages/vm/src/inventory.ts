@@ -170,6 +170,11 @@ export function renamedItemName(name: string): string {
   return bytes.map((b) => (b < 0x20 || b > 0x7f || b === 0x7c ? ' ' : String.fromCharCode(b))).join('').slice(0, 63).trim()
 }
 
+/** The maker of a saved object: the maker of its root prim, or `owner` when the root names none. */
+export function objectCreator(object: import('./linkset.js').Linkset, owner = object.owner): string {
+  return object.prims[0]?.madeBy ?? owner
+}
+
 export function makeInventoryItem(
   partial: Partial<InventoryItem> & { name: string; type: InventoryTypeValue },
 ): InventoryItem {
@@ -177,7 +182,7 @@ export function makeInventoryItem(
     name: partial.name,
     type: partial.type,
     key: partial.key ?? NULL_KEY,
-    creator: partial.creator ?? NULL_KEY,
+    creator: partial.creator ?? (partial.object ? objectCreator(partial.object) : NULL_KEY),
     description: partial.description ?? '',
     acquireTimeMs: partial.acquireTimeMs ?? 0,
     permMask: partial.permMask ?? DEFAULT_PERMS,

@@ -13,6 +13,8 @@ import {
   type AutoGrantPermissions,
   type Experience,
   makeInventoryItem,
+  objectCreator,
+  NULL_KEY,
   InventoryType,
 } from '@rezless/vm'
 import { isCoverageEnabled } from './coverage-config.js'
@@ -170,7 +172,7 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
         ...(autoGrantPermissions !== undefined ? { autoGrantPermissions } : {}) })).linkset
       if (!object.prims.length) throw new Error(`loadLinkset: inventory object '${name}' has no prims`)
       prim.placeInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
-        key: object.prims[0]!.key, object }))
+        key: object.prims[0]!.key, creator: objectCreator(object, input.owner ?? NULL_KEY), object }))
     }
     for (const sInput of primInput.scripts ?? []) {
       const experience = sInput.experience ?? input.experience
