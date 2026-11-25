@@ -465,7 +465,9 @@ describe('a script stopped with llSetScriptState', () => {
     tell('start')
     expect(t.global('log')).toEqual([])
     expect(t.global('ticks')).toBe(3)
-    expect(changes(linkset, () => t.global('ticks'), 5500)).toEqual([16_000, 20_000])
+    // Here the start falls between two simulator frames, and LLTimers sets the timer again from
+    // it, so each tick runs on the frame after the whole second and shows at the next read.
+    expect(changes(linkset, () => t.global('ticks'), 5500)).toEqual([16_050, 20_050])
     tell('send+stop')
     linkset.advanceTime(3000)
     tell('start')
@@ -518,7 +520,8 @@ describe('llSetTimerEvent after a start that caught up on a missed tick', () => 
     const short = await caughtUp(1000, 5500)
     short.at(9000)
     short.tell('msg:1:4.0')
-    expect(changes(short.linkset, short.ticks, 3000, short.origin)).toEqual([11_500])
+    // The call falls between two simulator frames here, so its tick runs on the frame after its time.
+    expect(changes(short.linkset, short.ticks, 3000, short.origin)).toEqual([11_550])
     const long = await caughtUp(1000, 7000)
     long.at(12_500)
     long.tell('msg:1:8.0')

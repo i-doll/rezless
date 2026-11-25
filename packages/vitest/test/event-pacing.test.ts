@@ -24,7 +24,7 @@ const LSL = `list L; integer ticks; integer tmax;
     listen(integer c, string n, key id, string m) {
       if (c == 7749) { rec("li" + m); return; }
       list w = llParseString2List(m, [" "], []);
-      string cmd = llList2String(w, 1); integer a = llList2Integer(w, 2);
+      string cmd = llList2String(w, 1); integer a = llList2Integer(w, 2); integer b = llList2Integer(w, 3);
       if (llList2String(w, 0) != llGetScriptName()) return;
       rec("cmd");
       if (cmd == "LM") lms(a);
@@ -39,7 +39,9 @@ const LSL = `list L; integer ticks; integer tmax;
       }
       else if (cmd == "BUSY") { spin(a); rec("done"); }
       else if (cmd == "TM") { ticks = 0; tmax = 8; llSetTimerEvent(a / 1000.0); }
-      else if (cmd == "TQ") { ticks = 0; tmax = 1; llSetTimerEvent(0.05); spin(10); lms(a); }
+      else if (cmd == "LMM") { spin(a); rec("send"); lms(1); spin(a); rec("done"); }
+      else if (cmd == "CM") { spin(a); rec("set"); llSetColor(<1, 0, 0>, ALL_SIDES); spin(a); rec("done"); }
+      else if (cmd == "TQ") { ticks = 0; tmax = 1; llSetTimerEvent(0.05); spin(10); lms(a); if (b) { spin(b); rec("spun"); } }
       else if (cmd == "SAY") { integer i; for (i = 1; i <= a; ++i) llSay(7749, (string)i); }
     }
     link_message(integer s, integer n, string m, key id) { rec("lm" + (string)n); }
@@ -60,7 +62,7 @@ const SLUA = `L = {}
   LLEvents:on("listen", function(c, n, id, m)
     if c == 7749 then rec("li" .. m) return end
     local w = string.split(m, " ")
-    local cmd, a = w[2], tonumber(w[3] or "0") or 0
+    local cmd, a, b = w[2], tonumber(w[3] or "0") or 0, tonumber(w[4] or "0") or 0
     if w[1] ~= ll.GetScriptName() then return end
     rec("cmd")
     if cmd == "LM" then lms(a)
@@ -78,7 +80,10 @@ const SLUA = `L = {}
     elseif cmd == "TQ" then
       th = LLTimers:every(0.05, function() rec("tm") LLTimers:off(th) end)
       spin(10) lms(a)
+      if b > 0 then spin(b) rec("spun") end
     elseif cmd == "SAY" then for i = 1, a do ll.Say(7749, tostring(i)) end
+    elseif cmd == "LMM" then spin(a) rec("send") lms(1) spin(a) rec("done")
+    elseif cmd == "CM" then spin(a) rec("set") ll.SetColor(vector(1, 0, 0), ALL_SIDES) spin(a) rec("done")
     end
   end)
   LLEvents:on("link_message", function(s, n, m, id) rec("lm" .. n) end)
@@ -146,8 +151,10 @@ describe.each(['lsl', 'slua'] as const)('a script\'s queued events (%s)', (langu
   })
 
   // In-world: "LM 64" -> the link messages ran one a frame, 64 of them over 64 frames (2 runs).
-  // The other LSL script got 63 in one run; rezless loses the 64th there as the command
-  // still waits in its queue.
+  // The other LSL script got 63 in one of those runs and 64 in each of 15 later ones (Aditi, SLua
+  // Tideland, 2026-11-25): it loses the 64th when its own copy of the command still waits as the
+  // last message comes, which turns on how long the sender takes over its 64 calls (see '64 link
+  // messages' below). Rezless runs the calls at once, so the other script loses the 64th here.
   it('takes as many frames as it has queued events', async () => {
     const out = await run(language, '1 LM 63')
     expect(out['2']).toEqual(Array.from({ length: 63 }, (_, i) => `lm${i + 1}@${i + 1}`))
@@ -171,10 +178,29 @@ describe.each(['lsl', 'slua'] as const)('a script\'s queued events (%s)', (langu
   })
 
   // In-world: "TQ 3" -> the tick that fell due in the 10-frame spin ran a frame after the
-  // handler, then the three link messages a frame apart (1 run each).
+  // handler, then the three link messages a frame apart (1 run each, and 5 more each on
+  // 2026-11-25). With a spin of 100 ms after the sends, the tick still ran first, a frame after
+  // the handler, and the link messages a frame apart after it (5 runs each).
   it('runs a held timer tick and the link messages behind it a frame apart', async () => {
     const out = await run(language, '1 TQ 3')
     expect(out['1']).toEqual(['cmd@0', 'tm@11', 'lm1@12', 'lm2@13', 'lm3@14'])
+  })
+
+  it('runs a held timer tick ahead of the link messages a handler sent itself before a spin', async () => {
+    const out = await run(language, '1 TQ 3 5')
+    expect(out['1']).toEqual(['cmd@0', 'spun@15', 'tm@16', 'lm1@17', 'lm2@18', 'lm3@19'])
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-25): a logger spun 2 frames, sent a link message or
+  // recoloured its prim, and spun 2 more. Idle scripts in the prim ran the event in the frame of
+  // the call or the frame after it, the same in each of 20 runs per sender and kind: the ones the
+  // simulator ran after the sender in each frame took it in that frame, the ones it ran before it
+  // a frame later. That order, LSL or SLua alike, is not one a script can see; rezless runs the
+  // event a frame after the call in every idle script.
+  it.each([['LMM', 'send', 'lm1'], ['CM', 'set', 'ch2']] as const)('runs what a busy handler raises (%s) a frame after the call in an idle script', async (cmd, call, got) => {
+    const out = await run(language, `1 ${cmd} 2`)
+    expect(out['1']).toEqual(['cmd@0', `${call}@2`, 'done@4', `${got}@5`])
+    expect(out['2']).toEqual([`${got}@3`])
   })
 
   // In-world: "SAY 5" from the other object -> every listening script ran the five lines a
@@ -233,12 +259,81 @@ describe('two waiting changed events', () => {
 
 describe('a short timer', () => {
   // In-world: a timer of 10 or 30 ms ticked every two frames in LSL; an LLTimers timer of
-  // 10 ms ticked every frame in SLua (1 run each).
+  // 10 ms ticked every frame in SLua (1 run each, and 3 more each on 2026-11-25).
   it.each([['lsl', 2], ['slua', 1]] as const)('ticks in %s every %s frame(s)', async (language, gap) => {
     const out = await run(language, '1 TM 10')
     const ticks = out['1']!.filter((e) => e.startsWith('tm')).map((e) => Number(e.split('@')[1]))
     expect(ticks).toHaveLength(8)
     expect(ticks.slice(1).map((f, i) => f - ticks[i]!)).toEqual(Array(7).fill(gap))
+  })
+})
+
+/** The frames after the command that each of the eight ticks of `command` ran in. */
+const tickFrames = (out: Record<string, string[]>) => out['1']!.filter((e) => e.startsWith('tm')).map((e) => Number(e.split('@')[1]))
+
+// In-world (Aditi, SLua Tideland, 2026-11-25): each logger set a timer of 30, 50, 100 or 200 ms
+// in a handler and logged eight ticks, three runs each. A tick ran on the first simulator frame on
+// or after its time, counted on the schedule from the call, and an LSL tick at least two frames
+// after the one before. Ticks due exactly on a frame ran on it or on the next: in LSL runs with no
+// lag from an earlier timer, 14 of 52 such ticks ran on it and 38 on the next, with no pattern
+// across the intervals (a 50 ms timer's ticks due at 200 ms and 400 ms ran on the next frame in all
+// four runs; a 200 ms timer's ran on either). Rezless runs them on that frame.
+describe('a timer on the frame grid', () => {
+  it.each([
+    ['lsl', 30, [2, 4, 6, 8, 10, 12, 14, 16]],
+    ['slua', 30, [2, 3, 5, 6, 7, 9, 10, 11]],
+    // In-world: 3, 5, 7, 10, 12, 14, 16, 19 in LSL.
+    ['lsl', 50, [3, 5, 7, 9, 12, 14, 16, 18]],
+    ['slua', 50, [3, 5, 7, 10, 12, 14, 16, 19]],
+    ['lsl', 100, [5, 9, 14, 18, 23, 27, 32, 36]],
+    ['slua', 100, [5, 10, 14, 19, 23, 28, 32, 37]],
+  ] as const)('ticks a %s timer of %s ms on the frames it falls due in', async (language, ms, frames) => {
+    expect(tickFrames(await run(language, `1 TM ${ms}`))).toEqual(frames)
+  })
+
+  // In-world: an LSL timer of 30 ms, which ticked every two frames, then one of 50 ms set by
+  // the same script -> 1, 4, 6, 8, 10, 13, 15, 17 (3 runs): the 30 ms timer's last tick ran two
+  // frames late, a 29 ms lag, so the next call's first tick came 21 ms after it, on the next
+  // frame, and the ones after it every 50 ms from there. A tick's lag counts the frames it waited
+  // behind the one before it.
+  it('starts an LSL timer early by the frames the last tick of the one before waited', async () => {
+    const { linkset, say, read } = await probe('lsl')
+    say('1 TM 30')
+    linkset.advanceTime(3000)
+    read(0)
+    const at = linkset.clock.now
+    say('1 TM 50')
+    linkset.advanceTime(3000)
+    expect(tickFrames(read(at))).toEqual([1, 4, 6, 8, 10, 13, 15, 17])
+  })
+})
+
+// In-world (Aditi, SLua Tideland, 2026-11-25): one prim held a sender, a logger that listened for
+// the commands and one that did not. The listening logger was kept busy for 2 s while the sender
+// sent 64 link messages to the prim: it got 63 of them, as its copy of the command took the room
+// of the last, in five runs each; the logger that heard no command got all 64. With one more
+// command waiting, an LSL logger got 62. A script holds 64 events.
+describe('64 link messages', () => {
+  it.each(['lsl', 'slua'] as const)('lose the last at a busy %s script that holds the command too', async (language) => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [
+      { name: '1', source: { source: LSL } },
+      { name: '2', language, source: { source: language === 'lsl' ? LSL : SLUA } },
+      { name: 'R', language, source: { source: language === 'lsl'
+        ? 'integer n; default { link_message(integer s, integer k, string m, key id) { ++n; } }'
+        : 'n = 0 LLEvents:on("link_message", function() n += 1 end)' } },
+    ] }] })
+    scripts['2']!.mock('llSetText', (ctx, args) => { ctx.busy(Number(args[2]) * SIM_FRAME_MS); return undefined })
+    linkset.startAll()
+    linkset.advanceTime(1000)
+    const say = (message: string) => linkset.deliverChat({ channel: 7748, name: 'Test Resident', key: AVATAR, message })
+    say('2 BUSY 90')
+    linkset.advanceTime(300)
+    say('1 LM 64')
+    linkset.advanceTime(5000)
+    const lms = (name: string) => (JSON.parse(JSON.stringify(scripts[name]!.global('L'))) as Array<string | number>).filter((e) => String(e).startsWith('lm')).length
+    expect(lms('1')).toBe(64)
+    expect(lms('2')).toBe(63)
+    expect(Number(scripts['R']!.global('n'))).toBe(64)
   })
 })
 
@@ -288,5 +383,56 @@ describe('a changed waiting two frames in LSL', () => {
     linkset.clock.schedule(s, linkset.clock.now, 'link_message', { sender_num: 1, num: 0, str: '', id: '' })
     linkset.advanceTime(500)
     expect(JSON.parse(JSON.stringify(s.global('log')))).toEqual(['ch', 'ch', 'lm'])
+  })
+})
+
+describe('a timer due with a repeating sensor', () => {
+  // A sensor result does not take the timer's tick off the frame it falls due in: the result
+  // waits for that frame and runs behind the tick, as a result and a tick due together do
+  // (see script-lifecycle.test.ts).
+  it('ticks on the frame after its time, as without the sensor', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `list log;
+      default {
+        state_entry() { llSensorRepeat("", NULL_KEY, AGENT, 5.0, PI, 0.1); llSetTimerEvent(0.1); }
+        timer() { log += ["tm", llGetTime()]; llSetTimerEvent(0); }
+        no_sensor() { if (llGetListLength(log) < 4) log += ["ns", llGetTime()]; }
+      }` } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(300)
+    const log = JSON.parse(JSON.stringify(scripts['s']!.global('log'))) as Array<string | number>
+    expect(log.map((e) => typeof e === 'number' ? Math.round(e * 1000) : e)).toEqual(['tm', 111, 'ns', 133])
+  })
+})
+
+describe('a short timer due with a repeating sensor', () => {
+  // A result and a tick due together run the tick first, every time.
+  it('runs each tick ahead of the sensor result due with it', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `string log;
+      default {
+        state_entry() { llSensorRepeat("", NULL_KEY, AGENT, 5.0, PI, 0.05); llSetTimerEvent(0.05); }
+        timer() { log += "t"; }
+        no_sensor() { log += "n"; }
+      }` } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(1000)
+    const log = String(scripts['s']!.global('log'))
+    expect(log.length).toBeGreaterThan(20)
+    expect(log).toBe('tn'.repeat(log.length / 2))
+  })
+})
+
+describe('a tick held through a sleep that ends between frames', () => {
+  // The tick held through one interval keeps the schedule (see timer-after-sleep.test.ts), and the
+  // ticks after it stay on the frames counted from the call.
+  it('leaves the later ticks on the frames of the schedule', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `list log;
+      default {
+        state_entry() { llSetTimerEvent(0.5); llSleep(0.52); }
+        timer() { log += llGetTime(); }
+      }` } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(2100)
+    const log = JSON.parse(JSON.stringify(scripts['s']!.global('log'))) as number[]
+    expect(log.map((t) => Math.round(t * 1000))).toEqual([542, 1000, 1511, 2000, 2511])
   })
 })

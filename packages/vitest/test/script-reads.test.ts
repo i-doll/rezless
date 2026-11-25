@@ -81,12 +81,14 @@ describe('llMinEventDelay', () => {
     )
 
   // In-world, a 0.1 s timer counted for 6 s: no call, 0.0, 0.01, 0.05 and -5.0 -> 60 or 61
-  // ticks; 0.2 -> 29, 0.3 -> 20, 1.0 -> 6, 3.0 -> 2.
+  // ticks; 0.2 -> 29, 0.3 -> 20, 1.0 -> 6, 3.0 -> 2. A tick runs on the first simulator frame on
+  // or after it falls due (see event-pacing.test.ts).
+  const ticks01 = [0.111, 0.2, 0.311, 0.4, 0.511, 0.6]
   it.each([
-    ['', [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]],
-    ['llMinEventDelay(0.0);', [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]],
-    ['llMinEventDelay(0.05);', [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]],
-    ['llMinEventDelay(-5.0);', [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]],
+    ['', ticks01],
+    ['llMinEventDelay(0.0);', ticks01],
+    ['llMinEventDelay(0.05);', ticks01],
+    ['llMinEventDelay(-5.0);', ticks01],
     ['llMinEventDelay(0.2);', [0.2, 0.4, 0.6]],
     ['llMinEventDelay(0.3);', [0.3, 0.6]],
   ])('spaces timer events: %s', async (setup, want) => {
@@ -211,6 +213,6 @@ describe('llMinEventDelay', () => {
        timer() { out += [llGetTime()]; if (llGetListLength(out) == 3) llSetTimerEvent(0); }`,
     )
     s.advanceTime(1000)
-    expect((s.global('out') as number[]).map((t) => Math.round(t * 1000) / 1000)).toEqual([0.1, 0.2, 0.3])
+    expect((s.global('out') as number[]).map((t) => Math.round(t * 1000) / 1000)).toEqual([0.111, 0.2, 0.311])
   })
 })

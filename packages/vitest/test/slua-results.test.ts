@@ -1056,8 +1056,8 @@ describe('SLua: the functions only llcompat has', () => {
 
   it('fires the timer handlers from llcompat.SetTimerEvent, with no arguments', async () => {
     // In-world: llcompat.SetTimerEvent(0.5) alone -> the handler ran at 0.49, 1.00, 1.49, 2.00, 2.49, 3.00, 3.49
-    // and 4.00 s, with no arguments
-    expect(await timeline('llcompat.SetTimerEvent(0.5)', 4100)).toEqual({ ticks: [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4], lt: [], args: 0 })
+    // and 4.00 s, with no arguments. Here a tick due between two frames runs on the later one.
+    expect(await timeline('llcompat.SetTimerEvent(0.5)', 4100)).toEqual({ ticks: [0.51, 1, 1.51, 2, 2.51, 3, 3.51, 4], lt: [], args: 0 })
   })
 
   it('shares one timer with LLTimers, which sets it to its own next callback', async () => {
@@ -1120,7 +1120,7 @@ describe('SLua: the functions only llcompat has', () => {
 
   it('keeps the timer across llcompat.ResetTime, and puts off an LLTimers callback the timer was stopped under', async () => {
     // In-world: llcompat.SetTimerEvent(0.5), then llcompat.ResetTime() -> the handler ran 6 times in the next 3 s
-    expect((await timeline('llcompat.SetTimerEvent(0.5); llcompat.ResetTime()', 3100)).ticks).toEqual([0.5, 1, 1.5, 2, 2.5, 3])
+    expect((await timeline('llcompat.SetTimerEvent(0.5); llcompat.ResetTime()', 3100)).ticks).toEqual([0.51, 1, 1.51, 2, 2.51, 3])
     // In-world: llcompat.SetTimerEvent(0), LLTimers:once(0.5, cb), llcompat.ResetTime() -> one handler call and no
     // cb in 2 s. Then LLTimers:once(0.5, cb), llcompat.SetTimerEvent(0) -> neither in 2 s. Then
     // LLTimers:every(0.5, …), llcompat.SetTimerEvent(2.0) -> the timer runs again and both put-off callbacks run.

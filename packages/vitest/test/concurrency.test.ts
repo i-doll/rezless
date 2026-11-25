@@ -46,10 +46,11 @@ describe('scripts run while another script sleeps', () => {
     // In-world (/tmp/lvprobe6/o_a.iw): 05.69 A start sleep 3, 06.12 B start sleep 0.5, 06.67 B end sleep,
     // 06.69 B lm from B, 08.74 A end sleep, 08.74 B lm from A, 08.76 A lm from B, 08.78 A lm from A.
     expect(log).toEqual([
+      // B's 3.5 s tick runs on the first simulator frame after it.
       '3000 A start sleep 3',
-      '3500 B start sleep 0.5',
-      '4000 B end sleep',
-      '4022 B lm from B',
+      '3511 B start sleep 0.5',
+      '4011 B end sleep',
+      '4033 B lm from B',
       '6000 A end sleep',
       '6022 B lm from A',
       '6022 A lm from B',
@@ -75,18 +76,18 @@ describe('scripts run while another script sleeps', () => {
     linkset.advanceTime(8_000)
     // In-world (/tmp/lvprobe6/d_a.iw): 29.43 A delays start, B ticks 17..22 every 0.3 s, 31.16 A delays end,
     // then tick 23. The eight 0.2 s delays took 1.73 s in-world; here they take exactly 1.6 s, so tick 22 and
-    // the end fall on the same instant.
-    expect(log.slice(log.indexOf('4800 B tick 16'), log.indexOf('6900 B tick 23') + 1)).toEqual([
+    // the end fall on the same instant. A tick due between two simulator frames runs on the later one.
+    expect(log.slice(log.indexOf('4800 B tick 16'), log.indexOf('6911 B tick 23') + 1)).toEqual([
       '4800 B tick 16',
       '5000 A delays start',
-      '5100 B tick 17',
+      '5111 B tick 17',
       '5400 B tick 18',
-      '5700 B tick 19',
+      '5711 B tick 19',
       '6000 B tick 20',
-      '6300 B tick 21',
+      '6311 B tick 21',
       '6600 A delays end',
       '6600 B tick 22',
-      '6900 B tick 23',
+      '6911 B tick 23',
     ])
   })
 
