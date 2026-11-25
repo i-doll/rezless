@@ -31,6 +31,12 @@ export interface QueuedEvent {
   readonly notBefore?: number
 }
 
+/** On a tick that stands for the later ticks a busy handler held back: when the first of them was due. */
+const STANDS_FOR = '__standsFor'
+
+/** Whether `e` is `script`'s tick that stands for the later ticks its busy handler held back. */
+const standsFor = (e: QueuedEvent, script: Script) => e.target === script && e.event === 'timer' && e.payload[STANDS_FOR] !== undefined
+
 /** When `e` came up: before it falls due for a prim change a frame late. */
 export const cameUp = (e: QueuedEvent) => e.raisedAt ?? e.at
 
@@ -288,10 +294,13 @@ export const toMicroseconds = (seconds: number) => Math.round(seconds * 1e6) / 1
 /** One region simulator frame, at 45 frames a second. */
 export const SIM_FRAME_MS = 1000 / 45
 
+/** `ms` rounded up to whole simulator frames; within 10 µs of a frame counts as on it. */
+const framesFor = (ms: number) => Math.ceil((ms - 0.01) / SIM_FRAME_MS) * SIM_FRAME_MS
+
 /** When llMinEventDelay lets a queued event run, or 0 when it doesn't delay it. */
 function delayedUntil(e: QueuedEvent): number {
   const v = e.target.clockView
-  if (DELAYED_EVENTS.has(e.event)) return v.delayedUntilMs
+  if (DELAYED_EVENTS.has(e.event)) return v.delayHolds(cameUp(e)) ? v.delayedUntilMs : 0
   return e.event === 'touch' ? v.touchDelayUntil() : 0
 }
 
@@ -731,7 +740,7 @@ export class LinksetClock {
           wakeAt = w
           waking = s
         }
-        const tick = Math.max(s.clockView.timerNextFireMs, this.now)
+        const tick = Math.max(s.clockView.timerFrameMs, this.now)
         if (s.busy && s.clockView.timerIntervalMs > 0 && tick <= w && tick <= horizon && tick < tickAt && (!this.full(s) || this.queue.some((e) => e.target === s && e.event === 'timer' && e.held))) {
           tickAt = tick
           ticking = s
@@ -739,8 +748,9 @@ export class LinksetClock {
         continue
       }
       const v = s.clockView
-      if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon) {
-        const waited = Math.max(v.timerNextFireMs, v.busyUntilMs, v.delayedUntilMs)
+      // A tick that falls due while one standing for the later ticks of a busy handler waits goes into it.
+      if (v.timerIntervalMs > 0 && v.timerNextFireMs <= horizon && !this.queue.some((e) => standsFor(e, s))) {
+        const waited = Math.max(v.timerNextFireMs, v.busyUntilMs, v.delayHolds(v.timerNextFireMs) ? v.delayedUntilMs : 0)
         // In-world: a crashed script with an overdue tick, rezzed again, ran state_entry and on_rez
         // first: a tick waits behind the start it belongs to.
         const ahead = queued.get(s)
@@ -764,8 +774,11 @@ export class LinksetClock {
     }
     if (ticking && tickAt <= nextEvent && (!task || tickAt < task.at)) {
       this.now = tickAt
-      this.purgeWhere((e) => e.target === ticking && e.event === 'timer' && e.held === true)
-      this.schedule(ticking, tickAt, 'timer')
+      // The ticks after the first that waits give one event, which keeps when the first of them was due.
+      const later = this.queue.find((e) => standsFor(e, ticking!))
+      const waits = this.queue.some((e) => e.target === ticking && e.event === 'timer')
+      this.purgeWhere((e) => e === later)
+      this.schedule(ticking, tickAt, 'timer', waits ? { [STANDS_FOR]: later?.payload[STANDS_FOR] ?? ticking.clockView.timerNextFireMs } : {})
       ticking.clockView.timerFired(tickAt)
       return 'task'
     }
@@ -798,10 +811,11 @@ export class LinksetClock {
     // A tick that could have run before an event came up runs ahead of it.
     // In-world: a timer ticked on time while at_target and at_rot_target events, checked as it fell
     // due, took every frame; under llMinEventDelay a timer ran a frame ahead of a held click's touch
-    // on the same beat.
+    // on the same beat. A tick that llMinEventDelay lets through with other events runs first: a
+    // touch_start that waited for the delay ran a frame behind the tick on the timer's beat.
     const tickFirst = !!waiting && waiting.target === bestTimerScript && bestTimerAt - bestAt < 1e-6 &&
       (bestTimerWaited < waiting.at || bestTimerWaited === waiting.at && TARGET_EVENTS.has(waiting.event) ||
-        waiting.event === 'touch' && delayedUntil(waiting) > 0)
+        (waiting.event === 'touch' || DELAYED_EVENTS.has(waiting.event)) && delayedUntil(waiting) > 0)
     if (bestIdx !== -1 && bestAt <= bestTimerAt && !sensorWaits && !tickFirst && bestAt <= wakeAt) {
       const ev = this.queue[bestIdx]!
       this.queue.splice(bestIdx, 1)
@@ -815,6 +829,12 @@ export class LinksetClock {
         const once = typeof interval !== 'number' || due + interval > at
         tv.timerLate(once ? (typeof passed === 'number' ? passed : Math.min(at, bestWaited)) - due : 0)
       } else {
+        // In-world: a 0.1 s timer through a spin that ended on frame 12 ran the first held tick on
+        // frame 13 and the one for the later ticks on 15, and ticked again on 20, 24 and 29: that
+        // one stood for a tick due more than an interval before it ran, and the timer counted from
+        // it. A 0.3 s timer whose later tick ran within an interval kept its schedule.
+        const first = ev.event === 'timer' ? ev.payload[STANDS_FOR] : undefined
+        if (typeof first === 'number' && first + tv.timerIntervalMs <= at + 1e-6) tv.timerRestarted(at)
         // In-world: a tick that waited behind another handler had the lag it had when that handler started.
         const started = Math.min(at, bestWaited)
         if (tv.timerIntervalMs > 0 && tv.timerNextFireMs <= bestAt) tv.timerPassedAt ??= Math.max(started, tv.timerNextFireMs)
@@ -833,7 +853,14 @@ export class LinksetClock {
       // wait for the frame it fell due in. In-world, the second of two ticks at a start ran 45 ms
       // after the first and its lag took those 45 ms; the last tick of a 30 ms LSL timer, two
       // frames after the one before, left a lag that started the next timer's first tick early.
-      v.timerFired(at, at - Math.max(v.timerFrameMs, bestTimerWaited) > 1e-6 ? at : bestTimerWaited)
+      // A tick that fell due in a sleep came up on the frame the script woke on: in-world, a 0.1 s
+      // timer through a 0.25 s sleep that woke on frame 12 ticked on 13, then 17, 21 and 26, also
+      // when link messages ran ahead of the held tick.
+      // One that ran two frames behind a timer handler counted from when it ran: a tick held in a
+      // timer handler's 0.25 s sleep, or behind the saved tick of a reattach.
+      const woke = v.sleptUntilMs === v.busyUntilMs && v.busyUntilMs > v.timerNextFireMs && bestTimerWaited <= v.busyUntilMs &&
+        v.lastEndedEvent !== 'timer' ? Math.max(v.timerFrameMs, v.timerFrameAt(v.busyUntilMs)) : at
+      v.timerFired(at, at - Math.max(v.timerFrameMs, bestTimerWaited) > 1e-6 ? at : bestTimerWaited, Math.min(at, woke))
       return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
     if (waking) this.settleMoving(waking, wakeAt)
@@ -1161,12 +1188,16 @@ export class ScriptClockView {
    * a 50 ms LSL timer 3, 2, 2 and 3 frames apart, and a 30 ms LLTimers timer 2, 1, 2, 1, 1 and 2.
    */
   get timerFrameMs(): number {
-    const due = this.timerNextFireMs
+    return this.timerFrameAt(this.timerNextFireMs)
+  }
+
+  /** The first simulator frame on or after `t`, counting frames from where the timer's schedule started. */
+  timerFrameAt(t: number): number {
     const from = this.timerFramesFromMs
-    if (due <= from) return due
-    // A due time within 10 µs of a frame, as a float interval leaves it, runs on that frame.
-    const frame = from + Math.ceil((due - from - 0.01) / SIM_FRAME_MS) * SIM_FRAME_MS
-    return frame < due + 0.01 ? due : frame
+    if (t <= from) return t
+    // A time within 10 µs of a frame, as a float interval leaves it, is on that frame.
+    const frame = from + framesFor(t - from)
+    return frame < t + 0.01 ? t : frame
   }
   /** When the tick that fell due while the script was down should have fired, until that tick fires. */
   timerLateDueMs: number | undefined
@@ -1199,6 +1230,8 @@ export class ScriptClockView {
   private owedSetDueMs: number | undefined
   /** Virtual time at which the script's last handler finished, when it took time (llSleep, delays). */
   busyUntilMs = 0
+  /** When the script last woke from a sleep. */
+  sleptUntilMs = -Infinity
   /** When the script's last handler ended, and the event it ran. */
   private lastEnd: { at: number; event: string } | undefined
 
@@ -1215,6 +1248,11 @@ export class ScriptClockView {
   /** When the script's last handler ended, or a reset started it again. */
   get lastEndedAt(): number {
     return this.lastEnd?.at ?? -Infinity
+  }
+
+  /** The event the script's last handler ran. */
+  get lastEndedEvent(): string | undefined {
+    return this.lastEnd?.event
   }
 
   /**
@@ -1237,6 +1275,25 @@ export class ScriptClockView {
   minEventDelayMs = 0
   /** Earliest virtual time the next timer or touch_start may start, under llMinEventDelay. */
   delayedUntilMs = 0
+  /** When llMinEventDelay last let events through: those due before then ran one after another. */
+  private delayPassedMs = -Infinity
+
+  /** Whether llMinEventDelay holds back an event that came up `at`: one due before it last let events through goes too. */
+  delayHolds(at: number): boolean {
+    return at >= this.delayPassedMs
+  }
+
+  /**
+   * A delayed event runs. In-world, under llMinEventDelay(0.105) with a 0.1 s timer and a 0.1 s
+   * repeating sensor, a tick and the sensor result ran on frames 5 and 6, then 10 and 11: the
+   * delay counts from the frame it last let events through, on simulator frames, and every
+   * delayed event due by then goes through with it, a frame apart.
+   */
+  delayedEventRan(): void {
+    if (this.now < this.delayedUntilMs) return
+    this.delayPassedMs = this.now
+    this.delayedUntilMs = this.now + framesFor(this.minEventDelayMs)
+  }
   /** Earliest virtual time a held click's next `touch` may be raised, under llMinEventDelay. */
   private touchDelayedUntilMs = 0
   /** The first `touch` after a `touch_start` is not delayed and leaves the delay where touch_start put it. */
@@ -1299,11 +1356,12 @@ export class ScriptClockView {
    * and there is no lag. An owed tick is followed at once by the next tick when that is due by the
    * time it runs: on the schedule the timer had, or on that of a call made while it was owed.
    */
-  timerFired(at: number, lagAt = at): void {
+  timerFired(at: number, lagAt = at, restartAt = at): void {
     const late = this.timerLateDueMs
     const due = this.timerNextFireMs
     const passed = this.timerPassedAt
     this.timerPassedAt = undefined
+    const follows = this.followsOwed
     this.followsOwed = false
     const kept = (late ?? due) + this.timerIntervalMs
     const bySet = this.owedBySet
@@ -1312,8 +1370,10 @@ export class ScriptClockView {
     this.owedBySet = false
     this.owedSetDueMs = undefined
     const keptFrom = late === undefined ? this.timerFramesFromMs : this.lateFramesFromMs
-    this.timerNextFireMs = kept > at ? kept : at + this.timerIntervalMs
-    this.timerFramesFromMs = kept > at ? keptFrom : at
+    // A tick a start owes, and the one that follows it, count from when they ran, whatever held them.
+    const from = late === undefined && !follows ? restartAt : at
+    this.timerNextFireMs = kept > at ? kept : from + this.timerIntervalMs
+    this.timerFramesFromMs = kept > at ? keptFrom : from
     // In-world: a tick held through one interval, by a sleep or llMinEventDelay, kept the
     // schedule and left its lateness as the lag; one held through more left neither.
     if (late === undefined) {
@@ -1344,6 +1404,15 @@ export class ScriptClockView {
     this.timerNextFireMs = running
     this.timerFramesFromMs = setDue !== undefined ? this.setFramesFromMs : kept > this.owedStartMs ? keptFrom : this.owedStartMs
     this.followsOwed = running <= at
+  }
+
+  /** The timer counts its next tick from `at`, with no lag, unless a start owes a tick. */
+  timerRestarted(at: number): void {
+    if (this.timerIntervalMs <= 0 || this.timerLateDueMs !== undefined) return
+    this.timerNextFireMs = at + this.timerIntervalMs
+    this.timerFramesFromMs = at
+    this.timerLagMs = 0
+    this.timerPassedAt = undefined
   }
 
   /** The script starts now rather than when its tick was caught up: an interval after it comes the next tick. */
@@ -1402,6 +1471,8 @@ export class ScriptClockView {
       this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs, __interval: this.timerIntervalMs, ...passed })
     }
     this.followsOwed = false
+    // A call wins over the ticks a busy handler held back: they no longer start the schedule again.
+    for (const e of this.linksetClock.pendingEvents()) if (standsFor(e, this.self())) delete e.payload[STANDS_FOR]
     this.timerIntervalMs = intervalMs
     this.timerFramesFromMs = this.now
     // A tick still owed from before the script started keeps its place. The call starts the
@@ -1445,7 +1516,8 @@ export class ScriptClockView {
   /** llMinEventDelay: `ms` below 0 counts as 0, and the delay starts now. */
   setMinEventDelay(ms: number): void {
     this.minEventDelayMs = Math.max(0, ms)
-    this.delayedUntilMs = this.now + this.minEventDelayMs
+    this.delayedUntilMs = this.now + framesFor(this.minEventDelayMs)
+    this.delayPassedMs = -Infinity
     // In-world: llMinEventDelay(1.0) in touch_start held a held click's second touch until 1.0 s after the call.
     this.touchDelayedUntilMs = this.delayedUntilMs
   }
@@ -1491,6 +1563,7 @@ export class ScriptClockView {
         delete e.payload['__due']
         delete e.payload['__passedAt']
         delete e.payload['__interval']
+        delete e.payload[STANDS_FOR]
       }
     }
   }
