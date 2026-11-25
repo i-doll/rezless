@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/i-doll/rezless/compare/v0.14.0...v0.14.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **vm:** keep the NaN sign when V8 optimises the code that makes it ([#792](https://github.com/i-doll/rezless/issues/792)) ([759e273](https://github.com/i-doll/rezless/commit/759e273c3ece59f25979d9e83624faed9348d3d7))
+
 ## [0.14.0](https://github.com/i-doll/rezless/compare/v0.13.0...v0.14.0) (2026-11-25)
 
 
