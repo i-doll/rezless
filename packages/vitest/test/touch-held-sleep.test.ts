@@ -908,7 +908,8 @@ describe('two avatars clicking while a handler sleeps', () => {
       expect(await run(lang, 0, 0, { 0: 'W', 400: 'i', 600: 'I', 3000: 'f', 3200: 'F', 13000: 'M' })).toBe('W Si Ti Ei Sf Tf Ef M')
     }
     // In-world: the listen slept 20 s and a listen came 11.5 s into the sleep -> i doll's click,
-    // that listen, then fivebot's click with its touch, LSL and SLua 2 runs of 2 each.
+    // that listen, then fivebot's click with its touch, LSL and SLua 2 runs of 2 each. Here the
+    // later listen comes in the 10 s sleep.
     for (const lang of ['lsl', 'slua'] as const) {
       expect(await run(lang, 0, 0, { 0: 'W', 400: 'i', 600: 'I', 3000: 'f', 3200: 'F', 9000: 'M' })).toBe('W Si Ti Ei M Sf Tf Ef')
     }
@@ -936,7 +937,8 @@ describe('two avatars clicking while a handler sleeps', () => {
     // went on 24 s past the release, LSL and SLua 2 runs of 2 each. Every touch was logged: one
     // every other frame in LSL (43 in the 1.9 s before fivebot's click) and one every frame in
     // SLua (87 or 88 in 1.9 s). Later the worn object's contact with the platform took one of each
-    // six frames, and in LSL the touches still came every other frame.
+    // six frames: LSL's touches still came every other frame, and SLua had five in six. The
+    // contact is left out here.
     const rates = { lsl: 225, slua: 448 }
     for (const lang of ['lsl', 'slua'] as const) {
       expect(await run(lang, 0, 0, { 0: 'i', 300: 'W', 3300: 'V', 13000: 'f', 13300: 'F', 14000: 'I', 18000: 'M' })).toBe('Si Ti W O Ti Sf Tif Ef Ti M Ti')
@@ -985,9 +987,9 @@ describe('two avatars clicking while a handler sleeps', () => {
       expect(await run('slua', 0, 0, { 0: 'W', 300: 'i', 2900: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Efi Sf M')
       expect(await run('lsl', 0, 0, { 0: 'W', 300: 'f', 2900: 'i', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Sf Tf Eif M')
       expect(await run('slua', 0, 0, { 0: 'W', 300: 'f', 2900: 'i', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Sf Tf Eif Si M')
-      // In-world: i doll let go first, 1.6 s into the sleep, and fivebot 1.8 s in -> touch_end
-      // listing i doll and then fivebot, and no touch for fivebot, LSL and SLua 3 runs of 3 each
-      // with every touch logged and fivebot's click 0.9 s into the sleep.
+      // In-world: fivebot clicked 0.9 s into the sleep, i doll let go first, 1.6 s in, and fivebot
+      // 1.9 s in -> touch_end listing i doll and then fivebot, and no touch for fivebot, LSL and
+      // SLua 3 runs of 3 each with every touch logged.
       expect(await run('lsl', 0, 0, { 0: 'W', 300: 'i', 2400: 'f', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Si Ti Eif M')
       expect(await run('slua', 0, 0, { 0: 'W', 300: 'i', 2400: 'f', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Si Ti Eif Sf M')
     })
