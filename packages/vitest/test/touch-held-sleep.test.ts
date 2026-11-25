@@ -732,6 +732,21 @@ describe('two avatars clicking while a handler sleeps', () => {
     expect(await run('slua', 0, 0, { 0: 'W', 400: 'f', 600: 'F', 3000: 'i', 3200: 'I', 4500: 'V' })).toBe('W O Ef Tf Sf Ei Si')
     expect(await run('lsl', 0, 0, { 0: 'W', 400: 'f', 600: 'F', 800: 'i', 1000: 'I', 1200: 'V', 13000: 'M' })).toBe('W O Sf Tf Ef Si Ti Ei M')
     expect(await run('slua', 0, 0, { 0: 'W', 400: 'f', 600: 'F', 800: 'i', 1000: 'I', 1200: 'V', 13000: 'M' })).toBe('W O Ef Tf Sf Ei Si M')
+    // In-world: the click in the sleep, then a take and rez in place of the detach -> the same
+    // events, LSL and SLua 2 runs of 2 each.
+    expect(await run('lsl', 0, 0, { 0: 'W', 400: 'f', 600: 'F', 3000: 'i', 3200: 'I', 4500: 'K' })).toBe('W O Sf Tf Ef Si Ti Ei')
+    expect(await run('slua', 0, 0, { 0: 'W', 400: 'f', 600: 'F', 3000: 'i', 3200: 'I', 4500: 'K' })).toBe('W O Ef Tf Sf Ei Si')
+  })
+
+  it('in SLua a detach and wear runs each carried run of touch events up to a touch_end last to first', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25): i doll held a click on an object fivebot wore,
+    // a listen spun 1.5 s and slept 15 s, fivebot clicked twice in the spin, and the object was
+    // detached and worn in the sleep -> in LSL on_rez, i doll's touch, fivebot's first touch_end,
+    // its second click's touch_start, a touch listing both and touch_end, then i doll's touch
+    // went on, 1 run; in SLua on_rez, fivebot's first touch_end and touch_start, i doll's touch,
+    // fivebot's second touch_end and touch_start, with no touch listing both, 2 runs of 2.
+    expect(await run('lsl', 0, 0, { 0: 'i', 300: 'W', 1400: 'f', 1600: 'F', 1800: 'f', 2000: 'F', 5000: 'V', 13000: 'M' })).toBe('Si Ti W O Ti Ef Sf Tif Ef Ti M Ti')
+    expect(await run('slua', 0, 0, { 0: 'i', 300: 'W', 1400: 'f', 1600: 'F', 1800: 'f', 2000: 'F', 5000: 'V', 13000: 'M' })).toBe('Si Ti W O Ef Sf Ti Ef Sf Ti M Ti')
   })
 
   it('a second avatar\'s click only in the sleep after a spin keeps its touch', async () => {

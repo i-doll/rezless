@@ -207,6 +207,17 @@ function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   return out
 }
 
+/** `events` with each run of them up to a touch_end, and the rest after the last, in reverse. */
+function runsLastToFirst(events: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
+  const out: QueuedEvent[] = []
+  let run: QueuedEvent[] = []
+  for (const e of events) {
+    run.unshift(e)
+    if (e.event === 'touch_end') out.push(...run.splice(0))
+  }
+  return [...out, ...run]
+}
+
 type TouchPart = { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }
 
 /** The touch events `parts` merge into, made from `first`. */
@@ -1113,15 +1124,12 @@ export class LinksetClock {
       payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
     // In-world: touch events carried out of a busy part through a take ran first after on_rez:
     // another avatar's touch ran ahead of the touch_start and touch_end of a click on the copy,
-    // in LSL (2 runs of 2) and SLua (1 run). SLua ran each click's carried touch_start, touch and
-    // touch_end last to first, after a take (4 runs of 4) or a detach and wear (2 runs of 2), and
-    // the clicks in the order they came: fivebot's touch_end, touch and touch_start, then i
-    // doll's touch_end and touch_start (5 runs of 5). After a plain sleep it kept their order
-    // (1 run).
+    // in LSL (2 runs of 2) and SLua (1 run). SLua ran each run of carried touch events up to a
+    // touch_end last to first, after a take (6 runs of 6) or a detach and wear (9 runs of 9): i
+    // doll's waiting touch, fivebot's first click and fivebot's second click ran as fivebot's
+    // touch_end and touch_start, i doll's touch, then the second click's. After a plain sleep it
+    // kept their order (1 run).
     const carried = new Set(held.filter((_, i) => kept[i]!.carried))
-    const clickOf = (e: QueuedEvent) => detectedKeys(e.payload)[0]
-    const clickOrder = [...new Set(held.filter((e) => carried.has(e)).map(clickOf))]
-    const carriedRank = (e: QueuedEvent) => script.language === 'slua' ? clickOrder.indexOf(clickOf(e)) * TOUCH_KINDS.length - TOUCH_KINDS.indexOf(e.event as TouchKind) : 0
     const lands = held.filter((e) => e.event === 'land_collision')
     if (lands.length) {
       const tail: LandTail = { script, since: this.ran.get(script) ?? 0, ran: 0, dropped: 0, copies: new WeakMap() }
@@ -1160,7 +1168,10 @@ export class LinksetClock {
       : e.payload[LATE_TOUCH_START] ? HELD_ORDER.get('touch_end')! + 0.5
       : e.payload[TOUCH_AHEAD] ? HELD_ORDER.get('touch_start')! - 0.5 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
-    if (carried.size) held.splice(0, held.length, ...held.filter((e) => carried.has(e)).sort((a, b) => carriedRank(a) - carriedRank(b)), ...held.filter((e) => !carried.has(e)))
+    if (carried.size) {
+      const first = held.filter((e) => carried.has(e))
+      held.splice(0, held.length, ...script.language === 'slua' ? runsLastToFirst(first) : first, ...held.filter((e) => !carried.has(e)))
+    }
     for (const [i, e] of held.entries()) {
       if (!e.payload[LATE_TOUCH_START] && !e.payload[TOUCH_AHEAD]) continue
       const { [LATE_TOUCH_START]: _, [TOUCH_AHEAD]: __, ...payload } = e.payload
