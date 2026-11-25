@@ -189,9 +189,31 @@ describe('llMinEventDelay', () => {
   it('holds an event fired from a test until the delay has passed', async () => {
     const s = await run('state_entry() { llMinEventDelay(1.0); llResetTime(); } timer() { out += [llGetTime()]; }')
     s.fire('timer')
-    expect(s.global('out')).toEqual([1])
+    expect(s.global('out')).toEqual([])
     s.advanceTime(1000)
     expect(s.global('out')).toEqual([1])
+  })
+
+  it('runs an event fired from a test inside the call when the delay ends by its frame', async () => {
+    const s = await run(
+      `state_entry() { llMinEventDelay(1.0); llResetTime(); }
+       link_message(integer l, integer n, string m, key k) { llSleep(0.95); out += ["lm", llGetTime()]; }
+       timer() { out += ["t", llGetTime()]; }`,
+    )
+    s.fire('link_message', { sender_num: 0, num: 0, str: '', id: '' })
+    s.fire('timer')
+    expect(s.global('out')).toEqual(['lm', framesAfter(0, 44), 't', framesAfter(0, 45)])
+  })
+
+  it('runs a link message fired behind an event the delay does not hold back', async () => {
+    const s = await run(
+      `state_entry() { llMinEventDelay(0.01); llResetTime(); }
+       link_message(integer l, integer n, string m, key k) { out += ["lm", llGetTime()]; }
+       timer() { out += ["t", llGetTime()]; }`,
+    )
+    s.fire('timer')
+    s.fire('link_message', { sender_num: 0, num: 0, str: '', id: '' })
+    expect(s.global('out')).toEqual(['t', framesAfter(0, 1), 'lm', framesAfter(0, 2)])
   })
 
   it('survives a state change', async () => {

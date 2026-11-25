@@ -1175,7 +1175,8 @@ export class Linkset {
    * `touch_end` at the release. A receiver that is stopped at the release
    * gets no `touch_end`: once it runs again it keeps getting `touch` for
    * that avatar until the avatar's next click, which raises no
-   * `touch_start` there and whose release ends it.
+   * `touch_start` there and whose release ends it. An event llMinEventDelay
+   * holds back stays queued past the call; advance time to run it.
    */
   touch(link: number, opts: TouchOptions = {}): void {
     const { hold, ...click } = opts
@@ -1371,7 +1372,8 @@ export class Linkset {
    * Finish the handlers already active or queued on `scripts`, including
    * their reset/state-change chains, moving the clock on to each wake and to
    * the frame each queued event runs in. Future recurring events do not extend
-   * this call indefinitely; tests run those with advanceTime.
+   * this call indefinitely, and it stops at an event llMinEventDelay holds
+   * back; tests run those with advanceTime.
    */
   settle(scripts: ReadonlyArray<Script>): void {
     const pending = this.clock.pendingEvents()
@@ -1391,8 +1393,10 @@ export class Linkset {
         // A script whose handler is still on the call stack wakes once that handler returns.
         if (script.running && !script.handling && script.linkset.peers.includes(script.linkset) &&
             script.clockView.completedHandlers < completed) {
-          // An idle script runs its next queued event a frame after its last handler ended.
-          const due = script.wakeAt ?? queued.get(script)?.due
+          // An idle script runs its next queued event a frame after its last handler ended. One
+          // llMinEventDelay holds back waits for a test to advance time.
+          const next = queued.get(script)
+          const due = script.wakeAt ?? (next?.delayed ? undefined : next?.due)
           if (due !== undefined) at = Math.min(at, due)
         }
       }

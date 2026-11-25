@@ -1071,7 +1071,7 @@ export class LinksetClock {
    * one that came up earlier goes ahead of one judged before it came up: in-world, link messages
    * sent after a colour change ran ahead of the change, which came up a frame after the call.
    */
-  private nextEvents(): Map<Script, { index: number; due: number; waited: number }> {
+  private nextEvents(): Map<Script, { index: number; due: number; waited: number; delayed: number; undelayed: number }> {
     // The first event of a script that llMinEventDelay holds back, and when it may run: the
     // events queued behind it wait for it.
     const heldFrom = new Map<Script, { index: number; until: number }>()
@@ -1080,8 +1080,8 @@ export class LinksetClock {
       const until = delayedUntil(e)
       if (until > e.at && WAITS_BEHIND.has(e.event) && !heldFrom.has(e.target)) heldFrom.set(e.target, { index: i, until })
     }
-    const next = new Map<Script, { index: number; due: number; waited: number }>()
-    const resets = new Map<Script, { index: number; due: number; waited: number }>()
+    const next = new Map<Script, { index: number; due: number; waited: number; delayed: number; undelayed: number }>()
+    const resets = new Map<Script, { index: number; due: number; waited: number; delayed: number; undelayed: number }>()
     for (let i = 0; i < this.queue.length; i++) {
       const e = this.queue[i]!
       const v = e.target.clockView
@@ -1090,15 +1090,20 @@ export class LinksetClock {
       const held = heldFrom.get(e.target)
       // In-world: a link message sent while a touch_start waited for llMinEventDelay ran at once,
       // and the click's touch and touch_end waited behind the touch_start.
-      if (e.event !== '__reset') due = Math.max(due, delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
+      const delayed = e.event === '__reset' ? 0 : Math.max(delayedUntil(e), held && i >= held.index && WAITS_BEHIND.has(e.event) ? held.until : 0)
+      let undelayed = due
+      due = Math.max(due, delayed)
       const waited = due
       // Picked by the one-frame pace; the second frame an LSL changed or tick may wait is added below.
-      if (!PACING_EXEMPT.has(e.event)) due = Math.max(due, v.nextEventAt(''))
+      if (!PACING_EXEMPT.has(e.event)) {
+        due = Math.max(due, v.nextEventAt(''))
+        undelayed = Math.max(undelayed, v.nextEventAt(''))
+      }
       if (e.target.handling || !(e.event === '__reset' || (e.event === '__running' && !e.target.running) ||
           (e.target.wakeAt === undefined && !e.target.detachedInHandler))) continue
       if (PACING_EXEMPT.has(e.event)) {
         const reset = resets.get(e.target)
-        if (!reset || due < reset.due) resets.set(e.target, { index: i, due, waited })
+        if (!reset || due < reset.due) resets.set(e.target, { index: i, due, waited, delayed, undelayed })
         continue
       }
       const mine = next.get(e.target)
@@ -1109,7 +1114,7 @@ export class LinksetClock {
       // took every frame.
       if (!mine || due < mine.due || due === mine.due && (first!.raisedAt !== undefined && e.at < first!.at ||
           TARGET_EVENTS.has(first!.event) && !TARGET_EVENTS.has(e.event) && e.at >= v.lastEndedAt)) {
-        next.set(e.target, { index: i, due, waited })
+        next.set(e.target, { index: i, due, waited, delayed, undelayed })
       }
     }
     // The one picked runs no sooner than the frame after the handler that raised it; the events
@@ -1117,6 +1122,7 @@ export class LinksetClock {
     for (const [script, e] of next) {
       const { event, notBefore = 0 } = this.queue[e.index]!
       e.due = Math.max(e.due, notBefore, script.clockView.nextEventAt(event))
+      e.undelayed = Math.max(e.undelayed, notBefore, script.clockView.nextEventAt(event))
     }
     // A reset runs when it is due, ahead of an event still waiting for its frame: in-world, a link
     // message sent just before llResetOtherScript never reached the reset script.
@@ -1127,9 +1133,10 @@ export class LinksetClock {
     return next
   }
 
-  /** Each script's next queued event and when it runs. */
-  nextQueued(): Map<Script, { event: QueuedEvent; due: number }> {
-    return new Map([...this.nextEvents()].map(([script, { index, due }]) => [script, { event: this.queue[index]!, due }]))
+  /** Each script's next queued event, when it runs, and whether llMinEventDelay holds it past now. */
+  nextQueued(): Map<Script, { event: QueuedEvent; due: number; delayed: boolean }> {
+    return new Map([...this.nextEvents()].map(([script, { index, due, delayed, undelayed }]) =>
+      [script, { event: this.queue[index]!, due, delayed: delayed > Math.max(undelayed, this.now) + 1e-6 }]))
   }
 
   /** When `script`'s next queued event runs, or undefined when it has none it can run. */
