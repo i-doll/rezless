@@ -2197,14 +2197,15 @@ const isTouch = (event: string | undefined) => event === 'touch_start' || event 
  * click by another avatar made in the spin or in the sleep after it, while a click from the spin
  * waited, came through a detach and wear, or a take, as a click of its own after the first (LSL
  * 6 runs of 6, SLua 7 of 7). A click from before the handler came through too, but a click on
- * the worn object did not merge into it (LSL and SLua 1 run each).
+ * the worn object did not merge into it (LSL and SLua 1 run each), nor into the avatar's own click
+ * from the spin (LSL and SLua 7 runs or more each): only a held-back click takes in a later one.
  */
 function carriedTouch(e: QueuedEvent, task: Task | null | undefined, detached: boolean): Carried | undefined {
   if (e.carried) return e.carried
   if (!isTouch(e.event) || task?.spunUntil === undefined) return undefined
   const late = cameUp(e) > task.spunUntil
   if (late && !e.busy) return undefined
-  return { late, takesIn: cameUp(e) > task.startedAt, behind: !!e.held, ...(detached && { detached }) }
+  return { late, takesIn: !!e.held && cameUp(e) > task.startedAt, behind: !!e.held, ...(detached && { detached }) }
 }
 
 /**
