@@ -226,7 +226,9 @@ A script runs one queued event per simulator frame (1/45 s), as in Second Life: 
 
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 
-A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses for that long after the mock returns.
+A sleep or a builtin's forced delay ends on the first simulator frame on or after it falls due, counting from the call: `llSleep(0.25)` wakes 0.267 s later, and the 0.1 s delay of `llRezObject` takes 0.111 s. This is a breaking change: before, a sleep ended at exactly the time asked for.
+
+A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses after the mock returns until the first frame on or after `ms` has passed.
 
 ### `loadLinkset(input)` → `Promise<LoadedLinkset>`
 

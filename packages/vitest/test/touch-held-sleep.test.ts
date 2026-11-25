@@ -67,13 +67,14 @@ describe('a held click while the touch handler sleeps', () => {
   it('the next touch comes one repeat after the touch handler ends', async () => {
     // In-world (Aditi, SLua Tideland, 2026-11-24): touch slept 1 s, 0.5 s or 1.01 s through a
     // hold of 3 to 5 s, logging the time after each sleep -> the next touch came 0.044 to 0.045 s
-    // after the wake in LSL and 0.022 to 0.023 s after it in SLua, every time (14 wakes each).
+    // after the wake in LSL and 0.022 to 0.023 s after it in SLua, every time (14 wakes each). The
+    // 0.5 s sleep wakes on its 23rd frame.
     const afterWake = async (source: string, sleepMs: number, hold: number, isSlua = false) => {
       const times = (await held(source, hold, isSlua)).filter((e) => e[0] === 'T').map((e) => Number(e.slice(1)))
-      return [...new Set(times.slice(1).map((t, i) => t - times[i]! - sleepMs))].sort((x, y) => x - y)
+      return [...new Set(times.slice(1).map((t, i) => Math.round(t - times[i]! - sleepMs)))].sort((x, y) => x - y)
     }
     expect(await afterWake(lsl(0, 1, 0), 1000, 5000)).toEqual([44, 45])
-    expect(await afterWake(lsl(0, 0.5, 0), 500, 3000)).toEqual([44, 45])
+    expect(await afterWake(lsl(0, 0.5, 0), 23000 / 45, 3000)).toEqual([44, 45])
     expect(await afterWake(slua(0, 1), 1000, 5000, true)).toEqual([22, 23])
   })
 

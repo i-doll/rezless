@@ -68,7 +68,7 @@ it.each(['"bad"', '""', '"HTTPS://example.com"', '" https://example.com"', '"ftp
   s.start()
   expect(s.viewerRequests).toEqual([])
   expect(s.chat.map(c => c.text)).toEqual(['llLoadURL - invalid or unsupported scheme.'])
-  expect(s.now).toBe(100)
+  expect(s.now).toBe(5 * (1000 / 45))
 })
 
 it('accepts a supported scheme without a hostname', async () => {
@@ -84,7 +84,7 @@ it('checks region presence before validating the URL', async () => {
   s.start()
   expect(s.viewerRequests).toEqual([])
   expect(s.chat.map(c => c.text)).toEqual(['llLoadURL - cannot find avatar'])
-  expect(s.now).toBe(100)
+  expect(s.now).toBe(5 * (1000 / 45))
 })
 
 it.each(['a', 'é'])('truncates the URL and message at complete UTF-8 characters for %s', async letter => {

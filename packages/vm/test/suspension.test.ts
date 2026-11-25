@@ -23,8 +23,9 @@ describe('suspension', () => {
       return undefined
     })
     s.start()
-    expect(seen).toEqual([0, 250])
-    expect(s.now).toBe(500)
+    // Each 250 ms sleep wakes on the 12th simulator frame.
+    expect(seen).toEqual([0, 12 * (1000 / 45)])
+    expect(s.now).toBeCloseTo(24 * (1000 / 45), 9)
   })
 
   it('sleeps inside recursion deeper than the host stack', () => {

@@ -1718,6 +1718,11 @@ export class Script {
   /** The task whose handler is running now. */
   private stepping: Task | null = null
 
+  /** Virtual time the handler running now began at, or undefined outside a handler. */
+  get runningSince(): number | undefined {
+    return this.stepping?.startedAt
+  }
+
   /**
    * In-world: a sleep did not run down while the worn object was in inventory. `since` is when
    * it went there; a handler that started later has only been asleep since its own start.

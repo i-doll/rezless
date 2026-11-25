@@ -168,13 +168,13 @@ describe('link changes in a worn object', () => {
   // In-world: llCreateLink(box, TRUE) and llCreateLink(box, FALSE) from the root, with
   // PERMISSION_CHANGE_LINKS granted by the wearer and without it, each told the owner
   // "Attachments cannot link objects" on DEBUG_CHANNEL; a listener 3 m away heard nothing. Each
-  // call still took 0.11 s. The object kept its two prims and the box stayed where it was.
+  // call still took 0.11 s, its 0.1 s delay ending on the fifth frame. The object kept its two prims and the box stayed where it was.
   it('refuses llCreateLink and tells the owner, with or without the permission', async () => {
     for (const grant of [true, false]) {
       const f = await worn('float t = llGetTime(); llCreateLink("BOX", TRUE); llCreateLink("BOX", FALSE); out += [llGetTime() - t, llGetNumberOfPrims()];')
       f.start(f.root, grant)
       f.linkset.advanceTime(2000)
-      expect(f.root.global('out')).toEqual([expect.closeTo(0.2, 5), 2])
+      expect(f.root.global('out')).toEqual([expect.closeTo(10 / 45, 5), 2])
       expect(debug(f.root)).toEqual(['Attachments cannot link objects', 'Attachments cannot link objects'])
       expect(f.heard()).toEqual([])
       expect(f.box.prims).toHaveLength(1)

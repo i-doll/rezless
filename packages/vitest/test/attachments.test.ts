@@ -2,6 +2,8 @@ import { expect, it } from 'vitest'
 import { loadLinkset, loadScript, World, Prim, Experience, NULL_KEY } from '../src/index.js'
 
 const OWNER = '11111111-1111-1111-1111-111111111111'
+/** A 0.5 s sleep wakes on the 23rd simulator frame. */
+const SIM_FRAME_MS = 1000 / 45
 
 // https://wiki.secondlife.com/wiki/LlAttachToAvatar
 // https://wiki.secondlife.com/wiki/LlGetAttached
@@ -458,7 +460,7 @@ it.each([false,true])('suspends the final detach handler in inventory (temporary
   expect(script.global('finished')).toBe(0)
   expect(linkset.dead).toBe(temporary)
   linkset.attachToAvatar(OWNER,6)
-  linkset.advanceTime(500)
+  linkset.advanceTime(23*SIM_FRAME_MS)
   expect(script.global('finished')).toBe(temporary ? 0 : 1)
 })
 
@@ -475,7 +477,7 @@ it('suspends a caller after detach without hanging settle, then resumes on rewea
   expect(script.global('after')).toBe(0)
   expect(script.global('detached')).toBe(0)
   linkset.attachToAvatar(OWNER,6)
-  linkset.advanceTime(500)
+  linkset.advanceTime(23*SIM_FRAME_MS)
   expect(script.global('after')).toBe(7)
   expect(script.global('detached')).toBe(0)
   linkset.advanceTime(600)
@@ -563,7 +565,7 @@ it('keeps a timer caller suspended when detachment occurs within a long time adv
    timer(){llSetTimerEvent(0);llDetachFromAvatar();llSleep(0.5);after=llGetAttached()+1;}}`)
   script.start();script.grantPermissions();linkset.advanceTime(1000)
   expect(script.global('after')).toBe(0)
-  linkset.attachToAvatar(OWNER,6);linkset.advanceTime(499)
+  linkset.attachToAvatar(OWNER,6);linkset.advanceTime(23*SIM_FRAME_MS-1)
   expect(script.global('after')).toBe(0)
   linkset.advanceTime(1)
   expect(script.global('after')).toBe(7)

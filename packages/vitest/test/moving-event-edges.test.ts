@@ -106,9 +106,9 @@ describe('moving events raised while a handler sleeps', () => {
   // sleep between them gave the same, the end 3 s in. Stop then play gave the same, the end
   // 3 s after the play.
   it.each([
-    ['pp', ['moving_start 15', 'moving_end 35']],
+    ['pp', ['moving_start 16', 'moving_end 35']],
     ['ppnosleep', ['moving_start 5', 'moving_end 30']],
-    ['sp', ['moving_start 15', 'moving_end 40']],
+    ['sp', ['moving_start 16', 'moving_end 40']],
   ])('gives the object\'s state when the handler ends: %s', async (command, expected) => {
     const b = await box(mover)
     send(b, command)
@@ -123,7 +123,7 @@ describe('moving events raised while a handler sleeps', () => {
     const b = await box(mover)
     send(b, 'pps')
     b.linkset.advanceTime(6_000)
-    expect(b.log()).toEqual(['moving_start 20', 'moving_end 20'])
+    expect(b.log()).toEqual(['moving_start 21', 'moving_end 21'])
   })
 })
 
