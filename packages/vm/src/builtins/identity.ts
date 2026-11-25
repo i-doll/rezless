@@ -7,8 +7,8 @@ const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 /** llGetOwner() — script's configured owner key. */
 export const llGetOwner: BuiltinImpl = (ctx) => ctx.state.identity.owner
-/** llGetCreator() — for our purposes the same as the owner. */
-export const llGetCreator: BuiltinImpl = (ctx) => ctx.state.identity.owner
+/** llGetCreator() — the creator of the script's prim. */
+export const llGetCreator: BuiltinImpl = (ctx) => ctx.prim.creator
 /** llGetKey() — the prim's key (= owner by default; configurable). */
 export const llGetKey: BuiltinImpl = (ctx) => ctx.state.identity.objectKey
 /** llGetObjectName() — the prim's name. */

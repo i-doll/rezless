@@ -40,6 +40,7 @@ function attach(ctx: CallContext, point: number, temporary: boolean): void {
   for (const prim of ctx.linkset.prims) {
     prim.permMask = nextOwnerMask(prim.permMask)
     for (const item of prim.inventory) Object.assign(item, forNextOwner(item))
+    prim.madeBy ??= prim.creator
   }
   ctx.linkset.owner = agent
   // In-world: every script read 0 and NULL_KEY on the next line, then got attach and
