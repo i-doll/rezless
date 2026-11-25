@@ -323,6 +323,7 @@ describe('a state change inside on_damage', () => {
     rezzer.scripts.r!.fire('touch_end', { num_detected: 1 })
     expect(() => tick(world, 1000)).not.toThrow()
     // The object left before its state_exit; the copy carries the rest.
+    expect(rezzer.scripts.r!.calls.filter((c) => c.name === 'llDerezObject').map((c) => c.returned)).toEqual([1])
     expect(ear.scripts.ear!.global('heard')).toEqual([])
   })
 

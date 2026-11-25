@@ -718,7 +718,9 @@ describe('a timer handler that sleeps', () => {
       ` } }] }] })
       const s = scripts['s']!
       s.start()
-      // The 1.5 s sleep wakes on its 68th frame. Read the times to the nearest 10 ms.
+      // The 1.5 s sleep wakes on its 68th frame. The 1.2 s sleep is exactly 54 frames, which a
+      // sleep wakes on or a frame after in-world (sleep-frames.test.ts); rezless wakes it on the
+      // frame, so its ticks come 1.24 to 1.25 s apart. Read the times to the nearest 10 ms.
       const times = tickTimes(linkset, () => s.global('ticks') as number, 1000 + 4 * (sleep * 1000 + 2 * SIM_FRAME_MS) + 50, 1)
       expect(times.map((t) => Math.round(t / 10) * 10)).toEqual(want)
     }

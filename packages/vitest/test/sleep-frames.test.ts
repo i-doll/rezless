@@ -72,6 +72,24 @@ describe('a sleep wakes on a simulator frame', () => {
       : 'll.SetText("", vector(0, 0, 0), 1) ll.Sleep(0.1) rec("a") ll.SetText("", vector(0, 0, 0), 1) ll.Sleep(0.2) rec("b")'
     expect(await sleeps(language, body)).toEqual(['a=6', 'b=10'])
   })
+
+  // The same rule for a spin that ends part way through a frame: the sleep counts from the frame
+  // grid of the handler, not from the end of the spin.
+  it.each(['lsl', 'slua'] as const)('wakes on the handler\'s frames after a spin of part of a frame in %s', async (language) => {
+    const body = language === 'lsl'
+      ? 'llSetText("", ZERO_VECTOR, 0.35); llSleep(0.1); rec("a"); llSleep(0.1); rec("b");'
+      : 'll.SetText("", vector(0, 0, 0), 0.35) ll.Sleep(0.1) rec("a") ll.Sleep(0.1) rec("b")'
+    expect(await sleeps(language, body)).toEqual(['a=5', 'b=5'])
+  })
+
+  it('wakes a mock\'s sleep of a few microseconds on the next frame', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `float t;
+      default { state_entry() { llOwnerSay(""); t = llGetTime(); } }` } }] }] })
+    scripts['s']!.mock('llOwnerSay', (ctx) => { ctx.sleep(0.005); return undefined })
+    linkset.startAll()
+    linkset.advanceTime(100)
+    expect(scripts['s']!.global('t')).toBeCloseTo(SIM_FRAME_MS / 1000, 6)
+  })
 })
 
 // In-world (same session): a function's forced delay woke on frames as a sleep does.
