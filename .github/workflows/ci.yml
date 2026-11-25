@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  coverage:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -113,3 +113,61 @@ jobs:
             js=coverage/lcov.info
             lsl=coverage/lsl/lcov.info
             slua=coverage/slua/lcov.info
+
+  # Coverage instrumentation changes which code V8 optimises, so the suite
+  # also runs without it on every supported Node: the current release and
+  # each LTS line still in support. Update the list when that changes.
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24', '26']
+    name: test (node ${{ matrix.node }})
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      # V8 optimises a function only after many calls, so a NaN sign lost in
+      # optimised code can pass a normal run. Optimising almost at once
+      # catches it.
+      - name: Test NaN signs with eager optimisation
+        run: >-
+          pnpm vitest run packages/vitest/test/nan-sign.test.ts --pool=forks
+          --execArgv=--invocation-count-for-turbofan=2
+          --execArgv=--invocation-count-for-maglev=1
+
+  # The one check branch protection requires.
+  ci:
+    if: always()
+    needs: [coverage, test]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Check every job passed
+        env:
+          COVERAGE: ${{ needs.coverage.result }}
+          TEST: ${{ needs.test.result }}
+        run: |
+          echo "coverage: $COVERAGE, test: $TEST"
+          [ "$COVERAGE" = success ] && [ "$TEST" = success ]
