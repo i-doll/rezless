@@ -381,6 +381,23 @@ const detectedKeys = (payload: Record<string, unknown>) =>
  * the box's position when it ran, back where it had been lifted to, not where it touched down.
  */
 const LAND_EVENTS: ReadonlySet<string> = new Set(['land_collision_start', 'land_collision', 'land_collision_end'])
+
+/** The avatars the touch events in `events` list. */
+const clicksBy = (events: ReadonlyArray<QueuedEvent>) =>
+  new Set(events.filter((e) => TOUCH_EVENTS.has(e.event)).flatMap((e) => (e.payload['detected'] as ReadonlyArray<DetectedTouch> | undefined ?? []).map((d) => d.key?.toLowerCase())))
+
+/** The events of the one land contact held in `held`, and with `objects` of the one contact with an object; a kind with more or fewer than one start gives none. */
+function heldContact(held: ReadonlyArray<QueuedEvent>, objects: boolean): QueuedEvent[] {
+  const one = (kinds: ReadonlySet<string>, start: string) => {
+    const contact = held.filter((e) => kinds.has(e.event))
+    return contact.filter((e) => e.event === start).length === 1 ? contact : []
+  }
+  const land = one(LAND_EVENTS, 'land_collision_start')
+  return objects ? held.filter((e) => land.includes(e) || one(COLLISION_EVENTS, 'collision_start').includes(e)) : land
+}
+
+/** Whether a contact event runs ahead of the touch_end of the click it is held inside. */
+const insideClick = (e: QueuedEvent) => e.event === 'land_collision_start' || e.event === 'collision_start' || e.event === 'collision'
 const HELD_LAND_COLLISIONS = 4
 /** Marks a held land_collision_end whose object touched the land again after it. */
 const REOPENED = '__reopened'
@@ -1119,9 +1136,10 @@ export class LinksetClock {
    * so the events that waited for it follow other scripts' events at that
    * instant. The events held back since it began, at `since`, follow the
    * others, with a timer tick that fell due ahead of them, and ahead of the events raised since
-   * the handler last woke: those not in `queued`, the queue as it was at that wake.
+   * the handler last woke: those not in `queued`, the queue as it was at that wake. `spunUntil`
+   * is when the handler's last busy part ended, if it had one.
    */
-  requeue(script: Script, since: number, queued?: ReadonlySet<QueuedEvent>): void {
+  requeue(script: Script, since: number, queued?: ReadonlySet<QueuedEvent>, spunUntil?: number): void {
     const waited = this.queue.filter((e) => e.target === script && cameUp(e) <= this.now)
     this.purgeWhere((e) => waited.includes(e))
     // One that falls due later keeps its place in time and is not held back by a later handler.
@@ -1131,9 +1149,24 @@ export class LinksetClock {
     const early = waited.filter((e) => !raised.includes(e))
     const plainEarly = this.byDue(early.filter((e) => !this.heldBack(e, since))).map(plain)
     const attaches = plainEarly.filter((e) => e.event === 'attach' && e.payload['avatar'] !== NULL_KEY)
-    const attach = attaches.length === 1 && early.some((e) => e.carried?.behind && e.carried.detached && this.heldBack(e, since)) ? attaches : []
-    this.queue.push(...plainEarly.filter((e) => !attach.includes(e)))
-    const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined, attach)
+    const attach = attaches.length === 1 && early.some((e) => e.carried?.behind && this.heldBack(e, since)) ? attaches : []
+    const ahead = plainEarly.filter((e) => !attach.includes(e))
+    this.queue.push(...ahead)
+    let released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined, attach)
+    // In-world: with no take or detach, a land contact held in the sleep ran inside the click of
+    // the avatar that clicked first in the spin, ahead of the other avatar's click held back from
+    // the spin: touch_start, touch, land_collision_start, touch_end, then the rest of the contact,
+    // LSL and SLua 1 run each.
+    const end = ahead.find((e) => e.event === 'touch_end')
+    const behind = early.filter((e) => TOUCH_EVENTS.has(e.event) && this.heldBack(e, since))
+    const fromSpin = behind.filter((e) => e.event === 'touch_start').length === 1 && behind.some((e) => e.event === 'touch_end') && behind.every((e) => cameUp(e) <= (spunUntil ?? -Infinity))
+    const oneContact = early.filter((e) => e.event === 'land_collision_start' && this.heldBack(e, since)).length === 1
+    const land = !raised.length && end && clicksBy(ahead).size === 1 && fromSpin && oneContact ? heldContact(released, false) : []
+    if (land.length && ![...clicksBy(behind)].some((k) => clicksBy(ahead).has(k))) {
+      const inside = land.filter(insideClick)
+      released = released.filter((e) => !land.includes(e))
+      this.queue.splice(this.queue.indexOf(end!), 1, ...inside, end!, ...land.filter((e) => !inside.includes(e)))
+    }
     this.fit(raised, MAX_PENDING_EVENTS - this.pending(script) - counted(released), (e) => this.heldBack(e, since))
     // In-world: a land contact held through a sleep ran land_collision_start, the link message
     // sent after the wake, a land_collision, the change made after the wake a frame later, then
@@ -1255,16 +1288,16 @@ export class LinksetClock {
     // In-world: a land contact held in the sleep, begun before the detach or after the wear, ran
     // inside fivebot's carried click: touch_start, touch, land_collision_start, touch_end, then
     // land_collision and land_collision_end, LSL 3 runs of 3; SLua ran all six last to first,
-    // 4 runs of 4.
-    const avatars = new Set(first.flatMap((e) => (e.payload['detected'] as ReadonlyArray<DetectedTouch> | undefined ?? []).map((d) => d.key?.toLowerCase())))
-    const oneClick = avatars.size === 1 && first.some((e) => e.event === 'touch_end')
-    const contact = !raised && oneClick && [...carriedAs.values()].some((c) => c.behind && c.detached) ? held.filter((e) => LAND_EVENTS.has(e.event)) : []
-    if (contact.filter((e) => e.event === 'land_collision_start').length === 1) {
+    // 4 runs of 4. A contact with the platform begun after the wear ran collision_start and
+    // collision ahead of the touch_end, LSL and SLua 3 runs of 3 each.
+    const oneClick = clicksBy(first).size === 1 && first.some((e) => e.event === 'touch_end')
+    const contact = !raised && oneClick && [...carriedAs.values()].some((c) => c.behind && c.detached) ? heldContact(held, true) : []
+    if (contact.length) {
       const end = first.map((e) => e.event).lastIndexOf('touch_end')
-      const starts = contact.filter((e) => e.event === 'land_collision_start')
-      const { late } = carriedAs.get(first[end < 0 ? first.length - 1 : end]!)!
-      first.splice(end < 0 ? first.length : end, 0, ...starts)
-      first.push(...contact.filter((e) => !starts.includes(e)))
+      const inside = contact.filter(insideClick)
+      const { late } = carriedAs.get(first[end]!)!
+      first.splice(end, 0, ...inside)
+      first.push(...contact.filter((e) => !inside.includes(e)))
       for (const e of contact) carriedAs.set(e, { late, takesIn: false, behind: false })
     }
     const lands = held.filter((e) => e.event === 'land_collision')
@@ -1317,7 +1350,8 @@ export class LinksetClock {
     }
     // In-world: the attach of the wear ran right after fivebot's carried click, ahead of a change
     // held in the sleep and of i doll's held-back click, LSL 8 runs of 8 and SLua 7 of 7, with
-    // and without a land contact.
+    // and without a land contact. After a take and wear the same, LSL and SLua 4 runs of 4 each,
+    // two of them taken from under a sitter.
     if (first.length || attach.length) held.splice(0, held.length, ...first, ...attach, ...held.filter((e) => !first.includes(e)))
     if (carriedAs.size && script.language === 'slua') held.splice(0, held.length, ...sluaCarriedOrder(held, carriedAs))
     for (const [i, e] of held.entries()) {

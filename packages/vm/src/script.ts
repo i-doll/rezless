@@ -1291,9 +1291,7 @@ export class Script {
       // In-world: a release waiting for a game_control handler asleep at a take never ran in the
       // rezzed copy.
       if (e.event === 'game_control') continue
-      // In-world: a click held back in the busy part behind another avatar's click was lost
-      // through a take, in LSL and SLua (4 runs of 4); without the take it ran (2 runs of 2).
-      if (isTouch(e.event) && e.held && e.busy && cameUp(e) <= (this.task?.spunUntil ?? -Infinity) || lostInSlua(this, e, this.task)) continue
+      if (lostInSlua(this, e, this.task)) continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
       // changed(CHANGED_LINK) in the copy, the one `unseated` brings. An earlier stand event
       // keeps only the other changes that were merged into it.
@@ -1831,7 +1829,7 @@ export class Script {
   private finish(task: Task, queued?: ReadonlySet<QueuedEvent>): void {
     if (this.now === task.startedAt) return
     this.clockView.busyUntilMs = this.now
-    this.linkset.clock.requeue(this, task.startedAt, queued)
+    this.linkset.clock.requeue(this, task.startedAt, queued, task.spunUntil)
     if ((task.slua?.event ?? task.lsl?.handler.name) === 'touch') touchHandlerEnded(this)
   }
 
@@ -2212,7 +2210,7 @@ function carriedTouch(e: QueuedEvent, task: Task | null | undefined, detached: b
 /**
  * Whether an SLua script loses `e` through a take or a detach. In-world, SLua lost the touch of
  * a click held back behind another click in a handler that spun, and kept its touch_start and
- * touch_end, through a detach and wear (7 runs of 7) or a take (2 runs of 2); worn without the
+ * touch_end, through a detach and wear (7 runs of 7) or a take (12 runs of 12); worn without the
  * detach the touch ran (2 runs of 2), and LSL kept it.
  */
 const lostInSlua = (s: Script, e: QueuedEvent, task: Task | null | undefined) =>
