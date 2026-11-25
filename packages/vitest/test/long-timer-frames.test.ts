@@ -58,4 +58,10 @@ describe('a timer past 256 s ticks on its whole frames', () => {
     const due = (k: number) => k * Math.fround(seconds) * 45
     expect(await tickFrames('lsl', seconds, count)).toEqual(Array.from({ length: count }, (_, i) => Math.ceil(due(i + 1) - 0.01 / (1000 / 45))))
   })
+
+  // The same holds for any whole-frame interval: 0.6 s is 27 frames, and as a float it is 24 ns
+  // long, which adds up past 10 µs by the 420th tick.
+  it('keeps a 0.6 s timer on every 27th frame', async () => {
+    expect(await tickFrames('lsl', 0.6, 500)).toEqual(Array.from({ length: 500 }, (_, i) => 27 * (i + 1)))
+  })
 })

@@ -394,13 +394,13 @@ export const SIM_FRAME_MS = 1000 / 45
 const framesFor = (ms: number, slack = 0.01) => Math.ceil((ms - slack) / SIM_FRAME_MS) * SIM_FRAME_MS
 
 /**
- * How close `repeats` back-to-back waits of `ms` may end to a frame and count as on it: 10 µs, or
- * half a float's step at `ms` for each wait when that is more, as past 256 s, where whole frames
- * as a float reach the script more than 10 µs past their frame; never more than half a frame.
+ * How close a sleep of `ms` may end to a frame and count as on it: 10 µs, or half a float's step
+ * at `ms` past 256 s, where a whole-frame sleep reaches the script more than 10 µs past its frame,
+ * and never more than half a frame.
  */
-function sleepSlack(ms: number, repeats = 1) {
+function sleepSlack(ms: number) {
   const step = ms >= 1000 ? 2 ** (Math.floor(Math.log2(ms / 1000)) - 24) * 1000 : 0
-  return Math.min(Math.max(0.01, repeats * step), SIM_FRAME_MS / 2)
+  return Math.min(Math.max(0.01, step), SIM_FRAME_MS / 2)
 }
 
 /** `ms` rounded up to whole simulator frames, as a sleep or llMinEventDelay of `ms` rounds it. */
@@ -1344,11 +1344,12 @@ export class ScriptClockView {
   timerFrameAt(t: number): number {
     const from = this.timerFramesFromMs
     if (t <= from) return t
-    // A time within 10 µs of a frame is on that frame, and so is a tick of a whole-frame interval
-    // that the float's error, added up over the ticks, leaves just past its frame.
+    // A time within 10 µs of a frame is on that frame. So is a tick of an interval that is whole
+    // frames as a sleep counts them, however far the interval's float error has added up since then.
     const interval = this.timerIntervalMs
-    const wholeFrames = interval > 0 && Math.abs(interval - Math.round(interval / SIM_FRAME_MS) * SIM_FRAME_MS) <= sleepSlack(interval)
-    const frame = from + framesFor(t - from, wholeFrames ? sleepSlack(interval, Math.max(1, Math.round((t - from) / interval))) : 0.01)
+    const error = Math.abs(interval - Math.round(interval / SIM_FRAME_MS) * SIM_FRAME_MS)
+    const drift = interval > 0 && error <= sleepSlack(interval) ? Math.max(1, Math.round((t - from) / interval)) * error : 0
+    const frame = from + framesFor(t - from, Math.min(0.01 + drift, SIM_FRAME_MS / 2))
     return frame < t + 0.01 ? t : frame
   }
   /** When the tick that fell due while the script was down should have fired, until that tick fires. */
