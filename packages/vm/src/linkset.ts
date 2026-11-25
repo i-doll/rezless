@@ -725,6 +725,8 @@ export class Linkset {
         if (['key', 'linkset', 'linkNumber', 'createdAt', 'scripts', 'inventory', 'keyframedMotion', 'scriptedCameras'].includes(name)) continue
         Object.assign(prim, { [name]: structuredClone(value) })
       }
+      // A prim keeps its maker when another avatar gets the copy; an object in a prim's contents has no owner yet.
+      if (this.owner !== NULL_KEY && copy.owner !== this.owner) prim.madeBy ??= source.creator
       // In-world: scripted derez retains motion; copy only its data, never live callbacks.
       prim.keyframedMotion = source.keyframedMotion?.copyTo(prim, copy.clock) ?? null
       for (const item of source.inventory) {
