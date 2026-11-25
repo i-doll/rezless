@@ -222,7 +222,7 @@ s.setAgentInRegion(key, present = true)          // region-presence override, sh
 
 Recurring events created during those handlers do not extend the synchronous call forever. Use `advanceTime` to continue their handlers.
 
-A script runs one queued event per simulator frame (1/45 s), as in Second Life: its next event or timer tick runs a frame after its previous handler ended, and in LSL a `changed` right after a `changed`, or a tick right after a tick, waits two frames. A timer ticks on the first frame on or after its time, counting frames from when it was set or last ticked: a 0.1 s timer set in a handler ticks at 0.111 s, 0.2 s, 0.311 s and so on. An event a handler raises, such as a link message, chat or a change, runs a frame later at the earliest. The calls above move the clock on, a frame per event, until the script they deliver to has run as many handlers as it had events waiting, the delivered one included; advance time to run what comes after. This is a breaking change: before, queued events ran one after another at the same instant.
+A script runs one queued event per simulator frame (1/45 s), as in Second Life: its next event or timer tick runs a frame after its previous handler ended, and in LSL a `changed` right after a `changed`, or a tick right after a tick, waits two frames. A timer ticks on the first frame on or after its time, counting frames from when it was set or last ticked: a 0.1 s timer set in a handler ticks at 0.111 s, 0.2 s, 0.311 s and so on. An event a handler raises, such as a link message, chat or a change, runs a frame later at the earliest. The calls above move the clock on, a frame per event, until the script they deliver to has run as many handlers as it had events waiting, the delivered one included; advance time to run what comes after. An event that `llMinEventDelay` holds back stays queued until you advance time past the delay. This is a breaking change: before, queued events ran one after another at the same instant.
 
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 
@@ -259,6 +259,8 @@ const { linkset, prims, scripts } = await loadLinkset({
       ],
       inventory: [
         // notecards, textures, … addressable via llGetInventory* / llGetNotecardLine
+        // makeInventoryItem({ name, type, creator }): creator is what llGetInventoryCreator
+        //   returns, NULL_KEY by default. An object in `objects` reads its root prim's creator
       ],
     },
     {
@@ -426,6 +428,8 @@ ZERO_VECTOR, ZERO_ROTATION, 42)` and `receiver.lsl` stores
 and the rezzing prim receives `object_rez` with the new root key. An inventory
 item made with `makeInventoryItem({ name, type: InventoryType.OBJECT, object:
 savedLinkset })` supplies an existing linkset instead of an inline definition.
+Either way, `llGetInventoryCreator` on the item reads the creator of the
+object's root prim.
 
 Give an object definition an `experience` to compile its scripts with one, so
 the rezzed copy can use experience functions such as
