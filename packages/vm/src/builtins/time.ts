@@ -42,7 +42,7 @@ export const llMinEventDelay: BuiltinImpl = (ctx, args) => {
 export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0
   if (seconds <= 0 || isNegativeNaN(seconds)) return undefined
-  ctx.sleep(Number.isNaN(seconds) ? SIM_FRAME_MS : Math.max(SIM_FRAME_MS, seconds * 1000))
+  ctx.sleep(Number.isNaN(seconds) ? SIM_FRAME_MS : seconds * 1000)
   return undefined
 }
 

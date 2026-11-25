@@ -77,9 +77,19 @@ describe('a sleep wakes on a simulator frame', () => {
   // grid of the handler, not from the end of the spin.
   it.each(['lsl', 'slua'] as const)('wakes on the handler\'s frames after a spin of part of a frame in %s', async (language) => {
     const body = language === 'lsl'
-      ? 'llSetText("", ZERO_VECTOR, 0.35); llSleep(0.1); rec("a"); llSleep(0.1); rec("b");'
-      : 'll.SetText("", vector(0, 0, 0), 0.35) ll.Sleep(0.1) rec("a") ll.Sleep(0.1) rec("b")'
-    expect(await sleeps(language, body)).toEqual(['a=5', 'b=5'])
+      ? 'llSetText("", ZERO_VECTOR, 0.35); llSleep(0.1); rec("a"); llSleep(0.1); rec("b"); llSetText("", ZERO_VECTOR, 0.35); llSleep(0.001); rec("c");'
+      : 'll.SetText("", vector(0, 0, 0), 0.35) ll.Sleep(0.1) rec("a") ll.Sleep(0.1) rec("b") ll.SetText("", vector(0, 0, 0), 0.35) ll.Sleep(0.001) rec("c")'
+    expect(await sleeps(language, body)).toEqual(['a=5', 'b=5', 'c=1'])
+  })
+
+  it('counts a forced delay from the end of the call\'s own busy time', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `float t;
+      default { state_entry() { llRequestAgentData(llGetOwner(), DATA_ONLINE); t = llGetTime(); } }` } }] }] })
+    const s = scripts['s']!
+    s.mock('llRequestAgentData', (ctx) => { ctx.busy(10); return '' })
+    linkset.startAll()
+    linkset.advanceTime(500)
+    expect(Number(s.global('t')) * 45).toBeCloseTo(5, 4)
   })
 
   it('wakes a mock\'s sleep of a few microseconds on the next frame', async () => {
