@@ -3,6 +3,7 @@ import { loadLinkset, World, type ObjectInput } from '../src/index.js'
 
 const OWNER = 'a0000000-0000-4000-8000-000000000001'
 const MAKER = 'b0000000-0000-4000-8000-000000000002'
+const OTHER = 'c0000000-0000-4000-8000-000000000003'
 
 const PROBE = `
   string made(key k) { return llList2String(llGetObjectDetails(k, [OBJECT_CREATOR]), 0); }
@@ -78,9 +79,36 @@ describe('prim creator', () => {
     expect(scripts.p!.global('got')).toEqual([MAKER, MAKER])
   })
 
+  it('stays the first owner when the object changes hands', async () => {
+    const { linkset } = await loadLinkset({ owner: OWNER, prims: [{ scripts: [{ name: 'p', source: { source: PROBE } }] }] })
+    const copy = linkset.copy({ owner: OTHER })
+    copy.allScripts()[0]!.start()
+    expect(copy.allScripts()[0]!.global('got')).toEqual([OWNER, OWNER, '', ''])
+  })
+
+  // https://wiki.secondlife.com/wiki/LlAttachToAvatarTemp
+  it('stays the first owner when the object attaches to another avatar', async () => {
+    const world = new World()
+    world.addRegion('home', { x: 0, y: 0 })
+    world.addAvatar({ region: 'home', key: OTHER, username: 'other.avatar' })
+    const { scripts } = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ scripts: [{ name: 'p', source: { source: `
+      list got;
+      default {
+        state_entry() { llRequestPermissions("${OTHER}", PERMISSION_ATTACH); }
+        run_time_permissions(integer p) {
+          llAttachToAvatarTemp(ATTACH_RHAND);
+          got = [llGetOwner(), llGetCreator()] + llGetObjectDetails(llGetKey(), [OBJECT_CREATOR]);
+        }
+      }` } }] }] })
+    scripts.p!.start()
+    scripts.p!.grantPermissions()
+    scripts.p!.advanceTime(100)
+    expect(scripts.p!.global('got')).toEqual([OTHER, OWNER, OWNER])
+  })
+
   it('stays on a copy of the object', async () => {
     const { linkset } = await loadLinkset({ owner: OWNER, prims: [{ creator: MAKER, scripts: [{ name: 'p', source: { source: PROBE } }] }] })
-    const copy = linkset.copy({ owner: 'c0000000-0000-4000-8000-000000000003' })
+    const copy = linkset.copy({ owner: OTHER })
     copy.allScripts()[0]!.start()
     expect(copy.allScripts()[0]!.global('got')).toEqual([MAKER, MAKER, '', ''])
   })
