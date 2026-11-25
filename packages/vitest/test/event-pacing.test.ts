@@ -277,7 +277,8 @@ const tickFrames = (out: Record<string, string[]>) => out['1']!.filter((e) => e.
 // after the one before. Ticks due exactly on a frame ran on it or on the next: in LSL runs with no
 // lag from an earlier timer, 14 of 52 such ticks ran on it and 38 on the next, with no pattern
 // across the intervals (a 50 ms timer's ticks due at 200 ms and 400 ms ran on the next frame in all
-// four runs; a 200 ms timer's ran on either). Rezless runs them on that frame.
+// four runs; a 200 ms timer's ran on either). Later runs counted them otherwise (see
+// timer-frame-paths.test.ts). Rezless runs them on that frame.
 describe('a timer on the frame grid', () => {
   it.each([
     ['lsl', 30, [2, 4, 6, 8, 10, 12, 14, 16]],

@@ -222,9 +222,12 @@ describe('a timer after a stop, a start and a sleep in a queued handler', () => 
   it('gives one tick at the wake when no tick was missed while stopped', async () => {
     // In-world: a 1 s timer stopped at 0.2 s and started at 0.7 s, and a 2 s timer stopped at
     // 0.4 s and started at 1.4 s, each with a 5 s or 8 s sleep queued, woke to one timer event
-    // and then ticked an interval after it.
+    // and then ticked an interval after it. Counted to the frame, a tick held through more than an
+    // interval of a sleep starts the schedule again on the frame the script woke on (see
+    // timer-frame-paths.test.ts): the next tick comes 2 s after the wake, a frame before 2 s after
+    // the held one.
     const r = await stoppedWithSleep(2000, 5, 400, 1400)
-    expect(tickTimes(r.linkset, r.ticks, 8000)).toEqual([6450, 8450])
+    expect(tickTimes(r.linkset, r.ticks, 8000)).toEqual([6450, 8400])
   })
 
   it('gives one tick at the start when ticks were missed and nothing slept', async () => {
@@ -690,11 +693,13 @@ describe('the lag a held tick leaves', () => {
 
   it('ticks once per delay when llMinEventDelay is longer than the interval', async () => {
     // In-world: llMinEventDelay(2.5) and llSetTimerEvent(2) ticked at 2.51, 5.02, 7.53 and
-    // 10.04 s, in two runs; llMinEventDelay(3) ticked every 3.0 s.
+    // 10.04 s, in two runs: every 113 simulator frames, the first frame the delay had passed in.
+    // llMinEventDelay(3) ticked every 3.0 s.
     const r = await rig()
     r.tell('4:2.5')
     r.tell('1:2.0')
-    expect(tickTimes(r.linkset, r.ticks, 10_100)).toEqual([2550, 5050, 7550, 10_050])
+    const from = r.calledAt('delayAt')
+    expect(tickTimes(r.linkset, r.ticks, 10_100, SIM_FRAME_MS).map((t) => Math.round((t - from) / SIM_FRAME_MS))).toEqual([113, 226, 339, 452])
   })
 })
 

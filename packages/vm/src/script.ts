@@ -1655,7 +1655,7 @@ export class Script {
         return
       }
       if (!this.slua.handles(event)) return
-      if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+      if (DELAYED_EVENTS.has(event)) this.clockView.delayedEventRan()
       this.clockView.touchDelivered(event)
       const engine = this.slua
       const args = bindPayload(event, payload)
@@ -1664,7 +1664,7 @@ export class Script {
     }
     const handler = this.handlersByState.get(this.state.currentState)?.get(event)
     if (!handler) return
-    if (DELAYED_EVENTS.has(event)) this.clockView.delayedUntilMs = this.now + this.clockView.minEventDelayMs
+    if (DELAYED_EVENTS.has(event)) this.clockView.delayedEventRan()
     this.clockView.touchDelivered(event)
     this.begin(handler, bindPayload(event, payload), payload)
   }
@@ -1744,6 +1744,10 @@ export class Script {
     const task = this.task
     if (!task) return
     this.task = null
+    if (!task.busy) {
+      this.clockView.sleptUntilMs = this.now
+      this.clockView.sleptIn = task.slua?.event ?? task.lsl?.handler.name
+    }
     // In-world: a touch that came up in a sleep ran ahead of the link message and the changed the
     // handler raised after it woke, in LSL and SLua.
     this.step(task, task.busy ? undefined : new Set(this.linkset.clock.pendingEvents()))

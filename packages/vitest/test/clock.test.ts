@@ -357,6 +357,9 @@ describe('clock reads', () => {
 
 describe('timer after a long handler', () => {
   // In-world: llSleep(5) with a 1 s timer, then ticks at ~0.04, 1.07, 2.05, 3.05 s after the sleep.
+  // Counted to the frame (Aditi, SLua Tideland, 2026-11-25, three runs): the sleep woke on frame
+  // 226, the held tick ran on 227 and the next ones 45 frames apart from the wake, each on that
+  // frame or the next. The next tick counts from the wake (see timer-frame-paths.test.ts).
   it('delivers one pending timer event after llSleep, not a burst', async () => {
     const s = await load(`
       integer ticks = 0;
@@ -371,7 +374,7 @@ describe('timer after a long handler', () => {
     s.start()
     s.advanceTime(SIM_FRAME_MS)
     expect(s.global('ticks')).toBe(1)
-    s.advanceTime(999)
+    s.advanceTime(999 - SIM_FRAME_MS)
     expect(s.global('ticks')).toBe(1)
     s.advanceTime(1)
     expect(s.global('ticks')).toBe(2)
