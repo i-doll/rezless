@@ -136,3 +136,12 @@ it('parses float prefixes without turning a zero hexadecimal mantissa into infin
   expect(rlvScanVector('0x1.00000000000008p0/20/40', false)?.x).toBe(1)
   expect(rlvScanVector('0x1.000000000000081p0/20/40', false)?.x).toBe(1 + Number.EPSILON)
 })
+
+it('keeps the sign of -nan once the parser has run often enough to be optimised', async () => {
+  // Not a measurement: rlv-camera.test.ts pins getcam_fov replying -nan after setcam_fov:-nan.
+  const { rlvAtof } = await import('../../vm/src/rlv/numbers.js')
+  const { isNegativeNaN } = await import('../../vm/src/values/nan.js')
+  let lost = 0
+  for (let i = 0; i < 300_000; i++) if (!isNegativeNaN(rlvAtof('-nan'))) lost++
+  expect(lost).toBe(0)
+})

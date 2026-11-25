@@ -1,4 +1,5 @@
 import type { Vector } from '../values/types.js'
+import { signedNaN } from '../values/nan.js'
 
 const whitespace = '[\\t\\n\\v\\f\\r ]*'
 const decimal = '(?:[0-9]+\\.?[0-9]*|\\.[0-9]+)(?:e[+-]?[0-9]+)?'
@@ -12,7 +13,7 @@ function floatPrefix(text: string): { value: number; nonzero: boolean; length: n
   const token = match[1]!.toLowerCase()
   let value: number
   let nonzero = false
-  if (/^[+-]?nan/.test(token)) value = token.startsWith('-') ? -NaN : NaN
+  if (/^[+-]?nan/.test(token)) value = signedNaN(token.startsWith('-'))
   else if (/^[+-]?inf/.test(token)) value = token.startsWith('-') ? -Infinity : Infinity
   else {
     const hex = /^([+-]?)0x([0-9a-f]*)(?:\.([0-9a-f]*))?(?:p([+-]?[0-9]+))?$/.exec(token)

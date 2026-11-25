@@ -3,7 +3,7 @@ import type { LslType, LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, isRotation, toFloat32, ZERO_VECTOR, ZERO_ROTATION } from '../values/types.js'
 import { formatFloatExact, formatFloatPositiveZero, formatListElement } from '../values/format.js'
 import { coerce, floatToInteger, parseLslInteger } from '../values/coerce.js'
-import { NEGATIVE_NAN, boxedArray, boxedMap, isNegativeNaN, signedNaN } from '../values/nan.js'
+import { boxedArray, boxedMap, isNegativeNaN, signedNaN } from '../values/nan.js'
 import {
   LIST_STAT_GEOMETRIC_MEAN,
   LIST_STAT_MAX,
@@ -526,7 +526,7 @@ export const llListStatistics: BuiltinImpl = (_ctx, args) => {
  * right one, and a NaN made from two numbers is negative.
  */
 const statNaN = (a: number, b: number, r: number) =>
-  r === r ? r : a !== a ? signedNaN(isNegativeNaN(a)) : b !== b ? signedNaN(isNegativeNaN(b)) : NEGATIVE_NAN
+  r === r ? r : a !== a ? signedNaN(isNegativeNaN(a)) : b !== b ? signedNaN(isNegativeNaN(b)) : signedNaN(true)
 const add = (a: number, b: number) => statNaN(a, b, a + b)
 const sub = (a: number, b: number) => statNaN(a, b, a - b)
 const div = (a: number, b: number) => statNaN(a, b, a / b)
