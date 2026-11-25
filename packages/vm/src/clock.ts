@@ -433,6 +433,9 @@ function sleepSlack(ms: number) {
   return Math.min(Math.max(0.01, step), SIM_FRAME_MS / 2)
 }
 
+/** `ms` rounded up to whole simulator frames, as a sleep or llMinEventDelay of `ms` rounds it. */
+const sleepFrames = (ms: number) => framesFor(ms, sleepSlack(ms))
+
 /**
  * How long a sleep or forced delay of `ms` that starts at `now` lasts: to the first simulator
  * frame on or after its end, counting frames from `from`, the start of the handler, and to the
@@ -1402,8 +1405,12 @@ export class ScriptClockView {
   timerFrameAt(t: number): number {
     const from = this.timerFramesFromMs
     if (t <= from) return t
-    // A time within 10 µs of a frame, as a float interval leaves it, is on that frame.
-    const frame = from + framesFor(t - from)
+    // A time within 10 µs of a frame is on that frame. So is a tick of an interval that is whole
+    // frames as a sleep counts them, however far the interval's float error has added up since then.
+    const interval = this.timerIntervalMs
+    const error = Math.abs(interval - Math.round(interval / SIM_FRAME_MS) * SIM_FRAME_MS)
+    const drift = interval > 0 && error <= sleepSlack(interval) ? Math.max(1, Math.round((t - from) / interval)) * error : 0
+    const frame = from + framesFor(t - from, Math.min(0.01 + drift, SIM_FRAME_MS / 2))
     return frame < t + 0.01 ? t : frame
   }
   /** When the tick that fell due while the script was down should have fired, until that tick fires. */
@@ -1500,7 +1507,7 @@ export class ScriptClockView {
   delayedEventRan(): void {
     if (this.now < this.delayedUntilMs) return
     this.delayPassedMs = this.now
-    this.delayedUntilMs = this.now + framesFor(this.minEventDelayMs)
+    this.delayedUntilMs = this.now + sleepFrames(this.minEventDelayMs)
   }
   /** Earliest virtual time a held click's next `touch` may be raised, under llMinEventDelay. */
   private touchDelayedUntilMs = 0
@@ -1715,10 +1722,10 @@ export class ScriptClockView {
    */
   touchDelivered(event: string): void {
     if (event === 'touch_start') {
-      this.touchDelayedUntilMs = this.now + framesFor(this.minEventDelayMs)
+      this.touchDelayedUntilMs = this.now + sleepFrames(this.minEventDelayMs)
       this.touchAfterStart = true
     } else if (event === 'touch') {
-      if (!this.touchAfterStart) this.touchDelayedUntilMs = this.now + framesFor(this.minEventDelayMs)
+      if (!this.touchAfterStart) this.touchDelayedUntilMs = this.now + sleepFrames(this.minEventDelayMs)
       this.touchAfterStart = false
     }
   }
@@ -1726,7 +1733,7 @@ export class ScriptClockView {
   /** llMinEventDelay: `ms` below 0 counts as 0, and the delay starts now. */
   setMinEventDelay(ms: number): void {
     this.minEventDelayMs = Math.max(0, ms)
-    this.delayedUntilMs = this.now + framesFor(this.minEventDelayMs)
+    this.delayedUntilMs = this.now + sleepFrames(this.minEventDelayMs)
     this.delayPassedMs = -Infinity
     // In-world: llMinEventDelay(1.0) in touch_start held a held click's second touch until 1.0 s after the call.
     this.touchDelayedUntilMs = this.delayedUntilMs
