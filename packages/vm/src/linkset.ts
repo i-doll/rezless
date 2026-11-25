@@ -101,7 +101,7 @@ export interface HeldTouch {
   touched: boolean
   /** What its last `touch` detected. */
   lastTouch?: ReadonlyArray<DetectedEntry>
-  /** Whether the button came up while the script was stopped. */
+  /** Whether the click is stuck: the button came up while the script was stopped, or it was held through a take or a detach. */
   released: boolean
   /** Whether a link change ended it while the button was still down. */
   cut?: boolean
@@ -191,6 +191,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
     // in LSL and SLua.
     let raised: { detected: DetectedEntry[]; plain: boolean } | undefined
     const starts: QueuedEvent[] = []
+    let ahead: string | undefined
     for (const [by, click] of s.heldClicks) {
       if (!click.repeating || click.dueAt > clock.now + 1e-6) continue
       click.dueAt += repeatMs(s)
@@ -250,10 +251,17 @@ function raiseHeldTouches(clock: LinksetClock): void {
         // i doll held a click and fivebot's first touch_end waited, raised a touch of its own
         // listing both, after its touch_start (9 runs of 9). Its only click on a copy rezzed in
         // the sleep raised none, as a first click does (2 runs of 2).
-        if (touches.own || !s.spunSince(came) || !waitingTouches(s, 'touch_end', by).own) {
+        // In-world: when the avatars that touch listed had let go before this click, as with a
+        // click by fivebot and then one by i doll in a listen's spin, the click kept a touch of
+        // its own, LSL 4 runs of 4 and SLua 5 of 5.
+        const alone = !!waiting && (s.spunSince(came) || !!waiting.carried) && !listed.some((d) => { const c = s.heldClicks.get(d.key!.toLowerCase()); return !!c && !c.cut })
+        if (!alone && (touches.own || !s.spunSince(came) || !waitingTouches(s, 'touch_end', by).own)) {
           click.touched = true
           continue
         }
+        // In-world: in SLua that touch ran ahead of the click's touch_start, after a spin (2 runs
+        // of 2) and in the sleep after a spin (2 runs of 2).
+        if (!alone && s.language === 'slua') ahead = by
       }
       // In-world: a held click's touch from a sleep in touch_start, or a spin in listen, after
       // its touch_start ran, came ahead of a listen that came up later; its touch_end waited
@@ -282,6 +290,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
     }
     if (raised) scheduleTouch(s, 'touch', raised.detected, raised.plain ? { held: false } : undefined)
     for (const start of starts) clock.putAhead(start)
+    if (raised && ahead) clock.putTouchAhead(s, ahead)
   }
 }
 
@@ -306,9 +315,10 @@ export function resumeHeldTouches(s: Script): void {
 
 /**
  * In-world: after llResetScript, or a state change, a held click raised no more touch events,
- * and its release still raised touch_end. A reset also forgot a click whose button came up
- * while the script was stopped, or that a link break had ended, so the next click was a normal
- * one; after a state change that next click still raised no touch_start.
+ * and its release still raised touch_end. A reset also forgot a stuck click, whether its button
+ * came up while the script was stopped or it was held through a detach and wear, or one that a
+ * link break had ended, so the next click was a normal one; after a state change that next
+ * click still raised no touch_start.
  */
 export function forgetHeldTouches(s: Script, reset: boolean): void {
   for (const [by, click] of s.heldClicks) {
@@ -559,10 +569,13 @@ export class Linkset {
       // In-world: a game_control waiting for a script asleep at the detach never ran.
       if (script.wakeAt !== undefined) this.clock.purgeWhere((e) => e.target === script && e.event === 'game_control')
     }
-    // In-world: a click held across a detach and a wear kept raising touch, reading face -1.
+    // In-world: a click held across a detach and a wear kept raising touch, reading face -1. A
+    // click still held at the detach stayed stuck: its release raised no touch_end, and another
+    // avatar's first click on the worn object raised touch_start (LSL and SLua 2 runs of 2 each).
     for (const script of this.allScripts()) {
       for (const click of script.heldClicks.values()) {
         click.detected = touchThroughInventory(click.detected)
+        click.released = true
         delete click.lastTouch
       }
     }
@@ -1210,8 +1223,9 @@ export class Linkset {
       if (!s.heldClicks.has(by) && !crowded) {
         scheduleTouch(s, 'touch_start', detected, late ? { late } : undefined)
       }
-      // In-world: fivebot's touches came on the frames of i doll's held click, merged with them.
-      const beat = [...s.heldClicks].find(([k, c]) => k !== by && c.repeating && !c.released && !c.cut)?.[1].dueAt
+      // In-world: fivebot's touches came on the frames of i doll's held click, merged with them,
+      // also when i doll's click was stuck from a detach (LSL 2 runs of 2, SLua 1 run).
+      const beat = [...s.heldClicks].find(([k, c]) => k !== by && c.repeating && !c.cut)?.[1].dueAt
       const dueAt = beat === undefined ? firstAt : beat > this.clock.now + 1e-6 ? beat : beat + repeatMs(s)
       const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt }
       s.heldClicks.set(by, click)
@@ -1243,7 +1257,7 @@ export class Linkset {
       scheduleTouch(s, 'touch_end', now(detected))
     }
     for (const [s, click] of clicks) {
-      if (click.cut) continue
+      if (click.cut || click.released) continue
       if (!live(s) || !released.includes(s)) {
         click.released = true
         continue

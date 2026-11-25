@@ -56,7 +56,7 @@ import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, SIM_FRAME_MS, ScriptClockView, cameUp, toMicroseconds } from './clock.js'
-import type { QueuedEvent } from './clock.js'
+import type { Carried, QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, touchHandlerEnded, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
@@ -1293,7 +1293,7 @@ export class Script {
       if (e.event === 'game_control') continue
       // In-world: a click held back in the busy part behind another avatar's click was lost
       // through a take, in LSL and SLua (4 runs of 4); without the take it ran (2 runs of 2).
-      if (isTouch(e.event) && e.held && e.busy && cameUp(e) <= (this.task?.spunUntil ?? -Infinity)) continue
+      if (isTouch(e.event) && e.held && e.busy && cameUp(e) <= (this.task?.spunUntil ?? -Infinity) || lostInSlua(this, e, this.task)) continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
       // changed(CHANGED_LINK) in the copy, the one `unseated` brings. An earlier stand event
       // keeps only the other changes that were merged into it.
@@ -1304,10 +1304,10 @@ export class Script {
         if (!data['changes']) continue
       }
       // In-world: a click in the copy's sleep merged with the touch events a click in the busy part
-      // before the take had left waiting (7 runs of 8), and joined no other avatar's touch that
-      // came up in it (LSL 2 runs of 2) or waited from the handler's start (SLua, 1 run).
+      // before the take had left waiting (7 runs of 8). Another avatar's touch that came up in it
+      // while that avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
       const carried = carriedTouch(e, this.task)
-      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
+      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, !!carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
     }
     if (reset) copy.resetIntoInventory()
     return copy
@@ -1404,13 +1404,14 @@ export class Script {
     }
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
+      if (lostInSlua(this, e, before)) continue
       const detected = e.payload['detected']
       const payload = detached && isTouch(e.event) && Array.isArray(detected)
         ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload
       // An event that is not due yet is judged when it is.
       const at = Math.max(e.at, this.now)
-      const carried = e.at <= this.now && carriedTouch(e, before)
-      clock.schedule(this, at, e.event, payload, e.at <= this.now ? carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
+      const carried = e.at <= this.now ? carriedTouch(e, before) : undefined
+      clock.schedule(this, at, e.event, payload, e.at <= this.now ? !!carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
     }
     if (room > 0 && rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
@@ -2182,9 +2183,30 @@ function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>)
 
 const isTouch = (event: string | undefined) => event === 'touch_start' || event === 'touch' || event === 'touch_end'
 
-/** Whether `e` is a touch event that came up in a busy part of `task`, or already counts as one. */
-const carriedTouch = (e: QueuedEvent, task: Task | null | undefined) =>
-  !!e.carried || isTouch(e.event) && !!e.busy && cameUp(e) <= (task?.spunUntil ?? -Infinity)
+/**
+ * How a take or a detach carries `e`, if it does: a touch event that came up before the busy part
+ * of `task` ended, or was held as busy in the sleep after it, or one carried already. In-world, a
+ * click by another avatar made in the spin or in the sleep after it, while a click from the spin
+ * waited, came through a detach and wear, or a take, as a click of its own after the first (LSL
+ * 6 runs of 6, SLua 7 of 7). A click from before the handler came through too, but a click on
+ * the worn object did not merge into it (LSL and SLua 1 run each).
+ */
+function carriedTouch(e: QueuedEvent, task: Task | null | undefined): Carried | undefined {
+  if (e.carried) return e.carried
+  if (!isTouch(e.event) || task?.spunUntil === undefined) return undefined
+  const late = cameUp(e) > task.spunUntil
+  if (late && !e.busy) return undefined
+  return { late, takesIn: cameUp(e) > task.startedAt, behind: !!e.held }
+}
+
+/**
+ * Whether an SLua script loses `e` through a take or a detach. In-world, SLua lost the touch of
+ * a click held back behind another click in a handler that spun, and kept its touch_start and
+ * touch_end, through a detach and wear (7 runs of 7) or a take (2 runs of 2); worn without the
+ * detach the touch ran (2 runs of 2), and LSL kept it.
+ */
+const lostInSlua = (s: Script, e: QueuedEvent, task: Task | null | undefined) =>
+  s.language === 'slua' && e.event === 'touch' && !!e.held && !!e.busy && task?.spunUntil !== undefined
 
 /**
  * Whether a take or a detach keeps `e` from taking in other avatars' clicks: a touch event that
