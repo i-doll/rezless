@@ -1109,7 +1109,8 @@ export class Script {
    * state_entry chain runs before fire() returns). A handler that sleeps
    * moves the clock to its wake time, running every other script's due
    * events on the way. A script already in a handler, running or asleep,
-   * handles the event after that handler.
+   * handles the event after that handler. An event llMinEventDelay holds
+   * back stays queued until the test advances time past the delay.
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events. An event
