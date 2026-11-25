@@ -1109,7 +1109,8 @@ export class Script {
    * state_entry chain runs before fire() returns). A handler that sleeps
    * moves the clock to its wake time, running every other script's due
    * events on the way. A script already in a handler, running or asleep,
-   * handles the event after that handler.
+   * handles the event after that handler. An event llMinEventDelay holds
+   * back stays queued until the test advances time past the delay.
    *
    * If the current state has no handler for `eventName`, this is a no-op
    * — matches LSL behavior of silently dropping unhandled events. An event
@@ -1301,9 +1302,10 @@ export class Script {
         data['changes'] = (data['changes'] as number) & ~CHANGED_LINK
         if (!data['changes']) continue
       }
-      // In-world: a click in the copy's sleep merged with the touch events a click in the busy part
-      // before the take had left waiting (7 runs of 8). Another avatar's touch that came up in it
-      // while that avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
+      // In-world: the touch events a click in the busy part left waiting came through the take and
+      // ran first in the copy, and a later click in the copy's sleep stayed a click of its own
+      // (LSL and SLua 7 runs or more each). Another avatar's touch that came up in it while that
+      // avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
       const carried = carriedTouch(e, this.task, false)
       copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, !!carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
     }

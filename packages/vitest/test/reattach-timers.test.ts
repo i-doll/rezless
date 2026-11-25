@@ -86,7 +86,10 @@ it('delivers one already-due timer after rez and attach while retaining its cade
 // detached 10 s after its next tick fell due and worn again 16 s later ->
 // timer right after attach, then 4.0 s, 8.0 s and 12.0 s after that one. A
 // tick overdue by more than an interval starts a full interval again. Aditi,
-// SLua Tideland, 2026-11-14.
+// SLua Tideland, 2026-11-14. The fixture's timer is five seconds. rezless counts
+// the new interval from the attach, so the next tick comes two frames short of a
+// full interval after the caught-up one; the measurement, to 0.1 s, can't tell
+// the two apart.
 it('starts a full interval again after a saved timer overdue by more than its interval', async () => {
   const { script, linkset } = await fixture()
   linkset.clock.advance(11000)

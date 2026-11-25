@@ -332,8 +332,9 @@ describe('linkset.touch routes a click like Second Life', () => {
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.advanceTime(2000)
     linkset.touch(0, { hold: 4000 })
-    // A touch held back by the delay runs when the delay is over; in-world it ran on the next
-    // simulator frame, up to 0.022 s later. touch_end waits behind it.
+    // rezless runs a touch held back by the delay on the frame the delay ends, so the touch
+    // events come at 2.000, 3.000 and 4.000 where in-world they came one or two frames later, and
+    // touch_end at 4.022 rather than 4.067. touch_end waits behind the last touch.
     expect(got('s')).toEqual(['start', 22, 1000, 2000, 3000, 4000, 'end', 4022])
   })
 
@@ -412,6 +413,8 @@ describe('linkset.touch routes a click like Second Life', () => {
       const { linkset, got } = await setup([[script('s', src)]])
       linkset.advanceTime(2500)
       linkset.touch(0, { hold: 700 })
+      // touch_start waited a delay, so the last touch of this hold falls due after the release.
+      linkset.advanceTime(1000)
       expect(got('s')).toEqual(['22', 't289', '311', 't600', '622'])
     })
   })
@@ -862,16 +865,24 @@ describe('linkset.touch routes a click like Second Life', () => {
   it('llMinEventDelay called in touch_start holds the next touch of the click back', async () => {
     // In-world: touch_start called llMinEventDelay(1.0) during a hold -> touch at 0.044, 1.022,
     // 2.022, 3.022 and 4.045 after touch_start.
+    // In-world (Aditi, SLua Tideland, 2026-11-25): the same with 3.5 s and 3.2 s holds, four LSL
+    // and two SLua runs -> touch at 0.022 (0.067 in one run), 1.000-1.022, 2.022-2.044,
+    // 3.022-3.045 and 4.044-4.067, then touch_end a frame later: the touch waiting for the delay
+    // still ran after the release, ahead of touch_end. rezless runs the later touches on the
+    // delay's whole seconds, a frame or two ahead of those times.
     const log = `
       list got = [];
       default {
         touch_start(integer k) { llResetTime(); llMinEventDelay(1.0); }
         touch(integer k) { got += llRound(llGetTime() * 1000); }
+        touch_end(integer k) { got += ["end", llRound(llGetTime() * 1000)]; }
       }
     `
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.touch(0, { hold: 3500 })
-    expect(got('s')).toEqual([22, 1000, 2000, 3000, 4000])
+    expect(got('s')).toEqual([22, 1000, 2000, 3000])
+    linkset.advanceTime(1000)
+    expect(got('s')).toEqual([22, 1000, 2000, 3000, 4000, 'end', 4022])
   })
 
   it('each held click starts its touch events half a beat after it, even right after another', async () => {
