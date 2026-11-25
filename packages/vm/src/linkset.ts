@@ -161,6 +161,19 @@ const overlapping = new WeakMap<Script, Set<string>>()
 /** When each avatar last pressed a click on each script while its handler was busy. */
 const busyPresses = new WeakMap<Script, Map<string, number>>()
 
+/** When each avatar last pressed a click on each script while its handler was not busy. */
+const idlePresses = new WeakMap<Script, Map<string, number>>()
+
+/** Whether avatar `k` pressed a click on `s` while the handler running now was busy. */
+const pressedInSpin = (s: Script, k: string | undefined) =>
+  k !== undefined && s.handlerStartedAt !== undefined && (busyPresses.get(s)?.get(k) ?? -Infinity) >= s.handlerStartedAt
+
+/** Whether avatar `k` pressed a click on `s` while the handler running now was busy, and again since. */
+const pressedAgain = (s: Script, k: string) => pressedInSpin(s, k) && (idlePresses.get(s)?.get(k) ?? -Infinity) > busyPresses.get(s)!.get(k)!
+
+/** Whether avatar `k` pressed on `s` in the busy part after avatar `by` did. */
+const pressedLater = (s: Script, k: string, by: string) => busyPresses.get(s)!.get(k)! > busyPresses.get(s)!.get(by)!
+
 /** The touch data each script has run a `touch` handler with. */
 const deliveredTouches = new WeakMap<Script, WeakSet<DetectedEntry>>()
 
@@ -255,8 +268,17 @@ function raiseHeldTouches(clock: LinksetClock): void {
         const came = waiting ? cameUp(waiting) : clock.now
         // In-world: i doll's second click, in the sleep after its first click in the spin, joined
         // the touch of fivebot's click from the sleep, though i doll's touch from the spin waited,
-        // LSL and SLua 3 runs of 3 each.
-        if (listed.length && s.handlerEvent !== 'touch_start' && !waiting?.carried && !s.spunSince(came) && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
+        // LSL and SLua 3 runs of 3 each. When i doll and then fivebot clicked in the spin and
+        // fivebot again in the sleep, i doll's later press joined fivebot's touch from the spin,
+        // LSL and SLua 2 runs of 2 each.
+        const inSpin = (k: string | undefined) => pressedInSpin(s, k)
+        const idle = (k: string) => idlePresses.get(s)?.get(k) ?? -Infinity
+        const again = !!waiting && inSpin(by) && listed.every((d) => {
+          const k = d.key?.toLowerCase()
+          const c = k === undefined ? undefined : s.heldClicks.get(k)
+          return k !== undefined && (!c || !c.cut && c.pressedBusy === undefined) && pressedAgain(s, k) && pressedLater(s, k, by) && idle(k) < idle(by)
+        })
+        if (listed.length && s.handlerEvent !== 'touch_start' && !waiting?.carried && (!s.spunSince(came) || again) && came >= s.handlerStartedAt! + SIM_FRAME_MS - 1e-6 && !listed.some((d) => d.key?.toLowerCase() === by)) {
           if (waiting) {
             waiting.payload['detected'] = [...listed, ...click.detected]
             waiting.payload['num_detected'] = listed.length + click.detected.length
@@ -1239,9 +1261,13 @@ export class Linkset {
       // In-world: i doll's click in a listen's spin, and a second click in the sleep pressed while
       // fivebot held one, raised a touch_start listing fivebot and i doll, LSL and SLua 1 run each.
       const started = s.handlerStartedAt
-      const inSpin = (k: string) => started !== undefined && (busyPresses.get(s)?.get(k) ?? -Infinity) >= started
-      const pressedInSpin = !s.busy && inSpin(by) && ![...s.heldClicks.keys()].some((k) => k !== by && inSpin(k))
-      const first = held && !seen?.has(by) && !pressedInSpin
+      const inSpin = (k: string) => pressedInSpin(s, k)
+      // In-world: when i doll and then fivebot clicked in the spin and fivebot pressed again in
+      // the sleep, i doll's press while fivebot held on joined fivebot's touch_start in SLua,
+      // 2 runs of 2, and raised none in LSL, 2 runs of 2.
+      const others = [...s.heldClicks.keys()].filter((k) => k !== by && inSpin(k))
+      const joinsSpin = !s.busy && inSpin(by) && (!others.length || s.language === 'slua' && others.every((k) => s.heldClicks.get(k)!.pressedBusy === undefined && pressedAgain(s, k) && pressedLater(s, k, by)))
+      const first = held && !seen?.has(by) && !joinsSpin
       const crowded = s.language !== 'slua' && s.handlerEvent !== 'touch_end' && first
       if (seen) seen.add(by)
       else overlapping.set(s, new Set([by]))
@@ -1261,10 +1287,9 @@ export class Linkset {
       // also when i doll's click was stuck from a detach (LSL 2 runs of 2, SLua 1 run).
       const beat = [...s.heldClicks].find(([k, c]) => k !== by && c.repeating && !c.cut)?.[1].dueAt
       const dueAt = beat === undefined ? firstAt : beat > this.clock.now + 1e-6 ? beat : beat + repeatMs(s)
-      if (s.busy) {
-        if (!busyPresses.has(s)) busyPresses.set(s, new Map())
-        busyPresses.get(s)!.set(by, this.clock.now)
-      }
+      const presses = s.busy ? busyPresses : idlePresses
+      if (!presses.has(s)) presses.set(s, new Map())
+      presses.get(s)!.set(by, this.clock.now)
       const afterSpin = held && !s.busy && started !== undefined && s.spunSince(started)
       const click: HeldTouch = { detected, repeating: true, touched: false, released: false, dueAt, ...(s.busy && { pressedBusy: this.clock.now }), ...(afterSpin && { afterSpin }) }
       s.heldClicks.set(by, click)
