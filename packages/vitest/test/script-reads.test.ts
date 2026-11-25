@@ -82,7 +82,9 @@ describe('llMinEventDelay', () => {
 
   // In-world, a 0.1 s timer counted for 6 s: no call, 0.0, 0.01, 0.05 and -5.0 -> 60 or 61
   // ticks; 0.2 -> 29, 0.3 -> 20, 1.0 -> 6, 3.0 -> 2. A tick runs on the first simulator frame on
-  // or after it falls due (see event-pacing.test.ts).
+  // or after it falls due (see event-pacing.test.ts). Counted to the frame (Aditi, SLua Tideland,
+  // 2026-11-25), the delay is whole frames: 0.3 ticked every 14 frames (0.311 s) in three runs, and
+  // 0.2, exactly 9 frames, every 9 or 10 frames, 12 of 24 gaps each.
   const ticks01 = [0.111, 0.2, 0.311, 0.4, 0.511, 0.6]
   it.each([
     ['', ticks01],
@@ -90,7 +92,7 @@ describe('llMinEventDelay', () => {
     ['llMinEventDelay(0.05);', ticks01],
     ['llMinEventDelay(-5.0);', ticks01],
     ['llMinEventDelay(0.2);', [0.2, 0.4, 0.6]],
-    ['llMinEventDelay(0.3);', [0.3, 0.6]],
+    ['llMinEventDelay(0.3);', [0.311, 0.622]],
   ])('spaces timer events: %s', async (setup, want) => {
     const s = await ticks(setup)
     s.advanceTime(1000)
@@ -145,7 +147,9 @@ describe('llMinEventDelay', () => {
 
   // In-world: llMinEventDelay(1.0) with a 0.1 s timer running; clicks at about 2.2 s and 4.7 s
   // gave touch_start at 3.044 and 5.044, on the timer's one-second beat, and 6 timer events in
-  // about 7 s instead of 7.
+  // about 7 s instead of 7. Counted to the frame (Aditi, SLua Tideland, 2026-11-25, two runs,
+  // LSL and SLua): each touch_start ran a frame behind a tick, and the next tick came 45 or 46
+  // frames after that tick; the delay counts from the tick and loses none.
   it('shares one delay between timer and touch events', async () => {
     const s = await run(
       `state_entry() { llMinEventDelay(1.0); llResetTime(); llSetTimerEvent(0.1); }
@@ -159,8 +163,8 @@ describe('llMinEventDelay', () => {
     s.advanceTime(2500)
     click()
     s.advanceTime(2300)
-    expect(s.global('out')).toEqual([3, 5])
-    expect(s.global('ticks')).toBe(5)
+    expect(s.global('out')).toEqual([framesAfter(3, 1), framesAfter(5, 1)])
+    expect(s.global('ticks')).toBe(7)
   })
 
   // In-world: llMinEventDelay(3.0) called after the last timer event, then three clicks within

@@ -340,7 +340,8 @@ describe('linkset.touch routes a click like Second Life', () => {
   it('under llMinEventDelay held touch events keep their beat apart from a timer', async () => {
     // In-world: llMinEventDelay(1.0) and a 0.1 s timer; touch_start came 0.455 s after the
     // click, on the timer's beat. After it: timer at 0.978, 2.000 and 3.000, touch at 0.022,
-    // 1.000, 2.022 and 3.023, and touch_end at 3.045, each within a frame of the times here.
+    // 1.000, 2.022 and 3.023, and touch_end at 3.045, each within a frame of the times here. The
+    // tick on the beat ran a frame ahead of touch_start, and the delay counted from it.
     const log = `
       list got = [];
       integer on;
@@ -356,8 +357,8 @@ describe('linkset.touch routes a click like Second Life', () => {
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.advanceTime(2500)
     linkset.touch(0, { hold: 3510 })
-    expect(got('s')).toEqual(['start', 'touch@22', 'timer@1000', 'touch@1022', 'timer@2000', 'touch@2022',
-      'timer@3000', 'touch@3022', 'end@3044'])
+    expect(got('s')).toEqual(['start', 'touch@22', 'timer@978', 'touch@1000', 'timer@1978', 'touch@2000',
+      'timer@2978', 'touch@3000', 'end@3022'])
   })
 
   describe('under llMinEventDelay, touch events waiting from one avatar merge', () => {
