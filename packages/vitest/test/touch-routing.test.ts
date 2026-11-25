@@ -361,6 +361,61 @@ describe('linkset.touch routes a click like Second Life', () => {
       'timer@2978', 'touch@3000', 'end@3022'])
   })
 
+  describe('under a llMinEventDelay that is not whole frames, a held click\'s touch events', () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25): a held click on a prim holding an LSL and an
+    // SLua logger, llMinEventDelay set from a listen; both scripts logged the same times, the
+    // ones below. The delay rounds up to whole simulator frames, as it does for touch_start,
+    // timer and sensor: 0.3 s is 14 frames, 0.25 s 12 and 0.5 s 23.
+    const log = (delay: number) => `
+      list got = [];
+      default {
+        state_entry() { llMinEventDelay(${delay}); }
+        touch_start(integer k) { llResetTime(); }
+        touch(integer k) { got += llGetTime() * 1000; }
+        touch_end(integer k) { got += ["end", llGetTime() * 1000]; }
+      }
+    `
+    it.each([
+      // 3 s hold, two runs (the first touch came at 0.044 in one LSL run).
+      [0.3, 3000, [22, 311, 622, 933, 1244, 1555, 1867, 2178, 2489, 2800, 3111], 3133],
+      // 1.5 s hold.
+      [0.25, 1500, [22, 267, 533, 800, 1066, 1333, 1600], 1622],
+      // 3 s hold.
+      [0.5, 3000, [22, 511, 1022, 1533, 2044, 2556, 3067], 3089],
+    ])('under llMinEventDelay(%f) a %i ms hold raises touch on whole frames', async (delay, hold, touches, end) => {
+      const { linkset, got } = await setup([[script('s', log(delay))]])
+      linkset.advanceTime(2000)
+      linkset.touch(0, { hold })
+      linkset.advanceTime(1000)
+      const times = got('s') as Array<number | string>
+      expect(times.slice(0, -2)).toEqual(touches.map((t) => expect.closeTo(t, -0.5)))
+      expect(times.at(-1) as number).toBeCloseTo(end, -0.5)
+    })
+
+    it('keep their own beat beside a timer', async () => {
+      // In-world: llMinEventDelay(0.3) and a 0.1 s timer, a 2 s hold, two runs -> touch at 0.022,
+      // timer at 0.289, touch at 0.311, timer at 0.600, touch at 0.622, and so on: each 14 frames
+      // apart, the tick a frame ahead of the touch. The tick runs on frames, so this also held
+      // while the touch gate used the raw delay; it pins how the two gates sit side by side.
+      const src = `
+        list got = [];
+        integer on;
+        string t() { return (string)llRound(llGetTime() * 1000); }
+        default {
+          state_entry() { llMinEventDelay(0.3); llSetTimerEvent(0.1); }
+          timer() { if (on) got += "t" + t(); }
+          touch_start(integer k) { on = 1; llResetTime(); }
+          touch(integer k) { got += t(); }
+          touch_end(integer k) { on = 0; }
+        }
+      `
+      const { linkset, got } = await setup([[script('s', src)]])
+      linkset.advanceTime(2500)
+      linkset.touch(0, { hold: 700 })
+      expect(got('s')).toEqual(['22', 't289', '311', 't600', '622'])
+    })
+  })
+
   describe('under llMinEventDelay, touch events waiting from one avatar merge', () => {
     // In-world probe: llMinEventDelay(1.0) or (2.0) set in state_entry, about 3 s before the
     // first click; each click on its own face; times from state_entry.
