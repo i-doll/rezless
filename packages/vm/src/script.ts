@@ -56,7 +56,7 @@ import type { EvalResult, LslType, LslValue } from './values/types.js'
 import { defaultEvalFor, rot, toFloat32Value, vec } from './values/types.js'
 import { Env } from './env.js'
 import { DELAYED_EVENTS, HELD_CONTROL, MAX_PENDING_EVENTS, SIM_FRAME_MS, ScriptClockView, cameUp, toMicroseconds } from './clock.js'
-import type { QueuedEvent } from './clock.js'
+import type { Carried, QueuedEvent } from './clock.js'
 import { Linkset, forgetHeldTouches, resumeHeldTouches, touchDelivered, touchHandlerEnded, type HeldTouch } from './linkset.js'
 import { Prim } from './prim.js'
 import { EVENT_SPECS } from './generated/events.js'
@@ -1307,7 +1307,7 @@ export class Script {
       // before the take had left waiting (7 runs of 8). Another avatar's touch that came up in it
       // while that avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
       const carried = carriedTouch(e, this.task)
-      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
+      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, !!carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
     }
     if (reset) copy.resetIntoInventory()
     return copy
@@ -1410,8 +1410,8 @@ export class Script {
         ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload
       // An event that is not due yet is judged when it is.
       const at = Math.max(e.at, this.now)
-      const carried = e.at <= this.now && carriedTouch(e, before)
-      clock.schedule(this, at, e.event, payload, e.at <= this.now ? carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
+      const carried = e.at <= this.now ? carriedTouch(e, before) : undefined
+      clock.schedule(this, at, e.event, payload, e.at <= this.now ? !!carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
     }
     if (room > 0 && rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
@@ -2180,14 +2180,20 @@ function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>)
 const isTouch = (event: string | undefined) => event === 'touch_start' || event === 'touch' || event === 'touch_end'
 
 /**
- * Whether a take or a detach carries `e`: a touch event that came up in a busy part of `task`, or
- * was held as busy in the sleep after it, or one carried already. In-world, a click by another
- * avatar made in the spin or in the sleep after it, while a click from the spin waited, came
- * through a detach and wear, or a take, as a click of its own after the first (LSL 6 runs of 6,
- * SLua 7 of 7).
+ * How a take or a detach carries `e`, if it does: a touch event that came up before the busy part
+ * of `task` ended, or was held as busy in the sleep after it, or one carried already. In-world, a
+ * click by another avatar made in the spin or in the sleep after it, while a click from the spin
+ * waited, came through a detach and wear, or a take, as a click of its own after the first (LSL
+ * 6 runs of 6, SLua 7 of 7). A click from before the handler came through too, but a click on
+ * the worn object did not merge into it (LSL and SLua 1 run each).
  */
-const carriedTouch = (e: QueuedEvent, task: Task | null | undefined) =>
-  !!e.carried || isTouch(e.event) && task?.spunUntil !== undefined && (!!e.busy || cameUp(e) <= task.spunUntil)
+function carriedTouch(e: QueuedEvent, task: Task | null | undefined): Carried | undefined {
+  if (e.carried) return e.carried
+  if (!isTouch(e.event) || task?.spunUntil === undefined) return undefined
+  const late = cameUp(e) > task.spunUntil
+  if (late && !e.busy) return undefined
+  return { late, takesIn: cameUp(e) > task.startedAt, behind: !!e.held }
+}
 
 /**
  * Whether an SLua script loses `e` through a take or a detach. In-world, SLua lost the touch of

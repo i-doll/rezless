@@ -25,8 +25,8 @@ export interface QueuedEvent {
   readonly held?: boolean
   /** Came up while the handler was busy, or held back as then: released in the order it came up. */
   readonly busy?: boolean
-  /** A touch event that came up in a busy part before a take or a detach: a later click merges into the last of its kind. */
-  readonly carried?: boolean
+  /** A touch event carried out of a handler that spun, through a take or a detach. */
+  readonly carried?: Carried
   /** When an event due later came up and was judged, if before `at`. */
   readonly raisedAt?: number
   /** The earliest it may run, if after `at`: it comes up at `at` but runs a frame later. */
@@ -52,6 +52,16 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
   ['game_control', 8],
   ['collision_end', 9], ['land_collision', 9], ['land_collision_end', 9],
 ])
+
+/** How a touch event came through a take or a detach out of a handler that spun. */
+export interface Carried {
+  /** It came up in the sleep after the busy part, not before the busy part ended. */
+  readonly late: boolean
+  /** It came up after the handler began, so a later click merges into it. */
+  readonly takesIn: boolean
+  /** It was held back behind an event of its kind, so it runs among the held events. */
+  readonly behind: boolean
+}
 
 /** Changes to running state held from the rest of a handler that was busy at a detach; they take no event slot. */
 export const HELD_CONTROL: ReadonlySet<string> = new Set(['__running', '__scriptState'])
@@ -179,7 +189,8 @@ function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       continue
     }
     if (e.carried) {
-      last.set(e.event, out.push(e) - 1)
+      const at = out.push(e) - 1
+      if (e.carried.takesIn) last.set(e.event, at)
       continue
     }
     const at = last.get(e.event)
@@ -202,20 +213,36 @@ function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
         times[same] = arrived?.[i] ?? e.at
       }
     })
-    out[at] = { ...into, payload: { ...into.payload, num_detected: entries.length, detected: entries, __at: times } }
+    const order = entries.map((_, i) => i).sort((a, b) => times[a]! - times[b]!)
+    out[at] = { ...into, payload: { ...into.payload, num_detected: entries.length, detected: order.map((i) => entries[i]!), __at: order.map((i) => times[i]!) } }
   }
   return out
 }
 
-/** `events` with each run of them up to a touch_end, and the rest after the last, in reverse. */
-function runsLastToFirst(events: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
-  const out: QueuedEvent[] = []
+/**
+ * `held`, released after a take or a detach that carried some of its touch events, as SLua runs
+ * it. In-world, SLua ran each run of touch events last to first, a run ending at a touch_end or
+ * where the events that came up by the end of the spin gave way to those from the sleep after
+ * it: fivebot's touch_end, touch and touch_start, then i doll's touch_end and touch_start (13 runs
+ * of 13 after a take or a detach and wear); i doll's touch and touch_start from the spin, then a
+ * touch_end listing both and fivebot's touch_start from the sleep (3 runs of 3). A click after
+ * the rez ran after them in order (3 runs) and lost its touch (1 run). After a plain sleep SLua
+ * kept their order (1 run).
+ */
+function sluaCarriedOrder(held: ReadonlyArray<QueuedEvent>, carriedAs: ReadonlyMap<QueuedEvent, Carried>): QueuedEvent[] {
+  const out = held.filter((e) => e.event !== 'touch' || carriedAs.has(e))
+  const slots = out.flatMap((e, i) => carriedAs.has(e) ? [i] : [])
+  const part = (e: QueuedEvent) => carriedAs.get(e)!.late
   let run: QueuedEvent[] = []
-  for (const e of events) {
+  const order: QueuedEvent[] = []
+  for (const [k, i] of slots.entries()) {
+    const e = out[i]!
     run.unshift(e)
-    if (e.event === 'touch_end') out.push(...run.splice(0))
+    const next = slots[k + 1] === undefined ? undefined : out[slots[k + 1]!]!
+    if (e.event === 'touch_end' || !next || part(next) !== part(e)) order.push(...run.splice(0))
   }
-  return [...out, ...run]
+  slots.forEach((i, k) => { out[i] = order[k]! })
+  return out
 }
 
 type TouchPart = { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }
@@ -463,7 +490,7 @@ export class LinksetClock {
    * that was waiting, with what `heldBack` said of it. An event judged at `at` that falls due
    * later, at `dueAt`, keeps what it was judged then.
    */
-  schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, dueAt = at, { carried = false, busy: keptBusy = false }: { carried?: boolean; busy?: boolean } = {}): void {
+  schedule(target: Script, at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, dueAt = at, { carried, busy: keptBusy = false }: { carried?: Carried | undefined; busy?: boolean } = {}): void {
     // In-world: an event a handler raised, such as a link message, chat or a change, ran a frame
     // later at the earliest, in every script; a link message sent before llUnSit ran ahead of its
     // changed. Control events are not events a script runs, except the ones that run as changed.
@@ -495,7 +522,7 @@ export class LinksetClock {
     }
     held &&= HELD_ORDER.has(event)
     if (dueAt > at) held ??= false
-    const queued: QueuedEvent = { at: dueAt, ...(dueAt > at && { raisedAt: at }), ...(notBefore > dueAt && { notBefore }), target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy || carried || keptBusy) && { busy: true }), ...(carried && { carried }) }
+    const queued: QueuedEvent = { at: dueAt, ...(dueAt > at && { raisedAt: at }), ...(notBefore > dueAt && { notBefore }), target, event, payload, ...(held !== undefined && { held }), ...((target.busy && at <= Math.max(wakeAt ?? 0, this.now) || held && busy || !!carried || keptBusy) && { busy: true }), ...(carried && { carried }) }
     // In-world: a release in the first sleep of a game_control handler and a press in its second
     // gave one event, for the press. A release that waited from a listen handler's sleep and a
     // press in the sleep of the touch_start handler that ran next gave two. The first input of a
@@ -1122,14 +1149,13 @@ export class LinksetClock {
     const kept = merged.filter((e) => !e.payload[REOPENED])
     const held = kept.map(({ at, target, event, payload }): QueuedEvent => ({ at, target, event, held: false, ...(at > this.now && { raisedAt: this.now }),
       payload: LAND_EVENTS.has(event) ? { ...payload, __here: true } : payload }))
-    // In-world: touch events carried out of a busy part through a take ran first after on_rez:
-    // another avatar's touch ran ahead of the touch_start and touch_end of a click on the copy,
-    // in LSL (2 runs of 2) and SLua (1 run). SLua ran each run of carried touch events up to a
-    // touch_end last to first, after a take (6 runs of 6) or a detach and wear (9 runs of 9): i
-    // doll's waiting touch, fivebot's first click and fivebot's second click ran as fivebot's
-    // touch_end and touch_start, i doll's touch, then the second click's. After a plain sleep it
-    // kept their order (1 run).
-    const carried = new Set(held.filter((_, i) => kept[i]!.carried))
+    const carriedAs = new Map(held.flatMap((e, i) => kept[i]!.carried ? [[e, kept[i]!.carried!] as const] : []))
+    // In-world: the touch events carried out of a busy part through a take or a detach, but not
+    // those held back behind one of their kind, ran first after on_rez, in the order they came:
+    // another avatar's touch ran ahead of the touch_start and touch_end of a click on the copy
+    // (LSL 2 runs of 2, SLua 1 run), and a tick that fell due after the wear ran between
+    // fivebot's click and i doll's held-back click (LSL 2 runs of 2).
+    const first = held.filter((e) => carriedAs.has(e) && !carriedAs.get(e)!.behind)
     const lands = held.filter((e) => e.event === 'land_collision')
     if (lands.length) {
       const tail: LandTail = { script, since: this.ran.get(script) ?? 0, ran: 0, dropped: 0, copies: new WeakMap() }
@@ -1168,10 +1194,8 @@ export class LinksetClock {
       : e.payload[LATE_TOUCH_START] ? HELD_ORDER.get('touch_end')! + 0.5
       : e.payload[TOUCH_AHEAD] ? HELD_ORDER.get('touch_start')! - 0.5 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
-    if (carried.size) {
-      const first = held.filter((e) => carried.has(e))
-      held.splice(0, held.length, ...script.language === 'slua' ? runsLastToFirst(first) : first, ...held.filter((e) => !carried.has(e)))
-    }
+    if (first.length) held.splice(0, held.length, ...first, ...held.filter((e) => !first.includes(e)))
+    if (carriedAs.size && script.language === 'slua') held.splice(0, held.length, ...sluaCarriedOrder(held, carriedAs))
     for (const [i, e] of held.entries()) {
       if (!e.payload[LATE_TOUCH_START] && !e.payload[TOUCH_AHEAD]) continue
       const { [LATE_TOUCH_START]: _, [TOUCH_AHEAD]: __, ...payload } = e.payload
@@ -1343,7 +1367,7 @@ export class ScriptClockView {
   }
 
   /** Schedule a one-shot event on this script. */
-  schedule(at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, flags: { carried?: boolean; busy?: boolean } = {}): void {
+  schedule(at: number, event: string, payload: Record<string, unknown> = {}, held?: boolean, flags: { carried?: Carried | undefined; busy?: boolean } = {}): void {
     this.linksetClock.schedule(this.self(), at, event, payload, held, at, flags)
   }
 
