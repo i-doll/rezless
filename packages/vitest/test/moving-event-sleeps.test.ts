@@ -101,7 +101,7 @@ describe('motion that starts and ends while a handler sleeps', () => {
     expect(b.log()).toEqual(expected)
   })
 
-  // In-world: a 0.01 or 0.05 s busy loop before a 1 s sleep after a 0.5 s motion -> both.
+  // In-world: a 0.5 s motion, then a 0.01 or 0.05 s busy loop and a 1 s sleep -> both.
   it.each([10, 50])('gives both when the handler spins for %i ms before the sleep', async (ms) => {
     const b = await box(mover)
     b.script.mock('llOwnerSay', (ctx) => { ctx.busy(ms); return undefined })
