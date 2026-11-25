@@ -693,48 +693,58 @@ describe('two avatars clicking while a handler sleeps', () => {
   })
 
   describe('a second click by the same avatar after the handler spun', () => {
-    it('raises touch_start and touch_end but no touch while the first click\'s touch waits', async () => {
+    it('raises a touch_start, touch and touch_end of its own', async () => {
       // In-world (Aditi, SLua Tideland, 2026-11-25): fivebot alone clicked twice in a listen
-      // handler, in its spin or the sleep after it, with the handler busy at some point after the
-      // first click -> after the handler the first click's touch_start, touch and touch_end, then
-      // the second click's touch_start and touch_end: LSL 3 runs of 3 with a click in the spin of
-      // a sleep-spin-sleep and one in the second sleep, 2 of 2 with clicks in the first and
-      // second sleeps, 2 of 2 with both in a spin, 2 of 2 with one in a sleep and one in the
-      // spin after it; SLua 2 of 2 with clicks in a spin, 2 of 2 in the spin and second sleep.
+      // handler, in its spin or the sleep after it, with each click's arrival logged in region
+      // time and every touch event logged -> after the handler each click's touch_start, touch
+      // and touch_end: a 3 s spin with clicks 2.5 and 1.5 s before its end, LSL 2 runs of 2 and
+      // SLua 1 run; a sleep 1 s, spin 1 s, sleep 1.5 s listen with clicks 0.6 s before the end of
+      // the spin and 0.8 s into the second sleep, LSL and SLua 1 run each; clicks in the first
+      // sleep and the second, LSL 1 run; a sleep 1.5 s, spin 1.5 s listen with clicks in the sleep
+      // and the spin, LSL 1 run. Earlier runs had logged no touch for the second click, because
+      // their log dropped a touch listing the same avatars within 0.3 s of the last one.
       for (const lang of ['lsl', 'slua'] as const) {
-        expect(await run(lang, 0, 0, { 0: 'Z', 1300: 'f', 1500: 'F', 2500: 'f', 2800: 'F' })).toBe('Z Sf Tf Ef Sf Ef')
-        expect(await run(lang, 0, 0, { 0: 'P', 500: 'f', 700: 'F', 1500: 'f', 1800: 'F' })).toBe('P Sf Tf Ef Sf Ef')
+        expect(await run(lang, 0, 0, { 0: 'Z', 1300: 'f', 1500: 'F', 2500: 'f', 2800: 'F' })).toBe('Z Sf Tf Ef Sf Tf Ef')
+        expect(await run(lang, 0, 0, { 0: 'P', 500: 'f', 700: 'F', 1500: 'f', 1800: 'F' })).toBe('P Sf Tf Ef Sf Tf Ef')
       }
-      expect(await run('lsl', 0, 0, { 0: 'Z', 400: 'f', 600: 'F', 2400: 'f', 2700: 'F' })).toBe('Z Sf Tf Ef Sf Ef')
-      expect(await run('lsl', 0, 0, { 0: 'R', 400: 'f', 600: 'F', 1700: 'f', 2000: 'F' })).toBe('R Sf Tf Ef Sf Ef')
+      expect(await run('lsl', 0, 0, { 0: 'Z', 400: 'f', 600: 'F', 2400: 'f', 2700: 'F' })).toBe('Z Sf Tf Ef Sf Tf Ef')
+      expect(await run('lsl', 0, 0, { 0: 'R', 400: 'f', 600: 'F', 1700: 'f', 2000: 'F' })).toBe('R Sf Tf Ef Sf Tf Ef')
     })
 
     it('merges into the first click in a handler that only slept', async () => {
       // In-world (Aditi, SLua Tideland, 2026-11-25): fivebot alone clicked twice in a listen that
-      // slept 3 s -> one touch_start, touch and touch_end, LSL 3 runs of 3, SLua 1 of 1.
+      // slept 3 s -> one touch_start, touch and touch_end, LSL 3 runs of 3, SLua 1 of 1. Re-probed
+      // with each click's arrival logged, 2.6 and 1.5 s before the wake -> the same, LSL and SLua
+      // 1 run each.
       for (const lang of ['lsl', 'slua'] as const) {
         expect(await run(lang, 0, 0, { 0: 'L', 500: 'f', 700: 'F', 1500: 'f', 1800: 'F' })).toBe('L Sf Tf Ef')
       }
     })
 
-    it('merges into the first click after the object is taken and rezzed, or detached and worn, in the sleep', async () => {
-      // In-world (Aditi, SLua Tideland, 2026-11-25): fivebot alone clicked in the 1.5 s spin of a
-      // listen that then slept 20 s, and again in the sleep -> the second click's touch_start and
-      // touch_end of its own, 3 runs of 3. With the object taken and rezzed between the clicks ->
-      // on_rez, then one touch_start, touch and touch_end, 7 runs of 8 (the other kept the second
-      // click's touch_start and touch_end). Detached and worn between them -> the same, 3 runs
-      // of 3.
-      expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 5000: 'f', 5300: 'F' })).toBe('W Sf Tf Ef Sf Ef')
-      expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'K', 5000: 'f', 5300: 'F' })).toBe('W O Sf Tf Ef')
-      expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'V', 5000: 'f', 5300: 'F' })).toBe('W O Sf Tf Ef')
-      // In-world: the same take in SLua -> on_rez, then one touch_end, touch and touch_start, in
-      // that order, 2 runs of 2; with no click on the copy, the same, 2 runs of 2. Detached and
-      // worn in place of the take -> the same, 2 runs of 2.
-      expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'K', 5000: 'f', 5300: 'F' })).toBe('W O Ef Tf Sf')
-      expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'V', 5000: 'f', 5300: 'F' })).toBe('W O Ef Tf Sf')
+    it('stays a click of its own after the object is taken and rezzed, or detached and worn, in the sleep', async () => {
+      // In-world (Aditi, SLua Tideland, 2026-11-25): fivebot alone clicked 1 s before the end of
+      // the 1.5 s spin of a listen that then slept 15 s, and again 3.3 s into the sleep -> the
+      // second click's touch_start, touch and touch_end of its own, LSL and SLua 1 run each. With
+      // the object taken 3.3 s into the sleep, rezzed, and clicked 1 s after the rez -> in LSL
+      // on_rez and the two clicks apart, 2 runs of 2 with every touch logged (6 more runs, whose
+      // log could drop the second click's touch, left a frame free for it); in SLua on_rez, the
+      // first click last to first, then the second click's touch_end and touch_start with no
+      // touch, 7 runs of 7. Detached and worn 1.3 s into the sleep and clicked 1 s after the wear
+      // -> the same in each language, LSL 5 runs of 5 and SLua 5 of 5, one each by a script with
+      // no attach handler. Earlier runs had the second click merge into the first; their runner
+      // fired each step its full delay after the one before.
+      expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 5000: 'f', 5300: 'F' })).toBe('W Sf Tf Ef Sf Tf Ef')
+      expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'K', 5000: 'f', 5300: 'F' })).toBe('W O Sf Tf Ef Sf Tf Ef')
+      expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'V', 5000: 'f', 5300: 'F' })).toBe('W O Sf Tf Ef Sf Tf Ef')
+      expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 5000: 'f', 5300: 'F' })).toBe('W Sf Tf Ef Sf Tf Ef')
+      expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'K', 5000: 'f', 5300: 'F' })).toBe('W O Ef Tf Sf Ef Sf')
+      expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'V', 5000: 'f', 5300: 'F' })).toBe('W O Ef Tf Sf Ef Sf')
+      // In-world: the same take in SLua with no click on the copy -> on_rez, then one touch_end,
+      // touch and touch_start, 4 runs of 4.
       expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'K' })).toBe('W O Ef Tf Sf')
       // In-world: a click in a plain sleep, then a take -> on_rez, then touch_start, touch and
-      // touch_end in order, in LSL and SLua, 1 run each.
+      // touch_end in order, in LSL and SLua, 1 run each; re-probed with the click 4.2 s before the
+      // wake and the take in the sleep, LSL and SLua 1 run each.
       for (const lang of ['lsl', 'slua'] as const) {
         expect(await run(lang, 0, 0, { 0: 'L', 500: 'f', 700: 'F', 1500: 'K' })).toBe('L O Sf Tf Ef')
       }
@@ -829,21 +839,29 @@ describe('two avatars clicking while a handler sleeps', () => {
     expect(either(await run('lsl', 0, 0, { 0: 'W', 400: 'i', 3000: 'f', 3200: 'F', 3500: 'I', 4500: 'V', 13000: 'M' }))).toBe('W O Si Ti E** M')
   })
 
-  it('a detach and wear keeps a touch_end listing first the avatar that pressed in the spin', async () => {
-    // In-world (Aditi, SLua Tideland, 2026-11-25): the runs above -> the touch_end listed the
-    // avatar holding from the spin first, though the other let go first, LSL and SLua 4 runs of 4,
-    // as without the detach (below).
-    expect(await run('slua', 0, 0, { 0: 'W', 400: 'i', 3000: 'f', 3200: 'F', 3500: 'I', 4500: 'V', 13000: 'M' })).toBe('W O Ti Si Eif Sf M')
-    expect(await run('lsl', 0, 0, { 0: 'W', 400: 'i', 3000: 'f', 3200: 'F', 3500: 'I', 4500: 'V', 13000: 'M' })).toBe('W O Si Ti Eif M')
+  it('a detach and wear keeps a touch_end listing the avatars in the order they let go', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25): i doll pressed 1.0 s before the end of a
+    // listen's 1.5 s spin, fivebot clicked 1.2 to 1.4 s into the sleep and let go first, i doll let
+    // go 1.9 s in, and the object was detached and worn 2.8 s in -> the touch_end listed fivebot
+    // and then i doll, LSL and SLua 1 run each, as without the detach (below). Earlier runs that
+    // listed i doll first did not log when the clicks fell.
+    expect(await run('slua', 0, 0, { 0: 'W', 400: 'i', 3000: 'f', 3200: 'F', 3500: 'I', 4500: 'V', 13000: 'M' })).toBe('W O Ti Si Efi Sf M')
+    expect(await run('lsl', 0, 0, { 0: 'W', 400: 'i', 3000: 'f', 3200: 'F', 3500: 'I', 4500: 'V', 13000: 'M' })).toBe('W O Si Ti Efi M')
   })
 
-  it('a detach and wear carries one avatar\'s clicks from the spin and the sleep as two clicks', async () => {
-    // In-world (Aditi, SLua Tideland, 2026-11-25): i doll alone clicked in a listen's spin and
-    // again in the sleep, and the object was detached and worn later in the sleep -> on_rez, the
-    // first click's touch_start, touch and touch_end, then the second's touch_start and
-    // touch_end; SLua ran each click last to first, 1 run each.
-    expect(await run('lsl', 0, 0, { 0: 'W', 400: 'i', 600: 'I', 3000: 'i', 3200: 'I', 4500: 'V', 13000: 'M' })).toBe('W O Si Ti Ei Si Ei M')
+  it('a detach and wear or a take carries one avatar\'s clicks from the spin and the sleep as two clicks', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25): i doll alone clicked 1.0 s before the end of a
+    // listen's 1.5 s spin and again 1.3 s into the sleep, and the object was detached and worn
+    // 2.8 s into the sleep -> on_rez and each click's touch_start, touch and touch_end in LSL,
+    // 6 runs of 6 (two by a script with no attach handler); SLua ran the first click last to first
+    // and the second as touch_end and touch_start with no touch, 4 runs of 4 (one). Taken 4.5 s into the
+    // sleep and rezzed -> the same, LSL 1 run with every touch logged (2 more left a frame free
+    // for the second touch), SLua 3 runs of 3. An earlier LSL run logged no touch for the second
+    // click; its log dropped a touch listing the same avatars within 0.3 s of the last one.
+    expect(await run('lsl', 0, 0, { 0: 'W', 400: 'i', 600: 'I', 3000: 'i', 3200: 'I', 4500: 'V', 13000: 'M' })).toBe('W O Si Ti Ei Si Ti Ei M')
     expect(await run('slua', 0, 0, { 0: 'W', 400: 'i', 600: 'I', 3000: 'i', 3200: 'I', 4500: 'V', 13000: 'M' })).toBe('W O Ei Ti Si Ei Si M')
+    expect(await run('lsl', 0, 0, { 0: 'W', 400: 'i', 600: 'I', 3000: 'i', 3200: 'I', 4500: 'K', 13000: 'M' })).toBe('W O Si Ti Ei Si Ti Ei M')
+    expect(await run('slua', 0, 0, { 0: 'W', 400: 'i', 600: 'I', 3000: 'i', 3200: 'I', 4500: 'K', 13000: 'M' })).toBe('W O Ei Ti Si Ei Si M')
   })
 
   it('a detach and wear carries a click from before the spin, which takes in no later click', async () => {
@@ -936,32 +954,39 @@ describe('two avatars clicking while a handler sleeps', () => {
 
   describe('the avatars a touch_end lists when two releases merged into it', () => {
     // In-world (Aditi, SLua Tideland, 2026-11-25): two avatars clicked an object whose listen spun
-    // 1.5 s and then slept, or only slept, and both let go in the sleep. The touch_end both
-    // releases merged into listed first, in the order they pressed, the avatars that pressed in
-    // the spin, then the others in the order they let go. LSL and SLua the same.
-    it('lists an avatar that pressed in the spin ahead of one that let go first', async () => {
-      // In-world: i doll pressed in the spin, fivebot clicked in the sleep, and i doll let go after
-      // fivebot -> touch_end listing i doll and then fivebot, LSL and SLua 2 runs of 2 each; with
-      // the avatars swapped, fivebot first, 1 run each. SLua ran fivebot's own touch_start last.
-      expect(await run('lsl', 0, 0, { 0: 'W', 300: 'i', 2900: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Eif M')
-      expect(await run('slua', 0, 0, { 0: 'W', 300: 'i', 2900: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Eif Sf M')
-      expect(await run('lsl', 0, 0, { 0: 'W', 300: 'f', 2900: 'i', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Sf Tf Efi M')
-      expect(await run('slua', 0, 0, { 0: 'W', 300: 'f', 2900: 'i', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Sf Tf Efi Si M')
-      // In-world: i doll let go first instead -> the same events, 1 run each.
+    // 1.5 s and then slept 10 s, or only slept, with each click's arrival logged in region time,
+    // and both let go in the sleep. The touch_end both releases merged into listed the avatars in
+    // the order they let go, whether or not one of them pressed in the spin. LSL and SLua the same.
+    // Earlier runs that listed an avatar who pressed in the spin first did not log when the clicks
+    // fell; their runner fired each step its full delay after the one before.
+    it('lists an avatar that let go first ahead of one that pressed in the spin', async () => {
+      // In-world: i doll pressed 1.0 s before the end of the spin, fivebot clicked 1.2 to 1.4 s
+      // into the sleep, and i doll let go 2.0 s in -> touch_end listing fivebot and then i doll,
+      // LSL and SLua 3 runs of 3 each (one with the logging of the clicks turned off); with the
+      // avatars swapped, i doll first, 3 runs of 3 each. SLua ran the clicker's own touch_start
+      // last.
+      expect(await run('lsl', 0, 0, { 0: 'W', 300: 'i', 2900: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Efi M')
+      expect(await run('slua', 0, 0, { 0: 'W', 300: 'i', 2900: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Efi Sf M')
+      expect(await run('lsl', 0, 0, { 0: 'W', 300: 'f', 2900: 'i', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Sf Tf Eif M')
+      expect(await run('slua', 0, 0, { 0: 'W', 300: 'f', 2900: 'i', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Sf Tf Eif Si M')
+      // In-world: i doll let go first, 1.6 s into the sleep, and fivebot 1.8 s in -> touch_end
+      // listing i doll and then fivebot, 1 run each.
       expect(await run('lsl', 0, 0, { 0: 'W', 300: 'i', 2400: 'f', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Si Ti Eif M')
       expect(await run('slua', 0, 0, { 0: 'W', 300: 'i', 2400: 'f', 3100: 'I', 3400: 'F', 13000: 'M' })).toBe('W Si Ti Eif Sf M')
     })
 
-    it('lists two avatars that pressed in the spin in the order they pressed', async () => {
-      // In-world: i doll and then fivebot pressed in the spin, and fivebot let go first in the
-      // sleep -> touch_end listing i doll and then fivebot, LSL and SLua 1 run each.
-      expect(await run('lsl', 0, 0, { 0: 'W', 200: 'i', 600: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Eif M')
-      expect(await run('slua', 0, 0, { 0: 'W', 200: 'i', 600: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Eif Sf M')
+    it('lists two avatars that pressed in the spin in the order they let go', async () => {
+      // In-world: i doll pressed 1.1 s before the end of the spin and fivebot after it, fivebot let
+      // go 1.7 s into the sleep and i doll 1.9 s in -> touch_end listing fivebot and then i doll,
+      // LSL and SLua 3 runs of 3 each (one with the logging of the clicks turned off).
+      expect(await run('lsl', 0, 0, { 0: 'W', 200: 'i', 600: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Efi M')
+      expect(await run('slua', 0, 0, { 0: 'W', 200: 'i', 600: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('W Si Ti Efi Sf M')
     })
 
-    it('lists the avatars in the order they let go when neither pressed in a spin, or only the one who let go first did', async () => {
+    it('lists the avatars in the order they let go when neither pressed in a spin', async () => {
       // In-world: a listen slept 6 s, i doll pressed, fivebot clicked, and i doll let go last ->
-      // touch_end listing fivebot and then i doll, LSL and SLua 1 run each.
+      // touch_end listing fivebot and then i doll, LSL and SLua 1 run each, and again with the
+      // clicks logged, 1 run each.
       expect(await run('lsl', 0, 0, { 0: 'L', 300: 'i', 1000: 'f', 1200: 'F', 2500: 'I', 13000: 'M' })).toBe('L Si Tif Efi M')
       expect(await run('slua', 0, 0, { 0: 'L', 300: 'i', 1000: 'f', 1200: 'F', 2500: 'I', 13000: 'M' })).toBe('L Sif Tif Efi M')
       // In-world: i doll clicked, fivebot pressed, i doll clicked again, and fivebot let go last ->
@@ -969,26 +994,30 @@ describe('two avatars clicking while a handler sleeps', () => {
       for (const lang of ['lsl', 'slua'] as const) {
         expect(await run(lang, 0, 0, { 0: 'L', 200: 'i', 300: 'I', 600: 'f', 1200: 'i', 1300: 'I', 2700: 'F', 13000: 'M' })).toBe('L Sif Tfi Eif M')
       }
-      // In-world: i doll pressed in the first sleep of a listen that slept 1 s, spun 1 s and slept
-      // 10 s, fivebot pressed in the spin, and fivebot let go first -> touch_end listing fivebot and
-      // then i doll, LSL and SLua 1 run each.
+      // In-world: i doll pressed 0.4 s into the first sleep of a listen that slept 1 s, spun 1 s
+      // and slept 10 s, fivebot pressed in the spin, and fivebot let go first -> touch_end listing
+      // fivebot and then i doll, LSL and SLua 1 run each, and again with the clicks logged, 1 run
+      // each.
       expect(await run('lsl', 0, 0, { 0: 'Z', 200: 'i', 1300: 'f', 2500: 'F', 3000: 'I', 13000: 'M' })).toBe('Z Si Ti Efi M')
       expect(await run('slua', 0, 0, { 0: 'Z', 200: 'i', 1300: 'f', 2500: 'F', 3000: 'I', 13000: 'M' })).toBe('Z Si Ti Efi Sf M')
     })
 
-    it('counts only a press in the spin of the handler the releases came in', async () => {
+    it('keeps the release order when the releases come in a later handler', async () => {
       // In-world: i doll pressed in a listen's 3 s spin and held on, a timer that slept 3 s ran
       // after it, fivebot clicked in that sleep and i doll let go last -> touch_end listing
-      // fivebot and then i doll, LSL and SLua 2 runs of 2 each. In LSL fivebot joined i doll's
-      // touch, and in SLua fivebot's touch_start ran ahead of the touch_end.
+      // fivebot and then i doll, LSL and SLua 2 runs of 2 each, and again with the clicks logged,
+      // LSL 5 runs and SLua 1. In SLua fivebot's touch_start ran ahead of the touch_end. In LSL
+      // fivebot joined i doll's touch when the timer started 0.16 s after the spin (2 runs) and not
+      // when it started 0.18 s after (3 runs), as the frame rule above gives.
       expect(await run('lsl', 0, 0, { 0: 'P', 300: 'i', 3100: 'X', 3900: 'f', 4100: 'F', 4600: 'I', 13000: 'M' })).toBe('P Si Ti X Tif Efi M')
       expect(await run('slua', 0, 0, { 0: 'P', 300: 'i', 3100: 'X', 3900: 'f', 4100: 'F', 4600: 'I', 13000: 'M' })).toBe('P Si Ti X Ti Sf Efi M')
     })
 
     it('follows a timer that spins and then sleeps as it does a listen', async () => {
-      // In-world: an LLTimers:once callback spun 1.5 s and slept 10 s, i doll pressed in the spin
-      // and fivebot clicked in the sleep -> as with the listen, SLua 2 runs of 2.
-      expect(await run('slua', 0, 0, { 0: 'U', 400: 'i', 2900: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('U Si Ti Eif Sf M')
+      // In-world: an LLTimers:once callback spun 1.5 s and slept 10 s, i doll pressed 1.0 s before
+      // the end of the spin, fivebot clicked 1.1 to 1.3 s into the sleep, and i doll let go 2.0 s
+      // in -> touch_end listing fivebot and then i doll, as with the listen, SLua 2 runs of 2.
+      expect(await run('slua', 0, 0, { 0: 'U', 400: 'i', 2900: 'f', 3100: 'F', 3400: 'I', 13000: 'M' })).toBe('U Si Ti Efi Sf M')
     })
   })
 
@@ -1049,6 +1078,8 @@ describe('two avatars clicking while a handler sleeps', () => {
     // spin, and the object fivebot wore was detached and worn in the sleep -> on_rez, fivebot's
     // click, attach, then i doll's click, LSL 2 runs of 2 and SLua 1 run. With a change of colour
     // before the detach or after the wear -> the change after attach, LSL and SLua 1 run each.
+    // Re-probed with each click's arrival logged, fivebot's 1.0 s and i doll's 0.5 s before the end
+    // of the spin -> the same, LSL and SLua 1 run each, and 1 run each per change.
     const clicks = { 0: 'W', 400: 'f', 600: 'F', 800: 'i', 1000: 'I', 16000: 'M' } as const
     expect(await run('lsl', 0, 0, { ...clicks, 2500: 'V' }, 0, true)).toBe('A W O Sf Tf Ef A Si Ti Ei M')
     expect(await run('slua', 0, 0, { ...clicks, 2500: 'V' }, 0, true)).toBe('A W O Ef Tf Sf A Ei Si M')
@@ -1056,6 +1087,79 @@ describe('two avatars clicking while a handler sleeps', () => {
       expect(await run('lsl', 0, 0, { ...clicks, ...steps }, 0, true)).toBe('A W O Sf Tf Ef A C Si Ti Ei M')
       expect(await run('slua', 0, 0, { ...clicks, ...steps }, 0, true)).toBe('A W O Ef Tf Sf A C Ei Si M')
     }
+  })
+
+  it('a detach and wear runs the attach after the carried events that were not held back', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25), with each click's arrival logged in region time
+    // and the object detached and worn in the sleep of a listen that spun 1.5 s: attach ran after
+    // the touch events that came up by the end of the spin and before those from the sleep.
+    // i doll pressed in the spin and let go in the sleep, fivebot clicked in the sleep -> LSL
+    // on_rez, i doll's touch_start and touch, attach, the touch_end, 1 run; SLua the same, last to
+    // first, 1 run.
+    const pressed = { 0: 'W', 400: 'i', 3000: 'f', 3200: 'F', 3500: 'I', 4500: 'V', 13000: 'M' } as const
+    expect(await run('lsl', 0, 0, pressed, 0, true)).toBe('A W O Si Ti A Efi M')
+    expect(await run('slua', 0, 0, pressed, 0, true)).toBe('A W O Ti Si A Efi Sf M')
+    // In-world: i doll alone clicked in the spin and in the sleep -> attach between the clicks,
+    // LSL 6 runs of 6 and SLua 4 of 4, including runs by a script with no attach handler.
+    const twice = { 0: 'W', 400: 'i', 600: 'I', 3000: 'i', 3200: 'I', 4500: 'V', 13000: 'M' } as const
+    expect(await run('lsl', 0, 0, twice, 0, true)).toBe('A W O Si Ti Ei A Si Ti Ei M')
+    expect(await run('slua', 0, 0, twice, 0, true)).toBe('A W O Ei Ti Si A Ei Si M')
+    // In-world: fivebot clicked in the spin, and again on the worn object -> attach between the
+    // clicks, LSL 5 runs of 5 and SLua 5 of 5. Taken and worn in place of the detach -> the same,
+    // 2 runs of 2 each.
+    expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'V', 5000: 'f', 5300: 'F' }, 0, true)).toBe('A W O Sf Tf Ef A Sf Tf Ef')
+    expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'V', 5000: 'f', 5300: 'F' }, 0, true)).toBe('A W O Ef Tf Sf A Ef Sf')
+    expect(await run('lsl', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'k', 5000: 'f', 5300: 'F' }, 0, true)).toBe('W O Sf Tf Ef A Sf Tf Ef')
+    expect(await run('slua', 0, 0, { 0: 'W', 500: 'f', 700: 'F', 2500: 'k', 5000: 'f', 5300: 'F' }, 0, true)).toBe('W O Ef Tf Sf A Ef Sf')
+    // In-world: i doll clicked before the spin, in an earlier listen's sleep or the first sleep of
+    // a sleep, spin, sleep listen -> attach after i doll's click, LSL and SLua 1 run each per case.
+    expect(await run('lsl', 0, 0, { 0: 'L', 500: 'W', 1000: 'i', 1200: 'I', 6000: 'V', 9000: 'f', 9200: 'F', 20000: 'M' }, 0, true)).toBe('A L W O Si Ti Ei A Sf Tf Ef M')
+    expect(await run('slua', 0, 0, { 0: 'L', 500: 'W', 1000: 'i', 1200: 'I', 6000: 'V', 9000: 'f', 9200: 'F', 20000: 'M' }, 0, true)).toBe('A L W O Ei Ti Si A Ef Sf M')
+    expect(await run('lsl', 0, 0, { 0: 'Z', 300: 'i', 500: 'I', 2800: 'V' }, 0, true)).toBe('A Z O Si Ti Ei A')
+    expect(await run('slua', 0, 0, { 0: 'Z', 300: 'i', 500: 'I', 2800: 'V' }, 0, true)).toBe('A Z O Ei Ti Si A')
+    // In-world: i doll held a click through the detach and wear, and fivebot clicked the worn
+    // object -> attach after i doll's touch from the spin, LSL and SLua 1 run each.
+    for (const lang of ['lsl', 'slua'] as const) {
+      expect(await run(lang, 0, 0, { 0: 'i', 300: 'W', 3300: 'V', 6000: 'f', 6300: 'F', 9000: 'I' }, 0, true)).toBe('A Si Ti W O Ti A Sf Ef Ti')
+    }
+    // In-world: fivebot and then i doll clicked in a 3 s spin and the detach came in the spin ->
+    // attach after fivebot's click, LSL 2 runs of 2 and SLua 1 run.
+    expect(await run('lsl', 0, 0, { 0: 'W', 400: 'f', 600: 'F', 800: 'i', 1000: 'I', 1200: 'V', 13000: 'M' }, 0, true)).toBe('A W O Sf Tf Ef A Si Ti Ei M')
+    expect(await run('slua', 0, 0, { 0: 'W', 400: 'f', 600: 'F', 800: 'i', 1000: 'I', 1200: 'V', 13000: 'M' }, 0, true)).toBe('A W O Ef Tf Sf A Ei Si M')
+  })
+
+  it('a detach and wear runs the attach after the first of a held avatar\'s carried clicks', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25): i doll held a click, a listen spun 1.5 s and
+    // slept 15 s, fivebot clicked twice, both in the spin or the second 0.8 s into the sleep, and
+    // the object was detached and worn in the sleep -> LSL on_rez, i doll's touch, fivebot's
+    // first touch_end and second touch_start, attach, a touch listing both and fivebot's
+    // touch_end, with the second click in the spin; attach before that touch_start with it in the
+    // sleep, 1 run each. SLua ran fivebot's first touch_end and second touch_start, i doll's
+    // touch, attach, then the second touch_end and touch_start, 1 run each.
+    expect(await run('lsl', 0, 0, { 0: 'i', 300: 'W', 900: 'f', 1100: 'F', 1400: 'f', 1600: 'F', 5000: 'V', 13000: 'M' }, 0, true)).toBe('A Si Ti W O Ti Ef Sf A Tif Ef Ti M Ti')
+    expect(await run('lsl', 0, 0, { 0: 'i', 300: 'W', 900: 'f', 1100: 'F', 2600: 'f', 2800: 'F', 5000: 'V', 13000: 'M' }, 0, true)).toBe('A Si Ti W O Ti Ef A Sf Tif Ef Ti M Ti')
+    for (const second of [1400, 2600]) {
+      expect(await run('slua', 0, 0, { 0: 'i', 300: 'W', 900: 'f', 1100: 'F', [second]: 'f', [second + 200]: 'F', 5000: 'V', 13000: 'M' }, 0, true)).toBe('A Si Ti W O Ef Sf Ti A Ef Sf Ti M Ti')
+    }
+  })
+
+  it('runs a listen that came after a take or a wear behind the carried click, ahead of the held-back click', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25): fivebot and then i doll clicked in a listen's
+    // spin, the object was detached and worn in the sleep, and a second listen came after the wear
+    // -> on_rez, fivebot's click, attach, the second listen, then i doll's click, LSL and SLua 1
+    // run each; LSL 1 more run with the detach in the spin gave the same. By a script with no
+    // attach handler -> on_rez, fivebot's click, the listen, then i doll's click, LSL and SLua 2
+    // runs of 2 each. Taken and rezzed in place of the detach -> the same, LSL and SLua 1 run
+    // each; taken and worn -> as after the detach and wear, LSL and SLua 1 run each.
+    const clicks = { 0: 'W', 400: 'f', 600: 'F', 800: 'i', 1000: 'I', 5000: 'M', 16000: 'M' } as const
+    expect(await run('lsl', 0, 0, { ...clicks, 2500: 'V' }, 0, true)).toBe('A W O Sf Tf Ef A M Si Ti Ei M')
+    expect(await run('slua', 0, 0, { ...clicks, 2500: 'V' }, 0, true)).toBe('A W O Ef Tf Sf A M Ei Si M')
+    expect(await run('lsl', 0, 0, { ...clicks, 2500: 'V' })).toBe('W O Sf Tf Ef M Si Ti Ei M')
+    expect(await run('slua', 0, 0, { ...clicks, 2500: 'V' })).toBe('W O Ef Tf Sf M Ei Si M')
+    expect(await run('lsl', 0, 0, { ...clicks, 2500: 'K' }, 0, true)).toBe('W O Sf Tf Ef M Si Ti Ei M')
+    expect(await run('slua', 0, 0, { ...clicks, 2500: 'K' }, 0, true)).toBe('W O Ef Tf Sf M Ei Si M')
+    expect(await run('lsl', 0, 0, { ...clicks, 2500: 'k' }, 0, true)).toBe('W O Sf Tf Ef A M Si Ti Ei M')
+    expect(await run('slua', 0, 0, { ...clicks, 2500: 'k' }, 0, true)).toBe('W O Ef Tf Sf A M Ei Si M')
   })
 
   describe('a take from under a sitter', () => {
@@ -1078,18 +1182,27 @@ describe('two avatars clicking while a handler sleeps', () => {
 
   describe('an avatar clicking in the spin and again in the sleep', () => {
     // In-world (Aditi, SLua Tideland, 2026-11-25): a listen spun 1.5 s and slept 10 s, i doll
-    // clicked in the spin, and fivebot and then i doll clicked in the sleep. The second clicks
-    // merged into one touch_start, touch and touch_end listing them in the order they came, not
-    // with i doll first for its press in the spin.
+    // clicked 1.0 s before the end of the spin, and fivebot and then i doll clicked in the sleep,
+    // with each click's arrival logged in region time. The second clicks merged into one
+    // touch_start, touch and touch_end listing them in the order they came, not with i doll first
+    // for its press in the spin.
     it('lists a later click of that avatar with the other avatar\'s click in the order they came', async () => {
       for (const lang of ['lsl', 'slua'] as const) {
-        // In-world: fivebot let go before i doll's second press -> LSL and SLua 2 runs of 2 each.
+        // In-world: fivebot clicked 1.0 to 1.4 s into the sleep and i doll 1.6 to 1.8 s in -> LSL
+        // and SLua 2 runs of 2 each, and again with the clicks logged, 1 run each.
         expect(await run(lang, 0, 0, { 0: 'W', 400: 'i', 600: 'I', 2500: 'f', 2900: 'F', 3000: 'i', 3200: 'I', 13000: 'M' })).toBe('W Si Ti Ei Sfi Tfi Efi M')
-        // In-world: i doll pressed while fivebot held on, and fivebot let go first -> 1 run each.
-        expect(await run(lang, 0, 0, { 0: 'W', 400: 'i', 600: 'I', 2500: 'f', 2800: 'i', 3100: 'F', 3300: 'I', 13000: 'M' })).toBe('W Si Ti Ei Sfi Tfi Efi M')
-        // In-world: with the avatars swapped -> 1 run each.
+        // In-world: with the avatars swapped -> 1 run each, and again with the clicks logged, 1 run
+        // each.
         expect(await run(lang, 0, 0, { 0: 'W', 400: 'f', 600: 'F', 2500: 'i', 2900: 'I', 3000: 'f', 3200: 'F', 13000: 'M' })).toBe('W Sf Tf Ef Sif Tif Eif M')
       }
+      // In-world: fivebot pressed 1.0 s into the sleep, i doll pressed while fivebot held on, and
+      // fivebot let go first, 1.6 s in, then i doll, 1.8 s in -> in LSL no touch_start for i doll's
+      // press, 3 runs of 3 (one with the logging of the clicks turned off); SLua listed i doll in
+      // the touch_start too, 2 runs of 2. An earlier LSL run that listed i doll in the touch_start
+      // did not log when the clicks fell; its runner fired each step its full delay after the one
+      // before, so i doll's press likely came after fivebot let go.
+      expect(await run('lsl', 0, 0, { 0: 'W', 400: 'i', 600: 'I', 2500: 'f', 2800: 'i', 3100: 'F', 3300: 'I', 13000: 'M' })).toBe('W Si Ti Ei Sf Tfi Efi M')
+      expect(await run('slua', 0, 0, { 0: 'W', 400: 'i', 600: 'I', 2500: 'f', 2800: 'i', 3100: 'F', 3300: 'I', 13000: 'M' })).toBe('W Si Ti Ei Sfi Tfi Efi M')
     })
 
     it('merges the later avatar\'s click from the spin into its click in the sleep when both pressed in the spin', async () => {

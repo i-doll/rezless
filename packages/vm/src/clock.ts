@@ -48,6 +48,22 @@ const standsFor = (e: QueuedEvent, script: Script) => e.target === script && e.e
 export const cameUp = (e: QueuedEvent) => e.raisedAt ?? e.at
 
 /**
+ * Of `plain`, the events a handler's carried touch events run ahead of: the attach of the wear
+ * that carried them, and the events of no held kind that came up after the rez, other than
+ * on_rez. In-world, a listen that came up after the rez ran behind fivebot's carried click and
+ * the attach, ahead of i doll's held-back click: after a detach and wear, LSL and SLua 1 run each
+ * and 2 runs each by a script with no attach handler; after a take and rez or a take and wear,
+ * LSL and SLua 1 run each.
+ */
+function afterCarried(plain: ReadonlyArray<QueuedEvent>, carried: boolean): QueuedEvent[] {
+  if (!carried) return []
+  const attaches = plain.filter((e) => e.event === 'attach' && e.payload['avatar'] !== NULL_KEY)
+  const rez = plain.filter((e) => e.event === 'on_rez').at(-1)
+  const later = (e: QueuedEvent) => !!rez && !HELD_ORDER.has(e.event) && e.event !== 'on_rez' && e.event !== 'attach' && cameUp(e) > cameUp(rez)
+  return plain.filter((e) => attaches.length === 1 && e === attaches[0] || later(e))
+}
+
+/**
  * Events Second Life holds back while a handler sleeps. When the handler wakes or ends they go
  * behind the events that waited for it, in this order, whatever order they came up in. Events
  * of one rank keep the order they came up in.
@@ -68,7 +84,7 @@ const HELD_ORDER: ReadonlyMap<string, number> = new Map([
 export interface Carried {
   /** It came up in the sleep after the busy part, not before the busy part ended. */
   readonly late: boolean
-  /** It came up after the handler began, so a later click merges into it. */
+  /** It was held back and came up after the handler began, so a later click merges into it. */
   readonly takesIn: boolean
   /** It was held back behind an event of its kind, so it runs among the held events. */
   readonly behind: boolean
@@ -178,8 +194,7 @@ function mergeHeld(events: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
     // When each click came up; an event merged before carries its clicks' own times.
     const arrived = e.payload['__at'] as ReadonlyArray<number> | undefined
     touches.slot ??= merged.push(e) - 1
-    const pressed = e.payload[PRESSED_BUSY] as ReadonlyArray<number | undefined> | undefined
-    detected.forEach((entry, i) => touches.parts.push({ kind: e.event as TouchKind, entry, at: arrived?.[i] ?? e.at, seq: touches.parts.length, pressedBusy: pressed?.[i] }))
+    detected.forEach((entry, i) => touches.parts.push({ kind: e.event as TouchKind, entry, at: arrived?.[i] ?? e.at, seq: touches.parts.length }))
   }
   if (touches.slot !== undefined) merged.splice(touches.slot, 1, ...touchGroup(touches.parts, merged[touches.slot]!))
   return merged
@@ -191,7 +206,9 @@ function mergeHeld(events: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
  * the worn object merged into the touch_start, touch and touch_end of i doll's click, the last
  * carried, and not into those of fivebot's own earlier click, LSL and SLua 2 runs of 2 each.
  * A click whose kind had no carried event kept its own: on a copy that carried only i doll's
- * touch, fivebot's touch_start and touch_end ran on their own after it.
+ * touch, fivebot's touch_start and touch_end ran on their own after it. Nor did a click merge
+ * into a carried click that was not held back: fivebot's click on the copy or the worn object
+ * after its own click from the spin stayed a click of its own, LSL and SLua 7 runs or more each.
  */
 function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
   const out: QueuedEvent[] = []
@@ -228,8 +245,7 @@ function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       }
     })
     const order = entries.map((_, i) => i).sort((a, b) => times[a]! - times[b]!)
-    const { [PRESSED_BUSY]: _, ...kept } = into.payload
-    out[at] = { ...into, payload: { ...kept, num_detected: entries.length, detected: order.map((i) => entries[i]!), __at: order.map((i) => times[i]!) } }
+    out[at] = { ...into, payload: { ...into.payload, num_detected: entries.length, detected: order.map((i) => entries[i]!), __at: order.map((i) => times[i]!) } }
   }
   return out
 }
@@ -263,7 +279,7 @@ function sluaCarriedOrder(held: ReadonlyArray<QueuedEvent>, carriedAs: ReadonlyM
   return out
 }
 
-type TouchPart = { kind: TouchKind; entry: DetectedTouch; at: number; seq: number; pressedBusy?: number | undefined }
+type TouchPart = { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }
 
 /**
  * Which of `events` wait behind the touch_end as late touch_start events. One marked `'merged'`
@@ -290,14 +306,12 @@ function touchGroup(parts: ReadonlyArray<TouchPart>, first: QueuedEvent): Queued
   }
   const tag = {}
   return TOUCH_KINDS.flatMap((kind): QueuedEvent[] => {
-    // In-world: a touch_end two releases in a sleep merged into listed first, in the order they
-    // pressed, the avatars that pressed while the handler spun, then the others in the order they
-    // let go, in LSL and SLua, with or without a detach and wear.
-    const spun = (p: TouchPart) => kind === 'touch_end' ? p.pressedBusy ?? Infinity : 0
-    const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => spun(x) - spun(y) || x.at - y.at || x.seq - y.seq)
+    // In-world: a touch_end two releases in a sleep merged into listed the avatars in the order
+    // they let go, whether or not one pressed while the handler spun, in LSL and SLua, with or
+    // without a detach and wear.
+    const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => x.at - y.at || x.seq - y.seq)
     if (!kept.length) return []
-    const pressed = kind === 'touch_end' && kept.some((p) => p.pressedBusy !== undefined) && { [PRESSED_BUSY]: kept.map((p) => p.pressedBusy) }
-    const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at), [TOUCH_GROUP]: tag, ...pressed }
+    const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at), [TOUCH_GROUP]: tag }
     return [{ ...first, at: Math.min(...kept.map((p) => p.at)), event: kind, payload }]
   })
 }
@@ -309,8 +323,6 @@ const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touc
  * one that waits behind only a touch_end that lists its avatar among others.
  */
 export const LATE_TOUCH_START = '__late'
-/** On a touch_end, when each click it lists was pressed, if that was in a busy part of the handler running at the release. */
-export const PRESSED_BUSY = '__pressedBusy'
 /** Marks a touch moved ahead of a touch_start that came up before it: it keeps that place. */
 const TOUCH_AHEAD = '__ahead'
 /** Marks the touch events one merge made, which keep their order when released. */
@@ -1148,8 +1160,7 @@ export class LinksetClock {
     const raised = waited.filter((e) => queued && !queued.has(e))
     const early = waited.filter((e) => !raised.includes(e))
     const plainEarly = this.byDue(early.filter((e) => !this.heldBack(e, since))).map(plain)
-    const attaches = plainEarly.filter((e) => e.event === 'attach' && e.payload['avatar'] !== NULL_KEY)
-    const attach = attaches.length === 1 && early.some((e) => e.carried?.behind && this.heldBack(e, since)) ? attaches : []
+    const attach = afterCarried(plainEarly, early.some((e) => e.carried && this.heldBack(e, since)))
     const ahead = plainEarly.filter((e) => !attach.includes(e))
     this.queue.push(...ahead)
     let released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined, attach)
@@ -1220,10 +1231,12 @@ export class LinksetClock {
     const isRaised = (e: QueuedEvent) => queued !== undefined && e.target === script && !queued.has(e)
     const raised = this.queue.filter(isRaised)
     if (!held.length && !raised.length) return
-    this.purgeWhere((e) => held.includes(e))
     const early = held.filter((e) => !queued || queued.has(e))
+    // A detach and wear in the busy part carried touch events that the end of the busy part releases.
+    const attach = afterCarried(waited.filter((e) => !this.heldBack(e, since) && !raised.includes(e)), early.some((e) => e.carried))
+    this.purgeWhere((e) => held.includes(e) || attach.includes(e))
     const late = held.filter((e) => !early.includes(e))
-    const released = this.release(script, early, waiting.has('timer'), raised.length ? raised : undefined)
+    const released = this.release(script, early, waiting.has('timer'), raised.length ? raised : undefined, attach)
     const queuedRaised = counted(raised.filter((e) => !late.includes(e)))
     const dropped = this.fit(raised, MAX_PENDING_EVENTS - this.pending(script) + queuedRaised - counted(released), (e) => late.includes(e))
     this.purgeWhere((e) => dropped.includes(e))
@@ -1351,7 +1364,9 @@ export class LinksetClock {
     // In-world: the attach of the wear ran right after fivebot's carried click, ahead of a change
     // held in the sleep and of i doll's held-back click, LSL 8 runs of 8 and SLua 7 of 7, with
     // and without a land contact. After a take and wear the same, LSL and SLua 4 runs of 4 each,
-    // two of them taken from under a sitter.
+    // two of them taken from under a sitter. With no held-back click it ran after the carried
+    // events that came up by the end of the spin and ahead of those from the sleep, and ahead of
+    // a click on the worn object, LSL and SLua 1 to 6 runs per case.
     if (first.length || attach.length) held.splice(0, held.length, ...first, ...attach, ...held.filter((e) => !first.includes(e)))
     if (carriedAs.size && script.language === 'slua') held.splice(0, held.length, ...sluaCarriedOrder(held, carriedAs))
     for (const [i, e] of held.entries()) {
