@@ -297,7 +297,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
         // In-world: when the avatars that touch listed had let go before this click, as with a
         // click by fivebot and then one by i doll in a listen's spin, the click kept a touch of
         // its own, LSL 4 runs of 4 and SLua 5 of 5. When i doll still held on at fivebot's click in
-        // the sleep and let go first, fivebot's click got no touch, LSL and SLua 1 run each.
+        // the sleep and let go first, fivebot's click got no touch, LSL and SLua 3 runs of 3 each.
         const alone = !!waiting && !(click.afterSpin && click.touched) && (s.spunSince(came) || !!waiting.carried) && !listed.some((d) => { const c = s.heldClicks.get(d.key!.toLowerCase()); return !!c && !c.cut })
         if (!alone && (touches.own || !s.spunSince(came) || !waitingTouches(s, 'touch_end', by).own)) {
           click.touched = true
@@ -725,6 +725,8 @@ export class Linkset {
         if (['key', 'linkset', 'linkNumber', 'createdAt', 'scripts', 'inventory', 'keyframedMotion', 'scriptedCameras'].includes(name)) continue
         Object.assign(prim, { [name]: structuredClone(value) })
       }
+      // A prim keeps its maker when another avatar gets the copy; an object in a prim's contents has no owner yet.
+      if (this.owner !== NULL_KEY && copy.owner !== this.owner) prim.madeBy ??= source.creator
       // In-world: scripted derez retains motion; copy only its data, never live callbacks.
       prim.keyframedMotion = source.keyframedMotion?.copyTo(prim, copy.clock) ?? null
       for (const item of source.inventory) {

@@ -332,8 +332,9 @@ describe('linkset.touch routes a click like Second Life', () => {
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.advanceTime(2000)
     linkset.touch(0, { hold: 4000 })
-    // A touch held back by the delay runs when the delay is over; in-world it ran on the next
-    // simulator frame, up to 0.022 s later. touch_end waits behind it.
+    // rezless runs a touch held back by the delay on the frame the delay ends, so the touch
+    // events come at 2.000, 3.000 and 4.000 where in-world they came one or two frames later, and
+    // touch_end at 4.022 rather than 4.067. touch_end waits behind the last touch.
     expect(got('s')).toEqual(['start', 22, 1000, 2000, 3000, 4000, 'end', 4022])
   })
 

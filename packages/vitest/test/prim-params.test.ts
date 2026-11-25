@@ -498,8 +498,8 @@ describe('prim behaviour measured in Second Life', () => {
     expect(s.global('counts')).toEqual([12, 24, 6, 0, 0])
   })
 
-  // In-world: llSetText("f", <1,1,1>, (float)"nan") reads back PRIM_TEXT = [f, <1,1,1>, nan].
-  it('llSetText with a NaN alpha stores the text and keeps NaN', async () => {
+  // In-world: llSetText("f", <1,1,1>, alpha) with an invalid alpha reads back PRIM_TEXT = [f, <1,1,1>, alpha], the alpha unchanged.
+  it('llSetText with an invalid alpha stores the text and keeps the alpha', async () => {
     const s = await run(`llSetText("f", <1,1,1>, (float)"nan"); out = llGetPrimitiveParams([PRIM_TEXT]);`, 'list out;')
     const out = s.global('out') as unknown[]
     expect(out[0]).toBe('f')
@@ -507,8 +507,8 @@ describe('prim behaviour measured in Second Life', () => {
     expect(out[2]).toBeNaN()
   })
 
-  // In-world: [PRIM_TEXT, "nanc", <nan,0,0>, 1.0] reads back [nanc, <nan, 0, 0>, 1.0].
-  it('PRIM_TEXT with a NaN colour channel stores the text and keeps NaN', async () => {
+  // In-world: [PRIM_TEXT, "nanc", colour, 1.0] with an invalid red channel reads back the text, the same colour and 1.0.
+  it('PRIM_TEXT with an invalid colour channel stores the text and keeps the channel', async () => {
     const s = await run(
       `llSetPrimitiveParams([PRIM_TEXT, "nanc", <(float)"nan", 0, 0>, 1.0]); out = llGetPrimitiveParams([PRIM_TEXT]);`,
       'list out;',
