@@ -1538,13 +1538,17 @@ export class ScriptClockView {
     return this.minEventDelayMs > 0 && !this.touchAfterStart ? this.touchDelayedUntilMs : 0
   }
 
-  /** Under llMinEventDelay, held `touch` events are spaced from `touch_start` and from each other. */
+  /**
+   * Under llMinEventDelay, held `touch` events are spaced from `touch_start` and from each other,
+   * in whole simulator frames. In-world: under llMinEventDelay(0.3) a held click's touch events
+   * came 0.311 s apart, under 0.25 0.267 s, under 0.5 0.511 s.
+   */
   touchDelivered(event: string): void {
     if (event === 'touch_start') {
-      this.touchDelayedUntilMs = this.now + this.minEventDelayMs
+      this.touchDelayedUntilMs = this.now + framesFor(this.minEventDelayMs)
       this.touchAfterStart = true
     } else if (event === 'touch') {
-      if (!this.touchAfterStart) this.touchDelayedUntilMs = this.now + this.minEventDelayMs
+      if (!this.touchAfterStart) this.touchDelayedUntilMs = this.now + framesFor(this.minEventDelayMs)
       this.touchAfterStart = false
     }
   }

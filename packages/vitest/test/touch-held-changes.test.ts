@@ -138,6 +138,26 @@ LLEvents:on("touch_end", function(d) table.insert(got, "end") table.insert(got, 
     expect(gotOf(scripts.s!)).toEqual(['start', 22, 1000, 2000, 3000, 4000, 'end', 4022])
   })
 
+  it('under llMinEventDelay(0.3) an SLua held click raises touch every 14 frames', async () => {
+    // In-world (Aditi, SLua Tideland, 2026-11-25): ll.MinEventDelay(0.3) set from a listen and a
+    // 3 s hold, two runs -> touch at 0.022, 0.311, 0.622, 0.933, 1.244, 1.555, 1.867, 2.178,
+    // 2.489, 2.800 and 3.111 after touch_start, and touch_end at 3.133: the delay rounds up to
+    // whole simulator frames, as in LSL.
+    const log = `got = {}
+ll.MinEventDelay(0.3)
+local t0 = 0
+local function ms() return (ll.GetTime() - t0) * 1000 end
+LLEvents:on("touch_start", function(d) t0 = ll.GetTime() end)
+LLEvents:on("touch", function(d) table.insert(got, ms()) end)
+LLEvents:on("touch_end", function(d) table.insert(got, ms()) end)`
+    const { linkset, scripts } = await build([[{ name: 's', lang: 'SLua', source: log }]])
+    linkset.advanceTime(2000)
+    linkset.touch(0, { hold: 3000 })
+    linkset.advanceTime(1000)
+    expect(gotOf(scripts.s!)).toEqual([22, 311, 622, 933, 1244, 1555, 1867, 2178, 2489, 2800, 3111, 3133]
+      .map((t) => expect.closeTo(t, -0.5)))
+  })
+
   describe.each<Lang>(['LSL', 'SLua'])('a click passed to an %s root and stuck there', (lang) => {
     // In-world: a root recorder and, in the child, a stopped recorder that a helper set running
     // on the root's touch_start, so the 1.5 s click passed to the root ended in the child. The
