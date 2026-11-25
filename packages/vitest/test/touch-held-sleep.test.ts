@@ -43,7 +43,8 @@ describe('a held click while the touch handler sleeps', () => {
   it('raises no touch during the sleep, so each sleep is followed by one touch', async () => {
     // In-world: touch slept 1 s, held 2.5 s -> touch at 0.067, 1.111 and 2.156 after
     // touch_start, touch_end at 3.200; held 5 s -> five touch events a little over a second
-    // apart, then touch_end.
+    // apart, then touch_end. rezless runs the first touch a frame after touch_start, two frames
+    // before the measured one, so each event here comes 44 to 67 ms earlier.
     expect(await held(lsl(0, 1, 0), 2500)).toEqual(['S', 'T22', 'T1067', 'T2111', 'E3133'])
     expect(kinds(await held(lsl(0, 1, 0), 5000))).toBe('STTTTTE')
   })
@@ -60,7 +61,9 @@ describe('a held click while the touch handler sleeps', () => {
 
   it('every handler sleeping 1 s through a 2.5 s hold gives two touch events', async () => {
     // In-world: touch_start, touch and touch_end each slept 1 s, held 2.5 s -> touch at
-    // 1.044 and 2.111 after touch_start, touch_end at 3.133.
+    // 1.044 and 2.111 after touch_start, touch_end at 3.133. rezless runs the first touch a
+    // frame after the wake, a frame before the measured one, so each event here comes 22 to
+    // 44 ms earlier.
     expect(await held(lsl(1, 1, 1), 2500)).toEqual(['S', 'T1022', 'T2067', 'E3089'])
   })
 
