@@ -805,8 +805,8 @@ describe('llEuler2Rot', () => {
   })
 })
 
-describe('faces of a box with a NaN top size', () => {
-  it('gives a cut, hollow box with a NaN top size x 3 faces', async () => {
+describe('faces of a box with an invalid top size', () => {
+  it('gives a cut, hollow box with an invalid top size x 3 faces', async () => {
     const s = await run(`
       default {
         state_entry() {
@@ -821,14 +821,14 @@ describe('faces of a box with a NaN top size', () => {
         }
       }`)
     // In-world: this box with each top size set in turn, from a script compiled for Mono, while
-    // working on #446. A NaN top size x gave 3 faces and a NaN top size y kept all 7. Which 3
-    // faces remain, and what other boxes do, is not measured and won't be: NaN shape values
+    // working on #446. An invalid top size x gave 3 faces and an invalid top size y kept all 7. Which 3
+    // faces remain, and what other boxes do, is not measured and won't be: such shape values
     // are not set in-world. rezless keeps the outer sides and the inner face, which
-    // is 3 here, and does the same for every box with a NaN top size x.
+    // is 3 here, and does the same for every box with an invalid top size x.
     expect(said(s)).toEqual(['7', '3', '7'])
   })
 
-  // Not measured: llGetMass and OBJECT_MASS of a box with a NaN cut or hollow. rezless gives a
+  // Not measured: llGetMass and OBJECT_MASS of a box with an invalid cut or hollow. rezless gives a
   // large finite number.
-  it.todo('llGetMass of a box with a NaN cut or hollow')
+  it.todo('llGetMass of a box with an invalid cut or hollow')
 })

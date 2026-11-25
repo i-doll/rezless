@@ -14,22 +14,22 @@ import { primParamLuaKinds } from './slua-result-kinds.js'
 import { sayOwnerError } from './debug.js'
 import { setPrimParamWithChanged } from '../prim-changed.js'
 
-const zeroForNan = (v: number) => (Number.isNaN(v) ? 0 : v)
+const zeroForInvalid = (v: number) => (Number.isNaN(v) ? 0 : v)
 
 /** Face rules an avatar link can't read, by the wording of their error. */
 const TEXTURE_INFO_RULES: ReadonlySet<number> = new Set([PRIM_COLOR, PRIM_BUMP_SHINY, PRIM_FULLBRIGHT, PRIM_TEXGEN, PRIM_GLOW])
 const avatarFaceError = (rule: number) =>
   TEXTURE_INFO_RULES.has(rule) ? 'texture info cannot be accessed for avatars.' : 'texture and material parameters cannot be used for avatars.'
 
-/** In SLua a NaN in the cut or hollow of a box, cylinder or prism counts as 0. */
+/** In SLua an invalid value in the cut or hollow of a box, cylinder or prism counts as 0. */
 function sluaShapeRules(rules: ReadonlyArray<LslValue>, cursor: number) {
   const kind = rules[cursor]
   const cut = rules[cursor + 2] as Vector | undefined
   const hollow = rules[cursor + 3]
   if (typeof kind !== 'number' || kind < 0 || kind > PRIM_TYPE_PRISM || !cut || typeof hollow !== 'number') return rules
   const fixed = [...rules]
-  fixed[cursor + 2] = { x: zeroForNan(cut.x), y: zeroForNan(cut.y), z: cut.z }
-  fixed[cursor + 3] = zeroForNan(hollow)
+  fixed[cursor + 2] = { x: zeroForInvalid(cut.x), y: zeroForInvalid(cut.y), z: cut.z }
+  fixed[cursor + 3] = zeroForInvalid(hollow)
   return fixed
 }
 
