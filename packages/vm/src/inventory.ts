@@ -170,9 +170,9 @@ export function renamedItemName(name: string): string {
   return bytes.map((b) => (b < 0x20 || b > 0x7f || b === 0x7c ? ' ' : String.fromCharCode(b))).join('').slice(0, 63).trim()
 }
 
-/** The maker of a saved object: the maker of its root prim, or `owner` when the root names none. */
-export function objectCreator(object: import('./linkset.js').Linkset, owner = object.owner): string {
-  return object.prims[0]?.madeBy ?? owner
+/** The maker of a saved object: the maker of its root prim, or the object's owner when the root names none. */
+function objectCreator(object: import('./linkset.js').Linkset): string {
+  return object.prims[0]?.madeBy ?? object.owner
 }
 
 export function makeInventoryItem(

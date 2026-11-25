@@ -67,6 +67,17 @@ describe('llGetInventoryCreator on an object item', () => {
     })).toEqual(['makerRoot', MAKER, 'ownRoot', OWNER, 'pair', MAKER])
   })
 
+  it('reads the owner for an object inside an object in the contents', async () => {
+    const { scripts } = await loadLinkset({ owner: OWNER, prims: [{
+      objects: { outer: { prims: [{ objects: { inner: { prims: [{}] }, made: { prims: [{ creator: MAKER }] } } }] } },
+      scripts: [{ name: 'rezzer', source: { source: `default {
+        state_entry() { llRezObject("outer", llGetPos(), ZERO_VECTOR, ZERO_ROTATION, 0); } }` } }] }] })
+    const outer = scripts.rezzer!.linkset.prims[0]!.inventory.find(item => item.name === 'outer')!.object!
+    const reader = await loadScript({ host: outer.prims[0]!, source: READER })
+    reader.start()
+    expect(reader.global('got')).toEqual(['inner', OWNER, 'made', MAKER])
+  })
+
   it('reads NULL_KEY for an unowned object whose root names no maker', async () => {
     expect(await creators({ box: { prims: [{}] } }, null)).toEqual(['box', NULL_KEY])
   })
@@ -94,6 +105,22 @@ describe('llGetInventoryCreator on an object item', () => {
     const reader = await loadScript({ host: target, source: READER })
     reader.start()
     expect(reader.global('got')).toEqual(['box', OWNER, 'made', MAKER])
+  })
+
+  // In-world (#780): a box fivebot made, rezzed by i doll from a prim's contents, read fivebot
+  // from OBJECT_CREATOR (Aditi, SLua Tideland, 2026-11-25).
+  it('keeps the maker on an object another avatar rezzes after a give', async () => {
+    const world = homeWorld()
+    const target = await receiverPrim(world)
+    const giver = await loadLinkset({ world, region: 'home', owner: OWNER, prims: [{ objects: { box: { prims: [{}] } },
+      scripts: [{ name: 'giver', source: { source: `default { state_entry() { llGiveInventory("${TARGET}", "box"); } }` } }] }] })
+    giver.scripts.giver!.start()
+    const rezzer = await loadScript({ host: target, source: `key made; default {
+      state_entry() { llRezObject("box", llGetPos(), ZERO_VECTOR, ZERO_ROTATION, 0); }
+      object_rez(key id) { made = llList2Key(llGetObjectDetails(id, [OBJECT_CREATOR]), 0); } }` })
+    rezzer.start()
+    target.linkset!.advanceTime(1000)
+    expect(rezzer.global('made')).toBe(OWNER)
   })
 
   // In-world: a prim's script rezzed i doll's box from its contents, the box linked a box fivebot
