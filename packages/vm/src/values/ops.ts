@@ -3,7 +3,7 @@ import { isVector, isRotation, toInt32, toFloat32, vec, rot, NULL_KEY } from './
 import { coerce, stringify } from './coerce.js'
 import { concatLists, scriptList } from './list-types.js'
 import { RuntimeError } from '../memory.js'
-import { NEGATIVE_NAN, POSITIVE_NAN, addFloat, boxedOf, isNegativeNaN, mulFloat, negateFloat, signedNaN, subFloat } from './nan.js'
+import { addFloat, boxedOf, isNegativeNaN, mulFloat, negateFloat, signedNaN, subFloat } from './nan.js'
 
 /**
  * Implementations of LSL binary and unary operators with the language's
@@ -419,7 +419,7 @@ const positiveNaN = (n: number) => n !== n && !isNegativeNaN(n)
  * The NaN a product of rotations or a rotated vector gives, as Mono does:
  * negative unless one of the parts it was made from is a positive NaN.
  */
-const productNaN = (anyPositive: boolean) => (anyPositive ? POSITIVE_NAN : NEGATIVE_NAN)
+const productNaN = (anyPositive: boolean) => signedNaN(!anyPositive)
 
 /** A rotation's squared length, summed in single precision. */
 export function squaredLengthF32(q: Rotation) {

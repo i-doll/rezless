@@ -7,14 +7,17 @@
 
 const view = new DataView(new ArrayBuffer(8))
 
-function nanWithBits(high: number): number {
-  view.setUint32(0, high)
-  view.setUint32(4, 0)
-  return view.getFloat64(0)
-}
-
-export const POSITIVE_NAN = nanWithBits(0x7ff80000)
-export const NEGATIVE_NAN = nanWithBits(0xfff80000)
+/**
+ * The positive and negative quiet NaN. V8's optimising compilers turn a NaN
+ * they know at compile time, such as a constant's, into their own positive
+ * NaN, so the NaNs are loaded from a typed array, which they can't fold.
+ */
+const NANS = new Float64Array(2)
+view.setUint32(4, 0)
+view.setUint32(0, 0x7ff80000)
+NANS[0] = view.getFloat64(0)
+view.setUint32(0, 0xfff80000)
+NANS[1] = view.getFloat64(0)
 
 export function isNegativeNaN(n: number) {
   if (n === n) return false
@@ -24,7 +27,7 @@ export function isNegativeNaN(n: number) {
 
 /** The quiet NaN with this sign. */
 export function signedNaN(negative: boolean) {
-  return negative ? NEGATIVE_NAN : POSITIVE_NAN
+  return NANS[negative ? 1 : 0]!
 }
 
 export function negateFloat(n: number) {
@@ -42,7 +45,7 @@ export function nanResult(a: number, b: number, r: number) {
   if (a !== a && b !== b) return signedNaN(isNegativeNaN(a) && isNegativeNaN(b))
   if (a !== a) return signedNaN(isNegativeNaN(a))
   if (b !== b) return signedNaN(isNegativeNaN(b))
-  return NEGATIVE_NAN
+  return signedNaN(true)
 }
 
 export const addFloat = (a: number, b: number) => nanResult(a, b, a + b)

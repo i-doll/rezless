@@ -2,7 +2,7 @@ import type { BuiltinImpl, CallContext } from '../runtime.js'
 import type { LslValue, Vector, Rotation } from '../values/types.js'
 import { isVector, rot, vec } from '../values/types.js'
 import { normalizeRotation } from '../values/ops.js'
-import { NEGATIVE_NAN, POSITIVE_NAN, addFloat, mulFloat, nanResult, subFloat } from '../values/nan.js'
+import { addFloat, mulFloat, nanResult, signedNaN, subFloat } from '../values/nan.js'
 
 /** llAbs(integer val) — absolute value (integer). */
 export const llAbs: BuiltinImpl = (_ctx, args) => {
@@ -54,8 +54,8 @@ export const llPow: BuiltinImpl = (ctx, args) => sluaFlush(ctx, pow(args))
 function pow(args: readonly LslValue[]) {
   const x = (args[0] as number) ?? 0
   const y = (args[1] as number) ?? 0
-  if (Number.isNaN(x) || Number.isNaN(y)) return POSITIVE_NAN
-  if ((x === 1 || x === -1) && !Number.isFinite(y)) return POSITIVE_NAN
+  if (Number.isNaN(x) || Number.isNaN(y)) return signedNaN(false)
+  if ((x === 1 || x === -1) && !Number.isFinite(y)) return signedNaN(false)
   if (x < -LARGEST_INT_DOUBLE) {
     if (y > LARGEST_INT_DOUBLE) return Infinity
     if (y < -LARGEST_INT_DOUBLE) return 0
@@ -64,28 +64,28 @@ function pow(args: readonly LslValue[]) {
   // JavaScript already gives 1, as every double that large is even.
   // What is left that gives NaN is a negative base to a fractional power.
   const r = Math.pow(x, y)
-  return r === r ? unsignedZero(r) : NEGATIVE_NAN
+  return r === r ? unsignedZero(r) : signedNaN(true)
 }
 export const llSqrt: BuiltinImpl = (_ctx, args) => {
   const x = (args[0] as number) ?? 0
-  return x < 0 ? NEGATIVE_NAN : Math.sqrt(x)
+  return x < 0 ? signedNaN(true) : Math.sqrt(x)
 }
 /** Mono gives 0.0 for the sine and tangent of -0.0. SLua keeps the sign. */
 const monoZero = (ctx: CallContext, n: number) => (ctx.script.language === 'lsl' ? unsignedZero(n) : n)
 /** A NaN argument passes on with its sign, and an infinite one gives a negative NaN. */
-const periodic = (f: (x: number) => number, x: number) => (x !== x ? x : Number.isFinite(x) ? f(x) : NEGATIVE_NAN)
+const periodic = (f: (x: number) => number, x: number) => (x !== x ? x : Number.isFinite(x) ? f(x) : signedNaN(true))
 export const llSin: BuiltinImpl = (ctx, args) => monoZero(ctx, periodic(Math.sin, (args[0] as number) ?? 0))
 export const llCos: BuiltinImpl = (_ctx, args) => periodic(Math.cos, (args[0] as number) ?? 0)
 export const llTan: BuiltinImpl = (ctx, args) => monoZero(ctx, periodic(Math.tan, (args[0] as number) ?? 0))
 /** llAsin passes a NaN on with its sign; out of range is a positive NaN. */
 export const llAsin: BuiltinImpl = (_ctx, args) => {
   const x = (args[0] as number) ?? 0
-  return x !== x ? x : Math.abs(x) > 1 ? POSITIVE_NAN : Math.asin(x)
+  return x !== x ? x : Math.abs(x) > 1 ? signedNaN(false) : Math.asin(x)
 }
 /** llAcos of a NaN, of either sign, or of a value out of range is a positive NaN. */
 export const llAcos: BuiltinImpl = (_ctx, args) => {
   const x = (args[0] as number) ?? 0
-  return Math.abs(x) <= 1 ? Math.acos(x) : POSITIVE_NAN
+  return Math.abs(x) <= 1 ? Math.acos(x) : signedNaN(false)
 }
 /**
  * llAtan2: both arguments infinite gives NaN, and a zero result is +0 (Mono 2.x, as SLua).
@@ -95,7 +95,7 @@ export const llAtan2: BuiltinImpl = (ctx, args) => {
   const y = (args[0] as number) ?? 0
   const x = (args[1] as number) ?? 0
   if (y !== y || x !== x) return nanResult(y, x, NaN)
-  if (!Number.isFinite(y) && !Number.isFinite(x)) return POSITIVE_NAN
+  if (!Number.isFinite(y) && !Number.isFinite(x)) return signedNaN(false)
   return sluaFlush(ctx, unsignedZero(Math.atan2(y, x)))
 }
 export const llLog: BuiltinImpl = (_ctx, args) => {
