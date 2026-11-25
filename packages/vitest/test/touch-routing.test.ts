@@ -357,8 +357,6 @@ describe('linkset.touch routes a click like Second Life', () => {
     const { linkset, got } = await setup([[script('s', log)]])
     linkset.advanceTime(2500)
     linkset.touch(0, { hold: 3510 })
-    // The last touch and touch_end fall due a frame or two past this release; they still run.
-    linkset.advanceTime(100)
     expect(got('s')).toEqual(['start', 'touch@22', 'timer@978', 'touch@1000', 'timer@1978', 'touch@2000',
       'timer@2978', 'touch@3000', 'end@3022'])
   })
@@ -869,7 +867,8 @@ describe('linkset.touch routes a click like Second Life', () => {
     // In-world (Aditi, SLua Tideland, 2026-11-25): the same with 3.5 s and 3.2 s holds, four LSL
     // and two SLua runs -> touch at 0.022 (0.067 in one run), 1.000-1.022, 2.022-2.044,
     // 3.022-3.045 and 4.044-4.067, then touch_end a frame later: the touch waiting for the delay
-    // still ran after the release, ahead of touch_end.
+    // still ran after the release, ahead of touch_end. rezless runs the later touches on the
+    // delay's whole seconds, a frame or two ahead of those times.
     const log = `
       list got = [];
       default {
