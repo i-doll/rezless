@@ -1306,7 +1306,7 @@ export class Script {
       // In-world: a click in the copy's sleep merged with the touch events a click in the busy part
       // before the take had left waiting (7 runs of 8). Another avatar's touch that came up in it
       // while that avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
-      const carried = carriedTouch(e, this.task)
+      const carried = carriedTouch(e, this.task, false)
       copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, !!carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
     }
     if (reset) copy.resetIntoInventory()
@@ -1410,7 +1410,7 @@ export class Script {
         ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload
       // An event that is not due yet is judged when it is.
       const at = Math.max(e.at, this.now)
-      const carried = e.at <= this.now ? carriedTouch(e, before) : undefined
+      const carried = e.at <= this.now ? carriedTouch(e, before, detached) : undefined
       clock.schedule(this, at, e.event, payload, e.at <= this.now ? !!carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
     }
     if (room > 0 && rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
@@ -2201,12 +2201,12 @@ const isTouch = (event: string | undefined) => event === 'touch_start' || event 
  * 6 runs of 6, SLua 7 of 7). A click from before the handler came through too, but a click on
  * the worn object did not merge into it (LSL and SLua 1 run each).
  */
-function carriedTouch(e: QueuedEvent, task: Task | null | undefined): Carried | undefined {
+function carriedTouch(e: QueuedEvent, task: Task | null | undefined, detached: boolean): Carried | undefined {
   if (e.carried) return e.carried
   if (!isTouch(e.event) || task?.spunUntil === undefined) return undefined
   const late = cameUp(e) > task.spunUntil
   if (late && !e.busy) return undefined
-  return { late, takesIn: cameUp(e) > task.startedAt, behind: !!e.held }
+  return { late, takesIn: cameUp(e) > task.startedAt, behind: !!e.held, ...(detached && { detached }) }
 }
 
 /**
