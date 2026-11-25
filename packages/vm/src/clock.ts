@@ -175,7 +175,8 @@ function mergeHeld(events: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
     // When each click came up; an event merged before carries its clicks' own times.
     const arrived = e.payload['__at'] as ReadonlyArray<number> | undefined
     touches.slot ??= merged.push(e) - 1
-    detected.forEach((entry, i) => touches.parts.push({ kind: e.event as TouchKind, entry, at: arrived?.[i] ?? e.at, seq: touches.parts.length }))
+    const pressed = e.payload[PRESSED_BUSY] as ReadonlyArray<number | undefined> | undefined
+    detected.forEach((entry, i) => touches.parts.push({ kind: e.event as TouchKind, entry, at: arrived?.[i] ?? e.at, seq: touches.parts.length, pressedBusy: pressed?.[i] }))
   }
   if (touches.slot !== undefined) merged.splice(touches.slot, 1, ...touchGroup(touches.parts, merged[touches.slot]!))
   return merged
@@ -224,7 +225,8 @@ function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
       }
     })
     const order = entries.map((_, i) => i).sort((a, b) => times[a]! - times[b]!)
-    out[at] = { ...into, payload: { ...into.payload, num_detected: entries.length, detected: order.map((i) => entries[i]!), __at: order.map((i) => times[i]!) } }
+    const { [PRESSED_BUSY]: _, ...kept } = into.payload
+    out[at] = { ...into, payload: { ...kept, num_detected: entries.length, detected: order.map((i) => entries[i]!), __at: order.map((i) => times[i]!) } }
   }
   return out
 }
@@ -236,8 +238,10 @@ function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
  * it: fivebot's touch_end, touch and touch_start, then i doll's touch_end and touch_start (13 runs
  * of 13 after a take or a detach and wear); i doll's touch and touch_start from the spin, then a
  * touch_end listing both and fivebot's touch_start from the sleep (3 runs of 3). A click after
- * the rez ran after them in order (3 runs) and lost its touch (1 run). After a plain sleep SLua
- * kept their order (1 run).
+ * the rez ran after them and lost its touch. It ran in order when it merged into a click carried
+ * from the spin or came while a click was stuck (3 runs), and last to first after a click from
+ * before the spin (13 runs of 13), which its touch_start marked late at the press gives. After a
+ * plain sleep SLua kept their order (1 run).
  */
 function sluaCarriedOrder(held: ReadonlyArray<QueuedEvent>, carriedAs: ReadonlyMap<QueuedEvent, Carried>): QueuedEvent[] {
   const out = held.filter((e) => e.event !== 'touch' || carriedAs.has(e))
@@ -255,7 +259,18 @@ function sluaCarriedOrder(held: ReadonlyArray<QueuedEvent>, carriedAs: ReadonlyM
   return out
 }
 
-type TouchPart = { kind: TouchKind; entry: DetectedTouch; at: number; seq: number }
+type TouchPart = { kind: TouchKind; entry: DetectedTouch; at: number; seq: number; pressedBusy?: number | undefined }
+
+/**
+ * Which of `events` wait behind the touch_end as late touch_start events. One marked `'merged'`
+ * waits only when a touch_end among `events` lists its avatar among others, and otherwise keeps
+ * its place. Neither merges with other touch_start events.
+ */
+function lateIn(events: ReadonlyArray<QueuedEvent>): (e: QueuedEvent) => boolean {
+  const listed = (e: QueuedEvent) => (e.payload['detected'] as ReadonlyArray<DetectedTouch> | undefined) ?? []
+  return (e) => e.payload[LATE_TOUCH_START] === true || e.payload[LATE_TOUCH_START] === 'merged' &&
+    events.some((t) => t.event === 'touch_end' && listed(t).length > 1 && listed(t).some((d) => d.key?.toLowerCase() === listed(e)[0]?.key?.toLowerCase()))
+}
 
 /** The touch events `parts` merge into, made from `first`. */
 function touchGroup(parts: ReadonlyArray<TouchPart>, first: QueuedEvent): QueuedEvent[] {
@@ -271,16 +286,27 @@ function touchGroup(parts: ReadonlyArray<TouchPart>, first: QueuedEvent): Queued
   }
   const tag = {}
   return TOUCH_KINDS.flatMap((kind): QueuedEvent[] => {
-    const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => x.at - y.at || x.seq - y.seq)
+    // In-world: a touch_end two releases in a sleep merged into listed first, in the order they
+    // pressed, the avatars that pressed while the handler spun, then the others in the order they
+    // let go, in LSL and SLua, with or without a detach and wear.
+    const spun = (p: TouchPart) => kind === 'touch_end' ? p.pressedBusy ?? Infinity : 0
+    const kept = [...clicks.values()].flatMap((click) => click[kind] ?? []).sort((x, y) => spun(x) - spun(y) || x.at - y.at || x.seq - y.seq)
     if (!kept.length) return []
-    const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at), [TOUCH_GROUP]: tag }
+    const pressed = kind === 'touch_end' && kept.some((p) => p.pressedBusy !== undefined) && { [PRESSED_BUSY]: kept.map((p) => p.pressedBusy) }
+    const payload = { num_detected: kept.length, detected: kept.map((p) => p.entry), __at: kept.map((p) => p.at), [TOUCH_GROUP]: tag, ...pressed }
     return [{ ...first, at: Math.min(...kept.map((p) => p.at)), event: kind, payload }]
   })
 }
 
 const TOUCH_EVENTS: ReadonlySet<string> = new Set(['touch_start', 'touch', 'touch_end'])
-/** Marks a touch_start raised while the touch_start handler ran on: it waits behind the touch_end. */
+/**
+ * Marks a touch_start that waits behind the touch_end: one raised while the touch_start handler ran
+ * on, or in SLua while touch events carried through a take or a detach waited. `'merged'` marks
+ * one that waits behind only a touch_end that lists its avatar among others.
+ */
 export const LATE_TOUCH_START = '__late'
+/** On a touch_end, when each click it lists was pressed, if that was in a busy part of the handler running at the release. */
+export const PRESSED_BUSY = '__pressedBusy'
 /** Marks a touch moved ahead of a touch_start that came up before it: it keeps that place. */
 const TOUCH_AHEAD = '__ahead'
 /** Marks the touch events one merge made, which keep their order when released. */
@@ -1252,11 +1278,21 @@ export class LinksetClock {
     // land_collision_start, collision_start, collision, one land_collision, the game_control, a
     // second land_collision and collision_end: six of eight runs over two probes, three of them
     // with collision_end come before the land contact. A single land_collision ran behind changed.
+    const isLate = lateIn(held)
     const rank = (e: QueuedEvent) => e === lands[0] ? HELD_ORDER.get('changed')! + 0.5
       : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5
-      : e.payload[LATE_TOUCH_START] ? HELD_ORDER.get('touch_end')! + 0.5
-      : e.payload[TOUCH_AHEAD] ? HELD_ORDER.get('touch_start')! - 0.5 : HELD_ORDER.get(e.event)!
+      : isLate(e) ? HELD_ORDER.get('touch_end')! + 0.5
+      : e.payload[TOUCH_AHEAD] ? HELD_ORDER.get('touch_start')! - 0.5
+      // In-world: a change held in the sleep, before the detach or after the wear, ran between
+      // fivebot's click and i doll's held-back click, LSL and SLua 1 run each.
+      : carriedAs.get(e)?.behind ? HELD_ORDER.get('changed')! + HELD_ORDER.get(e.event)! / 10 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
+    else {
+      // Held in the order they came, a late touch_start still runs behind the touch_end held with it.
+      const end = held.map((e) => e.event).lastIndexOf('touch_end')
+      const late = end < 0 ? [] : held.slice(0, end).filter(isLate)
+      if (late.length) held.splice(0, end + 1, ...held.slice(0, end + 1).filter((e) => !late.includes(e)), ...late)
+    }
     if (first.length) held.splice(0, held.length, ...first, ...held.filter((e) => !first.includes(e)))
     if (carriedAs.size && script.language === 'slua') held.splice(0, held.length, ...sluaCarriedOrder(held, carriedAs))
     for (const [i, e] of held.entries()) {
