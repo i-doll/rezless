@@ -395,7 +395,8 @@ describe('linkset.touch routes a click like Second Life', () => {
     it('keep their own beat beside a timer', async () => {
       // In-world: llMinEventDelay(0.3) and a 0.1 s timer, a 2 s hold, two runs -> touch at 0.022,
       // timer at 0.289, touch at 0.311, timer at 0.600, touch at 0.622, and so on: each 14 frames
-      // apart, the tick a frame ahead of the touch.
+      // apart, the tick a frame ahead of the touch. The tick runs on frames, so this also held
+      // while the touch gate used the raw delay; it pins how the two gates sit side by side.
       const src = `
         list got = [];
         integer on;

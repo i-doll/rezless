@@ -16,10 +16,11 @@ export const llSetTimerEvent: BuiltinImpl = (ctx, args) => {
 }
 
 /**
- * llMinEventDelay(float delay) — timer, sensor, touch_start and held touch
- * events start at least `delay` seconds apart, rounded up to whole simulator
- * frames, counted from the call and then from the start of each of them. A
- * reset clears it; a state change keeps it.
+ * llMinEventDelay(float delay) — timer, sensor, no_sensor and touch_start
+ * events start at least `delay` seconds apart, counted from the call and then
+ * from the start of each of them. A held click's touch events after the first
+ * keep their own beat of `delay` from touch_start. Both round the delay up to
+ * whole simulator frames. A reset clears it; a state change keeps it.
  */
 export const llMinEventDelay: BuiltinImpl = (ctx, args) => {
   ctx.state.clock.setMinEventDelay(((args[0] as number | undefined) ?? 0) * 1000)
