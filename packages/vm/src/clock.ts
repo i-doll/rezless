@@ -191,10 +191,16 @@ function mergeIntoCarried(held: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
     const entries = [...into.payload['detected'] as DetectedTouch[]]
     const times = [...(into.payload['__at'] as number[] | undefined) ?? entries.map(() => into.at)]
     const arrived = e.payload['__at'] as ReadonlyArray<number> | undefined
+    // As in touchGroup: an avatar's later click keeps its first touch_start and its last touch and touch_end.
     detected.forEach((entry, i) => {
-      if (entries.some((x) => x.key!.toLowerCase() === entry.key!.toLowerCase())) return
-      entries.push(entry)
-      times.push(arrived?.[i] ?? e.at)
+      const same = entries.findIndex((x) => x.key!.toLowerCase() === entry.key!.toLowerCase())
+      if (same < 0) {
+        entries.push(entry)
+        times.push(arrived?.[i] ?? e.at)
+      } else if (e.event !== 'touch_start') {
+        entries[same] = entry
+        times[same] = arrived?.[i] ?? e.at
+      }
     })
     out[at] = { ...into, payload: { ...into.payload, num_detected: entries.length, detected: entries, __at: times } }
   }
@@ -1151,7 +1157,8 @@ export class LinksetClock {
     // with collision_end come before the land contact. A single land_collision ran behind changed.
     const rank = (e: QueuedEvent) => e === lands[0] ? HELD_ORDER.get('changed')! + 0.5
       : e === lands[1] ? HELD_ORDER.get('game_control')! + 0.5
-      : e.payload[LATE_TOUCH_START] ? HELD_ORDER.get('touch_end')! + 0.5 : HELD_ORDER.get(e.event)!
+      : e.payload[LATE_TOUCH_START] ? HELD_ORDER.get('touch_end')! + 0.5
+      : e.payload[TOUCH_AHEAD] ? HELD_ORDER.get('touch_start')! - 0.5 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
     if (carried.size) held.splice(0, held.length, ...held.filter((e) => carried.has(e)).sort((a, b) => carriedRank(a) - carriedRank(b)), ...held.filter((e) => !carried.has(e)))
     for (const [i, e] of held.entries()) {

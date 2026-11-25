@@ -101,7 +101,7 @@ export interface HeldTouch {
   touched: boolean
   /** What its last `touch` detected. */
   lastTouch?: ReadonlyArray<DetectedEntry>
-  /** Whether the button came up while the script was stopped. */
+  /** Whether the click is stuck: the button came up while the script was stopped, or it was held through a take or a detach. */
   released: boolean
   /** Whether a link change ended it while the button was still down. */
   cut?: boolean
@@ -253,7 +253,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
         // the sleep raised none, as a first click does (2 runs of 2).
         // In-world: when the avatars that touch listed had let go before this click, as with a
         // click by fivebot and then one by i doll in a listen's spin, the click kept a touch of
-        // its own, LSL 4 runs of 4 and SLua 3 of 3.
+        // its own, LSL 4 runs of 4 and SLua 5 of 5.
         const alone = !!waiting && (s.spunSince(came) || !!waiting.carried) && !listed.some((d) => { const c = s.heldClicks.get(d.key!.toLowerCase()); return !!c && !c.cut })
         if (!alone && (touches.own || !s.spunSince(came) || !waitingTouches(s, 'touch_end', by).own)) {
           click.touched = true
@@ -315,9 +315,10 @@ export function resumeHeldTouches(s: Script): void {
 
 /**
  * In-world: after llResetScript, or a state change, a held click raised no more touch events,
- * and its release still raised touch_end. A reset also forgot a click whose button came up
- * while the script was stopped, or that a link break had ended, so the next click was a normal
- * one; after a state change that next click still raised no touch_start.
+ * and its release still raised touch_end. A reset also forgot a stuck click, whether its button
+ * came up while the script was stopped or it was held through a detach and wear, or one that a
+ * link break had ended, so the next click was a normal one; after a state change that next
+ * click still raised no touch_start.
  */
 export function forgetHeldTouches(s: Script, reset: boolean): void {
   for (const [by, click] of s.heldClicks) {

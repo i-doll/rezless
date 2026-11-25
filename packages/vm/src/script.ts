@@ -1304,8 +1304,8 @@ export class Script {
         if (!data['changes']) continue
       }
       // In-world: a click in the copy's sleep merged with the touch events a click in the busy part
-      // before the take had left waiting (7 runs of 8), and joined no other avatar's touch that
-      // came up in it (LSL 2 runs of 2) or waited from the handler's start (SLua, 1 run).
+      // before the take had left waiting (7 runs of 8). Another avatar's touch that came up in it
+      // while that avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
       const carried = carriedTouch(e, this.task)
       copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
     }
@@ -1404,16 +1404,19 @@ export class Script {
     }
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
-      // In-world: in SLua a detach and wear lost the touch of a click held back in the busy part
-      // behind another avatar's click, and kept its touch_start and touch_end (3 runs of 3); worn
-      // without the detach it ran (2 runs of 2). LSL kept the touch (2 runs of 2).
-      if (this.slua && e.event === 'touch' && e.held && e.busy && cameUp(e) <= (before?.spunUntil ?? -Infinity)) continue
+      // In-world: a click by another avatar held back behind a click from a spin, made in the
+      // spin or in the sleep after it, came through a detach and wear as a click of its own after
+      // the first, as one from the busy part does (LSL 4 runs of 4). In SLua the detach lost its
+      // touch and kept its touch_start and touch_end (5 runs of 5); worn without the detach it ran
+      // (2 runs of 2).
+      const spun = before?.spunUntil !== undefined
+      if (this.slua && spun && e.event === 'touch' && e.held && e.busy) continue
       const detected = e.payload['detected']
       const payload = detached && isTouch(e.event) && Array.isArray(detected)
         ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload
       // An event that is not due yet is judged when it is.
       const at = Math.max(e.at, this.now)
-      const carried = e.at <= this.now && carriedTouch(e, before)
+      const carried = e.at <= this.now && (carriedTouch(e, before) || spun && isTouch(e.event) && !!e.busy)
       clock.schedule(this, at, e.event, payload, e.at <= this.now ? carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
     }
     if (room > 0 && rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
