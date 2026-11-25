@@ -1301,9 +1301,10 @@ export class Script {
         data['changes'] = (data['changes'] as number) & ~CHANGED_LINK
         if (!data['changes']) continue
       }
-      // In-world: a click in the copy's sleep merged with the touch events a click in the busy part
-      // before the take had left waiting (7 runs of 8). Another avatar's touch that came up in it
-      // while that avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
+      // In-world: the touch events a click in the busy part left waiting came through the take and
+      // ran first in the copy, and a later click in the copy's sleep stayed a click of its own
+      // (LSL and SLua 7 runs or more each). Another avatar's touch that came up in it while that
+      // avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
       const carried = carriedTouch(e, this.task, false)
       copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, !!carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
     }

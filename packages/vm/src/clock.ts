@@ -1302,7 +1302,8 @@ export class LinksetClock {
     // inside fivebot's carried click: touch_start, touch, land_collision_start, touch_end, then
     // land_collision and land_collision_end, LSL 3 runs of 3; SLua ran all six last to first,
     // 4 runs of 4. A contact with the platform begun after the wear ran collision_start and
-    // collision ahead of the touch_end, LSL and SLua 3 runs of 3 each.
+    // collision ahead of the touch_end, LSL and SLua 3 runs of 3 each. After a take and wear the
+    // land contact ran after the attach instead, LSL and SLua 2 runs of 2 each.
     const oneClick = clicksBy(first).size === 1 && first.some((e) => e.event === 'touch_end')
     const contact = !raised && oneClick && [...carriedAs.values()].some((c) => c.behind && c.detached) ? heldContact(held, true) : []
     if (contact.length) {
@@ -1352,8 +1353,10 @@ export class LinksetClock {
       : isLate(e) ? HELD_ORDER.get('touch_end')! + 0.5
       : e.payload[TOUCH_AHEAD] ? HELD_ORDER.get('touch_start')! - 0.5
       // In-world: a change held in the sleep, before the detach or after the wear, ran between
-      // fivebot's click and i doll's held-back click, LSL and SLua 1 run each.
-      : carriedAs.get(e)?.behind ? HELD_ORDER.get('changed')! + HELD_ORDER.get(e.event)! / 10 : HELD_ORDER.get(e.event)!
+      // fivebot's click and i doll's held-back click, LSL and SLua 1 run each. After a take and
+      // wear, a land contact's first land_collision ran ahead of that click too, LSL and SLua 2
+      // runs of 2 each.
+      : carriedAs.get(e)?.behind ? HELD_ORDER.get('changed')! + 0.5 + HELD_ORDER.get(e.event)! / 100 : HELD_ORDER.get(e.event)!
     if (!inOrder) held.sort((a, b) => rank(a) - rank(b))
     else {
       // Held in the order they came, a late touch_start still runs behind the touch_end held with it.
