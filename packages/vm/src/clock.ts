@@ -317,7 +317,7 @@ export const toMicroseconds = (seconds: number) => Math.round(seconds * 1e6) / 1
 export const SIM_FRAME_MS = 1000 / 45
 
 /** `ms` rounded up to whole simulator frames; within 10 µs of a frame counts as on it. */
-const framesFor = (ms: number) => Math.ceil((ms - 0.01) / SIM_FRAME_MS) * SIM_FRAME_MS
+export const framesFor = (ms: number) => Math.ceil((ms - 0.01) / SIM_FRAME_MS) * SIM_FRAME_MS
 
 /** When llMinEventDelay lets a queued event run, or 0 when it doesn't delay it. */
 function delayedUntil(e: QueuedEvent): number {

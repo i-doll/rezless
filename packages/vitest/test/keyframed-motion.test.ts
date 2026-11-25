@@ -122,9 +122,9 @@ it.each([
   'llSetKeyframedMotion([],[KFM_COMMAND,KFM_CMD_PAUSE,KFM_MODE,KFM_LOOP]);',
 ])('retains existing motion after rejected replacement %s', async replace => {
   const s = await loadScript({source:`vector p;default {state_entry(){${convex}
-    llSetKeyframedMotion([<4,0,0>,ZERO_ROTATION,2.0],[]);llSleep(.5);${replace}}
+    llSetKeyframedMotion([<4,0,0>,ZERO_ROTATION,2.0],[]);llSleep(.4);${replace}}
     touch_start(integer n){p=llGetPos();}}`})
-  s.start();s.advanceTime(1000)
+  s.start();s.advanceTime(1100)
   expect(position(s)).toEqual({x:3,y:0,z:0})
 })
 it.each(['',`${convex}llSetPrimitiveParams([PRIM_PHYSICS_SHAPE_TYPE,PRIM_PHYSICS_SHAPE_PRIM]);`,`${convex}llSetStatus(STATUS_PHYSICS,TRUE);`])(

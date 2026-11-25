@@ -25,10 +25,10 @@ const calls: [string, string, number, number][] = [
   ['llSetTexture', 'llSetTexture("nope", 0)', 1.2, 1],
   ['llSetTexture, a notecard', 'llSetTexture("note", 0)', 1.2, 1],
   ['llSetLinkTexture', 'llSetLinkTexture(LINK_THIS, "nope", 0)', 1.2, 1],
-  // In-world: 1.110-1.111 s, their 0.1 s delay plus 1 s.
-  ['llRezObject', 'llRezObject("nope", ZERO_VECTOR, ZERO_VECTOR, ZERO_ROTATION, 0)', 1.1, 1],
-  ['llRezAtRoot', 'llRezAtRoot("nope", ZERO_VECTOR, ZERO_VECTOR, ZERO_ROTATION, 0)', 1.1, 1],
-  ['llRezObjectWithParams', 'llRezObjectWithParams("nope", [])', 1.1, 1],
+  // In-world: 1.110-1.111 s, their 0.1 s delay plus 1 s, ending on the 50th frame.
+  ['llRezObject', 'llRezObject("nope", ZERO_VECTOR, ZERO_VECTOR, ZERO_ROTATION, 0)', 50 / 45, 1],
+  ['llRezAtRoot', 'llRezAtRoot("nope", ZERO_VECTOR, ZERO_VECTOR, ZERO_ROTATION, 0)', 50 / 45, 1],
+  ['llRezObjectWithParams', 'llRezObjectWithParams("nope", [])', 50 / 45, 1],
   // In-world: 1.000-1.022 s for a missing script; a notecard's name was an error only for
   // llSetScriptState, and the other two took no time and said nothing.
   ['llSetScriptState', 'llSetScriptState("nope", TRUE)', 1, 1],
@@ -37,9 +37,9 @@ const calls: [string, string, number, number][] = [
   ['llResetOtherScript, a notecard', 'llResetOtherScript("note")', 0, 0],
   ['llGetScriptState', 'llGetScriptState("nope")', 1, 1],
   ['llGetScriptState, a notecard', 'llGetScriptState("note")', 0, 0],
-  // In-world: these said their errors and took only their usual delay.
-  ['llGetNotecardLine', 'llGetNotecardLine("nope", 0)', 0.1, 1],
-  ['llGetNumberOfNotecardLines', 'llGetNumberOfNotecardLines("nope")', 0.1, 1],
+  // In-world: these said their errors and took only their usual delay, a 0.1 s one ending on the 5th frame.
+  ['llGetNotecardLine', 'llGetNotecardLine("nope", 0)', 5 / 45, 1],
+  ['llGetNumberOfNotecardLines', 'llGetNumberOfNotecardLines("nope")', 5 / 45, 1],
   ['llGetNotecardLineSync', 'llGetNotecardLineSync("nope", 0)', 0, 1],
   ['llGiveInventory', 'llGiveInventory(llGetOwner(), "nope")', 0, 1],
   ['llGetInventoryPermMask', 'llGetInventoryPermMask("nope", MASK_OWNER)', 0, 1],

@@ -90,10 +90,10 @@ describe('motion that starts and ends while a handler sleeps', () => {
   // sleep, a stop and a 0.5 s sleep -> both, at 0.73 to 0.8. A 0.01 or 0.05 s busy loop before a
   // 1 s sleep gave both as well, which rezless cannot show: its handlers take no time but sleeps.
   it.each([
-    ['ss2,0.5,0', ['moving_start 9', 'moving_end 9']],
+    ['ss2,0.5,0', ['moving_start 9', 'moving_end 10']],
     ['sx,0.5,0', ['moving_start 12', 'moving_end 12']],
-    ['pp,0.5,0', ['moving_start 15', 'moving_end 15']],
-    ['ps,0.5,0', ['moving_start 7', 'moving_end 7']],
+    ['pp,0.5,0', ['moving_start 15', 'moving_end 16']],
+    ['ps,0.5,0', ['moving_start 7', 'moving_end 8']],
   ])('gives both when the handler wakes while the object moves: %s', async (command, expected) => {
     const b = await box(mover)
     send(b, command)

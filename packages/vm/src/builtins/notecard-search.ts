@@ -1,3 +1,4 @@
+import { framesFor } from '../clock.js'
 import type { BuiltinImpl, CallContext } from '../runtime.js'
 import { nextDataserverKey } from './dataserver.js'
 import { sayError } from './debug.js'
@@ -425,7 +426,7 @@ export const llFindNotecardTextCount: BuiltinImpl = (ctx, args) => {
   }
   const key = nextDataserverKey(ctx)
   ctx.state.dataserverRequests.push({ key, source: 'notecard_text_count', args: [name, pattern], fulfilled: true })
-  const at = ctx.state.clock.now + (ctx.spec?.delay ?? 0) * 1000
+  const at = ctx.state.clock.now + framesFor((ctx.spec?.delay ?? 0) * 1000)
   if (later.fill) ctx.linkset.clock.scheduleTask(ALWAYS, at, later.fill)
   for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, at, 'dataserver', { queryid: key, data })
   return key

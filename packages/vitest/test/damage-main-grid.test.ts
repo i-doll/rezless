@@ -319,7 +319,7 @@ describe('a state change inside on_damage', () => {
       listen(integer c, string n, key id, string m) { heard += m; }
     }` })
     rezzer.scripts.r!.fire('touch_start', { num_detected: 1 })
-    tick(world, 0)
+    tick(world, 5 * 1000 / 45)
     rezzer.scripts.r!.fire('touch_end', { num_detected: 1 })
     expect(() => tick(world, 1000)).not.toThrow()
     // The object left before its state_exit; the copy carries the rest.

@@ -608,7 +608,8 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
     longer.tell('1:4')
     longer.at(3000)
     longer.tell('7:5.5')
-    expect(longer.trace(12_600)).toEqual({ raw: [8550, 12_550], callbacks: [8550, 12_550] })
+    // The 5.5 s sleep wakes on its 248th frame, 11 ms past the half second.
+    expect(longer.trace(12_700)).toEqual({ raw: [8600, 12_600], callbacks: [8600, 12_600] })
   })
 
   it('sees one tick per callback for a timer that keeps time', async () => {
@@ -707,7 +708,7 @@ describe('a timer handler that sleeps', () => {
   it('ticks as each sleep ends when the sleep is longer than the interval', async () => {
     // In-world: a 1 s timer whose handler slept 1.5 s ticked every 1.56 s, and one whose handler
     // slept 1.2 s every 1.27 s: as each handler ended, with the region's own delay on top.
-    for (const [sleep, want] of [[1.5, [1000, 2550, 4090, 5630, 7180]], [1.2, [1000, 2250, 3490, 4730, 5980]]] as const) {
+    for (const [sleep, want] of [[1.5, [1000, 2560, 4110, 5670, 7220]], [1.2, [1000, 2250, 3490, 4730, 5980]]] as const) {
       const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `
         integer ticks;
         default {
@@ -717,7 +718,7 @@ describe('a timer handler that sleeps', () => {
       ` } }] }] })
       const s = scripts['s']!
       s.start()
-      // A float sleep runs a fraction of a millisecond over, so read the times to the nearest 10 ms.
+      // The 1.5 s sleep wakes on its 68th frame. Read the times to the nearest 10 ms.
       const times = tickTimes(linkset, () => s.global('ticks') as number, 1000 + 4 * (sleep * 1000 + 2 * SIM_FRAME_MS) + 50, 1)
       expect(times.map((t) => Math.round(t / 10) * 10)).toEqual(want)
     }

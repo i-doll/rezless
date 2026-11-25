@@ -104,8 +104,8 @@ describe('Phase 3 — virtual clock + timers', () => {
       }
     `)
     s.start()
-    s.advanceTime(3_500) // fires timer at 2 s; resets ref; sleeps 1.5; reads time → 1.5
-    expect(s.global('t')).toBeCloseTo(1.5)
+    s.advanceTime(3_600) // fires timer at 2 s; resets ref; sleeps 1.5 to the 68th frame; reads time
+    expect(s.global('t')).toBeCloseTo(68 / 45)
   })
 
   it('events queued during llSleep fire after the handler returns', async () => {
@@ -222,7 +222,7 @@ describe('wall-clock time from the virtual clock', () => {
     })
     s.start()
     expect(s.global('unix')).toBe(1_700_000_001)
-    expect(s.global('stamp')).toBe('2023-11-14T22:13:21.750000Z')
+    expect(s.global('stamp')).toBe('2023-11-14T22:13:21.766666Z')
   })
 
   it('llResetTime does not move wall-clock time', async () => {
