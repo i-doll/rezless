@@ -146,6 +146,35 @@ describe('an LSL timer through a longer sleep', () => {
         }
       }`)).toEqual(['t5', 'w17', 't19', 't24', 't28', 't33', 't37'])
   })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-25): the same timer handler sent itself two or four link
+  // messages before its sleep -> woke on 16 or 17, ran the messages a frame apart and then the held
+  // tick, and the next ticks still counted from two frames after the wake: with two messages, waking
+  // on 16, ticks 19, 23, 27, 32, 36, and waking on 17, 20, 24, 28, 33, 37 (three runs); with four,
+  // waking on 17, ticks 22, 24, 28, 33, 37 (two runs). Not from the wake, nor from the held tick,
+  // which would give 25, 29, 34 with two messages. An SLua LLTimers callback counted from when the
+  // held callback ran (three and two runs).
+  it.each([
+    [2, ['t5', 'w17', 'lm18', 'lm19', 't20', 't24', 't28', 't33', 't37']],
+    [4, ['t5', 'w17', 'lm18', 'lm19', 'lm20', 'lm21', 't22', 't24', 't28', 't33', 't37']],
+  ] as const)('counts them from two frames after the wake with %s link messages ahead of the held tick', async (messages, expected) => {
+    expect(await frames('lsl', `list L;
+      integer slept;
+      rec(string e) { L += e + "@" + (string)llGetTime(); }
+      default {
+        state_entry() { rec("call"); llSetTimerEvent(0.1); }
+        link_message(integer s, integer n, string m, key k) { rec("lm"); }
+        timer() {
+          rec("t");
+          if (!slept) {
+            slept = 1;
+            integer i; for (i = 0; i < ${messages}; ++i) llMessageLinked(LINK_THIS, 0, "", "");
+            llSleep(12.0 / 45); rec("w");
+          }
+          else if (llGetListLength(L) >= ${expected.length + 1}) llSetTimerEvent(0);
+        }
+      }`)).toEqual(expected)
+  })
 })
 
 describe('an LSL timer through a busy handler', () => {
@@ -174,6 +203,23 @@ describe('an LSL timer through a busy handler', () => {
     [0.3, 30, ['w30', 't31', 't33', 't41', 't54', 't68']],
   ] as const)('ticks a %s s timer through a spin of %s frames on the measured frames', async (interval, spinFrames, expected) => {
     expect(await frames('lsl', spin(interval, spinFrames, expected.length - 1), 4000)).toEqual(expected)
+  })
+
+  // In-world (Aditi, SLua Tideland, 2026-11-25): a 0.1 s timer, a spin that ended on frame 12,
+  // llSetTimerEvent(0.1) again and a second spin that ended on 24 -> two ticks, on 25 and 27 or 28,
+  // and then every 0.1 s from the second: 32, 36, 41, 45 (three runs, two LSL loggers each). The
+  // ticks of both spins went into the same two events, and the call did not keep the one that
+  // stood for the later ticks from counting the schedule from when it ran.
+  it('keeps two ticks for two spins with the timer set again between them', async () => {
+    expect(await frames('lsl', `list L;
+      rec(string e) { L += e + "@" + (string)llGetTime(); }
+      default {
+        state_entry() {
+          rec("call"); llSetTimerEvent(0.1); llSetText("", ZERO_VECTOR, 12); rec("r");
+          llSetTimerEvent(0.1); llSetText("", ZERO_VECTOR, 12); rec("w");
+        }
+        timer() { rec("t"); if (llGetListLength(L) >= 9) llSetTimerEvent(0); }
+      }`)).toEqual(['r12', 'w24', 't25', 't27', 't32', 't36', 't41', 't45'])
   })
 })
 

@@ -33,7 +33,11 @@ export interface QueuedEvent {
   readonly notBefore?: number
 }
 
-/** On a tick that stands for the later ticks a busy handler held back: when the first of them was due. */
+/**
+ * On a tick that stands for the later ticks a busy handler held back: when the first of them was
+ * due, or Infinity once a trip through inventory means it no longer starts the schedule again.
+ * Later ticks still merge into it, also after an llSetTimerEvent call in the busy handler.
+ */
 const STANDS_FOR = '__standsFor'
 
 /** Whether `e` is `script`'s tick that stands for the later ticks its busy handler held back. */
@@ -874,11 +878,18 @@ export class LinksetClock {
       // A tick that fell due in a sleep came up on the frame the script woke on: in-world, a 0.1 s
       // timer through a 0.25 s sleep that woke on frame 12 ticked on 13, then 17, 21 and 26, also
       // when link messages ran ahead of the held tick.
-      // One that ran two frames behind a timer handler counted from when it ran: a tick held in a
-      // timer handler's 0.25 s sleep, or behind the saved tick of a reattach.
-      const woke = v.sleptUntilMs === v.busyUntilMs && v.busyUntilMs > v.timerNextFireMs && bestTimerWaited <= v.busyUntilMs &&
-        v.lastEndedEvent !== 'timer' ? Math.max(v.timerFrameMs, v.timerFrameAt(v.busyUntilMs)) : at
-      v.timerFired(at, at - Math.max(v.timerFrameMs, bestTimerWaited) > 1e-6 ? at : bestTimerWaited, Math.min(at, woke))
+      // One held in an LSL timer handler's own sleep came up two frames after the wake, as a tick
+      // behind a tick does: in-world, a 0.1 s timer whose handler slept 0.25 s and woke on 16 ran
+      // the held tick on 18 and counted from it, and with two or four link messages ahead of the
+      // held tick still counted from 18. A tick held behind the saved tick of a reattach counted
+      // from when it ran.
+      let restartAt = at
+      if (v.sleptUntilMs === v.busyUntilMs && v.busyUntilMs > v.timerNextFireMs && bestTimerWaited <= v.busyUntilMs) {
+        const wake = Math.max(v.timerFrameMs, v.timerFrameAt(v.busyUntilMs))
+        if (v.sleptIn === 'timer') restartAt = wake + (bestTimerScript.language === 'lsl' ? 2 : 1) * SIM_FRAME_MS
+        else if (v.lastEndedEvent !== 'timer') restartAt = wake
+      }
+      v.timerFired(at, at - Math.max(v.timerFrameMs, bestTimerWaited) > 1e-6 ? at : bestTimerWaited, Math.min(at, restartAt))
       return { at, target: bestTimerScript, event: 'timer', payload: {} }
     }
     if (waking) this.settleMoving(waking, wakeAt)
@@ -1256,8 +1267,9 @@ export class ScriptClockView {
   private owedSetDueMs: number | undefined
   /** Virtual time at which the script's last handler finished, when it took time (llSleep, delays). */
   busyUntilMs = 0
-  /** When the script last woke from a sleep. */
+  /** When the script last woke from a sleep, and the event whose handler slept. */
   sleptUntilMs = -Infinity
+  sleptIn: string | undefined
   /** When the script's last handler ended, and the event it ran. */
   private lastEnd: { at: number; event: string } | undefined
 
@@ -1497,8 +1509,6 @@ export class ScriptClockView {
       this.schedule(this.timerNextFireMs, 'timer', { __due: this.timerNextFireMs, __interval: this.timerIntervalMs, ...passed })
     }
     this.followsOwed = false
-    // A call wins over the ticks a busy handler held back: they no longer start the schedule again.
-    for (const e of this.linksetClock.pendingEvents()) if (standsFor(e, this.self())) delete e.payload[STANDS_FOR]
     this.timerIntervalMs = intervalMs
     this.timerFramesFromMs = this.now
     // A tick still owed from before the script started keeps its place. The call starts the
@@ -1589,7 +1599,7 @@ export class ScriptClockView {
         delete e.payload['__due']
         delete e.payload['__passedAt']
         delete e.payload['__interval']
-        delete e.payload[STANDS_FOR]
+        if (e.payload[STANDS_FOR] !== undefined) e.payload[STANDS_FOR] = Infinity
       }
     }
   }
