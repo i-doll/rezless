@@ -114,7 +114,8 @@ describe('SLua scripts', () => {
     s.mock('llGetTime', () => 42.5)
     s.start()
     s.advanceTime(2000)
-    expect(s).toHaveSaid(0, '42.5 1.5')
+    // The callback runs on the first simulator frame after 1.5 s.
+    expect(s).toHaveSaid(0, '42.5 1.511111')
   })
 
   // SLua's own ll.GetTime (secondlife/slua VM/src/lll.cpp ll_get_time) returns the script clock as a double, the

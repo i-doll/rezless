@@ -523,7 +523,7 @@ describe('the timer events an LLEvents handler sees next to LLTimers', () => {
       expect(r.trace(8100)).toEqual({ raw, callbacks: [startAt, 8050] })
     }
     const five = await stopped('1:5', 1000, 8000)
-    expect(five.trace(10_100)).toEqual({ raw: [8000, 8050, 9100, 10_050], callbacks: [8000, 10_050] })
+    expect(five.trace(10_100)).toEqual({ raw: [8000, 8050, 9050, 10_050], callbacks: [8000, 10_050] })
   })
 
   it('sees no extra tick after a start that missed more than one tick', async () => {

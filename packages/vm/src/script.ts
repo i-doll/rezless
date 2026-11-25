@@ -1271,6 +1271,7 @@ export class Script {
     // tick has been overdue.
     const left = this.clockView.timerNextFireMs - this.clockView.stoppedAt
     copy.clockView.timerNextFireMs = copy.now + (this.running ? Math.max(0, left) : left)
+    copy.clockView.timerFramesFromMs = this.running && left < 0 ? copy.now : this.clockView.timerFramesFromMs + copy.now - this.clockView.stoppedAt
     copy.clockView.timeReferenceMs = copy.now - (this.clockView.stoppedAt - this.clockView.timeReferenceMs)
     copy.clockView.minEventDelayMs = this.clockView.minEventDelayMs
     copySensors(this, copy)

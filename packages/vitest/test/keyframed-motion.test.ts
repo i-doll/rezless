@@ -190,7 +190,8 @@ it('updates motion before each timer handler during a single large advance', asy
     llSetKeyframedMotion([<4,0,0>,ZERO_ROTATION,2.0],[]);llSetTimerEvent(.5);}
     timer(){vector p=llGetPos();samples+=[p.x];}}`})
   s.start();s.advanceTime(2000)
-  expect(s.global('samples')).toEqual([1,2,3,4])
+  // The ticks due at 0.5 s and 1.5 s run on the frame after, 1/90 s later.
+  expect((s.global('samples') as number[]).map((x)=>Math.round(x*1000)/1000)).toEqual([1.022,2,3.022,4])
 })
 
 // In-world: playback.py -> loop and ping-pong resume after multiple cycles.

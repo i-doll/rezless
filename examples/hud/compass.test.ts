@@ -46,7 +46,7 @@ describe('compass.lsl', () => {
     s.reset()
     expect(s.linkset.attachment).toMatchObject({ point: ATTACH_HUD_CENTER_1 })
     s.setCamera({ pos: { x: 150, y: 128, z: 25 }, rot: FACING_EAST })
-    s.advanceTime(500)
+    s.advanceTime(550)
     expect(s.text?.text).toBe('Landmark behind you')
   })
 
