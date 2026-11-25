@@ -1981,10 +1981,15 @@ export class Script {
         now: () => this.now,
         clock: () => toMicroseconds(this.clockView.elapsedSeconds()),
         unixTime: () => this.clockView.unixMicros() / 1e6,
-        // The tick falls due at the first microsecond the clock reads on or after the time asked for.
+        // The tick falls due at the first microsecond the clock reads on or after the time asked for,
+        // compared as doubles, as Luau compares its schedule with the clock.
         setTimer: (seconds) => {
+          if (seconds <= 0) return this.clockView.setTimer(seconds)
           const now = this.clockView.elapsedSeconds()
-          this.clockView.setTimer(seconds > 0 ? (Math.ceil((toMicroseconds(now) + seconds) * 1e6 - 1e-6) / 1e6 - now) * 1000 : seconds)
+          const due = toMicroseconds(now) + seconds
+          const near = toMicroseconds(due)
+          const tick = near >= due ? near : (Math.round(due * 1e6) + 1) / 1e6
+          this.clockView.setTimer((tick - now) * 1000)
         },
         print: (text) => this.sluaPrint(text),
         faceTextureIsItem: (face) => faceTextureIsItem(this.host, face),
