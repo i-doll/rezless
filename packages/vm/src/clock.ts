@@ -13,6 +13,7 @@
  * a thin facade exposed to builtins as `ctx.state.clock`.
  */
 import type { Script } from './script.js'
+import { NULL_KEY } from './values/types.js'
 
 export interface QueuedEvent {
   /** Virtual ms timestamp at which this event becomes ready to fire. */
@@ -71,6 +72,8 @@ export interface Carried {
   readonly takesIn: boolean
   /** It was held back behind an event of its kind, so it runs among the held events. */
   readonly behind: boolean
+  /** It came through a detach and wear rather than a take. */
+  readonly detached?: boolean
 }
 
 /** Changes to running state held from the rest of a handler that was busy at a detach; they take no event slot. */
@@ -253,7 +256,8 @@ function sluaCarriedOrder(held: ReadonlyArray<QueuedEvent>, carriedAs: ReadonlyM
     const e = out[i]!
     run.unshift(e)
     const next = slots[k + 1] === undefined ? undefined : out[slots[k + 1]!]!
-    if (e.event === 'touch_end' || !next || part(next) !== part(e)) order.push(...run.splice(0))
+    const land = (x?: QueuedEvent) => !!x && LAND_EVENTS.has(x.event)
+    if ((e.event === 'touch_end' || land(e) && e.event !== 'land_collision_start') && !land(next) || !next || part(next) !== part(e)) order.push(...run.splice(0))
   }
   slots.forEach((i, k) => { out[i] = order[k]! })
   return out
@@ -1122,8 +1126,11 @@ export class LinksetClock {
       ({ at, target, event, payload, ...(at > this.now && { held: false, raisedAt: this.now }) })
     const raised = waited.filter((e) => queued && !queued.has(e))
     const early = waited.filter((e) => !raised.includes(e))
-    this.queue.push(...this.byDue(early.filter((e) => !this.heldBack(e, since))).map(plain))
-    const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined)
+    const plainEarly = this.byDue(early.filter((e) => !this.heldBack(e, since))).map(plain)
+    const attaches = plainEarly.filter((e) => e.event === 'attach' && e.payload['avatar'] !== NULL_KEY)
+    const attach = attaches.length === 1 && early.some((e) => e.carried?.behind && e.carried.detached && this.heldBack(e, since)) ? attaches : []
+    this.queue.push(...plainEarly.filter((e) => !attach.includes(e)))
+    const released = this.release(script, early.filter((e) => this.heldBack(e, since)), false, raised.length ? raised : undefined, attach)
     this.fit(raised, MAX_PENDING_EVENTS - this.pending(script) - counted(released), (e) => this.heldBack(e, since))
     // In-world: a land contact held through a sleep ran land_collision_start, the link message
     // sent after the wake, a land_collision, the change made after the wake a frame later, then
@@ -1225,7 +1232,7 @@ export class LinksetClock {
    * the events the handler raised after its wake wait behind them, so a tick that fell due in the
    * sleep is queued even with nothing else held, and takes its room ahead of them.
    */
-  private release(script: Script, events: QueuedEvent[], timerWaits: boolean, raised?: ReadonlyArray<QueuedEvent>): QueuedEvent[] {
+  private release(script: Script, events: QueuedEvent[], timerWaits: boolean, raised?: ReadonlyArray<QueuedEvent>, attach: ReadonlyArray<QueuedEvent> = []): QueuedEvent[] {
     // In-world: a handler busy and then asleep ran what it held in the sleep in the held order, a
     // change held in the busy part among them, unless all of it was held as when busy.
     const inOrder = events.every((e) => e.busy)
@@ -1242,6 +1249,21 @@ export class LinksetClock {
     // (LSL 2 runs of 2, SLua 1 run), and a tick that fell due after the wear ran between
     // fivebot's click and i doll's held-back click (LSL 2 runs of 2).
     const first = held.filter((e) => carriedAs.has(e) && !carriedAs.get(e)!.behind)
+    // In-world: a land contact held in the sleep, begun before the detach or after the wear, ran
+    // inside fivebot's carried click: touch_start, touch, land_collision_start, touch_end, then
+    // land_collision and land_collision_end, LSL 3 runs of 3; SLua ran all six last to first,
+    // 4 runs of 4.
+    const avatars = new Set(first.flatMap((e) => (e.payload['detected'] as ReadonlyArray<DetectedTouch> | undefined ?? []).map((d) => d.key?.toLowerCase())))
+    const oneClick = avatars.size === 1 && first.some((e) => e.event === 'touch_end')
+    const contact = !raised && oneClick && [...carriedAs.values()].some((c) => c.behind && c.detached) ? held.filter((e) => LAND_EVENTS.has(e.event)) : []
+    if (contact.filter((e) => e.event === 'land_collision_start').length === 1) {
+      const end = first.map((e) => e.event).lastIndexOf('touch_end')
+      const starts = contact.filter((e) => e.event === 'land_collision_start')
+      const { late } = carriedAs.get(first[end < 0 ? first.length - 1 : end]!)!
+      first.splice(end < 0 ? first.length : end, 0, ...starts)
+      first.push(...contact.filter((e) => !starts.includes(e)))
+      for (const e of contact) carriedAs.set(e, { late, takesIn: false, behind: false })
+    }
     const lands = held.filter((e) => e.event === 'land_collision')
     if (lands.length) {
       const tail: LandTail = { script, since: this.ran.get(script) ?? 0, ran: 0, dropped: 0, copies: new WeakMap() }
@@ -1257,7 +1279,7 @@ export class LinksetClock {
     // that fell due in a 4 s sleep ran ahead of a link message sent after the wake.
     // In-world: with the tick from the sleep queued, the 64th of 64 link messages the handler
     // sent itself after the wake was lost, and 63 all ran after the tick.
-    let pending = script.parkedEvents.length + events.length
+    let pending = script.parkedEvents.length + events.length + attach.length
     for (const e of this.queue) if (e.target === script && !raised?.includes(e)) pending++
     // In-world: a 1 s timer through a handler busy for 6 s and then asleep for 6 s gave two timer
     // events: the tick held in the busy part stands for those in the sleep.
@@ -1290,7 +1312,10 @@ export class LinksetClock {
       const late = end < 0 ? [] : held.slice(0, end).filter(isLate)
       if (late.length) held.splice(0, end + 1, ...held.slice(0, end + 1).filter((e) => !late.includes(e)), ...late)
     }
-    if (first.length) held.splice(0, held.length, ...first, ...held.filter((e) => !first.includes(e)))
+    // In-world: the attach of the wear ran right after fivebot's carried click, ahead of a change
+    // held in the sleep and of i doll's held-back click, LSL 8 runs of 8 and SLua 7 of 7, with
+    // and without a land contact.
+    if (first.length || attach.length) held.splice(0, held.length, ...first, ...attach, ...held.filter((e) => !first.includes(e)))
     if (carriedAs.size && script.language === 'slua') held.splice(0, held.length, ...sluaCarriedOrder(held, carriedAs))
     for (const [i, e] of held.entries()) {
       if (!e.payload[LATE_TOUCH_START] && !e.payload[TOUCH_AHEAD]) continue
