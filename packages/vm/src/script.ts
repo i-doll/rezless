@@ -1197,9 +1197,11 @@ export class Script {
     copy.resetPastWear = this.resetPastWear
     copy.pastWearChanges.push(...this.pastWearChanges)
     // In-world: a click stuck on a script kept raising touch in the object rezzed from a take, reading face -1.
+    // A click still held at the take stayed stuck there, and another avatar's first click on the
+    // copy raised touch_start (2 runs of 2).
     for (const [by, click] of this.heldClicks) {
       const { lastTouch: _, ...kept } = click
-      copy.heldClicks.set(by, { ...kept, detected: touchThroughInventory(click.detected) })
+      copy.heldClicks.set(by, { ...kept, detected: touchThroughInventory(click.detected), released: true })
     }
     copy.running = this.running && !this.dead
     resumeHeldTouches(copy)
@@ -1297,7 +1299,11 @@ export class Script {
         data['changes'] = (data['changes'] as number) & ~CHANGED_LINK
         if (!data['changes']) continue
       }
-      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, this.linkset.clock.heldBack(e, this.task?.startedAt))
+      // In-world: a click in the copy's sleep merged with the touch events a click in the busy part
+      // before the take had left waiting (7 runs of 8), and joined no other avatar's touch that
+      // came up in it (LSL 2 runs of 2) or waited from the handler's start (SLua, 1 run).
+      const carried = carriedTouch(e, this.task)
+      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
     }
     if (reset) copy.resetIntoInventory()
     return copy
@@ -1364,6 +1370,11 @@ export class Script {
     // what it has queued stays ahead.
     const clock = this.linkset.clock
     const held = !!this.task || detachedInHandler
+    const before = this.task
+    if (before?.spunUntil !== undefined) {
+      const { spunUntil: _, ...task } = before
+      this.task = task
+    }
     const waiting = held ? clock.pendingEvents().filter(e => e.target === this) : []
     if (held) clock.purgeTarget(this)
     const room = MAX_PENDING_EVENTS - waiting.length
@@ -1393,7 +1404,9 @@ export class Script {
       const payload = detached && isTouch(e.event) && Array.isArray(detected)
         ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload
       // An event that is not due yet is judged when it is.
-      clock.schedule(this, Math.max(e.at, this.now), e.event, payload, e.at <= this.now ? clock.heldBack(e, this.task?.startedAt) : undefined)
+      const at = Math.max(e.at, this.now)
+      const carried = e.at <= this.now && carriedTouch(e, before)
+      clock.schedule(this, at, e.event, payload, e.at <= this.now ? carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
     }
     if (room > 0 && rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
@@ -1670,6 +1683,14 @@ export class Script {
 
   private busyRun = false
 
+  /**
+   * Whether the running handler has been busy since `at`. In-world, a script taken or detached
+   * in a sleep that followed a busy part came back as if the handler had only slept.
+   */
+  spunSince(at: number): boolean {
+    return this.busy || (this.task?.spunUntil ?? -Infinity) > at
+  }
+
   /** Virtual time the running handler began at, or undefined when the script is idle. */
   get handlerStartedAt(): number | undefined {
     return this.task?.startedAt
@@ -1779,7 +1800,7 @@ export class Script {
       if (!outer) this.state.lifecycle.reset = false
     }
     if (!r.done) {
-      this.task = { ...task, wakeAt: r.value.until, busy: r.value.busy === true }
+      this.task = { ...task, wakeAt: r.value.until, busy: r.value.busy === true, ...(r.value.busy && { spunUntil: r.value.until }) }
       this.linkset.clock.releaseAtWake(this, task.startedAt, queued)
       return
     }
@@ -2153,6 +2174,17 @@ function throughInventory(event: string, detected: ReadonlyArray<DetectedEntry>)
 
 const isTouch = (event: string | undefined) => event === 'touch_start' || event === 'touch' || event === 'touch_end'
 
+/** Whether `e` is a touch event that came up in a busy part of `task`, or already counts as one. */
+const carriedTouch = (e: QueuedEvent, task: Task | null | undefined) =>
+  !!e.carried || isTouch(e.event) && !!e.busy && cameUp(e) <= (task?.spunUntil ?? -Infinity)
+
+/**
+ * Whether a take or a detach keeps `e` from taking in other avatars' clicks: a touch event that
+ * came up while `task` was busy or waited from the moment it began. In-world, another avatar's
+ * click on an SLua copy did not join such a touch, as it would not have in the original (1 run).
+ */
+const keepsBusy = (e: QueuedEvent, task: Task | null | undefined) => isTouch(e.event) && (!!e.busy || !!task && cameUp(e) <= task.startedAt)
+
 /** A copy of an event's payload without the keys the host keeps for itself (`__...`), as it reads after inventory. */
 function eventData(event: string, payload: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {}
@@ -2169,6 +2201,8 @@ interface Task {
   readonly wakeAt: number
   /** Busy computing until `wakeAt` rather than asleep. */
   readonly busy?: boolean
+  /** When the handler's last busy part ended. */
+  readonly spunUntil?: number
   /** For SLua code: the event it runs for and that event's payload, so a copy can carry it on. */
   readonly slua?: { readonly event: string; readonly payload: Record<string, unknown> }
   /** For an LSL handler: what a copy needs to run it again up to where it sleeps. */
