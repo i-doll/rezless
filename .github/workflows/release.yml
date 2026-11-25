@@ -52,9 +52,9 @@ jobs:
         with:
           version: 10.28.2
 
-      # Node 24 — its bundled npm (>= 11.5.1) is what implements the
-      # OIDC token exchange for npm Trusted Publishing. Node 20 still
-      # ships npm 10.x and would need a manual `npm install -g npm`.
+      # Node 26, the newest LTS line, which CI builds and covers on too.
+      # Its bundled npm (11.13 with 26.1) is new enough (>= 11.5.1) for the
+      # OIDC token exchange npm Trusted Publishing needs.
       #
       # NB: no `registry-url` here. setup-node would otherwise write
       # `_authToken=${NODE_AUTH_TOKEN}` into ~/.npmrc, and since we
@@ -64,7 +64,7 @@ jobs:
       # flow takes over.
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
