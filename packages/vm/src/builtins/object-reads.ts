@@ -333,8 +333,9 @@ function detail(prim: Prim, flag: number): Entry[] | undefined {
       return [[{ x: axis.x * spinrate, y: axis.y * spinrate, z: axis.z * spinrate }, 'vector']]
     }
     case OBJECT_OWNER:
-    case OBJECT_CREATOR:
       return [[owner, 'key']]
+    case OBJECT_CREATOR:
+      return [[prim.creator, 'key']]
     case OBJECT_REZZER_KEY:
       return [[prim.linkset?.rez?.rezzerKey ?? owner, 'key']]
     case OBJECT_GROUP:

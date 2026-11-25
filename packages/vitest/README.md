@@ -261,7 +261,12 @@ const { linkset, prims, scripts } = await loadLinkset({
         // notecards, textures, … addressable via llGetInventory* / llGetNotecardLine
       ],
     },
-    { name: 'Display', scripts: [{ source: './display.lsl', name: 'display' }] },
+    {
+      name: 'Display',
+      creator: 'eeee-ffff-...',         // optional, who made the prim, read by llGetCreator and OBJECT_CREATOR;
+                                        //   the owner by default. Prims of objects in contents keep it when rezzed
+      scripts: [{ source: './display.lsl', name: 'display' }],
+    },
   ],
 })
 
