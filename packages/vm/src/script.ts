@@ -1290,6 +1290,9 @@ export class Script {
       // In-world: a release waiting for a game_control handler asleep at a take never ran in the
       // rezzed copy.
       if (e.event === 'game_control') continue
+      // In-world: a click held back in the busy part behind another avatar's click was lost
+      // through a take, in LSL and SLua (4 runs of 4); without the take it ran (2 runs of 2).
+      if (isTouch(e.event) && e.held && e.busy && cameUp(e) <= (this.task?.spunUntil ?? -Infinity)) continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
       // changed(CHANGED_LINK) in the copy, the one `unseated` brings. An earlier stand event
       // keeps only the other changes that were merged into it.

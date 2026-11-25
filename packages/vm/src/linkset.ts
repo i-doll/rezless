@@ -250,7 +250,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
         // i doll held a click and fivebot's first touch_end waited, raised a touch of its own
         // listing both, after its touch_start (9 runs of 9). Its only click on a copy rezzed in
         // the sleep raised none, as a first click does (2 runs of 2).
-        if (touches.own || !waitingTouches(s, 'touch_end', by).own) {
+        if (touches.own || !s.spunSince(came) || !waitingTouches(s, 'touch_end', by).own) {
           click.touched = true
           continue
         }
@@ -276,7 +276,7 @@ function raiseHeldTouches(clock: LinksetClock): void {
       click.touched = true
       click.lastTouch = detected
       const listed = new Set(raised?.detected.map((d) => d.key?.toLowerCase()))
-      const others = waiting ? [...s.heldClicks].filter(([k, c]) => k !== by && !c.released && !c.cut && !listed.has(k)).flatMap(([, c]) => c.detected) : []
+      const others = waiting ? [...s.heldClicks].filter(([k, c]) => k !== by && c.repeating && !c.released && !c.cut && !listed.has(k)).flatMap(([, c]) => c.detected) : []
       if (raised) raised.detected.push(...others, ...detected)
       else raised = { detected: [...others, ...detected], plain }
     }
@@ -1206,7 +1206,7 @@ export class Linkset {
       // In-world: fivebot's click in a touch_start sleep, while i doll held a click or i doll's
       // touch_end waited, raised its touch_start behind that touch_end, in LSL and SLua.
       const late = s.handlerEvent === 'touch_start' &&
-        ([...s.heldClicks].some(([k, c]) => k !== by && !c.released && !c.cut) || waitingTouches(s, 'touch_end', by).other !== undefined)
+        (held || waitingTouches(s, 'touch_end', by).other !== undefined)
       if (!s.heldClicks.has(by) && !crowded) {
         scheduleTouch(s, 'touch_start', detected, late ? { late } : undefined)
       }
