@@ -138,6 +138,11 @@ export async function addScript(prim: Prim, input: ScriptInput, opts: { running?
  * additive multi-script path.
  */
 export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
+  return build(input, input.owner)
+}
+
+/** `maker` is the creator of every prim of an object in contents that names none: the outermost owner. */
+async function build(input: LinksetInput, maker: string | undefined): Promise<LoadedLinkset> {
   const linksetOpts: { -readonly [K in keyof LinksetOptions]: LinksetOptions[K] } = {}
   if (input.owner !== undefined) linksetOpts.owner = input.owner
   if (input.startUnixTime !== undefined) linksetOpts.startUnixTime = input.startUnixTime
@@ -166,11 +171,11 @@ export async function loadLinkset(input: LinksetInput): Promise<LoadedLinkset> {
     }
     for (const [name, definition] of Object.entries(primInput.objects ?? {})) {
       const autoGrantPermissions = definition.autoGrantPermissions ?? input.autoGrantPermissions
-      const object = (await loadLinkset({ ...definition,
-        ...(autoGrantPermissions !== undefined ? { autoGrantPermissions } : {}) })).linkset
+      const object = (await build({ ...definition,
+        ...(autoGrantPermissions !== undefined ? { autoGrantPermissions } : {}) }, maker)).linkset
       if (!object.prims.length) throw new Error(`loadLinkset: inventory object '${name}' has no prims`)
-      prim.placeInventory(makeInventoryItem({ name, type: InventoryType.OBJECT,
-        key: object.prims[0]!.key, object }))
+      if (maker !== undefined) for (const objectPrim of object.prims) objectPrim.madeBy ??= maker
+      prim.placeInventory(makeInventoryItem({ name, type: InventoryType.OBJECT, key: object.prims[0]!.key, object }))
     }
     for (const sInput of primInput.scripts ?? []) {
       const experience = sInput.experience ?? input.experience
