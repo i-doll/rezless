@@ -226,7 +226,9 @@ A script runs one queued event per simulator frame (1/45 s), as in Second Life: 
 
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 
-A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses for that long after the mock returns.
+A sleep or a builtin's forced delay ends on the first simulator frame on or after it falls due, counting from the call: `llSleep(0.25)` wakes 0.267 s later, and the 0.1 s delay of `llRezObject` takes 0.111 s. This is a breaking change: before, a sleep ended at exactly the time asked for.
+
+A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses after the mock returns until the first frame on or after `ms` has passed.
 
 A handler that only computes takes no time unless a mock says so. Call `ctx.busy(ms)` in a mock to keep the script busy in its handler for that long after the mock returns, as a loop that never sleeps does; `llGetTime` moves on and other scripts run meanwhile.
 
@@ -1467,8 +1469,8 @@ against `sittp` before accepting a response; forced sits bypass that restriction
 Pathfinding, automatic collision placement and avatar body offsets remain explicit
 inputs rather than a simulated physics or avatar skeleton.
 
-Force `sit`, `sitground` and `unsit` reach World seating 225 ms of virtual time
-after the command (the grid switched between 0.2 and 0.25 s), and the command log
+Force `sit`, `sitground` and `unsit` reach World seating 10 simulator frames (222 ms)
+of virtual time after the command (the grid took 8 to 11 frames, mostly 10), and the command log
 records `pending` first. Until then `getsitid`, later commands in the same message
 and event, and `llGetAgentInfo` see the old seat, so step virtual time (250 ms is
 enough) after an RLV force sit or stand before reading the seat. Lock checks run

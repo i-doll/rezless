@@ -17,7 +17,7 @@ it('reports a missing rez item and adds its measured one-second failure delay', 
   ` })
   script.start()
   expect(script.chat.some(c => c.channel === DEBUG_CHANNEL && c.text.includes('missing'))).toBe(true)
-  expect(script.global('elapsed')).toBeCloseTo(1.1)
+  expect(script.global('elapsed')).toBeCloseTo(50 / 45)
 })
 
 import { loadLinkset, World, makeInventoryItem, InventoryType, NULL_KEY, type Linkset } from '../src/index.js'
@@ -54,7 +54,7 @@ it('rezzes a distinct linkset into the same World and delivers both rez events',
   expect(child.allScripts()[0]!.global('param')).toBe(-37)
   expect(child.allScripts()[0]!.global('start')).toBe(-37)
   expect(f.prims[0]!.inventory.filter(i => i.type === InventoryType.OBJECT)).toHaveLength(1)
-  expect(f.parent.global('elapsed')).toBeCloseTo(0.1)
+  expect(f.parent.global('elapsed')).toBeCloseTo(5 / 45)
 })
 
 it('returns the new root key from llRezObjectWithParams', async () => {
@@ -128,7 +128,7 @@ it.each([
   expect(f.parent.global('events')).toBe(0)
   expect(f.world.linksets).toHaveLength(1)
   expect(f.parent.chat.filter(c => c.channel === DEBUG_CHANNEL).map(c => c.text)).toEqual([`llRezObjectWithParams ${error}`])
-  expect(f.parent.global('elapsed')).toBeCloseTo(0.1)
+  expect(f.parent.global('elapsed')).toBeCloseTo(5 / 45)
 })
 
 // In-world: reliable.py cases 2-5, 8-13 -> 10.43 yes / 10.44 no for a .5m cube;
@@ -353,7 +353,7 @@ it('expires an unscripted temporary object even after its rezzer dies', async ()
   const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]); llDie();', payload.linkset)
   f.parent.start()
   expect(f.world.linksets).toHaveLength(1)
-  f.linkset.advanceTime(59899)
+  f.linkset.advanceTime(59999 - 5 * SIM_FRAME_MS)
   expect(f.world.linksets).toHaveLength(1)
   f.linkset.advanceTime(1)
   expect(f.world.linksets).toHaveLength(0)
@@ -562,7 +562,7 @@ it.each(['[REZ_PARAM,1.0]', '[REZ_FLAGS,1.0]', '[REZ_ROT,ZERO_ROTATION,1.0]'])('
   f.parent.start()
   expect(f.parent.global('result')).toBe(NULL_KEY)
   expect(f.world.linksets).toHaveLength(1)
-  expect(f.parent.global('elapsed')).toBeCloseTo(0.1)
+  expect(f.parent.global('elapsed')).toBeCloseTo(5 / 45)
 })
 
 it('validates malformed options before reporting a missing item', async () => {
@@ -570,7 +570,7 @@ it('validates malformed options before reporting a missing item', async () => {
   f.parent.start()
   expect(f.parent.global('result')).toBe(NULL_KEY)
   expect(f.parent.chat.map(c => c.text)).toEqual(['llRezObjectWithParams Error running rule #1: unknown rule id 999.'])
-  expect(f.parent.global('elapsed')).toBeCloseTo(0.1)
+  expect(f.parent.global('elapsed')).toBeCloseTo(5 / 45)
 })
 
 // In-world: nondefault.py -> 1100 ASCII chars truncates to 1024;
@@ -643,7 +643,7 @@ it('starts a fresh lifetime when a script clears and reenables temp status in on
   const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
   f.parent.start()
   const child = f.world.linksets[1]!
-  f.linkset.advanceTime(59900)
+  f.linkset.advanceTime(60000 - 5 * SIM_FRAME_MS)
   expect(f.world.linksets.includes(child)).toBe(true)
   f.linkset.advanceTime(29999)
   expect(f.world.linksets.includes(child)).toBe(true)
@@ -675,7 +675,7 @@ it('does not restart the lifetime when an already-temporary object is marked tem
   const f = await fixture('result=llRezObjectWithParams("payload", [REZ_FLAGS,1]);', payload.linkset)
   f.parent.start()
   const child = f.world.linksets[1]!
-  f.linkset.advanceTime(59899 - SIM_FRAME_MS)
+  f.linkset.advanceTime(59999 - 6 * SIM_FRAME_MS)
   expect(f.world.linksets.includes(child)).toBe(true)
   f.linkset.advanceTime(1)
   expect(f.world.linksets.includes(child)).toBe(false)
@@ -710,15 +710,15 @@ it('derezzes and rezzes active keyframed motion with independent playback state'
   f.parent.start()
   expect(f.parent.calls.find(c=>c.name==='llDerezObject')!.returned).toBe(1)
   const child=f.world.linksets[1]!,root=child.prims[0]!
-  expect(root.regionPosition()).toEqual({x:100.1+SIM_FRAME_MS/1000,y:102,z:30})
+  expect(root.regionPosition()).toEqual({x:100+6*SIM_FRAME_MS/1000,y:102,z:30})
   f.parent.advanceTime(1000)
-  expect(root.regionPosition()).toEqual({x:101.1+SIM_FRAME_MS/1000,y:102,z:30})
-  expect(root.params.rotation.z).toBeCloseTo(Math.sin(1.1*Math.PI/32))
+  expect(root.regionPosition()).toEqual({x:101+6*SIM_FRAME_MS/1000,y:102,z:30})
+  expect(root.params.rotation.z).toBeCloseTo(Math.sin((1+6*SIM_FRAME_MS/1000)*Math.PI/32))
   f.parent.advanceTime(6000)
-  expect(root.regionPosition()).toEqual({x:107.1+SIM_FRAME_MS/1000,y:102,z:30})
-  expect(root.params.rotation.z).toBeCloseTo(Math.sin(7.1*Math.PI/32))
+  expect(root.regionPosition()).toEqual({x:108-40*SIM_FRAME_MS/1000,y:102,z:30})
+  expect(root.params.rotation.z).toBeCloseTo(Math.sin((8-40*SIM_FRAME_MS/1000)*Math.PI/32))
   // Advancing the world cannot advance the saved inventory controller.
-  expect(f.item.object!.prims[0]!.regionPosition()).toEqual({x:102.9-SIM_FRAME_MS/1000,y:100,z:30})
+  expect(f.item.object!.prims[0]!.regionPosition()).toEqual({x:102+40*SIM_FRAME_MS/1000,y:100,z:30})
 })
 
 // In-world: controlled-paused.log -> saved pause survives; play restarts full frames

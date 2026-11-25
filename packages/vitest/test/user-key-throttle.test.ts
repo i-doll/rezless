@@ -129,8 +129,10 @@ describe('llRequestUserKey throttle', () => {
     // shut lookups until 45 s, not 40 s.
     ['0,10,0/25,25,0/16,1,0', '30+ 6-'],
     // 60 calls 0.42 s apart, 7 s after 40 calls 0.61 s apart: 18 of the 60 were
-    // answered. A rerun, whose sleeps came out at 0.622 and 0.4215 s, got 19.
-    ['0,40,0.61/7,60,0.42', '58+ 42-'],
+    // answered in one run and 19 in a rerun, whose sleeps came out at 0.622 and 0.4215 s.
+    // Sleeps of 0.61 and 0.42 s wake on frames 28 and 19, 0.622 and 0.422 s, so both runs
+    // slept alike; rezless gives the rerun's 19.
+    ['0,40,0.61/7,60,0.42', '59+ 41-'],
     ['0,40,0.622/7,60,0.4215', '59+ 41-'],
   ])('%s gives %s', async (segments, answers) => {
     const { objects: [o] } = await setup()

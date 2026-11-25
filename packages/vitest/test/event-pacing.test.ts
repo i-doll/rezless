@@ -8,8 +8,8 @@ const AVATAR = 'abcdefab-1234-1234-1234-abcdefabcdef'
 // "T" in the second prim chats on 7749 for them. Each logs every event with the time it ran.
 // A command "<who> <cmd> <a>" on 7748 reaches every script; the one named acts on it:
 // LM sends a link messages to its own prim, MIX recolours its prim and then sends a link
-// messages, LMS sends a link messages and sleeps 14 frames (llSleep(0.3) in-world, which woke on
-// the 14th frame), CH recolours its prim three times with
+// messages, LMS sends a link messages and calls llSleep(0.3), which wakes on the 14th frame,
+// CH recolours its prim three times with
 // a spin of a frames between, CLC recolours it, sends a link message and recolours it again with
 // a spin of a frames after each, BUSY spins a frames, TM sets a timer of a ms for 8 ticks, TQ sets
 // a 0.05 s timer, spins 10 frames and sends a link messages, SAY chats a lines on 7749.
@@ -29,7 +29,7 @@ const LSL = `list L; integer ticks; integer tmax;
       rec("cmd");
       if (cmd == "LM") lms(a);
       else if (cmd == "MIX") { llSetColor(<1, 0, 0>, ALL_SIDES); lms(a); }
-      else if (cmd == "LMS") { lms(a); llSleep(14.0 / 45); rec("wake"); }
+      else if (cmd == "LMS") { lms(a); llSleep(0.3); rec("wake"); }
       else if (cmd == "CH") {
         llSetColor(<1, 0, 0>, ALL_SIDES); spin(a); llSetColor(<0, 1, 0>, ALL_SIDES); spin(a);
         llSetColor(<0, 0, 1>, ALL_SIDES); rec("done");
@@ -67,7 +67,7 @@ const SLUA = `L = {}
     rec("cmd")
     if cmd == "LM" then lms(a)
     elseif cmd == "MIX" then ll.SetColor(vector(1, 0, 0), ALL_SIDES) lms(a)
-    elseif cmd == "LMS" then lms(a) ll.Sleep(14 / 45) rec("wake")
+    elseif cmd == "LMS" then lms(a) ll.Sleep(0.3) rec("wake")
     elseif cmd == "CH" then
       ll.SetColor(vector(1, 0, 0), ALL_SIDES) spin(a) ll.SetColor(vector(0, 1, 0), ALL_SIDES) spin(a)
       ll.SetColor(vector(0, 0, 1), ALL_SIDES) rec("done")
@@ -422,9 +422,9 @@ describe('a short timer due with a repeating sensor', () => {
   })
 })
 
-describe('a tick held through a sleep that ends between frames', () => {
+describe('a tick held through a sleep that ends after its frame', () => {
   // The tick held through one interval keeps the schedule (see timer-after-sleep.test.ts), and the
-  // ticks after it stay on the frames counted from the call.
+  // ticks after it stay on the frames counted from the call. The 0.52 s sleep wakes on frame 24.
   it('leaves the later ticks on the frames of the schedule', async () => {
     const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `list log;
       default {
@@ -434,6 +434,6 @@ describe('a tick held through a sleep that ends between frames', () => {
     linkset.startAll()
     linkset.advanceTime(2100)
     const log = JSON.parse(JSON.stringify(scripts['s']!.global('log'))) as number[]
-    expect(log.map((t) => Math.round(t * 1000))).toEqual([542, 1000, 1511, 2000, 2511])
+    expect(log.map((t) => Math.round(t * 1000))).toEqual([556, 1000, 1511, 2000, 2511])
   })
 })

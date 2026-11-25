@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { World, loadLinkset, NULL_KEY } from '../src/index.js'
 
+const SIM_FRAME_MS = 1000 / 45
+
 const OWNER = '11111111-1111-1111-1111-111111111111'
 const OTHER = '22222222-2222-2222-2222-222222222222'
 const TARGET = '33333333-3333-3333-3333-333333333333'
@@ -42,11 +44,11 @@ describe('parcel effect requests', () => {
 
   it.each([
     ['llSetParcelMusicURL("new");', 2000],
-    ['llAddToLandBanList(NULL_KEY,0.0);', 100],
-    ['llAddToLandPassList(NULL_KEY,0.0);', 100],
-    ['llRemoveFromLandBanList(NULL_KEY);', 100],
-    ['llRemoveFromLandPassList(NULL_KEY);', 100],
-    ['llResetLandBanList();', 100], ['llResetLandPassList();', 100],
+    ['llAddToLandBanList(NULL_KEY,0.0);', 5 * SIM_FRAME_MS],
+    ['llAddToLandPassList(NULL_KEY,0.0);', 5 * SIM_FRAME_MS],
+    ['llRemoveFromLandBanList(NULL_KEY);', 5 * SIM_FRAME_MS],
+    ['llRemoveFromLandPassList(NULL_KEY);', 5 * SIM_FRAME_MS],
+    ['llResetLandBanList();', 5 * SIM_FRAME_MS], ['llResetLandPassList();', 5 * SIM_FRAME_MS],
     ['llEjectFromLand(NULL_KEY);', 0],
     ['llParcelMediaCommandList([]);', 2000],
   ])('records a refused request and preserves parcel state for %s', async (body, delay) => {

@@ -103,7 +103,7 @@ describe('llCreateLink', () => {
   it('links the target in from link 2 when parent is TRUE, after a 0.1 s delay', async () => {
     const { out, c } = await scene('dt = timed(llList2Key(["' + B1 + '"], 0), TRUE); out = names() + [llGetNumberOfPrims(), llGetLinkNumber()];')
     expect(out).toEqual(['A1', 'B1', 'B2', 'A2', 4, 1])
-    expect(c.global('dt')).toBeCloseTo(0.1, 5)
+    expect(c.global('dt')).toBeCloseTo(5 / 45, 5)
   })
 
   // In-world: every prim of both objects got changed(32) once, reading its new
@@ -190,7 +190,7 @@ describe('llCreateLink', () => {
     const { out, scripts, c } = await scene(
       `out = [timed(NULL_KEY, TRUE), timed(llGetOwner(), TRUE), timed("${UNKNOWN}", TRUE), timed("junk", FALSE)] + names();`,
     )
-    expect(out).toEqual([...Array(4).fill(expect.closeTo(0.1, 5)), 'A1', 'A2'])
+    expect(out).toEqual([...Array(4).fill(expect.closeTo(5 / 45, 5)), 'A1', 'A2'])
     expect(seen(scripts.wA1)).toEqual([])
     expect(c.chat.filter((m) => m.channel === DEBUG_CHANNEL)).toEqual([])
   })
@@ -200,7 +200,7 @@ describe('llCreateLink', () => {
   // linked and nothing reached DEBUG_CHANNEL; the call still took 0.11-0.13 s.
   it('does nothing without PERMISSION_CHANGE_LINKS, after the delay', async () => {
     const { out, c, scripts } = await scene(`out = [timed("${B1}", TRUE)] + names();`, { grant: false })
-    expect(out).toEqual([expect.closeTo(0.1, 5), 'A1', 'A2'])
+    expect(out).toEqual([expect.closeTo(5 / 45, 5), 'A1', 'A2'])
     expect(seen(scripts.wB1)).toEqual([])
     expect(c.chat.filter((m) => m.channel === DEBUG_CHANNEL)).toEqual([])
   })

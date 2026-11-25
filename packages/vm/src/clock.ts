@@ -416,8 +416,30 @@ export const toMicroseconds = (seconds: number) => Math.round(seconds * 1e6) / 1
 /** One region simulator frame, at 45 frames a second. */
 export const SIM_FRAME_MS = 1000 / 45
 
-/** `ms` rounded up to whole simulator frames; within 10 µs of a frame counts as on it. */
-const framesFor = (ms: number) => Math.ceil((ms - 0.01) / SIM_FRAME_MS) * SIM_FRAME_MS
+/** `ms` rounded up to whole simulator frames; within `slack` (10 µs by default) of a frame counts as on it. */
+const framesFor = (ms: number, slack = 0.01) => Math.ceil((ms - slack) / SIM_FRAME_MS) * SIM_FRAME_MS
+
+/**
+ * How close a sleep of `ms` may end to a frame and count as on it: 10 µs, or half a float's step
+ * at `ms` past 256 s, where a whole-frame sleep reaches the script more than 10 µs past its frame,
+ * and never more than half a frame.
+ */
+function sleepSlack(ms: number) {
+  const step = ms >= 1000 ? 2 ** (Math.floor(Math.log2(ms / 1000)) - 24) * 1000 : 0
+  return Math.min(Math.max(0.01, step), SIM_FRAME_MS / 2)
+}
+
+/**
+ * How long a sleep or forced delay of `ms` that starts at `now` lasts: to the first simulator
+ * frame on or after its end, counting frames from `from`, the start of the handler, and to the
+ * next frame at least. In-world, a sleep woke on the first frame on or after it fell due, counted
+ * from the frame of the call, also after a spin that ended part way through a frame.
+ */
+export function waitFrames(now: number, from: number, ms: number) {
+  const past = (now - from) % SIM_FRAME_MS
+  const into = past < 0.01 || SIM_FRAME_MS - past < 0.01 ? 0 : past
+  return ms > 0 ? framesFor(into + Math.max(ms, 0.02), sleepSlack(ms)) - into : 0
+}
 
 /** When llMinEventDelay lets a queued event run, or 0 when it doesn't delay it. */
 function delayedUntil(e: QueuedEvent): number {

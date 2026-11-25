@@ -2,6 +2,7 @@ import type { BuiltinImpl, CallContext, Run, ScriptState } from './runtime.js'
 import type { LslValue } from './values/types.js'
 import { defaultValueFor } from './values/types.js'
 import { BUILTIN_SPECS } from './generated/functions.js'
+import { waitFrames } from './clock.js'
 import type { BuiltinSpec } from './generated/functions.js'
 import { REAL_BUILTINS } from './builtins/index.js'
 import type { Script } from './script.js'
@@ -64,8 +65,9 @@ export function* callBuiltin(
 
 /**
  * Run a builtin now: its result, and how long the script must then sleep
- * (its own sleeps plus the function's forced delay), or null when it doesn't
- * (a zero-length llSleep still suspends). SLua's host returns the result first
+ * (its own sleeps plus the function's forced delay, rounded up to whole
+ * simulator frames), or null when it doesn't (a zero-length llSleep still
+ * suspends). SLua's host returns the result first
  * and sleeps after; callBuiltin does both in order.
  */
 export function invokeBuiltin(
@@ -99,7 +101,7 @@ export function invokeBuiltin(
   // A call that moved the calling script away (a no-copy gift or load) leaves it nothing to sleep in.
   if (!removed && dctx.state.lifecycle.removed) return { result, delayMs: null, busyMs: null }
   const delayMs = spec ? spec.delay * 1000 : 0
-  return { result, delayMs: sleptMs === null && delayMs === 0 ? null : (sleptMs ?? 0) + delayMs, busyMs }
+  return { result, delayMs: sleptMs === null && delayMs === 0 ? null : waitFrames(dctx.state.clock.now + (busyMs ?? 0), dctx.script.runningSince ?? dctx.state.clock.now, (sleptMs ?? 0) + delayMs), busyMs }
 }
 
 function makeStub(script: Script, name: string): BuiltinImpl {

@@ -180,7 +180,7 @@ export interface CallContext {
   readonly script: Script
   readonly prim: Prim
   readonly linkset: Linkset
-  /** Suspend the calling script for `ms` virtual milliseconds once the builtin returns. */
+  /** Suspend the calling script once the builtin returns, until the first simulator frame on or after `ms` virtual milliseconds have passed. */
   sleep(ms: number): void
   /** Keep the calling script busy in its handler for `ms` virtual milliseconds once the builtin returns, as a loop that never sleeps does. */
   busy(ms: number): void

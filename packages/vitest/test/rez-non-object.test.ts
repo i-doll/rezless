@@ -39,7 +39,7 @@ describe('rezzing an item that is not an object', () => {
   // In-world: a texture, sound, landmark, clothing, a notecard with text, body part, animation,
   // gesture, script (another and the calling one), environment setting and material each took
   // 0.110-0.112 s, said nothing, rezzed nothing and gave no object_rez; llRezObjectWithParams
-  // returned a fresh key for each.
+  // returned a fresh key for each. The 0.1 s delay ends on the fifth simulator frame, 0.111 s.
   const types = [
     ['texture', InventoryType.TEXTURE], ['sound', InventoryType.SOUND], ['landmark', InventoryType.LANDMARK],
     ['clothing', InventoryType.CLOTHING], ['body part', InventoryType.BODYPART], ['animation', InventoryType.ANIMATION],
@@ -49,31 +49,31 @@ describe('rezzing an item that is not an object', () => {
   it.each(calls.flatMap(([fn, call]) => types.map(([type, value]) => [fn, type, call, value] as const)))(
     '%s of a %s takes the usual 0.1 s and says nothing', async (fn, _type, call, type) => {
       const got = await rez(call, makeInventoryItem({ name: 'thing', type, key: '11111111-2222-3333-4444-555555555555' }))
-      expect(got).toMatchObject({ took: expect.closeTo(0.1, 3), rezzed: 0, objects: 1, errors: [] })
+      expect(got).toMatchObject({ took: expect.closeTo(5 / 45, 3), rezzed: 0, objects: 1, errors: [] })
       expect(got.result).toMatch(fn === 'llRezObjectWithParams' ? KEY : /^unset$/)
       expect(got.result).not.toBe(NULL_KEY)
     })
 
   it.each(calls)('%s of a notecard with text takes the usual 0.1 s and says nothing', async (fn, call) => {
     const got = await rez(call, makeInventoryItem({ name: 'thing', type: InventoryType.NOTECARD, notecardLines: ['x'], key: '11111111-2222-3333-4444-555555555555' }))
-    expect(got).toMatchObject({ took: expect.closeTo(0.1, 3), rezzed: 0, objects: 1, errors: [] })
+    expect(got).toMatchObject({ took: expect.closeTo(5 / 45, 3), rezzed: 0, objects: 1, errors: [] })
     if (fn === 'llRezObjectWithParams') expect(got.result).toMatch(KEY)
     expect(got.result).not.toBe(NULL_KEY)
   })
 
   it.each(calls)('%s of the calling script takes the usual 0.1 s and says nothing', async (fn, call) => {
     const got = await rez(call.replace('"thing"', 'llGetScriptName()'), makeInventoryItem({ name: 'thing', type: InventoryType.TEXTURE }))
-    expect(got).toMatchObject({ took: expect.closeTo(0.1, 3), rezzed: 0, objects: 1, errors: [] })
+    expect(got).toMatchObject({ took: expect.closeTo(5 / 45, 3), rezzed: 0, objects: 1, errors: [] })
     if (fn === 'llRezObjectWithParams') expect(got.result).toMatch(KEY)
     expect(got.result).not.toBe(NULL_KEY)
   })
 
   // In-world: a new notecard that was never saved (llGetInventoryKey NULL_KEY) said
   // "Could not find object '<name>'." on DEBUG_CHANNEL, heard by the listener, took 1.110-1.134 s,
-  // and llRezObjectWithParams returned "", as for a missing item.
+  // and llRezObjectWithParams returned "", as for a missing item: 1.1 s, woken on frame 50.
   it.each(calls)('%s of an empty notecard is refused as a missing object', async (fn, call) => {
     const got = await rez(call, makeInventoryItem({ name: 'thing', type: InventoryType.NOTECARD }))
-    expect(got).toMatchObject({ took: expect.closeTo(1.1, 3), rezzed: 0, objects: 1, errors: ["Could not find object 'thing'."] })
+    expect(got).toMatchObject({ took: expect.closeTo(50 / 45, 3), rezzed: 0, objects: 1, errors: ["Could not find object 'thing'."] })
     if (fn === 'llRezObjectWithParams') expect(got.result).toBe('')
   })
 })

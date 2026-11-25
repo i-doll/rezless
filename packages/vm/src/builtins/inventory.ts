@@ -1,4 +1,5 @@
 import type { BuiltinImpl, CallContext } from '../runtime.js'
+import { waitFrames } from '../clock.js'
 import { nextDataserverKey } from './dataserver.js'
 import { sayError } from './debug.js'
 import { findNotecard, rememberNotecardAsset } from './notecard-search.js'
@@ -163,7 +164,8 @@ function notecardRequest(
   if (notecard === 'missing') return key
   // Schedule after the dispatcher's post-call throttle advance so the event
   // fires after the call returns (matches real LSL).
-  const at = ctx.state.clock.now + (ctx.spec?.delay ?? 0) * 1000
+  const now = ctx.state.clock.now
+  const at = now + waitFrames(now, ctx.script.runningSince ?? now, (ctx.spec?.delay ?? 0) * 1000)
   const payload = { queryid: key, data: typeof notecard === 'string' ? EOF : data(notecard.lines) }
   for (const s of ctx.prim.scripts) ctx.state.clock.scheduleOn(s, at, 'dataserver', payload)
   req.fulfilled = true

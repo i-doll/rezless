@@ -68,7 +68,7 @@ async function fixture() {
       linkset, script, send,
       prim: linkset.prims[0]!,
       ask: (bits: number) => send('ask', bits),
-      // The region acts on a force sit or unsit 225 ms after the viewer sends it, and a ground sit
+      // The region acts on a force sit or unsit 10 frames (222 ms) after the viewer sends it, and a ground sit
       // from a seat follows the stand 300 ms later.
       rlv: (command: string) => { send('rlv', 0, command); linkset.advanceTime(600); tick() },
       held: () => [read('held'), read('holder')],

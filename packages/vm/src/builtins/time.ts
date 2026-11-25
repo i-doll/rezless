@@ -32,8 +32,9 @@ export const llMinEventDelay: BuiltinImpl = (ctx, args) => {
  *
  * Per LSL:
  *   - `sec <= 0` (or a negative NaN) is a no-op; the script does not sleep at all.
- *   - For positive `sec`, the wait is at least one server frame (~22.22 ms
- *     at 45 Hz), so e.g. `llSleep(0.001)` actually waits ~22 ms.
+ *   - For positive `sec`, the script wakes on the first server frame (1/45 s)
+ *     on or after `sec` has passed, so `llSleep(0.001)` waits one frame and
+ *     `llSleep(0.25)` twelve.
  *
  * Other scripts keep running while it sleeps. Events that arrive for the
  * sleeping script queue up and fire after its current handler returns.
@@ -41,7 +42,7 @@ export const llMinEventDelay: BuiltinImpl = (ctx, args) => {
 export const llSleep: BuiltinImpl = (ctx, args) => {
   const seconds = (args[0] as number | undefined) ?? 0
   if (seconds <= 0 || isNegativeNaN(seconds)) return undefined
-  ctx.sleep(Number.isNaN(seconds) ? SIM_FRAME_MS : Math.max(SIM_FRAME_MS, seconds * 1000))
+  ctx.sleep(Number.isNaN(seconds) ? SIM_FRAME_MS : seconds * 1000)
   return undefined
 }
 

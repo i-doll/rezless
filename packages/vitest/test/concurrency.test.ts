@@ -49,8 +49,8 @@ describe('scripts run while another script sleeps', () => {
       // B's 3.5 s tick runs on the first simulator frame after it.
       '3000 A start sleep 3',
       '3511 B start sleep 0.5',
-      '4011 B end sleep',
-      '4033 B lm from B',
+      '4022 B end sleep',
+      '4044 B lm from B',
       '6000 A end sleep',
       '6022 B lm from A',
       '6022 A lm from B',
@@ -181,10 +181,11 @@ describe('scripts run while another script sleeps', () => {
       ],
       100,
     )
-    linkset.advanceTime(20_000)
+    linkset.advanceTime(20_100)
     // In-world (/tmp/lvprobe/h.iw, B started about 0.1 s before A): 51.2 B entry n=1, 52.2/53.2/54.2 B tick 1-3,
     // 55.3 A pause, 00.4 A resume, 00.4 B tick 5, 00.9 A half, 03.4 A pause+reset, 06.5 A resume2, 07.5 B tick 10,
     // 09.5 A reset running, 09.6 B entry n=1, 10.6 B tick 1, 11.5 A done, 11.6 B tick 2, 12.6 B tick 3, 14.6 B tick 5.
+    // The 0.5 and 2.5 s sleeps wake on frames 23 and 113, 11 ms past the half second.
     // B's tick at 03.4 came before A's wake at the same instant, so tick 10 follows resume2 by 1 s. In-world the
     // reset took 0.1 s, so B tick 2 followed A done; here the reset is instant and they tie, timer first.
     expect(log).toEqual([
@@ -195,15 +196,15 @@ describe('scripts run while another script sleeps', () => {
       '4100 A pause',
       '9100 A resume',
       '9100 B tick 5',
-      '9600 A half',
-      '12100 A pause+reset',
-      '15100 A resume2',
-      '16100 B tick 10',
-      '18100 A reset running',
-      '18100 B entry n=1',
-      '19100 B tick 1',
-      '20100 B tick 2',
-      '20100 A done',
+      '9611 A half',
+      '12122 A pause+reset',
+      '15122 A resume2',
+      '16122 B tick 10',
+      '18122 A reset running',
+      '18122 B entry n=1',
+      '19122 B tick 1',
+      '20122 B tick 2',
+      '20122 A done',
     ])
   })
 
@@ -244,7 +245,7 @@ describe('after a script wakes', () => {
     const sleeper = await load(`default { touch_start(integer n) { say("sleep"); llSleep(2.5); say("woke"); } }`)
     ticker.start()
     sleeper.fire('touch_start', { num_detected: 1 })
-    expect(log).toEqual(['0 sleep', '1000 tick', '2000 tick', '2500 woke'])
+    expect(log).toEqual(['0 sleep', '1000 tick', '2000 tick', '2511 woke'])
   })
 
   it('llDie or a self-removal in state_exit after a sleep halts the chain', async () => {

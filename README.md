@@ -226,7 +226,9 @@ A script runs one queued event per simulator frame (1/45 s), as in Second Life: 
 
 `advanceTime(ms)` stops the clock exactly `ms` later, so a handler still sleeping at that point stays asleep and carries on during a later `advanceTime`. This is a breaking change: before, one call ran the whole sleep.
 
-A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses for that long after the mock returns.
+A sleep or a builtin's forced delay ends on the first simulator frame on or after it falls due, counting from the call: `llSleep(0.25)` wakes 0.267 s later, and the 0.1 s delay of `llRezObject` takes 0.111 s. This is a breaking change: before, a sleep ended at exactly the time asked for.
+
+A mock can take time like a builtin delay by calling `ctx.sleep(ms)`; the script pauses after the mock returns until the first frame on or after `ms` has passed.
 
 ### `loadLinkset(input)` → `Promise<LoadedLinkset>`
 
@@ -1438,8 +1440,8 @@ snapshot; asset loading and rendering remain external.
 Unsupported effects keep their diagnostics under either setting.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
-Force `sit`, `sitground` and `unsit` update World seating 225 ms of virtual time after the
-command (the grid switched between 0.2 and 0.25 s) and expose action outcomes in the viewer
+Force `sit`, `sitground` and `unsit` update World seating 10 simulator frames (222 ms) of virtual time
+after the command (the grid took 8 to 11 frames, mostly 10) and expose action outcomes in the viewer
 command log. Until then the issuing script, `getsitid` and the rest of the message see the old
 seat, so tests must step virtual time after an RLV force sit or stand before reading the seat. A ground sit from a seat stands the
 avatar first and lands on the ground after a further short delay. A viewer or RLV teleport in that delay lands the ground sit at once at a destination in the same region; after a script teleport within the region it lands there after its delay. A teleport to another region drops it. `getsitid` reports the object root, null standing, or the avatar

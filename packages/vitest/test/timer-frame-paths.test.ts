@@ -80,7 +80,7 @@ describe('an LSL timer through a sleep', () => {
     expect(await frames('lsl', `list L;
       rec(string e) { L += e + "@" + (string)llGetTime(); }
       default {
-        state_entry() { rec("call"); llSetTimerEvent(0.1); llSleep(12.0 / 45); rec("w"); }
+        state_entry() { rec("call"); llSetTimerEvent(0.1); llSleep(0.25); rec("w"); }
         timer() { rec("t"); if (llGetListLength(L) >= 8) llSetTimerEvent(0); }
       }`)).toEqual(['w12', 't13', 't17', 't21', 't26', 't30', 't35'])
   })
@@ -96,7 +96,7 @@ describe('an LSL timer through a sleep', () => {
         state_entry() {
           rec("call"); llSetTimerEvent(0.1);
           integer i; for (i = 0; i < 4; ++i) llMessageLinked(LINK_THIS, 0, "", "");
-          llSleep(12.0 / 45); rec("w");
+          llSleep(0.25); rec("w");
         }
         link_message(integer s, integer n, string m, key k) { rec("lm"); }
         timer() { rec("t"); if (llGetListLength(L) >= 12) llSetTimerEvent(0); }
@@ -109,7 +109,7 @@ describe('an LSL timer through a sleep', () => {
     expect(await frames('lsl', `list L;
       rec(string e) { L += e + "@" + (string)llGetTime(); }
       default {
-        state_entry() { rec("call"); llSetTimerEvent(0.05); llSleep(6.0 / 45); rec("w"); }
+        state_entry() { rec("call"); llSetTimerEvent(0.05); llSleep(0.12); rec("w"); }
         timer() { rec("t"); if (llGetListLength(L) >= 8) llSetTimerEvent(0); }
       }`)).toEqual(['w6', 't7', 't9', 't11', 't13', 't15', 't18'])
   })
@@ -123,7 +123,7 @@ describe('an LSL timer through a longer sleep', () => {
     expect(await frames('lsl', `list L;
       rec(string e) { L += e + "@" + (string)llGetTime(); }
       default {
-        state_entry() { rec("call"); llSetTimerEvent(0.7); llSleep(68.0 / 45); rec("w"); }
+        state_entry() { rec("call"); llSetTimerEvent(0.7); llSleep(1.5); rec("w"); }
         timer() { rec("t"); if (llGetListLength(L) >= 7) llSetTimerEvent(0); }
       }`, 5000)).toEqual(['w68', 't69', 't100', 't131', 't163', 't194'])
   })
@@ -141,7 +141,7 @@ describe('an LSL timer through a longer sleep', () => {
         state_entry() { rec("call"); llSetTimerEvent(0.1); }
         timer() {
           rec("t");
-          if (!slept) { slept = 1; llSleep(12.0 / 45); rec("w"); }
+          if (!slept) { slept = 1; llSleep(0.25); rec("w"); }
           else if (llGetListLength(L) >= 8) llSetTimerEvent(0);
         }
       }`)).toEqual(['t5', 'w17', 't19', 't24', 't28', 't33', 't37'])
@@ -169,7 +169,7 @@ describe('an LSL timer through a longer sleep', () => {
           if (!slept) {
             slept = 1;
             integer i; for (i = 0; i < ${messages}; ++i) llMessageLinked(LINK_THIS, 0, "", "");
-            llSleep(12.0 / 45); rec("w");
+            llSleep(0.25); rec("w");
           }
           else if (llGetListLength(L) >= ${expected.length + 1}) llSetTimerEvent(0);
         }
