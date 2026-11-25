@@ -65,3 +65,30 @@ describe('a timer past 256 s ticks on its whole frames', () => {
     expect(await tickFrames('lsl', 0.6, 500)).toEqual(Array.from({ length: 500 }, (_, i) => 27 * (i + 1)))
   })
 })
+
+// In SLua, LLTimers keeps its schedule in doubles: each tick falls due at the last one's due time
+// plus the interval, and runs once the clock reads on or after that. Started 5 frames in, the clock
+// reads 0.111111 and the third 256.2 s tick falls due at 768.7111110000001, a hair past the
+// microsecond the clock reads on its frame: the tick runs at the next microsecond, on that frame.
+// In-world (Aditi, SLua Tideland, 2026-11-25): the clock an SLua script reads moves within a frame.
+// A tick due on a whole frame from its start ran on that frame when the script read the clock up to
+// 0.12 ms past the due time, and on the next frame (22.0 to 22.3 ms late) when it read it just
+// before. Started from a chat line, LLTimers:every ticks due on whole frames ran late in 13 of 20
+// and 18 of 24 at 1.0 s, 5 of 6 at 50 ms and 9 of 9 at 5.0 s, varying from run to run, and in none
+// of 3 at 30 s or 7 at 256.2 s. Rezless runs such ticks on their frame (see "a whole-second timer"
+// in timer-frame-paths.test.ts), whatever frame the timer started on.
+describe('an LLTimers timer started part way through the run', () => {
+  it.each([5, 6, 7, 11, 13, 17])('ticks a 256.2 s timer started %i frames in on frames 11529, 23058 and 34587 after it', async (frame) => {
+    const source = `L = {}
+      S = 0
+      function tick() table.insert(L, ll.GetTime()) end
+      LLTimers:once(${frame / 45 - 0.001}, function() S = ll.GetTime() LLTimers:every(256.2, tick) end)`
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', language: 'slua', source: { source } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(3 * 256200 + 1000)
+    const s = scripts['s']!
+    const from = s.global('S') as number
+    const ticks = (JSON.parse(JSON.stringify(s.global('L'))) as number[]).slice(0, 3).map((t) => Math.round((t - from) * 45))
+    expect(ticks).toEqual([11529, 23058, 34587])
+  })
+})
