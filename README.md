@@ -1440,8 +1440,8 @@ snapshot; asset loading and rendering remain external.
 Unsupported effects keep their diagnostics under either setting.
 See the [paired viewer fixtures](packages/vitest/README.md#paired-rlvrlva-fixtures)
 for profile differences and lifecycle behavior.
-Force `sit`, `sitground` and `unsit` update World seating 225 ms of virtual time after the
-command (the grid switched between 0.2 and 0.25 s) and expose action outcomes in the viewer
+Force `sit`, `sitground` and `unsit` update World seating 10 simulator frames (222 ms) of virtual time
+after the command (the grid took 8 to 11 frames, mostly 10) and expose action outcomes in the viewer
 command log. Until then the issuing script, `getsitid` and the rest of the message see the old
 seat, so tests must step virtual time after an RLV force sit or stand before reading the seat. A ground sit from a seat stands the
 avatar first and lands on the ground after a further short delay. A viewer or RLV teleport in that delay lands the ground sit at once at a destination in the same region; after a script teleport within the region it lands there after its delay. A teleport to another region drops it. `getsitid` reports the object root, null standing, or the avatar

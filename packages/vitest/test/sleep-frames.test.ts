@@ -82,6 +82,31 @@ describe('a sleep wakes on a simulator frame', () => {
     expect(await sleeps(language, body)).toEqual(['a=5', 'b=5', 'c=1'])
   })
 
+  // Past 256 s a float's step is over 20 µs, so a whole-frame sleep such as 256.2 s (11529 frames)
+  // reaches the script 12 µs past its frame. It wakes on that frame as a shorter one does.
+  // In-world: one prim held an LSL and an SLua script each for 256.19, 256.2 and 256.21 s, all
+  // started by one chat line and logging llGetTimestamp around the sleep. In two rounds, in both
+  // languages, 256.2 s woke on the same frame as 256.19 s and a frame before 256.21 s; in the
+  // second round that was frame 11529 after the call (Aditi, SLua Tideland, 2026-11-25).
+  it.each(['lsl', 'slua'] as const)('wakes a whole-frame sleep past 256 s on that frame in %s', async (language) => {
+    const source = language === 'lsl'
+      ? 'float t; default { state_entry() { llSleep(256.2); t = llGetTime(); } }'
+      : 't = 0 ll.Sleep(256.2) t = ll.GetTime()'
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', language, source: { source } }] }] })
+    linkset.startAll()
+    linkset.advanceTime(300_000)
+    expect(Math.round(Number(scripts['s']!.global('t')) * 45)).toBe(11529)
+  })
+
+  it('wakes a whole-frame sleep of days on its frame, not a frame before', async () => {
+    const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source:
+      'default { state_entry() { llOwnerSay(""); llSleep(604800.0); llOwnerSay(""); } }' } }] }] })
+    const at: number[] = []
+    scripts['s']!.mock('llOwnerSay', (ctx) => { at.push(ctx.state.clock.now); return undefined })
+    linkset.startAll()
+    expect(at[1]! - at[0]!).toBeGreaterThanOrEqual(604_800_000)
+  })
+
   it('counts a forced delay from the end of the call\'s own busy time', async () => {
     const { linkset, scripts } = await loadLinkset({ prims: [{ scripts: [{ name: 's', source: { source: `float t;
       default { state_entry() { llRequestAgentData(llGetOwner(), DATA_ONLINE); t = llGetTime(); } }` } }] }] })

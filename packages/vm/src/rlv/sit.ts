@@ -3,6 +3,7 @@ import { AGENT_FLYING, AGENT_SITTING, SIT_FLAG_SCRIPTED_ONLY } from '../generate
 import { NULL_KEY, ZERO_VECTOR, type Vector } from '../values/types.js'
 import { rotateVector } from '../values/ops.js'
 import { wornTargetPulls } from '../builtins/motion.js'
+import { SIM_FRAME_MS } from '../clock.js'
 import type { World, WorldAvatar } from '../world.js'
 import type { Linkset } from '../linkset.js'
 import type { Prim } from '../prim.js'
@@ -89,9 +90,10 @@ export function dispatchSeatingCommand(linkset: Linkset, prim: Prim, avatar: Wor
 // 0.2 s and the seat from 0.25 s. llGetAgentInfo in the issuing script changed between 0.15 and
 // 0.25 s (Aditi, SLua Tideland, 2026-11-14). Over 150 force sits and stands in three later
 // sessions the region saw the new seat after 178 to 244 ms, mostly at 222 ms and the rest one 22 ms
-// frame either side, with a mean of 224 ms (Aditi, SLua Tideland, 2026-11-23). 225 ms lies next to that mean,
-// so a script that sleeps 0.25 s reads the new seat.
-const FORCE_SEAT_DELAY_MS = 225
+// frame either side, with a mean of 224 ms (Aditi, SLua Tideland, 2026-11-23). The seat lands on the
+// most common frame, frame 10, so a 0.2 s sleep (9 frames) still reads the old seat and a 0.25 s
+// sleep (12 frames) the new one.
+const FORCE_SEAT_DELAY_MS = 10 * SIM_FRAME_MS
 
 // In-world: with a force request and @tpto in the same event, the teleport left first. A force sit
 // never landed in six of seven runs within the region, and in the seventh it landed in the frame the
