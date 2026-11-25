@@ -1469,8 +1469,8 @@ against `sittp` before accepting a response; forced sits bypass that restriction
 Pathfinding, automatic collision placement and avatar body offsets remain explicit
 inputs rather than a simulated physics or avatar skeleton.
 
-Force `sit`, `sitground` and `unsit` reach World seating 225 ms of virtual time
-after the command (the grid switched between 0.2 and 0.25 s), and the command log
+Force `sit`, `sitground` and `unsit` reach World seating 10 simulator frames (222 ms)
+of virtual time after the command (the grid took 8 to 11 frames, mostly 10), and the command log
 records `pending` first. Until then `getsitid`, later commands in the same message
 and event, and `llGetAgentInfo` see the old seat, so step virtual time (250 ms is
 enough) after an RLV force sit or stand before reading the seat. Lock checks run

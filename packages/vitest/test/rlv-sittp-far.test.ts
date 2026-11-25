@@ -13,7 +13,7 @@ const profiles = ['rlv', 'rlva'] as const
 // In-world: a force sit or stand landed 0.2-0.25 s after the command (Aditi, SLua Tideland, 2026-11-14).
 const LANDED_MS = 250
 // The model's delay inside the measured 0.2-0.25 s window.
-const FORCE_SEAT_MS = 225
+const FORCE_SEAT_MS = 10 * 1000 / 45
 const send = (fixture: Awaited<ReturnType<typeof loadRlvPair>>['rlv'], command: string) => {
   fixture.script.fire('link_message', { sender_num: 1, num: 0, str: command, id: fixture.avatar.key })
   fixture.script.linkset.advanceTime(LANDED_MS)
