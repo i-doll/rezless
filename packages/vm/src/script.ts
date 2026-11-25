@@ -1291,7 +1291,6 @@ export class Script {
       // In-world: a release waiting for a game_control handler asleep at a take never ran in the
       // rezzed copy.
       if (e.event === 'game_control') continue
-      if (lostInSlua(this, e, this.task)) continue
       // In-world: a seat sat on during the sleep and taken from under its sitter got one
       // changed(CHANGED_LINK) in the copy, the one `unseated` brings. An earlier stand event
       // keeps only the other changes that were merged into it.
@@ -1305,8 +1304,8 @@ export class Script {
       // ran first in the copy, and a later click in the copy's sleep stayed a click of its own
       // (LSL and SLua 7 runs or more each). Another avatar's touch that came up in it while that
       // avatar still held on stayed alone (LSL 2 runs of 2, SLua 1 run).
-      const carried = carriedTouch(e, this.task, false)
-      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, !!carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task) })
+      const carried = carriedTouch(e, this.task, false, lostInSlua(this, e, this.task))
+      copy.clockView.schedule(copy.now, stand ? 'changed' : e.event, data, !!carried || this.linkset.clock.heldBack(e, this.task?.startedAt), { carried, busy: keepsBusy(e, this.task), rezzes: e.rezzes })
     }
     if (reset) copy.resetIntoInventory()
     return copy
@@ -1403,14 +1402,13 @@ export class Script {
     }
     for (const e of waiting) {
       if (e.event === 'state_entry') continue
-      if (lostInSlua(this, e, before)) continue
       const detected = e.payload['detected']
       const payload = detached && isTouch(e.event) && Array.isArray(detected)
         ? { ...e.payload, detected: throughInventory(e.event, detected) } : e.payload
       // An event that is not due yet is judged when it is.
       const at = Math.max(e.at, this.now)
-      const carried = e.at <= this.now ? carriedTouch(e, before, detached) : undefined
-      clock.schedule(this, at, e.event, payload, e.at <= this.now ? !!carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before) })
+      const carried = e.at <= this.now ? carriedTouch(e, before, detached, lostInSlua(this, e, before)) : undefined
+      clock.schedule(this, at, e.event, payload, e.at <= this.now ? !!carried || clock.heldBack(e, this.task?.startedAt) : undefined, at, { carried, busy: keepsBusy(e, before), rezzes: before && e.at <= this.now ? (e.rezzes ?? 0) + 1 : undefined })
     }
     if (room > 0 && rezzed) this.clockView.schedule(this.now, 'on_rez', { start_param: this.startParameter })
     // In-world: an object saved from under a sitter raises changed(CHANGED_LINK) after on_rez each
@@ -2201,19 +2199,21 @@ const isTouch = (event: string | undefined) => event === 'touch_start' || event 
  * the worn object did not merge into it (LSL and SLua 1 run each), nor into the avatar's own click
  * from the spin (LSL and SLua 7 runs or more each): only a held-back click takes in a later one.
  */
-function carriedTouch(e: QueuedEvent, task: Task | null | undefined, detached: boolean): Carried | undefined {
+function carriedTouch(e: QueuedEvent, task: Task | null | undefined, detached: boolean, lost: boolean): Carried | undefined {
   if (e.carried) return e.carried
   if (!isTouch(e.event) || task?.spunUntil === undefined) return undefined
   const late = cameUp(e) > task.spunUntil
   if (late && !e.busy) return undefined
-  return { late, takesIn: !!e.held && cameUp(e) > task.startedAt, behind: !!e.held, ...(detached && { detached }) }
+  return { late, takesIn: !!e.held && cameUp(e) > task.startedAt, behind: !!e.held, ...(detached && { detached }), ...(lost && { lost }) }
 }
 
 /**
  * Whether an SLua script loses `e` through a take or a detach. In-world, SLua lost the touch of
  * a click held back behind another click in a handler that spun, and kept its touch_start and
  * touch_end, through a detach and wear (7 runs of 7) or a take (12 runs of 12); worn without the
- * detach the touch ran (2 runs of 2), and LSL kept it.
+ * detach the touch ran (2 runs of 2), and LSL kept it. Taken and rezzed or detached and worn a
+ * second time in the same sleep, SLua ran the touch again (9 runs of 9), and a third time
+ * lost it again (1 run).
  */
 const lostInSlua = (s: Script, e: QueuedEvent, task: Task | null | undefined) =>
   s.language === 'slua' && e.event === 'touch' && !!e.held && !!e.busy && task?.spunUntil !== undefined
