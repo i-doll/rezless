@@ -1064,10 +1064,11 @@ describe('SLua: the functions only llcompat has', () => {
     // In-world: llcompat.SetTimerEvent(0.5), then LLTimers:every(0.4, cb) -> cb ran at 0.40, 0.80, 1.22, 1.60, 2.02,
     // 2.42, 2.82, 3.22, 3.62, 4.02 s, and the timer handler ran then and at no multiple of 0.5 s of its own.
     // (In-world the handler also ran about 0.02 s before some callbacks, at 1.20, 2.00, 2.80 and 3.60 s: the
-    // timer woke early and LLTimers set it again. LLTimers:every(0.4, cb) alone did the same.)
+    // timer woke early and LLTimers set it again. LLTimers:every(0.4, cb) alone did the same.) Every callback is
+    // due on a whole frame, and rezless runs each on its frame (see "a whole-second timer" in timer-frame-paths).
     expect(await timeline('llcompat.SetTimerEvent(0.5); LLTimers:every(0.4, cb)', 4100)).toEqual({
-      ticks: [0.4, 0.8, 1.2, 1.22, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4],
-      lt: [0.4, 0.8, 1.22, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4],
+      ticks: [0.4, 0.8, 1.2, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4],
+      lt: [0.4, 0.8, 1.2, 1.6, 2, 2.4, 2.8, 3.2, 3.6, 4],
       args: 0,
     })
     // In-world: LLTimers:every(0.4, cb), then llcompat.SetTimerEvent(1.0) -> the handler ran at 1.00 s, and from

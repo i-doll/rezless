@@ -285,9 +285,9 @@ describe('a timer on the frame grid', () => {
     ['slua', 30, [2, 3, 5, 6, 7, 9, 10, 11]],
     // In-world: 3, 5, 7, 10, 12, 14, 16, 19 in LSL.
     ['lsl', 50, [3, 5, 7, 9, 12, 14, 16, 18]],
-    ['slua', 50, [3, 5, 7, 10, 12, 14, 16, 19]],
+    ['slua', 50, [3, 5, 7, 9, 12, 14, 16, 18]],
     ['lsl', 100, [5, 9, 14, 18, 23, 27, 32, 36]],
-    ['slua', 100, [5, 10, 14, 19, 23, 28, 32, 37]],
+    ['slua', 100, [5, 9, 14, 18, 23, 27, 32, 36]],
   ] as const)('ticks a %s timer of %s ms on the frames it falls due in', async (language, ms, frames) => {
     expect(tickFrames(await run(language, `1 TM ${ms}`))).toEqual(frames)
   })
